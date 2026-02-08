@@ -1,0 +1,238 @@
+<div>
+
+
+
+     <div class="club_docs_all">
+
+      <h2>Membership Payments</h2>
+
+      <div class="center_if_large">
+
+
+
+
+             <div class="form-group">
+
+                <div class="checkbox">
+                 
+
+                    <div class="cards2" ng-if="vm.membership_now.club_stripe_id">
+                        
+                       <div ng-if="vm.membership_now.cards.length > 0 && vm.membership_now.default_payment_method == 'stripe'">
+                          <label >
+                            <input type="checkbox" ng-model="vm.auto_renew" ng-checked="vm.auto_renew == 1" ng-click="update_it()" />
+                             I wish my subscription to be automatically renewed using the card below on {{ vm.membership_now.membership_ends | date:"dd/MM/yyyy" }}. 
+                          </label>
+                          <br /><br />
+                        </div>
+
+                        <table ng-if="vm.membership_now.cards.length > 0">
+                          <tr>
+                            <th>Brand</th>
+                            <th>Last 4</th>
+                            <th>Expires</th>
+                            <th>Is Default?</th>
+                            <th>Functions</th>
+                          </tr>
+                          
+                          <tr ng-repeat="card in vm.membership_now.cards">
+                            <td>{{ card.brand }}</td>
+                            <td>***{{ card.last4 }}</td>
+                            <td>{{ card.exp_month }} / {{ card.exp_year }}</td>
+                            <td><span ng-if="card.stripe_id == vm.membership_now.default_card">YES</span><span ng-if="card.stripe_id !== vm.membership_now.default_card" ng-click="make_default_card(card)">make default</span></td>
+                            <td><a ng-click="delete_member_card(card)"><i class="fa fa-trash-alt list_icons"></i></a></td>
+                          </tr>
+                        </table>
+
+                       <!--  <br />
+                        <button type="button" ng-click="add_card()" class="btn btn-info">ADD A CARD</button>
+                     -->
+                        <br />
+                      <div ng-if="vm.membership_now.cards.length == 0 || vm.membership_now.cards.length < 5">
+                          <button type="button" ng-click="add_card()" class="btn btn-info">ADD A CREDIT OR DEBIT CARD</button>
+                      </div>
+
+                      <br />
+                      <br />
+                      <div ng-if="vm.membership_now.cards.length > 0 && vm.membership_now.default_payment_method !== 'stripe'">
+                          <button type="button" ng-click="set_default_payment_method('stripe')" class="btn btn-danger">SET STRIPE AS DEFAULT PAYMENT METHOD</button>
+                      </div>
+                    <small ng-if="vm.membership_now.default_payment_method == 'stripe'">Stripe card payment is the default payment option</small>
+
+
+                    <button type="button" class="btn btn-info" ng-click="vm.try_charge_default_card()">test</button>
+
+                    </div>
+                </div>
+
+
+
+                <div class="cards2">
+                    <div ng-if="vm.membership_now.default_payment_method == 'gocardless'">
+                    <label>
+                       <input type="checkbox" ng-model="vm.auto_renew" ng-checked="vm.auto_renew == 1" ng-click="update_it()" />
+                       I wish my subscription to be automatically renewed using the direct debit below on {{ vm.membership_now.membership_ends | date:"dd/MM/yyyy" }}.</label>
+                       <br /><br />
+                     </div>
+
+                       <div ng-if="vm.membership_now.account_ending && vm.membership_now.account_ending !== ''">
+                        <br />
+                        <span class="bold">Account Name:</span>{{ vm.membership_now.account_name }}
+                        <br />
+                        <span class="bold">Bank:</span>{{ vm.membership_now.account_bank }}
+                        <br />
+                        <span class="bold">Account:</span>****{{ vm.membership_now.account_ending }}
+                        <br />
+                        <span class="bold">Reference:</span>{{ vm.membership_now.mandate_reference }}
+                        <br />
+
+                        <br />
+                        <button type="button" ng-click="vm.change_direct_debit()" class="btn btn-info">UPDATE DIRECT DEBIT</button>
+                      </div>
+
+                      <div class="cards2" ng-if="vm.membership_now.account_ending == ''">
+                        <p> Please add a payment method for the club</p>
+                        <br />
+
+                        <br />
+<!--                         <button type="button" ng-click="vm.change_direct_debit()" class="btn btn-info">ADD DIRECT DEBIT</button>
+ -->                        <br />
+                        <button type="button" ng-click="vm.change_direct_debit()" class="btn btn-info">ADD DIRECT DEBIT</button>
+                       </div>
+
+                    
+                    <br />
+                    <br />
+                    <div ng-if="vm.membership_now.default_payment_method !== 'gocardless'">
+                        <button type="button" ng-click="set_default_payment_method('gocardless')" class="btn btn-danger">SET GOCARDLESS AS DEFAULT PAYMENT METHOD</button>
+                    </div>
+                     <br />
+                      <br />
+                                        <small ng-if="vm.membership_now.default_payment_method == 'gocardless'">GoCardless direct debit is the default payment option</small>
+
+                </div>
+            </div>
+          </div>
+        </div>
+
+
+      <div class="club_docs_all">
+
+        <h2>Membership Terms</h2>
+
+        <div class="center_if_large">
+
+
+                      <div class="card">
+                         <table class="middle_vertical">
+                            <tr>
+                              <th>
+                                Terms
+                              </th>
+                              <th>
+                                Updated
+                              </th>
+                              <th>
+                                Document
+                              </th>
+                            </tr>
+                            <tr>
+                              <td>
+                                  Membership Terms
+                              </td>
+                              <td>
+                                {{ vm.membership_now.membership_updated | asDate | date:"dd MMM yyyy HH:mm" }}
+                              </td>
+                              <td>
+                                <div class="thumbnail2" ng-click="downloadClubDocument(vm.membership_now.membership_terms)">
+                                      <img src="{{get_icon(vm.membership_now.membership_terms)}}" />
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                  Privacy Terms
+                              </td>
+                              <td>
+                                {{ vm.membership_now.privacy_updated | asDate | date:"dd MMM yyyy HH:mm" }}
+                              </td>
+                              <td>
+                                <div class="thumbnail2" ng-click="downloadClubDocument(vm.membership_now.privacy_terms)">
+                                      <img src="{{get_icon(vm.membership_now.privacy_terms)}}" />
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                  Passenger Terms
+                              </td>
+                              <td>
+                                {{ vm.membership_now.passenger_updated | asDate | date:"dd MMM yyyy HH:mm" }}
+                              </td>
+                              <td>
+                                <div class="thumbnail2" ng-click="downloadClubDocument(vm.membership_now.passenger_terms)">
+                                      <img src="{{get_icon(vm.membership_now.passenger_terms)}}" />
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+
+
+
+                      </div>
+
+
+        </div>
+      </div>
+
+  
+      <br /><br />
+        <div class="btns_bottom">
+
+          <button type="button" ui-sref="dashboard.my_account.memberships" class="btn btn-danger">BACK</button>
+          <button type="button" ng-click="update_it()" class="btn btn-info">UPDATE</button>
+        </div>
+      <br /><br />
+  </form>
+
+
+</div>
+
+
+
+<div ng-if="vm.show_add_card" class="positioning-container">
+  <div class="centre_password3">
+    <h4>ADD CARD</h4>
+    
+   <!--  <div id="checkout">
+    Checkout will insert the payment form here
+    </div> -->
+
+
+    <form id="payment-form">
+      <div id="payment-element">
+        <!-- Elements will create form elements here -->
+      </div>
+      <button class="btn btn-danger" ng-click="vm.show_add_card = false;">CLOSE</button>
+      <button class="btn btn-primary confirm_btn" id="submit">ADD CARD</button>
+
+
+
+      <div id="error-message">
+        <!-- Display error message to your customers here -->
+      </div>
+      
+      <img class="powered_by_stripe" src="images/stripe_blurple.svg">
+    </form>
+       
+
+   <!--  <br />
+    <br />
+    <a class="btn btn-primary confirm_btn" ng-click="save_added_card()">ADD CARD</a> -->
+  </div>
+                            
+
+</div>
+
+
+

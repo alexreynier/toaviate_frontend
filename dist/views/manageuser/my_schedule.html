@@ -1,0 +1,354 @@
+
+<br />
+
+<div ng-if="vm.bookings.length == 0">
+    <h5>You have no new bookings to approve...</h5>
+</div>
+       
+
+<div ng-if="vm.bookings.length > 0">
+    <h5>Bookings To Approve</h5>
+
+
+
+    <table>
+        <tr>
+            <td>
+                BOOKING DETAILS
+            </td>
+            <td>
+                OPTIONS
+            </td>
+        </tr>
+        <tr ng-repeat="booking in vm.bookings">
+            <td>
+                {{ booking.registration }} - {{ booking.plane_type }}
+                <br />
+                {{ booking.start | asDate | date:"dd/MM/yyyy HH:mm"}} to {{ booking.end | asDate | date:"dd/MM/yyyy HH:mm" : "UTC" }}
+                <br />
+                With {{ booking.first_name }} {{ booking.last_name }}
+                <br />
+                Contact: {{ booking.phone_number }} | {{ booking.email }}
+            </td>
+            <td>
+                <input type="button" class="btn btn-primary" ng-click="approve_booking(booking.id)" value="APPROVE" />
+                <input type="button" class="btn btn-danger" ng-click="decline_booking(booking.id)" value="DECLINE" />
+                <input type="button" class="btn btn-warning" ng-click="view_booking(booking.id, booking.start)" value="VIEW" />
+            </td>
+        </tr>
+    </table>
+    <!-- vm.default_date //-->
+
+       
+
+</div>
+
+
+
+
+
+
+<script>
+
+    var all_resources, all_events, calView;
+
+      var calView = $('#calendar').fullCalendar('getView');
+            function collapseLocations() {
+                for (x = 0; x < calView.rowHierarchy.children.length; x++) {
+                    thisRow = calView.rowHierarchy.children[x];
+                    if (thisRow.groupValue != 'Resource A') {
+                        thisRow.collapse();
+                    }
+                }
+            }
+    
+    //below is the update of the field...
+    angular.element(document.getElementById('calendar')).scope().$watch('vm.default_date', function(newValue, oldValue) {
+        console.log("DATE CHANGE", newValue);
+        //angular.element(document.getElementById('calendar')).scope().all_resources
+        date = newValue;
+        console.log("now", newValue);
+
+        $("#calendar").fullCalendar("gotoDate", newValue);
+
+        setTimeout(function(){
+                collapseLocations();
+        }, 100);
+
+    }, true);
+
+
+    $(function() { // document ready
+
+        all_resources = angular.element(document.getElementById('calendar')).scope().all_resources;
+        all_events = angular.element(document.getElementById('calendar')).scope().all_events;
+
+        $('#calendar').fullCalendar({
+            theme: true,
+            now: new Date(),
+            editable: true, // enable draggable events
+            aspectRatio: 1.8,
+            scrollTime: '07:00', // undo default 6am scrollTime
+            header: {
+                left: 'today prev,next',
+                center: 'title',
+                right: 'timelineDay,timelineThreeDays,timelineSevenDays,month'
+            },
+            defaultView: 'timelineDay',
+            views: {
+                timelineThreeDays: {
+                    type: 'timeline',
+                    duration: { days: 3 },
+                    timeFormat: "HH:mm",
+                    dateFormat: "DD mm YYYY",
+                    headerFormats: "HH:mm",
+                    slotLabelFormat: ["dddd D MMMM YYYY", "HH:mm"], 
+                    eventOrder: ["order","title"]
+                },
+                timelineSevenDays: {
+                    type: 'timeline',
+                    duration: { days: 7 },
+                    timeFormat: "H:mm",
+                    slotLabelFormat: ["dddd D MMMM YYYY", "HH:mm"]
+                }
+            },
+            firstDay: 1,
+            resourceOrder: 'rOrder',
+            resourceLabelText: 'Planes',
+            resourceColumns: [
+                {
+                    labelText: 'Registration',
+                    field: 'title'
+                },
+                {
+                    labelText: 'Type',
+                    field: 'plane_type'
+                }
+            ]
+            ,
+            resourceRender: function(resourceObj, labelTds, bodyTds) {
+              //  labelTds.css('background', 'blue');
+              if(resourceObj.waiting == 1){
+                  console.log("RESOURCE OBJ", resourceObj.waiting);
+                  labelTds.addClass("waiting_list");
+                  bodyTds.addClass("waiting_list");
+              }
+            },
+            resources: function(callback) {
+                        var one = angular.element(document.getElementById('calendar')).scope().all_resources;
+                        if(one){
+                            callback(one);
+                        } else {
+                            angular.element(document.getElementById('calendar')).scope().$watch('all_resources', function(newValue, oldValue) {
+                                console.log("RESOURCES", newValue);
+                                $('#calendar').fullCalendar('removeEventSources');
+                                
+
+                                all_resources = newValue;
+                                all_events = angular.element(document.getElementById('calendar')).scope().all_events;
+                                console.log("now", newValue);
+                                callback(newValue);
+                            }, true);
+                        }
+
+                        
+             },
+            events: function(start, end, timezone, callback) {
+                setTimeout(function(){
+                    console.log("start", start);
+                    console.log("end", end);
+                    var events = angular.element(document.getElementById('calendar')).scope().updateEvents(moment(start).format("Y-M-D"), (end) ? moment(end).format("Y-M-D") : "");
+                    callback(events);
+                }, 1000);
+            },
+            eventSources: all_events,
+            timeFormat: 'HH:mm',
+            titleFormat: 'D MMM YYYY',
+            dateFormat: "DD mm YYYY",
+            headerFormats: "HH:mm",
+            slotDuration: '00:30', 
+            eventOverlap: false,
+             nowIndicator: true,
+            businessHours: {
+                dow: [0,1,2,3,4,5,6],
+                start: '07:00',
+                end: '21:00'
+            },
+            eventClick: function(calEvent, jsEvent, view){
+                angular.element(document.getElementById('calendar')).scope().alertOnClicked(calEvent, jsEvent, view);
+            },
+            eventResize: function(event, delta, revertFunc, jsEvent, ui, view ) {
+                angular.element(document.getElementById('calendar')).scope().alertOnResize(event, delta, revertFunc, jsEvent, ui, view);
+            },
+            eventDrop: function(event, delta, revertFunc, jsEvent, ui, view){
+                angular.element(document.getElementById('calendar')).scope().alertOnDrop(event, delta, revertFunc, jsEvent, ui, view);
+            },
+            eventAfterAllRender: function(view){
+                calView = view;
+                collapseLocations();
+            }
+
+            //$scope.alertOnResize = function(event, delta, revertFunc, jsEvent, ui, view )        
+            //$scope.alertOnDrop = function(event, delta, revertFunc, jsEvent, ui, view)
+        });
+        
+        
+        angular.element(document.getElementById('calendar')).scope().$watch('all_events', function(newValue, oldValue) {
+            console.log("UPDATED", angular.element(document.getElementById('calendar')).scope().all_events);
+            all_events = newValue;
+            $('#calendar').fullCalendar('removeEvents');
+            $('#calendar').fullCalendar('removeEventSources');
+            $('#calendar').fullCalendar('addEventSource', all_events);
+        }, true);
+
+
+          
+            setTimeout(function(){
+                collapseLocations();
+            }, 500);
+
+
+
+
+
+
+    });
+
+</script>
+
+<style>
+
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Lucida Grande",Helvetica,Arial,Verdana,sans-serif;
+        font-size: 14px;
+    }
+
+    #calendar {
+        max-width: 900px;
+        margin: 50px auto;
+    }
+
+</style>
+
+<div>
+    <h3>My Schedule</h3>
+    <div id='calendar'></div>
+</div>
+
+
+
+<br />
+<br />
+
+
+<!-- public bits //-->
+<div class="overlay_information" ng-if="vm.see_booking.visible">
+    <span>title:</span> {{ vm.see_booking.title }}
+    <br />
+    <span>Plane:</span> {{ vm.see_booking.plane.registration }}
+    <br />
+    <span>From:</span> {{ vm.see_booking.start_datetime | asDate | date:"dd/MM/yyyy HH:mm" : "UTC"}}
+    <br />
+    <span>To:</span> {{ vm.see_booking.end_datetime | asDate | date:'dd/MM/yyyy HH:mm' : "UTC" }}
+    <br />
+    <span>Instructor:</span> {{ vm.see_booking.instructor.display_name }}
+    <br />
+    <span>Tuition:</span> {{ vm.see_booking.tuition_required.title }}
+    <br />
+    <span>Free places:</span> {{ vm.see_booking.free_seats }}
+    <br />
+    <span>Notes:</span> {{ vm.see_booking.description }}
+    <br />
+    <div ng-if="vm.see_booking.passengers.length > 0">
+
+        <span>Passengers:</span>
+        <table>
+            <tr class="table_header">
+                <td>
+                    Passenger
+                </td>
+                <td>
+                    Status
+                </td>               
+            </tr>
+            <tr ng-repeat="pax in vm.see_booking.passengers">
+                <td>{{ pax.first_name }} {{ pax.last_name }}<br />{{ pax.email }}</td>
+                <td>{{ pax.status }}</td>
+            </tr>
+        </table>
+
+    </div>
+
+    <br />
+
+    <div ng-if="vm.see_booking.rental_items.length > 0">
+
+        <span>Additional Items:</span>
+        <table>
+            <tr class="table_header">
+                <td>
+                    Name
+                </td>
+                <td>
+                    Description
+                </td>
+                <td>
+                    Number of Items
+                </td>
+                <td>
+                    Expiry
+                </td>
+               
+            </tr>
+            <tr ng-repeat="item in vm.see_booking.rental_items">
+                <td>{{ item.title }}</td>
+                <td>{{ item.description }}</td>
+                <td>
+                    {{item.number_to_book}}
+                   <!--  <select class="form-control" ng-model="vm.new_booking.rental_items[$index].number_to_book" ng-init="vm.new_booking.rental_items[$index].number_to_book = 1" ng-options="n for n in [] | range:1:(item.number_available - item.bookings)"></select> -->
+                 </td>
+                <td>{{ item.expiry }}</td>
+            </tr>
+        </table>
+
+    </div>
+
+    <div ng-if="vm.see_booking.editable && !vm.see_booking.can_be_edited">
+        <button class="btn btn-danger" ng-click="cancel_booking(vm.see_booking.id)" >Cancel Booking</button>
+        <button class="btn btn-primary" ui-sref="dashboard.bookings.edit({booking_id: vm.see_booking.id})">Edit Booking</button>
+    </div>
+
+
+
+</div>
+
+
+
+<div>
+    <div ng-repeat="error in vm.booking_errors" style="border-bottom: 2px solid #ccc;">
+
+        <h3> Type of Error: {{ error.type }} </h3>
+        <br />
+
+        {{ error.message }}
+
+        <div ng-if="error.type == 'rental_items'">
+            <span ng-repeat="rental in error.api">
+            {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.</b>
+            </span>
+
+        </div>
+
+        <br />
+        <br />
+
+        <br /><br />
+
+        <button ng-click="decline_booking_change()" class="btn btn-warning">Cancel Change</button>
+        <button ng-click="override_booking_change(error.override)" class="btn btn-primary" ng-click="">Confirm Changes</button>
+
+    </div>
+</div>
+

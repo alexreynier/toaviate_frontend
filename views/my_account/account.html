@@ -1,0 +1,198 @@
+<div class="centre_align_boxes2">
+
+
+    <div class="home_upper">
+        <div class="back-box" ui-sref="dashboard.my_account">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+
+        <div class="welcome_title">
+          <h2>My Details</h2> 
+          <h4 class="capitalise">
+            Here you can manage your personal information
+          </h4>
+          <!-- {{ vm.welcome_message }} -->
+      </div>
+    </div>
+
+    <form name="user" ng-submit="save_user(user.$valid)">
+
+
+    <div class="form-group fgtwo">
+          
+        <label for="first_name">Upload Your Picture</label>
+
+
+        <div flow-init
+           flow-files-submitted="$flow.upload()"
+           flow-file-success="$file.file_return = $message"
+           flow-complete="processFiles($flow.files)"
+           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]"
+           class="avatar_area"
+           >
+            <div class="drop avatar_drop" flow-btn flow-drop ng-class="dropClass">                  
+                <div class="cover_avatar" ng-if="vm.user.avatar.length > 0">
+                    <img ng-src="{{ vm.user.avatar }}" class="avatar">
+                </div>
+
+                <div ng-if="!vm.user.avatar" class="avatar_upload_text">
+                    Click To Upload 
+                    <br />OR<br /> 
+                    Drag And Drop
+                    <br /> 
+                    Your Profile Picture
+                </div>
+            </div>
+        </div>
+
+
+      </div>
+
+      <div class="form-group fgtwo">
+          <label for="first_name">First Name</label>
+          <input type="text" class="form-control" name="first_name" ng-model="vm.user.first_name" disabled>
+      </div>
+
+      <div class="form-group fgtwo">
+          <label for="last_name">Last Name</label>
+          <input type="text" class="form-control" name="last_name" ng-model="vm.user.last_name" disabled>
+      </div>
+
+      <div class="form-group fgtwo">
+          <label for="email">Email Address</label>
+          <input type="email" class="form-control" name="email" ng-model="vm.user.email" disabled>
+      </div>
+
+      <div class="form-group fgtwo">
+          <label for="dob">Date of Birth</label>
+          <input type="date" class="form-control" name="dob" ng-model="vm.user.dob" >
+      </div>
+
+      <div class="form-group fgtwo">
+            <label for="phone_number">Mobile Number</label>
+            <input type="tel" class="form-control mobile_number" name="phone_number" id="phone_number" ng-model="vm.user.phone_number" intl-tel-input required />
+      </div>
+
+      <!-- VERIFICATION OF PHONE NUMBER //-->
+      <!--    <div class="form-group fgtwo" ng-if="vm.user.phone_updated">
+            <label for="phone_number">Verify Mobile Number</label>
+            <button type="button" class="btn btn-info" ng-click="send_verification_text()">Send Verification Text</button>
+      </div>
+      <div class="form-group" ng-if="vm.user.phone_verification_sent">
+            <label for="phone_number">Verify Mobile Number</label>    
+            <input type="number" class="form-control" ng_model="vm.user.phone_number_verification" max="4" />
+            <button type="button" class="btn btn-info" ng-click="send_verification_text()">Resend Send Verification Text</button>
+      </div> -->
+
+      <!-- ADD / UPDATE EMAIL ADDRESSES AND THEIR VERIFICATION //-->
+
+<!--       <hr  ng-if="vm.show_search" />
+ -->
+
+
+
+
+      <div class="form-group fgtwo" ng-if="vm.show_search">
+          <label>Home Postcode</label>
+          <input type="text" ng-model="vm.postcode" class="form-control inline halfwidth" data-stripe="address_zip">
+          <button type="button" class="btn btn-info del_btn" ng-click="get_addresses()">SEARCH</button>
+         <!--  <button type="button" class="btn btn-danger" ng-click="show_form()">NOT LISTED</button> -->
+      </div>
+
+      <div class="form-group fgtwo" ng-if="vm.show_addresses">
+          <label>Home Address</label>
+          <ui-select ng-model="vm.address" theme="bootstrap" ng-change="set_address()" style="min-width: 500px;" title="What is your home address?" append-to-body="true" placeholder="Please select your home address..." required>
+            <ui-select-match placeholder="Please select your home address...">
+              {{ vm.address.line1 || "Please select your home address..." }}
+            </ui-select-match>
+            <ui-select-choices repeat="address in vm.addresses | propsFilter: {line1: $select.search, id: $select.search, line2: $select.search, city: $select.search}">
+              <div ng-bind-html="address.line1 | highlight: $select.search"></div>
+               <small>
+                  <span ng-bind-html="address.line2 | highlight: $select.search"></span>
+                  <span ng-bind-html="address.line3 | highlight: $select.search"></span>
+                  <span ng-bind-html="address.line4 | highlight: $select.search"></span>
+                  <span ng-bind-html="address.locality | highlight: $select.search"></span>
+                  <span ng-bind-html="address.city | highlight: $select.search"></span>
+                  <span ng-bind-html="address.postcode | highlight: $select.search"></span>
+              </small>
+            </ui-select-choices>
+          </ui-select>   
+
+
+        </div>
+      
+        <div ng-if="vm.show_address">
+        <div class="form-group fgtwo">
+          <label for="line1">Line 1</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_line1">
+        </div>
+        <div class="form-group fgtwo">
+          <label for="line2">Line 2</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_line2">
+        </div>
+        <div class="form-group fgtwo">
+          <label for="line3" ng-if="vm.user.address_line2" >Line 3</label>
+          <input type="text" class="form-control" ng-if="vm.user.address_line2" ng-model="vm.user.address_line3">
+        </div>
+        <div class="form-group fgtwo">
+          <label for="line4" ng-if="vm.user.address_line3">Line 4</label>
+          <input type="text" class="form-control"  ng-if="vm.user.address_line3" ng-model="vm.user.address_line4">
+        </div>
+        <div class="form-group fgtwo">
+          <label for="address_city">Town / City</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_city">
+
+        </div>
+        <div class="form-group fgtwo">
+
+          <label for="address_locality">County</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_county">
+
+        </div>
+        <div class="form-group fgtwo">
+
+          <label for="address_postcode">Postcode</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_postcode">
+
+        </div>
+        <div class="form-group fgtwo">
+
+          <label for="address_country">Country</label>
+          <input type="text" class="form-control" ng-model="vm.user.address_country">
+
+        </div>
+      </div>
+
+      <input type="hidden" class="form-control" ng-model="vm.user.address_locality">
+
+      <div class="update_password">
+        <div class="form-group fgtwo">
+            <label for="new_password">Update Password</label>
+            <input type="password" class="form-control" name="new_password" ng-model="vm.user.new_password" >
+        </div>
+
+        <div class="form-group fgtwo">
+            <label for="new_password2">Repeat Updated Password</label>
+            <input type="password" class="form-control" name="new_password2" ng-model="vm.user.new_password2" >
+        </div>
+      </div>
+
+      <div class="save_changes">
+        <div class="form-group fgtwo" ng-if="!vm.user.confirmed_password">
+          <label class="long_one" for="password">Enter current password to save changes</label>
+          <input type="password" class="form-control long_one" name="password" ng-model="vm.user.password" required />
+        </div>
+
+      <div class="btns_bottom">
+
+        <button type="button" ui-sref="dashboard.my_account" class="btn btn-danger bottom_btn">CANCEL CHANGES</button>
+
+        <button type="submit" class="btn btn-info bottom_btn">SAVE MY DETAILS</button>
+      </div>
+      </div>
+
+
+  </form>
+
+
+</div>

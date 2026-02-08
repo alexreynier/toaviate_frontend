@@ -1,0 +1,164 @@
+
+<div class="centre_align_boxes2">
+
+    <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+              <i class="fa fa-arrow-circle-left"></i> BACK
+            </div>
+          <div class="welcome_title">
+            <h2>Vouchers</h2> 
+            <h4 class="capitalise">
+              Manage air experiences
+            </h4>
+          </div>
+    </div>
+
+    <div class="center_if_large club_docs bookingout_wrapper">
+
+      <form>
+
+        <div class="form-group">
+          <label for="payment_term">Select Experience</label>
+          <ui-select ng-model="vm.club.item.experience" theme="bootstrap" ng-change="update_experience()" ng-disabled="vm.show_paid" style="min-width: 500px;" title="Plane" append-to-body="true">
+            <ui-select-match placeholder="Please select a experience">
+              {{ vm.club.item.experience.title }}
+            </ui-select-match>
+            <ui-select-choices repeat="experience in vm.experiences | propsFilter: {title: $select.search, description: $select.search, id: $select.search}">
+              <div ng-bind-html="experience.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+      
+
+        <div class="form-group">
+          <label for="first_name">First Name</label>
+          <input type="text" class="form-control inputtext" name="first_name" id="first_name" ng-model="vm.club.item.first_name" />
+        </div>
+
+
+        <div class="form-group">
+          <label for="last_name">Last Name</label>
+          <input type="text" class="form-control inputtext" name="last_name" id="last_name" ng-model="vm.club.item.last_name" />
+        </div>
+
+
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" class="form-control inputtext" name="email" id="email" ng-model="vm.club.item.email" />
+        </div>
+
+       <!--  <br />
+
+        <label for="price">Price (change to override)</label>
+        <input type="number" class="form-control" name="price" id="price" ng-model="vm.club.item.price" />
+     -->
+
+        <div class="form-group">
+          <label for="payment_term">Select Discount (if applicable)</label>
+          <ui-select ng-model="vm.club.item.discount" theme="bootstrap" ng-change="update_discount()" ng-disabled="vm.show_paid" style="min-width: 500px;" title="Plane" append-to-body="true">
+            <ui-select-match placeholder="Please select a discount" allow-clear="true">
+              {{ vm.club.item.discount.discount_code }}
+            </ui-select-match>
+            <ui-select-choices repeat="discount in vm.discounts | propsFilter: {discount_code: $select.search, id: $select.search}">
+              <div ng-bind-html="discount.discount_code | highlight: $select.search"></div>
+              <div>{{ (discount.discount_type == '1')? '£'+discount.price+' (fixed price)' : discount.percentage+'% off' }}</div>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+
+        <div class="form-group">
+          <label for="code">Voucher Code</label>
+          <input type="text" class="form-control inputtext" name="code" ng-change="check_code()" id="code" ng-model="vm.club.item.code" ng-disabled="vm.show_paid" />
+        </div>
+
+        <div class="form-group">
+          <label for="expiry_date">Expiry Date</label>
+          <input type="date" class="form-control inputtext" name="expiry_date" id="expiry_date" ng-model="vm.club.item.expiry_date" />
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Notes for Voucher</label>
+          <input type="text" class="form-control inputtext" name="notes" id="notes" ng-model="vm.club.item.notes" />
+        </div>
+
+
+        <div ng-if="!vm.show_paid">
+
+          <div class="form-group">
+            <label for="requires_payment">Already Paid</label>
+            <input type="checkbox" class="form-control inputtext" name="already_paid" id="already_paid" ng-model="vm.already_paid" />
+          </div>
+
+
+          <div class="form-group" ng-if="vm.already_paid">
+            <label for="price_paid">Price Paid</label>
+            <input type="number" class="form-control inputtext" name="price_paid" id="price_paid" ng-model="vm.club.item.price_paid"  />
+          </div>
+
+
+          <div class="form-group" ng-if="vm.already_paid">
+            <label for="payment_method">Payment Method</label>
+            <input type="text" class="form-control inputtext" name="payment_method" id="payment_method" ng-model="vm.club.item.payment_method"  />
+          </div>
+          
+          <div ng-if="!vm.club.item.price || vm.club.item.price == 0">
+              <h4> There is no payment required for £0! </h4>
+          </div>
+
+          <div ng-show="!vm.already_paid && vm.club.item.price > 0" id="payment-form2">
+            <h4>Payment Information</h4>
+                <h4>Paying the sum of : £{{ vm.club.item.price }}</h4>
+                <div class="form-row">
+                <div class="group">
+                  <label for="card-element">
+                      Credit or debit card
+                      <div id="card-element" class="field">
+                      </div>
+                  </label>
+                </div>
+
+                <div class="group">
+                  <label>
+                    <span>Name on Card</span>
+                    <input id="name" name="name" class="field" placeholder="" required />
+                  </label>
+                </div>
+                
+                <div class="group">
+                  <label>
+                    <span>Billing Postcode</span>
+                    <input id="address-postcode" name="address_postcode" class="field" placeholder="" required />
+                  </label>
+                </div>
+
+                <div id="card-errors" role="alert"></div>
+              </div>
+          </div>
+
+       
+       
+        </div>
+
+        <div class="card" ng-if="vm.show_paid">
+            <h3>Paid</h3>
+            <b>Amount Paid: </b>£{{ vm.club.item.payment.amount }}<br />
+            <b>Amount Refunded: </b>{{ vm.club.item.payment.amount_refunded }}<br />
+            <b>Date Paid: </b>{{ vm.club.item.payment.created_at }}<br />
+            <b>Payment Method: </b>{{ vm.club.item.payment.payment_method }}<br />
+            {{ (vm.club.item.payment.payment_method == 'Stripe')? 'Card Ending: '+vm.club.item.payment.last4 : '' }} 
+            <br />
+            <button class="btn btn-primary">View Invoice</button>
+        </div>
+
+
+
+        <div class="card extra_space_top btns_bottom">                 
+
+            <button class="btn btn-info" ng-click="back()">Back</button>
+            <button class="btn btn-danger" ng-click="save()" ng-if="!vm.show_paid">GENERATE VOUCHER<span ng-if="!vm.already_paid && vm.club.item.price > 0"> AND PAY £{{ vm.club.item.price }}</span></button>
+            <button ng-if="vm.show_paid" class="btn btn-danger" ng-click="cancel()">CANCEL &amp; REFUND</button>
+        </div>
+
+    </form>
+  </div>
+</div>

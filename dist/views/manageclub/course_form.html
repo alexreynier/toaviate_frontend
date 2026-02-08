@@ -1,0 +1,278 @@
+<div class="centre_align_boxes2">
+
+    <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.manage_club.courses">
+              <i class="fa fa-arrow-circle-left"></i> BACK
+            </div>
+          <div class="welcome_title">
+            <h2>COURSES</h2> 
+            <h4 class="capitalise">
+              Manage your courses
+            </h4>
+          </div>
+    </div>
+
+    <div class="center_if_large club_docs bookingout_wrapper">
+
+      <form>
+
+
+      <div class="club_docs_all">
+        <h2>Course Details</h2>
+
+        <div class="form-group">
+          <label for="title">Title</label>
+          <input type="text" class="form-control inputtext" name="title" id="title" ng-model="vm.club.course.title" />
+        </div>
+         <div class="form-group">
+          <label for="description">Description</label>
+          <input type="text" class="form-control inputtext" name="description" id="description" ng-model="vm.club.course.description" />
+        </div>
+
+<!--         OPEN TO JOIN?
+ -->
+      </div>
+
+
+      <div class="club_docs_all" ng-if="vm.edit_course">
+        <h2>Lessons</h2>
+
+        <button class="btn btn-info club_add_button" ui-sref="dashboard.manage_club.add_lesson({course_id: vm.club.course.id, action: 'add'})">Add New Lesson</button>
+            <div class="card" ng-if="vm.club.lessons.length == 0">
+              You don't have any lessons yet, please create one.
+            </div>
+
+            <div class="card" ng-if="vm.club.lessons.length > 0">
+                <table>
+                    <tr>
+                        <th>Lesson</th>
+                        <th>Title</th>
+                        <th>Functions</th>
+                    </tr>
+                    <tbody dnd-list="vm.club.lessons">
+                      <tr ng-repeat="lesson in vm.club.lessons" dnd-draggable="lesson" dnd-moved="vm.club.lessons.splice($index, 1);save_lesson_order()">
+                        <td>{{ $index }}</td>
+                          <td>{{ lesson.title }}</td>
+                          <td>
+                            <a ui-sref="dashboard.manage_club.edit_lesson({lesson_id: lesson.id, course_id: vm.club.course.id, action: 'edit'})" uib-tooltip="Manage"><i class="fa fa-edit list_icons"></i></a> &nbsp; <a ng-click="vm.delete_lesson(lesson.id, index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
+                          </td>
+                      </tr>
+                       <tr class="dndPlaceholder background_content_dnd">
+                        <td colspan="3">
+                          Drop Here
+                        </td>
+                      </tr>
+                    </tbody>
+
+                </table>
+
+            </div>
+
+
+      </div>
+
+      <div class="club_docs_all" ng-if="vm.edit_course">
+        <h2>Written Exams</h2>
+
+          <div class="card" ng-if="vm.exams.length == 0">
+              You don't have any exams yet, please add one.
+            </div>
+
+            <div class="card" ng-if="vm.exams.length > 0">
+                <table>
+                    <tr>
+                        <th>Exam Name</th>
+                       
+                        <th>Description</th>
+
+                        <th>Functions</th>
+                    </tr>
+
+                      <tr ng-repeat="exam in vm.exams">
+                          <td>
+                            <span ng-if="!exam.edit_me">{{ exam.title }}</span> 
+                            <input ng-if="exam.edit_me" type="text" class="form-control inputtext" name="title" id="title" ng-model="exam.title" />
+                          </td>
+                          <td>
+                            <span ng-if="!exam.edit_me">{{ exam.description }}</span> 
+                            <input ng-if="exam.edit_me" type="text" class="form-control inputtext" name="description" id="description" ng-model="exam.description" />
+                          </td>
+                          <td>
+                            <a ng-if="!exam.edit_me" ng-click="vm.edit_exam($index)" uib-tooltip="Edit"><i class="fa fa-edit list_icons"></i></a> 
+                            &nbsp; 
+                            <a ng-if="!exam.edit_me" ng-click="vm.delete_exam(exam, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
+                            <a ng-if="exam.edit_me" class="btn btn-danger" ng-click="vm.update_cancel($index)">CANCEL</a>                        
+                            <a ng-if="exam.edit_me" class="btn btn-primary" ng-click="vm.update_exam(exam, $index)">SAVE</a>                        
+                          </td>
+                      </tr>
+                      
+                    
+                </table>
+
+            </div>
+
+              <div class="card">
+                <table>
+                    <tr>
+                        <th>Exam Name</th>
+                        <th>Description</th>
+                        <th>Functions</th>
+                    </tr>
+                    <tr>
+                        <td><input type="text" class="form-control inputtext" name="title" id="title" ng-model="vm.new_exam.title" /></td>
+                        <td><input type="text" class="form-control inputtext" name="description" id="description" ng-model="vm.new_exam.description" /></td>
+                        <td><a class="btn btn-primary" ng-click="vm.add_exam()" uib-tooltip="Add a new written exam">ADD EXAM</a></td>
+                    </tr>
+                  </table>
+                </div>
+
+      </div>
+
+      <div class="club_docs_all" ng-if="vm.edit_course">
+        <h2>Instructor Charges</h2>
+
+          <div class="card" ng-if="vm.instructor_charges.length == 0">
+              You don't have any instructor charges for this course, please add at least one.
+            </div>
+
+            <div class="card" ng-if="vm.instructor_charges.length > 0">
+                <table>
+                    <tr>
+                        <th>Instruction Type</th>
+                        <th><span uib-tooltip="Brakes means that the instructor fee is calculated based on the aircraft's brakes times. Session means that the instructor will receive a flat fee for the session. Plane means that the units used to charge for the aircraft will be the same units to calculate instructor fee.">Charge Unit</span></th>
+                        <th>Price (per unit)</th>
+                        <th>Functions</th>
+                    </tr>
+
+                      <tr ng-repeat="charge in vm.instructor_charges">
+                          <td>
+                            <span ng-if="!charge.edit_me">{{ charge.title }}</span> 
+                            <input ng-if="charge.edit_me" type="text" class="form-control inputtext" name="title" id="title" ng-model="charge.title" />
+                          </td>
+                           <td>
+                            <span ng-if="!charge.edit_me">{{ charge.charge_type }}</span> 
+                            <select ng-if="charge.edit_me" ng-model="charge.charge_type" class="form-control">
+                                  <option ng-repeat="x in vm.charge_type">{{x}}</option>
+                            </select>
+                          </td>
+                          <td>
+                            <span ng-if="!charge.edit_me">{{ charge.price }}</span> 
+                            <input ng-if="charge.edit_me" type="number" class="form-control inputtext" name="price" id="price" ng-model="charge.price" />
+                          </td>
+                          <td>
+                            <a ng-if="!charge.edit_me" ng-click="vm.edit_charge($index)" uib-tooltip="Edit"><i class="fa fa-edit list_icons"></i></a> 
+                            &nbsp; 
+                            <a ng-if="!charge.edit_me" ng-click="vm.delete_charge(charge, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
+                            <a ng-if="charge.edit_me" class="btn btn-danger" ng-click="vm.update_cancel_charge($index)">CANCEL</a>                        
+                            <a ng-if="charge.edit_me" class="btn btn-primary" ng-click="vm.update_charge(charge, $index)">SAVE</a>                        
+                          </td>
+                      </tr>
+                      
+                    
+                </table>
+
+            </div>
+
+
+
+              <div class="card">
+                <table>
+                    <tr>
+                        <th>Instruction Type</th>
+                        <th><span uib-tooltip="Brakes means that the instructor fee is calculated based on the aircraft's brakes times. Session means that the instructor will receive a flat fee for the session. Plane means that the units used to charge for the aircraft will be the same units to calculate instructor fee.">Charge Unit</span></th>
+                        <th>Price (per unit)</th>
+                        <th>Functions</th>
+                    </tr>
+                    <tr>
+                        <td><input type="text" class="form-control inputtext" name="title" id="title" ng-model="vm.new_charge.title" /></td>
+                        <td><select ng-model="vm.new_charge.charge_type" class="form-control">
+                                  <option ng-repeat="x in vm.charge_type">{{x}}</option>
+                            </select></td>
+                        <td><input type="number" class="form-control inputtext" name="price" id="price" ng-model="vm.new_charge.price" /></td>
+                        <td><a class="btn btn-primary" ng-click="vm.add_charge()" uib-tooltip="Add a new instruction charge">ADD CHARGE</a></td>
+                    </tr>
+                  </table>
+                </div>
+
+      </div>
+
+
+      <div class="club_docs_all" ng-if="vm.edit_course">
+        <h2>Flight Time Tags</h2>
+
+          <div class="card" ng-if="vm.tags.length == 0">
+              You don't have any tags yet, these are tags that instructors can select for a particular flight.
+              <br /><br /> 
+              For example, if this course requires "navigation" hours to be counted separately from the course totals, create a tag called "navigation". The instructor will then be able to add this tag to any navigation flight(s), and a new total will appear in the student record.
+            </div>
+
+            <div class="card" ng-if="vm.tags.length > 0">
+                <table>
+                    <tr>
+                        <th>Flight Tag</th>
+                       
+                       <!--  <th>Description</th> -->
+
+                        <th>Functions</th>
+                    </tr>
+
+                      <tr ng-repeat="tag in vm.tags">
+                          <td>
+                            <span ng-if="!tag.edit_me">{{ tag.title }}</span> 
+                            <input ng-if="tag.edit_me" type="text" class="form-control inputtext" name="title" id="title" ng-model="tag.title" />
+                          </td>
+                         <!--  <td>
+                            <span ng-if="!exam.edit_me">{{ exam.description }}</span> 
+                            <input ng-if="exam.edit_me" type="text" class="form-control inputtext" name="description" id="description" ng-model="exam.description" />
+                          </td> -->
+                          <td>
+                            <a ng-if="!tag.edit_me" ng-click="vm.edit_tag($index)" uib-tooltip="Edit"><i class="fa fa-edit list_icons"></i></a> 
+                            &nbsp; 
+                            <a ng-if="!tag.edit_me" ng-click="vm.delete_tag(tag, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
+                            <a ng-if="tag.edit_me" class="btn btn-danger" ng-click="vm.update_cancel_tag($index)">CANCEL</a>                        
+                            <a ng-if="tag.edit_me" class="btn btn-primary" ng-click="vm.update_tag(tag, $index)">SAVE</a>                        
+                          </td>
+                      </tr>
+                      
+                    
+                </table>
+
+            </div>
+
+              <div class="card">
+                <table>
+                    <tr>
+                        <th>Flight Tag</th>
+                        <!-- <th>Description</th> -->
+                        <th>Functions</th>
+                    </tr>
+                    <tr>
+                        <td><input type="text" class="form-control inputtext" name="title" id="title" ng-model="vm.new_tag.title" /></td>
+                       <!--  <td><input type="text" class="form-control inputtext" name="description" id="description" ng-model="vm.new_tag.description" /></td> -->
+                        <td><a class="btn btn-primary" ng-click="vm.add_tag()" uib-tooltip="Add a new hour flight tag">ADD TAG</a></td>
+                    </tr>
+                  </table>
+                </div>
+
+      </div>
+
+
+
+
+
+          <div class="btns_bottom">
+            <button class="btn btn-info" ng-click="back()">Back</button>
+            <button class="btn btn-danger" ng-click="save()">Save</button>
+          </div>
+
+      </div>
+
+   
+
+
+
+       
+
+
+
+      </form>

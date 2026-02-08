@@ -1,0 +1,236 @@
+<div class="centre_align_boxes2">
+
+
+     <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+              <i class="fa fa-arrow-circle-left"></i> BACK
+            </div>
+        <div class="welcome_title">
+          <h2>RECEIPT APPROVAL</h2> 
+          <h4 class="capitalise">
+            Verify all expenses claimed
+          </h4>
+          <!-- {{ vm.welcome_message }} -->
+      </div>
+    </div>
+
+
+    <ui-view class="sub_section2">
+
+        <p ng-if="vm.receipts.length == 0">
+            It looks like you have no new receipts requiring approval
+        </p>
+
+
+        <div class="cards4"  ng-repeat="receipt in vm.receipts">
+
+          <img src="{{ receipt.image }}" alt="Receipt" />
+          <span> click to change or add?</span>
+
+          <table class="receipt_table">
+            <tr>
+              <th>
+                Member
+              </th>
+              <th>
+                Aircraft
+              </th>
+              <th>
+                Item
+              </th>
+              <th>
+                Quantity
+              </th>
+               <th>
+                Currency
+              </th>
+              <th>
+                Cost
+              </th>
+              <th>
+                Invoice No.
+              </th>
+              <th>
+                Reimbursed
+              </th>
+              <!-- <th>
+                Reimbursed Currency
+              </th> -->
+             <!--  <th>
+                Reimbursed Amount
+              </th> -->
+              <th>
+                Requested At
+              </th>
+             
+            </tr>
+            <tr>
+              <td>
+                {{ receipt.first_name }} {{ receipt.last_name }}
+              </td>
+              <td>
+                {{ receipt.registration }}
+              </td>
+              <td>
+                {{ receipt.item }}
+              </td>
+              <td>
+                <span uib-tooltip="Click to edit quantity" ng-click="receipt.edit_qty = true; receipt.modified_quantity = receipt.quantity;" ng-if="(receipt.edit_qty == false || !receipt.edit_qty) && !receipt.modified_quantity">{{ receipt.quantity }} <i class="fa fa-edit tableicon"></i></span>
+
+                <span uib-tooltip="Click to edit quantity. This was already modified from {{ receipt.quantity }} to {{ receipt.modified_quantity }}" ng-click="receipt.edit_qty = true; receipt.modified_quantity = receipt.modified_quantity;" ng-if="(!receipt.edit_qty && receipt.modified_quantity > 0)">{{ receipt.modified_quantity }} <i class="fa fa-edit tableicon"></i></span>
+
+                <span ng-if="receipt.edit_qty">
+                  <input type="text" ng-value="receipt.quantity" ng-model="receipt.modified_quantity" />
+                  <button ng-click="receipt.edit_qty = false; receipt.edited_qty = true; vm.update_qty(receipt)">SAVE</button>
+                </span>
+              </td>
+              <td>
+                <span uib-tooltip="Click to edit currency" ng-click="receipt.edit_currency = true;" ng-if="((receipt.edit_currency == false) || !receipt.edit_currency) && (!receipt.modified_currency || receipt.modified_currency == '')">{{ receipt.currency }} <i class="fa fa-edit tableicon"></i></span>
+
+                <span uib-tooltip="Click to edit currency. This was already modified from {{ receipt.currency }} to {{receipt.modified_currency}}" ng-click="receipt.edit_currency = true;" ng-if="(receipt.edit_currency == false && !receipt.edit_currency) || (receipt.modified_currency !== '' && !receipt.edit_currency)">{{ receipt.modified_currency }} <i class="fa fa-edit tableicon"></i></span>
+
+                <span ng-if="receipt.edit_currency">
+                  
+                  <select ng-model="receipt.modified_currency" >
+                    <option ng-repeat="currency in vm.currencies" ng-value="currency.iso_code">{{ currency.iso_code }}</option>
+                  </select>
+<!--                   <input type="text" ng-value="receipt.price" ng-model="receipt.modified_price" />
+ -->
+
+                  <button ng-click="receipt.edit_currency = false; receipt.edited_currency = true; vm.update_currency(receipt)">SAVE</button>
+                </span>
+              </td>
+              <td>
+                <span uib-tooltip="Click to edit price" ng-click="receipt.edit_price = true; receipt.modified_price = receipt.price;" ng-if="((receipt.edit_price == false) || !receipt.edit_price) && (receipt.modified_price == 0)">{{ receipt.price | number:2 }} <i class="fa fa-edit tableicon"></i></span>
+                <span uib-tooltip="Click to edit - this price was already modified from {{ receipt.price | number:2 }} to {{ receipt.modified_price | number:2 }}" ng-click="receipt.edit_price = true; receipt.modified_price = receipt.modified_price;" ng-if="receipt.modified_price > 0 && ((receipt.edit_price == false) || !receipt.edit_price)">{{ receipt.modified_price | number:2 }} <i class="fa fa-edit tableicon"></i></span>
+                <span ng-if="receipt.edit_price">
+                  <input type="text" ng-value="receipt.price" ng-model="receipt.modified_price" />
+                  <button ng-click="receipt.edit_price = false; receipt.edited_price = true; vm.update_price(receipt)">SAVE</button>
+                </span>
+              </td>
+              <td>
+                <input class="slightly_larger" type="text" ng-model="receipt.invoice_number" ng-change="receipt.update_invoice = true" uib-tooltip="Type invoice / receipt number (optional)" />
+                <button ng-if="receipt.update_invoice" ng-click="receipt.update_invoice = false; vm.update_invoice_no(receipt)">SAVE</button>
+
+              </td>
+              <td class="">
+                <span uib-tooltip="The member did not ask for reimbursement on this receipt" ng-if="receipt.reimbursement !== 1">NO</span>
+
+               <span uib-tooltip="{{ get_currency(receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(receipt.reimbursed_currency).html_code" ng-if="receipt.reimbursement == 1" ng-class="{strike: (receipt.modified_reimbursed_amount > 0)}"></span><span uib-tooltip="The amount that has been removed from the associated invoice" ng-if="receipt.reimbursement == 1" ng-class="{strike: (receipt.modified_reimbursed_amount)}">{{ receipt.reimbursed_amount | number:2 }}</span>
+
+
+               <span uib-tooltip="{{ get_currency(receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(receipt.reimbursed_currency).html_code" ng-if="receipt.reimbursement == 1 && receipt.modified_reimbursed_amount > 0"></span><span uib-tooltip-html="vm.modified_reimbursement_tooltip(receipt)" ng-if="receipt.reimbursement == 1 && receipt.modified_reimbursed_amount > 0">{{ receipt.modified_reimbursed_amount | number:2 }}</span>
+
+
+
+
+
+
+              </td>
+              <td>
+                {{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}
+              </td>              
+            
+              
+            </tr>
+          </table>
+
+
+          <div class="bottom_btn">
+
+            <button ng-click="reject_receipt(receipt)" class="btn btn-danger function_btn">REJECT RECEIPT</button>
+            <button ng-click="approve_receipt(receipt)" class="btn btn-info function_btn">APPROVE RECEIPT</button>
+
+          </div>
+
+        </div>
+
+        
+
+
+
+         <div class="popup_bg" ng-if="vm.show_popup" ng-click="close_popup()">
+          </div>
+
+              <div class="popup_box2" ng-if="vm.show_popup && vm.show_popup == 'approve'">
+
+                  <h3> Confirm Receipt Approval</h3>
+                 
+                  <div class="form-group fgtwo">
+
+                    <p ng-if="vm.current_receipt.reimbursement == 1 && vm.current_receipt.modified_reimbursed_amount > 0">
+                      <b>Member: </b>{{ vm.current_receipt.first_name }} {{ vm.current_receipt.last_name }} 
+                      <br />
+                      <b>Requested Reimbursement:</b>  <span uib-tooltip="{{ get_currency(vm.current_receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(vm.current_receipt.reimbursed_currency).html_code"></span>{{ vm.current_receipt.reimbursed_amount | number:2 }}
+                      <br />
+                      <b>Actual Reimbursement:</b> <span uib-tooltip="{{ get_currency(vm.current_receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(vm.current_receipt.reimbursed_currency).html_code"></span>{{ vm.current_receipt.modified_reimbursed_amount | number:2 }}
+                      <br />
+                      <b>Difference of:</b> <span uib-tooltip="{{ get_currency(vm.current_receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(vm.current_receipt.reimbursed_currency).html_code"></span>{{ vm.current_receipt.modified_reimbursed_difference | number:2 }}
+                    </p>
+                    <p ng-if="vm.current_receipt.modified_reimbursed_amount > 0">
+                      <b>The member will be {{ (vm.current_receipt.modified_reimbursed_difference < 0) ? "invoiced" : "credited" }} the sum of:</b> <span uib-tooltip="{{ get_currency(vm.current_receipt.reimbursed_currency).currency_name }}" ng-bind-html="get_currency(vm.current_receipt.reimbursed_currency).html_code"></span>{{ ((vm.current_receipt.modified_reimbursed_difference < 0) ? (vm.current_receipt.modified_reimbursed_difference * -1) : vm.current_receipt.modified_reimbursed_difference ) | number:2 }} to their account
+                    </p>
+
+
+                  </div>
+<!--                   {{ vm.current_receipt | json }}
+ -->
+                <div class="bottom_btn btns_bottom">
+
+                  <button ng-click="close_popup()" class="btn btn-danger">Close</button>
+                  <button ng-if="error.button !== ''" ng-click="vm.approve_receipt_final(vm.current_receipt)" class="btn btn-info" ng-click="">Approve Receipt</button>
+
+
+              </div>
+            </div>
+
+            <div class="popup_box2" ng-if="vm.show_popup && vm.show_popup == 'reject'">
+
+                  <h3> Confirm Receipt Rejection</h3>
+                  <br />
+
+
+                  <div class="form-group fgthree" ng-if="vm.current_receipt.reimbursement == 1">
+
+                    <p class="inline_rejection" for="address_locality">This receipt should NOT have been reimbursed:</p>
+                    <input type="checkbox" class="form-control" ng-model="vm.current_receipt.receipt_rejection_reimbursement">
+
+                  </div>
+
+                  <div class="form-group fgthree" ng-if="vm.current_receipt.modified_quantity !== 0 || vm.current_receipt.quantity !== 0">
+
+                    <p class="inline_rejection" for="address_locality">Remove lubricant quantities added to aircraft:</p>
+                    <input type="checkbox" class="form-control" ng-model="vm.current_receipt.receipt_rejection_lubricant">
+
+                  </div>
+
+                  <div class="form-group fgtwo">
+
+                    <label for="address_locality">Reason</label>
+                    <input type="text" class="form-control" ng-model="vm.current_receipt.receipt_rejection_reason">
+
+                  </div>
+                 <!--  <div class="form-group fgtwo">
+
+                    <label for="address_postcode">Postcode</label>
+                    <input type="text" class="form-control" ng-model="vm.billing_address.postalCode">
+
+                  </div> -->
+
+                <div class="bottom_btn btns_bottom">
+
+                  <button ng-click="close_popup()" class="btn btn-danger">Close</button>
+                  <button ng-if="error.button !== ''" ng-click="vm.reject_receipt_final(vm.current_receipt)" class="btn btn-info" ng-click="">Reject Receipt</button>
+
+
+              </div>
+            </div>
+
+
+
+
+
+      
+    </ui-view>
+
+</div>

@@ -1,0 +1,389 @@
+<div class="centre_align_boxes2">
+
+
+     <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="welcome_title">
+          <h2>INVOICES FOR CLUB </h2> 
+          <h4 class="capitalise">
+            See all invoices
+          </h4>
+          <!-- {{ vm.welcome_message }} -->
+      </div>
+    </div>
+
+
+<div class="sub_section2 centre_me">
+
+
+    <div class="form-group">
+         <div class="split_fourth">
+             <ui-select ng-model="vm.quick_select" theme="bootstrap" style="min-width: 60px; top: -20px;" title="Quick date range" class="input-group" ng-change="vm.update_qs()">
+                <ui-select-match placeholder="Please select a range" >
+                  {{ vm.quick_select.title }}             
+                </ui-select-match>
+                <ui-select-choices repeat="qs in vm.quick_selects | filter: {title: $select.search}">
+                  <span ng-bind-html="qs.title | highlight: $select.search"></span>
+                </ui-select-choices>
+            </ui-select>
+        </div>
+        <div class="split_fourth">
+            <label for="plane_class">FROM</label>
+            <input type="date" class="form-control inputtext ng-pristine ng-valid ng-touched" name="from_date" id="check_date" ng-model="vm.from_date">
+        </div>
+        <div class="split_fourth">
+            <label for="plane_class">TO</label>
+            <input type="date" class="form-control inputtext ng-pristine ng-valid ng-touched" name="to_date" id="check_date" ng-model="vm.to_date">   
+        </div>
+
+        <div class="split_fourth">
+            <button type="button" ng-click="vm.update_date_range()" class="btn btn-primary">UPDATE DATE RANGE</button>
+        </div>
+    </div>
+
+    <div class="form-group">
+    </div>
+    
+
+    <div class="cards3">
+
+      <h4>{{ vm.totals.title }} SUMMARY</h4>
+      <h5> {{ vm.from_date | asDate  | date:'dd MMM yyyy' }} to {{ vm.to_date | asDate  | date:'dd MMM yyyy' }}</h5>
+<!--       <div class="upcoming_line" uib-tooltip="Total amount charged during period" style="text-align: center; font-weight: bold;">
+        <br />
+      </div> -->
+      <div class="upcoming_line" uib-tooltip="Total amount charged during period">
+        <span class="upcoming_title">Total Income: </span><span class="upcoming_value">{{ vm.totals.account_currency }} {{ (vm.totals.total | number:2) || "0.00" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Total amount received">
+        <span class="upcoming_title">Total Received: </span><span class="upcoming_value">{{ vm.totals.account_currency }} {{ (vm.totals.paid | number:2) || "0.00" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Total amount currently being processed [GoCardless]">
+        <span class="upcoming_title">Processing: </span><span class="upcoming_value">{{ vm.totals.account_currency }} {{ (vm.totals.pending_submission | number:2) || "0.00" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Total amount raised, but not yet claimed [GoCardless]">
+        <span class="upcoming_title">Awaiting Charge: </span><span class="upcoming_value">{{ vm.totals.account_currency }} {{ (vm.totals.issued | number:2) || "0.00" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Total amount cleared by Stripe" ng-if="vm.totals.stripe > 0">
+        <span class="upcoming_title">Card Income: </span><span class="upcoming_value">{{ vm.totals.account_currency }} {{ (vm.totals.stripe | number:2) || "0.00" }}</span>
+      </div>
+      
+
+    </div>
+
+</div>
+
+<div class="sub_section2">
+
+    <input type="search" placeholder="Search Invoices" ng-model="my_search" class="form-control searchbar" />
+
+    <div class="">
+
+
+        <div ng-if="vm.invoices.length > 0">
+
+             <table>
+                    <tr class="bold_text">
+                        <td>
+                            Invoice Number
+                        </td>
+                        <td>
+                            User
+                        </td>
+                        <td >
+                            Aircraft
+                        </td>
+                         <td>
+                            Amount
+                        </td>
+                         <td>
+                            Status
+                        </td>
+                        <td>
+                            Date
+                        </td>
+                         <td class="right_text_align">
+                            More Information
+                        </td>
+                    </tr>
+                    <tbody ng-repeat="invoice in vm.invoices | filter: search" vertical-align="middle">
+                        <tr>
+                            
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td><span uib-tooltip="{{invoice.user.email}}">{{ invoice.user.first_name }} {{invoice.user.last_name }}</span></td>
+                            <td>{{ invoice.plane_registration }}</td>
+                            <td>{{ invoice.currency }} {{ invoice.total | number:2 }}</td>
+                            <td>{{ get_human_status(invoice.status) }}</td>
+                            <td>{{ invoice.created_at | asDate | date:'dd MMM yyyy H:mm' }}</td>
+                            <!-- show_more($index) -->
+                            <td class="right_text_align"> <a ng-click="invoice.show_more = !invoice.show_more" uib-tooltip="{{ (!invoice.show_more)? 'View Details' : 'Hide Details' }}"><i ng-if="invoice.show_more" class="fa fa-eye-slash list_icons"></i> <i ng-if="!invoice.show_more" class="fa fa-eye list_icons"></i></a> <a ng-click="downloadInvoice(invoice.id)" uib-tooltip="Download"><i class="fa fa-download list_icons"></i></a> </td>
+
+                        </tr>
+                        <tr ng-if="invoice.show_more">
+                            
+                            <td colspan="7">
+
+                                <div class="user_invoices_bg">
+
+                                  <h4>Billing Summary</h4>
+
+                                  <div class="repeat_invoices" ng-repeat="flight in invoice.flights">
+                                    <div ng-if="invoice.membership_id == 0">
+                                      <!-- <h5 ng-if="invoice.legs > 1">{{ flight.flight }} - From {{ flight.from }} To {{ flight.to }}</h5> -->
+                                      <h5 ng-if="invoice.legs >= 1 && invoice.plane_id > 0">
+
+                                        Flight From {{ flight.from }} To {{ flight.to }}
+                                        <br />
+                                        Date: {{ flight.flight_details.flight_date | asDate | date:"dd MMM yyyy" }} 
+                                        <br />
+                                       <!--  Time: {{ flight.flight_details.brakes_off_rounded | brakesTime }} - 
+                                        {{ flight.flight_details.brakes_on_rounded | brakesTime }}
+                                        <br /> -->
+                                         <span ng-if="flight.flight_details.tpc_brakes_off" uib-tooltip="There are two times because you are being charged airborne time in addition to 10mins, however your actual brakes off to brakes on may differ.">
+                                          Time: {{ flight.flight_details.tpc_brakes_off | brakesTime }} - 
+                                        {{ flight.flight_details.tpc_brakes_on | brakesTime }}
+                                          <br />
+                                          Logbook Time:  {{ flight.flight_details.brakes_off_rounded | brakesTime }} - 
+                                        {{ flight.flight_details.brakes_on_rounded | brakesTime }}
+                                        </span>
+                                        <span ng-if="!flight.flight_details.tpc_brakes_off">
+                                          Time: {{ flight.flight_details.brakes_off_rounded | brakesTime }} - 
+                                        {{ flight.flight_details.brakes_on_rounded | brakesTime }}
+                                        </span>
+                                        <br />
+
+                                        Aircraft: {{ invoice.plane_registration }} [ {{ invoice.plane_type }} ]
+                                        <br />
+
+                                      <!--   <br /><br />
+                                        HOLDER CAPACITY:: {{ flight.flight_details.holder_capacity }}<br />
+                                        pic id : {{ flight.flight_details.pic_id }} <br />
+                                        put id : {{ flight.flight_details.put_id }} <br />
+                                        user id : {{ flight.flight_details.user_id }} <br />
+                                        instructor id : {{ flight.flight_details.instructor_id }} <br />
+                                        authorised solo : {{ flight.flight_details.authorised_solo }} <br />
+                                        is PICUS? : {{ flight.flight_details.is_picus }} <br />
+                                        <br /><br />
+ -->
+                                         <div ng-if="flight.flight_details.holder_capacity == 'PIC' && flight.flight_details.authorised_solo == 0">
+                                           <!--  1<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PIC' && flight.flight_details.authorised_solo > 0">
+                                           <!--  2<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}<br />
+                                            Supervised by: {{ flight.flight_details.instructor_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PICUS'">
+                                          <!--   3<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}<br />
+                                            Supervised by: {{ flight.flight_details.instructor_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PUT'">
+                                           <!--  4<br /> -->
+                                            PUT: {{ flight.flight_details.put_name }}<br />
+                                            Instructor: {{ flight.flight_details.pic_name }}
+                                        </div>
+
+
+<!-- 
+                                        <br /><br />
+                                        <div ng-if="flight.flight_details.pic_id !== flight.flight_details.put_id && flight.flight_details.put_id > 0">
+                                            1<br />
+                                            PUT: {{ flight.flight_details.put_name }}<br />
+                                            Instructor: {{ flight.flight_details.pic_name }}
+                                        </div>
+
+                                        <br />
+                                        <div ng-elseif="flight.flight_details.pic_id == flight.flight_details.put_id && flight.flight_details.instructor_id > 0">
+                                            2<br />
+                                            PUT: {{ flight.flight_details.put_name }}<br />
+                                            Instructor: {{ flight.flight_details.pic_name }}
+                                        </div>
+                                        <br />
+                                        <div ng-elseif="flight.flight_details.pic_id !== flight.flight_details.put_id && flight.flight_details.instructor_id == 0 && !flight.flight_details.authorised_solo">
+                                            4<br />
+                                            PUT: {{ flight.flight_details.put_name }}<br />
+                                            Instructor: {{ flight.flight_details.pic_name }}
+                                        </div>
+                                        <div ng-elseif="flight.flight_details.put_id == 0 && flight.flight_details.authorised_solo">
+                                            3 - authorised solo?<br />
+                                            PIC: {{ flight.flight_details.pic_name }}<br />
+                                            Instructor: {{ flight.flight_details.instructor_name }}
+                                        </div>
+
+                                        <div ng-else="flight.flight_details.put_id == 0 && flight.flight-details.instructor_id == 0 && !flight.flight_details.authorised_solo">
+                                            5 - rental?<br />
+                                            PIC: {{ flight.flight_details.pic_name }}
+                                        </div> -->
+                                      <!--   {{ flight.flight_details.holder_capacity }} -->
+
+                                      </h5>
+                                    </div>
+                                    <h5 ng-if="invoice.membership_id > 0">Membership Invoice</h5>
+                                    <hr />
+
+                                     <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          Units
+                                        </td>
+                                        <td>
+                                          Cost per unit
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+                                      <tr ng-repeat="items in flight.items" ng-if="!items.ui_hidden">
+                                        <td>
+                                           
+                                          {{ items.title }}
+                                            
+                                        </td>
+                                        <td>
+                                          {{ items.unit | number:2 }}
+                                        </td>
+                                        <td>
+                                          <span ng-if="!items.member_package_id || items.member_package_id == 0" uib-tooltip="{{ (items.vat_rate > 0) ? 'This includes VAT at '+items.vat_rate+'%' : 'No VAT was charged on this item' }}"> {{ invoice.currency }} {{ (items.vat_rate > 0) ? (items.unit_price * (1+(items.vat_rate/100))) : items.unit_price | number:2 }}</span>
+                                          <span ng-if="items.member_package_id > 0">were removed from your package</span>
+                                        </td>
+                                        <td class="right_text_align">
+                                          <span ng-if="!items.member_package_id || items.member_package_id == 0">{{ invoice.currency }} {{ items.total | number:2 }}</span>
+                                        </td>
+                                      </tr>
+                                      <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          <span ng-if="invoice.membership_id == 0">FLIGHT</span> TOTAL
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>{{ invoice.currency }} {{ flight.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+                                    </table>
+
+                                  </div>
+
+                                  <div class="totals"  ng-if="invoice.legs > 1">
+                                      <h5>Total for all flights</h5>
+                                      <hr />
+
+                                      <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+
+                                       <tr ng-repeat="fff in invoice.flights">
+                                          <td colspan="3">
+                                            FLIGHT {{ fff.flight }}
+                                          </td>
+                                          <td class="right_text_align">
+                                            <b>{{ invoice.currency }} {{ fff.total | number:2 }}</b>
+                                          </td>
+                                        </tr>
+
+                                       <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          ALL FLIGHTS
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>{{ invoice.currency }} {{ invoice.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+
+                                    </table>  
+                                </div>
+
+                            </div>
+
+                             <div class="btns_bottom more_space_bottom" ng-if="invoice.show_more && vm.show_payment_option(invoice)">
+                              <button ng-click="vm.show_payment(invoice)" class="btn btn-danger function_btn">PAY NOW</button>
+
+                            </div>
+
+                            </td>
+                            
+                        </tr>
+                    </tbody>
+                </table>
+
+        </div>
+
+
+    </div>
+
+
+
+</div>
+</div>
+
+
+<div ng-if="vm.show_pay_now" class="positioning-container">
+  <div class="centre_pay_now">
+   
+    <!--   <div class="club_docs_all">
+            <h2>Pay Invoice Now</h2> -->
+
+            <div class="payment-accordion">
+                  <div class="pa-container">
+                    <h1 class="pa-title">Choose a payment method</h1>
+                    <!-- <p class="pa-hint">Select one option below.</p> -->
+                  
+                    <payment-accordion
+                      methods="vm.methods"
+                      send="vm.send"
+                      open="vm.default_payment"
+                      info="vm.info" 
+                      user="vm.user" 
+                      bookout="vm.bookout"
+                      saved-cards="vm.savedCards"
+                      on-confirm="vm.donConfirm(methodLabel, paymentIntent)">
+                    </payment-accordion>
+
+                    
+                  </div>
+            </div>
+
+
+                
+      <!-- </div> -->
+
+      <div class="btns_bottom ">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_pay_now()">CLOSE</a>
+        <!-- <a class="btn btn-info confirm_btn" ng-click="vm.pay_now()">MAKE PAYMENT</a> -->
+      </div>
+  </div>
+                            
+
+</div>
+
+
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+

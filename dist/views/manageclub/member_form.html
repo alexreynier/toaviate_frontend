@@ -1,0 +1,900 @@
+<ui-view>
+
+
+<div class="centre_align_boxes2">
+
+    <div class="home_upper">
+          <div class="back-box" ui-sref="dashboard.manage_club.members">
+              <i class="fa fa-arrow-circle-left"></i> BACK
+          </div>
+          <div class="welcome_title">
+            <h2>MEMBERS</h2> 
+            <h4 class="capitalise">
+              Manage your members
+            </h4>
+          </div>
+    </div>
+
+<!--     <div class="center_if_large club_docs bookingout_wrapper">
+ -->            
+
+            <form>
+<div class="club_docs_all">
+
+      <h2>Membership Details</h2>
+      <div class="center_if_large bookingout_wrapper">
+
+                <div class="form-group">
+                    <label for="member_name">Member Name</label>
+                    <input type="text" class="form-control inputtext" name="member_name" id="member_name" value="{{ vm.club.member.first_name }} {{ vm.club.member.last_name }}" disabled />
+                </div>
+
+                <div class="form-group">
+
+                    <label for="payment_term">Membership</label>
+                    <ui-select ng-model="vm.club.member.membership_id" on-select="update_membership($item, $model)" theme="bootstrap" ng-disabled="disabled" title="Membership" append-to-body="true">
+                      <ui-select-match placeholder="Please select the membership">
+                        {{ vm.club.member.membership_name }}
+                      </ui-select-match>
+                      <ui-select-choices repeat="membership in vm.club.memberships | propsFilterA: {membership_name: $select.search, id: $select.search}">
+                        <div ng-bind-html="membership.membership_name | highlight: $select.search"></div>
+                      </ui-select-choices>
+                    </ui-select>
+                </div>
+
+                <div class="form-group">
+                    <label for="membership_start">Membership Starts</label>
+                    <input type="date" class="form-control inputtext" name="membership_start" id="membership_start" ng-model="vm.club.member.membership_start" value="vm.club.member.membership_start" ng-checked="vm.club.member.membership_start" />
+                </div>
+
+                <div class="form-group">
+                    <label for="admin">Is an Administrator of the club</label>
+                    <toggle-switch on-label="Yes" off-label="No" ng-model="vm.club.member.is_manager"></toggle-switch>
+                </div>
+
+                <div class="form-group">
+                    <label for="instructor">Is an instructor at the club</label>
+                    <toggle-switch on-label="Yes" off-label="No" ng-model="vm.club.member.instructor"></toggle-switch>
+                </div>
+            </div>
+        </div>
+        <div class="club_docs_all">
+
+              <h2>Document Verification</h2>
+              <div class="center_if_large">
+
+                <div class="card" ng-if="vm.differences.length > 0 || vm.poids.length > 0 || vm.medicals.length > 0 || vm.licences.length > 0">
+                    <table>
+                        <tr>
+                            <th>
+                            Document type
+                            </th>
+                            <th>
+                            Document Name
+                            </th>
+                            <th>
+                            Expiry Date (if any)
+                            </th>
+                            <th>
+                            Verified
+                            </th>
+                            <th>
+                            See Document
+                            </th>
+                        </tr>
+                        <tr ng-repeat="poid in vm.poids">
+                            <td>
+                                Proof of ID
+                            </td>
+                            <td>
+                                {{ poid.title }}
+                            </td>
+                            <td>
+                                {{ poid.expiry_date }}
+                            </td>
+                            <td>           
+                                <toggle-switch  ng-change="update_verification('poid', poid, poid.verified)" ng-model="poid.verified" on-label="Verified" off-label="To Verify"></toggle-switch>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-info" ng-click="openDocument('poids', poid.id)">SEE ID</button>
+                            </td>
+                        </tr>
+                        <!-- MEDICAL SECOND //-->
+                        <tr ng-repeat="medical in vm.medicals">
+                            <td>
+                                Medical
+                            </td>
+                            <td>
+                                {{ medical.medical_type }}
+                                <br />
+                                {{ medical.authority }}
+                            </td>
+                            <td>
+                                <table>
+                                    <tr ng-repeat="component in medical.components">
+                                        <td>
+                                            {{ component.title }}
+                                        </td>
+                                        <td>
+                                            {{ component.expiry_date }}
+                                        </td>
+                                    </tr>
+                                </table>              
+                            </td>
+                            <td>
+                                <toggle-switch  ng-change="update_verification('medical', medical, medical.verified)" ng-model="medical.verified" on-label="Verified" off-label="To Verify"></toggle-switch>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-info" ng-click="openDocument('medicals', medical.id)">SEE MEDICAL</button>
+                            </td>
+                        </tr>
+
+                        <!-- LICENCE THIRD //-->
+                        <tr ng-repeat="licence in vm.licences">
+                            <td>
+                                Licence
+                            </td>
+                            <td>
+                                {{ licence.licence_type }}
+                                <br />
+                                {{ licence.authority }}
+                            </td>
+                            <td>
+                               
+                               <table>
+                                    <tr ng-repeat="rating in licence.ratings">
+                                        <td>
+                                            {{ rating.abbreviation }}
+                                        </td>
+                                        <td>
+                                            {{ rating.expiry_date }}
+                                        </td>
+                                    </tr>
+                                </table> 
+
+                            </td>
+                            <td>
+                                <toggle-switch  ng-change="update_verification('licence', licence, licence.verified)" ng-model="licence.verified" on-label="Verified" off-label="To Verify"></toggle-switch>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-info" ng-click="openDocument('licences', licence.id)">SEE LICENCE</button>
+                            </td>
+                        </tr>
+
+                         <tr ng-repeat="difference in vm.differences">
+                            <td>
+                                Differences Training
+                            </td>
+                            <td>
+                                {{ difference.title }}
+                            </td>
+                            <td>
+                                Never
+                            </td>
+                            <td>
+                                <toggle-switch  ng-change="update_verification('differences', difference, difference.verified)" ng-model="difference.verified" on-label="Verified" off-label="To Verify"></toggle-switch>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-info" ng-click="openDocument('differences', difference.id)">SEE DIFFERENCES</button>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="card member_check extra_space_top extra_space_bottom" ng-if="vm.poids.length == 0 || vm.medicals.length == 0 || vm.licences.length == 0">
+                    <h5>Check Documents</h5>
+                    <p class="more_information">
+                        This user still needs to add some important details on their account. Please consider asking them to upload the following content if they have it: 
+                    </p>
+                    <ul>
+                        <li ng-if="vm.poids.length == 0">Proof of ID</li>
+                        <li ng-if="vm.medicals.length == 0">Medical</li>
+                        <li ng-if="vm.licences.length == 0">Licence</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+        <div class="club_docs_all">
+
+              <h2>Aircraft Access</h2>
+              <div class="center_if_large">
+
+                <div class="card member_check">
+
+
+                     <table>
+                         <tr>
+                            <th>Plane Registration</th>
+                            <th>Plane Type</th>
+                            <th>Member is able to book dual</th>
+                            <th>Member is able to book solo</th>
+                            <th ng-if="vm.club.member.instructor == 1">Member is able to instruct on</th>
+                         </tr>
+
+                        <tr ng-repeat="plane in vm.club.planes">
+                            <td>{{ plane.registration }}</td>
+                            <td>{{ plane.plane_type }}</td>  
+                            <td class="td_centre"> 
+                                <input type="checkbox" ng-model="vm.club.planes[$index].book_dual" ng-true-value="1" ng-false-value="0" />
+                            </td>
+                            <td class="td_centre"> 
+                                <input type="checkbox" ng-model="vm.club.planes[$index].book_solo" ng-true-value="1" ng-false-value="0" /> 
+                            </td>    
+                            <td ng-if="vm.club.member.instructor == 1">      
+                                <input type="checkbox" ng-model="vm.club.planes[$index].instruct" ng-true-value="1" ng-false-value="0" /> 
+                            </td>  
+                        </tr>
+                        <tr>
+                            <td> &nbsp; </td>
+                            <td> &nbsp; </td>
+                            <td class="td_centre"> <a class="btn btn-primary" ng-if="!vm.sa_dual" ng-click="vm.select_all('dual')">SELECT ALL</a> <a ng-if="vm.sa_dual" ng-click="vm.deselect_all('dual')" class="btn btn-danger">DESELECT ALL</a> </td>
+                            <td class="td_centre"> <a class="btn btn-primary" ng-if="!vm.sa_solo" ng-click="vm.select_all('solo')">SELECT ALL</a> <a ng-if="vm.sa_solo" ng-click="vm.deselect_all('solo')" class="btn btn-danger">DESELECT ALL</a> </td>
+                            <td ng-if="vm.club.member.instructor == 1"> <a class="btn btn-primary" ng-if="!vm.sa_instruct" ng-click="vm.select_all('instruct')">SELECT ALL</a> <a ng-if="vm.sa_instruct" ng-click="vm.deselect_all('instruct')" class="btn btn-danger">DESELECT ALL</a> </td>
+                        </tr>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="club_docs_all">
+
+              <h2>Next of Kin</h2>
+              <div class="center_if_large">
+
+                <div class="card member_check">
+
+                    <p class="more_information" ng-if="vm.club.member.nok.noks.length < 1">
+                        This user still needs to add their next of kin details. 
+                    </p>
+
+                     <table ng-if="vm.club.member.nok.noks.length > 0">
+                         <tr>
+                            <th>Name</th>
+                            <th>Relationship</th>
+                            <th>Telephone</th>
+                            <th>Email</th>
+                            <th style="text-align: left;">Address</th>
+                         </tr>
+
+                        <tr ng-repeat="nok in vm.club.member.nok.noks">
+                            <td>{{ nok.first_name }} {{ nok.last_name }}</td>
+                            <td>{{ nok.relationship }}</td>  
+                            <td>{{ nok.phone_number }}</td>  
+                            <td>{{ nok.email_address }}</td>  
+                            <td style="word-wrap: break-word; text-align: left;">{{ nok.address }}</td>  
+                           
+
+                        </tr>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+
+        <div class="club_docs_all" >
+
+              <h2>Currently Flying / Incomplete Flight</h2>
+              <div class="center_if_large">
+                
+<!--                 {{ vm.club.member.bookouts[0].booking.instructor | json }}
+ -->
+                <div class="card member_check">
+                    <p class="more_information" ng-if="vm.club.member.bookouts.length < 1">
+                        This user is not presently flying or have any incomplete flights.
+                    </p>
+
+                     <table ng-if="vm.club.member.bookouts.length > 0">
+                         <tr>
+                            <th>Aircraft</th>
+                            <th>Date</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>POB</th>
+                            <th>Flight Type</th>
+                            <th>Notes</th>
+                            <th>Booking End</th>
+                            <th>Functions</th>
+
+                         </tr>
+
+                        <tr ng-repeat="flight in vm.club.member.bookouts">
+                            <td>{{ flight.booking.registration }}</td>  
+                            <td>{{ flight.flight_date | asDate | date:'dd MMM yyyy' }} {{ nok.last_name }}</td>
+                            <td><span uib-tooltip="{{flight.from_airport.code}}">{{ flight.from_airport.title }}</span></td>  
+                            <td><span uib-tooltip="{{flight.to_airport.code}}">{{ flight.to_airport.title }}</span></td>  
+                            <td><span class="pointer" uib-popover-html="vm.get_pax_html(flight)">{{ flight.pob }}</span></td>
+                            <td>
+                                {{ (flight.booking.maintenance_flight == 1) ? "Maintenance Flight":"" }}
+                                {{ (flight.booking.instructor_id > 0) ? "Instruction Flight":"" }}
+                                {{ (flight.booking.voucher_id > 0) ? "Voucher Flight":"" }}
+                                {{ (flight.booking.voucher_id == 0 && flight.booking.instructor_id == 0 && flight.booking.maintenance_flight == 0)? "Rental Flight" : ""}}
+                            </td>  
+                            <td>{{ flight.booking.description  }}</td>  
+                            <td>{{ flight.booking.end | asDate | date:'dd MMM yyyy HH:mm' }}</td>  
+                            <td>N/A</td>
+
+                        </tr>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="club_docs_all">
+
+              <h2>Recent Flights</h2>
+              <div class="center_if_large">
+              <div class="card">
+
+
+                 <div class="" ng-if="vm.logs.length > 0">
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    Date
+                                </td>
+                                <td class="bold_text">
+                                    Aircraft
+                                </td>
+                                <td class="bold_text">
+                                    Pilot
+                                </td>
+                                <td class="bold_text centre_me">
+                                    From
+                                </td>
+                                <td class="bold_text centre_me">
+                                    To
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Off
+                                </td>
+                                <!--  <td class="bold_text centre_me">
+                                    Takeoff
+                                </td>
+                                 <td class="bold_text centre_me">
+                                    Landing
+                                </td> -->
+                                <td class="bold_text centre_me">
+                                    Brakes On
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Flight Time
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Time
+                                </td>
+                               <!--  <td class="bold_text centre_me">
+                                    Fuel Uplift
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Oil Uplift
+                                </td> -->
+                            </tr>
+                            <tr ng-repeat="log in vm.logs | filter: search2" vertical-align="middle">
+                            
+                                <td class="log_no_break">
+                                    {{ log.flight_date | asDate | date:"dd MMM yyyy" }}
+                                </td>
+                                <td class="log_no_break">
+                                    <span uib-tooltip="{{log.aircraft.type_name}}"> {{log.aircraft.registration}} </span>
+                                </td>
+                                 <td class="log_no_break">
+                                    <span uib-tooltip-html="vm.list_pilots(log)">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.departure_airport_code}}">{{ log.departure_airport }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.destination_airport_code}}">{{ log.destination_airport }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    {{ vm.clean_times(log.brakes_off) }}
+                                </td>
+                               <!--  <td class="centre_me">
+                                    {{ vm.clean_times(log.takeoff_time) }}
+                                </td>
+                                <td class="centre_me">
+                                    {{ vm.clean_times(log.landing_time) }}
+                                </td> -->
+                                <td class="centre_me">
+                                    {{ vm.clean_times(log.brakes_on) }}
+                                </td>
+                                <td class="centre_me">
+                                    {{ get_hours_from_decimal(log.flight_time) || "0:00" }}
+                                </td>
+                                <td class="centre_me">
+                                    {{ get_hours_from_decimal(log.brakes_time) || "0:00" }}
+                                </td>
+                               <!--  <td class="centre_me">
+                                    <span uib-tooltip="{{ log.fuel_uplift_litres }} litres">{{ log.fuel_uplift_litres }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.oil_uplift_litres}} quarts">{{ log.oil_uplift_litres }}</span>
+                                </td> -->
+
+                            </tr>
+                        </table>
+
+                        <button class="btn btn-primary view_journey_logs" ng-if="!vm.all_loaded" ng-click="vm.load_more()">LOAD MORE</button>  
+                        <p class="centre_me" ng-if="vm.all_loaded">You have loaded all your's journey log...</p>
+
+                    </div>
+                </div>
+
+              </div>
+          </div>
+
+
+        <div class="club_docs_all">
+
+              <h2>Payments</h2>
+              <div class="center_if_large clearfix">
+
+                      <div class="cards3 fixed_height">
+                        <h4>DIRECT DEBIT INFO</h4>
+                          <span class="bold">Account Name:</span>{{ vm.club.member.account_name }}
+                          <br />
+                          <span class="bold">Bank:</span>{{ vm.club.member.account_bank }}
+                          <br />
+                          <span class="bold">Account:</span>****{{ vm.club.member.account_ending }}
+                          <br />
+                          <span class="bold">Reference:</span>{{ vm.club.member.mandate_reference }}
+                          <br />
+                          <span class="bold">Scheme:</span>{{ vm.club.member.mandate_scheme }}
+                          <br />
+                          <span class="bold">Status:</span>{{ vm.club.member.gcl_status }}
+                          <br />
+
+                          
+                        </div>
+
+
+
+                    <div class="cards3 fixed_height">
+
+                      <h4>PAYMENT SUMMARY</h4>
+                      <div class="upcoming_line" uib-tooltip="Amount of credit on your account">
+                        <span class="upcoming_title">Account Balance: </span><span class="upcoming_value">£{{ (vm.upcoming.balance | number:2) || "0.00" }}</span>
+                      </div>
+                      <div class="upcoming_line" uib-tooltip="How much you owe this club">
+                        <span class="upcoming_title">Next Payment: </span><span class="upcoming_value">£{{ (vm.upcoming.issued_total | number:2) || "0.00" }}</span>
+                      </div>
+                      <div class="upcoming_line" uib-tooltip="When the next payment for this club will be requested">
+                        <span class="upcoming_title">Next Payment Date: </span><span class="upcoming_value">{{ vm.upcoming.collection_date | asDate | date:"dd MMM yyyy" }}</span>
+                      </div>
+                      <div class="upcoming_line" uib-tooltip="How much we have already requested but has not yet been received by the club">
+                        <span class="upcoming_title">Currently Processing: </span><span class="upcoming_value">£{{ (vm.upcoming.processing | number:2) || "0.00" }}</span>
+                      </div>
+                      <div class="upcoming_line" ng-if="upcoming.failed_total && upcoming.failed_total > 0" uib-tooltip="How much we have failed to collect on behalf of the club">
+                        <span class="upcoming_title no_red">Failed Payments: </span><span class="upcoming_value no_red">£{{ (vm.upcoming.failed_total | number:2) || "0.00" }}</span>
+                      </div>
+                          
+                      <button class="btn btn-primary add_credit" ng-click="vm.add_credit()">ADD CREDIT</button>  
+
+
+                    </div>
+
+                </div>
+
+                 <div class="center_if_large clearfix" ng-if="vm.packages.length > 0">
+                    
+
+                    <div class="cards5 fixed_height" ng-repeat="package in vm.packages" uib-popover-html="vm.get_package_html(package)">
+
+                      <h4>{{ package.title }} <i class="fa fa-question-circle"></i></h4>
+                      
+                      <div class="dual_solo">
+                        <div class="dual" uib-tooltip="Hours remaining on this package to fly dual (with an instructor)">
+                            <span class="bigger_text">{{ vm.convert_decimal_to_hours(package.remaining_hours_dual) || "00:00" }}</span>
+                            <span class="smaller_text">DUAL</span>
+                        </div>
+                        <div class="solo" uib-tooltip="Hours remaining on this package of solo rental">
+                            <span class="bigger_text">{{ vm.convert_decimal_to_hours(package.remaining_hours_solo) || "00:00" }}</span>
+                            <span class="smaller_text">SOLO</span>
+                        </div>
+                      </div>
+
+                      <button class="btn btn-primary add_credit" ng-click="vm.show_package_change(package)">MANAGE</button>  
+
+
+                    </div>
+
+                </div>
+                <div class="center_if_large">
+                <div class="card">
+
+
+
+<!--                     <input type="search" placeholder="Search Invoices" ng-model="my_search" class="form-control searchbar" />
+
+ -->
+
+        <div class="card centre_me" ng-if="vm.invoices.length == 0">
+            It looks like this user does not yet have any invoices!
+        </div>
+
+        <div ng-if="vm.invoices.length > 0">
+
+             <table>
+                    <tr class="bold_text">
+                        <td>
+                            Invoice Number
+                        </td>
+                        <td ng-if="vm.upcoming.length > 1">
+                            Club
+                        </td>
+                        <td >
+                            Aircraft
+                        </td>
+                         <td>
+                            Amount
+                        </td>
+                         <td>
+                            Status
+                        </td>
+                        <td>
+                            Date
+                        </td>
+                         <td class="right_text_align">
+                            More Information
+                        </td>
+                    </tr>
+                    <tbody ng-repeat="invoice in vm.invoices | filter: search" vertical-align="middle">
+                        <tr>
+                            
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td ng-if="vm.upcoming.length > 1">{{ invoice.club_title }}</td>
+                            <td>{{ invoice.plane_registration }}</td>
+                            <td>£{{ invoice.total | number:2 }}</td>
+                            <td>{{ get_human_status(invoice.status) }}</td>
+                            <td>{{ invoice.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</td>
+                            <td class="right_text_align"> <a ng-click="invoice.show_more = !invoice.show_more" uib-tooltip="{{ (!invoice.show_more)? 'View Details' : 'Hide Details' }}"><i ng-if="invoice.show_more" class="fa fa-eye-slash list_icons"></i> <i ng-if="!invoice.show_more" class="fa fa-eye list_icons"></i></a> <a ng-click="downloadInvoice(invoice.id)" uib-tooltip="Download"><i class="fa fa-download list_icons"></i></a> </td>
+
+                        </tr>
+                        <tr ng-if="invoice.show_more">
+                            
+                            <td colspan="7">
+
+                                <div class="user_invoices_bg">
+
+                                  <h4>Billing Summary</h4>
+
+                                  <div class="repeat_invoices" ng-repeat="flight in invoice.flights">
+                                    <div ng-if="invoice.membership_id == 0">
+                                      <h5 ng-if="invoice.legs > 1">{{ flight.flight }} - From {{ flight.from }} To {{ flight.to }}</h5>
+                                      <h5 ng-if="invoice.legs < 2">Flight From {{ flight.from }} To {{ flight.to }}</h5>
+                                    </div>
+                                    <h5 ng-if="invoice.membership_id > 0">Membership Invoice</h5>
+                                    <hr />
+
+                                     <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          Units
+                                        </td>
+                                        <td>
+                                          Cost per unit
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+                                      <tr ng-repeat="items in flight.items">
+                                        <td>
+                                          {{ items.title }}
+                                        </td>
+                                        <td>
+                                          {{ items.unit }}
+                                        </td>
+                                        <td>
+                                          @ £{{ items.unit_price }}
+                                        </td>
+                                        <td class="right_text_align">
+                                          £{{ items.total }}
+                                        </td>
+                                      </tr>
+                                      <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          <span ng-if="invoice.membership_id == 0">FLIGHT</span> TOTAL
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>£{{ flight.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+                                    </table>
+
+                                  </div>
+
+                                  <div class="totals"  ng-if="invoice.legs > 1">
+                                      <h5>Total for all flights</h5>
+                                      <hr />
+
+                                      <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+
+                                       <tr ng-repeat="fff in invoice.flights">
+                                          <td colspan="3">
+                                            FLIGHT {{ fff.flight }}
+                                          </td>
+                                          <td class="right_text_align">
+                                            <b>£{{ fff.total | number:2 }}</b>
+                                          </td>
+                                        </tr>
+
+                                       <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          ALL FLIGHTS
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>£{{ invoice.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+
+                                    </table>  
+                                </div>
+
+                            </div>
+
+                            <div class="btns_bottom more_space_bottom" ng-if="invoice.show_more && vm.show_payment_option(invoice)">
+                              <button ng-click="vm.show_payment(invoice)" class="btn btn-danger function_btn">PAY NOW</button>
+
+                            </div>
+                            
+                            </td>
+                            
+                        </tr>
+                    </tbody>
+                </table>
+
+                 <button class="btn btn-primary view_journey_logs" ng-if="!vm.all_invoices_loaded" ng-click="vm.load_more_invoices()">LOAD MORE</button>  
+
+                        <p class="centre_me" ng-if="vm.all_invoices_loaded">You have loaded all this user's invoices for this club...</p>
+
+                </div>
+                
+                       
+
+
+              </div>
+          </div>
+      </div>
+
+
+             <div class="club_docs_all">
+              <h2>Accounting</h2>
+
+              <div class="form-group">
+                <label for="plane_class">Accounting Ref</label>
+                <input type="text" class="form-control inputtext" name="accounting_ref" id="accounting_ref" ng-model="vm.club.member.accounting_ref" />
+              </div>
+
+              <!-- <div class="form-group" ng-if="vm.club.member.instructor">
+                <label for="plane_class">Instructor Accounting Ref</label>
+                <input type="text" class="form-control inputtext" name="accounting_ref" id="accounting_ref" ng-model="vm.club.member.instructor_accounting_ref" />
+              </div> -->
+
+            </div>
+
+
+                <div class="card center_if_large">
+                    <div class="btns_bottom">
+                        <button class="btn btn-info btn_bigger" ng-click="back()">Back</button>
+                        <button class="btn btn-danger btn_bigger" ng-click="save()">Save</button>
+                    </div>
+                </div>
+
+
+
+
+                <!--
+                
+                + ABILITY TO SEE IF THIS INSTRUCTOR IS FREELANCE OR NOT... ADD RATES / UPDATE RATES.... ETC.... 
+
+                + HAVE USER QUALIFICATIONS/MEDICAL BEEN REVIEWED AND APPROVED?
+                + SEE USER'S QUALIFICATIONS & MEDICAL
+
+                + IS USER STILL LEGAL?
+                
+                + SEE USER'S NEXT OF KIN
+
+                + SEE USER'S RECENT FLIGHTS
+                + SEE USER'S PAYMENTS & CHECK PAYMENTS WERE MADE
+                
+                + MODIFTY WHICH PLANE USER CAN SEE
+                + MODIFY WHICH PLANE USER CAN BOOK / HAS ACCESS TO
+
+                + IN FUTURE - CHECK USER NOTES / TRAINING SCHEDULE
+
+                -->
+
+               <!--   <pre>
+                {{ vm.club }}
+                </pre>
+
+                <br />    
+                <br /> -->
+
+                <!--
+                <br />
+                <button class="btn btn-info">Manage Payment Account</button> 
+                //-->
+                
+        <!--         <br /> 
+         -->
+
+
+               
+
+            </form>
+
+        </div>
+    </div>
+</ui-view>
+
+
+
+
+<div ng-if="vm.show_loading" class="positioning-container2">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+<div ng-if="vm.show_add_credit" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      Apply Credit
+    </p>
+
+    <div class="form-group">
+        <label for="credit_amount">Add Credit Amount: </label> 
+        <input type="number" name="credit_amount" class="credit_note" value="" ng-model="vm.add_credit_amount" />
+    </div>
+    <div class="form-group">
+        <label for="credit_amount" uib-tooltip="This will appear in the invoice">Reason for credit: </label> 
+        <input type="text" name="credit_note" class="credit_note" value="" ng-model="vm.add_credit_note" />
+    </div>
+
+    <a class="btn btn-danger confirm_btn" ng-click="vm.show_add_credit=false">CLOSE</a>
+    <a class="btn btn-primary confirm_btn" ng-click="vm.apply_credit()">APPLY CREDIT</a>
+  </div>
+                            
+
+</div>
+
+<div ng-if="vm.show_package_popup" class="positioning-container">
+  <div class="centre_password2">
+    <h4>PACKAGES</h4>
+    
+<!--     {{ vm.change_package | json }}
+ -->
+        <div class="dual_solo">
+            <div class="dual" uib-tooltip="Hours remaining on this package to fly dual (with an instructor)">
+                <span class="bigger_text">{{ vm.convert_decimal_to_hours(vm.change_package.dual_number) || "00:00" }}</span>
+                <span class="smaller_text">DUAL</span>
+            </div>
+            <div class="solo" uib-tooltip="Hours remaining on this package of solo rental">
+                <span class="bigger_text">{{ vm.convert_decimal_to_hours(vm.change_package.solo_number) || "00:00" }}</span>
+                <span class="smaller_text">SOLO</span>
+            </div>
+          </div>
+
+      <!--   <div class="slidecontainer">
+            DUAL HOURS: 
+            <br />
+            <input type="number" ng-model="vm.change_package.dual_number" step='0.01' ng-change="vm.change_numbers('dual')">
+
+        </div>
+        <div class="slidecontainer">
+            SOLO HOURS: 
+            <br /> <input type="number" ng-model="vm.change_package.solo_number" step='0.01' ng-change="vm.change_numbers('solo')">
+        </div>
+        <br /> -->
+
+
+        <div class="slidecontainer">
+          <input type="range" min="0" max="100" value="50" step='0.000001' class="slider" ng-model="vm.change_package.slider_value" ng-change="vm.calculate_change()">
+        </div>
+<!--         <br />
+ -->      
+    <br />
+    <a class="btn btn-warning" ng-click="vm.refund_package_to_credit()">REFUND TO CREDIT</a>
+    <br />
+    <a class="btn btn-danger confirm_btn" ng-click="vm.hide_package_change()">CLOSE</a>
+    <a class="btn btn-primary confirm_btn" ng-click="vm.save_package_change()">SAVE SPLIT</a>
+  </div>
+                            
+
+</div>
+
+
+
+
+<div ng-if="vm.show_temp_login" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      It appears that you have been inactive for more than 5 minutes. In order to ensure you are legitimately requesting access to these resources, we need to confirm that you are who you say you are. Please enter your password below.
+    </p>
+    <input type="password" name="pwd" class="pwd" value="" ng-model="vm.re_login_pass" />
+
+    <a class="btn btn-danger confirm_btn" ng-click="vm.show_temp_login=false">CLOSE</a>
+    <a class="btn btn-primary confirm_btn" ng-click="re_login()">CONFIRM LOGIN</a>
+  </div>
+                            
+
+</div>
+
+
+
+
+<div ng-if="vm.show_pay_now" class="positioning-container">
+  <div class="centre_pay_now">
+   
+    <!--   <div class="club_docs_all">
+            <h2>Pay Invoice Now</h2> -->
+
+            <div class="payment-accordion">
+                  <div class="pa-container">
+                    <h1 class="pa-title">Choose a payment method</h1>
+                    <!-- <p class="pa-hint">Select one option below.</p> -->
+                  
+                    <payment-accordion
+                      methods="vm.methods"
+                      send="vm.send"
+                      open="vm.default_payment"
+                      info="vm.info" 
+                      user="vm.user" 
+                      bookout="vm.bookout"
+                      saved-cards="vm.savedCards"
+                      on-confirm="vm.donConfirm(methodLabel, paymentIntent)">
+                    </payment-accordion>
+
+                    
+                  </div>
+            </div>
+
+
+                
+      <!-- </div> -->
+
+      <div class="btns_bottom ">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_pay_now()">CLOSE</a>
+        <!-- <a class="btn btn-info confirm_btn" ng-click="vm.pay_now()">MAKE PAYMENT</a> -->
+      </div>
+  </div>
+                            
+
+</div>
+
+
+<!-- <div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div> -->

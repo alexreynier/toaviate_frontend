@@ -1,0 +1,954 @@
+<ui-view>
+<div class="centre_align_boxes2">
+
+        <div class="home_upper">
+          <div class="welcome_title">
+            <h2>AIRCRAFT MAINTENANCE</h2> 
+            <h4 class="capitalise">
+              Manage {{ vm.club.plane.registration }}
+            </h4>
+          </div>
+        </div>
+
+        <div class="club_docs bookingout_wrapper">
+            
+            <div class="centre_align_boxes2 center_if_large extra_space_top extra_space_bottom">
+             <button class="btn btn-primary " ng-click="show_overlay('maintenance')">Add Maintenance Check</button>
+
+             <button class="btn btn-danger " ng-click="show_overlay('offline')">Take Offline</button>
+            </div>
+
+           <div class="plane_docs">
+
+
+
+
+                  <div class="form-group">
+
+
+                    <div class="no_defects" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) < 1">
+                     There are no currently reported maintenance issues...
+                    </div>
+
+
+
+                    <div class="card">
+
+                       
+
+                     <table ng-if="vm.club.plane.defects && count_defects(vm.club.plane.defects, vm.club.plane.show_all_defects) > 0">
+                        <tr>
+                          <th>
+                            Defect Reported
+                          </th>
+                           <th>
+                            Severity
+                          </th>
+                          <th>
+                            Reported Date &amp; Time
+                          </th>
+                          <th>
+                            Status
+                          </th>
+                        </tr>
+                        <tr ng-repeat="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
+                          <td>
+                            {{ defect.defect }}
+                          </td>
+                          <td>
+                            {{ defect.severity }}
+                          </td>
+                          <td>
+                            {{ defect.created_at | myDateTime }}
+                          </td>
+                          <td>
+                            {{ defect.status }}
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+
+
+                    <div class="center_if_large">
+                      Show All Previous Defects <input type="checkbox" name="" ng-model="vm.club.plane.show_all_defects" />
+                                 
+                       <button ng-if="!vm.club.plane.show_add_defect" class="btn btn-primary adding_button" ng-click="vm.club.plane.show_add_defect = true">+</button>  
+
+                    </div>
+                      
+
+                    <!-- REPORT MAINTENANCE ISSUE //-->
+                    <div class="club_docs_all2 bookingout_wrapper" ng-if="vm.club.plane.show_add_defect">
+                      <h4>Report A Defect for {{vm.club.plane.registration}}</h4>
+                      <div class="center_if_large">
+
+                          <div class="form-group">
+                            <label for="defect">Defect</label>
+                            <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
+                          </div>
+
+                          <div class="form-group">
+                            <label for="defect">Defect Severity</label>
+                            <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
+                                <ui-select-match placeholder="Please select defect severity" >
+                                  {{ vm.defect_severity.title }}             
+                                </ui-select-match>
+                                <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
+                                  <span ng-bind-html="defect.title | highlight: $select.search"></span>
+                                </ui-select-choices>
+                            </ui-select>
+                          </div>
+
+                          <button class="btn btn-danger" ng-click="vm.club.plane.show_add_defect = false;">CANCEL</button>
+
+                          <button class="btn btn-success" ng-click="vm.club.plane.show_add_defect = false; vm.add_defect()">REPORT DEFECT</button>
+                          
+
+                      </div>
+                    </div>
+                     
+
+                    
+                    </div>
+
+
+                    <hr />
+
+
+                    <div class="card">
+
+                      <div class="cards">
+                        <h4>Hours Remaining</h4>
+                        <span class="big_number no_{{ vm.club.plane.maintenance.hours_status }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) }}</span>
+                      </div>
+
+                      <div class="cards">
+                        <h4>Days Remaining</h4>
+                        <span class="big_number no_{{ vm.club.plane.maintenance.days_status }}">{{ vm.club.plane.maintenance.days_remaining }}</span>
+                      </div>
+
+                      <div class="cards">
+                        <h4>Meter Reading</h4>
+                        <span class="big_number">{{ vm.club.plane.location.meter_reading }}</span>
+                      </div>
+
+                  </div>
+
+                  <div class="card">
+
+                    <table>
+                      <tr>
+                        <th>Document</th>
+                        <th>View Document</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th>Management</th>
+                      </tr>
+                      <tr>
+                        <td>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+                        <td><a ng-click="downloadDocument(vm.club.plane.certificate.certificate, 'certificate')">
+                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.certificate.certificate) }}" alt="open doc" />
+                        </a></td>
+                        <td>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{vm.club.plane.certificate.status}}">{{vm.club.plane.certificate.status}}</button></td>     
+                        <td>
+                          <button class="btn btn-primary" ng-click="show_overlay('cert')">UPDATE</button>
+                        </td>           
+                      </tr>
+                      <tr>
+                        <td>Insurance</td>
+                        <td><a ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')">
+                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" />
+                        </a></td>
+                        <td>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{vm.club.plane.insurance.status}}">{{vm.club.plane.insurance.status}}</button></td>
+                        <td>
+                          <button class="btn btn-primary" ng-click="show_overlay('insurance')">UPDATE</button>
+                        </td>                 
+                      </tr>
+                      <tr>
+                        <td>Radio Licence</td>
+                        <td><a ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')">
+                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" />
+                        </a></td>
+                        <td>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{vm.club.plane.radio_licence.status}}">{{vm.club.plane.radio_licence.status}}</button></td>
+                        <td>
+                          <button class="btn btn-primary" ng-click="show_overlay('radio')">UPDATE</button>
+                        </td>                 
+                      </tr>
+                      <tr>
+                        <td>Noise Certificate</td>
+                        <td>
+                          <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate">
+                            <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')">
+                              <img class="file_icon2" src="{{ get_icon2(vm.club.plane.noise.certificate) }}" alt="open doc" />
+                            </a>
+                          </span>
+                          <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate">
+                            NOT SET
+                          </span>
+                        </td>
+                        <td>N/A</td>
+                        <td>
+                          <!-- <button ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="btn status">{{status.noise}}</button> -->
+                          <button ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="btn status {{vm.club.plane.noise.status}}">{{vm.club.plane.noise.status}}</button>
+                        </td>
+                        <td>
+                           <button class="btn btn-primary" ng-click="show_overlay('noise')">UPDATE</button>
+                        </td>                 
+                      </tr>
+                    </table>
+                    
+                  </div>
+
+                  <div class="card">
+
+                    <div class="main_select_box" ui-sref="dashboard.manage_club.maintenance.detail.airframe_logbook({plane_id: vm.club.plane.id, action: 'list'})" >Open Airframe Logbook</div>
+
+
+                    <div ng-if="vm.club.plane.engine_1_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_1_id, action: 'list'})" >Open Engine Logbook</div>
+
+
+                    <div ng-if="vm.club.plane.propeller_1_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_1_id, action: 'list'})" >Open Propeller Logbook</div>
+
+
+                    <div ng-if="vm.club.plane.propeller_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_2_id, action: 'list'})" >Open Propeller 2 Logbook</div>
+
+                    <div ng-if="vm.club.plane.engine_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_2_id, action: 'list'})" >Open Engine 2 Logbook</div>
+
+                   <!--  <div ng-if="vm.club.plane.propeller_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_2_id, action: 'list'})" >Open Propeller 2 Logbook</div>
+
+
+                    <div ng-if="vm.club.plane.engine_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_2_id, action: 'list'})" >Open Engine 2 Logbook</div> -->
+
+                   <!--  SOMETHING NEW
+                    {{ vm.club.plane | json}} -->
+                    
+
+                  </div>
+
+                  <div class="card">
+
+                    <button class="btn btn-primary club_add_button extra_space_top extra_space_bottom" ng-click="vm.reset_aeroplane()">Force Recheck Logbooks</button>
+
+                  </div>
+
+
+                  <!-- FoxService ? ResetOneClubPlanes ? reset_plane -->
+
+        <!-- <div class="card">
+
+            <button class="btn btn-primary club_add_button extra_space_top extra_space_bottom" ng-click="show_overlay('maintenance')">Add Maintenance Check</button>
+
+
+
+            <h4>Next Check</h4>
+            <br />
+            {{ vm.club.plane.maintenance.hours_remaining }} hours remaining
+            <br />
+            <span class="{{getColours(vm.club.plane.maintenance.days_remaining)}}">{{ vm.club.plane.maintenance.days_remaining }} days remaining</span>
+            <div ng-if="vm.club.plane.maintenance.day_remaining_message">
+              !!! <br />
+              normally days remaining: {{ vm.club.plane.maintenance.normal_days_remaining }}
+              <br />
+              normally next maintenance date:       {{ vm.club.plane.maintenance.normal_next_maintenance }}
+               <br />
+              normally limit in days:       {{ vm.club.plane.maintenance.normal_limit }}
+               <br />
+              Message:       {{ vm.club.plane.maintenance.day_remaining_message }}
+
+            </div>
+
+            
+             
+
+
+        </div>
+
+        <div class="card">
+
+            <h4>Legal Documents</h4>
+            <br />
+            {{ vm.club.plane.certificate.days_to_expiry }} days {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }} remaining
+            
+            <br />
+            {{ vm.club.plane.radio_licence.days_to_expiry }} days Radio Licence Expiry remaining
+             
+            <br />
+            {{ vm.club.plane.insurance.days_to_expiry }} days insurance expiry remaining
+             
+            <br />
+
+        </div>
+ -->
+        
+
+
+      </div>
+</div>
+
+<!-- <h3>
+DETAILS</h3>
+<br />
+
+{{vm.send_obj}} -->
+
+
+
+
+
+
+
+<div class="overlaydiv" ng-if="vm.show_overlay">
+    <div class="overlay_content">
+
+        <div class="form center_if_large bookingout_wrapper2">
+
+            <!-- the form here //-->
+
+            <div class="offline" ng-if="vm.show_offline">
+
+                    <h3>Take Plane Offline</h3>
+
+
+                    <label for="offline_until">Offline Until Date</label>
+                    <input type="date" class="form-control" name="offline_until" id="offline_until" ng-model="vm.obj.offline_until" />
+
+                    <br />
+
+                    <label class="notes_center" for="notes">Reason / Notes</label>
+                    <textarea class="form-control" name="notes" id="notes" ng-model="vm.obj.offline_notes" />
+
+                    <br />
+                    
+            </div>
+
+          
+            <div class="maintenance" ng-if="vm.show_maintenance">
+
+                    <h3>Maintenance Completed</h3>
+
+                    <div class="form-group">
+                      <label for="plane_class">Maintenance Type</label>
+                      <select class="form-control inputtext" ng-model="vm.obj.maintenance_type">
+                        <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
+                      </select>
+                    </div>
+
+
+                    <div ng-if="vm.obj.maintenance_type == 'extension'">
+
+                      <div class="form-group">
+                        <label for="extension_granted">Extension Granted Date</label>
+                        <input type="date" class="form-control inputtext" name="extension_granted" id="extension_granted" ng-model="vm.obj.extension_granted" />
+                      </div>
+
+                      <div class="form-group">
+                        <label for="time_picker" uib-tooltip="The time of day at which the extension was granted">Extension granted at</label>
+                        <div class="timepicker_in_form">
+                          <div uib-timepicker ng-model="vm.obj.check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
+                        </div>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="extension_hours">Extension Of Hours (normally 5hours)</label>
+                        <input type="number" class="form-control inputtext" name="extension_hours" id="extension_hours" ng-model="vm.obj.extension_hours" />
+                      </div>
+
+                      <div class="form-group">
+                        <label for="extension_days">Extension Granted Until</label>
+                        <input type="date" class="form-control inputtext" name="extension_days" id="extension_days" ng-model="vm.obj.extension_days" />
+                      </div>
+
+                    </div>
+
+
+                  <div ng-if="vm.obj.maintenance_type !== 'extension'">
+
+                    <div class="form-group">
+                      <label for="hours_remaining">Hours Remaining</label>
+                      <input type="number" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.obj.hours_remaining" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="check_date" uib-tooltip="The date the maintenance was complete">Date of Maintenance</label>
+                      <input type="date" class="form-control inputtext" name="check_date" id="check_date" ng-model="vm.obj.check_date" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="time_picker" uib-tooltip="The time of day at which the maintenance was complete">Time of Maintenance</label>
+                      <div class="timepicker_in_form">
+                        <div uib-timepicker ng-model="vm.obj.check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="days_remaining">Next Check Date</label>
+                      <input type="date" class="form-control inputtext" name="next_check" id="next_check" ng-model="vm.obj.next_check" />
+                    </div>
+                    
+                  </div>
+
+                  <div class="form-group">
+                      <label for="checked_by" uib-tooltip="Engineer who signed out the aircraft">Checked By</label>
+                      <input type="text" class="form-control inputtext" name="checked_by" id="checked_by" ng-model="vm.obj.checked_by" />
+                    </div>
+                    
+                  </div>
+
+                  <div class="form-group">
+                    <label class="notes_center" for="notes">Notes</label>
+                    <textarea class="form-control" name="notes" id="notes" ng-model="vm.obj.notes" />
+                  </div>
+
+            </div>
+
+            <div class="reported_issues" ng-if="vm.show_maintenance">
+
+                    <h3>Reported Defects</h3>
+
+                    <div class="form-group">
+
+                    <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
+                     There are no known maintenance defects outstanding...
+                    </div>
+
+                     <table ng-if="vm.reported_defects && vm.reported_defects.length > 0">
+                        <tr>
+                         
+                          <th>
+                            Defect Reported
+                          </th>
+
+                          <th>
+                            Reported Date &amp; Time
+                          </th>
+                           <th>
+                            Severity
+                          </th>
+                          <th>
+                            Defect Resolved
+                          </th>
+                        </tr>
+                        <tr ng-repeat="defect in vm.reported_defects">
+                          
+                          <td>
+                            {{ defect.defect }}
+                          </td>
+                          <td>
+                            {{ defect.created_at | myDateTime }}
+                          </td>
+                          <td>
+                            {{ defect.severity }}
+                          </td>
+                          <td>
+                            <input type="checkbox" ng-model="defect.resolved" ng-change="check_ticked()">
+
+                          </td>
+                        </tr>
+                      </table>
+
+
+                    
+                    <div ng-if="vm.one_ticked">
+                        <span>I confirm that defects ticked as resolved, were completed or signed off by an engineer and logbook entries reflect this.</span> 
+                        <input type="checkbox" class="" name="issue_confirmation" id="issue_confirmation" ng-model="vm.obj.issue_confirmation" />
+                    </div>
+
+
+                  </div>
+
+
+
+
+            </div>
+
+
+            <div class="cert" ng-if="vm.show_maintenance || vm.show_cert">
+
+                    <h3>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} Document</h3>
+
+                   <!--  <label for="cert">Certificate PDF</label>
+                    <input type="file" class="form-control" name="plane_type" id="cert" ng-model="vm.obj.cert" /> -->
+
+                    <div class="form-group">
+                        <span for="licence_type" ng-if="!vm.document.id">Please upload {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} in PDF format</span>
+                        <br />
+                        
+
+
+
+                        <div class="form-group centre_content_uploader">
+                          <div 
+                             flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'cert')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
+                                  Click To Upload 
+                                  <br />OR<br /> 
+                                  Drag And Drop Your Document
+                              </div>
+
+                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+                                  <span class="title">{{file.name}}</span>
+                                  <div class="thumbnail">
+                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+                                  </div>
+                              </div>
+
+
+                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                <span class="title">{{file.name}}</span>
+                                <div class="thumbnail" ng-show="$flow.files.length">
+                                      <img src="{{get_icon(file.file)}}" />
+                                </div>
+                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                  <div class="progress-bar" role="progressbar"
+                                       aria-valuenow="{{file.progress() * 100}}"
+                                       aria-valuemin="0"
+                                       aria-valuemax="100"
+                                       ng-style="{width: (file.progress() * 100) + '%'}">
+                                    <span class="sr-only">{{file.progress()}}% Complete</span>
+                                  </div>
+                                </div>
+                                <div class="btn-group center">
+                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                    Delete
+                                  </a>
+                                </div>
+                              </div>
+
+
+                        <div class="clear"></div>
+                          
+                      </div>
+                    </div>
+
+
+
+                      
+                         <!-- <div 
+                           flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'cert')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
+                           >
+
+                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.document.id">     
+                                Click To Upload 
+                                <br />OR<br /> 
+                                Drag And Drop
+                            </div>
+
+                            <br/>
+
+                            <div>
+                                  <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                    <span class="title">{{file.name}}</span>
+                                    <div class="thumbnail" ng-show="$flow.files.length">
+                                          <img src="{{get_icon(file.file)}}" />
+                                    </div>
+                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                      <div class="progress-bar" role="progressbar"
+                                           aria-valuenow="{{file.progress() * 100}}"
+                                           aria-valuemin="0"
+                                           aria-valuemax="100"
+                                           ng-style="{width: (file.progress() * 100) + '%'}">
+                                        <span class="sr-only">{{file.progress()}}% Complete</span>
+                                      </div>
+                                    </div>
+                                    <div class="btn-group center">
+                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                        Delete
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <div class="clear"></div>
+                            </div>
+
+                        </div> -->
+
+                    </div>
+
+                    <div class="form-group">
+                      <label for="certificate_expiry">Certificate Issue Date</label>
+                      <input type="date" class="form-control inputtext" name="certificate_issue" id="certificate_issue" ng-model="vm.obj.certificate_issue" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="certificate_expiry">Certificate Expiry</label>
+                      <input type="date" class="form-control inputtext" name="certificate_expiry" id="certificate_expiry" ng-model="vm.obj.certificate_expiry" />
+                    </div>
+
+            </div>
+
+
+
+            <div class="insurance" ng-if="vm.show_maintenance || vm.show_insurance">
+
+                    <h3>Insurance Document</h3>
+
+                   <!--  <label for="insurance">Insurace PDF</label>
+                    <input type="file" class="form-control" name="plane_type" id="insurance" ng-model="vm.obj.insurance" /> -->
+
+
+                    <div class="form-group">
+                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
+                        <br />
+
+
+                        <div class="form-group centre_content_uploader">
+                          <div 
+                              flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'insurance')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
+                                  Click To Upload 
+                                  <br />OR<br /> 
+                                  Drag And Drop Your Document
+                              </div>
+
+                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+                                  <span class="title">{{file.name}}</span>
+                                  <div class="thumbnail">
+                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+                                  </div>
+                              </div>
+
+
+                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                <span class="title">{{file.name}}</span>
+                                <div class="thumbnail" ng-show="$flow.files.length">
+                                      <img src="{{get_icon(file.file)}}" />
+                                </div>
+                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                  <div class="progress-bar" role="progressbar"
+                                       aria-valuenow="{{file.progress() * 100}}"
+                                       aria-valuemin="0"
+                                       aria-valuemax="100"
+                                       ng-style="{width: (file.progress() * 100) + '%'}">
+                                    <span class="sr-only">{{file.progress()}}% Complete</span>
+                                  </div>
+                                </div>
+                                <div class="btn-group center">
+                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                    Delete
+                                  </a>
+                                </div>
+                              </div>
+
+
+                        <div class="clear"></div>
+                          
+                      </div>
+                    </div>
+                        
+                      
+                        <!-- <div 
+                           flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'insurance')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
+                           >
+
+                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.document.id">     
+                                Click To Upload 
+                                <br />OR<br /> 
+                                Drag And Drop
+                            </div>
+
+                            <br/>
+
+                            <div>
+
+
+
+                                  <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                    <span class="title">{{file.name}}</span>
+                                    <div class="thumbnail" ng-show="$flow.files.length">
+                                          <img src="{{get_icon(file.file)}}" />
+                                    </div>
+                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                      <div class="progress-bar" role="progressbar"
+                                           aria-valuenow="{{file.progress() * 100}}"
+                                           aria-valuemin="0"
+                                           aria-valuemax="100"
+                                           ng-style="{width: (file.progress() * 100) + '%'}">
+                                        <span class="sr-only">{{file.progress()}}% Complete</span>
+                                      </div>
+                                    </div>
+                                    <div class="btn-group center">
+                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                        Delete
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <div class="clear"></div>
+                            </div>
+
+                        </div>
+
+                    </div> -->
+
+                    <div class="form-group">
+                      <label for="insurance_expiry">Insurance Expiry</label>
+                      <input type="date" class="form-control inputtext" name="insurance_expiry" id="insurance_expiry" ng-model="vm.obj.insurance_expiry" />
+                    </div>
+
+            </div>
+
+
+            
+
+
+
+
+    </div>
+
+    <div class="radio" ng-if="vm.show_maintenance || vm.show_radio">
+
+                    <h3>Radio Licence</h3>
+
+                    <!-- <label for="radio_licence">Radio Licence PDF</label>
+                    <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
+
+                    <div class="form-group">
+                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
+                        <br />
+
+                        <div class="form-group centre_content_uploader">
+                          <div 
+                             flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'radio')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
+                                  Click To Upload 
+                                  <br />OR<br /> 
+                                  Drag And Drop Your Document
+                              </div>
+
+                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+                                  <span class="title">{{file.name}}</span>
+                                  <div class="thumbnail">
+                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+                                  </div>
+                              </div>
+
+
+                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                <span class="title">{{file.name}}</span>
+                                <div class="thumbnail" ng-show="$flow.files.length">
+                                      <img src="{{get_icon(file.file)}}" />
+                                </div>
+                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                  <div class="progress-bar" role="progressbar"
+                                       aria-valuenow="{{file.progress() * 100}}"
+                                       aria-valuemin="0"
+                                       aria-valuemax="100"
+                                       ng-style="{width: (file.progress() * 100) + '%'}">
+                                    <span class="sr-only">{{file.progress()}}% Complete</span>
+                                  </div>
+                                </div>
+                                <div class="btn-group center">
+                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                    Delete
+                                  </a>
+                                </div>
+                              </div>
+
+
+                        <div class="clear"></div>
+                          
+                      </div>
+                    </div>
+                        
+                      
+                        <!-- <div 
+                           flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'radio')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
+                           >
+
+
+                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">     
+                                Click To Upload 
+                                <br />OR<br /> 
+                                Drag And Drop
+                            </div>
+
+                            <br/>
+
+                            <div>
+
+
+
+
+                                  <div ng-repeat="file in $flow.files" class="gallery-box">
+                                    <span class="title">{{file.name}}</span>
+                                    <div class="thumbnail" ng-show="$flow.files.length">
+                                          <img src="{{get_icon(file.file)}}" />
+                                    </div>
+                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                      <div class="progress-bar" role="progressbar"
+                                           aria-valuenow="{{file.progress() * 100}}"
+                                           aria-valuemin="0"
+                                           aria-valuemax="100"
+                                           ng-style="{width: (file.progress() * 100) + '%'}">
+                                        <span class="sr-only">{{file.progress()}}% Complete</span>
+                                      </div>
+                                    </div>
+                                    <div class="btn-group center">
+                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                        Delete
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <div class="clear"></div>
+                            </div>
+
+                        </div>
+
+                    </div> -->
+
+                    <div class="form-group">
+                      <label for="radio_expiry">Radio Licence Expiry</label>
+                      <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.obj.radio_expiry" />
+                    </div>
+
+            </div>
+
+
+           
+        </div>
+
+
+
+        <div class="radio" ng-if="vm.show_maintenance || vm.show_noise">
+
+                    <h3>Noise Certificate</h3>
+
+                    <!-- <label for="radio_licence">Radio Licence PDF</label>
+                    <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
+
+                    <div class="form-group">
+                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
+                        <br />
+
+                        <div class="form-group centre_content_uploader">
+                          <div 
+                             flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'noise_cert')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
+                                  Click To Upload 
+                                  <br />OR<br /> 
+                                  Drag And Drop Your Document
+                              </div>
+
+                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+                                  <span class="title">{{file.name}}</span>
+                                  <div class="thumbnail">
+                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+                                  </div>
+                              </div>
+
+
+                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+                                <span class="title">{{file.name}}</span>
+                                <div class="thumbnail" ng-show="$flow.files.length">
+                                      <img src="{{get_icon(file.file)}}" />
+                                </div>
+                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                  <div class="progress-bar" role="progressbar"
+                                       aria-valuenow="{{file.progress() * 100}}"
+                                       aria-valuemin="0"
+                                       aria-valuemax="100"
+                                       ng-style="{width: (file.progress() * 100) + '%'}">
+                                    <span class="sr-only">{{file.progress()}}% Complete</span>
+                                  </div>
+                                </div>
+                                <div class="btn-group center">
+                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                                    Delete
+                                  </a>
+                                </div>
+                              </div>
+
+
+                        <div class="clear"></div>
+                          
+                      </div>
+                    </div>
+                        
+                    <div class="form-group">
+                      <label for="radio_expiry">Noise Level</label>
+                      <input type="number" increment="0.1" class="form-control inputtext" name="noise_level" id="noise_level" ng-model="vm.obj.noise_level" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="radio_expiry">Noise Certificate Date</label>
+                      <input type="date" class="form-control inputtext" name="noise_date" id="noise_date" ng-model="vm.obj.noise_date" />
+                    </div>
+
+            </div>
+
+
+           
+        </div>
+
+
+
+
+
+
+          <div class="btns_bottom">
+
+            <button class="btn btn-danger" ng-click="close_overlay()">Cancel</button>
+            <button class="btn btn-success" ng-click="save_overlay()">Save</button>
+          </div>
+
+
+</div>
+
+
+
+
+
+          
+
+
+
+<!--  -->
+
+<!-- 
+show_cert = false;
+        show_maintenance = false;
+        show_radio = false;
+        show_insurance = false; -->
+     
+     </div>
+     </div>
+   </ui-view>

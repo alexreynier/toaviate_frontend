@@ -1,0 +1,1754 @@
+<div class="bookingout_wrapper">
+
+
+  <div class="welcome_title">
+      <h2>BOOKING BACK IN</h2> 
+      <h4 class="capitalise">
+        Return from flight!
+      </h4>
+  </div>
+
+<!-- {{ vm.flight_units | json }}
+
+airborne ==> time airborne to the minute
+<br />
+flight ==> time from first takeoff to last landing to the minute
+<br />
+brakes ==> time from first move to last move
+<br />
+brakes_rounded ==> time first move to last move LAST ROUNDED to the nearest minute
+<br />
+flight_rounded ==> time from first move to last move rounded to nearest 5 minutes??
+ -->
+
+  <form>
+
+
+    <div class="club_docs_all" ng-if="vm.claim_a_flight.length > 0 && ((vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id) || vm.auto_claim !== 1)">
+      
+      <!-- && vm.bookout.fox_log_id > 0 //-->
+      <h2>Fox Avionix Log</h2>
+
+      <div ng-if="vm.claim_a_flight.length > 1" class="center_if_large">
+        <div class="form-group">
+            <label for="card-number">Select Your Flight</label>
+            <ui-select ng-model="vm.claimed_flight" theme="bootstrap" style="min-width: 500px;" title="Please select the flight that you have just flown" append-to-body="true" ng-change="claim_my_flight()">
+              <ui-select-match placeholder="Please select the flight">
+                <div ng-if="vm.claimed_flight.flight_date">{{ vm.claimed_flight.flight_date | date:'dd MMM yyyy' }} FLIGHT TIMES: {{ vm.claimed_flight.brakes_off_rounded | brakesTime }} - {{ vm.claimed_flight.brakes_on_rounded | brakesTime }}</div><div ng-if="!vm.claimed_flight.flight_date">Please select the flight</div>
+              </ui-select-match>
+              <ui-select-choices repeat="flight in vm.claim_a_flight | propsFilterA: {flight_date: $select.search, brakes_on: $select.search, brakes_off: $select.search, id: $select.search}">
+                <div class="inline_selected" ng-bind-html="flight.flight_date | date:'dd MMM yyyy' | highlight: $select.search"></div> FLIGHT:  
+                <div class="inline_selected" ng-bind-html="flight.brakes_off_rounded | brakesTime | highlight: $select.search"></div> -
+                <div class="inline_selected" ng-bind-html="flight.brakes_on_rounded | brakesTime | highlight: $select.search"></div>
+              </ui-select-choices>
+            </ui-select>
+
+
+
+        </div>
+      </div>
+
+      <div class="center_if_large">
+        <div ng-if="vm.claim_a_flight.length == 1">
+          <p><b>FLIGHT DATE:</b> {{ vm.claim_a_flight[0].flight_date | date:'dd MMM yyyy' }}
+          <br />
+          <b>FLIGHT TIMES:</b> {{ vm.claim_a_flight[0].brakes_off | brakesTime }} - {{ vm.claim_a_flight[0].brakes_on | brakesTime }}</p>
+          <br />
+          <button class="btn btn-primary" ng-if="!vm.different_date_warning && !vm.has_used_claimed_flight" ng-click="vm.claimed_flight = vm.claim_a_flight[0]; claim_my_flight()">CLAIM THIS FLIGHT</button>
+        </div>
+      
+        <div ng-if="vm.different_date_warning">
+          <p>The flight you have selected is NOT from the same date as your bookout - are you sure you wish to claim this flight for this bookout?</p>
+          <button class="btn btn-danger" ng-click="vm.different_date_warning = false; claim_my_flight(true)">CONFIRM THIS FLIGHT AS MINE</button>
+        </div>
+        <div ng-if="vm.has_used_claimed_flight">
+          <button uib-tooltip="Please click to change the selected flight log" class="btn btn-danger" ng-click="reset_claim_my_flight()">START AGAIN</button>
+        </div>
+      </div>
+
+
+    </div>
+
+    <div class="club_docs_all">
+
+      <h2>Flight Information</h2>
+
+      <div class="center_if_large">
+
+        <div class="form-group">
+          <label for="card-number">Pilot in Command</label>
+          <ui-select ng-model="vm.bookout.pic" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the PIC" append-to-body="true" ng-change="update_pic()">
+            <ui-select-match placeholder="Please select the PIC">
+              {{ vm.bookout.pic.first_name }} {{ vm.bookout.pic.last_name }}
+            </ui-select-match>
+            <ui-select-choices repeat="pic in vm.pics | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+              <div ng-bind-html="pic.name | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+
+
+        <div class="form-group" ng-if="(vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id) && vm.bookout.pic.instructor == 1">
+            <label for="defect">Was this an instructional flight?</label>
+            <label for="defaultCheckboxInstructional" class="si si-checkbox">
+                <input type="checkbox" id="defaultCheckboxInstructional" ng-click="vm.this_was_instructional_claim()"  />
+                <span class="si-label"></span>
+            </label>
+        </div>
+
+        <div ng-if="vm.this_claim_was_instructional && (vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id)">
+
+                      <div class="form-group">
+                        <label for="defect">Was this a Supervised Solo?</label>
+                         <label for="defaultCheckboxSupervised" class="si si-checkbox">
+                          <input type="checkbox" id="defaultCheckboxSupervised" ng-click="vm.this_was_a_supervised_solo()"  />
+                        <span class="si-label"></span>
+
+                        </label>
+                      </div>
+
+                      <div class="form-group" ng-if="!vm.this_was_supervised_solo">
+                        <label for="card-number">Student</label>
+                        <ui-select ng-model="vm.bookout.put" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the Student" append-to-body="true" ng-change="update_put()">
+                          <ui-select-match placeholder="Please select the student">
+                            {{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}
+                          </ui-select-match>
+                          <ui-select-choices repeat="pic in vm.pics | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+                            <div ng-bind-html="pic.name | highlight: $select.search"></div>
+                          </ui-select-choices>
+                        </ui-select>
+                      </div>      
+
+
+                     <!--  <div class="form-group" ng-if="vm.this_was_supervised_solo && vm.can_authorise">
+                        <label for="card-number">Authorised Solo Flight</label>
+                        <div class="check_box_in_form">
+                          <input type="checkbox" class="form-control" ng-model="vm.bookout.authorised_solo" />
+                        </div>
+                      </div> -->
+
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo">
+                        <label for="ps">
+                          <span>Supervising Instructor</span>
+                        </label>
+                        <!-- <input type="text" class="form-control" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true"> -->
+                          <ui-select ng-model="vm.bookout.instructor" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the supervising instructor" append-to-body="true" ng-change="update_instructor()">
+                            <ui-select-match placeholder="Please select the supervising instructor">
+                              {{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}
+                            </ui-select-match>
+                            <ui-select-choices repeat="pic in vm.instructors | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+                              <div ng-bind-html="pic.name | highlight: $select.search"></div>
+                            </ui-select-choices>
+                          </ui-select>
+
+                      </div>
+
+
+                                <!-- COURSE SELECTION //-->
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo || vm.this_claim_was_instructional">
+                          <label for="instructor">Select a course</label>
+                          <ui-select ng-model="vm.bookout.course" ng-change="vm.update_course()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select the course taught" append-to-body="true">
+
+                            <ui-select-match placeholder="Please select the course taught" allow-clear="true">
+                              {{ vm.bookout.course.title }}             
+                            </ui-select-match>
+                            <ui-select-choices repeat="course in vm.club_courses | propsFilterA: {title: $select.search, id: $select.search}">
+                              <span ng-bind-html="course.title | highlight: $select.search"></span>
+
+                            </ui-select-choices>
+                            <ui-select-no-choice>
+                              <span>It doesn't look like that course exists!</span>
+                            </ui-select-no-choice>
+                          </ui-select>
+                      </div>
+
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo || vm.this_claim_was_instructional">
+                          <label for="instructor">Tuition Received By Student</label>
+                          <ui-select ng-model="vm.bookout.tuition_required" ng-change="vm.update_tuition_charges()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Tuition Received By Student" append-to-body="true">
+
+                            <ui-select-match placeholder="Please select tuition required" allow-clear="true">
+                              {{ vm.bookout.tuition_required.title }}             
+                            </ui-select-match>
+                            <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
+                              <span ng-bind-html="instructor.title | highlight: $select.search"></span>
+
+                            </ui-select-choices>
+                            <ui-select-no-choice>
+                              <span>It doesn't look like this instructor can teach what you're looking for.</span>
+                            </ui-select-no-choice>
+                          </ui-select>
+                      </div>
+
+
+              </div>
+
+                  
+
+        <div ng-if="!vm.this_claim_was_instructional && (vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id)">
+
+          <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id">
+            <label for="card-number">Pilot Under Training</label>
+
+            <input type="text" class="form-control inputtext" value="{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}" disabled="true">
+          </div>
+
+         <!--  <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id">
+            <label for="card-number">Pilot Under Training</label>
+
+            <input type="text" class="form-control inputtext" value="{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}" disabled="true">
+          
+          </div> -->
+
+          <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && (vm.bookout.pic.user_id == vm.bookout.user_id || vm.bookout.instructor_id == vm.user.id) && vm.can_authorise && vm.bookout.pic.user_id !== vm.bookout.instructor_id">
+            <label for="card-number">Authorised Solo Flight</label>
+            <div class="check_box_in_form">
+              <input type="checkbox" class="form-control" ng-model="vm.bookout.authorised_solo" />
+            </div>
+          </div>
+
+          <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && (vm.bookout.pic.user_id == vm.bookout.user_id || vm.bookout.instructor_id == vm.user.id) && vm.bookout.instructor_id !== vm.bookout.pic.user_id">
+            <label for="ps">
+              <span ng-if="!vm.bookout.authorised_solo">Pilot Supervising</span>
+              <span ng-if="vm.bookout.authorised_solo">Pilot Authorising Flight</span>
+            </label>
+            <input type="text" class="form-control inputtext" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true" />
+          </div>
+
+          <!-- COURSE SELECTION //-->
+
+           <div class="form-group" ng-if="vm.this_was_supervised_solo || vm.this_claim_was_instructional || vm.bookout.instructor_id > 0">
+              <label for="instructor">Select a course</label>
+              <ui-select ng-model="vm.bookout.course" ng-change="vm.update_course()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select the course taught" append-to-body="true">
+
+                <ui-select-match placeholder="Please select the course taught" allow-clear="true">
+                  {{ vm.bookout.course.title }}             
+                </ui-select-match>
+                <ui-select-choices repeat="course in vm.club_courses | propsFilterA: {title: $select.search, id: $select.search}">
+                  <span ng-bind-html="course.title | highlight: $select.search"></span>
+
+                </ui-select-choices>
+                <ui-select-no-choice>
+                  <span>It doesn't look like that course exists!</span>
+                </ui-select-no-choice>
+              </ui-select>
+          </div>
+
+
+          <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && (vm.bookout.pic.user_id !== vm.user.id || vm.bookout.put.user_id > 0)">
+              <label for="instructor">Tuition Received By Student</label>
+              <ui-select ng-model="vm.bookout.tuition_required" ng-change="vm.update_tuition_charges()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Tuition Received By Student" append-to-body="true">
+
+                <ui-select-match placeholder="Please select tuition required" allow-clear="true">
+                  {{ vm.bookout.tuition_required.title }}             
+                </ui-select-match>
+                <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
+                  <span ng-bind-html="instructor.title | highlight: $select.search"></span>
+
+                </ui-select-choices>
+                <ui-select-no-choice>
+                  <span>It doesn't look like this instructor can teach what you're looking for.</span>
+                </ui-select-no-choice>
+              </ui-select>
+          </div>
+
+         
+        </div>
+
+
+        <div ng-if="vm.bookout.fox_log_id > 0">
+<!-- }
+} -->
+<!--           <div ng-if="!vm.this_claim_was_instructional"> </div>
+ -->             
+                  <div class="form-group" ng-if="vm.bookout.pic.instructor == 1">
+                    <label for="defect">Was this an instructional flight?</label>
+                     <label for="defaultCheckboxInstructional" class="si si-checkbox">
+                      <input type="checkbox" id="defaultCheckboxInstructional" ng-click="vm.this_was_instructional_claim()"  />
+                    <span class="si-label"></span>
+
+                    </label>
+                  </div>
+
+                  <div ng-if="vm.this_claim_was_instructional">
+
+                      <div class="form-group">
+                        <label for="defect">Was this a Supervised Solo?</label>
+                         <label for="defaultCheckboxSupervised" class="si si-checkbox">
+                          <input type="checkbox" id="defaultCheckboxSupervised" ng-click="vm.this_was_a_supervised_solo()"  />
+                        <span class="si-label"></span>
+
+                        </label>
+                      </div>
+
+                      <div class="form-group" ng-if="!vm.this_was_supervised_solo">
+                        <label for="card-number">Student</label>
+                        <ui-select ng-model="vm.bookout.put" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the Student" append-to-body="true" ng-change="update_put()">
+                          <ui-select-match placeholder="Please select the student">
+                            {{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}
+                          </ui-select-match>
+                          <ui-select-choices repeat="pic in vm.pics | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+                            <div ng-bind-html="pic.name | highlight: $select.search"></div>
+                          </ui-select-choices>
+                        </ui-select>
+                      </div>      
+
+
+                     <!--  <div class="form-group" ng-if="vm.this_was_supervised_solo && vm.can_authorise">
+                        <label for="card-number">Authorised Solo Flight</label>
+                        <div class="check_box_in_form">
+                          <input type="checkbox" class="form-control" ng-model="vm.bookout.authorised_solo" />
+                        </div>
+                      </div> -->
+
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo">
+                        <label for="ps">
+                          <span>Supervising Instructor</span>
+                        </label>
+                        <!-- <input type="text" class="form-control" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true"> -->
+                          <ui-select ng-model="vm.bookout.instructor" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the supervising instructor" append-to-body="true" ng-change="update_instructor()">
+                            <ui-select-match placeholder="Please select the supervising instructor">
+                              {{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}
+                            </ui-select-match>
+                            <ui-select-choices repeat="pic in vm.instructors | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+                              <div ng-bind-html="pic.name | highlight: $select.search"></div>
+                            </ui-select-choices>
+                          </ui-select>
+
+                      </div>
+
+
+                                <!-- COURSE SELECTION //-->
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo || vm.this_claim_was_instructional">
+                          <label for="instructor">Select a course</label>
+                          <ui-select ng-model="vm.bookout.course" ng-change="vm.update_course()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select the course taught" append-to-body="true">
+
+                            <ui-select-match placeholder="Please select the course taught" allow-clear="true">
+                              {{ vm.bookout.course.title }}             
+                            </ui-select-match>
+                            <ui-select-choices repeat="course in vm.club_courses | propsFilterA: {title: $select.search, id: $select.search}">
+                              <span ng-bind-html="course.title | highlight: $select.search"></span>
+
+                            </ui-select-choices>
+                            <ui-select-no-choice>
+                              <span>It doesn't look like that course exists!</span>
+                            </ui-select-no-choice>
+                          </ui-select>
+                      </div>
+
+                      <div class="form-group" ng-if="vm.this_was_supervised_solo || vm.this_claim_was_instructional">
+                          <label for="instructor">Tuition Received By Student</label>
+                          <ui-select ng-model="vm.bookout.tuition_required" ng-change="vm.update_tuition_charges()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Tuition Received By Student" append-to-body="true">
+
+                            <ui-select-match placeholder="Please select tuition required" allow-clear="true">
+                              {{ vm.bookout.tuition_required.title }}             
+                            </ui-select-match>
+                            <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
+                              <span ng-bind-html="instructor.title | highlight: $select.search"></span>
+
+                            </ui-select-choices>
+                            <ui-select-no-choice>
+                              <span>It doesn't look like this instructor can teach what you're looking for.</span>
+                            </ui-select-no-choice>
+                          </ui-select>
+                      </div>
+
+
+                    </div>
+
+
+
+          <!-- </div> -->
+        </div>
+
+        <div class="form-group">
+
+          <label for="from_airfield">Flight Type</label>
+          <ui-select ng-model="vm.bookout.flight_type" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the flight type" append-to-body="true">
+            <ui-select-match placeholder="Please select the flight type">
+              {{ vm.bookout.flight_type.title }} 
+            </ui-select-match>
+            <ui-select-choices repeat="ft in vm.flight_types | propsFilterA: {title: $select.search, id: $select.search}">
+              <div ng-bind-html="ft.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+        <div class="form-group">
+          <label for="from_airfield">From Airfield</label>
+
+          <ui-select ng-model="vm.bookout.from_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the departure" append-to-body="true">
+            <ui-select-match placeholder="Please select the departure airport">
+              <span ng-bind-html="vm.bookout.from_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.from_airfield.code }} ]
+            </ui-select-match>
+            <ui-select-choices repeat="airfield in vm.airfields | propsFilter: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: vm.wgs_n:vm.wgs_e" refresh="get_airfields($select.search)" refresh-delay="2">
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+
+        <div class="form-group" ng-if="vm.bookout.flight_type.id !== 1 && vm.bookout.flight_type.id !== 3">
+          <label for="to_airfield">To Airfield</label>
+
+          <ui-select ng-model="vm.bookout.to_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the destination" append-to-body="true">
+            <ui-select-match placeholder="Please select the destination airport">
+<!--               {{ vm.bookout.to_airfield.title }} [ {{ vm.bookout.to_airfield.code }} ]
+ -->
+              <span ng-bind-html="vm.bookout.to_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.to_airfield.code }} ]
+
+            </ui-select-match>
+             <ui-select-choices repeat="airfield in vm.airfields | propsFilter: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: 51.51:0.12" refresh="get_airfields($select.search)" refresh-delay="2" >
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+
+
+
+
+       <!--  <button class="btn btn-info" ui-sref="dashboard.bookings.edit_from_bookout({booking_id: vm.bookout.booking_id})">Amend Booking</button>
+      </div> -->
+
+    </div>
+  </div>
+
+
+
+ <div class="club_docs_all">
+
+      <h2>Flight Details</h2>
+
+
+      <div class="center_if_large">
+
+        <div ng-if="vm.bookout.aircraft.track_tacho == 1 || vm.plane_charges.plane_charge_type == 'tacho'">
+          <div class="form-group">
+            <label for="card-number">Start Tacho</label>
+            <input type="number" step="0.01" ng-change="vm.calculate_invoice_for_flight()" class="form-control inputtext" ng-model="vm.bookout.start_tacho">
+          </div>
+
+          <div class="form-group">
+            <label for="card-number">End Tacho</label>
+            <input type="number" step="0.01" ng-change="vm.calculate_invoice_for_flight()" class="form-control inputtext" ng-model="vm.bookout.end_tacho" ng-class="{'error_highlight': vm.tacho_error_highlight}" ng-blur="vm.check_tacho_bigger()">
+          </div>
+        </div>
+
+        <div class="" ng-if="!vm.has_used_claimed_flight">
+
+      <!--   <div ng-if="vm.has_used_claimed_flight == false || (vm.has_used_claimed_flight && vm.has_requested_to_change_times )"> -->
+
+          <div class="form-group">
+            <label for="card-number">Brakes Off</label>
+              <div class="result_from_claim" ng-if="vm.has_used_claimed_flight">{{ vm.bookout.brakes_off.time | brakesTime }}</div>
+              <ui-select ng-if="!vm.has_used_claimed_flight" ng-model="vm.bookout.brakes_off" theme="bootstrap" style="min-width: 300px;" title="Please select a brakes off time" append-to-body="true" class="input-group" ng-change="update_dateTime('end_time');vm.calculate_my_brakes_duration()" required>
+                    <ui-select-match placeholder="Please select a brakes off time" >
+                      {{ vm.bookout.brakes_off.time }}             
+                    </ui-select-match>
+                    <ui-select-choices repeat="times in vm.start_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                      <span ng-bind-html="times.time | highlight: $select.search"></span>
+                    </ui-select-choices>
+                    <ui-select-no-choice>
+                      <span>Nothing available during selected times</span>
+                    </ui-select-no-choice>
+                  </ui-select>
+
+            </div>
+
+            <div ng-if="vm.has_used_claimed_flight" class="form-group">
+              <label for="card-number">Takeoff Time</label>
+              <div class="result_from_claim">{{ vm.bookout.takeoff_time | brakesTime }}</div>
+            </div>
+
+            <div ng-if="vm.has_used_claimed_flight" class="form-group">
+              <label for="card-number">Landing Time</label>
+              <div class="result_from_claim">{{ vm.bookout.landing_time | brakesTime }}</div>
+            </div>
+
+            <div ng-if="vm.show_takeoff_landing_times && !vm.has_used_claimed_flight">
+
+              <div class="form-group">
+                <label for="card-number">Takeoff Time</label>
+                  <ui-select ng-if="!vm.has_used_claimed_flight" ng-model="vm.bookout.takeoff_time" theme="bootstrap" style="min-width: 300px;" title="Please select the takeoff time" append-to-body="true" class="input-group" ng-change="vm.calculate_airborne_duration(); vm.calculate_my_airborne_duration()" required>
+                        <ui-select-match placeholder="Please select a takeoff time" >
+                          {{ vm.bookout.takeoff_time.time }}             
+                        </ui-select-match>
+                        <ui-select-choices repeat="times in vm.takeoff_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                          <span ng-bind-html="times.time | highlight: $select.search"></span>
+                        </ui-select-choices>
+                        <ui-select-no-choice>
+                          <span>Nothing available during selected times</span>
+                        </ui-select-no-choice>
+                      </ui-select>
+
+                </div>
+
+                <div class="form-group">
+                <label for="card-number">Landing Time</label>
+                  <ui-select ng-if="!vm.has_used_claimed_flight" ng-model="vm.bookout.landing_time" theme="bootstrap" style="min-width: 300px;" title="Please select landing time" append-to-body="true" class="input-group" ng-change="vm.calculate_after_landing_duration(); vm.calculate_my_airborne_duration()" required>
+                        <ui-select-match placeholder="Please select a landing  time" >
+                          {{ vm.bookout.landing_time.time }}             
+                        </ui-select-match>
+                        <ui-select-choices repeat="times in vm.landing_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                          <span ng-bind-html="times.time | highlight: $select.search"></span>
+                        </ui-select-choices>
+                        <ui-select-no-choice>
+                          <span>Nothing available during selected times</span>
+                        </ui-select-no-choice>
+                      </ui-select>
+
+                </div>
+
+            </div>
+
+
+            <div class="form-group">
+              <label for="card-number">Brakes On</label>
+              <div class="result_from_claim" ng-if="vm.has_used_claimed_flight">{{ vm.bookout.brakes_on.time | brakesTime }}</div>
+              <ui-select ng-if="!vm.has_used_claimed_flight" ng-model="vm.bookout.brakes_on" ng-change="vm.calculate_my_brakes_duration(); vm.calculate_my_airborne_duration()" theme="bootstrap" style="min-width: 300px;" title="Please select a brakes on time" append-to-body="true" class="input-group" required>
+                    <ui-select-match placeholder="Please select a brakes on time" >
+                      {{ vm.bookout.brakes_on.time }}             
+                    </ui-select-match>
+                    <ui-select-choices repeat="times in vm.end_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                      <span ng-bind-html="times.time | highlight: $select.search"></span>
+                    </ui-select-choices>
+                    <ui-select-no-choice>
+                      <span>Nothing available during selected times</span>
+                    </ui-select-no-choice>
+                  </ui-select>
+            </div>
+            
+            </div>
+            
+
+
+            <div class="form-group" ng-if="vm.has_used_claimed_flight">
+
+             
+
+             
+
+             <!-- {{ vm.claimed_flight | json }} -->
+
+              <!-- {{ vm.bookout.plane_charges.charge_type }} -->
+              <table class="centred_timings" ng-if="!vm.split_flight_confirmation">
+                <tr>
+                  <th>
+                    Brakes Off
+                  </th>
+                  <th>
+                    Takeoff
+                  </th>
+                  <th>
+                    Landing
+                  </th>
+                  <th>
+                    Brakes On
+                  </th>
+                </tr>
+                <tr>
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.bookout.brakes_off.time | brakesTime }}">{{ vm.bookout.brakes_off_rounded | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span ng-if="vm.bookout.plane_charges.charge_type == 'flight'">{{ vm.bookout.takeoff_rounded | brakesTime }}</span>
+                    <span ng-if="vm.bookout.plane_charges.charge_type !== 'flight'">{{ vm.bookout.takeoff_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span ng-if="vm.bookout.plane_charges.charge_type == 'flight'">{{ vm.bookout.landing_rounded | brakesTime }}</span>
+                    <span ng-if="vm.bookout.plane_charges.charge_type !== 'flight'">{{ vm.bookout.landing_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.bookout.brakes_on.time | brakesTime }}">{{ vm.bookout.brakes_on_rounded | brakesTime }}</span>
+                  </td>
+                </tr>
+              </table>
+              <!-- {{ vm.bookout | json}} -->
+
+               <div ng-if="vm.split_flight == 1">
+
+                  <br />
+                  <div class="form-group">
+                        <label for="lubricant_type">Split Flight At</label>
+                        <ui-select ng-model="vm.split_flight_time" theme="bootstrap" style="min-width: 300px;" title="Please choose when to split the flight" append-to-body="true" class="input-group" ng-change="vm.update_split();">
+                          <ui-select-match placeholder="Please choose when to split the flight" >
+                            {{ vm.split_flight_time.time }}             
+                          </ui-select-match>
+                          <ui-select-choices repeat="stop in vm.bookout.stops | filter: {title: $select.search, time: $select.search}">
+                            <span ng-bind-html="stop.time | highlight: $select.search"></span>
+                          </ui-select-choices>
+                        </ui-select>
+                  </div>
+
+                  <br /><br />
+              </div>
+
+
+
+              <div ng-if="vm.split_one && vm.split_flight == 1">
+
+                <h3>Split Flights</h3>
+                <table class="centred_timings">
+                <tr>
+                  <th>
+                    Brakes Off
+                  </th>
+                  <th>
+                    Takeoff
+                  </th>
+                  <th>
+                    Landing
+                  </th>
+                  <th>
+                    Brakes On
+                  </th>
+                </tr>
+                <tr>
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.split_one.brakes_off.time | brakesTime }}">{{ vm.split_one.brakes_off_rounded | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span>{{ vm.split_one.takeoff_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span>{{ vm.split_one.landing_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.split_one.brakes_on.time | brakesTime }}">{{ vm.split_one.brakes_on_rounded | brakesTime }}</span>
+                  </td>
+                </tr>
+                <tr ng-if="vm.split_two">
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.split_two.brakes_off.time | brakesTime }}">{{ vm.split_two.brakes_off_rounded | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span>{{ vm.split_two.takeoff_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span>{{ vm.split_two.landing_time | brakesTime }}</span>
+                  </td>
+                  <td>
+                    <span uib-tooltip="Rounded time: {{ vm.split_two.brakes_on.time | brakesTime }}">{{ vm.split_two.brakes_on_rounded | brakesTime }}</span>
+                  </td>
+                </tr>
+              </table>
+
+               <br />
+                <span>The second flight will be calculated separately after completing this book-in!</span>
+
+
+                <div ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0">
+                  <br />
+
+                  <button class="btn btn-danger" ng-click="vm.cancel_split()">CANCEL SPLIT</button>
+
+                  <button class="btn btn-primary" ng-click="vm.confirm_split()">CONFIRM FLIGHT SPLIT</button>
+                  <br /><br />
+                </div>
+
+              <br />
+              <br /><br />
+            </div>
+
+           
+             <div ng-if="vm.split_flight == 0 && vm.split_flight_confirmation == 0">
+                <br />
+                <button class="btn btn-danger" ng-click="vm.split_this_flight()">SPLIT THIS FLIGHT</button>
+                <br /><br />
+              </div>
+
+              <div ng-if="vm.split_flight_confirmation == 1">
+                <br />
+                <button class="btn btn-danger" ng-click="vm.cancel_split()">CANCEL SPLIT FLIGHT</button>
+                <br /><br />
+              </div>
+
+            </div>
+
+
+
+            <!-- <div ng-if="vm.has_used_claimed_flight && !has_requested_to_change_times">
+              //
+
+            </div> -->
+
+            <div class="form-group">
+              <label for="card-number">Home Touch &amp; Go</label>
+              <input type="number" step="1" min="0" ng-change="vm.calculate_invoice_for_flight()" class="form-control inputtext" ng-model="vm.bookout.tng">
+            </div>
+
+            <div class="form-group">
+              <label for="card-number">Home Full Stops</label>
+              <input type="number" step="1" min="0" ng-change="vm.calculate_invoice_for_flight()" class="form-control inputtext" ng-model="vm.bookout.landings">
+            </div>
+
+            <div class="form-group" ng-if="vm.bookout.flight_type.id !== 1">
+              <label for="card-number">Landings at Destination</label>
+              <input type="number" step="1" min="0" class="form-control inputtext" ng-model="vm.bookout.remote_landings">
+            </div>
+
+
+
+          </div>
+
+    </div>
+
+
+     <div class="club_docs_all">
+
+      <h2>Fuel &amp; Oil</h2>
+      
+
+      <div class="form-group all_receipts">
+
+            <!--   <div class="no_defects" ng-if="vm.lubricant_receipts && vm.lubricant_receipts.length < 1">
+               Please add fuel and oil consumptions
+              </div>
+ -->
+
+             <div class="card">
+
+               <table ng-if="vm.lubricant_receipts && vm.lubricant_receipts.length > 0">
+                  <tr>
+                    <th>
+                      Item
+                    </th>
+                    <th>
+                      Quantity (litres)
+                    </th>
+                    <th>
+                      Price
+                    </th>
+                    <th>
+                      Reimbursed
+                    </th>
+                    <th>
+                      Edit
+                    </th>
+                  </tr>
+                  <tr ng-repeat="receipt in vm.lubricant_receipts">
+                    <td>
+                      {{ receipt.item }}
+                    </td>
+                    <td>
+                      {{ receipt.quantity }}
+                    </td>
+                    <td>
+                      {{ receipt.currency }}{{ receipt.price }}
+                    </td>
+                    <td>
+                      <span ng-if="receipt.reimbursement == 0">NO</span>
+                      <span ng-if="receipt.reimbursement == 1">{{receipt.reimbursed_currency}}{{receipt.reimbursed_amount}}</span>
+
+<!--                       {{ (receipt.reimbursement == 1)? 'YES' : 'NO' }}
+ -->                    </td>
+                    <td>
+                      <button ng-if="receipt.approved == 0" ng-click="vm.delete_receipt(receipt.id)">Delete Receipt</button>
+                      <p ng-if="receipt.approved == 1">Already Approved</p>
+                      <p ng-if="receipt.approved == 2">Already Declined</p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+
+                <div class="receipt">
+
+
+                  <div class="left_add2">
+                    <div class="center_if_large">
+
+                    <div class="form-group">
+                      <label for="lubricant_type">Type</label>
+                      <ui-select ng-model="vm.receipt.item" theme="bootstrap" style="min-width: 300px;" title="Please choose Fuel or Oil" append-to-body="true" class="input-group">
+                        <ui-select-match placeholder="Please choose Fuel or Oil" >
+                          {{ vm.receipt.item.title }}             
+                        </ui-select-match>
+                        <ui-select-choices repeat="item in vm.lubricant_type | filter: {title: $select.search}">
+                          <span ng-bind-html="item.title | highlight: $select.search"></span>
+                        </ui-select-choices>
+                      </ui-select>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="defect">Quantity ({{ (vm.receipt.item.title == "Fuel") ? "litres" : "quarts" }})</label>
+                      <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.receipt.quantity">
+                    </div>
+                    <div class="form-group">
+                      <label for="defect">Currency</label>
+                     <!--  <select ng-model="vm.receipt.currency" >
+                        <option ng-repeat="currency in vm.currencies" ng-value="currency.iso_code">{{ currency.iso_code }}</option>
+                      </select> -->
+                      <ui-select ng-model="vm.receipt.currency" ng-change="vm.check_reimbursement()" theme="bootstrap" style="min-width: 300px;" title="Please select receipt currency" append-to-body="true" class="input-group">
+                        <ui-select-match placeholder="Please choose currency" >
+                          {{ vm.receipt.currency.iso_code }}             
+                        </ui-select-match>
+                        <ui-select-choices repeat="item in vm.currencies | filter: {iso_code: $select.search}">
+                          <span ng-bind-html="item.iso_code | highlight: $select.search"></span>
+                          <small ng-bind-html="item.currency_name | highlight: $select.search"></small>
+                        </ui-select-choices>
+                      </ui-select>
+
+                    </div>
+
+                    <div class="form-group">
+                      <label for="defect">Price</label>
+                      <input type="number" step="0.01" ng-blur="vm.check_reimbursement()" class="form-control inputtext" ng-model="vm.receipt.price">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="defect">Requesting Reimbursement</label>
+                       <label for="defaultCheckbox" class="si si-checkbox">
+                      <input type="checkbox" id="defaultCheckbox" ng-click="vm.check_reimbursement()" ng-model="vm.receipt.reimbursement" />
+                      <span class="si-label"></span>
+
+                    </label>
+                    </div>
+
+                    <span ng-if="vm.receipt.reimbursement == 1" uib-tooltip="From {{vm.receipt.currency.iso_code }} to {{vm.receipt.reimbursed_currency}} using Transferwise rate: {{vm.receipt.currency.iso_code }}1 = {{vm.receipt.reimbursed_currency}}{{ vm.receipt.reimbursed_rate }} at {{ vm.receipt.reimbursed_datetime | asDate | date:'dd MMM yyyy HH:mm'}}">Requesting reimbursement of: {{ vm.receipt.reimbursed_currency }}{{ vm.receipt.reimbursed_amount | number:'2' }}</span>
+                    
+                    
+<!--                     {{ vm.receipt | json }}
+ -->
+                    </div>
+                  </div>
+
+
+
+                  <div class="right_add2">
+
+                    <div flow-init
+                       flow-files-submitted="$flow.upload()"
+                       flow-file-success="$file.file_return = $message"
+                       flow-complete="processFiles($flow.files)"
+                       flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]"
+                       class="receipt_area"
+                       >
+                        <div class="drop area_drop" flow-btn flow-drop ng-class="dropClass">            
+                            <div class="cover_avatar" ng-if="vm.receipt.image.length > 0">
+                                <img ng-src="{{ vm.receipt.image }}" class="avatar">
+                            </div>
+
+                            <div class="avatar_upload_text">
+                                Click To Upload 
+                                <br />OR<br /> 
+                                Drag And Drop
+                                <br /> 
+                                Your Receipt
+                            </div>
+                        </div>
+                    </div>
+
+                  </div>
+
+                  
+
+
+                </div>
+
+                <button class="btn btn-success btn_top_space uppercase" ng-click="vm.add_receipt()">ADD {{vm.receipt.item.title}} UPLIFT</button>
+
+            </div>
+
+
+
+    </div>
+
+
+
+
+    <div class="club_docs_all">
+
+      <h2> Report Maintenance Issues</h2>
+
+
+
+
+            <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
+             There are no known maintenance issues outstanding...
+            </div>
+
+            <div class="card">
+             <table ng-if="vm.reported_defects && vm.reported_defects.length > 0">
+                <tr>
+                  <th>
+                    Severity
+                  </th>
+                  <th>
+                    Defect Reported
+                  </th>
+                  <th>
+                    Reported Date &amp; Time
+                  </th>
+                  <th>
+                    Status
+                  </th>
+                  <th>
+                    Function
+                  </th>
+                </tr>
+                <tr ng-repeat="defect in vm.reported_defects">
+                  <td>
+                    {{ defect.severity }}
+                  </td>
+                  <td>
+                    {{ defect.defect }}
+                  </td>
+                  <td>
+                    {{ defect.created_at | myDateTime }}
+                  </td>
+                  <td>
+                    {{ defect.status }}
+                  </td>
+                  <td>
+                    <button ng-if="defect.can_delete" ng-click="vm.delete_defect(defect.id)">Delete</button>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+
+
+            <div class="center_if_large">
+
+            <div class="form-group">
+              <label for="defect">Report Defect</label>
+              <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
+            </div>
+
+            <div class="form-group">
+              <label for="defect">Defect Severity</label>
+
+              <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
+                  <ui-select-match placeholder="Please select defect severity" >
+                    {{ vm.defect_severity.title }}             
+                  </ui-select-match>
+                  <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
+                    <span ng-bind-html="defect.title | highlight: $select.search"></span>
+                  </ui-select-choices>
+              </ui-select>
+            </div>
+
+              <button class="btn btn-success" ng-click="vm.add_defect()">REPORT DEFECT</button>
+
+            </div>
+
+
+    </div>
+
+
+    <div class="club_docs_all" ng-if="!vm.flight_times_complete || !vm.calculated_invoice">
+      <h2>Billing For Flight</h2>
+     <div class="no_defects">
+        Please complete the information above to be able to complete the flight.
+      </div>
+      <br />
+    </div>
+
+
+
+    <div class="club_docs_all" ng-if="vm.flight_times_complete && vm.calculated_invoice" >
+      <h2><span ng-if="vm.plane_charges.total !== 0 && !vm.complete_flight">Billing For Flight</span>
+            <span ng-if="vm.complete_flight && vm.invoices.length > 0">Billing For All Flights</span>
+            <span ng-if="vm.complete_flight && vm.invoices.length == 0">Billing For Flight</span></h2>
+
+          <div class="card" ng-if="!vm.complete_flight || vm.invoices.length == 0" ng-class="{ blur : !(vm.user.id == vm.bookout.payer_id || vm.user.id == vm.bookout.put.user_id || vm.user.id == vm.bookout.pic.user_id || vm.can_authorise )}">
+
+            <table>
+              <tr>
+                <td>
+                  Item
+                </td>
+                <td>
+                  Units
+                </td>
+                <td>
+                  Cost per unit
+                </td>
+                <td>
+                  Total
+                </td>
+              </tr>
+              <tr ng-if="vm.packages && vm.packages.length > 0" ng-repeat="package in vm.package_removed">
+                <td>
+                  <span uib-popover="{{ package.title }}">Package Used</span>
+                </td>
+                <td>
+                  <!-- {{ package.hours_solo_before | number:2 }} -->
+                  <span uib-tooltip="Hours remaining on this package before flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_before )}}</span> 
+                  <span uib-tooltip="Hours remaining on this package before flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_before )}}</span> 
+                  -                   
+                  <span uib-tooltip="Hours used on this flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_spent )}}</span>
+                  <span uib-tooltip="Hours used on this flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_spent )}}</span>
+
+                </td>
+                <td>
+
+                </td>
+                <td>
+                  <span uib-tooltip="Hours remaining on this package after the flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_remaining_after )}} </span>
+                  <span uib-tooltip="Hours remaining on this package after the flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_remaining_after )}} </span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Aircraft {{ vm.plane_charges.plane_charge_type | capitalise }} Charge
+                </td>
+                <td>
+                  {{ vm.plane_charges.plane_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.plane_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.plane_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.plane_charges && vm.plane_charges.surcharge_charge_type !== 'none' && vm.plane_charges.surcharge_total > 0">
+                <td>
+                  <span ng-if="vm.plane_charges.surcharge_charge_type == 'taxi'">
+                    Taxi Charge
+                  </span>
+                  <span ng-if="vm.plane_charges.surcharge_charge_type !== 'taxi'">
+                    Surcharges per {{ vm.plane_charges.surcharge_charge_type }}
+                  </span>
+                </td>
+                <td>
+                  {{ vm.plane_charges.surcharge_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.surcharge_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.surcharge_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.bookout.instructor_id > 0 && vm.bookout.tuition_id > 0">
+                <td>
+                  Tuition Charge per {{ vm.plane_charges.tuition_charge_type }}
+                </td>
+                <td>
+                  {{ vm.plane_charges.tuition_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.tuition_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.tuition_total | number:2 }}
+                </td>
+              </tr>
+              
+              <tr ng-if="vm.plane_charges.tng_units > 0">
+                <td>
+                  Home Touch &amp; Go
+                </td>
+                <td>
+                  {{ vm.plane_charges.tng_units | number:2 }}
+                </td>
+                <td>
+                  @ £ {{ vm.plane_charges.tng_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.tng_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.plane_charges.landing_units > 0">
+                <td>
+                  Home Full Stop Landing
+                </td>
+                <td>
+                  {{ vm.plane_charges.landing_units | number:2 }}
+                </td>
+                <td>
+                  @ £ {{ vm.plane_charges.landing_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.landing_total | number:2 }}
+                </td>
+              </tr>
+
+              <tr ng-repeat="rcpt in vm.plane_charges.receipts">
+                <td>
+                  Reimbursement for: {{ rcpt.item }}
+                </td>
+                <td colspan="2">
+                  Quantity: {{ rcpt.quantity }}{{ (rcpt.item == "Fuel")? "litres" : "quarts" }}
+                </td>
+                <td>
+                  <i>£-{{ rcpt.reimbursed_amount | number:2 }}</i>
+                </td>
+              </tr>
+            
+              <tr class="bolder">
+                <td colspan="3">
+                  INVOICE TOTAL
+                </td>
+                <td>
+                  <b>£{{ vm.plane_charges.total | number:2 || "0.00" }}</b>
+                </td>
+              </tr>
+            </table>
+
+          </div>
+
+
+
+          <div class="pay_button_div" ng-if="!vm.complete_flight && (vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id )">
+
+            <button class="btn btn-warning" ng-click="vm.book_in_flight('next')">ADD ANOTHER LEG TO YOUR FLIGHT</button>
+            <button class="btn btn-success" ng-click="vm.complete_this_flight()">
+            
+            <span ng-if="vm.can_authorise">COMPLETE THE BOOKING</span>
+            <span ng-if="!vm.can_authorise">FINISH AND PAY</span>
+            </button>
+
+
+          </div>
+
+          <div class="pay_button_div" ng-if="!vm.complete_flight && vm.bookout.fox_log_id > 0 && (vm.bookout.pic_id > 0 && vm.bookout.payer_id > 0)">
+          
+            <button class="btn btn-warning" ng-if="vm.split_flight_confirmation == 1" ng-click="vm.book_in_flight('split')">CONTINUE TO FILL THE SECOND FLIGHT</button>
+
+            <button class="btn btn-success" ng-click="vm.complete_this_flight()" ng-if="vm.split_flight_confirmation == 0 && (vm.user.id == vm.bookout.payer_id || vm.user.id == vm.bookout.put.user_id || vm.user.id == vm.bookout.pic.user_id || vm.can_authorise )">
+            
+            <span ng-if="vm.can_authorise">COMPLETE THE CLAIM</span>
+            <span ng-if="!vm.can_authorise">FINISH AND PAY</span>
+            
+            </button>
+
+            <span ng-if="!vm.can_authorise && !(vm.user.id == vm.bookout.payer_id || vm.user.id == vm.bookout.put.user_id || vm.user.id == vm.bookout.pic.user_id )">Unfortunately you do not have permission to book this flight in</span>
+
+          </div>
+
+          <div class="pay_button_div" ng-if="!vm.complete_flight && vm.bookout.fox_log_id > 0 && (vm.bookout.pic_id == 0 || vm.bookout.payer_id == 0)">
+          
+            <!-- <button class="btn btn-success" ng-click="vm.complete_this_flight()">
+            
+            <span ng-if="vm.can_authorise">COMPLETE THE CLAIM</span>
+            <span ng-if="!vm.can_authorise">FINISH AND PAY</span>
+            </button> -->
+            <p>Please complete the first part of the form, and select a pilot in command as well as a pilot under training should it be required</p>
+
+          </div>
+
+
+
+
+              <div class="repeat_invoices" ng-repeat="invoice in vm.invoices" ng-if="vm.complete_flight && vm.invoices.length !== 0">
+                <div class="card">
+                
+
+                 <table>
+                  <tr>
+                    <td colspan="4">
+                        <h5><span ng-if="vm.invoices.length > 1">{{ invoice.flight }} - </span>From {{ invoice.from }} To {{ invoice.to }}</h5>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>
+                      Item
+                    </th>
+                    <th>
+                      Units
+                    </th>
+                    <th>
+                      Cost per unit
+                    </th>
+                    <th>
+                      Total
+                    </th>
+                  </tr>
+                  <tr ng-repeat="items in invoice.items">
+                    <td>
+                      {{ items.title }}
+                    </td>
+                    <td>
+                      {{ items.unit }} 
+                    </td>
+                    <td>
+                      <span ng-if="items.member_package_id == 0">@ £{{ items.unit_price }}  </span>
+                      <span ng-if="items.member_package_id > 0">were removed from your package  </span>
+                      
+                    </td>
+                    <td>
+                      £{{ items.total }}
+                    </td>
+                  </tr>
+                  <tr class="total_line">
+                    <td colspan="3">
+                      FLIGHT TOTAL
+                    </td>
+                    <td>
+                      <b>£{{ invoice.total | number:2 }}</b>
+                    </td>
+                  </tr>
+                </table>
+
+              </div>
+            </div>
+
+
+
+         <!--      <br /><br />
+              <h5>Billing For This Flight</h5>
+              <hr /> -->
+
+            <div class="card" ng-if="vm.complete_flight && vm.invoices.length > 0">
+              <table>
+                <tr>
+                  <td colspan="4">
+                      <h5>Billing For This Flight</h5>
+                  </td>
+                </tr>
+              <tr>
+                <th>
+                  Item
+                </th>
+                <th>
+                  Units
+                </th>
+                <th>
+                  Cost per unit
+                </th>
+                <th>
+                  Total
+                </th>
+              </tr>
+              <tr ng-if="vm.packages && vm.packages.length > 0" ng-repeat="package in vm.package_removed">
+                <td>
+                  <span uib-popover="{{ package.title }}">Package Used</span>
+                </td>
+                <td>
+                  <!-- {{ package.hours_solo_before | number:2 }} -->
+                  <span uib-tooltip="Hours remaining on this package before flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_before )}}</span> 
+                  <span uib-tooltip="Hours remaining on this package before flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_before )}}</span> 
+                  -                   
+                  <span uib-tooltip="Hours used on this flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_spent )}}</span>
+                  <span uib-tooltip="Hours used on this flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_spent )}}</span>
+
+                </td>
+                <td>
+
+                </td>
+                <td>
+                  <span uib-tooltip="Hours remaining on this package after the flight" ng-if="package.solo_dual == 'solo'">{{vm.convert_decimal_to_hours( package.hours_solo_remaining_after )}} </span>
+                  <span uib-tooltip="Hours remaining on this package after the flight" ng-if="package.solo_dual == 'dual'">{{vm.convert_decimal_to_hours( package.hours_dual_remaining_after )}} </span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Aircraft {{ vm.plane_charges.plane_charge_type | capitalise }} Charge
+                </td>
+                <td>
+                  {{ vm.plane_charges.plane_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.plane_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.plane_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.plane_charges && vm.plane_charges.surcharge_charge_type !== 'none' && vm.plane_charges.surcharge_total > 0">
+                <td>
+                  Surcharges per {{ vm.plane_charges.surcharge_charge_type }}
+                </td>
+                <td>
+                  {{ vm.plane_charges.surcharge_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.surcharge_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.surcharge_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.bookout.instructor_id > 0 && vm.bookout.tuition_id > 0">
+                <td>
+                  Tuition Charge per {{ vm.plane_charges.tuition_charge_type }}
+                </td>
+                <td>
+                  {{ vm.plane_charges.tuition_units | number:2 }}
+                </td>
+                <td>
+                  @ £{{ vm.plane_charges.tuition_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.tuition_total | number:2 }}
+                </td>
+              </tr>
+              
+              <tr ng-if="vm.plane_charges.tng_units > 0">
+                <td>
+                  Home Touch &amp; Go
+                </td>
+                <td>
+                  {{ vm.plane_charges.tng_units | number:2 }}
+                </td>
+                <td>
+                  @ £ {{ vm.plane_charges.tng_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.tng_total | number:2 }}
+                </td>
+              </tr>
+              <tr ng-if="vm.plane_charges.landing_units > 0">
+                <td>
+                  Home Full Stop Landing
+                </td>
+                <td>
+                  {{ vm.plane_charges.landing_units | number:2 }}
+                </td>
+                <td>
+                  @ £ {{ vm.plane_charges.landing_unit_price | number:2 }}
+                </td>
+                <td>
+                  £{{ vm.plane_charges.landing_total | number:2 }}
+                </td>
+              </tr>
+
+              <tr ng-repeat="rcpt in vm.plane_charges.receipts">
+                <td>
+                  Reimbursement for: {{ rcpt.item }}
+                </td>
+                <td colspan="2">
+                  Quantity: {{ rcpt.quantity }}{{ (rcpt.item == "Fuel")? "litres" : "quarts" }}
+                </td>
+                <td>
+                  <i>£-{{ rcpt.price | number:2 }}</i>
+                </td>
+              </tr>
+
+            
+              <tr class="total_line">
+                <td colspan="3">
+                  THIS FLIGHT TOTAL
+                </td>
+                <td>
+                  <b>£{{ vm.plane_charges.total | number:2 }}</b>
+                </td>
+              </tr>
+
+
+            </table>
+          </div>
+
+
+          <div class="card" ng-if="vm.complete_flight && vm.invoices.length > 0">
+
+              <table>
+                <tr>
+                  <td colspan="4">
+                    <h5>Total for all flights</h5>
+                  </td>
+                </tr>
+              <tr>
+                <th>
+                  Item
+                </th>
+                <th>
+                  
+                </th>
+                <th>
+                  
+                </th>
+                <th>
+                  Total
+                </th>
+              </tr>
+
+               <tr ng-repeat="invoice in vm.invoices">
+                  <td colspan="3">
+                    FLIGHT {{ invoice.flight }}
+                  </td>
+                  <td>
+                    <b>£{{ invoice.total | number:2 }}</b>
+                  </td>
+                </tr>
+
+
+               <tr>
+                <td colspan="3">
+                  THIS FLIGHT
+                </td>
+                <td>
+                  <b>£{{ vm.plane_charges.total | number:2 }}</b>
+                </td>
+              </tr>
+
+               <tr class="total_line">
+                <td colspan="3">
+                  ALL FLIGHTS
+                </td>
+                <td>
+                  <b>£{{ vm.invoice_totals | number:2 }}</b>
+                </td>
+              </tr>
+
+
+
+            </table>
+
+        </div>
+
+
+    </div>
+
+
+<!-- !vm.can_authorise || //-->
+     <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total > -0.01 && (vm.user.id == vm.bookout.payer_id)">
+      <h2>Pay For Flight</h2>
+           
+
+             
+              <div class="center_if_large clearfix" ng-if="vm.package_used">
+
+                  <div class="cards6 fixed_height" ng-repeat="package in vm.package_removed">
+                    <!--  uib-popover-html="vm.get_package_html(package)" -->
+
+                    <h4>{{ package.title }} <i class="fa fa-question-circle"></i></h4>
+                    
+                    <div class="dual_solo">
+                      <div class="dual" uib-tooltip="Hours remaining on this package to fly dual (with an instructor)">
+                          <span class="bigger_text">{{ vm.convert_decimal_to_hours( package.hours_dual_remaining_after ) || "00:00" }}</span>
+                          <span class="smaller_text">DUAL</span>
+                      </div>
+                      <div class="solo" uib-tooltip="Hours remaining on this package of solo rental">
+                          <span class="bigger_text">{{ vm.convert_decimal_to_hours( package.hours_solo_remaining_after ) || "00:00" }}</span>
+                          <span class="smaller_text">SOLO</span>
+                      </div>
+                    </div>
+
+
+                  </div>
+
+              </div>
+              <div class="center_if_large" ng-if="vm.package_used && vm.plane_charges.total == 0">
+
+                This payment will be taken entirely from the package<span ng-if="vm.package_removed.length > 1">s</span> above
+
+              </div>
+
+
+              <div class="center_if_large" ng-if="vm.plane_charges.total > 0">
+
+
+<!-- 
+                <table>
+                  <tr>
+                    <td>
+                      <div class="card" ng-if="vm.cards.length > 0">
+
+                          <div class="form-group" ng-if="vm.plane_charges.total > 0">
+                            <label>Payment Card</label>
+                            <ui-select ng-model="vm.payment_card" theme="bootstrap" ng-change="set_card()" title="Please select the payment card" append-to-body="true" placeholder="Please select the payment card." required>
+                              <ui-select-match placeholder="Please select the payment card.">
+                                {{ vm.payment_card.last4 || "Please select the payment card." }}
+                              </ui-select-match>
+                              <ui-select-choices repeat="card in vm.cards | propsFilterA: {last4: $select.search, brand: $select.search}">
+                                <div ng-bind-html="card.brand | highlight: $select.search"></div><div ng-bind-html="card.last4 | highlight: $select.search"></div>
+                              </ui-select-choices>
+                            </ui-select>   
+                          </div>
+
+                      </div>
+                    </td>
+                    <td>
+
+                      This payment will be taken from your Direct Debit setup with the club with the following details:
+
+                  <div class="card">
+
+                    <table>
+                      <tr>
+                        <td>
+                          Account Bank
+                        </td>
+                        <td>
+                          {{ vm.info.account_bank }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Name
+                        </td>
+                        <td>
+                          {{ vm.info.account_name }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Number
+                        </td>
+                        <td>
+                          ******{{ vm.info.account_ending }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Currency
+                        </td>
+                        <td>
+                          {{ vm.info.account_currency }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Mandate Scheme
+                        </td>
+                        <td>
+                          {{ vm.info.mandate_scheme }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Mandate Reference
+                        </td>
+                        <td>
+                          {{ vm.info.mandate_reference }}
+                        </td>                  
+                      </tr>
+                    </table>
+
+
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                       <button class="btn btn-success" ng-click="vm.book_in_flight()">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} <br />WITH CARD ENDING: {{ vm.payment_card.last4 }}</button>
+                    </td>
+                    <td>
+                     
+                      <button class="btn btn-success" ng-click="vm.book_in_flight()">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} <br />BY DIRECT DEBIT</button>
+                    </td>
+                  </tr>
+                </table> -->
+                
+              <div class="split_two">
+                <div class="card" ng-if="vm.cards.length > 0">
+
+                    <div class="form-group" ng-if="vm.plane_charges.total > 0">
+                      <label>Payment Card</label>
+                      <ui-select ng-model="vm.payment_card" theme="bootstrap" ng-change="set_card()" title="Please select the payment card" append-to-body="true" placeholder="Please select the payment card." required>
+                        <ui-select-match placeholder="Please select the payment card.">
+                          {{ vm.payment_card.last4 || "Please select the payment card." }}
+                        </ui-select-match>
+                        <ui-select-choices repeat="card in vm.cards | propsFilterA: {last4: $select.search, brand: $select.search}">
+                          <div ng-bind-html="card.brand | highlight: $select.search"></div><div ng-bind-html="card.last4 | highlight: $select.search"></div>
+                        </ui-select-choices>
+                      </ui-select>   
+                    </div>
+
+                </div>
+
+                <br />
+                <button class="btn btn-paycard"  ng-disabled="!vm.payment_card || !vm.payment_card.last4" ng-click="vm.book_in_flight('home', 'cc')">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} <br />WITH CARD ENDING: {{ vm.payment_card.last4 }}</button>
+
+              </div>
+              
+              <div class="split_two">
+
+                This payment will be taken from your Direct Debit setup with the club with the following details:
+
+                  <div class="card">
+
+                    <table>
+                      <tr>
+                        <td>
+                          Account Bank
+                        </td>
+                        <td>
+                          {{ vm.info.account_bank }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Name
+                        </td>
+                        <td>
+                          {{ vm.info.account_name }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Number
+                        </td>
+                        <td>
+                          ******{{ vm.info.account_ending }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Account Currency
+                        </td>
+                        <td>
+                          {{ vm.info.account_currency }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Mandate Scheme
+                        </td>
+                        <td>
+                          {{ vm.info.mandate_scheme }}
+                        </td>                  
+                      </tr>
+                      <tr>
+                        <td>
+                          Mandate Reference
+                        </td>
+                        <td>
+                          {{ vm.info.mandate_reference }}
+                        </td>                  
+                      </tr>
+                    </table>
+                   
+                  </div>
+
+
+                  <br />
+                  <button class="btn btn-paydd" ng-disabled="!vm.info || !vm.info.mandate_reference" ng-click="vm.book_in_flight('home', 'dd')">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} <br />BY DIRECT DEBIT</button>
+
+                </div>
+
+
+              <!-- 
+              <div class="form-group" ng-if="vm.plane_charges.total > 0">
+                    <label>Payment Card</label>
+                    <ui-select ng-model="vm.payment_card" theme="bootstrap" ng-change="set_card()" style="min-width: 500px;" title="Please select the payment card" append-to-body="true" placeholder="Please select the payment card." required>
+                      <ui-select-match placeholder="Please select the payment card.">
+                        {{ vm.payment_card.last4 || "Please select the payment card." }}
+                      </ui-select-match>
+                      <ui-select-choices repeat="card in vm.cards | propsFilter: {last4: $select.search, brand: $select.search}">
+                        <div ng-bind-html="card.brand | highlight: $select.search"></div><div ng-bind-html="card.last4 | highlight: $select.search"></div>
+                      </ui-select-choices>
+                    </ui-select>   
+                </div> -->
+          
+
+          <br /><br /><br /> 
+            <button class="btn btn-info" ng-click="vm.book_in_flight('home', 'cm')">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} <br /> WITH CARD MACHINE</button>
+
+          </div>
+          <div class="center_if_large">
+            <button class="btn btn-success btn_bigger" ng-if="vm.plane_charges.total == 0 && vm.package_used" ng-click="vm.book_in_flight()">COMPLETE FLIGHT</button>
+          </div>
+
+
+           <div id="payment-element">
+            <!-- Elements will create form elements here -->
+          </div>
+    </div>
+
+
+
+
+
+
+
+
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total < 0 && (!vm.can_authorise || vm.user.id == vm.bookout.payer_id)">
+      <h2>Pay For Flight</h2>
+
+              <div class="center_if_large">
+
+                <p>It would appear that you are claiming back more than this flight actually cost. </p>
+                <p>You will be credited the sum of: <b>£{{ -vm.invoice_totals | number:2 }}</b> to your account.</p>
+                <p>This credit will automatically be applied on your next payment(s), however, should you wish to receive a refund for this credit, you will be required to wait for the receipts to be approved by the administrator(s), and request this refund from them.</p>
+
+            <br />
+            <button class="btn btn-success" ng-click="vm.book_in_flight()">FINISH</button>
+
+          </div>
+    </div>
+ 
+
+
+
+
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total > 0 && ((vm.can_authorise || vm.user.id == vm.bookout.instructor_id) && vm.user.id !== vm.bookout.payer_id)">
+      <h2>Pay For Flight</h2>
+              <div class="center_if_large">
+
+            <button class="btn btn-primary btn_bigger" ng-click="vm.book_in_flight('debrief')">
+              FINISH &amp; SEND INVOICE FOR £{{ vm.invoice_totals| number:2 }} TO PILOT
+            </button>
+
+          </div>
+    </div>
+
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total < 0.01 && (vm.can_authorise && vm.user.id !== vm.bookout.payer_id)">
+      <h2>Pay For Flight</h2>
+              <div class="center_if_large">
+
+            <button class="btn btn-primary btn_bigger" ng-click="vm.book_in_flight('debrief')">
+              FINISH &amp; GENERATE PAYMENT
+            </button>
+
+
+
+
+          </div>
+    </div>
+
+</form>
+
+
+
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+<div ng-if="vm.show_cardmachine" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      The card machine should now display the instructions to pay.
+    </p>
+
+
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_machine_popup()">CLOSE</a>
+        <a class="btn btn-info confirm_btn" ng-click="vm.cancel_machine()">CANCEL PAYMENT</a>
+        <a class="btn btn-primary confirm_btn" ng-click="vm.reset_card_machine()">TRY AGAIN</a>
+      </div>
+  </div>
+                            
+
+</div>
+
+
+<div ng-if="vm.show_after_bookedin" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      This flight has already been booked back in successfully, but the payment has not yet been confirmed.
+    </p>
+    <p>
+      You can close this window and the payment will be attempted at a later date. If the member has set a default payment method - this payment method will be automatically tried at the next payment interval (usually the evening of the same day). 
+    </p>
+    <p>
+      If you are the instructor for this flight closing this page will present you with the student record page. <br />
+      If you are working the reception / ops - you can try again at a later date by going to the manage the invoice for this flight.
+    </p>
+
+
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_bookedin()">CLOSE &amp; COMPLETE</a>
+        <a class="btn btn-primary confirm_btn" ng-click="vm.reset_card_machine()">TRY CARD MACHINE AGAIN</a>
+      </div>
+  </div>
+                            
+
+</div>
+
+

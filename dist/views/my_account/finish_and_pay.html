@@ -1,0 +1,224 @@
+<div class="bookingout_wrapper">
+
+
+  <div class="welcome_title">
+      <h2>FINISH &amp; PAY</h2> 
+      <h4 class="capitalise">
+        Finish on a high!
+      </h4>
+  </div>
+
+
+  <form>
+
+    <div class="club_docs_all" ng-if="!vm.complete_flight || vm.invoices.length == 0">
+      <h2>Billing For Flight</h2>
+     <div class="no_defects">
+        Please complete the information above to be able to complete the flight.
+      </div>
+      <br />
+    </div>
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.invoices.length !== 0">
+      <h2><span ng-if="vm.plane_charges.total !== 0 && !vm.complete_flight">Billing For Flight</span>
+            <span ng-if="vm.complete_flight && vm.invoices.length > 0">Billing For All Flights</span>
+            <span ng-if="vm.complete_flight && vm.invoices.length == 0">Billing For Flight</span></h2>
+
+          <div class="repeat_invoices" ng-repeat="invoice in vm.invoices">
+
+                <div class="card">
+                
+
+                   <table>
+                    <tr>
+                      <td colspan="4">
+                          <h5><span ng-if="vm.invoices.length > 1"> Part {{$index + 1}} <!-- {{ invoice.flight }} --> - </span>From {{ invoice.from }} To {{ invoice.to }}</h5>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>
+                        Item
+                      </th>
+                      <th>
+                        Units
+                      </th>
+                      <th>
+                        Cost per unit
+                      </th>
+                      <th>
+                        Total
+                      </th>
+                    </tr>
+                    <tr ng-repeat="items in invoice.items">
+                      <td>
+                        {{ items.title }}
+                      </td>
+                      <td>
+                        {{ items.unit | number:2 }}
+                      </td>
+                      <td>
+                        @ £{{ items.unit_price | number:2 }}
+                      </td>
+                      <td>
+                        £{{ items.total | number:2 }}
+                      </td>
+                    </tr>
+                    <tr class="total_line">
+                      <td colspan="3">
+                        FLIGHT TOTAL
+                      </td>
+                      <td>
+                        <b>£{{ invoice.total | number:2 }}</b>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+              </div>
+
+              <div class="card">
+
+
+
+              <table ng-if="vm.plane_charges.total !== 0 && vm.invoices.length > 1">
+                <tr>
+                  <td colspan="4">
+                    <h5>Total<span ng-if="vm.invoices.length > 1"> for all flights</span></h5>
+
+                  </td>
+                </tr>
+              <tr>
+                <th>
+                  Item
+                </th>
+                <th>
+                  
+                </th>
+                <th>
+                  
+                </th>
+                <th>
+                  Total
+                </th>
+              </tr>
+
+               <tr ng-repeat="invoice in vm.invoices">
+                  <td colspan="3">
+                    FLIGHT {{ invoice.flight }}
+                  </td>
+                  <td>
+                    <b>£{{ invoice.total | number:2 }}</b>
+                  </td>
+                </tr>
+
+
+            
+               <tr class="total_line">
+                <td colspan="3">
+                  ALL FLIGHTS
+                </td>
+                <td>
+                  <b>£{{ vm.invoice_totals | number:2 }}</b>
+                </td>
+              </tr>
+
+
+
+            </table>
+          </div>
+        </div>
+
+
+
+
+     <div class="club_docs_all" ng-if="vm.complete_flight && vm.invoice_totals > 0 && !vm.can_authorise">
+      <h2>Pay For Flight</h2>
+
+       <div class="payment-accordion">
+            <div class="pa-container">
+              <h1 class="pa-title">Choose a payment method</h1>
+              <!-- <p class="pa-hint">Select one option below.</p> -->
+            
+              <payment-accordion
+                methods="vm.methods"
+                send="vm.send"
+                open="vm.default_payment"
+                info="vm.info" 
+                user="vm.user" 
+                bookout="vm.bookout"
+                saved-cards="vm.savedCards"
+                on-confirm="vm.donConfirm(methodLabel, paymentIntent)">
+              </payment-accordion>
+
+              
+            </div>
+          </div>
+
+
+          
+    </div>
+
+
+
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total < 0 && !vm.can_authorise">
+      <h2>Pay For Flight</h2>
+
+              <div class="center_if_large">
+
+                <p>It would appear that you are claiming back more than this flight actually cost. </p>
+                <p>You will be credited the sum of: <b>£{{ -vm.invoice_totals | number:2 }}</b> to your account.</p>
+                <p>This credit will automatically be applied on your next payment(s), however, should you wish to receive a refund for this credit, you will be required to wait for the receipts to be approved by the administrator(s), and request this refund from them.</p>
+
+            <br />
+            <button class="btn btn-success" ng-click="vm.book_in_flight()">FINISH</button>
+
+          </div>
+    </div>
+
+
+
+
+
+
+
+    <div class="club_docs_all" ng-if="vm.complete_flight && vm.plane_charges.total > 0 && vm.can_authorise">
+      <h2>Pay For Flight</h2>
+
+            <button class="btn btn-success" ng-click="vm.book_in_flight()">
+              FINISH &amp; SEND INVOICE FOR £{{ vm.invoice_totals| number:2 }} TO PILOT
+            </button>
+
+    </div>
+
+</form>
+
+    </div>
+
+
+
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+<div ng-if="vm.show_cardmachine" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      The card machine should now display the instructions to pay.
+    </p>
+
+
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_machine_popup()">CLOSE</a>
+        <a class="btn btn-info confirm_btn" ng-click="vm.cancel_machine()">CANCEL PAYMENT</a>
+        <a class="btn btn-primary confirm_btn" ng-click="vm.reset_card_machine()">TRY AGAIN</a>
+      </div>
+  </div>
+                            
+
+</div>

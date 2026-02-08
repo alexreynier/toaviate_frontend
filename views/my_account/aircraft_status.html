@@ -1,0 +1,492 @@
+<div class="centre_align_boxes2">
+
+
+    <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.my_account">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+
+        <div class="welcome_title">
+          <h2>AIRCRAFT STATUS</h2> 
+          <h4 class="capitalise">
+            See all aircraft operational status
+          </h4>
+        </div>
+    </div>
+
+
+<div class="sub_section2">
+    <div class="search_bar">
+
+        <input type="search" placeholder="Search Aircraft" ng-model="my_search2" class="form-control fifty_wide" />
+
+    </div>
+
+    <div ng-repeat="club in vm.clubs" class="club_docs_all">
+
+        <h2>{{ club.title }}</h2>
+       
+
+        <div ng-repeat="plane in club.planes | filter: search2" ng-if="!my_search || (my_search && (getMySearchCount(plane) > 0))">
+<!--             <div class="plane_docs">
+ -->               
+
+                <div class="club_docs_all2">
+                <h2>{{ plane.registration }} - {{ plane.plane_type }}</h2>
+
+
+
+                <div class="plane_docs">
+
+                  <h4>Reported Maintenance State</h4>
+
+
+
+                  <div class="form-group">
+
+
+                    <div class="no_defects" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) < 1">
+                     There are no currently reported maintenance issues...
+                    </div>
+
+
+
+                    <div class="card">
+
+                       
+
+                     <table ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) > 0">
+                        <tr>
+                          <th>
+                            Defect Reported
+                          </th>
+                           <th>
+                            Severity
+                          </th>
+                          <th>
+                            Reported Date &amp; Time
+                          </th>
+                          <th>
+                            Status
+                          </th>
+                        </tr>
+                        <tr ng-repeat="defect in plane.defects | filter: filter_detail(plane.show_all_defects)">
+                          <td>
+                            {{ defect.defect }}
+                          </td>
+                          <td>
+                            {{ defect.severity }}
+                          </td>
+                          <td>
+                            {{ defect.created_at | myDateTime }}
+                          </td>
+                          <td>
+                            {{ defect.status }}
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+
+
+                    <div class="center_if_large">
+                      Show All Previous Defects <input type="checkbox" name="" ng-model="plane.show_all_defects" />
+                                 
+                       <button ng-if="!plane.show_add_defect" class="btn btn-primary adding_button" ng-click="plane.show_add_defect = true">+</button>  
+
+                    </div>
+                      
+
+                    <!-- REPORT MAINTENANCE ISSUE //-->
+                    <div class="club_docs_all2 bookingout_wrapper" ng-if="plane.show_add_defect">
+                      <h4>Report A Defect for {{plane.registration}}</h4>
+                      <div class="center_if_large">
+
+                          <div class="form-group">
+                            <label for="defect">Defect</label>
+                            <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
+                          </div>
+
+                          <div class="form-group">
+                            <label for="defect">Defect Severity</label>
+                            <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
+                                <ui-select-match placeholder="Please select defect severity" >
+                                  {{ vm.defect_severity.title }}             
+                                </ui-select-match>
+                                <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
+                                  <span ng-bind-html="defect.title | highlight: $select.search"></span>
+                                </ui-select-choices>
+                            </ui-select>
+                          </div>
+
+                          <button class="btn btn-danger" ng-click="plane.show_add_defect = false;">CANCEL</button>
+                          <button class="btn btn-success" ng-click="plane.show_add_defect = false; vm.add_defect(plane.plane_id, club.id)">REPORT DEFECT</button>
+                          
+
+                      </div>
+                    </div>
+                     
+
+                    
+                    </div>
+
+
+                    <hr />
+
+
+                    <div class="card">
+
+
+                      <div class="cards">
+                        <h4>Hours Remaining</h4>
+                        <span class="big_number no_{{ plane.maintenance.hours_status }}">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
+                      </div>
+
+                      <div class="cards">
+                        <h4>Days Remaining</h4>
+                        <span class="big_number no_{{ plane.maintenance.days_status }}">{{ plane.maintenance.days_remaining || "0"  }}</span>
+                      </div>
+
+                      <div class="cards">
+                        <h4>Meter Reading</h4>
+                        <span class="big_number">{{ plane.location.meter_reading || "0.00" }}</span>
+                      </div>
+
+                  </div>
+
+                  <div class="card">
+
+                    <table>
+                      <tr>
+                        <th>Document</th>
+                        <th>View Document</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                      </tr>
+                      <tr>
+                        <td>{{ plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+                        <td>
+                          <a  class="open_document_anchor" ng-click="downloadDocument(plane.certificate.certificate , 'certificate')">
+                            <img class="file_icon2" src="{{ get_icon2(plane.certificate.certificate) }}" alt="open doc" />
+                          </a>
+                        </td>
+                        <td>{{ plane.certificate.date_expiry | asDate | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{plane.certificate.status}}">{{plane.certificate.status}}</button></td>                
+                      </tr>
+                      <tr>
+                        <td>Insurance</td>
+                        <td>
+                          <a  class="open_document_anchor" ng-click="downloadDocument(plane.insurance.certificate, 'insurance')">
+                            <img class="file_icon2" src="{{ get_icon2(plane.insurance.certificate) }}" alt="open doc" />
+                          </a>
+                        </td>
+                        <td>{{ plane.insurance.date_expiry | asDate | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{plane.insurance.status}}">{{plane.insurance.status}}</button></td>                
+                      </tr>
+                      <tr>
+                        <td>Radio Licence</td>
+                        <td>
+                          <a  class="open_document_anchor" ng-click="downloadDocument(plane.radio_licence.certificate, 'radio')">
+                            <img class="file_icon2" src="{{ get_icon2(plane.radio_licence.certificate) }}" alt="open doc" />
+                          </a>
+                        </td>
+                        <td>{{ plane.radio_licence.date_expiry | asDate | date:"dd/MM/yyyy" }}</td>
+                        <td><button class="btn status {{plane.radio_licence.status}}">{{plane.radio_licence.status}}</button></td>                
+                      </tr>
+                      <tr ng-if="plane.noise_certificate">
+                        <td>Noise Certificate</td>
+                        <td>
+                            <a class="open_document_anchor" ng-click="downloadDocument(plane.noise_certificate.certificate, 'noise')">
+                                <img class="file_icon2" src="{{ get_icon2(plane.noise_certificate.certificate) }}" alt="open doc" />
+                            </a>
+                        </td>
+                        <td>N/A</td>
+                        <td><button class="btn status ok">ok</button></td>                
+                      </tr>
+                    </table>
+                    
+                  </div>
+
+                  <hr />
+
+
+                  <div class="card">
+
+                    <h4>Aircraft Journey Log</h4>
+
+
+                    <div class="plane_docs_none" ng-if="plane.logs.length < 1">
+                        There are presently no journey log entries for this aircraft.
+                    </div>
+
+
+
+                    <div class="" ng-if="plane.logs.length > 0">
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    Date
+                                </td>
+                                <td class="bold_text">
+                                    Pilot
+                                </td>
+                                <td class="bold_text centre_me">
+                                    From
+                                </td>
+                                <td class="bold_text centre_me">
+                                    To
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Off
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes On
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Time
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Fuel Uplift
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Oil Uplift
+                                </td>
+                            </tr>
+                            <tr ng-repeat="log in plane.logs" vertical-align="middle">
+                            
+                                 <td class="log_no_break">
+                                    {{ log.flight_date | asDate | date:"dd MMM yyyy" }}
+                                </td>
+                                <td class="log_no_break">
+                                    <!-- <span uib-tooltip="{{log.first_name}} {{log.last_name}}">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span> -->
+                                    <span>{{ vm.get_pic(log) }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <!-- {{ vm.clean_times(log.brakes_off) | roundFive }} -->
+                                    <!-- {{ vm.round_brake_times_start( vm.clean_times(log.brakes_off), vm.clean_times(log.takeoff_time) ) | roundFive }}
+
+                                    rounding == > --> 
+                                    {{ vm.clean_times(log.brakes_off_rounded) }}
+                                </td>
+                                <td class="centre_me">
+                                    <!-- {{ vm.clean_times(log.brakes_on) | roundFive }} -->
+                                    <!-- {{ vm.round_brake_times_end( vm.clean_times(log.brakes_on), vm.clean_times(log.landing_time)) | roundFive }}
+                                    rounding == > --> 
+                                    {{ vm.clean_times(log.brakes_on_rounded) }}
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip='airborne time: {{ get_hours_from_decimal(log.flight_time) || "0:00" }}'> {{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{ log.fuel_uplift_litres }} litres">{{ log.fuel_uplift_litres }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.oil_uplift_litres}} quarts">{{ log.oil_uplift_litres }}</span>
+                                </td>
+
+                            </tr>
+                        </table>
+                        <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})">VIEW FULL JOURNEY LOGS</button>  
+
+
+                    </div>
+
+
+
+                </div>
+
+
+                <hr />
+
+
+                  <div class="card">
+
+                    <h4>Aircraft Receipts</h4>
+
+
+                    <div class="plane_docs_none" ng-if="!plane.receipts || plane.receipts.length < 1">
+                        There are presently no receipts entries for this aircraft.
+                    </div>
+
+
+
+                    <div class="" ng-if="plane.receipts.length > 0">
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    Date
+                                </td>
+                                <td>
+                                  Receipt Type
+                                </td>
+                                <td>
+                                  Quantity
+                                </td>
+                                <td>
+                                  Invoice No
+                                </td>
+                                <td>
+                                  Image
+                                </td>
+                            </tr>
+                            <tr ng-repeat="receipt in plane.receipts" vertical-align="middle">
+                              
+                              <td>
+                                {{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}
+                              </td> 
+                              <td>
+                                {{ receipt.item }}
+                              </td>
+                              <td>
+                                <span uib-tooltip="Quantity Entered by user" ng-if="receipt.modified_quantity == 0">{{ receipt.quantity }}</span>
+                                <span uib-tooltip="Quantity Modified from {{ receipt.quantity }}" ng-if="receipt.modified_quantity !== 0">{{ receipt.modified_quantity }}</span>
+                              </td>
+                              <td>
+                                {{ receipt.invoice_number }}
+                              </td>
+                              <td>
+
+                                <img ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ vm.get_icon3(receipt.image) }}" alt="Receipt" />
+                              </td>   
+                                                                       
+                            </tr>
+                        </table>
+<!--                         <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})">VIEW FULL JOURNEY LOGS</button>  
+ -->
+
+                    </div>
+
+
+
+                </div>
+
+                  <hr ng-if="plane.documents.length > 0" />
+                 
+
+                  <div class="card" ng-if="plane.documents.length > 0">
+
+                     <h4>Aircraft Documents</h4>
+
+                    <div class="plane_docs">
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    File Name
+                                </td>
+                                <td class="centre_text_align bold_text">
+                                    Click Icon To Open
+                                </td>
+                                <td class="right_text_align bold_text">
+                                    Last Updated 
+                                </td>
+                            </tr>
+                            <tr ng-repeat="plane_doc in plane.documents | filter: search" vertical-align="middle">
+                            
+                                <td vertical-align="middle">{{ plane_doc.title }}</td>
+                                <td class="centre_text_align"> <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a></td>
+                                <td class="right_text_align" vertical-align="middle">{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</td>
+
+                            </tr>
+                        </table>
+                    </div>
+                    
+                  </div>
+
+                  <hr />
+
+                  
+
+                  <div class="card">
+
+                    <h4>Aircraft Fees</h4>
+
+
+                    <div class="plane_docs_none" ng-if="!plane.charges.charge_rate_unit">
+                        There are presently no charges for this aircraft.
+                    </div>
+
+
+                    <div class="plane_docs" ng-if="plane.charges">
+                      <!--   <h3>{{ plane.registration }} - {{ plane.plane_type }}</h3>
+                        <h5>Charges</h5> -->
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    Item
+                                </td>
+                                <td class="bold_text right_text_align">
+                                    Charge
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Charged per {{ plane.charges.charge_type }} hour
+                                </td>
+                                <td class="right_text_align">
+                                    £{{ plane.charges.charge_rate_unit }}
+                                </td>
+                            </tr>
+                             <tr ng-if="plane.charges.surcharge_type && plane.charges.surcharge_type !== 'none'">
+                                <td>
+                                    Surcharge per {{ plane.charges.surcharge_type }}
+                                </td>
+                                <td class="right_text_align">
+                                    £{{ plane.charges.surcharge_fee }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Home Touch and Go Fee 
+                                </td>
+                                <td class="right_text_align">
+                                    £{{ plane.charges.touch_and_go_fee }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Home Landing Fee
+                                </td>
+                                <td class="right_text_align">
+                                    £{{ plane.charges.landing_fee }}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+
+                </div>
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+
+            
+            
+        </div>
+
+    </div>
+
+
+
+</div>
+</div>
+
+<div class="popup_bg" ng-if="vm.show_receipt" ng-click="vm.show_receipt = false;"> <!-- ng-click="vm.close_passenger_invitation()" -->
+    <div class="popup_box">
+      <h4>Receipt</h4>
+      <img class="max_100" src="{{ vm.receipt_image }}" alt="receipt image" />
+  </div>
+</div>

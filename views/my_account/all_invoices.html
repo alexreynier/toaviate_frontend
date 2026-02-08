@@ -1,0 +1,364 @@
+<div class="centre_align_boxes2">
+
+
+     <div class="home_upper">
+      <div class="back-box" ui-sref="dashboard.my_account">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="welcome_title">
+          <h2>INVOICES</h2> 
+          <h4 class="capitalise">
+            See all invoices
+          </h4>
+          <!-- {{ vm.welcome_message }} -->
+      </div>
+    </div>
+
+<!-- "balance": null,
+"paid_total": 18009.131559999998,
+"free_total": 0,
+"processing_total": 3136.1976,
+"issued_total": 10258.3665,
+"issued_total_minus_balance": 10258.3665,
+"processing": 0, -->
+
+<div class="sub_section2 centre_me">
+    <div class="cards3" ng-repeat="upcoming in vm.upcoming">
+
+      <h4>{{ upcoming.title }} SUMMARY</h4>
+      <div class="upcoming_line" uib-tooltip="Amount of credit on your account">
+        <span class="upcoming_title">Account Balance: </span><span class="upcoming_value">{{ upcoming.account_currency }} {{ (upcoming.balance | number:2) || "0.00" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Amount you owe this club and haven't set a payment method for.">
+        <span class="upcoming_title">Oustanding Payment: </span><span class="upcoming_value">{{ upcoming.account_currency }} {{ (upcoming.issued_total | number:2) || "0.00" }}</span>
+      </div>
+     
+      <div class="upcoming_line" uib-tooltip="Amount that will be requested from your direct debit on the next payment cycle">
+        <span class="upcoming_title">Next Payment: </span><span class="upcoming_value">{{ upcoming.account_currency }} {{ (upcoming.pending_submission_total | number:2) || "0.00" }}</span>
+      </div>
+     
+     <!--  <div class="upcoming_line" uib-tooltip="How much that will be requested from your direct debit on the next payment cycle: {{ upcoming.collection_date | asDate | date:'dd MMM yyyy' }}">
+        <span class="upcoming_title">Direct Debit Payment: </span><span class="upcoming_value">{{ upcoming.account_currency }} {{ (upcoming.issued_total | number:2) || "0.00" }}</span>
+      </div> -->
+      <div class="upcoming_line" uib-tooltip="When the next direct debit payment for this club will be requested">
+        <span class="upcoming_title">Next Payment Date: </span><span class="upcoming_value">{{ upcoming.collection_date | asDate | date:"dd MMM yyyy" }}</span>
+      </div>
+      <div class="upcoming_line" uib-tooltip="Amount we have already requested but has not yet been received by the club">
+        <span class="upcoming_title">Currently Requested: </span><span class="upcoming_value">{{ upcoming.user_currency }} {{ (upcoming.processing_total | number:2) || "0.00" }}</span>
+      </div>
+      <!--  <div class="upcoming_line" uib-tooltip="Amount being processed by your direct debit but has not yet cleared for the club">
+        <span class="upcoming_title">Direct Debit Requesting: </span><span class="upcoming_value">{{ upcoming.account_currency }} {{ (upcoming.processing_total | number:2) || "0.00" }}</span>
+      </div> -->
+      <div class="upcoming_line" ng-if="upcoming.failed_total && upcoming.failed_total > 0" uib-tooltip="How much we have failed to collect on behalf of the club">
+        <span class="upcoming_title no_red">Failed Payments: </span><span class="upcoming_value no_red">{{ upcoming.user_currency }} {{ (upcoming.failed_total | number:2) || "0.00" }}</span>
+      </div>
+
+      <div class="card" ng-if="upcoming.packages.length > 0">
+        <br />
+         <table>
+          <!--   <tr>
+              <th ><span uib-tooltip="Click for more information">Package Name</span></th>
+              <th><span uib-tooltip="Dual hours remaining">Dual</span></th>
+              <th><span uib-tooltip="Solo hours remaining">Solo</span></th>
+            </tr> -->
+            <tr ng-repeat="package in upcoming.packages">
+              <td><span uib-popover-html="vm.get_package_html(package)">{{ package.title }} <i class="fa fa-question-circle"></i></span></td>
+              <td><span uib-tooltip="Dual hours remaining">{{ vm.convert_decimal_to_hours( package.remaining_hours_dual ) || "00:00" }}</span></td>
+              <td><span uib-tooltip="Solo hours remaining">{{ vm.convert_decimal_to_hours( package.remaining_hours_solo ) || "00:00" }}</span></td>
+            </tr>
+          </table>
+        </div>
+
+    </div>
+
+</div>
+
+<div class="sub_section2">
+
+    <input type="search" placeholder="Search Invoices" ng-model="my_search" class="form-control searchbar" />
+
+    <div class="">
+
+
+        <div ng-if="vm.invoices.length > 0">
+
+             <table>
+                    <tr class="bold_text">
+                        <td>
+                            Invoice Number
+                        </td>
+                        <td ng-if="vm.upcoming.length > 1">
+                            Club
+                        </td>
+                        <td >
+                            Aircraft
+                        </td>
+                         <td>
+                            Amount
+                        </td>
+                         <td>
+                            Status
+                        </td>
+                        <td>
+                            Date
+                        </td>
+                         <td class="right_text_align">
+                            More Information
+                        </td>
+                    </tr>
+                    <tbody ng-repeat="invoice in vm.invoices | filter: search" vertical-align="middle">
+                        <tr>
+                            
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td ng-if="vm.upcoming.length > 1">{{ invoice.club_title }}</td>
+                            <td>{{ invoice.plane_registration }}</td>
+                            <td>{{ invoice.currency }} {{ invoice.total | number:2 }}</td>
+                            <td>{{ get_human_status(invoice.status) }}</td>
+                            <td>{{ invoice.created_at | asDate | date:'dd MMM yyyy H:mm' }}</td>
+                            <td class="right_text_align"> <a ng-click="invoice.show_more = !invoice.show_more" uib-tooltip="{{ (!invoice.show_more)? 'View Details' : 'Hide Details' }}"><i ng-if="invoice.show_more" class="fa fa-eye-slash list_icons"></i> <i ng-if="!invoice.show_more" class="fa fa-eye list_icons"></i></a> <a ng-click="downloadInvoice(invoice.id)" uib-tooltip="Download"><i class="fa fa-download list_icons"></i></a> </td>
+
+                        </tr>
+                        <tr ng-if="invoice.show_more">
+                            
+                            <td colspan="7">
+
+                                <div class="user_invoices_bg">
+
+                                  <h4>Billing Summary</h4>
+
+                                  <div class="repeat_invoices" ng-repeat="flight in invoice.flights">
+                                    <div ng-if="!invoice.membership_id || invoice.membership_id == 0">
+                                      
+                                      <!-- <h5 ng-if="invoice.legs > 1">{{ flight.flight }} - From {{ flight.from }} To {{ flight.to }}</h5>
+                                      <h5 ng-if="invoice.legs < 2">Flight From {{ flight.from }} To {{ flight.to }}</h5>
+ -->
+                                      <h5 ng-if="invoice.legs >= 1 && invoice.plane_id > 0">
+                                        Flight From {{ flight.from }} To {{ flight.to }}
+                                        <br />
+                                        Date: {{ flight.flight_details.flight_date | asDate | date:"dd MMM yyyy" }} 
+                                        <br />
+                                        <span ng-if="flight.flight_details.tpc_brakes_off" uib-tooltip="There are two times because you are being charged airborne time in addition to 10mins, however your actual brakes off to brakes on may differ.">
+                                          Time: {{ flight.flight_details.tpc_brakes_off | brakesTime }} - 
+                                        {{ flight.flight_details.tpc_brakes_on | brakesTime }}
+                                          <br />
+                                          Logbook Time:  {{ flight.flight_details.brakes_off_rounded | brakesTime }} - 
+                                        {{ flight.flight_details.brakes_on_rounded | brakesTime }}
+                                        </span>
+                                        <span ng-if="!flight.flight_details.tpc_brakes_off">
+                                          Time: {{ flight.flight_details.brakes_off_rounded | brakesTime }} - 
+                                        {{ flight.flight_details.brakes_on_rounded | brakesTime }}
+                                        </span>
+                                        
+                                        <br />
+                                        Aircraft: {{ invoice.plane_registration }} - {{ invoice.plane_type }}
+                                        <br />
+
+                                   
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PIC' && flight.flight_details.authorised_solo == 0">
+                                           <!--  1<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PIC' && flight.flight_details.authorised_solo > 0">
+                                           <!--  2<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}<br />
+                                            Supervised by: {{ flight.flight_details.instructor_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PICUS'">
+                                          <!--   3<br /> -->
+                                            PIC: {{ flight.flight_details.pic_name }}<br />
+                                            Supervised by: {{ flight.flight_details.instructor_name }}
+                                        </div>
+
+                                        <div ng-if="flight.flight_details.holder_capacity == 'PUT'">
+                                           <!--  4<br /> -->
+                                            PUT: {{ flight.flight_details.put_name }}<br />
+                                            Instructor: {{ flight.flight_details.pic_name }}
+                                        </div>
+
+                                      </h5>
+
+
+                                    </div>
+                                    <h5 ng-if="invoice.membership_id > 0">Membership Invoice</h5>
+                                    <hr />
+
+                                     <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          Units
+                                        </td>
+                                        <td>
+                                          Cost per unit
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+
+                                      <tr ng-repeat="items in flight.items" ng-if="!items.ui_hidden">
+                                        <td>
+                                          {{ items.title }}
+                                        </td>
+                                        <td>
+                                          {{ items.unit | number:2 }}
+                                        </td>
+                                        <td>
+                                          <span ng-if="!items.member_package_id || items.member_package_id == 0" uib-tooltip="{{ (items.vat_rate > 0) ? 'This includes VAT at '+items.vat_rate+'%' : 'No VAT was charged on this item' }}"> {{ invoice.currency }} {{ (items.vat_rate > 0) ? (items.unit_price * (1+(items.vat_rate/100))) : items.unit_price | number:2 }}</span>
+                                          <span ng-if="items.member_package_id > 0">were removed from your package</span>
+                                        </td>
+                                        <td class="right_text_align">
+                                          <span ng-if="!items.member_package_id || items.member_package_id == 0">{{ invoice.currency }} {{ items.total | number:2 }}</span>
+                                        </td>
+                                      </tr>
+
+                                      <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          <span ng-if="invoice.membership_id == 0">FLIGHT</span> TOTAL
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>{{ invoice.currency }} {{ flight.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+                                    </table>
+
+                                  </div>
+
+                                  <div class="totals"  ng-if="invoice.legs > 1">
+                                      <h5>Total for all flights</h5>
+                                      <hr />
+
+                                      <table>
+                                      <tr class="bold_text">
+                                        <td>
+                                          Item
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td>
+                                          
+                                        </td>
+                                        <td class="right_text_align">
+                                          Total
+                                        </td>
+                                      </tr>
+
+                                       <tr ng-repeat="fff in invoice.flights">
+                                          <td colspan="3">
+                                            FLIGHT {{ fff.flight }}
+                                          </td>
+                                          <td class="right_text_align">
+                                            <b>{{ invoice.currency }} {{ fff.total | number:2 }}</b>
+                                          </td>
+                                        </tr>
+
+                                       <tr class="total_line bold_text">
+                                        <td colspan="3">
+                                          ALL FLIGHTS
+                                        </td>
+                                        <td class="right_text_align">
+                                          <b>{{ invoice.currency }} {{ invoice.total | number:2 }}</b>
+                                        </td>
+                                      </tr>
+
+                                    </table>  
+                                </div>
+
+                            </div>
+
+                            <div class="btns_bottom more_space_bottom" ng-if="invoice.show_more && vm.show_payment_option(invoice)">
+                              <button ng-click="vm.show_payment(invoice)" class="btn btn-danger function_btn">PAY NOW</button>
+
+                            </div>
+
+                          </td>
+                            
+                        </tr>
+                       
+
+                    </tbody>
+                </table>
+
+        </div>
+
+
+    </div>
+
+
+
+</div>
+</div>
+
+
+
+
+<div ng-if="vm.show_pay_now" class="positioning-container">
+  <div class="centre_pay_now">
+   
+    <!--   <div class="club_docs_all">
+            <h2>Pay Invoice Now</h2> -->
+
+            <div class="payment-accordion">
+                  <div class="pa-container">
+                    <h1 class="pa-title">Choose a payment method</h1>
+                    <!-- <p class="pa-hint">Select one option below.</p> -->
+                  
+                    <payment-accordion
+                      methods="vm.methods"
+                      send="vm.send"
+                      open="vm.default_payment"
+                      info="vm.info" 
+                      user="vm.user" 
+                      bookout="vm.bookout"
+                      saved-cards="vm.savedCards"
+                      on-confirm="vm.donConfirm(methodLabel, paymentIntent)">
+                    </payment-accordion>
+
+                    
+                  </div>
+            </div>
+
+
+                
+      <!-- </div> -->
+
+      <div class="btns_bottom ">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_pay_now()">CLOSE</a>
+        <!-- <a class="btn btn-info confirm_btn" ng-click="vm.pay_now()">MAKE PAYMENT</a> -->
+      </div>
+  </div>
+                            
+
+</div>
+
+
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+<!-- <div ng-if="vm.show_cardmachine" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      The card machine should now display the instructions to pay.
+    </p>
+
+
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_machine_popup()">CLOSE</a>
+        <a class="btn btn-info confirm_btn" ng-click="vm.cancel_machine()">CANCEL PAYMENT</a>
+        <a class="btn btn-primary confirm_btn" ng-click="vm.reset_card_machine()">TRY AGAIN</a>
+      </div>
+  </div>
+                            
+
+</div> -->

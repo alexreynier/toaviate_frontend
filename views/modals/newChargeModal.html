@@ -1,0 +1,436 @@
+<div class="centre_align_boxes2">
+
+
+      <div class="home_upper btn_top_space">
+          <div class="welcome_title">
+            <h2>CREATE AN INVOICE</h2> 
+            <h4 class="capitalise">
+              Bill your customers
+            </h4>
+          </div>
+      </div>
+
+      <div class="club_docs bookingout_wrapper">
+
+              <div class="no_defects btn_top_space" ng-if="items && items.length < 1">
+               Please add the items you wish to charge your client.
+              </div>
+
+
+
+              <div class="card">
+
+                <table ng-if="items && items.length > 0">
+                  <tr>
+                    <th>
+                      Item
+                    </th>
+                    <th>
+                      Unit Price
+                    </th>
+                    <th>
+                      Quantity
+                    </th>
+                    <th ng-if="club_settings.vat_registered">
+                      VAT RATE
+                    </th>
+                    <th>
+                      Total
+                    </th>
+                    <th>
+                      Edit
+                    </th>
+                  </tr>
+                  <tr ng-repeat="item in items">
+                    <td>
+                      {{ item.title }}
+                    </td>
+                    <td>
+                      £{{ item.price }}
+                    </td>
+                    <td>
+                      {{ item.quantity }}
+                    </td>
+                    <td ng-if="club_settings.vat_registered">
+                      <!-- <input type="number" name="vat_rate" ng-model="item.vat" default="club_settings.vat_rate" length="2" /> -->{{item.vat}}%
+                    </td>
+                     <td>
+                      £{{ item.total | number:2 }}
+                    </td>
+                    <td>
+                      <button ng-click="delete_receipt($index)">Delete Item</button>
+                    </td>
+                  </tr>
+                  <tr ng-if="items.length > 0 && club_settings.vat_registered" style="border-top: double solid #ccc" class="total_line bold_text">
+                    <td>
+                     <b>VAT </b>
+                    </td>
+                     <td colspan="3">
+                      &nbsp;
+                    </td>
+                    <td ng-if="club_settings.vat_registered">
+                    </td>
+                     <td>
+                      <b>£{{ the_vat | number:2 }}</b>
+                    </td>
+                  
+                  </tr>
+                  <tr ng-if="items.length > 0" class="total_line bold_text">
+                    <td>
+                      INVOICE TOTAL 
+                    </td>
+                    <td colspan="3">
+                      &nbsp;
+                    </td>
+                    <td ng-if="club_settings.vat_registered">
+                    </td>
+                     <td>
+                      £{{ the_total | number:2 }}
+                    </td>
+                  
+                  </tr>
+                </table>
+
+              </div>
+
+              <div class="center_if_large bookingout_wrapper">
+
+                <div class="receipt">
+                  
+                  <div class="form-group">
+                    <label for="item">Item Name</label>
+                    <input type="text" id="item" ng-model="item.title" class="form-control inputtext" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="defect">Quantity</label>
+                    <input type="number" step="0.01" class="form-control inputtext" ng-model="item.quantity">
+                   </div>
+
+                  <div class="form-group">
+                    <label for="defect" uib-tooltip="Inclusive of any VAT">Price (individual) GBP</label>
+                    <input type="number" step="0.01" class="form-control inputtext" ng-model="item.price">
+                   </div>
+
+                  <div class="form-group">
+                    <label ng-if="club_settings.vat_registered" for="vat">VAT rate %</label>
+                    <input type="number" ng-if="club_settings.vat_registered" name="vatfree" ng-model="item.vat" default="club_settings.vat_rate" length="2" class="form-control inputtext" />
+                  </div>
+                   
+
+                   <button class="btn btn-success club_add_button" ng-click="add_item(item)">ADD ITEM</button>
+
+
+                </div>
+
+                <div class="receipt whom_to_charge">
+
+                   <div class="form-group">
+                    <label for="instructor">Select Member</label>
+                    <ui-select ng-model="selected_client" theme="bootstrap" ng-change="member_selected(selected_client)" title="Select a Member" append-to-body="true">
+                      <ui-select-match placeholder="Please select the member" allow-clear="true" >
+                        {{ selected_client.first_name }}             
+                        {{ selected_client.last_name }}
+                      </ui-select-match>
+                      <ui-select-choices repeat="client in members | propsFilterA: {first_name: $select.search, last_name: $select.search,  id: $select.search}">
+                        <span ng-bind-html="client.first_name | highlight: $select.search"></span>
+                        <span ng-bind-html="client.last_name | highlight: $select.search"></span>               
+                      </ui-select-choices>
+                    </ui-select>
+                  </div>
+
+                  <form id="payment-form">
+
+
+                    <div ng-if="selected_client.id == -12">
+                      <div class="form-group">
+                        <label for="fname">First Name</label>
+                        <input type="text" id="fname" class="form-control inputtext" ng-model="new_client.first_name" />
+                      </div>
+                      <div class="form-group">
+                        <label for="lname">Last Name</label>
+                        <input type="text" id="lname" class="form-control inputtext" ng-model="new_client.last_name" />
+                      </div>
+                      <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" class="form-control inputtext" ng-model="new_client.email" />
+                      </div>
+                    </div>
+
+                    <!-- <div ng-if="selected_client.id > 0">
+                       <div class="form-group">
+                          <ui-select ng-model="selected_card" theme="bootstrap" ng-change="card_selected(selected_card)" style="min-width: 500px;" title="Select a Card" append-to-body="true">
+                            <ui-select-match placeholder="Please select a card" allow-clear="true" >
+                              {{ selected_card.brand }} - ending:              
+                              {{ selected_card.last4 }}
+                            </ui-select-match>
+                            <ui-select-choices repeat="card in cards | propsFilter: {brand: $select.search, last4: $select.search,  id: $select.search}">
+                              <span ng-bind-html="card.brand | highlight: $select.search"></span>
+                              <span ng-bind-html="card.last4 | highlight: $select.search"></span>               
+                            </ui-select-choices>
+                          </ui-select>
+                        </div>
+                    </div> -->
+                    <div ng-if="show_direct_debit_details">
+                      <div class="cards2">
+                          <span class="bold">Account Name:</span>{{ selected_client.account_name }}
+                          <br />
+                          <span class="bold">Bank:</span>{{ selected_client.account_bank }}
+                          <br />
+                          <span class="bold">Account:</span>****{{ selected_client.account_ending }}
+                          <br />
+                          <span class="bold">Reference:</span>{{ selected_client.mandate_reference }}
+                          <br />
+
+                          
+                        </div>
+                    </div>
+
+                    <div ng-if="selected_client.id == -12 || !show_direct_debit_details">
+
+                      <div class="cards2">
+                            <h5>Coming Soon...</h5>
+                            <p>The ability to pay for any client through Stripe's interface to take payments</p>
+                        </div>
+
+                          <div id="payment-form2" style="opacity: 0">
+                              <div class="form-row">
+                                  <div class="group">
+                                      <label for="card-element">
+                                          Credit or debit card
+                                          <div id="card-element" class="field">
+                                          </div>
+                                      </label>
+                                  </div>
+                              <div id="card-errors" role="alert"></div>
+                            </div>
+                          </div>
+
+                    </div>
+
+                  </form>
+                </div>
+                  
+            </div>
+
+
+      </div>
+
+</div>     
+
+
+
+
+       <!--  <div class="modal-header">
+            <h3 class="modal-title">CREATE A NEW CHARGE</h3>
+        </div> -->
+       <!--  <div class="modal-body">
+            
+           
+
+          
+            <div class="form-group grey_bg all_receipts">
+              
+
+              <div class="no_defects" ng-if="items && items.length < 1">
+               Please add the items you wish to charge your client.
+              </div>
+
+               <table ng-if="items && items.length > 0">
+                  <tr>
+                    <th>
+                      Item
+                    </th>
+                    <th>
+                      Price (individual)
+                    </th>
+                    <th ng-if="club_settings.vat_registered">
+                      VAT RATE
+                    </th>
+                    <th>
+                      Quantity
+                    </th>
+                    <th>
+                      Total
+                    </th>
+                    <th>
+                      Edit
+                    </th>
+                  </tr>
+                  <tr ng-repeat="item in items">
+                    <td>
+                      {{ item.title }}
+                    </td>
+                    <td>
+                      £{{ item.price }}
+                    </td>
+                    <td ng-if="club_settings.vat_registered">
+                      {{item.vat}}%
+                    </td>
+                    <td>
+                      {{ item.quantity }}
+                    </td>
+                     <td>
+                      £{{ item.total }}
+                    </td>
+                    <td>
+                      <button ng-click="delete_receipt($index)">Delete Item</button>
+                    </td>
+                  </tr>
+                  <tr ng-if="items.length > 0 && club_settings.vat_registered" style="border-top: double solid #ccc">
+                    <td>
+                     <b> INVOICE VAT </b>
+                    </td>
+                    <td>
+
+                    </td>
+                      <td>
+
+                    </td>
+                    <td>
+
+                    </td>
+                     <td>
+                      <b>£{{ the_vat }}</b>
+                    </td>
+                  
+                  </tr>
+                  <tr ng-if="items.length > 0" style="border-top: double solid #ccc">
+                    <td>
+                     <b> INVOICE TOTAL </b>
+                    </td>
+                    <td>
+
+                    </td>
+                      <td>
+
+                    </td>
+                    <td>
+
+                    </td>
+                     <td>
+                      <b>£{{ the_total }}</b>
+                    </td>
+                  
+                  </tr>
+                </table>
+
+
+                <div class="receipt">
+                  
+
+                    <label for="item">Item Name</label>
+                    <input type="text" id="item" ng-model="item.title" class="form-control" />
+                    <br />
+
+                   
+                    <label for="defect">Quantity</label>
+                    <input type="number" step="0.01" class="form-control" ng-model="item.quantity">
+                    <br />
+                    <label for="defect">Price (individual) GBP</label>
+                    <input type="number" step="0.01" class="form-control" ng-model="item.price">
+                    <br />
+                    <label ng-if="club_settings.vat_registered" for="vat">VAT rate %</label>
+                    <input type="number" ng-if="club_settings.vat_registered" name="vatfree" ng-model="item.vat" default="club_settings.vat_rate" length="2" />
+                    <br />
+                   
+
+                </div>
+
+                <button class="btn btn-success btn_top_space" ng-click="add_item(item)">ADD ITEM</button>
+
+            </div>
+
+
+
+             <div class="whom_to_charge">
+
+                <label for="instructor">Select Member</label>
+                <br />
+
+                <ui-select ng-model="selected_client" theme="bootstrap" ng-change="member_selected(selected_client)" style="min-width: 500px;" title="Select a Member" append-to-body="true">
+                  <ui-select-match placeholder="Please select the member" allow-clear="true" >
+                    {{ selected_client.first_name }}             
+                    {{ selected_client.last_name }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="client in members | propsFilter: {first_name: $select.search, last_name: $select.search,  id: $select.search}">
+                    <span ng-bind-html="client.first_name | highlight: $select.search"></span>
+                    <span ng-bind-html="client.last_name | highlight: $select.search"></span>               
+                  </ui-select-choices>
+                </ui-select>
+
+
+                <br />
+                <br />
+
+                <div>
+                    <form id="payment-form">
+
+
+                    <div ng-if="selected_client.id == -12">
+
+                        <label for="fname">First Name</label>
+                        <input type="text" id="fname" class="form-control" ng-model="new_client.first_name" />
+                        <br />
+                        <label for="lname">Last Name</label>
+                        <input type="text" id="lname" class="form-control" ng-model="new_client.last_name" />
+                        <br />
+                        <label for="email">Email Address</label>
+                        <input type="email" class="form-control" ng-model="new_client.email" />
+                        <br />
+                    </div>
+
+                    <div ng-if="selected_client.id > 0">
+
+
+                      <ui-select ng-model="selected_card" theme="bootstrap" ng-change="card_selected(selected_card)" style="min-width: 500px;" title="Select a Card" append-to-body="true">
+                        <ui-select-match placeholder="Please select a card" allow-clear="true" >
+                          {{ selected_card.brand }} - ending:              
+                          {{ selected_card.last4 }}
+                        </ui-select-match>
+                        <ui-select-choices repeat="card in cards | propsFilter: {brand: $select.search, last4: $select.search,  id: $select.search}">
+                          <span ng-bind-html="card.brand | highlight: $select.search"></span>
+                          <span ng-bind-html="card.last4 | highlight: $select.search"></span>               
+                        </ui-select-choices>
+                      </ui-select>
+
+                      <br />
+                    </div>
+
+                    <div ng-if="selected_client.id == -12 || selected_card.id == -12">
+
+
+                      <div id="payment-form2">
+                          <div class="form-row">
+                              <div class="group">
+                                  <label for="card-element">
+                                      Credit or debit card
+                                      <div id="card-element" class="field">
+                                      </div>
+                                  </label>
+                              </div>
+                          <div id="card-errors" role="alert"></div>
+                        </div>
+                      </div>
+
+                    </div>
+
+
+
+                  </form>
+                </div>
+
+               
+            </div>
+
+
+
+
+
+
+
+        </div> -->
+        <div class="modal-footer">
+            <button class="btn btn-primary" type="button" ng-click="cancel()">CANCEL</button>
+             <button class="btn btn-danger" type="button" ng-click="ok()">PAY NOW</button>
+        </div>

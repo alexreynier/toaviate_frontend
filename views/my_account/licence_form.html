@@ -1,0 +1,273 @@
+ <form name="licence" ng-submit="save_licence(licence.$valid)">
+
+
+
+
+  <div class="club_docs_all">
+
+    <h2>Licence Images</h2>
+      <div class="center_if_large">
+
+    <div class="form-group">
+
+      <a class="btn btn-primary" ng-if="vm.licence.images.length > 0 && vm.blurred" ng-click="getDecrypted()">DECRYPT IMAGES</a>
+      <br />
+      <br />
+<!--         <h5>Licence Images Both Sides</h5>
+ -->        <div class="logbook_images">
+            <div flow-init
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFiles($flow.files)"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]"
+               class="flow_upload_box"
+               >
+                
+                <div class="drop gallery-box" flow-btn flow-drop ng-class="dropClass">   
+                  <div class="upload_middle_align">  
+                    Click To Add
+                    <br />OR<br /> 
+                    Drag And Drop
+                    <br />
+                    Licence Image
+                  </div>
+                </div>
+
+
+                 <div ng-repeat="file in $flow.files" class="gallery-box">
+                  <span class="title">{{file.name}}</span>
+                  <div class="thumbnail" ng-show="$flow.files.length">
+                    <img flow-img="file" />
+                  </div>
+                  <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                    <div class="progress-bar" role="progressbar"
+                         aria-valuenow="{{file.progress() * 100}}"
+                         aria-valuemin="0"
+                         aria-valuemax="100"
+                         ng-style="{width: (file.progress() * 100) + '%'}">
+                      <span class="sr-only">{{file.progress()}}% Complete</span>
+                    </div>
+                  </div>
+                  <div class="btn-group center">
+                    <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
+                      Delete
+                    </a>
+                  </div>
+                </div>
+
+
+
+
+                  <div ng-repeat="file in vm.licence.images" class="gallery-box">
+                      <span class="title">{{file.name}}</span>
+                      <div class="thumbnail {{ (vm.blurred) ? 'image_blur' : '' }}">
+                        <img src="{{file.data_uri}}" />
+                      </div>
+                      <div class="btn-group center">
+                        <a class="btn btn-xs btn-danger" ng-click="remove_real_file(file);">
+                          Delete
+                        </a>
+                      </div>
+                  </div>
+
+
+            </div>
+        </div>
+
+
+        <div class="clear"></div>
+    </div>
+  </div>
+</div>
+
+
+
+  <div class="club_docs_all">
+
+    <h2>Licence Details</h2>
+      <div class="center_if_large">
+
+    <div class="form-group">
+        <label for="licence_type">What type of licence do you have?</label>
+        <br />
+        <ui-select ng-model="vm.licence.licence_type" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="What type of licence do you have?" append-to-body="true">
+          <ui-select-match placeholder="Please select your licence...">
+            {{ vm.licence.licence_type.abbreviation }}
+          </ui-select-match>
+          <ui-select-choices repeat="licence in vm.licence_types | propsFilterA: {title: $select.search, id: $select.search, abbreviation: $select.search}">
+            <div ng-bind-html="licence.abbreviation | highlight: $select.search"></div>
+            <small>
+                <span ng-bind-html="licence.title | highlight: $select.search"></span>
+            </small>
+          </ui-select-choices>
+        </ui-select>
+
+    </div>
+
+    <div class="form-group">
+        <label for="state_of_issue">State of Issue</label>
+        <br />
+        <ui-select ng-model="vm.licence.state_of_issue" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="What is the state of issue of your licence?" append-to-body="true" required>
+
+          <ui-select-match placeholder="Please select your licence state of issue...">
+            {{ vm.licence.state_of_issue.country }}
+          </ui-select-match>
+          <ui-select-choices repeat="state in vm.authority | propsFilterA: {title: $select.search, id: $select.search, country: $select.search, abbreviation: $select.search}">
+            <div ng-bind-html="state.country | highlight: $select.search"></div>
+             <small>
+                <span ng-bind-html="state.abbreviation | highlight: $select.search"></span>
+                (<span ng-bind-html="state.title | highlight: $select.search"></span>)
+            </small>
+          </ui-select-choices>
+        </ui-select>             
+    </div>
+
+    <div class="form-group">
+        <label for="licence_number">License Number</label>
+        <input type="text" class="form-control" name="licence_number" ng-model="vm.licence.licence_number" required>
+    </div>
+
+
+    <div class="form-group">
+        <label for="licence_expiry">License Issue Date</label>
+      
+             <p class="input-group">
+                <input type="text" class="form-control date start" uib-datepicker-popup="{{format}}" ng-model="vm.licence.licence_issue_date" is-open="popup[0].opened" datepicker-options="datePickerOptions" ng-click="open(0, $event)"  placeholder="dd/mm/yyyy" close-text="Close" required />
+                <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-click="open(0, $event)"><i class="glyphicon glyphicon-calendar"></i></button>
+                </span>
+            </p>
+    </div>
+
+
+    <div class="form-group">
+        <label for="licence_expiry">License Expiry (if any)</label>
+     
+             <p class="input-group">
+                <input type="text" class="form-control date start" uib-datepicker-popup="{{format}}" ng-model="vm.licence.licence_expiry_date" is-open="popup[1].opened" datepicker-options="datePickerOptions" ng-click="open(1, $event)"  placeholder="dd/mm/yyyy" close-text="Close" />
+                <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-click="open(1, $event)"><i class="glyphicon glyphicon-calendar"></i></button>
+                </span>
+            </p>
+    </div>
+  </div>
+</div>
+
+  <div class="club_docs_all">
+
+    <h2>Your Ratings</h2>
+
+
+    <div class="center_if_large">
+    <div class="form-group">
+
+        <table ng-if="vm.licence.ratings.length > 0">
+            <tr>
+                <th>
+                    Rating Name
+                </th>
+                <th>
+                    Rating Test Date
+                </th>
+                <th>
+                    Rating Expiry
+                </th>
+                <th>
+                    Remove
+                </th>
+            </tr>
+            <tr ng-repeat="rating in vm.licence.ratings">
+                <td>
+                    {{ rating.abbreviation }}
+                </td>
+                <td>
+
+                    <p class="input-group">
+                        <input type="text" class="form-control date start" uib-datepicker-popup="{{format}}" ng-model="vm.licence.ratings[$index].test_date" is-open="popup['rating_start_'+$index].opened" datepicker-options="datePickerOptions" ng-click="open('rating_start_'+$index, $event)" close-text="Close" placeholder="dd/mm/yyyy" required/>
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-default" ng-click="open('rating_start_'+$index, $event)"><i class="glyphicon glyphicon-calendar"></i></button>
+                        </span>
+                    </p>
+                </td>
+                <td>
+                    <p class="input-group">
+                        <input type="text" class="form-control date start" uib-datepicker-popup="{{format}}" ng-model="vm.licence.ratings[$index].expiry_date" is-open="popup['rating_expiry_'+$index].opened" datepicker-options="datePickerOptions" ng-click="open('rating_expiry_'+$index, $event)" close-text="Close" placeholder="dd/mm/yyyy" required/>
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-default" ng-click="open('rating_expiry_'+$index, $event)"><i class="glyphicon glyphicon-calendar"></i></button>
+                        </span>
+                    </p>
+
+                 </td>
+                <td>
+                    <a ng-click="remove_rating($index)">Delete</a>
+                </td>
+            </tr>
+        </table>
+
+    </div>
+
+    <div class="form-group add_dif">
+        
+        <table class="vertical_1 no_lines">
+          <tr>
+            <td>
+              <label for="ratings">Ratings</label>
+            </td>
+            <td>
+              <ui-select id="ratings" ng-model="vm.selected_rating" theme="bootstrap" style="min-width: 500px;" title="What ratings do you have on this licence?" append-to-body="true">
+
+              <ui-select-match placeholder="Please select a rating to add to your licence...">
+                {{ vm.selected_rating.title }}
+              </ui-select-match>
+              <ui-select-choices repeat="rating in vm.ratings | propsFilterA: {title: $select.search, abbreviation: $select.search, id: $select.search}">
+                <div ng-bind-html="rating.title | highlight: $select.search"></div>
+                <small>
+                    <span ng-bind-html="rating.abbreviation | highlight: $select.search"></span>
+                </small>
+              </ui-select-choices>
+            </ui-select>
+            </td>
+            <td>
+              <button type="button" class="btn btn-info add_btn_diff add_diff_btn2" ng-click="add_rating();">ADD RATING</button>
+            </td>
+          </tr>
+        </table>
+
+        
+
+    </div>
+  </div>
+  </div>
+
+
+        <div class="bottom_btn_diff btns_bottom">
+          <button type="button" ui-sref="dashboard.my_account.licence" class="btn btn-danger btn_bigger">CANCEL CHANGES</button>
+          <button type="submit" class="btn btn-info btn_bigger">SAVE LICENCE</button>
+        </div>
+        
+    </form>
+
+<!--  -->
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+<div ng-if="vm.show_temp_login" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      It appears that you have been inactive for more than 5 minutes. In order to ensure you are legitimately requesting access to these resources, we need to confirm that you are who you say you are. Please enter your password below.
+    </p>
+    <input type="password" name="pwd" class="pwd" value="" ng-model="vm.re_login_pass" />
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.show_temp_login=false">CLOSE</a>
+        <a class="btn btn-info confirm_btn" ng-click="re_login()">CONFIRM LOGIN</a>
+      </div>
+  </div>
+                            
+
+</div>

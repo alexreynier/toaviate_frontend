@@ -1,0 +1,225 @@
+<section class="pa-accordion" aria-label="Payment Methods">
+  <div class="pa-item" ng-repeat="m in vm.methods">
+    <div class="pa-header"
+         ng-click="vm.toggle(m.id)"
+         tabindex="0"
+         ng-keydown="vm.keyHeader($event, m.id)"
+         aria-expanded="{{vm.isExpanded(m.id)}}"
+         aria-controls="panel-{{m.id}}"
+         ng-if="m.visible">
+      <div>
+        <div class="pa-label">{{ m.title }}</div>
+        <div class="pa-sub" ng-if="m.subtitle">{{ m.subtitle }}</div>
+      </div>
+      <div class="pa-right-icon" ng-bind-html="m.iconSvg" aria-hidden="true"></div>
+    </div>
+
+    <!-- Animated panel -->
+    <div id="panel-{{m.id}}" class="pa-panel" collapsible="vm.isExpanded(m.id)">
+      <div class="pa-panel-inner">
+        <!-- DIRECT DEBIT -->
+        <div ng-if="m.type==='direct-debit'">
+          
+          <div class="pa-row">
+            <div class="pa-field">
+              <label>Bank</label>
+              <p>{{ vm.info.account_bank }}</p>
+            </div>
+            <div class="pa-field">
+              <label>Account Name</label>
+              <p>{{ vm.info.account_name }}</p>
+            </div>
+          </div>
+          <div class="pa-row">
+            <div class="pa-field">
+              <label>Account Number </label>
+              <p>******{{ vm.info.account_ending }}</p>
+            </div>
+            <div class="pa-field">
+              <label>Account Currency </label>
+              <p>{{ vm.info.account_currency }}</p>
+            </div>
+          </div>
+
+          <div class="pa-row">
+            <div class="pa-field">
+              <label>Mandate Scheme  </label>
+              <p>{{ vm.info.mandate_scheme }}</p>
+            </div>
+            <div class="pa-field">
+              <label>Mandate Reference   </label>
+              <p>{{ vm.info.mandate_reference }}</p>
+            </div>
+          </div>
+
+          <div class="pa-actions">
+
+            <button class="pa-btn primary"
+                    ng-disabled="!vm.info.account_bank"
+                    ng-click="vm.onConfirm({ methodLabel: 'direct-debit', paymentIntent: '' });">
+              Use Direct Debit
+            </button>
+
+            <!-- <button class="btn btn-success" ng-click="vm.book_in_flight('bacs')">FINISH &amp; PAY £{{ vm.invoice_totals | number:2 }} BY DIRECT DEBIT</button> -->
+           <!--  <button class="pa-btn primary" ng-disabled="!vm.ddReady()" ng-click="vm.confirm('Direct Debit')">Use Direct Debit</button> -->
+
+          </div>
+
+        </div>
+
+        <!-- SAVED CARD -->
+      <!--   <div ng-if="m.type==='saved-card'">
+          <div class="pa-saved-card" ng-repeat="c in vm.savedCards">
+            <div>
+              <div><strong>{{c.brand}} •••• {{c.last4}}</strong></div>
+              <div class="pa-muted">Exp {{c.exp_month | numberFixedLen:2 }}/{{c.exp_year | numberFixedLen:2 }}</div>
+            </div>
+          </div>
+          <div class="pa-actions">
+            <button class="pa-btn primary" ng-click="vm.confirm('Saved Card')">Use Selected Card</button>
+          </div>
+        </div> -->
+
+
+        <!-- SAVED CARD (Tile Select UI) -->
+        <div ng-if="m.type==='saved-card'">
+          <div class="pa-card-grid" role="radiogroup" aria-label="Saved cards">
+            <div class="pa-card-tile"
+                 ng-repeat="c in vm.savedCards track by c.stripe_id"
+                 role="radio"
+                 tabindex="0"
+                 aria-checked="{{ vm.selectedSavedCardId === c.stripe_id }}"
+                 ng-class="{'selected': vm.selectedSavedCardId === c.stripe_id}"
+                 ng-click="vm.selectSavedCard(c.stripe_id)"
+                 ng-keydown="vm.keySelectTile($event, c.stripe_id)">
+              <div class="pa-card-brand">
+                <span ng-bind-html="vm.cardBrandIcon(c.brand)"></span>
+              </div>
+              <div class="pa-card-meta">
+                <div class="pa-card-line">
+                  <strong>{{c.brand}}</strong>&nbsp;•&nbsp;•••• {{c.last4}}
+                  <span class="pa-badge" ng-if="c.isDefault">Default</span>
+                </div>
+                <div class="pa-muted">Exp {{c.exp_month | numberFixedLen:2 }}/{{c.exp_year | numberFixedLen:2 }}</div>
+                <div class="pa-muted" ng-if="c.nick">“{{c.nick}}”</div>
+              </div>
+              <div class="pa-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="pa-actions">
+            <button class="pa-btn primary"
+                    ng-disabled="!vm.selectedSavedCardId"
+                    ng-click="vm.pay_with_saved_card()">
+              Use Selected Card
+            </button>
+            <button class="pa-btn" ng-click="vm.switchTo && vm.switchTo('new-card')">
+              Add a new card
+            </button>
+          </div>
+        </div>
+
+        <!-- NEW CARD -->
+        <div ng-if="m.type==='new-card'">
+            <form id="payment-form">
+              <div id="payment-element">
+                <!-- Elements will create form elements here -->
+              </div>
+
+              <!-- <input type="submit" class="btn btn-primary confirm_btn" id="submit-stripe" title="PAY NOW" />
+-->
+              
+
+
+              <div id="error-message">
+                <!-- Display error message to your customers here -->
+              </div>
+
+              <div class="pa-actions">
+
+                <button id="submit-stripe" class="pa-btn primary">
+                  Use New Card
+                </button>
+              </div>
+              
+              <img class="powered_by_stripe" src="images/stripe_blurple.svg">
+            </form>
+         
+
+            <!-- <div class="pa-field">
+              <label>Name on card</label>
+              <input type="text" ng-model="vm.card.name" placeholder="Cardholder name" />
+            </div>
+            <div class="pa-field">
+              <label>Card number</label>
+              <input type="text" ng-model="vm.card.number" placeholder="4242 4242 4242 4242" />
+            </div>
+          </div>
+          <div class="pa-row">
+            <div class="pa-field">
+              <label>Expiry</label>
+              <input type="text" ng-model="vm.card.exp" placeholder="MM/YY" />
+            </div>
+            <div class="pa-field">
+              <label>CVC</label>
+              <input type="text" ng-model="vm.card.cvc" placeholder="CVC" />
+            </div>
+          </div> -->
+         <!--  <div class="pa-actions">
+            <button class="pa-btn primary" ng-disabled="!vm.cardReady()" ng-click="vm.confirm('New Card')">Save & Use Card</button>
+          </div> -->
+        </div>
+
+        <!-- CARD MACHINE -->
+        <div ng-if="m.type==='card-machine'">
+          <p>Pay in person using our card machine.</p>
+          <div class="pa-actions">
+            <button class="pa-btn primary" ng-click="vm.pay_with_cardmachine()">Pay With Card Machine</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 3) Use attribute directives anywhere (append toast to <body>) -->
+<!-- <button ng-click="vm.paymentOk = true">Simulate Success</button>
+<button ng-click="vm.paymentNo = true">Simulate Failure</button> -->
+
+</section>
+
+<div payment-success-toast="vm.paymentOk"
+     message="Payment received"
+     duration-ms="2200"
+     on-done="vm.paymentOk = false"></div>
+
+<div payment-failure-toast="vm.paymentNo"
+     message="Payment failed"
+     duration-ms="2600"
+     on-done="vm.paymentNo = false"></div>
+
+<div ng-if="vm.show_loading" class="positioning-container">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+  <div class="airplane-container">
+    <span class="fa fa-plane fa-2x"></span>
+  </div>
+  </div>
+</div>
+
+
+<div ng-if="vm.show_cardmachine" class="positioning-container">
+  <div class="centre_password">
+    <p>
+      The card machine should now display the instructions to pay.
+    </p>
+
+      <div class="btns_bottom">
+        <a class="btn btn-danger confirm_btn" ng-click="vm.close_machine_popup()">CLOSE</a>
+        <a class="btn btn-info confirm_btn" ng-click="vm.cancel_machine()">CANCEL PAYMENT</a>
+        <a class="btn btn-primary confirm_btn" ng-click="vm.reset_card_machine()">TRY AGAIN</a>
+      </div>
+  </div>
+</div>

@@ -1,0 +1,689 @@
+
+<div class="bookingout_wrapper">
+
+
+  <div class="welcome_title">
+      <h2>BOOKOUT</h2> 
+      <h4 class="capitalise">
+        Get ready for flight!
+      </h4>
+  </div>
+
+
+  <form>
+
+
+    <div class="club_docs_all">
+
+      <h2>Booking</h2>
+
+      <div class="center_if_large">
+        <div class="form-group-inline">
+          <label for="card-number">Aircraft</label>
+          <input type="text" class="form-control" ng-model="vm.bookout.plane.registration" disabled="true">
+        </div>
+
+        <div class="form-group-inline">
+          <label for="card-number">Aircraft Type</label>
+          <input type="text" class="form-control" ng-model="vm.bookout.plane.plane_type" disabled="true">
+        </div>
+
+        <div class="form-group-inline">
+          <label for="card-number">Returning Aircraft By</label>
+          <input type="text" class="form-control" value="{{ applyFilter(vm.bookout.return, vm.dateFormat) }}" disabled="true">
+          
+        </div>
+
+
+        <button class="btn btn-info add_diff_btn2" ui-sref="dashboard.bookings.edit_from_bookout({booking_id: vm.bookout.booking_id})">Amend Booking</button>
+      </div>
+
+    </div>
+
+    <div class="club_docs_all">
+
+      <h2>Flight Details</h2>
+      <div class="center_if_large2 left_al">
+
+        <div class="form-group">
+          <label for="card-number">Pilot in Command</label>
+
+          <ui-select ng-model="vm.bookout.pic" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the PIC" append-to-body="true" ng-change="update_pic()">
+            <ui-select-match placeholder="Please select the PIC">
+              {{ vm.bookout.pic.first_name }} {{ vm.bookout.pic.last_name }}
+            </ui-select-match>
+            <ui-select-choices repeat="pic in vm.pics | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+              <div ng-bind-html="pic.name | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+        
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id">
+          <label for="card-number">Pilot Under Training</label>
+
+          <input type="text" class="form-control inputtext" value="{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}" disabled="true">
+        
+        </div>
+
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id && vm.can_authorise">
+          <label for="card-number">Authorise Solo Flight</label>
+          <div class="check_box_in_form">
+            <input type="checkbox" class="form-control inputtext" ng-model="vm.bookout.authorised_solo">
+          </div>
+        
+        </div>
+
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id">
+          <label for="ps">
+            <span ng-if="!vm.bookout.authorised_solo">Pilot Supervising</span>
+            <span ng-if="vm.bookout.authorised_solo">Pilot Authorising Flight</span>
+          </label>
+
+          <input type="text" class="form-control inputtext" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true">
+
+        </div>
+
+        <!-- STOP HERE NOW && vm.bookout.pic.user_id !== vm.user.id //-->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0">
+            <label for="instructor">Select Course</label>
+            <ui-select ng-model="vm.bookout.selected_course" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Course" append-to-body="true" ng-change="vm.update_course()">
+
+              <ui-select-match placeholder="Please select your course">
+                {{ vm.bookout.selected_course.title }}             
+              </ui-select-match>
+              <ui-select-choices repeat="course in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
+                <span ng-bind-html="course.title | highlight: $select.search"></span>
+
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>It doesn't look like this instructor can teach what you're looking for.</span>
+              </ui-select-no-choice>
+            </ui-select>
+
+        </div>
+
+        <!--  -->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && !vm.bookout.authorised_solo">
+            <label for="instructor">Select Tuition Required</label>
+            <ui-select ng-model="vm.bookout.tuition_required" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Tuition Required" append-to-body="true">
+
+              <ui-select-match placeholder="Please select tuition required">
+                {{ vm.bookout.tuition_required.title }}             
+              </ui-select-match>
+              <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
+                <span ng-bind-html="instructor.title | highlight: $select.search"></span>
+
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>It doesn't look like this instructor can teach what you're looking for.</span>
+              </ui-select-no-choice>
+            </ui-select>
+
+        </div>
+
+
+
+        <div class="form-group">
+          <label for="from_airfield">Flight Type</label>
+
+          <ui-select ng-model="vm.bookout.flight_type" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the flight type" append-to-body="true">
+            <ui-select-match placeholder="Please select the flight type">
+              {{ vm.bookout.flight_type.title }} 
+            </ui-select-match>
+            <ui-select-choices repeat="ft in vm.flight_types | propsFilterA: {title: $select.search, id: $select.search}">
+              <div ng-bind-html="ft.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+
+       
+
+
+        <div class="form-group">
+          <label for="from_airfield">From Airfield</label>
+          <ui-select ng-model="vm.bookout.from_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the departure" append-to-body="true">
+            <ui-select-match placeholder="Please select the departure airport">
+<!--               {{ vm.bookout.from_airfield.title }} [ {{ vm.bookout.from_airfield.code }} ]
+ -->
+
+              <span ng-bind-html="vm.bookout.from_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.from_airfield.code }} ]
+
+
+
+            </ui-select-match>
+            <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: vm.wgs_n:vm.wgs_e" refresh="get_airfields($select.search)" refresh-delay="2">
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+
+        <div class="form-group" ng-if="vm.bookout.flight_type.id !== 1 && vm.bookout.flight_type.id !== 3">
+          <label for="to_airfield">To Airfield</label>
+
+          <ui-select ng-model="vm.bookout.to_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the destination" append-to-body="true">
+            <ui-select-match placeholder="Please select the destination airport">
+              
+<!--               {{ vm.bookout.to_airfield.title }} [ {{ vm.bookout.to_airfield.code }} ]
+ -->
+              <span ng-bind-html="vm.bookout.to_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.to_airfield.code }} ]
+
+
+            </ui-select-match>
+             <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: 51.51:0.12" refresh="get_airfields($select.search)" refresh-delay="2" >
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+
+        <div class="form-group" ng-if="!vm.bookout.pic.current">
+          <label for="currency">Currency - please confirm that you have flown this type within the last {{ vm.currency_days }} days</label>
+          <input type="checkbox" class="form-control" style="display: inline-block;" ng-model="vm.bookout.is_current" required />
+        </div>
+        
+
+        <div id="extra_information_required" ng-if="vm.extra_information_required">
+
+
+         <div class="form-group">
+          <label for="from_airfield">Flight Rule</label>
+
+          <ui-select ng-model="vm.bookout.flight_rule" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the flight rule" append-to-body="true">
+            <ui-select-match placeholder="Please select the flight type">
+              {{ vm.bookout.flight_rule.title }} 
+            </ui-select-match>
+            <ui-select-choices repeat="ft in vm.flight_rules | propsFilterA: {title: $select.search, id: $select.search}">
+              <div ng-bind-html="ft.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+          <div class="form-group">
+            <label for="from_airfield">Routing Via</label>
+
+            <ui-select ng-model="vm.bookout.routing_via" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select your routing preference" append-to-body="true">
+              <ui-select-match placeholder="Please select your prefered routing">
+                {{ vm.bookout.routing_via.title }} 
+              </ui-select-match>
+              <ui-select-choices repeat="rv in vm.biggin_hill.routes | propsFilterA: {title: $select.search, id: $select.search}">
+                <div ng-bind-html="rv.title | highlight: $select.search"></div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+
+
+          <div class="form-group">
+            <label for="additional_details">Additional Details</label>
+            <input type="text" class="form-control inputtext" ng-model="vm.bookout.additional_details">
+          </div>
+
+
+          <div class="form-group">
+            <label for="parking_note">Parking</label>
+            <input type="text" class="form-control inputtext" ng-model="vm.bookout.parking_note">
+          </div>
+
+
+
+
+           <div class="form-group">
+            <label for="eet">Est. En-route Time</label>
+             <ui-select ng-model="vm.bookout.en_route" theme="bootstrap" style="min-width: 300px;" title="Select En-Route Time" append-to-body="true" required>
+              <ui-select-match placeholder="Please select a time" >
+                {{ vm.bookout.en_route.time }}             
+              </ui-select-match>
+              <ui-select-choices repeat="times in vm.all_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                <span ng-bind-html="times.time | highlight: $select.search"></span>
+              </ui-select-choices>
+              
+            </ui-select>
+          </div>
+       
+
+          <div class="form-group">
+            <label for="endurance">Est. Endurance</label>
+            <ui-select ng-model="vm.bookout.endurance" theme="bootstrap" style="min-width: 300px;" title="Select Endurance Time" append-to-body="true" required>
+                  <ui-select-match placeholder="Please select endurance" >
+                    {{ vm.bookout.endurance.time }}             
+                  </ui-select-match>
+                  <ui-select-choices repeat="times in vm.all_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                    <span ng-bind-html="times.time | highlight: $select.search"></span>
+                  </ui-select-choices>
+                  
+                </ui-select>
+          </div>
+
+
+          <div class="form-group">
+            <label for="dep_time">Departure Time</label>
+              <ui-select ng-model="vm.bookout.departure" theme="bootstrap" style="min-width: 300px;" title="Select Departure Time" append-to-body="true" class="input-group" required>
+                <ui-select-match placeholder="Please select a time" >
+                  {{ vm.bookout.departure.time }}             
+                </ui-select-match>
+                <ui-select-choices repeat="times in vm.start_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                  <span ng-bind-html="times.time | highlight: $select.search"></span>
+                </ui-select-choices>
+                <ui-select-no-choice>
+                  <span>Nothing available during selected times</span>
+                </ui-select-no-choice>
+              </ui-select>
+            </div>
+
+        </div>
+
+
+      <!--   <div ng-if="vm.bookout.plane.seats > 1">
+
+          NEW VERSION PASSENGERS
+
+          <div class="selector2" colspan="2">
+             <div class="form-group extra_space_bottom" ng-repeat="passenger in vm.bookout.passengers">
+                  <label for="instructor">Passenger {{ $index + 1 }}</label>
+                    <br />
+                  <ui-select tagging ng-model="vm.bookout.passengers[$index]" theme="bootstrap" ng-change="vm.adding_a_member()" ng-disabled="vm.pax_invited(vm.bookout.passengers[$index])" title="Please select a passenger" append-to-body="true" reset-search-input="0">
+                  <ui-select-match placeholder="Please select">
+                    {{ vm.bookout.passengers[$index].first_name || ""  }}  {{ vm.bookout.passengers[$index].last_name || ""  }} {{ (vm.bookout.passengers[$index].first_name == '') ? vm.bookout.passengers[$index].email : "" }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, email: $select.search, id: $select.search}" refresh="get_members($select.search)" refresh-delay="2">
+                    <div ng-bind-html="member.name | highlight: $select.search"></div>
+
+                    
+                    <small ng-bind-html="member.email | highlight: $select.search"></small>
+                  </ui-select-choices>
+                </ui-select>
+
+                
+                <a ng-if="vm.bookout.passengers[$index].not_found && vm.bookout.passengers[$index].status == ''" ng-click="vm.invite_new_passenger($index)" class="btn del_btn btn-info">INVITE PAX</a>
+
+                 <a class="btn del_btn fa_btn" uib-tooltip="{{vm.get_passenger_status(vm.bookout.passengers[$index])}}">
+                    <i class="fa fa-envelope fastatus" ng-if="vm.bookout.passengers[$index].status == 'to_invite'"></i>
+                    <i class="fa fa-envelope-open-text fastatus" ng-if="vm.bookout.passengers[$index].status == 'invited'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].status == 'member'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].status == 'accepted'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].is_member"></i>
+                    <i class="fa fa-times fastatus" ng-if="vm.bookout.passengers[$index].status == 'declined'"></i>
+   
+                </a>
+
+                <a ng-if="vm.bookout.passengers[$index].status == 'invited'" ng-click="vm.resend_invitation($index)" class="btn btn-info del_btn" uib-tooltip="Click to resend the invitation to the passenger.">RESEND</a>
+            
+            </div>
+
+          </div>
+        </div> -->
+
+     <!--    <div ng-if="vm.bookout.plane.seats > 1">
+        ORIGINAL PASSENGERS
+
+          <div ng-repeat="passenger in vm.bookout.passengers">
+
+            <ui-select tagging ng-model="vm.bookout.passengers[$index]" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the passenger" append-to-body="true">
+            <ui-select-match placeholder="Please select">
+              {{ vm.bookout.passengers[$index].first_name }}  {{ vm.bookout.passengers[$index].last_name }} {{ vm.bookout.passengers[$index].email }}
+            </ui-select-match>
+            <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, id: $select.search}" refresh="get_members($select.search, $index)" refresh-delay="2">
+              <div ng-bind-html="member.first_name | highlight: $select.search"></div><div ng-bind-html="member.last_name | highlight: $select.search"></div>
+              <small ng-bind-html="member.email | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+
+
+          <div ng-if="vm.bookout.passengers[$index].first_name == '' && vm.bookout.passengers[$index].status == 'to_invite'">
+            <a ng-click="vm.invite_passenger($select, $index)">INVITE</a>
+          </div>
+
+
+          <div class="status">
+            {{ vm.get_passenger_status(vm.bookout.passengers[$index]) }}
+          </div>
+
+          <br />
+
+          <div ng-if="vm.bookout.passengers[$index].status == 'invited'">
+            <a ng-click="vm.refresh_passenger(member, $index)" >REFRESH</a>
+          </div>
+
+
+
+
+          </div>
+
+        </div> -->
+
+
+
+
+        </div>
+
+      </div>
+
+    <div class="club_docs_all">
+
+          <h2>Flight Passengers</h2>
+           <div class="no_defects" ng-if="vm.bookout.passengers && vm.bookout.passengers.length < 1">
+             It looks like you do not presently have any passengers...
+            </div>
+
+            <div class="card">
+             <table class="middle_vertical" ng-if="vm.bookout.passengers && vm.bookout.passengers.length > 0">
+                <tr>
+                  <th>
+                    Name
+                  </th>
+                   <th>
+                    Status
+                  </th>
+                  <th>
+                    Function
+                  </th>
+                  <th>
+                    Is Aboard
+                  </th>
+                </tr>
+                <tr ng-repeat="passenger in vm.bookout.passengers">
+                  
+                  <td>
+                    <span uib-tooltip="{{ passenger.email }}">
+                    {{ passenger.first_name || passenger.email }}  {{ passenger.last_name }}
+                    </span>
+                  </td>
+                  <td>
+                     <a class="btn fa_btn" uib-tooltip="{{vm.get_passenger_status(vm.bookout.passengers[$index])}}">
+                    <i class="fa fa-envelope fastatus" ng-if="passenger.status == 'to_invite'"></i>
+                    <i class="fa fa-envelope-open-text fastatus" ng-if="passenger.status == 'invited'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.status == 'member'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.status == 'accepted'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.is_member"></i>
+                    <i class="fa fa-times fastatus" ng-if="passenger.status == 'declined'"></i>
+                    </a>
+                   
+                  </td>
+                  <td>
+
+                      <a ng-if="passenger.status == 'invited'" ng-click="vm.resend_invitation(passenger)" class="btn btn-info btn_inline" uib-tooltip="Click to resend the invitation to the passenger."><i class="fas fa-paper-plane fastatus"></i></a>
+
+                       <div ng-if="passenger.status == 'invited'">
+                        <a ng-if="passenger.status == 'invited'" ng-click="vm.update_passenger_list()" class="btn btn-info btn_inline" uib-tooltip="Click to refresh the invitation status.">
+                          <i class="fas fa-sync fastatus"></i>
+                        </a>
+                      </div>
+                       <div ng-if="passenger.status == 'declined'">
+                        <a ng-if="passenger.status == 'invited'" ng-click="vm.update_passenger_list()" class="btn btn-info btn_inline" uib-tooltip="Click to refresh the invitation status.">
+                          <i class="fas fa-sync fastatus"></i>
+                        </a>
+                      </div>
+                  </td>
+                  <td>
+
+                    <div class="form-group">
+                      <input type="checkbox" ng-if="passenger.status == 'member'" class="form-control" ng-model="passenger.aboard" />
+                      <input type="checkbox" ng-if="passenger.status == 'accepted'" class="form-control" ng-model="passenger.aboard" />
+                      <input type="checkbox" ng-if="passenger.is_member" class="form-control" ng-model="passenger.aboard" />
+                      
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <hr />
+
+            <div class="card">  
+              <table class="middle_vertical">   
+              <tr>
+                <td width="20%">         
+                  <b>Add Passenger</b>
+                </td>
+                <td width="60%">
+                  <div  class="add_pax_select">
+                    <ui-select tagging ng-model="vm.new_pax" theme="bootstrap" ng-change="vm.adding_a_member()" title="Please select a passenger" append-to-body="true" reset-search-input="0">
+                        <ui-select-match placeholder="Please select">
+                          {{ vm.new_pax.first_name || ""  }}  {{ vm.new_pax.last_name || ""  }} {{ (vm.new_pax.first_name == '') ? vm.new_pax.email : "" }}
+                        </ui-select-match>
+                        <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, email: $select.search, id: $select.search}" refresh="get_members($select.search, $index)" refresh-delay="2">
+                          <div ng-bind-html="member.name | highlight: $select.search"></div>
+                          <small ng-bind-html="member.email | highlight: $select.search"></small>
+                        </ui-select-choices>
+                      </ui-select>
+                    </div>
+                </td>
+                <td width="20%">
+                  <a ng-click="vm.add_new_passenger()" class="btn  btn-info">INVITE PAX</a>
+<!--                   <a ng-if="vm.new_pax.is_member" ng-click="vm.invite_new_passenger()" class="btn  btn-info">ADD PAX</a>
+ -->            </td>
+              </tr>
+            </table>
+          </div>
+
+          <!--   <hr />
+
+            {{ vm.new_pax | json }} -->
+
+    </div>
+
+    <div class="club_docs_all">
+
+          <h2>Reported Maintenance State</h2>
+
+         
+          <div class="form-group">
+
+
+            <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
+             There are no reported maintenance issues...
+            </div>
+
+            <div class="card">
+             <table ng-if="vm.reported_defects && vm.reported_defects.length > 0">
+                <tr>
+                 
+                  <th>
+                    Defect Reported
+                  </th>
+                   <th>
+                    Severity
+                  </th>
+                  <th>
+                    Reported Date &amp; Time
+                  </th>
+                  <th>
+                    Status
+                  </th>
+                </tr>
+                <tr ng-repeat="defect in vm.reported_defects">
+                  
+                  <td>
+                    {{ defect.defect }}
+                  </td>
+                  <td>
+                    {{ defect.severity }}
+                  </td>
+                  <td>
+                    {{ defect.created_at | myDateTime }}
+                  </td>
+                  <td>
+                    {{ defect.status }}
+
+                    <button ng-if="defect.can_delete" ng-click="vm.delete_defect(defect.id)">Delete Entry</button>
+                  </td>
+                </tr>
+              </table>
+            </div>
+              <div class="form-group centerme" ng-if="vm.reported_defects && vm.reported_defects.length > 0 && !vm.bookout.accept_defects">
+                <button class="btn btn-danger" ng-click="reject_defects()">REJECT DEFECTS</button>
+                <button class="btn btn-primary" ng-click="accept_defects()">ACCEPT DEFECTS</button>
+              </div>
+
+              <div class="form-group" ng-if="vm.reported_defects && vm.reported_defects.length > 0 && vm.bookout.accept_defects == true">
+                <p class="acceptance"> You have accepted to fly this aircraft with these reported defects. <a ng-click="reject_defects()">Click here to reject this aircraft due to maintenance</a></p>
+              </div>
+
+                <input type="hidden" class="form-control" ng-model="vm.bookout.accept_defects" />
+
+            </div>
+
+
+            <hr />
+
+
+            <div class="card">
+
+              
+
+
+              <div class="cards">
+                <h4>Hours Remaining</h4>
+                <span class="big_number {{ status.hours }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) || "N/A" }}</span>
+              </div>
+
+              <div class="cards">
+                <h4>Days Remaining</h4>
+                <span class="big_number {{ status.days }}">{{ vm.club.plane.maintenance.days_remaining || "N/A" }}</span>
+              </div>
+
+              <div class="cards">
+                <h4>Meter Reading</h4>
+                <span class="big_number">{{ vm.booking.plane_details.meter_reading || "N/A" }}</span>
+              </div>
+
+
+<!--             <span class="spanblock meter_reading">{{ vm.booking.plane_details.meter_reading }} last recorded meter reading</span> 
+              <span class="{{getColours(vm.club.plane.maintenance.days_remaining)}}">{{ vm.club.plane.maintenance.days_remaining }} days remaining</span>
+ -->              
+
+          <!--     <div ng-if="vm.club.plane.maintenance.day_remaining_message">
+                !!! <br />
+                normally days remaining: {{ vm.club.plane.maintenance.normal_days_remaining }}
+                <br />
+                normally next maintenance date:       {{ vm.club.plane.maintenance.normal_next_maintenance }}
+                 <br />
+                normally limit in days:       {{ vm.club.plane.maintenance.normal_limit }}
+                 <br />
+                Message:       {{ vm.club.plane.maintenance.day_remaining_message }}
+              </div>
+              <br /> -->
+
+          </div>
+
+          <div class="card">
+
+            <table>
+              <tr>
+                <th>Document</th>
+                <th>View Document</th>
+                <th>Expiry Date</th>
+                <th>Status</th>
+              </tr>
+              <tr>
+                <td>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.certificate.certificate, 'certificate')">OPEN</button></td>
+                <td>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.certificate}}">{{status.certificate}}</button></td>                
+              </tr>
+              <tr>
+                <td>Insurance</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.insurance.certificate, 'insurance')">OPEN</button></td>
+                <td>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.insurance}}">{{status.insurance}}</button></td>                
+              </tr>
+              <tr>
+                <td>Radio Licence</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.radio_licence.certificate, 'radio')">OPEN</button></td>
+                <td>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.radio_licence}}">{{status.radio_licence}}</button></td>                
+              </tr>
+              <tr ng-if="has_noise">
+                <td>Noise Certificate</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.noise.certificate, 'noise')">OPEN</button></td>
+                <td>N/A</td>
+                <td><button class="btn status {{status.noise}}">{{status.noise}}</button></td>                
+              </tr>
+            </table>
+              
+
+            <!--   {{ vm.club.plane.certificate.days_to_expiry }} days {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }} remaining
+              <button class="btn btn-primary" ng-click="show_overlay('cert')">Show {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }}</button>
+              <br />
+              
+              {{ vm.club.plane.radio_licence.days_to_expiry }} days Radio Licence Expiry remaining
+               <button class="btn btn-primary" ng-click="show_overlay('radio')">Show Radio Licence</button>
+              <br />
+              
+              {{ vm.club.plane.insurance.days_to_expiry }} days insurance expiry remaining
+               <button class="btn btn-primary" ng-click="show_overlay('insurance')">Show Insurance Policy</button>
+              <br />
+
+              <button class="btn btn-primary" ng-click="show_overlay('insurance')">Show Noise Certificate</button>
+              <br /> -->
+
+          </div>
+
+<!--             <span class="spanblock meter_reading_warning" ng-if="vm.booking.plane_details.meter_reading_warning">{{ vm.booking.plane_details.meter_reading_warning }}</span>
+ -->
+<!-- 
+            
+            <span class="spanblock hours_remaining">{{ vm.booking.plane_details.hours_remaining | formatHours }} {{ "hour" | addS:vm.booking.plane_details.hours_remaining }} remaining till next check</span> 
+            <span class="spanblock hours_remaining_warning" ng-if="vm.booking.plane_details.hours_remaining_error">{{ vm.booking.plane_details.hours_remaining_error }}</span> 
+
+            <span class="spanblock time_remaining">{{ vm.booking.plane_details.months_remaining }} {{ "month" | addS:vm.booking.plane_details.months_remaining }} remaining till next check</span> 
+            <span class="spanblock time_remaining_warning" ng-if="vm.booking.plane_details.months_remaining_warning">{{ vm.booking.plane_details.months_remaining_warning }}</span>  -->
+
+           
+
+          </div>
+
+          
+
+        <button class="btn btn-primary btn-bigger" ng-click="bookout_plane()">BOOKOUT & GO FLYING</button>
+
+      </form>
+
+    </div>
+
+      <div class="show_file_wrapper" ng-if="show_file_now" ng-click="close_file()"></div>
+      <div class="show_file" id="add_embed" ng-class="{opaque: show_file_now}">
+        <button class="btn btn-danger top_right_btn" ng-click="close_file()">X</button>
+
+      </div>
+
+
+
+
+
+<div class="popup_bg" ng-if="vm.show_new_passenger_invitation" > <!-- ng-click="vm.close_passenger_invitation()" -->
+    <div class="popup_box">
+
+      <h3> Invite A Passenger <a uib-tooltip="The easiest way to invite a passenger who is not a member of the club, and ensure they adhere to regulations is to invite them by email. By pressing the 'SEND INVITATION' button, they will receive an email with a link to quickly add their details, add emergency contact details and agree to the terms and conditions of the club (if required).">(?)</a></h3>
+      
+      <br />
+        
+      <div class="form-group">
+        <label> Email Address (required)</label> <input type="email" ng-model="vm.new_pax.email" />
+      </div>
+      
+      <div class="form-group">
+        <label> First Name (optional)</label> <input type="text" ng-model="vm.new_pax.first_name" />
+      </div>
+
+      <div class="form-group">
+        <label> Last Name (optional)</label> <input type="text" ng-model="vm.new_pax.last_name" />
+      </div>
+ 
+
+      <div class="bottom_btn">
+
+        <button ng-click="vm.close_passenger_invitation()" class="btn btn-danger">CANCEL</button>     
+        <button ng-click="vm.invite_new_passenger()" class="btn btn-primary">SEND INVITATION</button>
+
+    </div>
+
+    </div>
+</div>
