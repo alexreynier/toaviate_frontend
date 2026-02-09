@@ -257,9 +257,9 @@
             break;
             case "edit":
                 vm.page_title = "Edit a Booking";
-                // //console.log("edit an existing booking");
 
                 vm.see_booking.visible = 0;
+                vm.bookingPanelOpen = true;
 
                 // vm.default_date = new Date("2016-10-11");
                 vm.new_booking = {
