@@ -61,10 +61,20 @@ angular.module('flow.provider', [])
   };
 });
 angular.module('flow.init', ['flow.provider'])
-  .controller('flowCtrl', ['$scope', '$attrs', '$parse', 'flowFactory',
-  function ($scope, $attrs, $parse, flowFactory) {
+  .controller('flowCtrl', ['$scope', '$attrs', '$parse', 'flowFactory', '$rootScope',
+  function ($scope, $attrs, $parse, flowFactory, $rootScope) {
 
     var options = angular.extend({}, $scope.$eval($attrs.flowInit));
+
+    // Resolve upload target from $rootScope if set (allows dynamic API base URL)
+    if ($rootScope.uploadTargetOverrides) {
+      if (options.target && $rootScope.uploadTargetOverrides[options.target]) {
+        options.target = $rootScope.uploadTargetOverrides[options.target];
+      } else if (!options.target && $rootScope.uploadTargetOverrides['upload.php']) {
+        // Override the default target too
+        options.target = $rootScope.uploadTargetOverrides['upload.php'];
+      }
+    }
 
     // use existing flow object or create a new one
     var flow  = $scope.$eval($attrs.flowObject) || flowFactory.create(options);

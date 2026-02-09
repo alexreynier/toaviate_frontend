@@ -1,7 +1,7 @@
  app.controller('DashboardClubMaintenanceController', DashboardClubMaintenanceController);
 
-    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http'];
-    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http) {
+    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService'];
+    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService) {
         var vm = this;
 
         vm.user = null;
@@ -44,6 +44,8 @@
         vm.show_noise = false;
         vm.show_insurance = false;
         vm.show_offline = false;
+        vm.show_crs = false;
+        vm.crs_records = [];
 
         vm.obj = {
             issues: [],
@@ -55,6 +57,21 @@
        vm.maintenance_types = [
         "annual", "25hours", "50hours", "100hours", "interim", "6months", "extension"
        ];
+
+       // ── Workpacks ──
+       vm.workpacks = [];
+       vm.workpack = null;
+       vm.open_workpacks = [];
+       vm.new_workpack = {};
+       vm.show_create_workpack = false;
+       vm.show_workpack_detail = false;
+       vm.workpack_files = { workpack_doc: [] };
+       vm.defect_workpack_files = { defect_wp_doc: [] };
+       vm.show_link_defect = false;
+       vm.show_link_maintenance = false;
+       vm.show_defect_workpack = false;
+       vm.selected_defect_for_wp = null;
+       vm.defect_wp = {};
 
       
         
@@ -95,6 +112,22 @@
                             ////console.log("data is : ", data);
                            vm.reported_defects = data;
                         });
+
+                // Load workpacks for this plane
+                WorkpackService.GetByPlane($stateParams.plane_id)
+                    .then(function (data) {
+                        if (data.success !== false) {
+                            vm.workpacks = data.workpacks || [];
+                        }
+                    });
+
+                // Load open workpacks for linking dropdowns
+                WorkpackService.GetOpenByPlane($stateParams.plane_id)
+                    .then(function (data) {
+                        if (data.success !== false) {
+                            vm.open_workpacks = data.workpacks || [];
+                        }
+                    });
 
 
                
@@ -150,6 +183,18 @@
                 vm.show_radio = true;
                 vm.show_maintenance = true;
                 vm.show_noise = true;
+                vm.show_crs = true;
+                vm.show_offline = false;
+                // Default new workpack status to 'completed'
+                vm.new_workpack = { status: 'completed' };
+                vm.workpack_files = { workpack_doc: [] };
+            } else if(type == "crs"){
+                vm.show_cert = false;
+                vm.show_insurance = false;
+                vm.show_radio = false;
+                vm.show_maintenance = false;
+                vm.show_noise = false;
+                vm.show_crs = true;
                 vm.show_offline = false;
             } else if(type == "cert"){
                 vm.show_cert = true;
@@ -157,6 +202,7 @@
                 vm.show_radio = false;
                 vm.show_maintenance = false;
                 vm.show_noise = false;
+                vm.show_crs = false;
                 vm.show_offline = false;
             } else if(type == "insurance"){
                 vm.show_cert = false;
@@ -164,6 +210,7 @@
                 vm.show_radio = false;
                 vm.show_maintenance = false;
                 vm.show_noise = false;
+                vm.show_crs = false;
                 vm.show_offline = false;
             } else if(type == "radio"){
                 vm.show_cert = false;
@@ -171,6 +218,7 @@
                 vm.show_radio = true;
                 vm.show_maintenance = false;
                 vm.show_noise = false;
+                vm.show_crs = false;
                 vm.show_offline = false;
             } else if(type == "noise"){
                 vm.show_cert = false;
@@ -178,6 +226,7 @@
                 vm.show_radio = false;
                 vm.show_maintenance = false;
                 vm.show_noise = true;
+                vm.show_crs = false;
                 vm.show_offline = false;
             } else if(type == "offline"){
                 vm.show_cert = false;
@@ -185,6 +234,7 @@
                 vm.show_offline = true;
                 vm.show_radio = false;
                 vm.show_noise = false;
+                vm.show_crs = false;
                 vm.show_maintenance = false;
             } 
 
@@ -334,6 +384,26 @@
             }
 
 
+            // ── CRS (Certificate of Release to Service) ──
+            if (vm.files.crs[0]) {
+                if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
+                    alert("The CRS is not complete - please ensure to add both release date, release time, and the certificate.");
+                    return false;
+                }
+                // CRS uses its own endpoint, not AddMaintenance
+                var crsPayload = {
+                    plane_id: parseInt(vm.this_plane_id),
+                    release_date: moment(vm.obj.crs_release_date).format('YYYY-MM-DD'),
+                    release_time: moment(vm.obj.crs_release_time).format('HH:mm:ss'),
+                    file: vm.files.crs[0].file
+                };
+                send_obj.crs = crsPayload;
+                send_update = true;
+            } else if (vm.obj.crs_release_date || vm.obj.crs_release_time) {
+                alert("The CRS is not complete - please upload the certificate document along with the release date and time.");
+                return false;
+            }
+
 
             // //console.log("type:", vm.obj.maintenance_type);
             // //console.log("remaining:", vm.obj.hours_remaining);
@@ -363,8 +433,14 @@
                         hours_remaining: vm.obj.hours_remaining,
                         check_date: check_date,
                         expiry_date: vm.obj.next_check,
-                        description: vm.obj.description
+                        checked_by: vm.obj.checked_by,
+                        description: vm.obj.notes
                     } 
+
+                    // Include workpack_id if selected from existing
+                    if (vm.obj.workpack_option === 'existing' && vm.obj.workpack_id) {
+                        send_obj.maintenance.workpack_id = parseInt(vm.obj.workpack_id);
+                    }
 
                     send_update = true;
                 } else {
@@ -387,7 +463,7 @@
                         extension_hours: vm.obj.extension_hours,
                         extension_days: vm.obj.extension_days,
                         extension_granted: extension_granted,
-                        description: vm.obj.description
+                        description: vm.obj.notes
                     } 
                     send_update = true;
                 } else {
@@ -451,15 +527,96 @@
                 // //console.log("TOSAVE: ", send_obj);
                 
                 vm.send_obj = send_obj;
+
+                // Helper: save defect workpack info for resolved defects
+                // If workpackId is provided, defects marked with _link_to_workpack will be
+                // linked to that workpack instead of getting standalone workpack fields.
+                var saveDefectWorkpacks = function (workpackId) {
+                    if (vm.reported_defects && vm.reported_defects.length > 0) {
+                        for (var d = 0; d < vm.reported_defects.length; d++) {
+                            var def = vm.reported_defects[d];
+                            if (def.resolved) {
+                                // Link defect to the new workpack if user chose that option
+                                if (workpackId && def._link_to_workpack) {
+                                    WorkpackService.LinkDefect(workpackId, def.id);
+                                } else if (def.defect_workpack_number || def.defect_workpack_signatory || def._uploaded_file) {
+                                    // Standalone workpack info
+                                    var payload = {
+                                        workpack_number: def.defect_workpack_number || '',
+                                        signatory: def.defect_workpack_signatory || ''
+                                    };
+                                    if (def._uploaded_file) {
+                                        payload.document_temp_path = def._uploaded_file.temp_path;
+                                        payload.document_extension = def._uploaded_file.extension;
+                                        payload.document_original_name = def._uploaded_file.name;
+                                    }
+                                    WorkpackService.UpdateDefectWorkpack(def.id, payload);
+                                }
+                            }
+                        }
+                    }
+                };
+
+                // Helper: also create CRS if one was provided
+                var saveCrs = function () {
+                    if (send_obj.crs) {
+                        return CrsService.Create(send_obj.crs);
+                    }
+                    // Return resolved promise if no CRS
+                    return { then: function (cb) { cb({}); } };
+                };
+
+                // Create maintenance event first, then workpack if needed
                 PlaneService.AddMaintenance(vm.this_plane_id, send_obj)
-                .then(function(data){
-                    // //console.log(data);
-                    $state.go('dashboard.manage_club.maintenance', {action: "list", reload: true});
+                    .then(function (data) {
 
-                });
+                        // Save CRS alongside (fire and forget alongside workpack)
+                        saveCrs();
 
+                        // If creating a new workpack, do it AFTER the maintenance event is created
+                        // so we can associate the workpack with the new maintenance_check_id
+                        if (vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number) {
+                            var wp = {
+                                club_id: vm.club_id,
+                                plane_id: parseInt(vm.this_plane_id),
+                                workpack_number: vm.new_workpack.workpack_number,
+                                authorised_signatory: vm.new_workpack.authorised_signatory,
+                                description: vm.new_workpack.description,
+                                status: vm.new_workpack.status || 'completed',
+                                created_by_user_id: vm.user_id
+                            };
 
+                            // Link to the maintenance event that was just created
+                            if (data.maintenance_check_id) {
+                                wp.maintenance_check_id = data.maintenance_check_id;
+                            }
 
+                            if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
+                                var f = vm.workpack_files.workpack_doc[0];
+                                wp.document_temp_path = f.temp_path;
+                                wp.document_extension = f.extension;
+                                wp.document_original_name = f.name;
+                            }
+
+                            WorkpackService.Create(wp)
+                                .then(function (wpData) {
+                                    if (wpData.success) {
+                                        // Link resolved defects to this workpack or save standalone info
+                                        saveDefectWorkpacks(wpData.id);
+                                        vm.new_workpack = {};
+                                        vm.workpack_files = { workpack_doc: [] };
+                                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                                    } else {
+                                        alert('Error creating workpack: ' + (wpData.message || 'Unknown error'));
+                                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                                    }
+                                });
+                        } else {
+                            // No new workpack — save standalone defect workpack info
+                            saveDefectWorkpacks();
+                            $state.go('dashboard.manage_club.maintenance', {action: "list", reload: true});
+                        }
+                    });
 
             }
 
@@ -1055,7 +1212,8 @@
                 radio: [],
                 cert: [],
                 noise_cert: [],
-                insurance: []
+                insurance: [],
+                crs: []
             }
 
 
@@ -1410,16 +1568,380 @@
              }
 
 
+        // ═══════════════════════════════════════════════
+        // WORKPACK METHODS
+        // ═══════════════════════════════════════════════
 
+        vm.loadWorkpacks = function () {
+            if (!vm.this_plane_id) return;
+            WorkpackService.GetByPlane(vm.this_plane_id)
+                .then(function (data) {
+                    if (data.success !== false) {
+                        vm.workpacks = data.workpacks || [];
+                    }
+                });
+        };
 
+        vm.loadOpenWorkpacks = function () {
+            if (!vm.this_plane_id) return;
+            WorkpackService.GetOpenByPlane(vm.this_plane_id)
+                .then(function (data) {
+                    if (data.success !== false) {
+                        vm.open_workpacks = data.workpacks || [];
+                    }
+                });
+        };
 
+        vm.createWorkpack = function () {
+            var wp = {
+                club_id: vm.club_id,
+                plane_id: parseInt(vm.this_plane_id),
+                workpack_number: vm.new_workpack.workpack_number,
+                authorised_signatory: vm.new_workpack.authorised_signatory,
+                description: vm.new_workpack.description,
+                status: vm.new_workpack.status || 'completed',
+                created_by_user_id: vm.user_id
+            };
 
+            // If a document was uploaded
+            if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
+                var f = vm.workpack_files.workpack_doc[0];
+                wp.document_temp_path = f.temp_path;
+                wp.document_extension = f.extension;
+                wp.document_original_name = f.name;
+            }
 
+            WorkpackService.Create(wp)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.show_create_workpack = false;
+                        vm.new_workpack = {};
+                        vm.workpack_files = { workpack_doc: [] };
+                        vm.loadWorkpacks();
+                        vm.loadOpenWorkpacks();
+                    } else {
+                        alert('Error creating workpack: ' + (data.message || 'Unknown error'));
+                    }
+                });
+        };
 
+        vm.viewWorkpack = function (id) {
+            WorkpackService.GetById(id)
+                .then(function (data) {
+                    if (data.success !== false) {
+                        vm.workpack = data.workpack;
+                        vm.show_workpack_detail = true;
+                    }
+                });
+        };
 
+        vm.closeWorkpackDetail = function () {
+            vm.workpack = null;
+            vm.show_workpack_detail = false;
+            vm.show_link_defect = false;
+            vm.show_link_maintenance = false;
+        };
 
+        vm.updateWorkpack = function (field, value) {
+            if (!vm.workpack) return;
+            var update = {};
+            update[field] = value;
+            WorkpackService.Update(vm.workpack.id, update)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.viewWorkpack(vm.workpack.id);
+                        vm.loadWorkpacks();
+                        vm.loadOpenWorkpacks();
+                    }
+                });
+        };
 
+        vm.completeWorkpack = function () {
+            if (!vm.workpack) return;
+            var a = confirm('Are you sure you want to mark this workpack as completed?');
+            if (a) {
+                WorkpackService.Update(vm.workpack.id, { status: 'completed' })
+                    .then(function (data) {
+                        if (data.success) {
+                            vm.viewWorkpack(vm.workpack.id);
+                            vm.loadWorkpacks();
+                            vm.loadOpenWorkpacks();
+                        }
+                    });
+            }
+        };
 
+        vm.reopenWorkpack = function () {
+            if (!vm.workpack) return;
+            WorkpackService.Update(vm.workpack.id, { status: 'open' })
+                .then(function (data) {
+                    if (data.success) {
+                        vm.viewWorkpack(vm.workpack.id);
+                        vm.loadWorkpacks();
+                        vm.loadOpenWorkpacks();
+                    }
+                });
+        };
+
+        vm.deleteWorkpack = function () {
+            if (!vm.workpack) return;
+            var a = confirm('Are you sure you want to delete (archive) this workpack? This will unlink all defects and maintenance events.');
+            if (a) {
+                WorkpackService.Delete(vm.workpack.id)
+                    .then(function (data) {
+                        if (data.success) {
+                            vm.closeWorkpackDetail();
+                            vm.loadWorkpacks();
+                            vm.loadOpenWorkpacks();
+                        }
+                    });
+            }
+        };
+
+        vm.uploadWorkpackDocument = function () {
+            if (!vm.workpack) return;
+            if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
+                var f = vm.workpack_files.workpack_doc[0];
+                WorkpackService.Update(vm.workpack.id, {
+                    document_temp_path: f.temp_path,
+                    document_extension: f.extension,
+                    document_original_name: f.name
+                }).then(function (data) {
+                    if (data.success) {
+                        vm.workpack_files = { workpack_doc: [] };
+                        vm.viewWorkpack(vm.workpack.id);
+                    }
+                });
+            }
+        };
+
+        vm.removeWorkpackDocument = function () {
+            if (!vm.workpack) return;
+            WorkpackService.Update(vm.workpack.id, { remove_document: true })
+                .then(function (data) {
+                    if (data.success) {
+                        vm.viewWorkpack(vm.workpack.id);
+                    }
+                });
+        };
+
+        $scope.downloadWorkpackDocument = function (filename) {
+            if (!filename) return;
+            $http.get('/api/v1/maintenance_workpacks/file/' + filename, {
+                responseType: 'arraybuffer'
+            }).success(function (data, status, headers) {
+                var zipName = processArrayBufferToBlob(data, headers);
+            }).error(function (data, status) {
+                alert('There was an error downloading the workpack document.');
+            });
+        };
+
+        // ── Link / Unlink Defects ──
+
+        vm.linkDefectToWorkpack = function (defect_id) {
+            if (!vm.workpack || !defect_id) return;
+            WorkpackService.LinkDefect(vm.workpack.id, defect_id)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.show_link_defect = false;
+                        vm.viewWorkpack(vm.workpack.id);
+                    } else {
+                        alert('Error linking defect: ' + (data.message || 'Unknown error'));
+                    }
+                });
+        };
+
+        vm.unlinkDefect = function (defect_id) {
+            if (!defect_id) return;
+            var a = confirm('Unlink this defect from the workpack?');
+            if (a) {
+                WorkpackService.UnlinkDefect(defect_id)
+                    .then(function (data) {
+                        if (data.success) {
+                            vm.viewWorkpack(vm.workpack.id);
+                        }
+                    });
+            }
+        };
+
+        // ── Link / Unlink Maintenance Events ──
+
+        vm.linkMaintenanceToWorkpack = function (maintenance_check_id) {
+            if (!vm.workpack || !maintenance_check_id) return;
+            WorkpackService.LinkMaintenance(vm.workpack.id, maintenance_check_id)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.show_link_maintenance = false;
+                        vm.viewWorkpack(vm.workpack.id);
+                    } else {
+                        alert('Error linking maintenance event: ' + (data.message || 'Unknown error'));
+                    }
+                });
+        };
+
+        vm.unlinkMaintenance = function (maintenance_check_id) {
+            if (!maintenance_check_id) return;
+            var a = confirm('Unlink this maintenance event from the workpack?');
+            if (a) {
+                WorkpackService.UnlinkMaintenance(maintenance_check_id)
+                    .then(function (data) {
+                        if (data.success) {
+                            vm.viewWorkpack(vm.workpack.id);
+                        }
+                    });
+            }
+        };
+
+        // ── Standalone Defect Workpack ──
+
+        vm.openDefectWorkpack = function (defect) {
+            vm.selected_defect_for_wp = defect;
+            vm.defect_wp = {
+                workpack_number: defect.defect_workpack_number || '',
+                signatory: defect.defect_workpack_signatory || ''
+            };
+            vm.show_defect_workpack = true;
+        };
+
+        vm.closeDefectWorkpack = function () {
+            vm.selected_defect_for_wp = null;
+            vm.defect_wp = {};
+            vm.defect_workpack_files = { defect_wp_doc: [] };
+            vm.show_defect_workpack = false;
+        };
+
+        vm.saveDefectWorkpack = function () {
+            if (!vm.selected_defect_for_wp) return;
+
+            var payload = {
+                workpack_number: vm.defect_wp.workpack_number,
+                signatory: vm.defect_wp.signatory
+            };
+
+            if (vm.defect_workpack_files.defect_wp_doc && vm.defect_workpack_files.defect_wp_doc.length > 0) {
+                var f = vm.defect_workpack_files.defect_wp_doc[0];
+                payload.document_temp_path = f.temp_path;
+                payload.document_extension = f.extension;
+                payload.document_original_name = f.name;
+            }
+
+            WorkpackService.UpdateDefectWorkpack(vm.selected_defect_for_wp.id, payload)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.closeDefectWorkpack();
+                        // Refresh defects
+                        PlaneService.GetByIdMaintenance2(vm.this_plane_id, vm.club_id)
+                            .then(function (planeData) {
+                                vm.club.plane = planeData;
+                            });
+                    } else {
+                        alert('Error saving defect workpack info: ' + (data.message || 'Unknown error'));
+                    }
+                });
+        };
+
+        // ── CRS (Certificate of Release to Service) ──
+
+        vm.loadCrs = function () {
+            CrsService.GetAll(vm.this_plane_id)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.crs_records = data.plane_crs || [];
+                    }
+                });
+        };
+
+        vm.deleteCrs = function (id) {
+            var a = confirm('Are you sure you want to archive this CRS?');
+            if (a) {
+                CrsService.Delete(id)
+                    .then(function (data) {
+                        if (data.success) {
+                            vm.loadCrs();
+                            // Refresh plane data so vm.club.plane.crs updates
+                            $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                        }
+                    });
+            }
+        };
+
+        vm.downloadCrs = function (filename) {
+            if (!filename) return;
+            var url = CrsService.DownloadFile(filename);
+            $window.open(url, '_blank');
+        };
+
+        // Standalone CRS update (from document table UPDATE button)
+        vm.saveCrsStandalone = function () {
+            if (!vm.files.crs[0]) {
+                alert('Please upload the CRS certificate document.');
+                return;
+            }
+            if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
+                alert('Please provide both the release date and release time.');
+                return;
+            }
+            var payload = {
+                plane_id: parseInt(vm.this_plane_id),
+                release_date: moment(vm.obj.crs_release_date).format('YYYY-MM-DD'),
+                release_time: moment(vm.obj.crs_release_time).format('HH:mm:ss'),
+                file: vm.files.crs[0].file
+            };
+            CrsService.Create(payload)
+                .then(function (data) {
+                    if (data.success) {
+                        vm.files.crs = [];
+                        vm.obj.crs_release_date = null;
+                        vm.obj.crs_release_time = null;
+                        vm.show_overlay = false;
+                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                    } else {
+                        alert('Error creating CRS: ' + (data.message || 'Unknown error'));
+                    }
+                });
+        };
+
+        $scope.processWorkpackFile = function (files, location) {
+            if (!files || files.length === 0) return;
+            try {
+                var j = JSON.parse(files[0].file_return);
+                files[0].file.temp_path = j.saved_url;
+                files[0].file.save_name = j.files.file.name;
+                var ft = j.files.file.name;
+                var fft = ft.split('.').pop();
+                files[0].file.extension = fft;
+
+                if (location === 'workpack_doc') {
+                    vm.workpack_files.workpack_doc = [files[0].file];
+                } else if (location === 'defect_wp_doc') {
+                    vm.defect_workpack_files.defect_wp_doc = [files[0].file];
+                }
+            } catch (e) {
+                console.error('Error processing workpack file upload:', e, files[0].file_return);
+                alert('There was an error uploading the document. Please try again.');
+            }
+        };
+
+        // Helper: process file upload for a resolved defect's workpack document
+        vm.processDefectFile = function (files, defect) {
+            if (!files || files.length === 0) return;
+            try {
+                var j = JSON.parse(files[0].file_return);
+                files[0].file.temp_path = j.saved_url;
+                files[0].file.save_name = j.files.file.name;
+                var ft = j.files.file.name;
+                var fft = ft.split('.').pop();
+                files[0].file.extension = fft;
+                defect._uploaded_file = files[0].file;
+            } catch (e) {
+                console.error('Error processing defect file upload:', e, files[0].file_return);
+                alert('There was an error uploading the document. Please try again.');
+            }
+        };
+
+        // ═══════════════════════════════════════════════
+        // END WORKPACK METHODS
+        // ═══════════════════════════════════════════════
 
 
         initController();

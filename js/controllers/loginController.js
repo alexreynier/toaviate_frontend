@@ -1,7 +1,7 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService'];
-    function LoginController($location, AuthenticationService, FlashService) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout) {
         var vm = this;
  
         vm.login = login;
@@ -94,7 +94,17 @@ app.controller('LoginController', LoginController);
                         AuthenticationService.SetCredentials2(vm.email, vm.password, response.user, response.session, function(response){
                             // //console.log("TWO :: ", response);
                              // setTimeout(function(){
-                                 if(response && response.access && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
+
+                                 // Check for a stored return URL from a prior auto-logout
+                                 var returnUrl = null;
+                                 try { returnUrl = localStorage.getItem('toaviate_return_url'); } catch(e) {}
+                                 if (returnUrl) {
+                                     try { localStorage.removeItem('toaviate_return_url'); } catch(e) {}
+                                     // Wait for credentials/session to fully propagate before navigating
+                                     $timeout(function(){
+                                         $location.path(returnUrl);
+                                     }, 1000);
+                                 } else if(response && response.access && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
                                      $location.path('/dashboard');
                                  } else if(response) {
                                      $location.path('/dashboard/my_account');
@@ -131,6 +141,18 @@ app.controller('LoginController', LoginController);
 
 
 
+                } else if (response.error === "The login session has expired - please try again") {
+                    // Session expired — refresh login0 and retry automatically
+                    AuthenticationService.Login0(function (login0Response) {
+                        if (login0Response.success) {
+                            vm.login_session = login0Response.login_session;
+                            // Retry login1 with the fresh session
+                            login();
+                        } else {
+                            vm.error = login0Response.error || 'Unable to refresh login session. Please refresh the page.';
+                            vm.dataLoading = false;
+                        }
+                    });
                 } else {
                     // //console.log("HELLO FAIL", response);
                     //FlashService.Error(response.error);

@@ -71,7 +71,7 @@ var app = angular
         $locationProvider.html5Mode(true); 
 
     	flowFactoryProvider.defaults = {
-		    target: 'upload.php',
+		    target: 'upload.php', // overridden per-directive via $root.uploadUrl / $root.uploadDocumentsUrl
 		    permanentErrors: [404, 500, 501],
 		    maxChunkRetries: 1,
 		    chunkRetryInterval: 5000,
@@ -2006,11 +2006,22 @@ var app = angular
 
  	
  	//RUN INJECT
-    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http'];
-    function run($rootScope, $location, $cookieStore, $http) {
+    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig'];
+    function run($rootScope, $location, $cookieStore, $http, EnvConfig) {
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
+
+        // Upload URLs — point to the API server so the PHP upload scripts
+        // run on the backend where the file system is accessible.
+        // ng-flow's flowCtrl looks up these overrides by the original target string.
+        $rootScope.uploadTargetOverrides = {
+            '/upload_documents.php': EnvConfig.getApiBaseUrl() + '/upload_documents.php',
+            '/upload.php': EnvConfig.getApiBaseUrl() + '/upload.php',
+            'upload.php': EnvConfig.getApiBaseUrl() + '/upload.php'
+        };
+        $rootScope.uploadDocumentsUrl = EnvConfig.getApiBaseUrl() + '/upload_documents.php';
+        $rootScope.uploadUrl = EnvConfig.getApiBaseUrl() + '/upload.php';
 
         $rootScope.globals = $cookieStore.get('globals') || {};
         if ($rootScope.globals.currentUser) {
@@ -2040,6 +2051,28 @@ var app = angular
             //check again... if contains gallery:::
             if($location.path().indexOf("/passenger_signup") > -1){
                 restrictedPage = false;
+            }
+
+            // Save the current path as a return destination when being redirected to /login
+            // (auto-logout due to session timeout, 401, etc.). Manual logouts clear this separately.
+            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup'];
+            var navigatingToLogin = $location.path() === '/login';
+            if (navigatingToLogin && current) {
+                // Extract the path portion from the full current URL
+                var parser = document.createElement('a');
+                parser.href = current;
+                var previousPath = parser.pathname;
+                // Check that the page we're leaving isn't a public page
+                var isPublicOrigin = false;
+                for (var p = 0; p < publicPages.length; p++) {
+                    if (previousPath === publicPages[p] || previousPath.indexOf(publicPages[p] + '/') === 0) {
+                        isPublicOrigin = true;
+                        break;
+                    }
+                }
+                if (!isPublicOrigin && previousPath && previousPath !== '/') {
+                    try { localStorage.setItem('toaviate_return_url', previousPath); } catch(e) {}
+                }
             }
 
             console.log(restrictedPage);

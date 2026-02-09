@@ -150,6 +150,9 @@
                             $cookieStore.remove('globals');
                             $cookieStore.remove('session');
 
+                            // Clear return URL — this is an intentional logout, not a session timeout
+                            try { localStorage.removeItem('toaviate_return_url'); } catch(e) {}
+
                             $location.path('/login');
 
 
