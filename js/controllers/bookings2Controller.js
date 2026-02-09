@@ -136,7 +136,8 @@
         vm.datepickerOptions = {
             customClass: getDayClass,
             format: 'dd/MM/yyyy',
-            showWeeks: false
+            showWeeks: false,
+            startingDay: 1
         }
 
         vm.dateTimeRangePickerOptions = {
