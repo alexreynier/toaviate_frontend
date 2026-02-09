@@ -439,7 +439,7 @@
 
             var ddd = doc.replace(/^.*[\\\/]/, '');
 
-            $http.get('http://local.arrow.com/api/v1/plane_documents/show_file/'+ddd, {
+            $http.get('/api/v1/plane_documents/show_file/'+ddd, {
                     responseType: 'arraybuffer'
                 })
                 .success(function(data, status, headers) {

@@ -1,7 +1,7 @@
  app.controller('ManageMyMembershipsController', ManageMyMembershipsController);
 
-    ManageMyMembershipsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies', 'GoCardService', '$http'];
-    function ManageMyMembershipsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies, GoCardService, $http) {
+    ManageMyMembershipsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies', 'GoCardService', '$http', 'EnvConfig'];
+    function ManageMyMembershipsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies, GoCardService, $http, EnvConfig) {
         
         var vm = this;        
 
@@ -462,7 +462,7 @@
                 .then(function (data) {
                     console.log("DATA HERE", data);
                     // Initialize Stripe.js
-                    var stripe = Stripe('pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd');
+                    var stripe = Stripe(EnvConfig.getStripeKey());
 
                     const options = {
                       clientSecret: data.secret,

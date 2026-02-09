@@ -31,10 +31,8 @@ app.controller('LoginController', LoginController);
                     vm.login_session = response.login_session;
 
                 } else {
-                    // //console.log("HELLO FAIL", response);
-                    //FlashService.Error(response.error);
-                    // vm.error = response.error;
-                    // vm.dataLoading = false;
+                    vm.error = response.error || 'Unable to initialise login. Please refresh the page.';
+                    vm.dataLoading = false;
                 }
             });
 
@@ -68,6 +66,7 @@ app.controller('LoginController', LoginController);
         function login() {
 
             vm.dataLoading = true;
+            vm.error = null;
 
             AuthenticationService.Login1(vm.email, vm.login_session, function (response) {
                 if (response.success) {
@@ -95,10 +94,13 @@ app.controller('LoginController', LoginController);
                         AuthenticationService.SetCredentials2(vm.email, vm.password, response.user, response.session, function(response){
                             // //console.log("TWO :: ", response);
                              // setTimeout(function(){
-                                 if(response && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
+                                 if(response && response.access && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
                                      $location.path('/dashboard');
-                                 } else {
+                                 } else if(response) {
                                      $location.path('/dashboard/my_account');
+                                 } else {
+                                     vm.error = 'Login succeeded but we could not load your access level. Please try again.';
+                                     vm.dataLoading = false;
                                  }
 
                                 

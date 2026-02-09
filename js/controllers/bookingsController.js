@@ -1038,9 +1038,11 @@
             //console.log("we changed club here");
             vm.club_id = vm.change_club.id;
                 //console.log("CLUB ID IS :", vm.club_id);
-                if(vm.user.access.instructor.indexOf(vm.club_id) > -1){
-                    //console.log("THIS IS AN INSTRUCTOR IN THIS CLUB...");
+                if(vm.user.access.instructor.indexOf(vm.club_id) > -1 || vm.user.access.manager.indexOf(vm.club_id) > -1){
+                    //console.log("THIS IS AN INSTRUCTOR/MANAGER IN THIS CLUB...");
                     vm.booking_self = false;
+                } else {
+                    vm.booking_self = true;
                 }
             //now we need to update the planes the user can see on the calendar! 
             update_bookings();
@@ -1481,16 +1483,22 @@
 
         //console.log("CHANGE OF PLANE HERE");
 
+        // Determine the club from the selected plane (most reliable source)
+        var booking_club_id = parseInt(vm.new_booking.plane.club_id) || vm.club_id;
+        vm.club_id = booking_club_id;
 
-        if((vm.user.access.instructor.indexOf(vm.club_id) > -1) || (vm.user.access.manager.indexOf(vm.club_id) > -1) ){
+        if((vm.user.access.instructor.indexOf(booking_club_id) > -1) || (vm.user.access.manager.indexOf(booking_club_id) > -1) ){
             //console.log("NOT BOOKING FOR SELF?");
             vm.booking_self = false;
             prepare_add_edit();
+        } else {
+            vm.booking_self = true;
         }
 
-        if( vm.user.access.manager.indexOf(vm.club_id) > -1 ){
+        if( vm.user.access.manager.indexOf(booking_club_id) > -1 ){
             vm.booking_admin = true;
-
+        } else {
+            vm.booking_admin = false;
         }
 
         vm.init_passengers();

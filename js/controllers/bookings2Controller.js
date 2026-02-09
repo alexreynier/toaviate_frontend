@@ -1,7 +1,7 @@
  app.controller('Bookings2Controller', Bookings2Controller);
 
-    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService'];
-    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService) {
+    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService'];
+    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService) {
         
         var vm = this;
         var defaultStartTime = 480;
@@ -37,6 +37,85 @@
         vm.action = $state.current.data.action;
         vm.return_to = $state.current.data.return_to;
         //vm.club_id = 0;
+
+        // Sliding booking panel state
+        vm.bookingPanelOpen = false;
+        vm.toggleBookingPanel = function() {
+            vm.bookingPanelOpen = !vm.bookingPanelOpen;
+        };
+
+        // Book with a specific instructor from the event popup
+        vm.bookWithInstructor = function(booking) {
+            // Close the event detail popup
+            vm.see_booking.visible = 0;
+
+            // Pre-fill the booking form with the time from the clicked event
+            var now = new Date();
+            var startDate = new Date(now);
+            startDate.setMinutes(0);
+            startDate.setSeconds(0);
+            var endDate = new Date(startDate);
+            endDate.setHours(endDate.getHours() + 1);
+
+            vm.new_booking.start_date = startDate;
+            vm.new_booking.end_date = endDate;
+            vm.new_booking.start_time = {time: moment(startDate).format("HH:mm")};
+            vm.new_booking.end_time = {time: moment(endDate).format("HH:mm")};
+
+            // Pre-select the instructor
+            vm.new_booking.instructor = booking.instructor;
+
+            // Set booking permissions for instructor/admin view
+            vm.booking_self = false;
+            vm.show_self_option = true;
+
+            // Generate datetimes then fetch planes this instructor can teach on
+            $scope.update_dateTime("edit2");
+
+            // Fetch all available planes, then filter to ones this instructor teaches on
+            var start_iso = startDate.toISOString();
+            var end_iso = endDate.toISOString();
+
+            BookingService.GetAllPlanes(vm.user.id, start_iso, end_iso, 0, 0)
+            .then(function(data){
+                var allPlanes = data;
+                var instructor_id = booking.instructor.id;
+
+                // Check each plane to see if this instructor is available for it
+                var planePromises = [];
+                var matchedPlanes = [];
+
+                allPlanes.forEach(function(plane) {
+                    var promise = BookingService.GetPlaneInstructors(vm.user.id, plane.id, start_iso, end_iso, 1)
+                    .then(function(instructors) {
+                        var found = instructors.find(function(inst) {
+                            return parseInt(inst.id) === parseInt(instructor_id);
+                        });
+                        if (found) {
+                            matchedPlanes.push(plane);
+                        }
+                    });
+                    planePromises.push(promise);
+                });
+
+                // Wait for all plane checks, then set filtered planes list
+                // Use a simple counter since we're in AngularJS 1.4 without Promise.all on $http
+                var completed = 0;
+                var total = planePromises.length;
+                planePromises.forEach(function(p) {
+                    p.finally(function() {
+                        completed++;
+                        if (completed === total) {
+                            vm.planes = matchedPlanes.length > 0 ? matchedPlanes : allPlanes;
+                            vm.instructors = [booking.instructor];
+                        }
+                    });
+                });
+            });
+
+            // Open the booking panel
+            vm.bookingPanelOpen = true;
+        };
 
         //just in case i missed a changed value...
         vm.user_id = vm.user.id;
@@ -383,7 +462,7 @@
                                 // //console.log("MY INSTRUCTOR HERE2244: ", vm.new_booking.instructor);
 
                             } else {
-                                alert("Booking Error \n \n"+data.message);
+                                ToastService.error("Booking Error", data.message);
                                 $state.go('dashboard.add_booking');
                             }
 
@@ -526,7 +605,10 @@
 
     
     $scope.alertOnClicked = function(calEvent, jsEvent, view){
-            
+
+            // Auto-open the booking panel when an event is clicked
+            vm.bookingPanelOpen = true;
+
             vm.see_booking = calEvent;    
 
             vm.see_booking.start_date = moment(vm.see_booking.start).format("DD/MM/YYYY");
@@ -660,7 +742,7 @@
       }
 
 
-    $scope.addOne = function(start=null, plane_id=null, end=null){
+    $scope.addOne = function(start=null, plane_id=null, end=null, resourceObj=null){
         // //console.log("ADDING HERE --> with ", start);
 
         if(start && !end){    
@@ -678,7 +760,7 @@
 
         if(vm.action == "list" || vm.action == "add"){
             console.log("add it yeah");
-            vm.add_booking_event({"start": start, "plane_id": plane_id, "end": end});
+            vm.add_booking_event({"start": start, "plane_id": plane_id, "end": end, "resourceObj": resourceObj});
         } else if (vm.action == "edit") {
             $state.go('dashboard.add_booking', {"start": start, "plane_id": plane_id, "end": end});
         } else {
@@ -1022,7 +1104,10 @@
 
 
         //an update on the form would require an update of the plane / waiting lists available
-        $scope.check_plane_availability();
+        // Skip plane availability check in instructor-first flow — planes are already filtered by instructor
+        if(!vm.instructor_first_booking){
+            $scope.check_plane_availability();
+        }
 
         if(vm.new_booking.plane){
             //then we check what is available for these guys!
@@ -1031,7 +1116,7 @@
 
         //if the plane was already selected - then we can also update the instructors so as to not require
         //the user to have to re-select the plane
-        if(vm.new_booking.plane){
+        if(vm.new_booking.plane && !vm.instructor_first_booking){
             $scope.getPlaneInstructors();
         }
 
@@ -1189,7 +1274,7 @@
 // Date.parse(vm.new_booking.start_datetime)
 
                 if(moment(Date.parse(vm.new_booking.end_datetime)).add(1, "hour").isBefore()){
-                    alert("This booking ends in the past by more than an hour - you cannot amend a booking that finished in the past.");
+                    ToastService.error("Cannot Amend", "This booking ends in the past by more than an hour — you cannot amend a booking that finished in the past.");
                     return false;
                 }
                 //30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1236,9 +1321,11 @@
             console.log("we changed club here");
             vm.club_id = vm.change_club.id;
                 // //console.log("CLUB ID IS :", vm.club_id);
-                if(vm.user.access.instructor.indexOf(vm.club_id) > -1){
-                    // //console.log("THIS IS AN INSTRUCTOR IN THIS CLUB...");
+                if(vm.user.access.instructor.indexOf(vm.club_id) > -1 || vm.user.access.manager.indexOf(vm.club_id) > -1){
+                    // //console.log("THIS IS AN INSTRUCTOR/MANAGER IN THIS CLUB...");
                     vm.booking_self = false;
+                } else {
+                    vm.booking_self = true;
                 }
             //now we need to update the planes the user can see on the calendar! 
             update_bookings();
@@ -1427,7 +1514,7 @@
         // //console.log("all_events", $scope.all_events);
 
         if(moment(Date.parse(evnt.end)) < moment()){
-            alert("This booking ends in the past - you cannot amend a booking in the past.");
+            ToastService.error("Cannot Amend", "This booking ends in the past — you cannot amend a booking in the past.");
             return false;
         }
         // 30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1478,7 +1565,7 @@
                     //$scope.$parent.updateEvents(evnt.start, evnt.end);
                 }
                 
-                alert("Your changes were saved successfully");
+                ToastService.success("Changes Saved", "Your changes were saved successfully.");
                 
                 if(vm.return_to == "bookout") {
                     // //console.log("WE ARE AT THE BOOKOUT BIT - SO RETURN THERE!!!");
@@ -1716,16 +1803,22 @@
 
         // //console.log("CHANGE OF PLANE HERE");
 
+        // Determine the club from the selected plane (most reliable source)
+        var booking_club_id = parseInt(vm.new_booking.plane.club_id) || vm.club_id;
+        vm.club_id = booking_club_id;
 
-        if((vm.user.access.instructor.indexOf(vm.club_id) > -1) || (vm.user.access.manager.indexOf(vm.club_id) > -1) ){
+        if((vm.user.access.instructor.indexOf(booking_club_id) > -1) || (vm.user.access.manager.indexOf(booking_club_id) > -1) ){
             // //console.log("NOT BOOKING FOR SELF?");
             vm.booking_self = false;
             prepare_add_edit();
+        } else {
+            vm.booking_self = true;
         }
 
-        if( vm.user.access.manager.indexOf(vm.club_id) > -1 ){
+        if( vm.user.access.manager.indexOf(booking_club_id) > -1 ){
             vm.booking_admin = true;
-
+        } else {
+            vm.booking_admin = false;
         }
 
         // vm.init_passengers();
@@ -1742,7 +1835,7 @@
         var to = new Date(vm.new_booking.end_datetime).toISOString();// moment.utc( vm.new_booking.end_datetime ).toISOString();//luxon.DateTime.fromISO(moment(vm.new_booking.start_datetime).toISOString()).setZone("Europe/London").toFormat("YYYY-MM-DDThh:mm:ssZ");
         
 
-        if(vm.action == "add"){
+        if(vm.action == "add" || vm.action == "list"){
 
           
            
@@ -1757,8 +1850,11 @@
                 var reset_chosen = 1;
                 if(vm.new_booking.instructor){
                     for(var i = 0; i<vm.instructors.length; i++){
-                        if(vm.instructors[i].id == vm.new_booking.instructor.id){
+                        // Match on id or user_id to handle instructor-first bookings
+                        if(vm.instructors[i].id == vm.new_booking.instructor.id || vm.instructors[i].user_id == vm.new_booking.instructor.user_id){
                             reset_chosen = 0;
+                            // Update the instructor reference to the full API object
+                            vm.new_booking.instructor = vm.instructors[i];
                         }
                     }
                     if(reset_chosen == 1){
@@ -1768,6 +1864,7 @@
                     }
                     //otherwise we can leave that we've already done! :)
                 }
+
                 free_places();
             });
 
@@ -1895,6 +1992,7 @@
             instructor: undefined,
             options: vm.dateTimeRangePickerOptions
         };
+        vm.instructor_first_booking = false;
         $scope.submitted = false;
     }
 
@@ -2038,7 +2136,7 @@
                 .then(function (data) {
                     // //console.log(data);
                     if(data.success){
-                       alert("INVITATION SENT!");
+                       ToastService.success("Invitation Sent", "The passenger invitation has been sent.");
                         vm.update_passenger_list();
                         vm.show_new_passenger_invitation = false;
                     }
@@ -2050,7 +2148,7 @@
 
 
              } else {
-                 alert("Please enter a valid email address to send the invitation to.");
+                 ToastService.error("Invalid Email", "Please enter a valid email address to send the invitation to.");
              }
            
 
@@ -2227,7 +2325,7 @@
                // free_places();
                 vm.show_new_passenger_invitation = false;
             } else {
-                alert("The email address appears to be incorrect - please double check the email address entered.");
+                ToastService.error("Invalid Email", "The email address appears to be incorrect — please double check the email address entered.");
                 return false;
             }
         }
@@ -2251,7 +2349,7 @@
             BookingService.DeleteBooking(vm.user.id, booking_id)
             .then(function(data){
                 // //console.log(data);
-                alert("booking cancelled");
+                ToastService.success("Booking Cancelled", "The booking has been cancelled.");
 
                 if(data.success){
                     $state.go('dashboard.add_booking');
@@ -2265,7 +2363,7 @@
                     $('#calendar').fullCalendar('addEventSource', $scope.all_events);
 
                 } else {
-                    alert("an error occurred...");
+                    ToastService.error("Error", "An error occurred while cancelling the booking.");
                     // //console.log("ERROR", data);
                 }
 
@@ -2375,9 +2473,9 @@
                 .then(function(data){
                     // //console.log(data);
                     if(data.success == true){
-                        alert(data.message);
+                        ToastService.success("Invitation Resent", data.message);
                     } else {
-                        alert(data.message);
+                        ToastService.error("Resend Failed", data.message);
                     }
 
                 });
@@ -2470,8 +2568,12 @@
                         // }
 
                         //use GB airfields first...
-                        //vm.members = data;
-                        vm.get_members();
+                        vm.members = data.members || data;
+                        if(vm.members && vm.members.length > 0){
+                            for(var j=0;j<vm.members.length;j++){
+                                vm.members[j].is_member = true;
+                            }
+                        }
 
                         if(vm.new_booking.instructor && vm.new_booking.instructor.id == vm.user.id){
                             vm.show_self_option = true;
@@ -2587,9 +2689,9 @@
                 .then(function(data){
                     // //console.log(data);
                     if(data.success == true){
-                        alert(data.message);
+                        ToastService.success("Invitation Resent", data.message);
                     } else {
-                        alert(data.message);
+                        ToastService.error("Resend Failed", data.message);
                     }
 
                 });
@@ -2938,6 +3040,79 @@
 
             
         }
+
+        // Handler for when an aircraft is selected in the INSTRUCTOR-FIRST flow
+        // Derives club from plane, loads members + courses, refreshes instructors for that plane
+        vm.onInstructorPlaneSelected = function(){
+            if(!vm.new_booking.plane) return;
+
+            var booking_club_id = parseInt(vm.new_booking.plane.club_id);
+            vm.club_id = booking_club_id;
+
+            // Set permissions based on club role
+            if((vm.user.access.instructor.indexOf(booking_club_id) > -1) || (vm.user.access.manager.indexOf(booking_club_id) > -1)){
+                vm.booking_self = false;
+                vm.show_self_option = true;
+            }
+            if(vm.user.access.manager.indexOf(booking_club_id) > -1){
+                vm.booking_admin = true;
+            }
+
+            // Generate datetimes for the API calls
+            generate_datetimes();
+
+            var from = new Date(vm.new_booking.start_datetime).toISOString();
+            var to = new Date(vm.new_booking.end_datetime).toISOString();
+            var savedInstructor = vm.new_booking.instructor;
+
+            // Load members for this club
+            var bed = new Date(vm.new_booking.end_datetime).toISOString();
+            MemberService.GetAllActiveByClub(booking_club_id, bed)
+            .then(function(data){
+                vm.members = data.members || data;
+                if(vm.members && vm.members.length > 0){
+                    for(var j = 0; j < vm.members.length; j++){
+                        vm.members[j].is_member = true;
+                    }
+                }
+            });
+
+            // Load courses for this club
+            CourseService.GetCoursesByClubId(booking_club_id)
+            .then(function(data){
+                vm.courses = data.items;
+            });
+
+            // Refresh instructors for this specific plane, but preserve our pre-selected instructor
+            var show_all = 1;
+            BookingService.GetPlaneInstructors(vm.user.id, vm.new_booking.plane.id, from, to, show_all)
+            .then(function(data){
+                vm.instructors = data;
+
+                // Try to match our pre-selected instructor in the updated list
+                if(savedInstructor){
+                    var found = false;
+                    for(var i = 0; i < vm.instructors.length; i++){
+                        if(vm.instructors[i].id == savedInstructor.id || vm.instructors[i].user_id == savedInstructor.user_id){
+                            // Update to the full API instructor object
+                            vm.new_booking.instructor = vm.instructors[i];
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(!found){
+                        // Instructor not available for this plane - keep them but warn
+                        // Add them to the list so the dropdown still shows them
+                        vm.instructors.push(savedInstructor);
+                    }
+                }
+
+                free_places();
+            });
+
+            // Check rental items
+            $scope.check_rental_items();
+        };
 
         function generate_datetimes(){
             var start = new Date(vm.new_booking.start_date);
@@ -3408,6 +3583,9 @@
 
     vm.add_booking_event = function(obj){
 
+        // Auto-open the booking panel when a diary slot is clicked
+        vm.bookingPanelOpen = true;
+
         vm.new_booking.start_date = new Date(obj.start);
         vm.new_booking.end_date = new Date(luxon.DateTime.fromISO(new Date(obj.end).toISOString()).plus({minutes: 60}).toISO());//new Date(obj.start).toISOString();
         vm.new_booking.start_time = {time: moment(obj.start).format("HH:mm")};
@@ -3440,9 +3618,57 @@
                 //this gets the events and bookings for the period checked here...
                 // var events = data.events;
                 vm.planes = data;
-                vm.new_booking.plane = vm.planes.find(x => parseInt(x.id) === parseInt(obj.plane_id) );
-                        $scope.update_dateTime("edit2");
 
+                // Instructor resource IDs start with "fi_" followed by the user_id
+                var resourceId = String(obj.plane_id);
+                var isInstructorRow = resourceId.indexOf("fi_") === 0;
+
+                console.log("[DIARY CLICK] resourceId:", resourceId);
+                console.log("[DIARY CLICK] isInstructorRow:", isInstructorRow);
+                console.log("[DIARY CLICK] resourceObj:", obj.resourceObj);
+                console.log("[DIARY CLICK] planes loaded:", vm.planes.length);
+
+                if(isInstructorRow){
+                    // Strip "fi_" prefix to get the instructor's user_id
+                    var instructorUserId = parseInt(resourceId.replace("fi_", ""));
+                    console.log("[DIARY CLICK] Instructor user_id extracted:", instructorUserId);
+
+                    // Set the instructor-first booking flag
+                    vm.instructor_first_booking = true;
+
+                    // Set booking permissions so instructor/member fields are visible
+                    vm.booking_self = false;
+                    vm.booking_admin = true;
+                    vm.show_self_option = true;
+
+                    var start_iso = vm.new_booking.start_date.toISOString();
+                    var end_iso = vm.new_booking.end_date.toISOString();
+
+                    // Fetch the full instructor object via new endpoint
+                    BookingService.GetInstructorByUser(instructorUserId)
+                    .then(function(instructorData){
+                        console.log("[DIARY CLICK] GetInstructorByUser response:", instructorData);
+
+                        vm.new_booking.instructor = instructorData;
+                        vm.instructors = [instructorData];
+
+                        // Now fetch planes this instructor can teach on via new endpoint
+                        return BookingService.GetInstructorPlanes(vm.user.id, instructorUserId, start_iso, end_iso);
+                    })
+                    .then(function(planesData){
+                        console.log("[DIARY CLICK] GetInstructorPlanes response:", planesData);
+
+                        vm.planes = planesData;
+                        console.log("[DIARY CLICK] Instructor planes loaded:", vm.planes.length);
+
+                        $scope.update_dateTime("edit2");
+                    });
+                } else {
+                    // Clicked on a plane row — aircraft-first flow
+                    vm.instructor_first_booking = false;
+                    vm.new_booking.plane = vm.planes.find(x => parseInt(x.id) === parseInt(obj.plane_id) );
+                    $scope.update_dateTime("edit2");
+                }
 
             });
        
@@ -3461,10 +3687,47 @@
     ];
 
 
+    // ── Field validation helper ──
+    // Returns the first missing field name, highlights + scrolls to it, or null if all ok
+    function validateBookingFields() {
+        // Clear previous error markers
+        var prev = document.querySelectorAll('.make_booking_table tr.field-error');
+        for (var i = 0; i < prev.length; i++) { prev[i].classList.remove('field-error'); }
+
+        var checks = [
+            { ok: vm.new_booking.start_time,  id: 'field-start-time',  label: 'Start Time' },
+            { ok: vm.new_booking.end_time,    id: 'field-end-time',    label: 'End Time' },
+            { ok: vm.new_booking.plane,       id: 'field-aircraft',    label: 'Aircraft' }
+        ];
+
+        // Member is required when booking for someone else
+        if (!vm.booking_self) {
+            checks.push({ ok: vm.new_booking.user, id: 'field-member', label: 'Member' });
+        }
+
+        for (var j = 0; j < checks.length; j++) {
+            if (!checks[j].ok) {
+                var row = document.getElementById(checks[j].id);
+                if (row) {
+                    row.classList.add('field-error');
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                ToastService.error('Missing: ' + checks[j].label, 'Please fill in the highlighted field before submitting.');
+                return checks[j].label;
+            }
+        }
+        return null;
+    }
+
     $scope.make_booking = function(isValid){
 
        //console.log("make booking", isValid);
             $scope.submitted = true;
+
+            // Validate required fields first — catch missing member etc. before they crash
+            var missingField = validateBookingFields();
+            if (missingField) { return false; }
+
             // check to make sure the form is completely valid
             if(isValid) {
                 // //console.log('our form is working');
@@ -3502,12 +3765,12 @@
                 //console.log(vm.new_booking.start_datetime);
 
                 if(moment(Date.parse(vm.new_booking.end_datetime)).add(60, "minutes").isBefore()){
-                    alert("This booking ends in the past - you cannot create a booking in the past.");
+                    ToastService.error("Booking in the past", "This booking ends in the past — you cannot create a booking in the past.");
                     return false;
                 }
                 //60 mintues leeway in case of booking starting within the 15 minute period or similar
                 if(moment(Date.parse(vm.new_booking.start_datetime)).add(60, "minutes").isBefore()){
-                    alert("This booking starts in the past - you cannot create a booking in the past.");
+                    ToastService.error("Booking in the past", "This booking starts in the past — you cannot create a booking in the past.");
                     return false;
                 }
 
@@ -3584,7 +3847,7 @@
                             .then(function(data){
                                        //console.log(data);        
 
-                                alert("Booking Created Successfully");
+                                ToastService.success("Booking Created", "Your booking has been created successfully.");
 
                                 $scope.all_events = data.events;
                                 $scope.all_resources = data.resources;
@@ -3697,7 +3960,7 @@
 
 
 
-                        alert("Sorry! \n\n"+data.message);
+                        ToastService.error("Booking Error", data.message);
                     }
                     
                 });

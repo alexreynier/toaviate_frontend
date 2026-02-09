@@ -54,22 +54,62 @@
         .then(function(data){
             if(data.success){
                  vm.clubs = data.clubs;   
-                //think about preferences and setting the "most favoured" one.
-                $rootScope.globals.currentUser.current_club_admin = vm.clubs[0];
-                // $cookieStore.remove('globals');
+
+                // Try to restore previously selected club from localStorage
+                var savedClubId = null;
+                try {
+                    var stored = localStorage.getItem('toaviate_selected_club_id');
+                    if (stored !== null) {
+                        savedClubId = stored; // keep as string for comparison
+                    }
+                } catch(e) {}
+
+                var selectedClub = null;
+                if (savedClubId !== null) {
+                    for (var i = 0; i < vm.clubs.length; i++) {
+                        // Compare as strings to avoid type mismatch (API may return int or string)
+                        if (String(vm.clubs[i].id) === String(savedClubId)) {
+                            selectedClub = vm.clubs[i];
+                            break;
+                        }
+                    }
+                }
+
+                // Fall back to first club if no saved selection (or saved club no longer valid)
+                if (!selectedClub) {
+                    selectedClub = vm.clubs[0];
+                }
+
+                vm.club = selectedClub;
+                $rootScope.globals.currentUser.current_club_admin = selectedClub;
                 $cookieStore.put('globals', $rootScope.globals);
-                ////console.log("vm.clubs[0]", vm.clubs[0]);
+
+                // Persist the selection
+                try {
+                    localStorage.setItem('toaviate_selected_club_id', String(selectedClub.id));
+                } catch(e) {}
+
             } else {
                 //console.log("ERROR FAIL / LOGOUT", data);
-
-                //clear all cookie data?
-
                 $location.path('/login');
-
             }
            
                         
         });
+
+
+        vm.onClubSelected = function(club) {
+            vm.club = club;
+            $rootScope.globals.currentUser.current_club_admin = club;
+            $cookieStore.put('globals', $rootScope.globals);
+
+            // Persist to localStorage so it survives page reloads
+            try {
+                localStorage.setItem('toaviate_selected_club_id', String(club.id));
+            } catch(e) {}
+
+            console.log('Switched to club:', club.title);
+        };
 
 
         initController();

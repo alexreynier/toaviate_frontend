@@ -213,7 +213,7 @@
 
                     //if there isn't a booking then open up the booking form with the start date-time pre-filled -- this is done to ensure that the user is required to fill out all the required parts of the booking to prep the book-out.
 
-                    angular.element(document.getElementById('calendar')).scope().addOne(click, resourceObj.id);
+                    angular.element(document.getElementById('calendar')).scope().addOne(click, resourceObj.id, null, resourceObj);
 
 
 
@@ -326,7 +326,12 @@
 
 
 <div id="booking_wrapper" class="clearfix">
-    <div id="mini_view_left" >
+    <div class="panel-backdrop" ng-class="{'active': vm.bookingPanelOpen}" ng-click="vm.toggleBookingPanel()"></div>
+    <div id="mini_view_left" ng-class="{'panel-open': vm.bookingPanelOpen}">
+        <div class="sliding-panel-tab" ng-click="vm.toggleBookingPanel()">
+            <span class="tab-arrow">&#9654;</span> BOOKING
+        </div>
+        <div class="panel-scroll-area">
 <!--         <button class="btn btn-primary" ng-click="addOne()">MAKE BOOKING</button>
  -->
 
@@ -354,7 +359,7 @@
               </div>
     </td>
   </tr>
-  <tr>
+  <tr id="field-start-time">
     <td class="label">
        <label>TIME:</label>
     </td>
@@ -387,7 +392,7 @@
             </div>
     </td>
   </tr>
-  <tr>
+  <tr id="field-end-time">
     <td class="label">
        <label>TIME:</label>
     </td>
@@ -411,27 +416,6 @@
 
 
 
-  <tr>
-    <td class="label">
-       <label>AIRCRAFT</label>
-    </td>
-    <td class="selector">
-       <ui-select ng-model="vm.new_booking.plane" theme="bootstrap" ng-disabled="disabled" on-select="getPlaneInstructors(vm.new_booking.plane.id)"  title="Select Aircraft" append-to-body="true" ng-class="{'has-error': !vm.new_booking.plane && submitted }" class="input-group" required>
-              <ui-select-match placeholder="Please select an aircraft" >
-                <div>{{ vm.new_booking.plane.title }}</div>         
-              </ui-select-match>
-              <ui-select-choices repeat="plane in vm.planes | propsFilterA: {title: $select.search, id: $select.search}">
-            <div ng-bind-html="plane.title | highlight: $select.search"></div>
-
-              </ui-select-choices>
-              <ui-select-no-choice>
-                <span>No aircraft available during selected times</span>
-              </ui-select-no-choice>
-            </ui-select>
-
-            <p ng-show="!vm.new_booking.end_time && submitted" class="help-block">Please select an aircraft</p>
-    </td>
-  </tr>
   <tr ng-if="vm.show_self_option">
     <td class="label">
        <label>SELF</label>
@@ -448,6 +432,10 @@
       <input type="checkbox" id="maintenance_flight" ng-model="vm.new_booking.maintenance_flight" /> Free Flight</b>
     </td>
   </tr>
+  <!-- ========================================= -->
+  <!-- AIRCRAFT-FIRST FLOW (default / plane click) -->
+  <!-- ========================================= -->
+  <tbody ng-if="!vm.instructor_first_booking">
   <tr ng-if="vm.booking_self">
     <td class="label">
        <label>INSTRUCTOR</label>
@@ -500,7 +488,7 @@
             </ui-select>
     </td>
   </tr>
-  <tr ng-if="!vm.booking_self && vm.show_self_option">
+  <tr ng-if="!vm.booking_self && vm.show_self_option" id="field-member">
     <td class="label">
        <label>MEMBER</label>
     </td>
@@ -510,7 +498,7 @@
             {{ vm.new_booking.user.first_name }}             
             {{ vm.new_booking.user.last_name }}
           </ui-select-match>
-          <ui-select-choices repeat="student in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search,  id: $select.search}">
+          <ui-select-choices repeat="student in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search,  id: $select.search}" refresh="vm.get_members($select.search)" refresh-delay="200">
             <span ng-bind-html="student.first_name | highlight: $select.search"></span>
             <span ng-bind-html="student.last_name | highlight: $select.search"></span>               
           </ui-select-choices>
@@ -539,6 +527,108 @@
         </ui-select>
     </td>
   </tr>
+  <tr id="field-aircraft">
+    <td class="label">
+       <label>AIRCRAFT</label>
+    </td>
+    <td class="selector">
+       <ui-select ng-model="vm.new_booking.plane" theme="bootstrap" ng-disabled="disabled" on-select="getPlaneInstructors(vm.new_booking.plane.id)"  title="Select Aircraft" append-to-body="true" ng-class="{'has-error': !vm.new_booking.plane && submitted }" class="input-group" required>
+              <ui-select-match placeholder="Please select an aircraft" >
+                <div>{{ vm.new_booking.plane.title }}</div>         
+              </ui-select-match>
+              <ui-select-choices repeat="plane in vm.planes | propsFilterA: {title: $select.search, id: $select.search}">
+            <div ng-bind-html="plane.title | highlight: $select.search"></div>
+
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>No aircraft available during selected times</span>
+              </ui-select-no-choice>
+            </ui-select>
+
+            <p ng-show="!vm.new_booking.end_time && submitted" class="help-block">Please select an aircraft</p>
+    </td>
+  </tr>
+  </tbody>
+
+  <!-- ========================================= -->
+  <!-- INSTRUCTOR-FIRST FLOW (instructor click)  -->
+  <!-- ========================================= -->
+  <tbody ng-if="vm.instructor_first_booking">
+  <tr>
+    <td class="label">
+       <label>INSTRUCTOR</label>
+    </td>
+    <td class="selector">
+       <ui-select ng-model="vm.new_booking.instructor" theme="bootstrap" ng-disabled="true" class="input-group" title="Pre-selected Instructor" append-to-body="true">
+              <ui-select-match placeholder="Instructor">
+                {{ vm.new_booking.instructor.first_name }}
+                {{ vm.new_booking.instructor.last_name }}
+              </ui-select-match>
+              <ui-select-choices repeat="instructor in vm.instructors | propsFilterA: {first_name: $select.search, last_name: $select.search, id: $select.search}">
+                <span ng-bind-html="instructor.first_name | highlight: $select.search"></span>
+                <span ng-bind-html="instructor.last_name | highlight: $select.search"></span>
+              </ui-select-choices>
+            </ui-select>
+    </td>
+  </tr>
+  <tr id="field-aircraft">
+    <td class="label">
+       <label>AIRCRAFT</label>
+    </td>
+    <td class="selector">
+       <ui-select ng-model="vm.new_booking.plane" theme="bootstrap" ng-disabled="disabled" on-select="vm.onInstructorPlaneSelected()" title="Select Aircraft (filtered by instructor)" append-to-body="true" ng-class="{'has-error': !vm.new_booking.plane && submitted }" class="input-group" required>
+              <ui-select-match placeholder="Please select an aircraft" >
+                <div>{{ vm.new_booking.plane.title }}</div>
+              </ui-select-match>
+              <ui-select-choices repeat="plane in vm.planes | propsFilterA: {title: $select.search, id: $select.search}">
+                <div ng-bind-html="plane.title | highlight: $select.search"></div>
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>No aircraft available for this instructor</span>
+              </ui-select-no-choice>
+            </ui-select>
+            <p ng-show="!vm.new_booking.plane && submitted" class="help-block">Please select an aircraft</p>
+    </td>
+  </tr>
+  <tr ng-if="vm.new_booking.plane" id="field-member">
+    <td class="label">
+       <label>MEMBER</label>
+    </td>
+    <td class="selector">
+        <ui-select ng-model="vm.new_booking.user" theme="bootstrap" ng-disabled="disabled" class="input-group" title="Select a Member" append-to-body="true">
+          <ui-select-match placeholder="Please select the member" allow-clear="true" >
+            {{ vm.new_booking.user.first_name }}
+            {{ vm.new_booking.user.last_name }}
+          </ui-select-match>
+          <ui-select-choices repeat="student in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search, id: $select.search}" refresh="vm.get_members($select.search)" refresh-delay="200">
+            <span ng-bind-html="student.first_name | highlight: $select.search"></span>
+            <span ng-bind-html="student.last_name | highlight: $select.search"></span>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>There seems to be no members around!</span>
+          </ui-select-no-choice>
+        </ui-select>
+    </td>
+  </tr>
+  <tr ng-if="vm.new_booking.plane && vm.courses && vm.courses.length > 0">
+    <td class="label">
+       <label>COURSE</label>
+    </td>
+    <td class="selector">
+      <ui-select ng-model="vm.new_booking.tuition_required" theme="bootstrap" ng-disabled="disabled" class="input-group" title="Select Tuition Required" append-to-body="true">
+          <ui-select-match placeholder="Please select tuition required" allow-clear="true">
+            {{ vm.new_booking.tuition_required.title }}
+          </ui-select-match>
+          <ui-select-choices repeat="course in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
+            <span ng-bind-html="course.title | highlight: $select.search"></span>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>No courses available for this club.</span>
+          </ui-select-no-choice>
+        </ui-select>
+    </td>
+  </tr>
+  </tbody>
   <tr ng-if="vm.new_booking.instructor.id < 1 || !vm.is_current">
     <td class="label">
        <label>CURRENCY</label>
@@ -839,29 +929,7 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        </div><!-- end panel-scroll-area -->
      </div>
 
 
@@ -1016,6 +1084,7 @@
                     <button class="btn btn-primary" ng-click="close_details()" >Close</button>
                     <button class="btn btn-danger" ng-click="cancel_booking(vm.see_booking.id)" >Cancel Booking</button>
                     <button class="btn btn-primary" ui-sref="dashboard.edit_booking({booking_id: vm.see_booking.id})">Edit Booking</button>
+                    <button class="btn btn-success" ng-if="vm.see_booking.instructor && vm.see_booking.instructor.id > 0" ng-click="vm.bookWithInstructor(vm.see_booking)">Book with Instructor</button>
                 </div>
             </td>
         </tr>

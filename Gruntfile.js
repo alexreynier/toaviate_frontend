@@ -125,7 +125,10 @@ module.exports = function (grunt) {
         uglify: {
             options: {
                 report: 'min',
-                mangle: true
+                mangle: true,
+                compress: {
+                    drop_console: true  // Strips all console.* calls from production builds
+                }
             },
             my_target: {
                 files: {

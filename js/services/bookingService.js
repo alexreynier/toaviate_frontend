@@ -38,6 +38,9 @@ app.factory('BookingService', BookingService);
 
         service.GetForForDebriefPls = GetForForDebriefPls;
 
+        service.GetInstructorByUser = GetInstructorByUser;
+        service.GetInstructorPlanes = GetInstructorPlanes;
+
         return service;
 
         function GetBookingsToReview(user_id){
@@ -98,6 +101,14 @@ app.factory('BookingService', BookingService);
 
         function GetInstructors(user_id, start, end, show_all){
             return $http.get('/api/v1/bookings/instructors/'+user_id+'/'+start+'/'+end).then(handleSuccess, handleError2);
+        }
+
+        function GetInstructorByUser(user_id){
+            return $http.get('/api/v1/bookings/instructor_by_user/'+user_id).then(handleSuccess, handleError2);
+        }
+
+        function GetInstructorPlanes(user_id, instructor_user_id, start, end){
+            return $http.get('/api/v1/bookings/instructor_planes/'+user_id+'/'+instructor_user_id+'/'+start+'/'+end).then(handleSuccess, handleError2);
         }
 
         function GetPlaneInstructors(user_id, plane_id, start, end, show_all){

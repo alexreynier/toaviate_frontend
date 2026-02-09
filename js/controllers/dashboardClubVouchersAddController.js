@@ -1,7 +1,7 @@
  app.controller('DashboardClubVouchersAddController', DashboardClubVouchersAddController);
 
-    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService'];
-    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService) {
+    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'EnvConfig'];
+    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, EnvConfig) {
         var vm = this;
 
         //console.log("HELLOOOO ADD vouchers");
@@ -52,7 +52,7 @@
                     });
 
 
-                var stripe = Stripe('pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2');
+                var stripe = Stripe(EnvConfig.getStripeKeyLegacy());
                 var elements = stripe.elements();
 
                 var card_options = {

@@ -423,7 +423,7 @@ app.directive('collapsible', ['$timeout', function($timeout){
       controllerAs: 'vm',
       bindToController: true,
       templateUrl: '/js/directives/payment-form.html',   // <-- use external template
-      controller: ['$sce', 'PaymentService', '$scope', 'BookoutService', function($sce, PaymentService, $scope, BookoutService){
+      controller: ['$sce', 'PaymentService', '$scope', 'BookoutService', 'EnvConfig', function($sce, PaymentService, $scope, BookoutService, EnvConfig){
         var vm = this;
 
         vm.show_loading = false;
@@ -443,7 +443,7 @@ app.directive('collapsible', ['$timeout', function($timeout){
             .then(function (data) {
                 console.log("DATA HERE", data);
                 // Initialize Stripe.js
-                var stripe = Stripe('pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd');
+                var stripe = Stripe(EnvConfig.getStripeKey());
 
                 const options = {
                   clientSecret: data.client_secret,
@@ -943,7 +943,7 @@ app.directive('collapsible', ['$timeout', function($timeout){
                                console.log("WOOOPSIES...", data);
                                 //this shows the user the 3DS confirmation
 
-                                var stripe = Stripe('pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd');
+                                var stripe = Stripe(EnvConfig.getStripeKey());
                                 stripe.confirmCardPayment(
                                   data.client_secret,
                                   {

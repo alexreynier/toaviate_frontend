@@ -1,7 +1,7 @@
  app.controller('NewChargeModalInstanceCtrl', NewChargeModalInstanceCtrl);
 
-    NewChargeModalInstanceCtrl.$inject = ['$scope', '$uibModalInstance', 'id', 'warning', 'MemberService', 'ClubService', '$rootScope', 'PaymentService', 'params'];
-    function NewChargeModalInstanceCtrl($scope, $uibModalInstance, id, warning, MemberService, ClubService, $rootScope, PaymentService, params=null) {         
+    NewChargeModalInstanceCtrl.$inject = ['$scope', '$uibModalInstance', 'id', 'warning', 'MemberService', 'ClubService', '$rootScope', 'PaymentService', 'params', 'EnvConfig'];
+    function NewChargeModalInstanceCtrl($scope, $uibModalInstance, id, warning, MemberService, ClubService, $rootScope, PaymentService, params=null, EnvConfig) {         
 
             $scope.warning = warning;
             $scope.params = params;
@@ -326,7 +326,7 @@
           //STRIPE STUFF HERE PLEASE!!! :-)
 
 
-        var stripe = Stripe('pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2');
+        var stripe = Stripe(EnvConfig.getStripeKeyLegacy());
         var elements = stripe.elements();
 
         var card_options = {

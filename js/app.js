@@ -2,6 +2,37 @@ var app = angular
 	        .module('app', ['flow', 'ui.router', 'ngCookies', 'ngTouch', 'angularInlineEdit', 'ngTagsInput', 'iso.directives', 'dndLists', 'ngAnimate', 'ngSanitize', 'ui.select', 'ui.bootstrap', 'ui.calendar', 'rgkevin.datetimeRangePicker', 'betsol.intlTelInput', 'credit-cards', 'toggle-switch'])
 	        .config(config)
 	        .run(run);
+
+    // =============================================
+    // HTTP INTERCEPTOR: Prefixes API calls with the
+    // correct base URL from EnvConfig, so every
+    // $http call to /api/... or api/... automatically
+    // hits the right server per environment.
+    // =============================================
+    app.factory('apiUrlInterceptor', ['EnvConfig', function(EnvConfig) {
+        return {
+            request: function(config) {
+                var url = config.url;
+
+                // Normalise: treat 'api/v1/...' the same as '/api/v1/...'
+                if (url.indexOf('api/') === 0) {
+                    url = '/' + url;
+                    config.url = url;
+                }
+
+                // Only prefix requests that start with /api/
+                if (url.indexOf('/api/') === 0) {
+                    config.url = EnvConfig.getApiBaseUrl() + url;
+                }
+
+                return config;
+            }
+        };
+    }]);
+
+    app.config(['$httpProvider', function($httpProvider) {
+        $httpProvider.interceptors.push('apiUrlInterceptor');
+    }]);
  
     app.filter('yesNo', function () {
         return function (boolean) {

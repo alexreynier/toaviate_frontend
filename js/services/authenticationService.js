@@ -1,7 +1,7 @@
     app.factory('AuthenticationService', AuthenticationService);
  
-    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', 'UserService'];
-    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, UserService) {
+    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', 'UserService', 'EnvConfig'];
+    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, UserService, EnvConfig) {
         var service = {};
  
         service.Login = Login;
@@ -22,7 +22,7 @@
         service.GetCredentials = GetCredentials;
         service.CheckLoggedIn = CheckLoggedIn;
         
-        $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
+        $http.defaults.headers.common['Api-Key'] = EnvConfig.getApiKey();
 
         return service;
 
@@ -32,6 +32,9 @@
             $http.post('/api/v1/users/logout', {})
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Logout failed:', status, data);
+                   callback({ success: false, error: 'Logout request failed. Please try again.' });
             });
 
         }
@@ -43,6 +46,9 @@
             $http.post('/api/v1/users/login0', {})
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Login0 failed:', status, data);
+                   callback({ success: false, error: 'Unable to initialise login. Please refresh and try again.' });
             });
 
 
@@ -56,6 +62,9 @@
             $http.post('/api/v1/users/login1', { a: user })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Login1 failed:', status, data);
+                   callback({ success: false, error: 'Login failed. Please check your connection and try again.' });
             });
 
         }
@@ -69,6 +78,9 @@
             $http.post('/api/v1/users/login2', { a: user })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Login2 failed:', status, data);
+                   callback({ success: false, error: 'Authentication failed. Please try again.' });
             });
 
 
@@ -83,6 +95,9 @@
             $http.post('/api/v1/users/login3', { a: user })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Login3 failed:', status, data);
+                   callback({ success: false, error: 'Authentication failed. Please try again.' });
             });
 
 
@@ -94,6 +109,9 @@
             $http.post('/api/v1/users/reset_password', { email: email })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('ResetPassword failed:', status, data);
+                   callback({ success: false, error: 'Password reset request failed. Please try again.' });
             });
 
 
@@ -106,6 +124,9 @@
             $http.post('/api/v1/users/reset_password2', { a: user })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('ResetPassword2 failed:', status, data);
+                   callback({ success: false, error: 'Password reset failed. The link may have expired.' });
             });
 
 
@@ -136,6 +157,9 @@
             $http.post('/api/v1/users/login', { email: email, password: password })
                .success(function (response) {
                    callback(response);
+            }).error(function (data, status) {
+                   console.log('Login failed:', status, data);
+                   callback({ success: false, error: 'Login failed. Please check your connection and try again.' });
             });
  
         }
