@@ -272,6 +272,61 @@
                   </div>
 
 
+                  <!-- ═══════════════════════════════════════════ -->
+                  <!-- Maintenance Events History                 -->
+                  <!-- ═══════════════════════════════════════════ -->
+                  <div class="card">
+                    <h4><i class="fa fa-history"></i> Maintenance Events</h4>
+
+                    <!-- Filter Tabs -->
+                    <div class="mx-event-filters">
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'all'}" ng-click="vm.event_filter = 'all'">All</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'annual'}" ng-click="vm.event_filter = 'annual'">Annual</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '50hours'}" ng-click="vm.event_filter = '50hours'">50hr</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '100hours'}" ng-click="vm.event_filter = '100hours'">100hr</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'extension'}" ng-click="vm.event_filter = 'extension'">Ext</button>
+                    </div>
+
+                    <div ng-if="!vm.maintenance_events || vm.maintenance_events.length === 0" class="mx-empty-state">
+                      <i class="fa fa-wrench mx-empty-icon"></i>
+                      <p>No maintenance events recorded yet.</p>
+                      <p class="mx-empty-hint">Use "Add Maintenance Check" above to log the first event.</p>
+                    </div>
+
+                    <div class="mx-event-list" ng-if="vm.maintenance_events && vm.maintenance_events.length > 0">
+                      <div class="mx-event-item"
+                           ng-repeat="event in vm.maintenance_events"
+                           ng-if="vm.event_filter === 'all' || event.maintenance_type === vm.event_filter"
+                           ng-click="vm.viewEvent(event)">
+                        <div class="mx-event-icon-col">
+                          <div class="mx-event-icon">
+                            <i class="fa" ng-class="vm.getEventTypeIcon(event.maintenance_type)"></i>
+                          </div>
+                          <div class="mx-event-line" ng-if="!$last"></div>
+                        </div>
+                        <div class="mx-event-content">
+                          <div class="mx-event-header">
+                            <span class="mx-event-type-badge">{{ vm.getEventTypeLabel(event.maintenance_type) }}</span>
+                            <span class="mx-event-date"><i class="fa fa-calendar-o"></i> {{ event.check_date | date:'dd MMM yyyy' }}</span>
+                          </div>
+                          <div class="mx-event-body">
+                            <span ng-if="event.description" class="mx-event-desc">{{ event.description }}</span>
+                            <span ng-if="!event.description" class="mx-event-desc mx-event-desc-empty">No description</span>
+                          </div>
+                          <div class="mx-event-meta">
+                            <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer"></i> {{ event.hours_remaining }} hrs remaining</span>
+                            <span ng-if="event.expiry_date" class="mx-meta-chip"><i class="fa fa-clock-o"></i> Next: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
+                            <span ng-if="event.checked_by" class="mx-meta-chip"><i class="fa fa-user"></i> {{ event.checked_by }}</span>
+                          </div>
+                        </div>
+                        <div class="mx-event-action">
+                          <i class="fa fa-pencil"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+
                   <!-- Workpacks for this aircraft (read-only summary) -->
                   <div class="card">
                     <h4>Maintenance Workpacks</h4>
@@ -318,6 +373,149 @@
                   <!-- Workpack Detail (slide-in overlay panel) -->
                   <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_workpack_detail}" ng-click="vm.closeWorkpackDetail()"></div>
                   <div class="wp-overlay-panel" ng-class="{'open': vm.show_workpack_detail}" ng-include="'views/manageclub/workpack_detail.html'"></div>
+
+                  <!-- Maintenance Event Edit (slide-in overlay panel) -->
+                  <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_event_detail}" ng-click="vm.closeEventDetail()"></div>
+                  <div class="wp-overlay-panel" ng-class="{'open': vm.show_event_detail}">
+                    <div class="wp-panel-inner" ng-if="vm.selected_event">
+
+                      <!-- ── Header ── -->
+                      <div class="wp-panel-header">
+                        <div class="wp-panel-header-left">
+                          <span class="wp-panel-badge wp-status-open">
+                            <i class="fa" ng-class="vm.getEventTypeIcon(vm.selected_event.maintenance_type)"></i>
+                            {{ vm.getEventTypeLabel(vm.selected_event.maintenance_type) }}
+                          </span>
+                          <h2 class="wp-panel-title">Edit Maintenance Event</h2>
+                          <p class="wp-panel-subtitle">{{ vm.club.plane.registration }} &middot; {{ vm.selected_event.check_date | date:'dd MMM yyyy' }}</p>
+                        </div>
+                        <button class="wp-panel-close" ng-click="vm.closeEventDetail()" title="Close">
+                          <i class="fa fa-times"></i>
+                        </button>
+                      </div>
+
+                      <!-- ── Scrollable Body ── -->
+                      <div class="wp-panel-body">
+
+                        <!-- Event Details Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-wrench"></i> Event Details</h3>
+
+                          <div class="wp-form-group">
+                            <label for="edit_mx_type">Maintenance Type</label>
+                            <select class="form-control inputtext" id="edit_mx_type" ng-model="vm.selected_event.maintenance_type">
+                              <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
+                            </select>
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_check_date">Date of Maintenance</label>
+                            <input type="date" class="form-control inputtext" id="edit_check_date" ng-model="vm.selected_event._check_date" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_check_time">Time of Maintenance</label>
+                            <div class="timepicker_in_form">
+                              <div uib-timepicker ng-model="vm.selected_event._check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
+                            </div>
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_hours_remaining">Hours To Next Check</label>
+                            <input type="number" class="form-control inputtext" id="edit_hours_remaining" ng-model="vm.selected_event.hours_remaining" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_expiry_date">Date Of Next Check</label>
+                            <input type="date" class="form-control inputtext" id="edit_expiry_date" ng-model="vm.selected_event._expiry_date" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_checked_by">Checked By</label>
+                            <input type="text" class="form-control inputtext" id="edit_checked_by" ng-model="vm.selected_event.checked_by" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_description">Notes / Description</label>
+                            <textarea class="form-control inputtext" id="edit_description" ng-model="vm.selected_event.description" rows="3"></textarea>
+                          </div>
+                        </div>
+
+                        <!-- Quick Info Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-info-circle"></i> Event Summary</h3>
+                          <div class="wp-info-grid">
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Type</span>
+                              <span class="wp-info-value">{{ vm.getEventTypeLabel(vm.selected_event.maintenance_type) }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Check Date</span>
+                              <span class="wp-info-value">{{ vm.selected_event._check_date | date:'dd/MM/yyyy' }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Next Due</span>
+                              <span class="wp-info-value">{{ vm.selected_event._expiry_date | date:'dd/MM/yyyy' || '—' }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Hours Remaining</span>
+                              <span class="wp-info-value">{{ vm.selected_event.hours_remaining || '—' }}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Logbook Associations Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-book"></i> Logbook Associations</h3>
+                          <p class="wp-empty-text" style="margin-bottom: 12px;">Select which logbooks this maintenance event should appear in:</p>
+
+                          <div ng-if="vm.logbook_checkboxes.length === 0 && !vm.logbook_load_error" class="lb-loading">
+                            <i class="fa fa-spinner fa-spin"></i> Loading logbooks...
+                          </div>
+
+                          <div ng-if="vm.logbook_load_error" class="lb-error">
+                            <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
+                            <a href ng-click="vm.loadLogbookLinks(vm.selected_event.id)">Retry</a>
+                          </div>
+
+                          <div class="lb-checkbox-list" ng-if="vm.logbook_checkboxes.length > 0">
+                            <label class="lb-checkbox-item" ng-repeat="lb in vm.logbook_checkboxes">
+                              <div class="lb-checkbox-toggle">
+                                <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleLogbook(lb)" />
+                                <span class="lb-checkbox-slider"></span>
+                              </div>
+                              <div class="lb-checkbox-info">
+                                <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
+                                <span class="lb-checkbox-label">{{ lb.label }}</span>
+                                <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
+                              </div>
+                            </label>
+                          </div>
+
+                          <div class="lb-save-row" ng-if="vm.logbook_checkboxes.length > 0">
+                            <button class="wp-btn wp-btn-primary wp-btn-sm" ng-click="vm.saveLogbookLinks()" ng-disabled="vm.saving_logbook_links">
+                              <i class="fa" ng-class="vm.saving_logbook_links ? 'fa-spinner fa-spin' : 'fa-link'"></i>
+                              {{ vm.saving_logbook_links ? 'Saving...' : 'Update Logbook Links' }}
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      <!-- ── Footer Actions ── -->
+                      <div class="wp-panel-footer">
+                        <div class="wp-footer-actions">
+                          <button class="wp-btn wp-btn-danger" ng-click="vm.closeEventDetail()">
+                            <i class="fa fa-times"></i> Cancel
+                          </button>
+                          <button class="wp-btn wp-btn-success" ng-click="vm.saveEvent()">
+                            <i class="fa fa-check"></i> Save Changes
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
 
 
                   <!-- FoxService ? ResetOneClubPlanes ? reset_plane -->
@@ -422,7 +620,7 @@ DETAILS</h3>
 
     <!-- ── Scrollable Body ── -->
     <div class="wp-panel-body">
-      hai
+      
             <!-- ═══════ TAKE OFFLINE ═══════ -->
             <div class="wp-section" ng-if="vm.show_offline">
                     <h3 class="wp-section-title"><i class="fa fa-power-off"></i> Take Plane Offline</h3>
@@ -728,6 +926,38 @@ DETAILS</h3>
 
 
 
+
+            </div>
+
+
+            <!-- ═══════ LOGBOOK ASSOCIATIONS (create form) ═══════ -->
+            <div class="wp-section" ng-if="vm.show_maintenance">
+
+                    <h3 class="wp-section-title"><i class="fa fa-book"></i> Logbook Associations</h3>
+                    <p class="wp-empty-text" style="margin-bottom: 12px;">Select which logbooks this maintenance event should appear in. Airframe is selected by default.</p>
+
+                    <div ng-if="vm.create_logbook_loading" class="lb-loading">
+                      <i class="fa fa-spinner fa-spin"></i> Loading logbooks...
+                    </div>
+
+                    <div ng-if="vm.create_logbook_error" class="lb-error">
+                      <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
+                      <a href ng-click="vm.loadCreateLogbooks()">Retry</a>
+                    </div>
+
+                    <div class="lb-checkbox-list" ng-if="vm.create_logbook_checkboxes.length > 0 && !vm.create_logbook_loading">
+                      <label class="lb-checkbox-item" ng-repeat="lb in vm.create_logbook_checkboxes">
+                        <div class="lb-checkbox-toggle">
+                          <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleCreateLogbook(lb)" />
+                          <span class="lb-checkbox-slider"></span>
+                        </div>
+                        <div class="lb-checkbox-info">
+                          <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
+                          <span class="lb-checkbox-label">{{ lb.label }}</span>
+                          <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
+                        </div>
+                      </label>
+                    </div>
 
             </div>
 

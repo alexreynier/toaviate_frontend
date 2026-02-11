@@ -56,6 +56,9 @@ app.factory('PlaneService', PlaneService);
         service.GetAllFlightsByClub = GetAllFlightsByClub;
 
         service.UpdateOrder = UpdateOrder;
+
+        service.GetMaintenanceEvents = GetMaintenanceEvents;
+        service.UpdateMaintenanceEvent = UpdateMaintenanceEvent;
        
         return service; 
 
@@ -222,6 +225,14 @@ app.factory('PlaneService', PlaneService);
 
         function AddMaintenance(plane_id, content){
             return $http.post('/api/v1/planes/'+plane_id+'/maintenance', content).then(handleSuccess, handleError2);
+        }
+
+        function GetMaintenanceEvents(plane_id){
+            return $http.get('/api/v1/planes/'+plane_id+'/maintenance_events').then(handleSuccess, handleError2);
+        }
+
+        function UpdateMaintenanceEvent(event_id, content){
+            return $http.put('/api/v1/maintenance_events/'+event_id, content).then(handleSuccess, handleError2);
         }
 
         function GetIncompleteClub(club_id){

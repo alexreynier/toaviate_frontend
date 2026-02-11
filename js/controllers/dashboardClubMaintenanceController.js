@@ -1,7 +1,7 @@
  app.controller('DashboardClubMaintenanceController', DashboardClubMaintenanceController);
 
-    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService'];
-    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService) {
+    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService'];
+    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -55,7 +55,7 @@
        vm.reported_defects = [];
 
        vm.maintenance_types = [
-        "annual", "25hours", "50hours", "100hours", "interim", "6months", "extension"
+        "annual", "25hours", "50hours", "100hours", "interim", "6months", "extension", "workpack"
        ];
 
        // ── Workpacks ──
@@ -72,6 +72,22 @@
        vm.show_defect_workpack = false;
        vm.selected_defect_for_wp = null;
        vm.defect_wp = {};
+
+       // ── Maintenance Events ──
+       vm.maintenance_events = [];
+       vm.selected_event = null;
+       vm.show_event_detail = false;
+       vm.event_filter = 'all';
+
+       // ── Logbook Links ──
+       vm.available_logbooks = [];
+       vm.event_logbook_links = [];
+       vm.logbook_checkboxes = [];
+       vm.saving_logbook_links = false;
+       vm.logbook_load_error = false;
+       vm.create_logbook_checkboxes = [];
+       vm.create_logbook_loading = false;
+       vm.create_logbook_error = false;
 
       
         
@@ -126,6 +142,18 @@
                     .then(function (data) {
                         if (data.success !== false) {
                             vm.open_workpacks = data.workpacks || [];
+                        }
+                    });
+
+                // Load maintenance events for this plane
+                PlaneService.GetMaintenanceEvents($stateParams.plane_id)
+                    .then(function (data) {
+                        if (data && data.maintenance_events) {
+                            vm.maintenance_events = data.maintenance_events;
+                        } else if (data && data.events) {
+                            vm.maintenance_events = data.events;
+                        } else if (Array.isArray(data)) {
+                            vm.maintenance_events = data;
                         }
                     });
 
@@ -188,6 +216,8 @@
                 // Default new workpack status to 'completed'
                 vm.new_workpack = { status: 'completed' };
                 vm.workpack_files = { workpack_doc: [] };
+                // Load available logbooks for the checkbox section
+                vm.loadCreateLogbooks();
             } else if(type == "crs"){
                 vm.show_cert = false;
                 vm.show_insurance = false;
@@ -572,6 +602,11 @@
 
                         // Save CRS alongside (fire and forget alongside workpack)
                         saveCrs();
+
+                        // Save logbook links for the new maintenance check (fire and forget)
+                        if (data.maintenance_check_id) {
+                            vm.saveCreateLogbookLinks(data.maintenance_check_id);
+                        }
 
                         // If creating a new workpack, do it AFTER the maintenance event is created
                         // so we can associate the workpack with the new maintenance_check_id
@@ -1941,6 +1976,284 @@
 
         // ═══════════════════════════════════════════════
         // END WORKPACK METHODS
+        // ═══════════════════════════════════════════════
+
+        // ═══════════════════════════════════════════════
+        // MAINTENANCE EVENT METHODS
+        // ═══════════════════════════════════════════════
+
+        vm.loadMaintenanceEvents = function () {
+            if (!vm.this_plane_id) return;
+            PlaneService.GetMaintenanceEvents(vm.this_plane_id)
+                .then(function (data) {
+                    if (data && data.maintenance_events) {
+                        vm.maintenance_events = data.maintenance_events;
+                    } else if (data && data.events) {
+                        vm.maintenance_events = data.events;
+                    } else if (Array.isArray(data)) {
+                        vm.maintenance_events = data;
+                    }
+                });
+        };
+
+        vm.viewEvent = function (event) {
+            vm.selected_event = angular.copy(event);
+            // Parse dates for date inputs
+            if (vm.selected_event.check_date) {
+                vm.selected_event._check_date = new Date(vm.selected_event.check_date);
+            }
+            if (vm.selected_event.expiry_date) {
+                vm.selected_event._expiry_date = new Date(vm.selected_event.expiry_date);
+            }
+            if (vm.selected_event.check_date) {
+                vm.selected_event._check_time = new Date(vm.selected_event.check_date);
+            }
+            vm.show_event_detail = true;
+
+            // Load logbook links for this event
+            vm.loadLogbookLinks(event.id);
+        };
+
+        vm.closeEventDetail = function () {
+            vm.selected_event = null;
+            vm.show_event_detail = false;
+            vm.logbook_checkboxes = [];
+            vm.event_logbook_links = [];
+            vm.logbook_load_error = false;
+        };
+
+        vm.saveEvent = function () {
+            if (!vm.selected_event || !vm.selected_event.id) return;
+
+            var payload = {
+                maintenance_type: vm.selected_event.maintenance_type,
+                hours_remaining: vm.selected_event.hours_remaining,
+                description: vm.selected_event.description,
+                checked_by: vm.selected_event.checked_by
+            };
+
+            if (vm.selected_event._check_date) {
+                var checkDateTime = moment(vm.selected_event._check_date).format('YYYY-MM-DD');
+                if (vm.selected_event._check_time) {
+                    checkDateTime += ' ' + moment(vm.selected_event._check_time).format('HH:mm:ss');
+                }
+                payload.check_date = checkDateTime;
+            }
+
+            if (vm.selected_event._expiry_date) {
+                payload.expiry_date = moment(vm.selected_event._expiry_date).format('YYYY-MM-DD');
+            }
+
+            PlaneService.UpdateMaintenanceEvent(vm.selected_event.id, payload)
+                .then(function (data) {
+                    if (data && data.success !== false) {
+                        vm.closeEventDetail();
+                        vm.loadMaintenanceEvents();
+                        // Refresh plane data too
+                        PlaneService.GetByIdMaintenance2(vm.this_plane_id, vm.club_id)
+                            .then(function (planeData) {
+                                vm.club.plane = planeData;
+                            });
+                    } else {
+                        alert('Error updating maintenance event: ' + ((data && data.message) || 'Unknown error'));
+                    }
+                });
+        };
+
+        vm.getEventTypeIcon = function (type) {
+            if (!type) return 'fa-wrench';
+            switch (type.toLowerCase()) {
+                case 'annual': return 'fa-calendar-check-o';
+                case '50hours': case '25hours': case '100hours': return 'fa-tachometer';
+                case 'extension': return 'fa-clock-o';
+                case 'interim': return 'fa-tools';
+                case '6months': return 'fa-calendar';
+                default: return 'fa-wrench';
+            }
+        };
+
+        vm.getEventTypeLabel = function (type) {
+            if (!type) return 'Maintenance';
+            switch (type.toLowerCase()) {
+                case 'annual': return 'Annual';
+                case '50hours': return '50 Hour';
+                case '25hours': return '25 Hour';
+                case '100hours': return '100 Hour';
+                case 'extension': return 'Extension';
+                case 'interim': return 'Interim';
+                case '6months': return '6 Month';
+                default: return type;
+            }
+        };
+
+        // ── Logbook Link Methods ──
+
+        // Load available logbooks for the CREATE form
+        vm.loadCreateLogbooks = function () {
+            if (!vm.this_plane_id) return;
+            vm.create_logbook_loading = true;
+            vm.create_logbook_error = false;
+            vm.create_logbook_checkboxes = [];
+
+            LogbookLinkService.GetAvailableLogbooks(vm.this_plane_id)
+                .then(function (data) {
+                    vm.create_logbook_loading = false;
+                    var available = (data && data.available_logbooks) ? data.available_logbooks : [];
+                    // Pre-check airframe by default (backend auto-links airframe anyway)
+                    vm.create_logbook_checkboxes = available.map(function (lb) {
+                        return {
+                            logbook_type: lb.logbook_type,
+                            logbook_entity_id: lb.logbook_entity_id,
+                            label: lb.label,
+                            position: lb.position || null,
+                            isLinked: lb.logbook_type === 'airframe'
+                        };
+                    });
+                }, function () {
+                    vm.create_logbook_loading = false;
+                    vm.create_logbook_error = true;
+                });
+        };
+
+        // Save logbook links after a new maintenance check is created
+        vm.saveCreateLogbookLinks = function (maintenance_check_id) {
+            if (!maintenance_check_id) return;
+
+            var selectedLogbooks = vm.create_logbook_checkboxes
+                .filter(function (lb) { return lb.isLinked; })
+                .map(function (lb) {
+                    return {
+                        logbook_type: lb.logbook_type,
+                        logbook_entity_id: lb.logbook_entity_id
+                    };
+                });
+
+            // Backend already auto-links airframe, so if only airframe is checked nothing extra to do
+            if (selectedLogbooks.length <= 1) return;
+
+            LogbookLinkService.BulkLink(maintenance_check_id, selectedLogbooks);
+        };
+
+        vm.toggleCreateLogbook = function (lb) {
+            var checked = vm.create_logbook_checkboxes.filter(function (l) { return l.isLinked; }).length;
+            if (!lb.isLinked && checked < 1) {
+                lb.isLinked = true;
+                ToastService.warning('Logbook Required', 'At least one logbook must be selected.');
+            }
+        };
+
+        vm.loadAvailableLogbooks = function () {
+            if (!vm.this_plane_id) return;
+            LogbookLinkService.GetAvailableLogbooks(vm.this_plane_id)
+                .then(function (data) {
+                    if (data && data.available_logbooks) {
+                        vm.available_logbooks = data.available_logbooks;
+                    }
+                });
+        };
+
+        vm.loadLogbookLinks = function (maintenance_check_id) {
+            if (!maintenance_check_id) return;
+            vm.logbook_checkboxes = [];
+            vm.logbook_load_error = false;
+
+            // Load both available logbooks and current links, then build checkbox state
+            LogbookLinkService.GetAvailableLogbooks(vm.this_plane_id)
+                .then(function (availData) {
+                    var available = (availData && availData.available_logbooks) ? availData.available_logbooks : [];
+                    vm.available_logbooks = available;
+
+                    if (available.length === 0) {
+                        vm.logbook_load_error = true;
+                        return;
+                    }
+
+                    LogbookLinkService.GetLinks(maintenance_check_id)
+                        .then(function (linkData) {
+                            var links = [];
+                            if (linkData && linkData.maintenance_check && linkData.maintenance_check.logbook_links) {
+                                links = linkData.maintenance_check.logbook_links;
+                            }
+                            vm.event_logbook_links = links;
+
+                            // Build checkbox array — include position for sorting
+                            vm.logbook_checkboxes = available.map(function (lb) {
+                                var isLinked = links.some(function (link) {
+                                    return link.logbook_type === lb.logbook_type &&
+                                           link.logbook_entity_id == lb.logbook_entity_id;
+                                });
+                                return {
+                                    logbook_type: lb.logbook_type,
+                                    logbook_entity_id: lb.logbook_entity_id,
+                                    label: lb.label,
+                                    position: lb.position || null,
+                                    isLinked: isLinked
+                                };
+                            });
+                        }, function () {
+                            vm.logbook_load_error = true;
+                        });
+                }, function () {
+                    vm.logbook_load_error = true;
+                });
+        };
+
+        vm.saveLogbookLinks = function () {
+            if (!vm.selected_event || !vm.selected_event.id) return;
+
+            var selectedLogbooks = vm.logbook_checkboxes
+                .filter(function (lb) { return lb.isLinked; })
+                .map(function (lb) {
+                    return {
+                        logbook_type: lb.logbook_type,
+                        logbook_entity_id: lb.logbook_entity_id
+                    };
+                });
+
+            if (selectedLogbooks.length === 0) {
+                ToastService.warning('Logbook Required', 'At least one logbook must be selected.');
+                return;
+            }
+
+            vm.saving_logbook_links = true;
+            LogbookLinkService.BulkLink(vm.selected_event.id, selectedLogbooks)
+                .then(function (data) {
+                    vm.saving_logbook_links = false;
+                    if (data && data.success !== false) {
+                        // Refresh the links
+                        vm.loadLogbookLinks(vm.selected_event.id);
+                    } else {
+                        ToastService.error('Logbook Links', 'Error saving logbook links: ' + ((data && data.message) || 'Unknown error'));
+                    }
+                });
+        };
+
+        vm.getLogbookIcon = function (type) {
+            switch (type) {
+                case 'airframe': return 'fa-plane';
+                case 'engine': return 'fa-cog';
+                case 'propeller': return 'fa-refresh';
+                default: return 'fa-book';
+            }
+        };
+
+        // Count how many logbooks are currently checked
+        vm.countCheckedLogbooks = function () {
+            if (!vm.logbook_checkboxes || !vm.logbook_checkboxes.length) return 0;
+            return vm.logbook_checkboxes.filter(function (lb) { return lb.isLinked; }).length;
+        };
+
+        // Prevent unchecking the very last logbook (at least one must remain)
+        vm.toggleLogbook = function (lb) {
+            if (!lb.isLinked && vm.countCheckedLogbooks() < 1) {
+                // Re-check it — can't uncheck the last one
+                lb.isLinked = true;
+                ToastService.warning('Logbook Required', 'At least one logbook must remain linked.');
+            }
+        };
+
+        // ═══════════════════════════════════════════════
+        // END MAINTENANCE EVENT METHODS
         // ═══════════════════════════════════════════════
 
 
