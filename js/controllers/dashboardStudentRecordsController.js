@@ -21,21 +21,10 @@
         vm.user = $rootScope.globals.currentUser;
          ////console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
 
-        // // vm.club_id = $rootScope.globals.currentUser.current_club_instructor;
-        // if($rootScope.globals.currentUser.access){
-        //     // $rootScope.globals.currentUser.manager;
-        //     // $rootScope.globals.currentUser.pilot;
-        //     // $rootScope.globals.currentUser.instructor;
-
-        //     vm.combined_clubs = [].concat(
-        //       $rootScope.globals.currentUser.manager || [],
-        //       $rootScope.globals.currentUser.pilot || [],
-        //       $rootScope.globals.currentUser.instructor || []
-        //     );
-
-        // }
-        // vm.club_id = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
+        vm.club_id = null;
+        vm.instructor_clubs = [];
+        vm.selected_club = null;
 
         vm.exams = [];
 
@@ -43,23 +32,42 @@
         switch(vm.action){
             
             case "student_records":
-                // //console.log("view list of existing courses");
 
-              
+                // Load the clubs this instructor belongs to
+                UserService.GetAdminClubs(vm.user_id)
+                    .then(function(data) {
+                        if (data.success && data.clubs && data.clubs.length > 0) {
+                            vm.instructor_clubs = data.clubs;
 
-                // CourseService.GetCoursesByClubId(vm.club_id)
-                //     .then(function(data){
+                            // Try to restore previously selected club from localStorage
+                            var savedClubId = null;
+                            try {
+                                var stored = localStorage.getItem('toaviate_instructor_selected_club_id');
+                                if (stored !== null) {
+                                    savedClubId = stored;
+                                }
+                            } catch(e) {}
 
-                //         vm.courses = data.items;
+                            var selectedClub = null;
+                            if (savedClubId !== null) {
+                                for (var i = 0; i < vm.instructor_clubs.length; i++) {
+                                    if (String(vm.instructor_clubs[i].id) === String(savedClubId)) {
+                                        selectedClub = vm.instructor_clubs[i];
+                                        break;
+                                    }
+                                }
+                            }
 
-                //     });
+                            if (!selectedClub) {
+                                selectedClub = vm.instructor_clubs[0];
+                            }
 
-                MemberService.GetAllByClubStudents(vm.club_id)
-                    .then(function(data){
-
-                        vm.courses = data.courses;
-                        vm.members = data.members;
-
+                            vm.selected_club = selectedClub;
+                            vm.club_id = selectedClub.id;
+                            load_students_for_club(vm.club_id);
+                        } else {
+                            ToastService.error('Access Error', 'You do not appear to be an instructor at any club.');
+                        }
                     });
 
                
@@ -112,6 +120,35 @@
 
         vm.show_record = false;
         vm.show_add_exam = false;
+
+        // Instructor club selector — called when dropdown changes
+        vm.onInstructorClubSelected = function(club) {
+            vm.selected_club = club;
+            vm.club_id = club.id;
+
+            // Persist selection
+            try {
+                localStorage.setItem('toaviate_instructor_selected_club_id', String(club.id));
+            } catch(e) {}
+
+            // Reset current selections
+            vm.member = null;
+            vm.course = null;
+            vm.show_record = false;
+
+            load_students_for_club(vm.club_id);
+        };
+
+        function load_students_for_club(club_id) {
+            vm.members = [];
+            vm.courses = [];
+
+            MemberService.GetAllByClubStudents(club_id)
+                .then(function(data) {
+                    vm.courses = data.courses;
+                    vm.members = data.members;
+                });
+        }
 
         vm.update_club_selector = function(){
 

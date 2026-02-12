@@ -1365,6 +1365,7 @@
             vm.bookout.user_id = booking.user_id;
             vm.bookout.plane = booking.plane;
             vm.club_id = booking.club_id;
+            vm.bookout.lesson_id = $stateParams.lesson_id || 0;
             vm.bookout.return = new Date(booking.end);
             vm.bookout.booking_start = new Date(booking.start);
 
@@ -1638,7 +1639,8 @@
                     flight_notes: vm.bookout.additional_details,
                     parking_note: vm.bookout.parking_note,
                     estimated_departure: vm.bookout.departure,
-                    routing_via_id: (vm.bookout.routing_via) ? vm.bookout.routing_via.id : 0
+                    routing_via_id: (vm.bookout.routing_via) ? vm.bookout.routing_via.id : 0,
+                    lesson_id: vm.bookout.lesson_id || 0
                 }
 
 

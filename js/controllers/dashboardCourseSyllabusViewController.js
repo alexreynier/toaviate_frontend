@@ -39,6 +39,10 @@
             bullets: {},
             items: []
         }
+
+        vm.contentFiles = [];
+        vm.contentFilesLoading = true;
+        vm.activeContentFile = null;
         
         switch(vm.action){
             case "add":
@@ -133,6 +137,9 @@
                                 vm.lesson.items = data.items;
 
                             });
+
+                        // Load content files (images / PDFs)
+                        load_content_files($stateParams.lesson_id);
             
                     });
 
@@ -140,6 +147,78 @@
             
 
         }
+
+        // ═══════════════════════════════════════════════
+        // LESSON CONTENT FILES VIEWER
+        // ═══════════════════════════════════════════════
+        function load_content_files(lesson_id) {
+            vm.contentFilesLoading = true;
+            vm.contentFiles = [];
+            vm.activeContentFile = null;
+
+            CourseService.GetLessonContentFiles(lesson_id)
+                .then(function(data) {
+                    if (data && data.items && data.items.length > 0) {
+                        vm.contentFiles = data.items;
+                        // Fetch decrypted file data for each file
+                        angular.forEach(vm.contentFiles, function(file) {
+                            file._loading = true;
+                            file.data_uri = null;
+                            CourseService.GetLessonContentFileData(file.id)
+                                .then(function(res) {
+                                    if (res && res.success) {
+                                        file.data_uri = res.data_uri;
+                                        file.file_base64 = res.file;
+                                    }
+                                    file._loading = false;
+                                    // Auto-select the first file when it finishes loading
+                                    if (!vm.activeContentFile && file.data_uri) {
+                                        vm.activeContentFile = file;
+                                    }
+                                })
+                                .catch(function() {
+                                    file._loading = false;
+                                    file._loadError = true;
+                                });
+                        });
+                    } else {
+                        vm.contentFiles = [];
+                    }
+                    vm.contentFilesLoading = false;
+                })
+                .catch(function() {
+                    vm.contentFiles = [];
+                    vm.contentFilesLoading = false;
+                });
+        }
+
+        vm.selectContentFile = function(file) {
+            if (file && file.data_uri) {
+                vm.activeContentFile = file;
+            }
+        };
+
+        vm.hasContentFiles = function() {
+            return vm.contentFiles && vm.contentFiles.length > 0;
+        };
+
+        vm.hasSectionContent = function(section) {
+            if (!vm.lesson) return false;
+            switch(section) {
+                case 'tem':
+                    return vm.lesson.tem && vm.lesson.tem.length > 0;
+                case 'preflight':
+                    return vm.lesson.bullets && vm.lesson.bullets.preflight && vm.lesson.bullets.preflight.length > 0;
+                case 'airex':
+                    return vm.lesson.bullets && vm.lesson.bullets.airex && vm.lesson.bullets.airex.length > 0;
+                case 'debrief':
+                    return vm.lesson.bullets && vm.lesson.bullets.debrief && vm.lesson.bullets.debrief.length > 0;
+                case 'items':
+                    return vm.lesson.items && vm.lesson.items.length > 0;
+                default:
+                    return false;
+            }
+        };
 
        
         $scope.back = function(){

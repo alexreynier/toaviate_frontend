@@ -1169,7 +1169,7 @@ var app = angular
         })
 
         .state('dashboard.my_account.bookout_with_booking', {
-            url: '/bookout/:booking_id',
+            url: '/bookout/:booking_id/:lesson_id',
             templateUrl: 'views/my_account/booking_out_form.html',
             controller: 'BookoutController',
             controllerAs: 'vm',

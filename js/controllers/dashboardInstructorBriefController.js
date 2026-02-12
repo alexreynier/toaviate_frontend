@@ -113,11 +113,21 @@
                                 vm.instructor = data.instructor;
                                 vm.plane_log_sheet = data.log_sheet;
 
-
+                                // Load content files for debrief view
+                                if (vm.lesson && vm.lesson.id) {
+                                    load_content_files(vm.lesson.id);
+                                }
 
                                 CourseService.GetLessonsByCourseId(vm.course_id)
                                 .then(function(data){
-                                    vm.all_lessons = data.items;   
+                                    vm.all_lessons = data.items;
+                                    // Set selected lesson object for ui-select
+                                    for (var i = 0; i < vm.all_lessons.length; i++) {
+                                        if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
+                                            vm.selected_debrief_lesson_obj = vm.all_lessons[i];
+                                            break;
+                                        }
+                                    }
                                 });
 
                                 CourseService.GetTagsByCourseId(vm.course_id)
@@ -149,11 +159,21 @@
                                 vm.instructor = data.instructor;
                                 vm.plane_log_sheet = data.log_sheet;
 
-
+                                // Load content files for debrief view
+                                if (vm.lesson && vm.lesson.id) {
+                                    load_content_files(vm.lesson.id);
+                                }
 
                                 CourseService.GetLessonsByCourseId(vm.course_id)
                                 .then(function(data){
-                                    vm.all_lessons = data.items;   
+                                    vm.all_lessons = data.items;
+                                    // Set selected lesson object for ui-select
+                                    for (var i = 0; i < vm.all_lessons.length; i++) {
+                                        if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
+                                            vm.selected_debrief_lesson_obj = vm.all_lessons[i];
+                                            break;
+                                        }
+                                    }
                                 });
 
                                 CourseService.GetTagsByCourseId(vm.course_id)
@@ -444,13 +464,77 @@
         }
 
         vm.lesson = {};
-        vm.show_dropdown = false;
+        vm.selected_lesson_obj = null;
+        vm.selected_debrief_lesson_obj = null;
+        vm.pending_debrief_lesson_obj = null;
+        vm.show_lesson_switcher = false;
+        vm.contentFiles = [];
+        vm.contentFilesLoading = true;
+        vm.activeContentFile = null;
 
         vm.change_lesson = function(){
-            // console.log("CHANGE LESSON TO", vm.selected_lesson);
-            load_lesson();
-            vm.show_dropdown = false;
+            if (vm.selected_lesson_obj) {
+                vm.selected_lesson = vm.selected_lesson_obj.id;
+                load_lesson();
+            }
+        }
 
+        vm.confirm_debrief_lesson_change = function(){
+            if (vm.pending_debrief_lesson_obj) {
+                vm.selected_debrief_lesson_obj = vm.pending_debrief_lesson_obj;
+                vm.pending_debrief_lesson_obj = null;
+                vm.show_lesson_switcher = false;
+                vm.change_debrief_lesson();
+            }
+        }
+
+        vm.cancel_debrief_lesson_change = function(){
+            vm.pending_debrief_lesson_obj = null;
+            vm.show_lesson_switcher = false;
+        }
+
+        vm.change_debrief_lesson = function(){
+            if (vm.selected_debrief_lesson_obj) {
+                var lesson_id = vm.selected_debrief_lesson_obj.id;
+
+                CourseService.GetLessonById(lesson_id)
+                    .then(function(data){
+                        if(data.success){
+                            vm.lesson = data.item;
+                            vm.my_search = vm.lesson.id;
+
+                            CourseService.GetBulletsByLessonId(lesson_id)
+                                .then(function(data){
+                                    vm.lesson.bullets = data.bullets;
+                                });
+
+                            CourseService.GetTemByLessonId(lesson_id)
+                                .then(function(data){
+                                    vm.lesson.tem = data.items;
+                                });
+
+                            CourseService.GetItemsByLessonId(lesson_id)
+                                .then(function(data){
+                                    vm.lesson.items = data.items;
+
+                                    // Rebuild all_items to include the new lesson's items for progress tracking
+                                    if (data.items && data.items.length > 0) {
+                                        // Merge new lesson items into all_items if not already present
+                                        angular.forEach(data.items, function(newItem) {
+                                            var exists = vm.all_items.some(function(existing) {
+                                                return String(existing.id) === String(newItem.id);
+                                            });
+                                            if (!exists) {
+                                                vm.all_items.push(newItem);
+                                            }
+                                        });
+                                    }
+                                });
+
+                            load_content_files(lesson_id);
+                        }
+                    });
+            }
         }
 
         function load_lesson(){
@@ -471,6 +555,14 @@
                               .then(function(data){
 
                                         vm.all_lessons = data.items;
+
+                                        // Set the selected lesson object for ui-select
+                                        for (var i = 0; i < vm.all_lessons.length; i++) {
+                                            if (String(vm.all_lessons[i].id) === String(vm.selected_lesson)) {
+                                                vm.selected_lesson_obj = vm.all_lessons[i];
+                                                break;
+                                            }
+                                        }
                             
                                     });
             
@@ -496,6 +588,9 @@
                                     vm.lesson.items = data.items;
 
                                 });
+
+                            // Load content files (images / PDFs)
+                            load_content_files(vm.selected_lesson);
                         }
 
                       
@@ -516,7 +611,7 @@
 
                         if(data.success){
 
-                            $state.go('dashboard.my_account.bookout_with_booking', {booking_id: vm.booking_id});
+                            $state.go('dashboard.my_account.bookout_with_booking', {booking_id: vm.booking_id, lesson_id: vm.selected_lesson});
 
                         } else {
 
@@ -539,6 +634,77 @@
         function initController() {
            //console.log("check if access is okay");
         }
+
+
+        // ═══════════════════════════════════════════════
+        // LESSON CONTENT FILES VIEWER
+        // ═══════════════════════════════════════════════
+        function load_content_files(lesson_id) {
+            vm.contentFilesLoading = true;
+            vm.contentFiles = [];
+            vm.activeContentFile = null;
+
+            CourseService.GetLessonContentFiles(lesson_id)
+                .then(function(data) {
+                    if (data && data.items && data.items.length > 0) {
+                        vm.contentFiles = data.items;
+                        angular.forEach(vm.contentFiles, function(file) {
+                            file._loading = true;
+                            file.data_uri = null;
+                            CourseService.GetLessonContentFileData(file.id)
+                                .then(function(res) {
+                                    if (res && res.success) {
+                                        file.data_uri = res.data_uri;
+                                        file.file_base64 = res.file;
+                                    }
+                                    file._loading = false;
+                                    if (!vm.activeContentFile && file.data_uri) {
+                                        vm.activeContentFile = file;
+                                    }
+                                })
+                                .catch(function() {
+                                    file._loading = false;
+                                    file._loadError = true;
+                                });
+                        });
+                    } else {
+                        vm.contentFiles = [];
+                    }
+                    vm.contentFilesLoading = false;
+                })
+                .catch(function() {
+                    vm.contentFiles = [];
+                    vm.contentFilesLoading = false;
+                });
+        }
+
+        vm.selectContentFile = function(file) {
+            if (file && file.data_uri) {
+                vm.activeContentFile = file;
+            }
+        };
+
+        vm.hasContentFiles = function() {
+            return vm.contentFiles && vm.contentFiles.length > 0;
+        };
+
+        vm.hasSectionContent = function(section) {
+            if (!vm.lesson) return false;
+            switch(section) {
+                case 'tem':
+                    return vm.lesson.tem && vm.lesson.tem.length > 0;
+                case 'preflight':
+                    return vm.lesson.bullets && vm.lesson.bullets.preflight && vm.lesson.bullets.preflight.length > 0;
+                case 'airex':
+                    return vm.lesson.bullets && vm.lesson.bullets.airex && vm.lesson.bullets.airex.length > 0;
+                case 'debrief':
+                    return vm.lesson.bullets && vm.lesson.bullets.debrief && vm.lesson.bullets.debrief.length > 0;
+                case 'items':
+                    return vm.lesson.items && vm.lesson.items.length > 0;
+                default:
+                    return false;
+            }
+        };
 
 
        

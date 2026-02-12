@@ -1063,8 +1063,8 @@ uis.controller('uiSelectCtrl',
 }]);
 
 uis.directive('uiSelect',
-  ['$document', 'uiSelectConfig', 'uiSelectMinErr', 'uisOffset', '$compile', '$parse', '$timeout',
-  function($document, uiSelectConfig, uiSelectMinErr, uisOffset, $compile, $parse, $timeout) {
+  ['$document', '$window', 'uiSelectConfig', 'uiSelectMinErr', 'uisOffset', '$compile', '$parse', '$timeout',
+  function($document, $window, uiSelectConfig, uiSelectMinErr, uisOffset, $compile, $parse, $timeout) {
 
   return {
     restrict: 'EA',
@@ -1316,7 +1316,9 @@ uis.directive('uiSelect',
           scope.$watch('$select.open', function(isOpen) {
             if (isOpen) {
               positionDropdown();
+              startTrackingScroll();
             } else {
+              stopTrackingScroll();
               resetDropdown();
             }
           });
@@ -1324,6 +1326,7 @@ uis.directive('uiSelect',
           // Move the dropdown back to its original location when the scope is destroyed. Otherwise
           // it might stick around when the user routes away or the select field is otherwise removed
           scope.$on('$destroy', function() {
+            stopTrackingScroll();
             resetDropdown();
           });
         }
@@ -1331,6 +1334,42 @@ uis.directive('uiSelect',
         // Hold on to a reference to the .ui-select-container element for appendToBody support
         var placeholder = null,
             originalWidth = '';
+
+        // --- Scroll tracking: reposition dropdown when any ancestor scrolls ---
+        var scrollHandler = null;
+        var rafId = null;
+
+        function repositionFromPlaceholder() {
+          if (!placeholder || !placeholder[0]) return;
+          var rect = placeholder[0].getBoundingClientRect();
+          var scrollTop  = $window.pageYOffset || $document[0].documentElement.scrollTop;
+          var scrollLeft = $window.pageXOffset || $document[0].documentElement.scrollLeft;
+          element[0].style.top  = (rect.top  + scrollTop)  + 'px';
+          element[0].style.left = (rect.left + scrollLeft) + 'px';
+        }
+
+        function startTrackingScroll() {
+          if (scrollHandler) return; // already tracking
+          scrollHandler = function() {
+            if (rafId) return; // throttle to one rAF
+            rafId = $window.requestAnimationFrame(function() {
+              rafId = null;
+              repositionFromPlaceholder();
+            });
+          };
+          // Use capture phase because scroll events don't bubble from inner containers
+          $document[0].addEventListener('scroll', scrollHandler, true);
+          $window.addEventListener('resize', scrollHandler);
+        }
+
+        function stopTrackingScroll() {
+          if (!scrollHandler) return;
+          $document[0].removeEventListener('scroll', scrollHandler, true);
+          $window.removeEventListener('resize', scrollHandler);
+          if (rafId) { $window.cancelAnimationFrame(rafId); rafId = null; }
+          scrollHandler = null;
+        }
+        // --- End scroll tracking ---
 
         function positionDropdown() {
           // Remember the absolute position of the element
