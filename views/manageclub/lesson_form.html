@@ -47,6 +47,28 @@
       </div>
 
 
+      <!-- ═══════════════════════════════════════════════ -->
+      <!-- LESSON CONTENT TABS: Form Builder / File Upload -->
+      <!-- ═══════════════════════════════════════════════ -->
+      <div class="lesson-content-tabs-wrapper" ng-if="vm.editing">
+        
+        <div class="lesson-content-tabs">
+          <button class="lesson-content-tab"
+                  ng-class="{'lesson-content-tab--active': vm.lessonContentTab === 'upload'}"
+                  ng-click="vm.switchContentTab('upload')">
+            <i class="fa fa-cloud-upload-alt"></i> File Upload
+          </button>
+          <button class="lesson-content-tab" 
+                  ng-class="{'lesson-content-tab--active': vm.lessonContentTab === 'form'}"
+                  ng-click="vm.switchContentTab('form')">
+            <i class="fa fa-list-alt"></i> Form Builder
+          </button>
+        </div>
+
+
+        <!-- ─── TAB A: FORM BUILDER (existing) ─── -->
+        <div class="lesson-content-panel" ng-show="vm.lessonContentTab === 'form'">
+
        <div class="club_docs_all" ng-if="vm.editing">
         <h2>TEM</h2>
 
@@ -329,6 +351,212 @@
 
 
       </div>
+
+        </div><!-- /lesson-content-panel: Form Builder -->
+
+
+        <!-- ─── TAB B: FILE UPLOAD ─── -->
+        <div class="lesson-content-panel" ng-show="vm.lessonContentTab === 'upload'">
+
+          <div class="club_docs_all">
+            <h2>Upload Lesson Content</h2>
+
+            <div class="lcf-upload-area">
+
+              <!-- Existing uploaded files (drag to reorder) -->
+              <div class="lcf-existing-files" ng-if="vm.contentFiles.length > 0">
+                <h3 class="lcf-section-title">
+                  Uploaded Files
+                  <span class="lcf-reorder-hint" ng-if="vm.contentFiles.length > 1">
+                    <i class="fa fa-arrows-alt"></i> Drag to reorder
+                  </span>
+                </h3>
+                <div class="lcf-file-grid" dnd-list="vm.contentFiles">
+                  <div class="lcf-file-card"
+                       ng-repeat="file in vm.contentFiles"
+                       dnd-draggable="file"
+                       dnd-moved="vm.contentFiles.splice($index, 1); save_content_files_order()"
+                       dnd-effect-allowed="move">
+                    <div class="lcf-file-card__drag-handle" uib-tooltip="Drag to reorder">
+                      <i class="fa fa-grip-vertical"></i>
+                    </div>
+                    <div class="lcf-file-card__order-badge">{{$index + 1}}</div>
+                    <div class="lcf-file-card__preview">
+                      <!-- Loading spinner while decrypting -->
+                      <div ng-if="file._loading" class="lcf-file-card__loading">
+                        <div class="lcf-spinner"></div>
+                      </div>
+                      <!-- Load error -->
+                      <div ng-if="file._loadError && !file._loading" class="lcf-file-card__load-error">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <span>Failed to load</span>
+                      </div>
+                      <!-- Image preview (decrypted data_uri) -->
+                      <img ng-if="!file._loading && !file._loadError && file.data_uri && file.file_type !== 'pdf' && file.mime_type !== 'application/pdf'" ng-src="{{file.data_uri}}" alt="{{file.original_name}}" />
+                      <!-- PDF icon -->
+                      <div ng-if="!file._loading && !file._loadError && (file.file_type === 'pdf' || file.mime_type === 'application/pdf')" class="lcf-file-card__pdf-icon">
+                        <i class="fa fa-file-pdf"></i>
+                        <span class="lcf-pdf-pages" ng-if="file.pdf_pages">Pages: {{file.pdf_pages}}</span>
+                      </div>
+                    </div>
+                    <div class="lcf-file-card__info">
+                      <span class="lcf-file-card__name" uib-tooltip="{{file.original_name}}">{{file.original_name}}</span>
+                      <span class="lcf-file-card__meta">{{vm.formatFileSize(file.file_size)}}</span>
+                    </div>
+                    <div class="lcf-file-card__actions">
+                      <button class="btn btn-sm lcf-btn-replace" ng-click="vm.replaceContentFile(file)" uib-tooltip="Replace file">
+                        <i class="fa fa-sync-alt"></i>
+                      </button>
+                      <button class="btn btn-sm lcf-btn-delete" ng-click="vm.deleteContentFile(file, $index)" uib-tooltip="Delete file">
+                        <i class="fa fa-trash-alt"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- dnd-list placeholder shown during drag -->
+                  <div class="lcf-dnd-placeholder dndPlaceholder">
+                    <i class="fa fa-arrows-alt"></i> Drop here
+                  </div>
+                </div>
+              </div>
+
+              <!-- Drop zone -->
+              <div class="lcf-dropzone"
+                   ng-class="{'lcf-dropzone--active': vm.dragOver, 'lcf-dropzone--uploading': vm.isUploading}"
+                   lcf-dropzone
+                   lcf-on-drop="vm.handleSelectedFiles(files)"
+                   lcf-on-drag-state="vm.dragOver = isDragging"
+                   ng-click="vm.triggerFileInput()"
+                   ng-if="!vm.isUploading">
+                <input type="file" 
+                       id="lesson-content-file-input" 
+                       style="display:none" 
+                       accept=".png,.jpg,.jpeg,.pdf" 
+                       multiple 
+                       lcf-file-select="vm.onFileInputChange(files)" />
+                <div class="lcf-dropzone__content">
+                  <div class="lcf-dropzone__icon">
+                    <i class="fa fa-cloud-upload-alt"></i>
+                  </div>
+                  <h3 class="lcf-dropzone__title">Drop files here</h3>
+                  <p class="lcf-dropzone__subtitle">or click to browse</p>
+                  <div class="lcf-dropzone__formats">
+                    <span class="lcf-format-badge lcf-format-badge--img">PNG</span>
+                    <span class="lcf-format-badge lcf-format-badge--img">JPG</span>
+                    <span class="lcf-format-badge lcf-format-badge--pdf">PDF</span>
+                  </div>
+                  <p class="lcf-dropzone__hint">Maximum file size: 20MB &middot; PDF files allow page selection (max 2 pages)</p>
+                </div>
+              </div>
+
+              <!-- Upload progress indicator -->
+              <div class="lcf-uploading-indicator" ng-if="vm.isUploading">
+                <div class="lcf-spinner"></div>
+                <p>Uploading files&hellip;</p>
+              </div>
+
+              <!-- Upload queue -->
+              <div class="lcf-queue" ng-if="vm.uploadQueue.length > 0 && !vm.isUploading">
+                <h3 class="lcf-section-title">Ready to Upload</h3>
+                <div class="lcf-file-grid">
+                  <div class="lcf-queue-card" ng-repeat="item in vm.uploadQueue">
+                    <div class="lcf-queue-card__preview">
+                      <img ng-src="{{item.preview}}" alt="{{item.name}}" />
+                      <span class="lcf-queue-card__badge" ng-if="item.isPdf">
+                        PDF &middot; {{item.pdfPages.length}} page{{item.pdfPages.length > 1 ? 's' : ''}}
+                      </span>
+                    </div>
+                    <div class="lcf-queue-card__info">
+                      <span class="lcf-queue-card__name">{{item.name}}</span>
+                      <span class="lcf-queue-card__meta">{{vm.formatFileSize(item.size)}}</span>
+                    </div>
+                    <button class="lcf-queue-card__remove" ng-click="vm.removeFromQueue($index)" uib-tooltip="Remove">
+                      <i class="fa fa-times"></i>
+                    </button>
+
+                    <!-- Progress bar -->
+                    <div class="lcf-queue-card__progress" ng-if="vm.uploadProgress[$index] >= 0">
+                      <div class="lcf-progress-bar" style="width: {{vm.uploadProgress[$index]}}%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="lcf-queue-actions">
+                  <button class="btn btn-primary lcf-btn-upload" ng-click="vm.uploadAllFiles()" ng-disabled="vm.isUploading">
+                    <i class="fa fa-cloud-upload-alt"></i> Upload {{vm.uploadQueue.length}} File{{vm.uploadQueue.length > 1 ? 's' : ''}}
+                  </button>
+                  <button class="btn lcf-btn-clear" ng-click="vm.uploadQueue = []" ng-disabled="vm.isUploading">
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div><!-- /lesson-content-panel: File Upload -->
+
+
+        <!-- ─── PDF PAGE SELECTOR MODAL ─── -->
+        <div class="lcf-pdf-overlay" ng-if="vm.pdfSelector.active" ng-click="vm.closePdfSelector()">
+          <div class="lcf-pdf-modal" ng-click="$event.stopPropagation()">
+            <div class="lcf-pdf-modal__header">
+              <h3><i class="fa fa-file-pdf"></i> Select Pages &mdash; {{vm.pdfSelector.fileName}}</h3>
+              <button class="lcf-pdf-modal__close" ng-click="vm.closePdfSelector()">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+
+            <div class="lcf-pdf-modal__body">
+              <!-- Loading state -->
+              <div class="lcf-pdf-loading" ng-if="vm.pdfSelector.loading">
+                <div class="lcf-spinner lcf-spinner--lg"></div>
+                <p>Loading PDF pages&hellip;</p>
+              </div>
+
+              <!-- Error state -->
+              <div class="lcf-pdf-error" ng-if="vm.pdfSelector.error">
+                <i class="fa fa-exclamation-triangle"></i>
+                <p>{{vm.pdfSelector.error}}</p>
+                <button class="btn btn-primary" ng-click="vm.closePdfSelector()">Close</button>
+              </div>
+
+              <!-- Page grid -->
+              <div class="lcf-pdf-pages" ng-if="!vm.pdfSelector.loading && !vm.pdfSelector.error">
+                <p class="lcf-pdf-instructions">
+                  Select up to <strong>2 pages</strong> to upload. 
+                  <span class="lcf-pdf-count">{{vm.pdfSelector.selectedPages.length}} / 2 selected</span>
+                </p>
+                <div class="lcf-pdf-page-grid">
+                  <div class="lcf-pdf-page" 
+                       ng-repeat="page in vm.pdfSelector.pages"
+                       ng-class="{'lcf-pdf-page--selected': page.selected}"
+                       ng-click="vm.togglePdfPage(page)">
+                    <div class="lcf-pdf-page__thumb">
+                      <img ng-src="{{page.thumbnail}}" alt="Page {{page.pageNum}}" />
+                      <div class="lcf-pdf-page__check" ng-if="page.selected">
+                        <i class="fa fa-check-circle"></i>
+                      </div>
+                    </div>
+                    <span class="lcf-pdf-page__label">Page {{page.pageNum}}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lcf-pdf-modal__footer" ng-if="!vm.pdfSelector.loading && !vm.pdfSelector.error">
+              <button class="btn lcf-btn-clear" ng-click="vm.closePdfSelector()">Cancel</button>
+              <button class="btn btn-primary lcf-btn-upload" 
+                      ng-click="vm.confirmPdfPages()"
+                      ng-disabled="vm.pdfSelector.selectedPages.length === 0">
+                <i class="fa fa-check"></i> Confirm {{vm.pdfSelector.selectedPages.length}} Page{{vm.pdfSelector.selectedPages.length !== 1 ? 's' : ''}}
+              </button>
+            </div>
+          </div>
+        </div>
+
+
+      </div><!-- /lesson-content-tabs-wrapper -->
+
 
       <div class="club_docs_all" ng-if="vm.editing">
         <h2>Student Progress Items</h2>

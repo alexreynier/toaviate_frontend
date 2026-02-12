@@ -49,6 +49,28 @@
         vm.club.lessons = [];
         vm.club.lesson = {};
 
+        // ── Lesson Content Tabs ──
+        vm.lessonContentTab = 'upload'; // 'upload' or 'form'
+        
+        // ── File Upload State ──
+        vm.contentFiles = [];             // existing uploaded files from backend
+        vm.uploadQueue = [];              // files staged for upload
+        vm.uploadProgress = {};           // per-file upload progress
+        vm.isUploading = false;
+        vm.dragOver = false;
+        
+        // ── PDF Page Selector State ──
+        vm.pdfSelector = {
+            active: false,
+            file: null,
+            fileName: '',
+            pages: [],
+            totalPages: 0,
+            selectedPages: [],
+            loading: false,
+            error: null
+        };
+
 
         vm.new_tem = {
             threat: "",
@@ -101,6 +123,8 @@
                 refresh_bullets();
 
                 refresh_items();
+
+                refresh_content_files();
 
                
                     // CourseService.GetLessonsByCourseId($stateParams.lesson_id)
@@ -958,6 +982,400 @@
 
 
         initController();
+
+        // ═══════════════════════════════════════════════
+        // LESSON CONTENT FILE UPLOAD & PDF PAGE SELECTOR
+        // ═══════════════════════════════════════════════
+
+        function refresh_content_files() {
+            CourseService.GetLessonContentFiles($stateParams.lesson_id)
+                .then(function(data) {
+                    if (data && data.items) {
+                        vm.contentFiles = data.items;
+                        // Fetch decrypted file data for each file
+                        angular.forEach(vm.contentFiles, function(file) {
+                            file._loading = true;
+                            file.data_uri = null;
+                            CourseService.GetLessonContentFileData(file.id)
+                                .then(function(res) {
+                                    if (res && res.success) {
+                                        file.data_uri = res.data_uri;
+                                        file.file_base64 = res.file;
+                                    }
+                                    file._loading = false;
+                                })
+                                .catch(function() {
+                                    file._loading = false;
+                                    file._loadError = true;
+                                });
+                        });
+                    } else {
+                        vm.contentFiles = [];
+                    }
+                });
+        }
+
+        // ── Tab switching ──
+        vm.switchContentTab = function(tab) {
+            vm.lessonContentTab = tab;
+        };
+
+        // ── File input handler ──
+        vm.triggerFileInput = function() {
+            var input = document.getElementById('lesson-content-file-input');
+            if (input) input.click();
+        };
+
+        vm.onFileInputChange = function(files) {
+            if (files && files.length > 0) {
+                vm.handleSelectedFiles(files);
+            }
+        };
+
+        // ── Process selected files ──
+        vm.handleSelectedFiles = function(fileList) {
+            var allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+            var maxSize = 20 * 1024 * 1024; // 20MB
+
+            for (var i = 0; i < fileList.length; i++) {
+                var file = fileList[i];
+
+                // Validate type
+                if (allowedTypes.indexOf(file.type) === -1) {
+                    ToastService.error('Invalid File Type', file.name + ' is not a supported format. Please use PNG, JPG, or PDF.');
+                    continue;
+                }
+
+                // Validate size
+                if (file.size > maxSize) {
+                    ToastService.error('File Too Large', file.name + ' exceeds the 20MB limit.');
+                    continue;
+                }
+
+                // If PDF, open page selector
+                if (file.type === 'application/pdf') {
+                    vm.openPdfSelector(file);
+                    return; // Only one PDF at a time
+                }
+
+                // For images, generate preview and add to queue
+                vm.addImageToQueue(file);
+            }
+
+            $scope.$applyAsync();
+        };
+
+        // ── Image preview + queue ──
+        vm.addImageToQueue = function(file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                $scope.$apply(function() {
+                    vm.uploadQueue.push({
+                        file: file,
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        preview: e.target.result,
+                        isPdf: false,
+                        pdfPages: null
+                    });
+                });
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // ── Remove from queue ──
+        vm.removeFromQueue = function(index) {
+            vm.uploadQueue.splice(index, 1);
+        };
+
+        // ═══════════════════════════════════
+        // PDF PAGE SELECTOR
+        // ═══════════════════════════════════
+
+        vm.openPdfSelector = function(file) {
+            vm.pdfSelector.active = true;
+            vm.pdfSelector.file = file;
+            vm.pdfSelector.fileName = file.name;
+            vm.pdfSelector.pages = [];
+            vm.pdfSelector.selectedPages = [];
+            vm.pdfSelector.totalPages = 0;
+            vm.pdfSelector.loading = true;
+            vm.pdfSelector.error = null;
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var typedArray = new Uint8Array(e.target.result);
+                
+                // Use PDF.js to load the document
+                if (typeof pdfjsLib === 'undefined') {
+                    $scope.$apply(function() {
+                        vm.pdfSelector.loading = false;
+                        vm.pdfSelector.error = 'PDF viewer library not loaded. Please refresh the page and try again.';
+                    });
+                    return;
+                }
+
+                pdfjsLib.getDocument({ data: typedArray }).promise.then(function(pdf) {
+                    $scope.$apply(function() {
+                        vm.pdfSelector.totalPages = pdf.numPages;
+                    });
+
+                    // Render thumbnails for each page
+                    var renderPromises = [];
+                    for (var p = 1; p <= pdf.numPages; p++) {
+                        renderPromises.push(renderPdfPage(pdf, p));
+                    }
+
+                    Promise.all(renderPromises).then(function(pages) {
+                        $scope.$apply(function() {
+                            vm.pdfSelector.pages = pages;
+                            vm.pdfSelector.loading = false;
+                        });
+                    });
+
+                }).catch(function(err) {
+                    $scope.$apply(function() {
+                        vm.pdfSelector.loading = false;
+                        vm.pdfSelector.error = 'Failed to read PDF file. Please ensure it is a valid PDF.';
+                    });
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function renderPdfPage(pdf, pageNum) {
+            return pdf.getPage(pageNum).then(function(page) {
+                var scale = 1.5;
+                var viewport = page.getViewport({ scale: scale });
+                var canvas = document.createElement('canvas');
+                var context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                return page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise.then(function() {
+                    return {
+                        pageNum: pageNum,
+                        thumbnail: canvas.toDataURL('image/png'),
+                        selected: false
+                    };
+                });
+            });
+        }
+
+        vm.togglePdfPage = function(page) {
+            if (page.selected) {
+                // Deselect
+                page.selected = false;
+                vm.pdfSelector.selectedPages = vm.pdfSelector.selectedPages.filter(function(p) {
+                    return p !== page.pageNum;
+                });
+            } else {
+                // Check limit
+                if (vm.pdfSelector.selectedPages.length >= 2) {
+                    ToastService.warning('Page Limit', 'You can select a maximum of 2 pages per PDF file.');
+                    return;
+                }
+                page.selected = true;
+                vm.pdfSelector.selectedPages.push(page.pageNum);
+            }
+        };
+
+        vm.confirmPdfPages = function() {
+            if (vm.pdfSelector.selectedPages.length === 0) {
+                ToastService.warning('No Pages Selected', 'Please select at least one page from the PDF.');
+                return;
+            }
+
+            // Find selected page thumbnails for preview
+            var selectedThumbnails = vm.pdfSelector.pages.filter(function(p) {
+                return p.selected;
+            }).map(function(p) {
+                return { pageNum: p.pageNum, thumbnail: p.thumbnail };
+            });
+
+            vm.uploadQueue.push({
+                file: vm.pdfSelector.file,
+                name: vm.pdfSelector.fileName,
+                size: vm.pdfSelector.file.size,
+                type: 'application/pdf',
+                preview: selectedThumbnails[0].thumbnail,
+                isPdf: true,
+                pdfPages: vm.pdfSelector.selectedPages.slice().sort(),
+                pdfThumbnails: selectedThumbnails
+            });
+
+            vm.closePdfSelector();
+        };
+
+        vm.closePdfSelector = function() {
+            vm.pdfSelector.active = false;
+            vm.pdfSelector.file = null;
+            vm.pdfSelector.pages = [];
+            vm.pdfSelector.selectedPages = [];
+            vm.pdfSelector.totalPages = 0;
+            vm.pdfSelector.loading = false;
+            vm.pdfSelector.error = null;
+        };
+
+        // ═══════════════════════════════════
+        // UPLOAD FILES TO SERVER
+        // ═══════════════════════════════════
+
+        vm.uploadAllFiles = function() {
+            if (vm.uploadQueue.length === 0) {
+                ToastService.warning('No Files', 'Please add at least one file to upload.');
+                return;
+            }
+
+            vm.isUploading = true;
+            var uploadPromises = [];
+
+            for (var i = 0; i < vm.uploadQueue.length; i++) {
+                uploadPromises.push(uploadSingleFile(vm.uploadQueue[i], i));
+            }
+
+            Promise.all(uploadPromises).then(function() {
+                $scope.$apply(function() {
+                    vm.isUploading = false;
+                    vm.uploadQueue = [];
+                    vm.uploadProgress = {};
+                    refresh_content_files();
+                    ToastService.success('Upload Complete', 'Your lesson content files have been uploaded successfully.');
+                });
+            }).catch(function() {
+                $scope.$apply(function() {
+                    vm.isUploading = false;
+                    ToastService.error('Upload Error', 'One or more files failed to upload. Please try again.');
+                });
+            });
+        };
+
+        function uploadSingleFile(queueItem, index) {
+            var formData = new FormData();
+            formData.append('file', queueItem.file);
+            formData.append('lesson_id', $stateParams.lesson_id);
+            formData.append('file_type', queueItem.isPdf ? 'pdf' : 'image');
+
+            if (queueItem.isPdf && queueItem.pdfPages) {
+                formData.append('pdf_pages', JSON.stringify(queueItem.pdfPages));
+            }
+
+            vm.uploadProgress[index] = 0;
+
+            return CourseService.UploadLessonContentFile(formData)
+                .then(function(data) {
+                    $scope.$applyAsync(function() {
+                        vm.uploadProgress[index] = 100;
+                    });
+                    if (!data.success) {
+                        throw new Error(data.message || 'Upload failed');
+                    }
+                    return data;
+                })
+                .catch(function(err) {
+                    $scope.$applyAsync(function() {
+                        vm.uploadProgress[index] = -1; // mark as failed
+                    });
+                    throw err;
+                });
+        }
+
+        // ── Reorder content files (called after dnd-moved) ──
+        $scope.save_content_files_order = function() {
+            var update_order = [];
+            for (var i = 0; i < vm.contentFiles.length; i++) {
+                update_order.push({
+                    id: vm.contentFiles[i].id,
+                    organise: i
+                });
+            }
+
+            CourseService.UpdateLessonContentFilesOrder({ order: update_order })
+                .then(function(data) {
+                    if (data.success) {
+                        ToastService.success('Order Saved', 'File order has been updated.');
+                    }
+                });
+        };
+
+        // ── Delete an existing content file ──
+        vm.deleteContentFile = function(file, index) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+
+            CourseService.DeleteLessonContentFile(file.id)
+                .then(function(data) {
+                    if (data.success) {
+                        vm.contentFiles.splice(index, 1);
+                        ToastService.success('Deleted', 'File has been removed.');
+                    } else {
+                        ToastService.error('Error', 'Failed to delete the file.');
+                    }
+                });
+        };
+
+        // ── Replace an existing content file ──
+        vm.replaceContentFile = function(existingFile) {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.png,.jpg,.jpeg,.pdf';
+            input.onchange = function(e) {
+                var file = e.target.files[0];
+                if (!file) return;
+
+                var allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+                if (allowedTypes.indexOf(file.type) === -1) {
+                    $scope.$apply(function() {
+                        ToastService.error('Invalid File Type', 'Please use PNG, JPG, or PDF.');
+                    });
+                    return;
+                }
+
+                if (file.type === 'application/pdf') {
+                    $scope.$apply(function() {
+                        vm.replacingFileId = existingFile.id;
+                        vm.openPdfSelector(file);
+                    });
+                    return;
+                }
+
+                // Direct image replacement
+                var formData = new FormData();
+                formData.append('file', file);
+                formData.append('lesson_id', $stateParams.lesson_id);
+                formData.append('file_type', 'image');
+
+                CourseService.UpdateLessonContentFile(existingFile.id, formData)
+                    .then(function(data) {
+                        if (data.success) {
+                            refresh_content_files();
+                            ToastService.success('Replaced', 'File has been updated.');
+                        } else {
+                            ToastService.error('Error', 'Failed to replace the file.');
+                        }
+                    });
+            };
+            input.click();
+        };
+
+        // ── Format file size ──
+        vm.formatFileSize = function(bytes) {
+            if (!bytes) return '0 B';
+            var sizes = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+        };
+
+        // ── Get file type icon class ──
+        vm.getFileTypeIcon = function(fileType) {
+            if (!fileType) return 'fa-file';
+            if (fileType.indexOf('pdf') > -1) return 'fa-file-pdf';
+            if (fileType.indexOf('image') > -1) return 'fa-file-image';
+            return 'fa-file';
+        };
 
         function initController() {
            //console.log("check if access is okay");

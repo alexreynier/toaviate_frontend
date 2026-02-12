@@ -59,7 +59,13 @@ app.factory('CourseService', CourseService);
 
         service.GetStudentTrainingRecordsForFlight = GetStudentTrainingRecordsForFlight;
 
-
+        // LESSON CONTENT FILES
+        service.GetLessonContentFiles = GetLessonContentFiles;
+        service.GetLessonContentFileData = GetLessonContentFileData;
+        service.UploadLessonContentFile = UploadLessonContentFile;
+        service.DeleteLessonContentFile = DeleteLessonContentFile;
+        service.UpdateLessonContentFile = UpdateLessonContentFile;
+        service.UpdateLessonContentFilesOrder = UpdateLessonContentFilesOrder;
 
 
         return service; 
@@ -275,7 +281,36 @@ app.factory('CourseService', CourseService);
         }
 
 
+        // LESSON CONTENT FILES
+        function GetLessonContentFiles(lesson_id) {
+            return $http.get('/api/v1/lesson_content_files/lesson/' + lesson_id).then(handleSuccess, handleError2);
+        }
 
+        function GetLessonContentFileData(file_id) {
+            return $http.get('/api/v1/lesson_content_files/file/' + file_id).then(handleSuccess, handleError2);
+        }
+
+        function UploadLessonContentFile(formData) {
+            return $http.post('/api/v1/lesson_content_files', formData, {
+                transformRequest: angular.identity,
+                headers: { 'Content-Type': undefined }
+            }).then(handleSuccess, handleError2);
+        }
+
+        function UpdateLessonContentFile(id, formData) {
+            return $http.post('/api/v1/lesson_content_files/' + id, formData, {
+                transformRequest: angular.identity,
+                headers: { 'Content-Type': undefined }
+            }).then(handleSuccess, handleError2);
+        }
+
+        function DeleteLessonContentFile(id) {
+            return $http.delete('/api/v1/lesson_content_files/' + id).then(handleSuccess, handleError2);
+        }
+
+        function UpdateLessonContentFilesOrder(orderData) {
+            return $http.post('/api/v1/lesson_content_files/organise', orderData).then(handleSuccess, handleError2);
+        }
 
 
         function handleError2(res) {
