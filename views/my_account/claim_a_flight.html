@@ -1,5 +1,4 @@
-<div class="centre_align_boxes2">
-
+<div class="centre_align_boxes2 caf-page">
 
     <div class="home_upper">
         <div class="back-box" ui-sref="dashboard.my_account">
@@ -16,205 +15,263 @@
 
 
 <div class="sub_section2">
-   
 
-<!--     <div ng-repeat="club in vm.clubs" class="club_docs_all">
- -->
-      
-                    <div class="" ng-if="vm.unclaimed.to_claim.length < 1">
-                        <p>
-                            It looks like none of the clubs you are a member of presently use our Fox Avionix Box loggers in their aircraft. 
-                        </p>
-                        <p>
-                            Fox Avionix automatically record your brakes off, takeoff time, landing time and brakes on times. These are then automatically sent to the ToAviate platform. After the flight you just click "BOOK IN" as you did before, but all the required details are prefilled for you, if you forgot to "BOOK OUT" before your flight, you can just come to this page to claim a flight already completed.
-                        </p>
-                        <p>
-                            The main benefit of using Fox Avionix is to ensure accuracy of recorded data into the digital logbooks, and to help increase time between maintenance by accurately counting airborne time. The loggers keep a track of the times within 10 seconds accuracy per flight rather than the traditional rounding to the nearest 5 minute increment, meaning that on average our users have increased their time between 50 hour checks by 3 hours 40 minutes.
-                        </p>
-                        <p>
-                            To find out more about our Fox Avionix Box loggers, please contact us.
-                        </p>
-                    </div>
-
-                    <br />
-
-<!--         </div>
- -->
-    
-
-
-
-    <div class="search_bar">
-
-        <input type="search" placeholder="Search Aircraft" ng-model="my_search2" class="form-control fifty_wide" />
-
+    <!-- ── Empty state ── -->
+    <div class="" ng-if="vm.unclaimed.to_claim.length < 1">
+        <p>
+            It looks like none of the clubs you are a member of presently use our Fox Avionix Box loggers in their aircraft. 
+        </p>
+        <p>
+            Fox Avionix automatically record your brakes off, takeoff time, landing time and brakes on times. These are then automatically sent to the ToAviate platform. After the flight you just click "BOOK IN" as you did before, but all the required details are prefilled for you, if you forgot to "BOOK OUT" before your flight, you can just come to this page to claim a flight already completed.
+        </p>
+        <p>
+            The main benefit of using Fox Avionix is to ensure accuracy of recorded data into the digital logbooks, and to help increase time between maintenance by accurately counting airborne time. The loggers keep a track of the times within 10 seconds accuracy per flight rather than the traditional rounding to the nearest 5 minute increment, meaning that on average our users have increased their time between 50 hour checks by 3 hours 40 minutes.
+        </p>
+        <p>
+            To find out more about our Fox Avionix Box loggers, please contact us.
+        </p>
     </div>
 
-    <div ng-repeat="club in vm.unclaimed.to_claim" class="club_docs_all">
-
-        <h2>{{ club.club_name }}</h2>
-       
-
-        <div ng-repeat="plane in club.aircraft | filter: search2" ng-if="!my_search || (my_search && (getMySearchCount(plane) > 0))">          
-
-                <div class="club_docs_all2">
-                <h2>{{ plane.registration }} - {{ plane.plane_type }}</h2>
+    <br />
 
 
-                <div class="plane_docs">
-                 
+    <!-- ═══════════════════════════════════════════════
+         TOOLBAR: view toggle + aircraft search
+         ═══════════════════════════════════════════════ -->
+    <div class="caf-toolbar" ng-if="vm.unclaimed.to_claim.length > 0">
 
-                  <div class="card">
-
-                    <h4>Aircraft Journey Log</h4>
-
-
-                    <div class="plane_docs_none" ng-if="plane.flights.length < 1">
-                        There are presently no unclaimed journey log entries for this aircraft.
-                    </div>
-
-
-
-                    <div class="" ng-if="plane.flights.length > 0">
-                        <table>
-                            <tr>
-                                <td class="bold_text">
-                                    Date
-                                </td>
-                                <td class="bold_text centre_me">
-                                    From
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes Off
-                                </td>
-                                <td class="bold_text centre_me">
-                                    To
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes On
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Chocks Time
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Airborne Time
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Landings
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Actions
-                                </td>
-                            </tr>
-                            <tr ng-repeat="log in plane.flights" vertical-align="middle">
-                            
-                                 <td class="log_no_break">
-                                    <span uib-tooltip="Date of flight">{{ log.brakes_off | asDate | date:"dd MMM yyyy" }}</span>
-                                </td>
-                                <td class="log_no_break">
-                                    <span uib-tooltip="{{ log.from_airfield_name || 'unknown' }}">{{ log.from_airfield_code || 'unknown' }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="Brakes Off Time">{{ log.brakes_off | asDate | date:"HH:mm:ss" }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.to_airfield_name || 'unknown' }}">{{ log.to_airfield_code || 'unknown' }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="Brakes On Time">{{ log.brakes_on | asDate | date:"HH:mm:ss" }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="Decimal Hours : {{ vm.difference_times_decimal(log.brakes_off, log.brakes_on) | number:2 }}">{{ vm.difference_times(log.brakes_off, log.brakes_on) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="Decimal Hours : {{ vm.airborne_decimal(log.airborne_seconds) | number:2 }}">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.takeoffs_landings }}">{{ log.number_landings }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
-                                    <!-- link the aircraft log with journey booking in   ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})"   //--> 
-                                </td>
-
-                            </tr>
-                        </table>
-                       <!--  <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})">VIEW FULL JOURNEY LOGS</button>   -->
-
-                    </div>
-
-
-
-                </div>
-
-
-
-               <!--    <hr ng-if="plane.documents.length > 0" />
-                 
-
-                  <div class="card" ng-if="plane.documents.length > 0">
-
-                     <h4>Aircraft Documents</h4>
-
-                    <div class="plane_docs">
-                        <table>
-                            <tr>
-                                <td class="bold_text">
-                                    File Name
-                                </td>
-                                <td class="centre_text_align bold_text">
-                                    Click Icon To Open
-                                </td>
-                                <td class="right_text_align bold_text">
-                                    Last Updated 
-                                </td>
-                            </tr>
-                            <tr ng-repeat="plane_doc in plane.documents | filter: search" vertical-align="middle">
-                            
-                                <td vertical-align="middle">{{ plane_doc.title }}</td>
-                                <td class="centre_text_align"> <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a></td>
-                                <td class="right_text_align" vertical-align="middle">{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</td>
-
-                            </tr>
-                        </table>
-                    </div>
-                    
-                  </div> -->
-
-
-                  
-
-                  
-
-
-
-
-
-                </div>
-
-            
-            
-            </div>
-
+        <!-- View toggle -->
+        <div class="caf-view-toggle">
+            <button class="caf-toggle-btn" ng-class="{'caf-toggle-active': vm.activeView === 'aircraft'}" ng-click="vm.setView('aircraft')">
+                <i class="fa fa-plane"></i><span class="caf-toggle-label"> By Aircraft</span>
+            </button>
+            <button class="caf-toggle-btn" ng-class="{'caf-toggle-active': vm.activeView === 'all'}" ng-click="vm.setView('all')">
+                <i class="fa fa-list"></i><span class="caf-toggle-label"> All Flights</span>
+            </button>
         </div>
 
-
+        <!-- Aircraft ui-select filter -->
+        <div class="caf-aircraft-search">
+            <ui-select ng-model="vm.selectedAircraft" theme="bootstrap" title="Search Aircraft" append-to-body="true" allow-clear="true" on-select="vm.onAircraftSelected($item)" on-remove="vm.clearAircraftFilter()">
+                <ui-select-match placeholder="Search / filter aircraft...">{{ $select.selected.label }}</ui-select-match>
+                <ui-select-choices repeat="ac in vm.aircraftList | filter: {label: $select.search}">
+                    <div>
+                        <strong ng-bind-html="ac.registration | highlight: $select.search"></strong>
+                        <span class="caf-select-type" ng-bind-html="ac.plane_type | highlight: $select.search"></span>
+                    </div>
+                    <small class="text-muted">{{ ac.club_name }}</small>
+                </ui-select-choices>
+            </ui-select>
+        </div>
 
     </div>
 
 
+    <!-- ═══════════════════════════════════════════════
+         VIEW 1: GROUPED BY AIRCRAFT  (existing layout, improved)
+         ═══════════════════════════════════════════════ -->
+    <div ng-if="vm.activeView === 'aircraft'" class="caf-aircraft-view">
 
+        <div ng-repeat="club in vm.unclaimed.to_claim" class="club_docs_all">
 
+            <h2>{{ club.club_name }}</h2>
 
+            <div ng-repeat="plane in club.aircraft | filter: vm.aircraftFilter" class="club_docs_all2">
 
+                <h2>{{ plane.registration }} - {{ plane.plane_type }}</h2>
 
+                <div class="plane_docs">
+                    <div class="card">
+                        <h4>Aircraft Journey Log</h4>
 
+                        <div class="plane_docs_none" ng-if="plane.flights.length < 1">
+                            There are presently no unclaimed journey log entries for this aircraft.
+                        </div>
 
+                        <!-- Desktop table -->
+                        <div class="caf-table-wrap" ng-if="plane.flights.length > 0">
+                            <table class="caf-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th class="centre_me caf-hide-mobile">From</th>
+                                        <th class="centre_me caf-hide-mobile">Brakes Off</th>
+                                        <th class="centre_me caf-hide-mobile">To</th>
+                                        <th class="centre_me caf-hide-mobile">Brakes On</th>
+                                        <th class="centre_me caf-hide-mobile">Chocks Time</th>
+                                        <th class="centre_me caf-hide-mobile">Airborne Time</th>
+                                        <th class="centre_me caf-hide-mobile">Landings</th>
+                                        <th class="centre_me">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr ng-repeat="log in plane.flights">
+                                        <td class="log_no_break">
+                                            <span uib-tooltip="Date of flight">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="{{ log.from_airfield_name || 'unknown' }}">{{ log.from_airfield_code || 'unknown' }}</span>
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="Brakes Off Time">{{ log.brakes_off  }}</span> 
+                                            <!-- | asDate | date:"HH:mm:ss" -->
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="{{ log.to_airfield_name || 'unknown' }}">{{ log.to_airfield_code || 'unknown' }}</span>
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="Brakes On Time">{{ log.brakes_on  }}</span>
+                                            <!-- | asDate | date:"HH:mm:ss" -->
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="Decimal Hours : {{ log.brakes_time | number:2 }}">{{ get_hours_from_decimal(log.brakes_time) }}</span>
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="Decimal Hours : {{ vm.airborne_decimal(log.airborne_seconds) | number:2 }}">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
+                                        </td>
+                                        <td class="centre_me caf-hide-mobile">
+                                            <span uib-tooltip="{{ log.takeoffs_landings }}">{{ log.number_landings }}</span>
+                                        </td>
+                                        <td class="centre_me">
+                                            <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
+                        <!-- Mobile card list (shown only on small screens) -->
+                        <div class="caf-mobile-cards" ng-if="plane.flights.length > 0">
+                            <div class="caf-flight-card" ng-repeat="log in plane.flights">
+                                <div class="caf-fc-date">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</div>
+                                <div class="caf-fc-route">
+                                    <span uib-tooltip="{{log.from_airfield_name}}">{{ log.from_airfield_code || '?' }}</span>
+                                    <i class="fa fa-long-arrow-right"></i>
+                                    <span uib-tooltip="{{log.to_airfield_name}}">{{ log.to_airfield_code || '?' }}</span>
+                                </div>
+                                <div class="caf-fc-times">
+                                    <div class="caf-fc-stat">
+                                        <span class="caf-fc-label">Brakes Off</span>
+                                        <span>{{ log.brakes_off  }}</span>
+                                    </div>
+                                    <div class="caf-fc-stat">
+                                        <span class="caf-fc-label">Brakes On</span>
+                                        <span>{{ log.brakes_on  }}</span>
+                                    </div>
+                                    <div class="caf-fc-stat">
+                                        <span class="caf-fc-label">Airborne</span>
+                                        <span>{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
+                                    </div>
+                                    <div class="caf-fc-stat">
+                                        <span class="caf-fc-label">Landings</span>
+                                        <span>{{ log.number_landings }}</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary caf-fc-claim" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
+                            </div>
+                        </div>
 
+                    </div>
+                </div>
+
+            </div>
+        </div>
 
     </div>
 
 
+    <!-- ═══════════════════════════════════════════════
+         VIEW 2: ALL FLIGHTS (flat list, newest first)
+         ═══════════════════════════════════════════════ -->
+    <div ng-if="vm.activeView === 'all'" class="caf-all-view">
+
+        <div class="plane_docs_none" ng-if="vm.allFlights.length < 1">
+            There are presently no unclaimed journey log entries.
+        </div>
+
+        <!-- Desktop table -->
+        <div class="caf-table-wrap" ng-if="vm.allFlights.length > 0">
+            <table class="caf-table caf-all-table">
+                <thead>
+                    <tr>
+                        <th>Aircraft</th>
+                        <th class="centre_me">Date</th>
+                        <th class="centre_me caf-hide-mobile">From</th>
+                        <th class="centre_me caf-col-takeoff">Takeoff</th>
+                        <th class="centre_me caf-hide-mobile">To</th>
+                        <th class="centre_me caf-col-landing">Landing</th>
+                        <th class="centre_me caf-hide-mobile">Chocks</th>
+                        <th class="centre_me caf-hide-mobile">Airborne</th>
+                        <th class="centre_me caf-hide-mobile">Ldg</th>
+                        <th class="centre_me">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="log in vm.allFlights" ng-if="!vm.selectedAircraft || log.registration === vm.selectedAircraft.registration">
+                        <td class="caf-aircraft-cell">
+                            <span class="caf-reg">{{ log.registration }}</span>
+                            <span class="caf-type">{{ log.plane_type }}</span>
+                        </td>
+                        <td class="centre_me log_no_break">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</td>
+                        <td class="centre_me caf-hide-mobile">
+                            <span uib-tooltip="{{ log.from_airfield_name || 'unknown' }}">{{ log.from_airfield_code || '?' }}</span>
+                        </td>
+                        <td class="centre_me caf-col-takeoff">{{ log.brakes_off }}</td>
+                        <td class="centre_me caf-hide-mobile">
+                            <span uib-tooltip="{{ log.to_airfield_name || 'unknown' }}">{{ log.to_airfield_code || '?' }}</span>
+                        </td>
+                        <td class="centre_me caf-col-landing">{{ log.brakes_on}}</td>
+                        <td class="centre_me caf-hide-mobile"><span uib-tooltip="Decimal Hours : {{ log.brakes_time | number:2 }}">{{ get_hours_from_decimal(log.brakes_time) }}</span></td>
+                        <td class="centre_me caf-hide-mobile">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</td>
+                        <td class="centre_me caf-hide-mobile">{{ log.number_landings }}</td>
+                        <td class="centre_me">
+                            <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card list -->
+        <div class="caf-mobile-cards" ng-if="vm.allFlights.length > 0">
+            <div class="caf-flight-card" ng-repeat="log in vm.allFlights" ng-if="!vm.selectedAircraft || log.registration === vm.selectedAircraft.registration">
+                <div class="caf-fc-header">
+                    <div class="caf-fc-aircraft">
+                        <span class="caf-reg">{{ log.registration }}</span>
+                        <span class="caf-type">{{ log.plane_type }}</span>
+                    </div>
+                    <div class="caf-fc-date">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</div>
+                </div>
+                <div class="caf-fc-route">
+                    <span uib-tooltip="{{log.from_airfield_name}}">{{ log.from_airfield_code || '?' }}</span>
+                    <i class="fa fa-long-arrow-right"></i>
+                    <span uib-tooltip="{{log.to_airfield_name}}">{{ log.to_airfield_code || '?' }}</span>
+                </div>
+                <div class="caf-fc-times">
+                    <div class="caf-fc-stat">
+                        <span class="caf-fc-label">Takeoff</span>
+                        <span>{{ log.brakes_off  }}</span>
+                    </div>
+                    <div class="caf-fc-stat">
+                        <span class="caf-fc-label">Landing</span>
+                        <span>{{ log.brakes_on  }}</span>
+                    </div>
+                    <div class="caf-fc-stat">
+                        <span class="caf-fc-label">Airborne</span>
+                        <span>{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
+                    </div>
+                    <div class="caf-fc-stat">
+                        <span class="caf-fc-label">Landings</span>
+                        <span>{{ log.number_landings }}</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary caf-fc-claim" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
+            </div>
+        </div>
+
+    </div>
+
+
+</div>
 
 </div>

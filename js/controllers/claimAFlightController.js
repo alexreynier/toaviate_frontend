@@ -8,9 +8,84 @@
         vm.unclaimed = [];
 
         vm.looking_for = $stateParams.registration;
-        if(vm.looking_for){
-            $scope.my_search2 = vm.looking_for;
+
+        // View toggle: 'aircraft' (grouped by aircraft) or 'all' (flat list)
+        vm.activeView = 'aircraft';
+        vm.setView = function(view) { vm.activeView = view; };
+
+        // Aircraft ui-select
+        vm.aircraftList = [];      // flat list of all aircraft for the ui-select
+        vm.selectedAircraft = null;
+        vm.allFlights = [];        // flat list of every flight for the "all" view
+
+        vm.onAircraftSelected = function(item) {
+            vm.selectedAircraft = item || null;
+        };
+
+        vm.clearAircraftFilter = function() {
+            vm.selectedAircraft = null;
+        };
+
+        // Build helper lists after data loads
+        function buildHelperLists() {
+            vm.aircraftList = [];
+            vm.allFlights = [];
+            if (!vm.unclaimed || !vm.unclaimed.to_claim) return;
+
+            vm.unclaimed.to_claim.forEach(function(club) {
+                (club.aircraft || []).forEach(function(plane) {
+                    var entry = {
+                        plane_id: plane.plane_id,
+                        registration: plane.registration,
+                        plane_type: plane.plane_type,
+                        club_name: club.club_name,
+                        label: plane.registration + ' — ' + plane.plane_type
+                    };
+                    vm.aircraftList.push(entry);
+
+                    (plane.flights || []).forEach(function(log) {
+                        vm.allFlights.push({
+                            registration: plane.registration,
+                            plane_type: plane.plane_type,
+                            club_name: club.club_name,
+                            flight_date: log.flight_date,
+                            brakes_time: log.brakes_time,
+                            plane_log_sheet_id: log.plane_log_sheet_id,
+                            brakes_off: log.brakes_off,
+                            brakes_on: log.brakes_on,
+                            from_airfield_code: log.from_airfield_code,
+                            from_airfield_name: log.from_airfield_name,
+                            to_airfield_code: log.to_airfield_code,
+                            to_airfield_name: log.to_airfield_name,
+                            airborne_seconds: log.airborne_seconds,
+                            number_landings: log.number_landings,
+                            takeoffs_landings: log.takeoffs_landings
+                        });
+                    });
+                });
+            });
+
+            // Sort all flights newest first (by flight_date + brakes_off time)
+            vm.allFlights.sort(function(a, b) {
+                var dateA = new Date(a.flight_date + ' ' + (a.brakes_off || '00:00'));
+                var dateB = new Date(b.flight_date + ' ' + (b.brakes_off || '00:00'));
+                return dateB - dateA;
+            });
+
+            // Pre-select aircraft if route param was provided
+            if (vm.looking_for) {
+                var match = vm.aircraftList.filter(function(a) {
+                    return a.registration.toLowerCase().indexOf(vm.looking_for.toLowerCase()) !== -1;
+                });
+                if (match.length) vm.selectedAircraft = match[0];
+            }
         }
+
+        // Filter functions for aircraft view
+        vm.aircraftFilter = function(plane) {
+            if (!vm.selectedAircraft) return true;
+            return plane.registration === vm.selectedAircraft.registration;
+        };
 
         // vm.allUsers = [];
         // vm.deleteUser = deleteUser;
@@ -31,6 +106,7 @@
                     console.log("GetFoxEntries was called here");
                     vm.unclaimed = data;
                     console.log("vm.unclaimed", vm.unclaimed);
+                    buildHelperLists();
                 });
         }
 
