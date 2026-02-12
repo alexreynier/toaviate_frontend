@@ -1,7 +1,7 @@
  app.controller('ManagePaymentsController', ManagePaymentsController);
 
-    ManagePaymentsController.$inject = ['UserService', '$sce', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'PaymentService', 'PoidService'];
-    function ManagePaymentsController(UserService, $sce, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, PaymentService, PoidService) {
+    ManagePaymentsController.$inject = ['UserService', '$sce', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'PaymentService', 'PoidService', 'ToastService'];
+    function ManagePaymentsController(UserService, $sce, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, PaymentService, PoidService, ToastService) {
         
         var vm = this;        
 
@@ -216,7 +216,7 @@
                             countryISO: ""
                         }
 
-                        alert("address saved");
+                        ToastService.success('Address Saved', 'Address saved successfully.');
 
                         //fill the drop down menu
                         vm.change_address = false;
@@ -287,7 +287,7 @@
                                 //console.log(data);
                                 if(data.success){            
 
-                                    alert("Changed primary card!");
+                                    ToastService.success('Card Updated', 'Changed primary card!');
                                     
                                     //vm.cards = data.cards;
                                     ////console.log("CARDS", vm.cards);

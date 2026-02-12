@@ -1,7 +1,7 @@
  app.controller('PassengerSignupCompleteController', PassengerSignupCompleteController);
 
-    PassengerSignupCompleteController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams'];
-    function PassengerSignupCompleteController(UserService, $rootScope, $location, $scope, $state, $stateParams) {
+    PassengerSignupCompleteController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', 'ToastService'];
+    function PassengerSignupCompleteController(UserService, $rootScope, $location, $scope, $state, $stateParams, ToastService) {
         	
 
 	    	 ////console.log("HELLO");
@@ -160,7 +160,7 @@
 		   		// //console.log("tries", $scope.checkedcode);
 
 		   		if($scope.checkedcode > 4){
-		   			alert("Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.");
+		   			ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
 
 		   			//send another invitation code to the recipient 
 
@@ -184,14 +184,14 @@
 	                		} else {
 
 	                			
-	                			alert("We couldn't match your invitation with our records - if you think you have an account, please go to the login screen and click the forgotten password link.");
+	                			ToastService.error('Invitation Not Found', 'We couldn\'t match your invitation with our records - if you think you have an account, please go to the login screen and click the forgotten password link.');
 	                			return false;
 	                		}
 
 	                		
 
 	                	} else {
-	                		alert(data.message);
+	                		ToastService.error('Error', data.message);
 	                		return false;
 	                	}
 
@@ -220,7 +220,7 @@
 
 
 		    	if($scope.formData.password !== $scope.formData.password2 || $scope.formData.password.length < 8){
-		    		alert("Please ensure your password is at least 8 character and both of these match");
+		    		ToastService.warning('Password Mismatch', 'Please ensure your password is at least 8 characters and both of these match');
 		    		return false;
 		    	}
 
@@ -250,26 +250,12 @@
                 		$state.go("passenger_signup_complete.thank_you");
                 		
                 	} else {
-                		alert(data.message);
-                		return false;
+                		ToastService.error('Error', data.message);
                 	}
-
                 });
 
-
-		    	
-
-
-			}
-
-
-
-
+		    }
 
 }
-
-
-
-
 
 

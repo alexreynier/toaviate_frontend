@@ -1,7 +1,7 @@
 app.controller('GalleriesController', GalleriesController);
  
-    GalleriesController.$inject = ['UserService', 'ArtpiecesService', 'ImagesService', 'KeywordsService', 'CategoryService', '$location', '$rootScope', 'FlashService', '$routeParams', '$scope', 'LocalDataService', 'GalleryService'];
-    function GalleriesController(UserService, ArtpiecesService, ImagesService, KeywordsService, CategoryService, $location, $rootScope, FlashService, $routeParams, $scope, LocalDataService, GalleryService) {
+    GalleriesController.$inject = ['UserService', 'ArtpiecesService', 'ImagesService', 'KeywordsService', 'CategoryService', '$location', '$rootScope', 'FlashService', '$routeParams', '$scope', 'LocalDataService', 'GalleryService', 'ToastService'];
+    function GalleriesController(UserService, ArtpiecesService, ImagesService, KeywordsService, CategoryService, $location, $rootScope, FlashService, $routeParams, $scope, LocalDataService, GalleryService, ToastService) {
         var vm = this;
 
       
@@ -97,7 +97,7 @@ app.controller('GalleriesController', GalleriesController);
             GalleryService.Update(vm.galleries[index])
                 .then(function(data){
                     //console.log(data);
-                    alert("saved");
+                    ToastService.success('Saved', 'Gallery saved successfully.');
                     //$location.path("/");
                 });
         }

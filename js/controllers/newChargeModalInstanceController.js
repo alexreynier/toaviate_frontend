@@ -1,7 +1,7 @@
  app.controller('NewChargeModalInstanceCtrl', NewChargeModalInstanceCtrl);
 
-    NewChargeModalInstanceCtrl.$inject = ['$scope', '$uibModalInstance', 'id', 'warning', 'MemberService', 'ClubService', '$rootScope', 'PaymentService', 'params', 'EnvConfig'];
-    function NewChargeModalInstanceCtrl($scope, $uibModalInstance, id, warning, MemberService, ClubService, $rootScope, PaymentService, params=null, EnvConfig) {         
+    NewChargeModalInstanceCtrl.$inject = ['$scope', '$uibModalInstance', 'id', 'warning', 'MemberService', 'ClubService', '$rootScope', 'PaymentService', 'params', 'EnvConfig', 'ToastService'];
+    function NewChargeModalInstanceCtrl($scope, $uibModalInstance, id, warning, MemberService, ClubService, $rootScope, PaymentService, params=null, EnvConfig, ToastService) {         
 
             $scope.warning = warning;
             $scope.params = params;
@@ -147,9 +147,30 @@
 
 
           $scope.ok = function () {
+            // Validation
+            if (!$scope.items || $scope.items.length < 1) {
+                ToastService.error('No Items', 'Please add at least one item to the invoice.');
+                return;
+            }
+            if (!$scope.selected_client || !$scope.selected_client.id) {
+                ToastService.error('Missing: Client', 'Please select a client to charge.');
+                return;
+            }
+            if ($scope.selected_client.id == -12) {
+                if (!$scope.new_client.first_name || !$scope.new_client.first_name.trim()) {
+                    ToastService.error('Missing: First Name', 'Please enter the new client\'s first name.');
+                    return;
+                }
+                if (!$scope.new_client.last_name || !$scope.new_client.last_name.trim()) {
+                    ToastService.error('Missing: Last Name', 'Please enter the new client\'s last name.');
+                    return;
+                }
+                if (!$scope.new_client.email || !$scope.new_client.email.trim()) {
+                    ToastService.error('Missing: Email', 'Please enter the new client\'s email address.');
+                    return;
+                }
+            }
             var obj = params;
-            // obj.reason = $scope.reason;
-            // obj.to_refund = $scope.to_refund
 
 
             //let's create all that is required to issue the invoice.

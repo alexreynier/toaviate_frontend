@@ -31,7 +31,10 @@
         vm.charge_type = ["brakes", "tacho", "hobbs"];
         vm.surcharge_type = ["none", "flight", "hour"];
 
-        vm.action = $state.current.data.action;
+        // Determine action from stateParams rather than $state.current.data.action,
+        // because when a child state (e.g. airframe_logbook) is active, $state.current
+        // points to the child whose data.action may differ from the parent's.
+        vm.action = $stateParams.plane_id ? 'edit' : ($state.current.data.action || 'list');
         vm.user = $rootScope.globals.currentUser;
         // //console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
@@ -90,7 +93,62 @@
        vm.create_logbook_error = false;
 
       
-        
+        // ── List loading function (called on init and when returning from detail) ──
+        function loadMaintenanceList() {
+            PlaneService.GetAllByClubMaintenance(vm.club_id)
+                .then(function(data){
+                    vm.club.planes = data;
+                });
+        }
+
+        // ── Detail loading function (called on init and when returning from child states) ──
+        function loadMaintenanceDetail() {
+            PlaneService.GetByIdMaintenance2($stateParams.plane_id, vm.club_id)
+                .then(function(data){
+                    vm.club.plane = data;  
+                    vm.this_plane_id = $stateParams.plane_id; 
+
+                    if(vm.club.plane && vm.club.plane.maintenance){
+                        vm.obj.hours_remaining = vm.club.plane.maintenance.hours_remaining;
+                        vm.obj.next_check = new Date(vm.club.plane.maintenance.next_maintenance);
+                        vm.obj.check_date = new Date();
+                        vm.obj.extension_granted = new Date();
+                    }
+
+                    vm.page_title = "Edit a Plane Maintenance - "+vm.club.plane.registration;
+                });
+
+            PlaneService.GetOpenIssues($stateParams.plane_id)
+                .then(function (data) {
+                    vm.reported_defects = data;
+                });
+
+            WorkpackService.GetByPlane($stateParams.plane_id)
+                .then(function (data) {
+                    if (data.success !== false) {
+                        vm.workpacks = data.workpacks || [];
+                    }
+                });
+
+            WorkpackService.GetOpenByPlane($stateParams.plane_id)
+                .then(function (data) {
+                    if (data.success !== false) {
+                        vm.open_workpacks = data.workpacks || [];
+                    }
+                });
+
+            PlaneService.GetMaintenanceEvents($stateParams.plane_id)
+                .then(function (data) {
+                    if (data && data.maintenance_events) {
+                        vm.maintenance_events = data.maintenance_events;
+                    } else if (data && data.events) {
+                        vm.maintenance_events = data.events;
+                    } else if (Array.isArray(data)) {
+                        vm.maintenance_events = data;
+                    }
+                });
+        }
+
         switch(vm.action){
             case "add":
                 // //console.log("adding a new plane please");
@@ -99,63 +157,15 @@
             case "edit":
                 // //console.log("edit an existing plane");
                 
-                PlaneService.GetByIdMaintenance2($stateParams.plane_id, vm.club_id)
-                    .then(function(data){
-                        vm.club.plane = data;  
-                        vm.this_plane_id = $stateParams.plane_id; 
+                loadMaintenanceDetail();
 
-                        if(vm.club.plane && vm.club.plane.maintenance){
-                            //console.log("vm.club.plane == > ", vm.club.plane);
-                            vm.obj.hours_remaining = vm.club.plane.maintenance.hours_remaining;
-                            vm.obj.next_check = new Date(vm.club.plane.maintenance.next_maintenance);
-                            vm.obj.check_date = new Date();
-                            vm.obj.extension_granted = new Date();
-                        }
-                       
-
-                        // vm.club.plane.requirements = {
-                        //         licence: [],
-                        //         medical: [],
-                        //         differences: [],
-                        //         hours: []
-                        // };
-                        // //console.log("BOOOO - get all planes....");
-                        vm.page_title = "Edit a Plane Maintenance - "+vm.club.plane.registration;
-                    });
-
-                PlaneService.GetOpenIssues($stateParams.plane_id)
-                    .then(function (data) {
-                            ////console.log("data is : ", data);
-                           vm.reported_defects = data;
-                        });
-
-                // Load workpacks for this plane
-                WorkpackService.GetByPlane($stateParams.plane_id)
-                    .then(function (data) {
-                        if (data.success !== false) {
-                            vm.workpacks = data.workpacks || [];
-                        }
-                    });
-
-                // Load open workpacks for linking dropdowns
-                WorkpackService.GetOpenByPlane($stateParams.plane_id)
-                    .then(function (data) {
-                        if (data.success !== false) {
-                            vm.open_workpacks = data.workpacks || [];
-                        }
-                    });
-
-                // Load maintenance events for this plane
-                PlaneService.GetMaintenanceEvents($stateParams.plane_id)
-                    .then(function (data) {
-                        if (data && data.maintenance_events) {
-                            vm.maintenance_events = data.maintenance_events;
-                        } else if (data && data.events) {
-                            vm.maintenance_events = data.events;
-                        } else if (Array.isArray(data)) {
-                            vm.maintenance_events = data;
-                        }
-                    });
+                // Reload data when navigating back from child states (e.g. logbook pages)
+                var deregisterStateChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
+                    if (toState.name === 'dashboard.manage_club.maintenance.detail') {
+                        loadMaintenanceDetail();
+                    }
+                });
+                $scope.$on('$destroy', deregisterStateChange);
 
 
                
@@ -165,11 +175,15 @@
             case "list":
                 //need to update this to be part of the authentication
                 //to find out club id
-                PlaneService.GetAllByClubMaintenance(vm.club_id)
-                    .then(function(data){
-                        vm.club.planes = data;   
-                        // //console.log(vm.club.planes);
-                    });
+                loadMaintenanceList();
+
+                // Reload list when navigating back from child states (e.g. detail page)
+                var deregisterListChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
+                    if (toState.name === 'dashboard.manage_club.maintenance') {
+                        loadMaintenanceList();
+                    }
+                });
+                $scope.$on('$destroy', deregisterListChange);
             break;
             default:
                 //console.log("none of the above... redirect somewhere?");
@@ -184,7 +198,7 @@
                     .then(function(data){
                         console.log(data);
                         if(data.success){
-                            alert("Should be sorted!");
+                            ToastService.success('Reset Complete', 'Logbooks have been re-checked.');
                         }  
                         // //console.log(vm.club.planes);
                     });
@@ -192,7 +206,7 @@
                     //ignore for now
                 }
             } else {
-                alert("NO IDEA");
+                ToastService.error('Error', 'An unexpected error occurred.');
             }
         }
 
@@ -361,7 +375,7 @@
             }
 
             if((vm.files.radio[0] && vm.obj.radio_expiry == null) || (!vm.files.radio[0] && vm.obj.radio_expiry)){
-                alert("The radio is not complete - please ensure to add both expiry date and the new certificate.");
+                ToastService.warning('Radio Incomplete', 'Please add both the expiry date and the new certificate.');
                 return false;
             } else if(vm.files.radio[0] && vm.obj.radio_expiry){
                 send_obj.radio = {
@@ -375,7 +389,7 @@
 
 
             if((vm.files.cert[0] && vm.obj.certificate_expiry == null) || (vm.files.cert[0] == null && vm.obj.certificate_expiry)){
-                alert("The certificate is not complete - please ensure to add both expiry date and the new certificate.");
+                ToastService.warning('Certificate Incomplete', 'Please add both the expiry date and the new certificate.');
                 return false;
             } else if(vm.files.cert[0] && vm.obj.certificate_expiry) {
                 send_obj.cert = {
@@ -389,7 +403,7 @@
             // //console.log("insurance file ", vm.files.insurance[0]);
 
             if((vm.files.insurance[0] && !vm.obj.insurance_expiry) || (vm.files.insurance[0] == null && vm.obj.insurance_expiry)){
-                alert("The insurance is not complete - please ensure to add both expiry date and the new certificate.");
+                ToastService.warning('Insurance Incomplete', 'Please add both the expiry date and the new certificate.');
                 return false;
             } else if(vm.files.insurance[0] && vm.obj.insurance_expiry) {
                 send_obj.insurance = {
@@ -402,7 +416,7 @@
 
 
             if((vm.files.noise_cert[0] && !vm.obj.noise_date) || (vm.files.noise_cert[0] == null && vm.obj.noise_date)){
-                alert("The noise certificate is not complete - please ensure to add both date and the certificate - or keep them both empty.");
+                ToastService.warning('Noise Certificate Incomplete', 'Please add both the date and the certificate, or leave both empty.');
                 return false;
             } else if(vm.files.noise_cert[0] && vm.obj.noise_date) {
                 send_obj.noise_cert = {
@@ -417,7 +431,7 @@
             // ── CRS (Certificate of Release to Service) ──
             if (vm.files.crs[0]) {
                 if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
-                    alert("The CRS is not complete - please ensure to add both release date, release time, and the certificate.");
+                    ToastService.warning('CRS Incomplete', 'Please add the release date, release time, and the certificate.');
                     return false;
                 }
                 // CRS uses its own endpoint, not AddMaintenance
@@ -430,7 +444,7 @@
                 send_obj.crs = crsPayload;
                 send_update = true;
             } else if (vm.obj.crs_release_date || vm.obj.crs_release_time) {
-                alert("The CRS is not complete - please upload the certificate document along with the release date and time.");
+                ToastService.warning('CRS Incomplete', 'Please upload the certificate document along with the release date and time.');
                 return false;
             }
 
@@ -448,66 +462,93 @@
             // //console.log("secon: ",((vm.obj.maintenance_type !== "" || vm.obj.maintenance_type !== undefined) && (vm.obj.hours_remaining !== undefined || vm.obj.hours_remaining !== "") 
             //     && (vm.obj.next_check !== undefined && vm.obj.next_check !== "")) );
           
-            if(((vm.obj.maintenance_type !== undefined && vm.obj.maintenance_type !=="extension") 
-             || vm.obj.hours_remaining !== undefined 
-             || vm.obj.next_check !== undefined)){
-                    if((vm.obj.maintenance_type !== "" || vm.obj.maintenance_type !== undefined) && (vm.obj.hours_remaining !== undefined || vm.obj.hours_remaining !== "") 
-                && (vm.obj.next_check !== undefined && vm.obj.next_check !== "")){
+            // Only validate maintenance fields when the maintenance overlay is active
+            if(vm.show_maintenance){
 
-                    var check_date =  moment( moment(vm.obj.check_date).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
-                // //console.log("NEW DATETIME", check_date);
-                // return false;
-
-                    send_obj.maintenance = {
-                        maintenance_type: vm.obj.maintenance_type,
-                        hours_remaining: vm.obj.hours_remaining,
-                        check_date: check_date,
-                        expiry_date: vm.obj.next_check,
-                        checked_by: vm.obj.checked_by,
-                        description: vm.obj.notes
-                    } 
-
-                    // Include workpack_id if selected from existing
-                    if (vm.obj.workpack_option === 'existing' && vm.obj.workpack_id) {
-                        send_obj.maintenance.workpack_id = parseInt(vm.obj.workpack_id);
-                    }
-
-                    send_update = true;
-                } else {
-                    // //console.log("type:", vm.obj.maintenance_type);
-                    // //console.log("remaining:", vm.obj.hours_remaining);
-                    // //console.log("next_check:", vm.obj.next_check);
-                    alert("The maintenance is not complete - please ensure to add both check date, next check, and hours remaining");
-                    return false; 
-                }
+              // ── Validate required fields before proceeding ──
+              // 1. Maintenance type must be selected
+              if (!vm.obj.maintenance_type || vm.obj.maintenance_type === '') {
+                  ToastService.warning('Maintenance Type Required', 'Please select a maintenance type.');
+                  return false;
               }
 
-              if(vm.obj.maintenance_type == "extension"){
-                    if((vm.obj.extension_hours !== "" || vm.obj.extension_days !== "")){
-
-                    var extension_granted =  moment( moment(vm.obj.extension_granted).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
-
-
-                    send_obj.extension = {
-                        maintenance_type: vm.obj.maintenance_type,
-                        extension_hours: vm.obj.extension_hours,
-                        extension_days: vm.obj.extension_days,
-                        extension_granted: extension_granted,
-                        description: vm.obj.notes
-                    } 
-                    send_update = true;
-                } else {
-                    // //console.log("type:", vm.obj.maintenance_type);
-                    // //console.log("remaining:", vm.obj.hours_remaining);
-                    // //console.log("next_check:", vm.obj.next_check);
-                    alert("The maintenance is not complete - please ensure to add both check date, next check, and hours remaining");
-                    return false; 
-                }
+              // 2. Time of maintenance must be filled
+              if (!vm.obj.check_time) {
+                  ToastService.warning('Time Required', 'Please enter the time of maintenance.');
+                  return false;
               }
 
+              // 3. Checked by must be filled
+              if (!vm.obj.checked_by || vm.obj.checked_by.trim() === '') {
+                  ToastService.warning('Checked By Required', 'Please enter who checked/signed off the maintenance.');
+                  return false;
+              }
+
+              // 4. For non-extension types, date of maintenance must be filled
+              if (vm.obj.maintenance_type !== 'extension' && !vm.obj.check_date) {
+                  ToastService.warning('Date Required', 'Please enter the date of maintenance.');
+                  return false;
+              }
+
+              // 5. For extension types, extension granted date must be filled
+              if (vm.obj.maintenance_type === 'extension' && !vm.obj.extension_granted) {
+                  ToastService.warning('Date Required', 'Please enter the extension granted date.');
+                  return false;
+              }
+
+              if(((vm.obj.maintenance_type !== undefined && vm.obj.maintenance_type !=="extension") 
+               || vm.obj.hours_remaining !== undefined 
+               || vm.obj.next_check !== undefined)){
+                      if((vm.obj.maintenance_type !== "" || vm.obj.maintenance_type !== undefined) && (vm.obj.hours_remaining !== undefined || vm.obj.hours_remaining !== "") 
+                  && (vm.obj.next_check !== undefined && vm.obj.next_check !== "")){
+
+                      var check_date =  moment( moment(vm.obj.check_date).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
+
+                      send_obj.maintenance = {
+                          maintenance_type: vm.obj.maintenance_type,
+                          hours_remaining: vm.obj.hours_remaining,
+                          check_date: check_date,
+                          expiry_date: vm.obj.next_check,
+                          checked_by: vm.obj.checked_by,
+                          description: vm.obj.notes
+                      } 
+
+                      // Include workpack_id if selected from existing
+                      if (vm.obj.workpack_option === 'existing' && vm.obj.workpack_id) {
+                          send_obj.maintenance.workpack_id = parseInt(vm.obj.workpack_id);
+                      }
+
+                      send_update = true;
+                  } else {
+                      ToastService.warning('Maintenance Incomplete', 'Please add check date, next check, and hours remaining.');
+                      return false; 
+                  }
+                }
+
+                if(vm.obj.maintenance_type == "extension"){
+                      if((vm.obj.extension_hours !== "" || vm.obj.extension_days !== "")){
+
+                      var extension_granted =  moment( moment(vm.obj.extension_granted).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
 
 
+                      send_obj.extension = {
+                          maintenance_type: vm.obj.maintenance_type,
+                          extension_hours: vm.obj.extension_hours,
+                          extension_days: vm.obj.extension_days,
+                          extension_granted: extension_granted,
+                          description: vm.obj.notes
+                      } 
+                      send_update = true;
+                  } else {
+                      ToastService.warning('Maintenance Incomplete', 'Please add check date, next check, and hours remaining.');
+                      return false; 
+                  }
+                }
+            }
 
+
+            // Only validate offline fields when the offline overlay is active
+            if(vm.show_offline){
               if((vm.obj.offline_until !== "" || vm.obj.offline_notes !== "")){
                     send_obj.offline = {
                         offline_until: vm.obj.offline_until,
@@ -516,9 +557,10 @@
                     } 
                     send_update = true;
                 } else {
-                    alert("Please ensure that offline date is set in the future!");
+                    ToastService.warning('Offline Date', 'Please ensure the offline date is set in the future.');
                     return false; 
               }
+            }
 
             // var send_obj = {
             //     radio: {
@@ -551,7 +593,7 @@
             // return false;
 
             if(!send_update){
-                alert("You haven't filled anything - this box will now close without saving any changes.");
+                ToastService.warning('Nothing Saved', 'No changes were made — the panel will close.');
 
             } else {
                 // //console.log("TOSAVE: ", send_obj);
@@ -642,14 +684,14 @@
                                         vm.workpack_files = { workpack_doc: [] };
                                         $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
                                     } else {
-                                        alert('Error creating workpack: ' + (wpData.message || 'Unknown error'));
+                                        ToastService.error('Workpack Error', wpData.message || 'Unknown error');
                                         $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
                                     }
                                 });
                         } else {
                             // No new workpack — save standalone defect workpack info
                             saveDefectWorkpacks();
-                            $state.go('dashboard.manage_club.maintenance', {action: "list", reload: true});
+                            $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
                         }
                     });
 
@@ -881,7 +923,7 @@
 
         $scope.delete = function(){
             // //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this plane?');
             PlaneService.Update(vm.club.plane)
                 .then(function(data){
                     // //console.log(data);
@@ -1004,7 +1046,7 @@
                         delete vm.temporary.rating;
 
                     } else {
-                        alert("Please select a licence and rating that is required to book the plane solo!");
+                        ToastService.warning('Missing Selection', 'Please select a licence and rating required to book the plane solo.');
                     }
 
                 break;
@@ -1031,7 +1073,7 @@
                         delete vm.temporary.medical_component;
 
                     } else {
-                        alert("Please select a medical that is required to book the plane solo!");
+                        ToastService.warning('Missing Selection', 'Please select a medical required to book the plane solo.');
                     }
 
                 break;
@@ -1055,7 +1097,7 @@
                         delete vm.temporary.difference;
 
                     } else {
-                        alert("Please select a difference that is required to book the plane solo!");
+                        ToastService.warning('Missing Selection', 'Please select a differences training required to book the plane solo.');
                     }
 
                 break;
@@ -1655,7 +1697,7 @@
                         vm.loadWorkpacks();
                         vm.loadOpenWorkpacks();
                     } else {
-                        alert('Error creating workpack: ' + (data.message || 'Unknown error'));
+                        ToastService.error('Workpack Error', data.message || 'Unknown error');
                     }
                 });
         };
@@ -1767,7 +1809,7 @@
             }).success(function (data, status, headers) {
                 var zipName = processArrayBufferToBlob(data, headers);
             }).error(function (data, status) {
-                alert('There was an error downloading the workpack document.');
+                ToastService.error('Download Error', 'There was an error downloading the workpack document.');
             });
         };
 
@@ -1781,7 +1823,7 @@
                         vm.show_link_defect = false;
                         vm.viewWorkpack(vm.workpack.id);
                     } else {
-                        alert('Error linking defect: ' + (data.message || 'Unknown error'));
+                        ToastService.error('Link Error', data.message || 'Error linking defect.');
                     }
                 });
         };
@@ -1809,7 +1851,7 @@
                         vm.show_link_maintenance = false;
                         vm.viewWorkpack(vm.workpack.id);
                     } else {
-                        alert('Error linking maintenance event: ' + (data.message || 'Unknown error'));
+                        ToastService.error('Link Error', data.message || 'Error linking maintenance event.');
                     }
                 });
         };
@@ -1870,7 +1912,7 @@
                                 vm.club.plane = planeData;
                             });
                     } else {
-                        alert('Error saving defect workpack info: ' + (data.message || 'Unknown error'));
+                        ToastService.error('Workpack Error', data.message || 'Error saving defect workpack info.');
                     }
                 });
         };
@@ -1909,11 +1951,11 @@
         // Standalone CRS update (from document table UPDATE button)
         vm.saveCrsStandalone = function () {
             if (!vm.files.crs[0]) {
-                alert('Please upload the CRS certificate document.');
+                ToastService.warning('CRS Missing', 'Please upload the CRS certificate document.');
                 return;
             }
             if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
-                alert('Please provide both the release date and release time.');
+                ToastService.warning('CRS Incomplete', 'Please provide both the release date and release time.');
                 return;
             }
             var payload = {
@@ -1931,7 +1973,7 @@
                         vm.show_overlay = false;
                         $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
                     } else {
-                        alert('Error creating CRS: ' + (data.message || 'Unknown error'));
+                        ToastService.error('CRS Error', data.message || 'Unknown error');
                     }
                 });
         };
@@ -1953,7 +1995,7 @@
                 }
             } catch (e) {
                 console.error('Error processing workpack file upload:', e, files[0].file_return);
-                alert('There was an error uploading the document. Please try again.');
+                ToastService.error('Upload Error', 'There was an error uploading the document. Please try again.');
             }
         };
 
@@ -1970,7 +2012,7 @@
                 defect._uploaded_file = files[0].file;
             } catch (e) {
                 console.error('Error processing defect file upload:', e, files[0].file_return);
-                alert('There was an error uploading the document. Please try again.');
+                ToastService.error('Upload Error', 'There was an error uploading the document. Please try again.');
             }
         };
 
@@ -2055,7 +2097,7 @@
                                 vm.club.plane = planeData;
                             });
                     } else {
-                        alert('Error updating maintenance event: ' + ((data && data.message) || 'Unknown error'));
+                        ToastService.error('Update Error', (data && data.message) || 'Error updating maintenance event.');
                     }
                 });
         };
@@ -2424,7 +2466,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Error', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -2444,7 +2486,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Error', 'There was an error downloading the selected document(s).');
                 })
         };
 

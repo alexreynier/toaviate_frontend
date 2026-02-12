@@ -1,7 +1,7 @@
  app.controller('DashboardClubPlanesController', DashboardClubPlanesController);
 
-    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService'];
-    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService) {
+    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService'];
+    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -418,13 +418,20 @@
         }
 
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [];
+            if (vm.action == 'add') {
+                checks.push({ ok: vm.plane_search && vm.plane_search.registration, field: 'registration', label: 'Registration' });
+            }
+            checks.push({ ok: vm.club.plane.plane_type, field: 'plane_type', label: 'ICAO Type' });
+            checks.push({ ok: vm.club.plane.seats, field: 'seats', label: 'Total Seats' });
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
@@ -602,7 +609,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Delete Plane', 'Are you sure you would like to delete this plane?');
             PlaneService.Update(vm.club.plane)
                 .then(function(data){
                     //console.log(data);
@@ -805,7 +812,7 @@
                         delete vm.temporary.rating;
 
                     } else {
-                        alert("Please select a licence and rating that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a licence and rating that is required to book the plane solo!');
                     }
 
                 break;
@@ -832,7 +839,7 @@
                         delete vm.temporary.medical_component;
 
                     } else {
-                        alert("Please select a medical that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a medical that is required to book the plane solo!');
                     }
 
                 break;
@@ -856,7 +863,7 @@
                         delete vm.temporary.difference;
 
                     } else {
-                        alert("Please select a difference that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a difference that is required to book the plane solo!');
                     }
 
                 break;

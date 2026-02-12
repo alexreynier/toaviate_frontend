@@ -1,7 +1,7 @@
  app.controller('AircraftJourneyLogsController', AircraftJourneyLogsController);
 
-    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce'];
-    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce) {
+    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService'];
+    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService) {
         
         var vm = this;
 
@@ -633,7 +633,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -653,7 +653,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

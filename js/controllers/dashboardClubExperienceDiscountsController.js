@@ -1,7 +1,7 @@
  app.controller('DashboardClubExperienceDiscountsController', DashboardClubExperienceDiscountsController);
 
-    DashboardClubExperienceDiscountsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService'];
-    function DashboardClubExperienceDiscountsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService ) {
+    DashboardClubExperienceDiscountsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'ToastService'];
+    function DashboardClubExperienceDiscountsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -82,13 +82,25 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.item.experience && vm.club.item.experience.id, field: 'experience_select', label: 'Experience' },
+                { ok: vm.club.item.discount_type && vm.club.item.discount_type !== '0', field: 'discount_type', label: 'Discount Type' },
+                { ok: vm.club.item.discount_code, field: 'discount_code', label: 'Discount Code' }
+            ];
+            if (vm.club.item.discount_type == '1') {
+                checks.push({ ok: vm.club.item.price != null && vm.club.item.price !== '', field: 'price', label: 'Discounted Price' });
+            }
+            if (vm.club.item.discount_type == '2') {
+                checks.push({ ok: vm.club.item.percentage != null && vm.club.item.percentage !== '', field: 'percentage', label: 'Discounted Percentage' });
+            }
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
@@ -110,7 +122,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this plane?');
             ExperiencesService.DeleteDiscount(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);
@@ -226,7 +238,7 @@
                         delete vm.temporary.plane;
 
                     } else {
-                        alert("Please select a plane that this activity be done on!");
+                        ToastService.warning('Selection Required', 'Please select a plane that this activity be done on!');
                     }
 
                 break;

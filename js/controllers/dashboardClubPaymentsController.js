@@ -1,7 +1,7 @@
  app.controller('DashboardClubPaymentsController', DashboardClubPaymentsController);
 
-    DashboardClubPaymentsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ClubPaymentService'];
-    function DashboardClubPaymentsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ClubPaymentService) {
+    DashboardClubPaymentsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ClubPaymentService', 'ToastService'];
+    function DashboardClubPaymentsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ClubPaymentService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -70,7 +70,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Delete Plane', 'Are you sure you would like to delete this plane?');
             PlaneService.Update(vm.club.plane)
                 .then(function(data){
                     //console.log(data);
@@ -206,7 +206,7 @@
               $log.info('PRESSED GO: ', refund);
               
               if(refund.to_refund > (refund.amount - refund.amount_refunded)){
-                alert("You are trying to refund more than the payment was for. You will need to first refund this amount in full, and then make a payment to the user for the remaining sum.");
+                ToastService.warning('Refund Limit', 'You are trying to refund more than the payment was for. You will need to first refund this amount in full, and then make a payment to the user for the remaining sum.');
                 return false;
               }
 

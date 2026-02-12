@@ -1,7 +1,7 @@
  app.controller('AddLicenceController', AddLicenceController);
 
-    AddLicenceController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService'];
-    function AddLicenceController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService) {
+    AddLicenceController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ToastService'];
+    function AddLicenceController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ToastService) {
         
         var vm = this;
         vm.licence_images = [];
@@ -151,7 +151,7 @@
                 if(vm.licence_images.length < 1 && vm.licence.images.length < 1){
 
                     $(".drop").focus();
-                    alert("You must at least have 1 image of your licence!");
+                    ToastService.warning('Image Required', 'You must at least have 1 image of your licence!');
 
                     return false;   
                 }
@@ -159,7 +159,7 @@
 
                 if(!vm.licence.licence_type){
                     $("#licence_type").focus();
-                    alert("You must select a licence type");
+                    ToastService.warning('Licence Type Required', 'You must select a licence type');
 
                     return false;
                 }
@@ -167,7 +167,7 @@
 
                 if(!vm.licence.state_of_issue){
                     $("#state_of_issue").focus();
-                    alert("You must select a licence state of issue");
+                    ToastService.warning('State Required', 'You must select a licence state of issue');
 
                     return false;
                 }
@@ -176,7 +176,7 @@
                 if(vm.licence.ratings.length < 1){
 
                     $("#ratings").focus();
-                    alert("You must at least have 1 rating!");
+                    ToastService.warning('Rating Required', 'You must at least have 1 rating!');
                     
                     return false;   
                 }
@@ -228,7 +228,7 @@
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Create Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 

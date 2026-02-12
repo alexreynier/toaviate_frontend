@@ -1,7 +1,7 @@
  app.controller('ManagePoidController', ManagePoidController);
 
-    ManagePoidController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'PoidService', 'AuthenticationService'];
-    function ManagePoidController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, PoidService, AuthenticationService) {
+    ManagePoidController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'PoidService', 'AuthenticationService', 'ToastService'];
+    function ManagePoidController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, PoidService, AuthenticationService, ToastService) {
         
         var vm = this;        
 
@@ -348,7 +348,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                                 vm.show_temp_login = false;
                             } else {
-                                alert("This is the wrong password - please try again...");
+                                ToastService.error('Wrong Password', 'This is the wrong password - please try again.');
                             }
                         });
 
@@ -386,7 +386,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
 
                             }
 
@@ -410,22 +410,24 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(vm.poid_images.length < 1 && vm.poid.images.length < 1){
 
-                    $(".drop").focus();
-                    alert("You must at least have 1 image of your poid!");
-
+                    ToastService.highlightField('.drop');
+                    ToastService.warning('Image Required', 'You must at least have 1 image of your poid!');
+                    vm.show_loading = false;
                     return false;   
                 }
 
 
                 if(!vm.poid.expiry_date){
-                    $("#expiry_date").focus();
-                    alert("You must enter an expiry date for your ID");
+                    ToastService.highlightField('expiry_date');
+                    ToastService.warning('Expiry Required', 'You must enter an expiry date for your ID.');
+                    vm.show_loading = false;
                     return false;
                 }
 
                  if(!vm.poid.title){
-                    $("#title").focus();
-                    alert("You must enter an ID Type");
+                    ToastService.highlightField('title');
+                    ToastService.warning('ID Type Required', 'You must enter an ID Type.');
+                    vm.show_loading = false;
                     return false;
                 }
 
@@ -468,7 +470,7 @@ OLD VERSION FOR LEGACY PURPOSES
                             vm.show_loading = false;
                                 //move somewhere?
 
-                                alert("Saved!");
+                                ToastService.success('Saved', 'Your changes have been saved.');
                                 $state.go('dashboard.my_account.poid', {}, { reload: true });
 
 
@@ -477,7 +479,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
                             vm.show_loading = false;
 
                             }
@@ -510,7 +512,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
                                 vm.show_loading = false;
 
                             }

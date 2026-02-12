@@ -1,7 +1,7 @@
  app.controller('BookinController', BookinController);
 
-    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig'];
-    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig) {
+    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService'];
+    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService) {
         
         var vm = this;
 
@@ -211,7 +211,7 @@
             // console.log("CAIMING", vm.claimed_flight);
 
             if(vm.bookout.flight_date !== vm.claimed_flight.flight_date && force === false){
-                alert("The bookout date and the flight you are claiming do not match - are you absolutely sure that this is your flight?");
+                ToastService.warning('Date Mismatch', 'The bookout date and the flight you are claiming do not match - are you absolutely sure that this is your flight?');
                 vm.different_date_warning = true;
                 return false;
             }
@@ -428,7 +428,7 @@
             // //console.log("--> ", vm.bookout.instructor_id);
             // //console.log("--> ", vm.bookout.pic.user_id);
             if(vm.bookout.put.user_id == vm.bookout.pic.user_id){
-                alert("please select a different PIC to the PUT");
+                ToastService.warning('Selection Error', 'Please select a different PIC to the PUT');
                 vm.bookout.put = {};
                 return false;
             }
@@ -487,7 +487,7 @@
                     vm.bookout.payer_id = vm.bookout.pic_id;
                 }
                 if(vm.bookout.payer_id == 0){
-                    alert("It appears you need to select a student or person paying for this flight? Please select a student or pilot in command");
+                    ToastService.warning('Payer Required', 'Please select a student or person paying for this flight');
                 }
             }
 
@@ -550,7 +550,7 @@
                         vm.bookout.payer_id = vm.bookout.pic_id;
                     }
                     if(vm.bookout.payer_id == 0){
-                        alert("It appears you need to select a student or person paying for this flight? Please select a student or pilot in command");
+                        ToastService.warning('Payer Required', 'Please select a student or person paying for this flight');
                     }
                 }
                 // if(vm.bookout.pic_id > 0){
@@ -956,7 +956,7 @@
                 } else {
                     if(!vm.ignore_next_tuition_change){
                         if(vm.bookout.instructor_id > 0){
-                            alert("Please select a tuition type for this flight.");
+                            ToastService.warning('Tuition Required', 'Please select a tuition type for this flight.');
                         }
                         vm.ignore_next_tuition_change = false;
                     }
@@ -1014,7 +1014,7 @@
             vm.add_receipt = function(){
 
                 if(vm.receipt.reimbursement && !vm.receipt.image){
-                    alert("You must upload a copy of your receipt if you wish to be re-imbursed.");
+                    ToastService.warning('Receipt Required', 'You must upload a copy of your receipt if you wish to be reimbursed.');
                     return false;
                 }
 
@@ -1958,7 +1958,7 @@
                         
 
                         if(data.bookout.booked_in == 1){
-                            alert("It appears that you have already booked this flight back in...");
+                            ToastService.warning('Already Booked', 'It appears that you have already booked this flight back in.');
                             $state.go('dashboard.my_account', {}, { reload: true });
                         }
 
@@ -2031,7 +2031,7 @@
                                         vm.bookout.payer_id = vm.bookout.pic_id;
                                     }
                                     if(vm.bookout.payer_id == 0){
-                                        alert("It appears you need to select a student or person paying for this flight? Please select a student or pilot in command");
+                                        ToastService.warning('Payer Required', 'Please select a student or person paying for this flight');
                                     }
                                 }
                             }
@@ -2239,7 +2239,7 @@
         vm.check_tacho_bigger = function(){
 
          if(vm.bookout.start_tacho >= vm.bookout.end_tacho){
-                    alert("Please check start and end tacho \n You cannot end on a smaller tacho");
+                    ToastService.warning('Tacho Error', 'Please check start and end tacho. You cannot end on a smaller tacho.');
                     vm.tacho_error_highlight = true;
                 } else {
                     vm.tacho_error_highlight = false;
@@ -2544,27 +2544,25 @@
 
 
             if(vm.tacho_error_highlight){
-                alert("You cannot complete a flight where the last meter reading is greater than the start meter reading!");
+                ToastService.highlightField('tacho_end');
+                ToastService.error('Meter Error', 'You cannot complete a flight where the last meter reading is greater than the start meter reading!');
                 return false;
             }
 
             if(vm.this_claim_was_instructional && (vm.bookout.instructor_id == 0 || vm.bookout.tuition_id == 0)){
-                alert("You need to add an instructor and tuition type if this flight was instructional.");
+                ToastService.highlightField('instructor_id');
+                ToastService.warning('Missing Details', 'You need to add an instructor and tuition type if this flight was instructional.');
                 return false;
             }
 
             if(vm.bookout.instructor_id > 0 && vm.bookout.tuition_id == 0){
-                alert("Please select a tuition type for this flight.");
-                return false;
-            }
-            
-            if(vm.tacho_error_highlight){
-                alert("You cannot complete a flight where the last meter reading is greater than the start meter reading!");
+                ToastService.highlightField('tuition_id');
+                ToastService.warning('Tuition Required', 'Please select a tuition type for this flight.');
                 return false;
             }
 
-            if(vm.invoice_totals === NaN){
-                alert("Please ensure you have filled in the form above - as the current total for this invoice cannot be calculated without this.");
+            if(isNaN(vm.invoice_totals)){
+                ToastService.warning('Form Incomplete', 'Please ensure you have filled in the form above - the current total for this invoice cannot be calculated without this.');
                 return false;
             }
 
@@ -3230,12 +3228,12 @@
                     } else if(data.error){
 
                         //there was an error with the link to the card machine...
-                        alert("There was an error connecting to the card machine - please ensure that the card machine is ON and connected to the internet.");
+                        ToastService.error('Card Machine Error', 'There was an error connecting to the card machine - please ensure that the card machine is ON and connected to the internet.');
                          vm.show_loading = false;
                         vm.show_cardmachine = true;
 
                     } else {
-                        alert("an error occurred.... \n\n "+data.message);
+                        ToastService.error('Error', 'An error occurred: ' + data.message);
                          vm.show_loading = false;
                     }
 
@@ -3319,16 +3317,16 @@
             .then(function(data){
                 console.log(data);
                 if(data.success){
-                    alert("The card machine should hopefully be displaying the payment now");
+                    ToastService.success('Payment Sent', 'The card machine should hopefully be displaying the payment now');
                     //create new poll??
                     vm.stop_polling = false;
                     poll_check_payment(vm.payment_id, 30, function(result) {
                         if (result) {
-                            alert("Payment confirmed!");
+                            ToastService.success('Payment Confirmed', 'Payment confirmed!');
                             vm.stop_polling = true;
                             after_success_bookin(vm.after_where_to, vm.after_data);
                         } else {
-                            alert("Payment not confirmed - please try again");
+                            ToastService.error('Payment Failed', 'Payment not confirmed - please try again');
                         }
                     });
                 } else {
@@ -3336,7 +3334,7 @@
                         vm.stop_polling = true;
                         after_success_bookin(vm.after_where_to, vm.after_data);
                     }
-                    alert(data.message);
+                    ToastService.error('Payment Error', data.message);
                 }
 
             });

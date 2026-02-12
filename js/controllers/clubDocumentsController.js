@@ -1,7 +1,7 @@
  app.controller('ClubDocumentsController', ClubDocumentsController);
 
-    ClubDocumentsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', '$http'];
-    function ClubDocumentsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, $http) {
+    ClubDocumentsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', '$http', 'ToastService'];
+    function ClubDocumentsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, $http, ToastService) {
         
         var vm = this;
         vm.licence_images = [];
@@ -332,7 +332,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Save Failed', 'Something went terribly wrong... ' + data.message);
 
                             }
 
@@ -351,12 +351,26 @@ OLD VERSION FOR LEGACY PURPOSES
 
 
             $scope.save_licence = function(isValid){
-                //console.log("HERE ALEX", vm.document);
-                if(vm.documents.length < 1 && vm.document.document == ""){
 
-                    $(".drop").focus();
-                    alert("You must at least have 1 pdf!");
+                if(!vm.document.id){
+                    // Creating — a file upload is mandatory
+                    if(!vm.documents || vm.documents.length < 1){
+                        ToastService.highlightField('.drop');
+                        ToastService.warning('Missing Document', 'You must upload at least 1 file before saving!');
+                        return false;
+                    }
+                } else {
+                    // Editing — existing doc must still have its file
+                    if((!vm.documents || vm.documents.length < 1) && (!vm.document.document || vm.document.document == "")){
+                        ToastService.highlightField('.drop');
+                        ToastService.warning('Missing Document', 'You must at least have 1 pdf!');
+                        return false;
+                    }
+                }
 
+                if(!vm.document.title || vm.document.title.trim() === ''){
+                    ToastService.highlightField('doc_title');
+                    ToastService.warning('Title Required', 'Please enter a title for this document.');
                     return false;
                 }
 
@@ -400,7 +414,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Save Failed', 'Something went terribly wrong... ' + data.message);
 
                             }
 
@@ -443,7 +457,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Save Failed', 'Something went terribly wrong... ' + data.message);
 
                             }
 
@@ -498,7 +512,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Delete Failed', 'Something went terribly wrong... ' + data.message);
 
                             }
 
@@ -657,7 +671,7 @@ OLD VERSION FOR LEGACY PURPOSES
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -679,7 +693,7 @@ OLD VERSION FOR LEGACY PURPOSES
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

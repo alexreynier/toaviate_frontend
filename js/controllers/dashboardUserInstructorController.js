@@ -1,7 +1,7 @@
  app.controller('DashboardUserInstructorController', DashboardUserInstructorController);
 
-    DashboardUserInstructorController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window'];
-    function DashboardUserInstructorController(UserService, MemberService, InstructorService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window) {
+    DashboardUserInstructorController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'ToastService'];
+    function DashboardUserInstructorController(UserService, MemberService, InstructorService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -720,7 +720,7 @@
 
             } else {
                 //console.log("missing key elements in headers!");
-                alert("You must select the First Name, Last Name and Email Address to be able to add the user to the system!");
+                ToastService.warning('Missing Fields', 'You must select the First Name, Last Name and Email Address to be able to add the user to the system!');
             }
         
 
@@ -740,7 +740,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this membership?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this membership?');
             MemberService.Update(vm.club.membership)
                 .then(function(data){
                     //console.log(data);

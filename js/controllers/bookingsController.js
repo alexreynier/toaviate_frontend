@@ -1,7 +1,7 @@
  app.controller('BookingsController', BookingsController);
 
-    BookingsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService'];
-    function BookingsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService) {
+    BookingsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService'];
+    function BookingsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService) {
         
         var vm = this;
         var defaultStartTime = 480;
@@ -298,7 +298,7 @@
                                 // //console.log("MY INSTRUCTOR HERE2244: ", vm.new_booking.instructor);
 
                             } else {
-                                alert("Booking Error \n \n"+data.message);
+                                ToastService.error('Booking Error', data.message);
                                 $state.go('dashboard.bookings.add');
                             }
 
@@ -986,7 +986,7 @@
 // Date.parse(vm.new_booking.start_datetime)
 
                 if(moment(Date.parse(vm.new_booking.end_datetime)).add(1, "hour").isBefore()){
-                    alert("This booking ends in the past by more than an hour - you cannot amend a booking that finished in the past.");
+                    ToastService.warning('Past Booking', 'This booking ends in the past by more than an hour - you cannot amend a booking that finished in the past.');
                     return false;
                 }
                 //30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1196,7 +1196,7 @@
         // //console.log("all_events", $scope.all_events);
 
         if(moment(Date.parse(evnt.end)) < moment()){
-            alert("This booking ends in the past - you cannot amend a booking in the past.");
+            ToastService.warning('Past Booking', 'This booking ends in the past - you cannot amend a booking in the past.');
             return false;
         }
         // 30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1247,7 +1247,7 @@
                     $scope.$parent.updateEvents(evnt.start, evnt.end);
                 }
                 
-                alert("Your changes were saved successfully");
+                ToastService.success('Changes Saved', 'Your changes were saved successfully');
                 
                 if(vm.return_to == "bookout") {
                     //console.log("WE ARE AT THE BOOKOUT BIT - SO RETURN THERE!!!");
@@ -1782,7 +1782,7 @@
                 free_places();
                 vm.show_new_passenger_invitation = false;
             } else {
-                alert("The email address appears to be incorrect - please double check the email address entered.");
+                ToastService.warning('Invalid Email', 'The email address appears to be incorrect - please double check the email address entered.');
                 return false;
             }
         }
@@ -1800,7 +1800,7 @@
             BookingService.DeleteBooking(vm.user.id, booking_id)
             .then(function(data){
                 //console.log(data);
-                alert("booking cancelled");
+                ToastService.success('Booking Cancelled', 'The booking has been cancelled');
 
                 if(data.success){
                     $state.go('dashboard.bookings.add');
@@ -1814,7 +1814,7 @@
                     $('#calendar').fullCalendar('addEventSource', $scope.all_events);
 
                 } else {
-                    alert("an error occurred...");
+                    ToastService.error('Error', 'An error occurred');
                     //console.log("ERROR", data);
                 }
 
@@ -1907,7 +1907,7 @@
                         vm.new_booking.passengers.splice(i, 1);
                         vm.init_passengers();
                     } else {
-                        alert(data.message);
+                        ToastService.error('Error', data.message);
                     }
 
                 });
@@ -1939,9 +1939,9 @@
                 .then(function(data){
                     //console.log(data);
                     if(data.success == true){
-                        alert(data.message);
+                        ToastService.success('Success', data.message);
                     } else {
-                        alert(data.message);
+                        ToastService.error('Error', data.message);
                     }
 
                 });
@@ -2581,12 +2581,12 @@
                 // //console.log("NOW : ", moment());
 
                 if(moment(Date.parse(vm.new_booking.start_datetime)).isBefore()){
-                    alert("This booking ends in the past - you cannot create a booking in the past.");
+                    ToastService.warning('Past Booking', 'This booking ends in the past - you cannot create a booking in the past.');
                     return false;
                 }
                 //30 mintues leeway in case of booking starting within the 15 minute period or similar
                 if(moment(Date.parse(vm.new_booking.start_datetime)).add(30, "minutes").isBefore()){
-                    alert("This booking starts in the past - you cannot create a booking in the past.");
+                    ToastService.warning('Past Booking', 'This booking starts in the past - you cannot create a booking in the past.');
                     return false;
                 }
 
@@ -2695,7 +2695,7 @@
                             data.message = data.message + addon;
                         }
 
-                        alert("Sorry! \n\n"+data.message);
+                        ToastService.error('Error', data.message);
                     }
                     
                 });

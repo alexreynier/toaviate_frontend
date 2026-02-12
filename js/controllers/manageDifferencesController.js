@@ -1,7 +1,7 @@
  app.controller('ManageDifferencesController', ManageDifferencesController);
 
-    ManageDifferencesController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'DifferencesService'];
-    function ManageDifferencesController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, DifferencesService) {
+    ManageDifferencesController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'DifferencesService', 'ToastService'];
+    function ManageDifferencesController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, DifferencesService, ToastService) {
         
         var vm = this;
 
@@ -199,8 +199,8 @@
 
                 if(vm.differences_images.length < 1 && vm.differences.images.length < 1){
 
-                    $(".drop").focus();
-                    alert("You must at least have 1 image of the differences page of your log book!");
+                    ToastService.highlightField('.drop');
+                    ToastService.warning('Image Required', 'You must at least have 1 image of the differences page of your log book!');
 
                     return false;   
                 }
@@ -208,8 +208,8 @@
 
                 if(vm.differences.differences.length < 1){
 
-                    $("#differences").focus();
-                    alert("You must at least have 1 differences to be able to save the image(s) above!");
+                    ToastService.highlightField('differences');
+                    ToastService.warning('Differences Required', 'You must at least have 1 differences to be able to save the image(s) above!');
                     
                     return false;   
                 }
@@ -243,13 +243,13 @@
                             // //console.log(data);
                             if(data.success){
                                
-                                alert("Differences Saved!");
+                                ToastService.success('Differences Saved', 'Differences saved successfully!');
                                 $state.go('dashboard.my_account', {}, { reload: true });
 
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Save Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
                         });

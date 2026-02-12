@@ -1,7 +1,7 @@
  app.controller('DashboardClubShopItemsController', DashboardClubShopItemsController);
 
-    DashboardClubShopItemsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ShopItemService'];
-    function DashboardClubShopItemsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ShopItemService) {
+    DashboardClubShopItemsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ShopItemService', 'ToastService'];
+    function DashboardClubShopItemsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ShopItemService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -61,13 +61,18 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.item.title,                                      field: 'title', label: 'Title' },
+                { ok: vm.club.item.price != null && vm.club.item.price !== '',  field: 'price', label: 'Price' }
+            ];
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
@@ -99,7 +104,7 @@
                         });
 
                     } else {
-                        alert("An error occured when trying to delete this item.");
+                        ToastService.error('Delete Error', 'An error occurred when trying to delete this item.');
                     }
 
                 });

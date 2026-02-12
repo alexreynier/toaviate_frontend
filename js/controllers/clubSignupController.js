@@ -1,7 +1,7 @@
 app.controller('ClubSignupController', ClubSignupController);
 
-    ClubSignupController.$inject = ['ClubService', 'MemberService', 'UserService', 'GoCardService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$http' ];
-    function ClubSignupController(ClubService, MemberService, UserService, GoCardService, $rootScope, $location, $scope, $state, $stateParams, $cookies, $http) {
+    ClubSignupController.$inject = ['ClubService', 'MemberService', 'UserService', 'GoCardService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$http', 'ToastService' ];
+    function ClubSignupController(ClubService, MemberService, UserService, GoCardService, $rootScope, $location, $scope, $state, $stateParams, $cookies, $http, ToastService) {
         
 
     		var vm = this;
@@ -1212,7 +1212,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		                        // vm.title = "Thank You!";
 		                        // vm.verify_status = "Your email address has been verified.";
 		                    } else {
-		                    	alert("Sorry - your verification link seems to be incorrect.")
+		                    	ToastService.error('Verification Failed', 'Sorry - your verification link seems to be incorrect.')
 		                        // vm.title = "Sorry!";
 		                        // vm.verify_status = "Sorry - something went wrong here! Please try clicking the link your email again. Should this still be a problem, please contact support.";
 		                    }
@@ -1243,7 +1243,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		                        // vm.title = "Thank You!";
 		                        // vm.verify_status = "Your email address has been verified.";
 		                    } else {
-		                    	alert("Sorry - we were unable to setup your connection to our payment provider GoCardless.")
+		                    	ToastService.error('Setup Failed', 'Sorry - we were unable to setup your connection to our payment provider GoCardless.')
 		                        // vm.title = "Sorry!";
 		                        // vm.verify_status = "Sorry - something went wrong here! Please try clicking the link your email again. Should this still be a problem, please contact support.";
 		                    }
@@ -1284,7 +1284,7 @@ app.controller('ClubSignupController', ClubSignupController);
 
 
 		                    } else {
-		                    	alert("Your verification code is incorrect...");
+		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
     							$scope.verified_mobile = false;
 		                    }
 
@@ -1417,7 +1417,7 @@ app.controller('ClubSignupController', ClubSignupController);
 
 		    	if(user_is_named_on_company_selected){
 
-		    		alert("We have matched you!");
+		    		ToastService.success('Match Found', 'We have matched you!');
 
 		    		//now that we have some basic setup then we can get into the nitty gritty of adding
 		    		$scope.formData.club = {};
@@ -1442,7 +1442,7 @@ app.controller('ClubSignupController', ClubSignupController);
 
 		    	} else {
 
-		    		alert("Unfortunately we cannot match your personal details with any of the company directors. Did you select the correct company from the drop-down list?");
+		    		ToastService.error('No Match', 'Unfortunately we cannot match your personal details with any of the company directors. Did you select the correct company from the drop-down list?');
 
 		    	}
 
@@ -1470,7 +1470,7 @@ app.controller('ClubSignupController', ClubSignupController);
             //let's check the passwords match first...
             if($scope.formData.user.password !== $scope.formData.user.password2){
               $("input[type='password']").removeClass("ng-pristine").addClass("ng-invalid");
-              alert("Your passwords do not match");
+              ToastService.warning('Password Mismatch', 'Your passwords do not match');
               return false;
             }
 
@@ -1480,7 +1480,7 @@ app.controller('ClubSignupController', ClubSignupController);
               //console.log("password strength OK");
             } else {
               $("input[type='password']").removeClass("ng-pristine").addClass("ng-invalid");
-              alert("Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character");
+              ToastService.warning('Weak Password', 'Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character');
               return false;
             }
 
@@ -1501,13 +1501,13 @@ app.controller('ClubSignupController', ClubSignupController);
 		    		}
 
 		    		if(!vm.selected_phone.CountryCode){
-			    		alert("Please select the country prefix of the mobile phone entered from the drop-down menu, this will ensure that the text messages we send will be sent to the correct telephone number.");
+			    		ToastService.warning('Country Code Required', 'Please select the country prefix of the mobile phone entered from the drop-down menu, this will ensure that the text messages we send will be sent to the correct telephone number.');
 			    		return false;
 			    	}
 			    	var mobile = $scope.formData.user.phone;
 
 			    	if($scope.formData.user.phone.slice(0,1) == 0){
-			    		alert("Your telephone number seems to start with a 0, as we will be using your international phone number, the first zero will be stripped automatically.");
+			    		ToastService.warning('Phone Number', 'Your telephone number seems to start with a 0, as we will be using your international phone number, the first zero will be stripped automatically.');
 			    		$scope.formData.user.phone.phone = $scope.formData.user.phone.phone.substring(1);
 			    	}
 
@@ -1562,7 +1562,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		                });
 
 	            } else {
-	            	alert("Something went wrong...");
+	            	ToastService.error('Error', 'Something went wrong.');
 	            }
 		    };
 
@@ -1588,7 +1588,7 @@ app.controller('ClubSignupController', ClubSignupController);
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

@@ -5,8 +5,8 @@
 
  app.controller('DashboardClubItemsController', DashboardClubItemsController);
 
-    DashboardClubItemsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ItemService'];
-    function DashboardClubItemsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ItemService) {
+    DashboardClubItemsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ItemService', 'ToastService'];
+    function DashboardClubItemsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ItemService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -66,20 +66,25 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.item.title,                                    field: 'title',            label: 'Title' },
+                { ok: vm.club.item.cost != null && vm.club.item.cost !== '',  field: 'cost',             label: 'Cost' },
+                { ok: vm.club.item.number_available != null && vm.club.item.number_available !== '', field: 'number_available', label: 'Number Available' },
+                { ok: vm.club.item.cost_schedule,                            field: 'cost_schedule',    label: 'Cost Schedule' }
+            ];
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
 
-
         $scope.create = function(){
-            //console.log("CREATE ME NOW");
             vm.club.item.club_id = vm.club_id;
             ItemService.Create(vm.club.item)
                 .then(function(data){
@@ -113,7 +118,7 @@
                         });
 
                     } else {
-                        alert("An error occured when trying to delete this item.");
+                        ToastService.error('Delete Error', 'An error occurred when trying to delete this item.');
                     }
 
                 });

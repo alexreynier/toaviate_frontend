@@ -1,7 +1,7 @@
  app.controller('DashboardClubVouchersAddController', DashboardClubVouchersAddController);
 
-    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'EnvConfig'];
-    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, EnvConfig) {
+    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'EnvConfig', 'ToastService'];
+    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, EnvConfig, ToastService) {
         var vm = this;
 
         //console.log("HELLOOOO ADD vouchers");
@@ -141,13 +141,26 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.item.experience && vm.club.item.experience.id, field: 'voucher_experience', label: 'Experience' },
+                { ok: vm.club.item.first_name, field: 'first_name', label: 'First Name' },
+                { ok: vm.club.item.last_name,  field: 'last_name',  label: 'Last Name' },
+                { ok: vm.club.item.email,      field: 'email',      label: 'Email Address' },
+                { ok: vm.club.item.code,       field: 'code',       label: 'Voucher Code' },
+                { ok: vm.club.item.expiry_date, field: 'expiry_date', label: 'Expiry Date' }
+            ];
+            if (vm.already_paid) {
+                checks.push({ ok: vm.club.item.price_paid != null && vm.club.item.price_paid >= 0, field: 'price_paid', label: 'Price Paid' });
+                checks.push({ ok: vm.club.item.payment_method, field: 'payment_method', label: 'Payment Method' });
+            }
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
@@ -158,17 +171,17 @@
 
             //first sanity check goes here...
             if(!vm.club.item.experience || !vm.club.item.experience.id){
-                alert("You must select an experience to issue this voucher...");
+                ToastService.warning('Selection Required', 'You must select an experience to issue this voucher.');
                 return false;
             }
             if(!vm.club.item.first_name || !vm.club.item.last_name || !vm.club.item.email){
-                alert("You must enter the purchasor's first name, last name and email address.");
+                ToastService.warning('Missing Details', "You must enter the purchasor's first name, last name and email address.");
                 return false;
             }
 
             if(vm.already_paid){
                 if(vm.club.item.price_paid < 0 || !vm.club.item.payment_method){
-                    alert("Please fill in how much was paid and what payment method was used to complete the payment");
+                    ToastService.warning('Payment Required', 'Please fill in how much was paid and what payment method was used to complete the payment.');
                     return false;
                 }
             }
@@ -285,7 +298,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this voucher?');
             VoucherService.Delete(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);

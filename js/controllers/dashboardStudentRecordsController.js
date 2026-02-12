@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -125,7 +125,7 @@
 
         vm.load_records = function(){
             if(!vm.member || !vm.course){
-                alert("You need to select a member and a course to see their training records");
+                ToastService.warning('Selection Required', 'You need to select a member and a course to see their training records');
             } else {
                 vm.student_id = vm.member.user_id;
                 vm.course_id = vm.course.id;
@@ -383,7 +383,7 @@
 
         vm.load_records_user = function(){
             if( !vm.course){
-                alert("You need to select a course to see your training records");
+                ToastService.warning('Selection Required', 'You need to select a course to see your training records');
             } else {
 
                 vm.course_id = vm.course.id;
@@ -421,7 +421,7 @@
                                         //clear the vm.new_exam
 
                                     } else {
-                                        alert("The exam could not be added");
+                                        ToastService.error('Exam Error', 'The exam could not be added');
                                     }
                                 });
         }
@@ -718,7 +718,7 @@
         vm.add_tag = function(){
             //CHECK IF ADD DOES ALREADY EXIST!!!
             if(vm.selected_flight_tags.find(tag => tag.flight_tag_id === vm.flight_tag.id)){
-                alert("You already have this tag on this flight!");
+                ToastService.warning('Duplicate Tag', 'You already have this tag on this flight!');
                 return false;
             }
 
@@ -785,7 +785,7 @@
             // //console.log("PROGRESS: ", compiled_items.length);
 
             if(compiled_items.length < 1 && (!vm.general_remarks || vm.general_remarks == "")){
-                alert("To save student records, you need to tick at least one student progress record item OR add a general remark");
+                ToastService.warning('Validation', 'To save student records, you need to tick at least one student progress record item OR add a general remark');
                 return false;
             }
 
@@ -841,7 +841,7 @@
             // //console.log("PROGRESS: ", compiled_items.length);
 
             if(compiled_items.length < 1 && (!vm.general_remarks || vm.general_remarks == "")){
-                alert("To save student records, you need to tick at least one student progress record item OR add a general remark");
+                ToastService.warning('Validation', 'To save student records, you need to tick at least one student progress record item OR add a general remark');
                 return false;
             }
 
@@ -887,7 +887,7 @@
                 .then(function(data){
                     if(data.success){
 
-                        alert("THANK YOU!");
+                        ToastService.success('Records Saved', 'Thank you!');
                         //$state.go('dashboard.manage_user', {reload: true});
                         //vm.show_record = false;
                         //vm.show_edit_record = false;
@@ -915,7 +915,7 @@
                         vm.this_entry = {};
 
                     } else {
-                        alert("We could not save your training records...");
+                        ToastService.error('Save Failed', 'We could not save your training records...');
                     }
         
                 });

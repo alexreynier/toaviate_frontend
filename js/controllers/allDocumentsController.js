@@ -1,7 +1,7 @@
  app.controller('AllDocumentsController', AllDocumentsController);
 
-    AllDocumentsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http'];
-    function AllDocumentsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http) {
+    AllDocumentsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'ToastService'];
+    function AllDocumentsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, ToastService) {
         
         var vm = this;
 
@@ -210,7 +210,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -232,7 +232,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

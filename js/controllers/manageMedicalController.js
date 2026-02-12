@@ -1,7 +1,7 @@
  app.controller('ManageMedicalController', ManageMedicalController);
 
-    ManageMedicalController.$inject = ['UserService', 'MemberService', 'AuthenticationService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'MedicalService'];
-    function ManageMedicalController(UserService, MemberService, AuthenticationService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, MedicalService) {
+    ManageMedicalController.$inject = ['UserService', 'MemberService', 'AuthenticationService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'MedicalService', 'ToastService'];
+    function ManageMedicalController(UserService, MemberService, AuthenticationService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, MedicalService, ToastService) {
         
         var vm = this;        
 
@@ -314,7 +314,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                         vm.show_temp_login = false;
                     } else {
-                        alert("This is the wrong password - please try again...");
+                        ToastService.error('Wrong Password', 'This is the wrong password - please try again...');
                     }
                 });
 
@@ -398,7 +398,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Delete Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 
@@ -422,8 +422,8 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(vm.medical_images.length < 1 && vm.medical.images.length < 1){
 
-                    $(".drop").focus();
-                    alert("You must at least have 1 image of your medical!");
+                    ToastService.highlightField('.drop');
+                    ToastService.warning('Image Required', 'You must at least have 1 image of your medical!');
 
                     vm.show_loading = false;
                     return false;   
@@ -431,8 +431,8 @@ OLD VERSION FOR LEGACY PURPOSES
 
 
                 if(!vm.medical.state_of_issue){
-                    $("#state_of_issue").focus();
-                    alert("You must select a medical state of issue");
+                    ToastService.highlightField('state_of_issue');
+                    ToastService.warning('State Required', 'You must select a medical state of issue');
                     vm.show_loading = false;
                     return false;
                 }
@@ -440,8 +440,8 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(vm.medical.components.length < 1){
 
-                    $("#components").focus();
-                    alert("You must at least have 1 component!");
+                    ToastService.highlightField('components');
+                    ToastService.warning('Component Required', 'You must at least have 1 component!');
                     vm.show_loading = false;
                     return false;   
                 }
@@ -494,7 +494,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Update Failed', 'Something went terribly wrong: ' + data.message);
                                 vm.show_loading = false;
 
                             }
@@ -527,7 +527,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Create Failed', 'Something went terribly wrong: ' + data.message);
                                 vm.show_loading = false;
 
                             }

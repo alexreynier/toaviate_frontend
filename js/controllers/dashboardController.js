@@ -11,8 +11,8 @@
 
  app.controller('DashboardController', DashboardController);
 
-    DashboardController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope', '$location', 'AuthenticationService'];
-    function DashboardController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $location, AuthenticationService) {
+    DashboardController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope', '$location', 'AuthenticationService', 'ToastService'];
+    function DashboardController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $location, AuthenticationService, ToastService) {
         var vm = this;
 
         if(!$rootScope.globals.currentUser){
@@ -175,7 +175,7 @@
 
 
                      } else {
-                         alert(data.message);
+                         ToastService.error('Error', data.message);
                      }
                                                 
                     });
@@ -201,7 +201,7 @@
 
 
                      } else {
-                         alert(data.message);
+                         ToastService.error('Error', data.message);
                      }
                                                 
                     });

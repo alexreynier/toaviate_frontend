@@ -1,7 +1,7 @@
  app.controller('DashboardUserInstructorHolidayController', DashboardUserInstructorHolidayController);
 
-    DashboardUserInstructorHolidayController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig'];
-    function DashboardUserInstructorHolidayController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig) {
+    DashboardUserInstructorHolidayController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'ToastService'];
+    function DashboardUserInstructorHolidayController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, ToastService) {
         var vm = this;
 
         var defaultStartTime = 480;
@@ -803,7 +803,7 @@ AND THE HTML IS:
 
             } else {
                 //console.log("missing key elements in headers!");
-                alert("You must select the First Name, Last Name and Email Address to be able to add the user to the system!");
+                ToastService.warning('Missing Fields', 'You must select the First Name, Last Name and Email Address to be able to add the user to the system!');
             }
         
 
@@ -823,7 +823,7 @@ AND THE HTML IS:
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this membership?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this membership?');
             MemberService.Update(vm.club.membership)
                 .then(function(data){
                     //console.log(data);

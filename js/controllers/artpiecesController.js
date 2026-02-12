@@ -1,7 +1,7 @@
 app.controller('ArtpiecesController', ArtpiecesController);
  
-    ArtpiecesController.$inject = ['UserService', 'CategoryService', 'ArtpiecesService', '$location', '$rootScope', 'FlashService', '$routeParams', '$scope'];
-    function ArtpiecesController(UserService, CategoryService, ArtpiecesService, $location, $rootScope, FlashService, $routeParams, $scope) {
+    ArtpiecesController.$inject = ['UserService', 'CategoryService', 'ArtpiecesService', '$location', '$rootScope', 'FlashService', '$routeParams', '$scope', 'ToastService'];
+    function ArtpiecesController(UserService, CategoryService, ArtpiecesService, $location, $rootScope, FlashService, $routeParams, $scope, ToastService) {
         var vm = this;
         vm.artpiece = {};
         vm.artpiece.categories = [];
@@ -91,24 +91,39 @@ app.controller('ArtpiecesController', ArtpiecesController);
 		}
 
 		$scope.addArtpiece = function(){
-			//console.log("SUBMITTED");
-			//console.log(vm.artpiece);
+			// ── Pre-submit validation ──
+			if (!vm.artpiece.title || vm.artpiece.title.trim() === '') {
+				ToastService.highlightField('artpiece_title');
+				ToastService.warning('Title Required', 'Please enter a title for the artpiece.');
+				return;
+			}
 			ArtpiecesService.Create(vm.artpiece)
                 .then(function (data) {
-                    	
-                    $location.path("/artpieces");
-                    vm.artpiece = {};
-
+                    if (data.success !== false) {
+                        ToastService.success('Artpiece Created', 'Your artpiece has been added.');
+                        $location.path("/artpieces");
+                        vm.artpiece = {};
+                    } else {
+                        ToastService.error('Create Failed', data.message || 'Something went wrong.');
+                    }
                 });
 		}
 
 		$scope.editArtpiece = function(){
+			if (!vm.artpiece.title || vm.artpiece.title.trim() === '') {
+				ToastService.highlightField('artpiece_title');
+				ToastService.warning('Title Required', 'Please enter a title for the artpiece.');
+				return;
+			}
 			ArtpiecesService.Update(vm.artpiece)
                 .then(function (data) {
-                    	
-                    $location.path("/artpieces");
-                    vm.artpiece = {};
-
+                    if (data.success !== false) {
+                        ToastService.success('Artpiece Updated', 'Your changes have been saved.');
+                        $location.path("/artpieces");
+                        vm.artpiece = {};
+                    } else {
+                        ToastService.error('Update Failed', data.message || 'Something went wrong.');
+                    }
                 });
 		}
 

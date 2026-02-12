@@ -1,7 +1,7 @@
  app.controller('ManageMyMembershipsController', ManageMyMembershipsController);
 
-    ManageMyMembershipsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies', 'GoCardService', '$http', 'EnvConfig'];
-    function ManageMyMembershipsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies, GoCardService, $http, EnvConfig) {
+    ManageMyMembershipsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies', 'GoCardService', '$http', 'EnvConfig', 'ToastService'];
+    function ManageMyMembershipsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies, GoCardService, $http, EnvConfig, ToastService) {
         
         var vm = this;        
 
@@ -344,7 +344,7 @@
             $scope.accept_it = function(){
 
                 if(!vm.club_tnc){
-                    alert("You need to access the terms of the flight organisation prior to continuing!");
+                    ToastService.warning('Terms Required', 'You need to access the terms of the flight organisation prior to continuing!');
                     return false;
                 }
 
@@ -426,7 +426,7 @@
                         window.location = data.link;
                         
                     } else {
-                        alert("An error occurred when generating the link to update your direct debit instructions - please contact support@toaviate.com");
+                        ToastService.error('Direct Debit Error', 'An error occurred when generating the link to update your direct debit instructions - please contact support@toaviate.com');
                     }
                    
 
@@ -563,7 +563,7 @@
             }
 
             vm.try_charge_default_card = function(){
-                alert("GO TIME", vm.membership_now.cards[1].stripe_id);
+                ToastService.success('Processing', 'Initiating card charge.');
                 var invoice_id = 55;
                 var send_me = {
                     invoice_id: 55,
@@ -672,7 +672,7 @@
                 id: doc
             });
             if(!doc){
-                alert("Sorry - it looks like this flight organisation hasn't yet uploaded their document - please contact them to upload it to ToAviate.");
+                ToastService.warning('Document Unavailable', "Sorry - it looks like this flight organisation hasn't yet uploaded their document - please contact them to upload it to ToAviate.");
                 return false;
             }
             var ddd = doc.replace(/^.*[\\\/]/, '');
@@ -688,7 +688,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("This file is not available at the moment - please contact the flight organisation.");
+                    ToastService.error('Download Failed', 'This file is not available at the moment - please contact the flight organisation.');
                 })
         };
 
@@ -816,7 +816,7 @@
 
 
               if(vm.club_tnc && vm.card_tnc && vm.club.id && vm.membership.id){
-                alert("THANK YOU");
+                ToastService.success('Thank You', 'Your request has been submitted.');
 
                 var obj = {
                     user_id: vm.user.id,
@@ -849,7 +849,7 @@
 
 
               } else {
-                alert("Please fill all fields...");
+                ToastService.warning('Missing Fields', 'Please fill all fields.');
               }
 
             }

@@ -1,7 +1,7 @@
  app.controller('DashboardClubExperiencesController', DashboardClubExperiencesController);
 
-    DashboardClubExperiencesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService'];
-    function DashboardClubExperiencesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService ) {
+    DashboardClubExperiencesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'ToastService'];
+    function DashboardClubExperiencesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, ToastService ) {
         var vm = this;
 
         vm.user = null;
@@ -80,13 +80,27 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var item = vm.club.item || {};
+            var checks = [
+                { ok: item.title,                                                              field: 'title',            label: 'Title' },
+                { ok: item.price != null && item.price !== '',                                  field: 'price',            label: 'Price' },
+                { ok: item.valid_for != null && item.valid_for !== '',                          field: 'valid_for',        label: 'Validity (days)' },
+                { ok: item.booking_duration != null && item.booking_duration !== '',             field: 'booking_duration', label: 'Slot Required (hours)' }
+            ];
+            if (!ToastService.validateForm(checks)) return;
+
+            if (!item.planes || item.planes.length < 1) {
+                ToastService.highlightField('.card');
+                ToastService.warning('Aircraft Required', 'You must add at least 1 aircraft to this experience.');
+                return;
+            }
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
@@ -106,7 +120,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this plane?');
             ExperiencesService.Delete(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);
@@ -197,7 +211,7 @@
             switch(type){
                 case "plane":
                     //console.log("plane");
-                    if(vm.temporary.plane && vm.temporary.plane !== ""){
+                    if(vm.temporary.plane && vm.temporary.plane.id){
                         //then we can add it
                         //console.log("here we go");
                         // var add_plane = {
@@ -222,7 +236,8 @@
                         delete vm.temporary.plane;
 
                     } else {
-                        alert("Please select a plane that this activity be done on!");
+                        ToastService.highlightField('add_aircraft_select');
+                        ToastService.warning('Missing Plane', 'Please select a plane that this activity be done on!');
                     }
 
                 break;

@@ -373,11 +373,60 @@
 
                         // console.log("access is", $rootScope.globals.currentUser.access);
 
-                        callback($rootScope.globals.currentUser) ;
+                        // If user has manager access, fetch admin clubs and set current_club_admin before callback
+                        // This ensures child controllers have current_club_admin available immediately
+                        if ($rootScope.globals.currentUser.access.manager.length > 0) {
+                            UserService.GetAdminClubs(user.id)
+                                .then(function (clubData) {
+                                    if (clubData.success && clubData.clubs && clubData.clubs.length > 0) {
+                                        // Try to restore previously selected club from localStorage
+                                        var savedClubId = null;
+                                        try {
+                                            var stored = localStorage.getItem('toaviate_selected_club_id');
+                                            if (stored !== null) {
+                                                savedClubId = stored;
+                                            }
+                                        } catch(e) {}
+
+                                        var selectedClub = null;
+                                        if (savedClubId !== null) {
+                                            for (var i = 0; i < clubData.clubs.length; i++) {
+                                                if (String(clubData.clubs[i].id) === String(savedClubId)) {
+                                                    selectedClub = clubData.clubs[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        // Fall back to first club if no saved selection
+                                        if (!selectedClub) {
+                                            selectedClub = clubData.clubs[0];
+                                        }
+
+                                        $rootScope.globals.currentUser.current_club_admin = selectedClub;
+                                        $cookieStore.put('globals', $rootScope.globals);
+
+                                        try {
+                                            localStorage.setItem('toaviate_selected_club_id', String(selectedClub.id));
+                                        } catch(e) {}
+                                    }
+                                    callback($rootScope.globals.currentUser);
+                                })
+                                .catch(function() {
+                                    // If admin clubs fetch fails, still proceed with callback
+                                    callback($rootScope.globals.currentUser);
+                                });
+                        } else {
+                            callback($rootScope.globals.currentUser);
+                        }
                     } else {
                        
                         callback(false) ;
                     }
+                })
+                .catch(function(err) {
+                    // If GetAccess fails, still call the callback with false to avoid hanging login
+                    console.error('GetAccess failed:', err);
+                    callback(false);
                 });
 
             

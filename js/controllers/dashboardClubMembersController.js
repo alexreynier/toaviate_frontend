@@ -1,7 +1,7 @@
 app.controller('DashboardClubMembersController', DashboardClubMembersController);
 
-    DashboardClubMembersController.$inject = ['$sce', 'PaymentService', 'UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PackageService'];
-    function DashboardClubMembersController($sce, PaymentService, UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PackageService) {
+    DashboardClubMembersController.$inject = ['$sce', 'PaymentService', 'UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PackageService', 'ToastService'];
+    function DashboardClubMembersController($sce, PaymentService, UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PackageService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -9,6 +9,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
         vm.club = {};
         vm.page_title = "";
         vm.club.member = {};
+        vm.club.member.user = {}; // Initialize user object for form binding
                                 vm.club.member.payment_now = true;
 
         vm.imported_new_headers = [];
@@ -102,7 +103,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                        
                                     vm.show_pay_now = false;
 
-                                    alert("SUCCESS!");
+                                    ToastService.success('Success', 'Operation completed successfully');
 
 
                                 });
@@ -125,7 +126,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                            
 
                        } else {
-                           alert("Something happened which was not supposed to happen... Please try again");
+                           ToastService.error('Error', 'Something happened which was not supposed to happen... Please try again');
                            console.log("===== ERROR =====");
                            console.log(data);
                            console.log("===== ERROR =====");
@@ -259,6 +260,9 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             case "add":
                 //console.log("adding a new member please");
                 vm.page_title = "Add a New member";
+
+                // Prefill membership_start to today
+                vm.club.member.membership_start = new Date();
 
                  MembershipService.GetAllByClub(vm.club_id)
                     .then(function(data){
@@ -605,7 +609,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                             vm.show_package_popup = false;
                                             vm.show_loading = false;
                                         } else {
-                                            alert("an error happened - please try again");
+                                            ToastService.error('Error', 'An error happened - please try again');
                                             vm.show_package_popup = false;
                                             vm.show_loading = false;
                                         }
@@ -634,7 +638,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                     vm.packages = data.items;
                                     vm.show_package_popup = false;
                                 } else {
-                                    alert("an error happened - please try again");
+                                    ToastService.error('Error', 'An error happened - please try again');
                                     vm.show_package_popup = false;
                                 }
                             vm.show_loading = false;
@@ -1458,7 +1462,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
             } else {
                 //console.log("missing key elements in headers!");
-                alert("You must select the First Name, Last Name and Email Address to be able to add the user to the system!");
+                ToastService.warning('Missing Fields', 'You must select the First Name, Last Name and Email Address to be able to add the user to the system!');
             }
         
 
@@ -1519,8 +1523,77 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 });
         }
 
+        // Helper function to clear error highlight when field is focused
+        vm.clearFieldError = function(event) {
+            if (event && event.target) {
+                event.target.classList.remove('field-error-highlight');
+            }
+            // Also check parent for ui-select wrapper
+            var parent = event.target.closest('.field-error-highlight');
+            if (parent) {
+                parent.classList.remove('field-error-highlight');
+            }
+        };
+
+        // Helper function to highlight and scroll to invalid field
+        function highlightAndScrollTo(fieldId) {
+            // Clear any previous highlights
+            var highlighted = document.querySelectorAll('.field-error-highlight');
+            for (var i = 0; i < highlighted.length; i++) {
+                highlighted[i].classList.remove('field-error-highlight');
+            }
+            
+            // Find and highlight the field
+            var field = document.getElementById(fieldId);
+            if (field) {
+                field.classList.add('field-error-highlight');
+                field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                field.focus();
+            }
+        }
+
         //this should be admin / instructor only
         $scope.invite_member = function(){
+
+                // Validation checks
+                var first_name = vm.club.member.user && vm.club.member.user.first_name ? vm.club.member.user.first_name.trim() : '';
+                var last_name = vm.club.member.user && vm.club.member.user.last_name ? vm.club.member.user.last_name.trim() : '';
+                var email = vm.club.member.user && vm.club.member.user.email ? vm.club.member.user.email.trim() : '';
+
+                if (!first_name) {
+                    ToastService.error('Validation Error', 'First name is required');
+                    highlightAndScrollTo('first_name');
+                    return;
+                }
+
+                if (!last_name) {
+                    ToastService.error('Validation Error', 'Last name is required');
+                    highlightAndScrollTo('last_name');
+                    return;
+                }
+
+                if (!email) {
+                    ToastService.error('Validation Error', 'Email is required');
+                    highlightAndScrollTo('email');
+                    return;
+                }
+
+                if (!vm.club.member.membership_id) {
+                    ToastService.error('Validation Error', 'Please select a membership');
+                    highlightAndScrollTo('membership_select_wrapper');
+                    return;
+                }
+
+                if (!vm.club.member.membership_start) {
+                    ToastService.error('Validation Error', 'Membership start date is required');
+                    highlightAndScrollTo('membership_start');
+                    return;
+                }
+
+                // If membership is free (£0), force payment_now to true
+                if (vm.club.selected_membership && vm.club.selected_membership.price == 0) {
+                    vm.club.member.payment_now = true;
+                }
 
                 vm.club.member.club_id = vm.club_id;
 
@@ -1534,7 +1607,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this membership?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this membership?');
             MemberService.Update(vm.club.membership)
                 .then(function(data){
                    // //console.log(data);
@@ -1661,6 +1734,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
         $scope.update_membership = function(item, model){
             vm.club.member.membership_id = item.membership_id;
             vm.club.member.membership_name = item.membership_name;
+            vm.club.selected_membership = item; // Store full item to check price
         }
 
         initController();
@@ -1743,7 +1817,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                 break;
                 default:
-                    alert("sorry - we didn't recognise the request...");
+                    ToastService.error('Unknown Request', "Sorry - we didn't recognise the request");
                 break;
             }
 
@@ -1794,7 +1868,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                                 vm.show_temp_login = false;
                             } else {
-                                alert("This is the wrong password - please try again...");
+                                ToastService.error('Wrong Password', 'This is the wrong password - please try again');
                             }
                         });
 
@@ -1952,7 +2026,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 break;
                 default:
                                     vm.show_loading = false;
-                    alert("sorry - we didn't recognise the request...");
+                    ToastService.error('Unknown Request', "Sorry - we didn't recognise the request");
                 break;
             }
 
@@ -1978,7 +2052,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Error', 'There was an error downloading the selected document(s)');
                 })
         };
 

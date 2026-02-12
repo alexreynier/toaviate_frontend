@@ -1,8 +1,8 @@
 
  app.controller('ReviewBookingsController', ReviewBookingsController);
 
-    ReviewBookingsController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope','$scope',  '$location', 'AuthenticationService'];
-    function ReviewBookingsController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $scope, $location, AuthenticationService) {
+    ReviewBookingsController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope','$scope',  '$location', 'AuthenticationService', 'ToastService'];
+    function ReviewBookingsController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $scope, $location, AuthenticationService, ToastService) {
         var vm = this;
 
         if(!$rootScope.globals.currentUser){
@@ -530,7 +530,7 @@
                     $scope.$parent.updateEvents(evnt.start, evnt.end);
                 }
                 
-                alert("Your changes were saved successfully");
+                ToastService.success('Changes Saved', 'Your changes were saved successfully');
                 
                 // if(vm.return_to == "bookout") {
                 //     //console.log("WE ARE AT THE BOOKOUT BIT - SO RETURN THERE!!!");
@@ -581,7 +581,7 @@
                 //show the errors:::
 
                 //console.log("ERRORS ARE : ", errors);
-                alert("ERROR FOUND IN ALTERING THE BOOKING");
+                ToastService.error('Booking Error', 'Error found in altering the booking');
 
                 vm.booking_errors = errors;
                 vm.error_event = evnt;

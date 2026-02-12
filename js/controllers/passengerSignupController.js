@@ -1,7 +1,7 @@
  app.controller('PassengerSignupController', PassengerSignupController);
 
-    PassengerSignupController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$http'];
-    function PassengerSignupController(UserService, $rootScope, $location, $scope, $state, $stateParams, $http) {
+    PassengerSignupController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$http', 'ToastService'];
+    function PassengerSignupController(UserService, $rootScope, $location, $scope, $state, $stateParams, $http, ToastService) {
         	
 
 	    	 //console.log("HELLO");
@@ -176,7 +176,7 @@
 
 		    	//verification of the profile page
 		    	if(! $scope.formData.first_name || ! $scope.formData.last_name || ! $scope.formData.email || ! $scope.formData.dob){
-		    		alert("Please complete your personal details");
+		    		ToastService.warning('Incomplete Details', 'Please complete your personal details');
 		    		$state.go("passenger_signup.your_profile");
 		    		return false;
 		    	}
@@ -184,13 +184,13 @@
 		    	if(calculate_age($scope.formData.dob) < 18){
 		    		//need to confirm guardian information was filled out
 		    		if( !$scope.formData.guardian || ! $scope.formData.guardian.first_name || ! $scope.formData.guardian.last_name || ! $scope.formData.guardian.dob || ! $scope.formData.guardian.guardianship ){
-		    			alert("As you are under the age of 18, your guardian needs to complete their details.");
+		    			ToastService.warning('Guardian Required', 'As you are under the age of 18, your guardian needs to complete their details.');
 			    		$state.go("passenger_signup.your_profile");
 			    		return false;
 		    		}
 
 		    		if(calculate_age($scope.formData.guardian.dob) < 18){
-		    			alert("Your guardian needs to be over the age of 18 to legally enable you to go flying.");
+		    			ToastService.warning('Invalid Guardian', 'Your guardian needs to be over the age of 18 to legally enable you to go flying.');
 		    			$state.go("passenger_signup.your_profile");
 			    		return false;
 		    		}
@@ -199,7 +199,7 @@
 
 		    	//this is the first page of verifications complete - now we need to do the NOK checks, and the TnC checks then we're good to go and create this.create
 		    	if(! $scope.formData.nok || ! $scope.formData.nok.first_name || ! $scope.formData.nok.last_name || ! $scope.formData.nok.email_address || ! $scope.formData.nok.relationship || ! $scope.formData.nok.phone_number  || ! $scope.formData.nok.address){
-		    			alert("Your next of kin information needs to be complete - in case of an emergency, or an accident, we must be able to contact them.");
+		    			ToastService.warning('Missing Next of Kin', 'Your next of kin information needs to be complete - in case of an emergency, or an accident, we must be able to contact them.');
 		    			$state.go("passenger_signup.next_of_kin");
 			    		return false;
 		    	}
@@ -207,7 +207,7 @@
 		    	//and now we verify the terms and conditions that have been agreed
 
 		    	if(! $scope.formData.tnc || ! $scope.formData.club_tnc){
-		    		alert("Please tick to confirm that you have read, understood and agreed to the terms and conditions of both the software and the flight organisation.");
+		    		ToastService.warning('Terms Required', 'Please tick to confirm that you have read, understood and agreed to the terms and conditions of both the software and the flight organisation.');
 			    	return false;
 		    	}
 
@@ -255,7 +255,7 @@
 
 
                 	} else {
-                		alert(data.message);
+                		ToastService.error('Error', data.message);
                 		return false;
                 	}
 
@@ -295,7 +295,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -465,7 +465,7 @@
 		   		// //console.log("tries", $scope.checkedcode);
 
 		   		if($scope.checkedcode > 4){
-		   			alert("Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.");
+		   			ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
 
 		   			//send another invitation code to the recipient 
 
@@ -523,7 +523,7 @@
 	                		$state.go("passenger_signup.your_profile");
 
 	                	} else {
-	                		alert(data.message);
+	                		ToastService.error('Error', data.message);
 	                		return false;
 	                	}
 

@@ -1,7 +1,7 @@
  app.controller('DashboardClubInstructorChargesController', DashboardClubInstructorChargesController);
 
-    DashboardClubInstructorChargesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorCharges'];
-    function DashboardClubInstructorChargesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorCharges) {
+    DashboardClubInstructorChargesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorCharges', 'ToastService'];
+    function DashboardClubInstructorChargesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorCharges, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -64,20 +64,24 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.item.title,                                      field: 'title', label: 'Instructing Type / Name' },
+                { ok: vm.club.item.charge_type,                                field: 'description', label: 'Charged By' },
+                { ok: vm.club.item.price != null && vm.club.item.price !== '',  field: 'price', label: 'Cost per Unit' }
+            ];
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.plane);
                 $scope.update();
             }
         }
 
-
         $scope.create = function(){
-            //console.log("CREATE ME NOW");
             vm.club.item.club_id = vm.club_id;
             InstructorCharges.Create(vm.club.item)
                 .then(function(data){
@@ -90,7 +94,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this item?');
             InstructorCharges.Delete(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);
@@ -197,7 +201,7 @@
                         delete vm.temporary.rating;
 
                     } else {
-                        alert("Please select a licence and rating that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a licence and rating that is required to book the plane solo!');
                     }
 
                 break;
@@ -224,7 +228,7 @@
                         delete vm.temporary.medical_component;
 
                     } else {
-                        alert("Please select a medical that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a medical that is required to book the plane solo!');
                     }
 
                 break;
@@ -248,7 +252,7 @@
                         delete vm.temporary.difference;
 
                     } else {
-                        alert("Please select a difference that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a difference that is required to book the plane solo!');
                     }
 
                 break;

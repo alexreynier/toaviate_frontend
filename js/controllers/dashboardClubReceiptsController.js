@@ -1,7 +1,7 @@
  app.controller('DashboardClubReceiptsController', DashboardClubReceiptsController);
 
-    DashboardClubReceiptsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ItemService', '$sce'];
-    function DashboardClubReceiptsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ItemService, $sce) {
+    DashboardClubReceiptsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ItemService', '$sce', 'ToastService'];
+    function DashboardClubReceiptsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ItemService, $sce, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -248,7 +248,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this item?');
             ItemService.Delete(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);
@@ -354,7 +354,7 @@
                         delete vm.temporary.rating;
 
                     } else {
-                        alert("Please select a licence and rating that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a licence and rating that is required to book the plane solo!');
                     }
 
                 break;
@@ -381,7 +381,7 @@
                         delete vm.temporary.medical_component;
 
                     } else {
-                        alert("Please select a medical that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a medical that is required to book the plane solo!');
                     }
 
                 break;
@@ -405,7 +405,7 @@
                         delete vm.temporary.difference;
 
                     } else {
-                        alert("Please select a difference that is required to book the plane solo!");
+                        ToastService.warning('Selection Required', 'Please select a difference that is required to book the plane solo!');
                     }
 
                 break;
@@ -822,7 +822,7 @@
                         vm.show_popup = false;
                         vm.current_receipt = {};
                     } else {
-                        alert("An error occurred: "+data.message);
+                        ToastService.error('Approval Error', 'An error occurred: ' + data.message);
                         vm.show_popup = false;
                         vm.current_receipt = {};
                     }
@@ -846,7 +846,7 @@
                         vm.show_popup = false;
                         vm.current_receipt = {};
                     } else {
-                        alert("An error occurred: "+data.message);
+                        ToastService.error('Rejection Error', 'An error occurred: ' + data.message);
                         vm.show_popup = false;
                         vm.current_receipt = {};
                     }

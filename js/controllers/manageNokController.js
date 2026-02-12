@@ -1,13 +1,14 @@
  app.controller('ManageNokController', ManageNokController);
 
-    ManageNokController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService'];
-    function ManageNokController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService) {
+    ManageNokController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', 'ToastService'];
+    function ManageNokController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, ToastService) {
         
         var vm = this;        
 
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;        
         vm.noks = [];
+        vm.clearFieldError = ToastService.clearFieldError;
 
         
     
@@ -124,7 +125,7 @@
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Delete Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 
@@ -143,6 +144,16 @@
 
             $scope.save_nok = function(isValid){
 
+                // ── Pre-submit validation with highlight + scroll ──
+                var checks = [
+                    { ok: vm.nok.first_name,    field: 'first_name',   label: 'First Name' },
+                    { ok: vm.nok.last_name,     field: 'last_name',    label: 'Last Name' },
+                    { ok: vm.nok.phone_number,  field: 'phone_number', label: 'Phone Number' },
+                    { ok: vm.nok.relationship,  field: 'relationship', label: 'Relationship' },
+                    { ok: vm.nok.address,       field: 'address',      label: 'Address' }
+                ];
+                if (!ToastService.validateForm(checks)) return false;
+
                 vm.nok.user_id = vm.user.id;
 
                 if(vm.nok.id){
@@ -154,18 +165,13 @@
                         .then(function (data) {
                             //console.log(data);
                             if(data.success){
-                                //console.log("HUZZAH", vm.nok);
-                                //console.log("HUZZAH", data);
-                                //then we need to remove this from the list of files...
-                                
-                                
-                                //move somewhere?
+                                ToastService.success('Saved', 'Next of kin updated successfully.');
                                 $state.go('dashboard.my_account.nok', {}, { reload: true });
 
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Update Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 
@@ -180,19 +186,13 @@
                         .then(function (data) {
                             //console.log(data);
                             if(data.success){
-                                //console.log("HUZZAH", vm.nok);
-                                //console.log("HUZZAH", data);
-                                //then we need to remove this from the list of files...
-                                
-                                
-                                //move somewhere?
-                               // $state.reload();
+                                ToastService.success('Saved', 'Next of kin created successfully.');
                                 $state.go('dashboard.my_account.nok', {}, { reload: true });
 
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Create Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 

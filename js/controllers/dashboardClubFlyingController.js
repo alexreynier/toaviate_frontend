@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlyingController', DashboardClubFlyingController);
 
-    DashboardClubFlyingController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PaymentService', 'PackageService', 'BookoutService'];
-    function DashboardClubFlyingController(UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PaymentService, PackageService, BookoutService) {
+    DashboardClubFlyingController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PaymentService', 'PackageService', 'BookoutService', 'ToastService'];
+    function DashboardClubFlyingController(UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PaymentService, PackageService, BookoutService, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -262,7 +262,7 @@
                             });
 
                      } else {
-                         alert(data.message);
+                         ToastService.error('Error', data.message);
                      }
                                                 
                     });

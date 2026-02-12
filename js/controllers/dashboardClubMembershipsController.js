@@ -1,7 +1,7 @@
  app.controller('DashboardClubMembershipsController', DashboardClubMembershipsController);
 
-    DashboardClubMembershipsController.$inject = ['UserService', 'MembershipService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window'];
-    function DashboardClubMembershipsController(UserService, MembershipService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window) {
+    DashboardClubMembershipsController.$inject = ['UserService', 'MembershipService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'ToastService'];
+    function DashboardClubMembershipsController(UserService, MembershipService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -86,22 +86,23 @@
             $window.history.back();
         }
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            var checks = [
+                { ok: vm.club.membership.membership_name, field: 'membership_name', label: 'Membership Name' },
+                { ok: vm.club.membership.payment_term,    field: 'payment_term',    label: 'Payment Term' }
+            ];
+            if (vm.club.membership.payment_term && vm.club.membership.payment_term !== 'free') {
+                checks.push({ ok: vm.club.membership.price != null && vm.club.membership.price !== '', field: 'price', label: 'Price' });
+            }
+            if (!ToastService.validateForm(checks)) return;
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.club.membership);
                 $scope.update();
-
-
-
             }
-
-
-
-
         }
 
 
@@ -117,7 +118,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this membership?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this membership?');
             MembershipService.Update(vm.club.membership)
                 .then(function(data){
                     //console.log(data);

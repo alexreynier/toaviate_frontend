@@ -1,7 +1,7 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout'];
-    function LoginController($location, AuthenticationService, FlashService, $timeout) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService) {
         var vm = this;
  
         vm.login = login;
@@ -65,6 +65,18 @@ app.controller('LoginController', LoginController);
  
         function login() {
 
+            // ── Pre-submit validation with highlight + scroll ──
+            if (!vm.email || vm.email.trim() === '') {
+                ToastService.highlightField('email');
+                ToastService.warning('Email Required', 'Please enter your email address.');
+                return;
+            }
+            if (!vm.password || vm.password === '') {
+                ToastService.highlightField('password');
+                ToastService.warning('Password Required', 'Please enter your password.');
+                return;
+            }
+
             vm.dataLoading = true;
             vm.error = null;
 
@@ -91,7 +103,28 @@ app.controller('LoginController', LoginController);
 
                         //if success --> THEN we do the next bit
 
+                        // Timeout fallback: if SetCredentials2 takes too long (e.g., API hanging),
+                        // redirect to dashboard anyway after 10 seconds
+                        var loginTimeoutFired = false;
+                        var loginTimeout = $timeout(function() {
+                            if (!loginTimeoutFired) {
+                                loginTimeoutFired = true;
+                                console.warn('Login timeout - proceeding to dashboard');
+                                $location.path('/dashboard');
+                            }
+                        }, 10000);
+
                         AuthenticationService.SetCredentials2(vm.email, vm.password, response.user, response.session, function(response){
+                            // Cancel the timeout since callback completed
+                            if (loginTimeout) {
+                                $timeout.cancel(loginTimeout);
+                            }
+                            if (loginTimeoutFired) {
+                                // Timeout already fired, don't redirect again
+                                return;
+                            }
+                            loginTimeoutFired = true;
+
                             // //console.log("TWO :: ", response);
                              // setTimeout(function(){
 
@@ -125,10 +158,8 @@ app.controller('LoginController', LoginController);
 
 
                     } else {
-                        // //console.log("HELLO FAIL", response);
-                        //FlashService.Error(response.error);
-                        // vm.error = response.error;
-                        // vm.dataLoading = false;
+                        ToastService.highlightField('password');
+                        ToastService.error('Login Failed', response.error || 'Invalid password. Please try again.');
                         vm.error = response.error;
                         vm.dataLoading = false;
                     }
@@ -154,10 +185,8 @@ app.controller('LoginController', LoginController);
                         }
                     });
                 } else {
-                    // //console.log("HELLO FAIL", response);
-                    //FlashService.Error(response.error);
-                    // vm.error = response.error;
-                    // vm.dataLoading = false;
+                    ToastService.highlightField('email');
+                    ToastService.error('Login Failed', response.error || 'Email not recognised. Please check and try again.');
                     vm.error = response.error;
                     vm.dataLoading = false;
                 }

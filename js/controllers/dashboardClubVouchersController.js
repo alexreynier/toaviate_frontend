@@ -1,7 +1,7 @@
  app.controller('DashboardClubVouchersController', DashboardClubVouchersController);
 
-    DashboardClubVouchersController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService'];
-    function DashboardClubVouchersController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService) {
+    DashboardClubVouchersController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'ToastService'];
+    function DashboardClubVouchersController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, ToastService) {
         var vm = this;
 
         //console.log("HELLOOOO vouchers");
@@ -85,17 +85,17 @@
 
             //first sanity check goes here...
             if(!vm.club.item.experience || !vm.club.item.experience.id){
-                alert("You must select an experience to issue this voucher...");
+                ToastService.warning('Missing Experience', 'You must select an experience to issue this voucher');
                 return false;
             }
             if(!vm.club.item.first_name || !vm.club.item.last_name || !vm.club.item.email){
-                alert("You must enter the purchasor's first name, last name and email address.");
+                ToastService.warning('Missing Details', "You must enter the purchasor's first name, last name and email address.");
                 return false;
             }
 
             if(vm.already_paid){
                 if(!vm.club.item.price_paid || !vm.club.item.payment_method){
-                    alert("Please fill in how much was paid and what payment method was used to complete the payment");
+                    ToastService.warning('Payment Details', 'Please fill in how much was paid and what payment method was used to complete the payment');
                     return false;
                 }
             }
@@ -212,7 +212,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this plane?");
+            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this plane?');
             VoucherService.Delete(vm.user.id, vm.club.item)
                 .then(function(data){
                     //console.log(data);
@@ -360,7 +360,7 @@
                         delete vm.temporary.plane;
 
                     } else {
-                        alert("Please select a plane that this activity be done on!");
+                        ToastService.warning('Missing Plane', 'Please select a plane that this activity be done on!');
                     }
 
                 break;

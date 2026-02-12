@@ -1,7 +1,7 @@
  app.controller('BookoutController', BookoutController);
 
-    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService'];
-    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService) {
+    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService'];
+    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService) {
         
         var vm = this;
 
@@ -410,7 +410,7 @@
                 .then(function (data) {
                     // //console.log(data);
                     if(data.success){
-                       alert("INVITATION SENT!");
+                       ToastService.success('Invitation Sent', 'The invitation has been sent successfully');
                         vm.update_passenger_list();
                         vm.show_new_passenger_invitation = false;
                     }
@@ -422,7 +422,7 @@
 
 
              } else {
-                 alert("Please enter a valid email address to send the invitation to.");
+                 ToastService.warning('Invalid Email', 'Please enter a valid email address to send the invitation to.');
              }
            
 
@@ -689,9 +689,9 @@
                 .then(function(data){
                     // //console.log(data);
                     if(data.success == true){
-                        alert(data.message);
+                        ToastService.success('Success', data.message);
                     } else {
-                        alert(data.message);
+                        ToastService.error('Error', data.message);
                     }
 
                 });
@@ -1169,7 +1169,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Error', 'There was an error downloading the selected document(s)');
                 })
         };
 
@@ -1550,17 +1550,20 @@
                 ////console.log("PAX ", vm.bookout.passengers);
                 //flight type
                 if(!vm.bookout.flight_type || vm.bookout.flight_type.id < 1){
-                    alert("You need to select a flight type - is this a local flight? Or a departure?");
+                    ToastService.highlightField('flight_type');
+                    ToastService.warning('Flight Type', 'You need to select a flight type - is this a local flight? Or a departure?');
                     return false;
                 }
 
                 if(!vm.bookout.pic || vm.bookout.pic.id < 1){
-                    alert("You need to select a Pilot In Command (PIC)");
+                    ToastService.highlightField('pic');
+                    ToastService.warning('Missing PIC', 'You need to select a Pilot In Command (PIC)');
                     return false;
                 }
 
                 if( (!vm.bookout.is_current || vm.bookout.is_current == 0) && vm.bookout.instructor_id < 1 ){
-                    alert("Please confirm that you are current according to the club rules, as you do not have an instructor booked.");
+                    ToastService.highlightField('is_current');
+                    ToastService.warning('Currency Check', 'Please confirm that you are current according to the club rules, as you do not have an instructor booked.');
                     return false;
                 }
 
@@ -1572,7 +1575,8 @@
 
                 //check the destination is entered if required
                 if(vm.bookout.flight_type.id == 2 && (!vm.bookout.to_airfield || (vm.bookout.to_airfield.id < 1 && vm.bookout.to_airfield.title == "" ) )){
-                    alert("As you selected this flight to be a departure, please select a destination airfield");
+                    ToastService.highlightField('to_airfield');
+                    ToastService.warning('Missing Destination', 'As you selected this flight to be a departure, please select a destination airfield');
                     return false;
                 }
 
@@ -1586,7 +1590,8 @@
 
 
                 if(!vm.bookout.accept_defects && vm.reported_defects.length > 0){
-                    alert("You must state that you have read the defects currently reported and accept to fly the plane in the condition provided prior to booking out the plane.");
+                    ToastService.highlightField('accept_defects');
+                    ToastService.warning('Defects Acknowledgement', 'You must state that you have read the defects currently reported and accept to fly the plane in the condition provided prior to booking out the plane.');
                     return false;
                 }
 
@@ -1596,11 +1601,11 @@
                 var pax = vm.bookout.passengers;
                 for(var i=0;i<pax.length;i++){
                     if(pax[i]["status"] == "to_invite"){
-                        alert("You need to press the invitation button for your passenger who isn't already a member before booking out.");
+                        ToastService.warning('Passenger Invite', "You need to press the invitation button for your passenger who isn't already a member before booking out.");
                         return false;
                     }
                     if(pax[i]["status"] == "invited" && pax[i]["aboard"]){
-                        alert("You need to make sure that your passenger has completed his membership and has agreed to the terms of your flight before you go flying.");
+                        ToastService.warning('Passenger Status', 'You need to make sure that your passenger has completed his membership and has agreed to the terms of your flight before you go flying.');
                         return false;
                     }
                 }
@@ -1654,15 +1659,11 @@
 
                 BookoutService.SendBookout(vm.user.id, bookout_obj)
                 .then(function(data){
-                    ////console.log("sending returned data", data);
+                    if(data.success){
                         $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
-                    // if(data.success){
-
-                    //     $state.go('dashboard.bookout.booked_out', {booking_id: vm.bookout.booking_id});
-
-                    // } else {
-                    //     alert(data.message);
-                    // }
+                    } else {
+                        ToastService.error('Bookout Failed', 'Something went wrong: ' + (data.message || 'Unknown error'));
+                    }
                 });
 
 
@@ -1826,7 +1827,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
 
                             }
 
@@ -1849,7 +1850,7 @@ OLD VERSION FOR LEGACY PURPOSES
                 if(vm.licence_images.length < 1 && vm.licence.images.length < 1){
 
                     $(".drop").focus();
-                    alert("You must at least have 1 image of your licence!");
+                    ToastService.warning('Missing Image', 'You must at least have 1 image of your licence!');
 
                     return false;   
                 }
@@ -1857,7 +1858,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(!vm.licence.licence_type){
                     $("#licence_type").focus();
-                    alert("You must select a licence type");
+                    ToastService.warning('Missing Licence Type', 'You must select a licence type');
 
                     return false;
                 }
@@ -1865,7 +1866,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(!vm.licence.state_of_issue){
                     $("#state_of_issue").focus();
-                    alert("You must select a licence state of issue");
+                    ToastService.warning('Missing State', 'You must select a licence state of issue');
 
                     return false;
                 }
@@ -1874,7 +1875,7 @@ OLD VERSION FOR LEGACY PURPOSES
                 if(vm.licence.ratings.length < 1){
 
                     $("#ratings").focus();
-                    alert("You must at least have 1 rating!");
+                    ToastService.warning('Missing Rating', 'You must at least have 1 rating!');
                     
                     return false;   
                 }
@@ -1928,7 +1929,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
 
                             }
 
@@ -1959,7 +1960,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Error', data.message);
 
                             }
 

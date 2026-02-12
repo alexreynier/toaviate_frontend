@@ -1,7 +1,7 @@
  app.controller('ManageAccountController', ManageAccountController);
 
-    ManageAccountController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'PaymentService'];
-    function ManageAccountController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, PaymentService) {
+    ManageAccountController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'PaymentService', 'ToastService'];
+    function ManageAccountController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, PaymentService, ToastService) {
         
         var vm = this;
         vm.user = $rootScope.globals.currentUser;
@@ -94,7 +94,7 @@
                         if(vm.addresses && vm.addresses.length > 0){
                             vm.show_addresses = true;
                         } else {
-                            alert("We couldn't find your address from your postcode, please enter it manually")
+                            ToastService.warning('Address Lookup', "We couldn't find your address from your postcode, please enter it manually");
                             vm.show_addresses = false;
                             vm.show_address = true;
                         }
@@ -103,7 +103,7 @@
                     } else {
                         // //console.log("WOOOPSIES...");
                         //this should be very very rare...
-                        alert("We couldn't find your address from your postcode, please enter it manually")
+                        ToastService.warning('Address Lookup', "We couldn't find your address from your postcode, please enter it manually");
                         vm.show_addresses = false;
                         vm.show_address = true;
 
@@ -133,14 +133,16 @@
 
                 //phone number
                 if(!vm.user.phone_number || vm.user.phone_number == ""){
-                    alert("Please enter a mobile phone number");
+                    ToastService.highlightField('phone_number');
+                    ToastService.warning('Validation Error', 'Please enter a mobile phone number');
                     return false;
                 }
 
                 //updated_password
                 if(vm.user.new_password){
                     if(vm.user.new_password !== vm.user.new_password2){
-                        alert("Please ensure your updated passwords match");
+                        ToastService.highlightField('new_password2');
+                        ToastService.warning('Password Mismatch', 'Please ensure your updated passwords match');
                         return false;
                     } else {
 
@@ -151,7 +153,8 @@
                               //console.log("password strength OK");
                             } else {
                               vm.show_error = true;
-                              alert("Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character");
+                              ToastService.highlightField('new_password');
+                              ToastService.warning('Weak Password', 'Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character');
                               return false;
                             }
 
@@ -175,7 +178,8 @@
 
                 //current password to save changes
                 if(!vm.user.password){
-                    alert("Please enter your current password to ensure that these changes are made by you.");
+                    ToastService.highlightField('password');
+                    ToastService.warning('Password Required', 'Please enter your current password to ensure that these changes are made by you.');
                     return false;
                 }
 
@@ -184,14 +188,14 @@
                  UserService.Update(vm.user)
                     .then(function (data) {
                         if(data.success){
-                            alert("Changes updated successfully.");
+                            ToastService.success('Account Updated', 'Changes updated successfully.');
                             $state.go('dashboard.my_account', {}, { reload: true });
 
                         } else {
                             if(data.message == "Password entered failed"){
-                                alert("The password entered was incorrect");
+                                ToastService.error('Incorrect Password', 'The password entered was incorrect');
                             } else {
-                                alert("something horrible happened!");
+                                ToastService.error('Update Failed', 'Something horrible happened!');
                             }
                             //this should be very very rare...
                         }

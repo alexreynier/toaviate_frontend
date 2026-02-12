@@ -1,7 +1,7 @@
  app.controller('FinishAndPayController', FinishAndPayController);
 
-    FinishAndPayController.$inject = ['$sce', 'UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'EnvConfig'];
-    function FinishAndPayController($sce, UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, EnvConfig) {
+    FinishAndPayController.$inject = ['$sce', 'UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'EnvConfig', 'ToastService'];
+    function FinishAndPayController($sce, UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, EnvConfig, ToastService) {
         
         var vm = this;
 
@@ -199,7 +199,7 @@
         vm.complete_this_flight = function(){
 
             if(vm.tacho_error_highlight){
-                alert("You cannot complete a fligth where the last meter reading is greater than the start meter reading!");
+                ToastService.error('Meter Error', 'You cannot complete a flight where the last meter reading is greater than the start meter reading!');
                 return false;
             }
 
@@ -365,7 +365,7 @@
                         
 
                         if(data.booking.complete == 1){
-                            alert("It appears that you have already completed this booking...");
+                            ToastService.warning('Already Complete', 'It appears that you have already completed this booking...');
                             $state.go('dashboard.my_account', {}, { reload: true });
                         }
 
@@ -607,7 +607,7 @@
                         vm.show_loading = false;
                         $state.go('dashboard.my_account', {}, { reload: true });                    
                 } else {
-                    alert("an error occurred.... \n\n "+data.message);
+                    ToastService.error('Error', 'An error occurred: ' + data.message);
                     vm.show_loading = false;
                     //console.log(data);
                 }
@@ -713,7 +713,7 @@
 
                         if(vm.previous_total == 0 || vm.invoices.length == 0){
 
-                            alert("It appears that you have already completed this flight!");
+                            ToastService.warning('Already Complete', 'It appears that you have already completed this flight!');
                             $state.go('dashboard.my_account', {}, { reload: true });                    
 
                         }

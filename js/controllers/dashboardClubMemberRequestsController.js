@@ -1,7 +1,7 @@
  app.controller('DashboardClubMemberRequestsController', DashboardClubMemberRequestsController);
 
-    DashboardClubMemberRequestsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies'];
-    function DashboardClubMemberRequestsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies) {
+    DashboardClubMemberRequestsController.$inject = ['UserService', 'MemberService', 'MembershipService', 'PaymentService', 'InstructorService', 'HolidayService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'LicenceService', 'NokService', '$cookies', 'ToastService'];
+    function DashboardClubMemberRequestsController(UserService, MemberService, MembershipService, PaymentService, InstructorService, HolidayService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, LicenceService, NokService, $cookies, ToastService) {
         
         var vm = this;        
 
@@ -149,7 +149,7 @@
                     //vm.memberships = data;
 
                     if(data.success){
-                        alert("Request re-sent. Please ask them to check their junk / spam folders if they do not see it within the next 5 minutes.")
+                        ToastService.success('Request Sent', 'Request re-sent. Please ask them to check their junk / spam folders if they do not see it within the next 5 minutes.')
                     }
 
                     update_requests();

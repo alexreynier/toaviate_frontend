@@ -1,7 +1,7 @@
  app.controller('DashboardClubAirframeLogbookController', DashboardClubAirframeLogbookController);
 
-    DashboardClubAirframeLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http'];
-    function DashboardClubAirframeLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http) {
+    DashboardClubAirframeLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http', 'ToastService', 'LogbookLinkService', 'WorkpackService'];
+    function DashboardClubAirframeLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http, ToastService, LogbookLinkService, WorkpackService) {
         var vm = this;
 
        
@@ -184,6 +184,202 @@
                 }
                 return time.substring(0,5);
             }
+
+            // ── Maintenance entry helpers ──
+
+            vm.maintenanceTypeLabels = {
+                '50hour': '50-Hour Check',
+                '100hour': '100-Hour Check',
+                '150hour': '150-Hour Check',
+                '25hours': '25-Hour Check',
+                '50hours': '50-Hour Check',
+                '100hours': '100-Hour Check',
+                'annual': 'Annual Inspection',
+                'cofa': 'Certificate of Airworthiness',
+                'arc': 'Airworthiness Review Certificate',
+                'engine_overhaul': 'Engine Overhaul',
+                'propeller_overhaul': 'Propeller Overhaul',
+                'interim': 'Interim Inspection',
+                '6months': '6-Month Check',
+                'extension': 'Extension',
+                'workpack': 'Workpack',
+                'other': 'Other Maintenance'
+            };
+
+            vm.formatMaintenanceType = function(type) {
+                return vm.maintenanceTypeLabels[type] || type || 'Maintenance';
+            };
+
+            vm.isMaintenanceEntry = function(log) {
+                return (log.entry_type === 'maintenance_check');
+            };
+
+            vm.getEntryType = function(log) {
+                return log.entry_type || 'flight';
+            };
+
+            vm.getEntryPosition = function(log) {
+                return log.entry_position || 'full_day';
+            };
+
+            vm.getHoursRemainingClass = function(hoursRemaining) {
+                if (hoursRemaining === null || hoursRemaining === undefined) return '';
+                if (hoursRemaining <= 5) return 'hours-critical';
+                if (hoursRemaining <= 10) return 'hours-warning';
+                return '';
+            };
+
+            vm.formatHoursRemaining = function(hoursRemaining) {
+                if (hoursRemaining === null || hoursRemaining === undefined) return 'N/A';
+                return hoursRemaining.toFixed(2) + ' hrs';
+            };
+
+            // ── Maintenance check detail panel ──
+            vm.selected_check = null;
+            vm.show_check_detail = false;
+            vm.check_logbook_links = [];
+            vm.check_logbook_loading = false;
+            vm.check_logbook_error = false;
+            vm.check_workpack = null;
+            vm.check_workpack_loading = false;
+
+            vm.viewMaintenanceCheck = function(log) {
+                if (!vm.isMaintenanceEntry(log)) return;
+                vm.selected_check = log;
+                vm.show_check_detail = true;
+
+                // Reset state
+                vm.check_logbook_links = [];
+                vm.check_logbook_error = false;
+                vm.check_workpack = null;
+
+                var checkData = log.maintenance_check || {};
+                var checkId = checkData.id || log.maintenance_check_id || null;
+                if (checkId) {
+                    vm.loadCheckLogbookLinks(checkId);
+                    vm.loadCheckWorkpack(log);
+                }
+            };
+
+            vm.closeMaintenanceCheck = function() {
+                vm.selected_check = null;
+                vm.show_check_detail = false;
+                vm.check_logbook_links = [];
+                vm.check_logbook_error = false;
+                vm.check_workpack = null;
+            };
+
+            // Load logbook associations for a maintenance check.
+            // Uses the same pattern as the maintenance detail edit panel:
+            // 1. Fetch all available logbooks for the plane
+            // 2. Fetch which logbooks this specific check is linked to
+            // 3. Cross-reference to show linked (on) vs unlinked (off)
+            vm.loadCheckLogbookLinks = function(maintenance_check_id) {
+                if (!maintenance_check_id) return;
+                vm.check_logbook_loading = true;
+                vm.check_logbook_error = false;
+                vm.check_logbook_links = [];
+
+                LogbookLinkService.GetAvailableLogbooks($stateParams.plane_id)
+                    .then(function(availData) {
+                        var available = (availData && availData.available_logbooks) ? availData.available_logbooks : [];
+                        if (available.length === 0) {
+                            vm.check_logbook_loading = false;
+                            vm.check_logbook_error = true;
+                            return;
+                        }
+
+                        LogbookLinkService.GetLinks(maintenance_check_id)
+                            .then(function(linkData) {
+                                vm.check_logbook_loading = false;
+                                var links = [];
+                                if (linkData && linkData.maintenance_check && linkData.maintenance_check.logbook_links) {
+                                    links = linkData.maintenance_check.logbook_links;
+                                }
+                                // Build list: each available logbook with isLinked flag
+                                vm.check_logbook_links = available.map(function(lb) {
+                                    var isLinked = links.some(function(link) {
+                                        return link.logbook_type === lb.logbook_type &&
+                                               link.logbook_entity_id == lb.logbook_entity_id;
+                                    });
+                                    return {
+                                        logbook_type: lb.logbook_type,
+                                        logbook_entity_id: lb.logbook_entity_id,
+                                        label: lb.label,
+                                        position: lb.position || null,
+                                        isLinked: isLinked
+                                    };
+                                });
+                            }, function() {
+                                vm.check_logbook_loading = false;
+                                vm.check_logbook_error = true;
+                            });
+                    }, function() {
+                        vm.check_logbook_loading = false;
+                        vm.check_logbook_error = true;
+                    });
+            };
+
+            // Load linked workpack detail
+            vm.loadCheckWorkpack = function(log) {
+                var d = log.maintenance_check || {};
+                // Try linked_workpack_id first, then workpack_id (used when a workpack is created with the check)
+                var wpId = d.linked_workpack_id || d.workpack_id || null;
+                if (!wpId) return;
+                vm.check_workpack_loading = true;
+                WorkpackService.GetById(wpId)
+                    .then(function(data) {
+                        vm.check_workpack_loading = false;
+                        if (data && data.workpack) {
+                            vm.check_workpack = data.workpack;
+                        }
+                    }, function() {
+                        vm.check_workpack_loading = false;
+                    });
+            };
+
+            vm.downloadWorkpackDocument = function(filename) {
+                if (!filename) return;
+                $http.get('/api/v1/maintenance_workpacks/file/' + filename, {
+                    responseType: 'arraybuffer'
+                }).success(function(data, status, headers) {
+                    // Create PDF blob and open in new window (same as maintenance controller)
+                    var blob = new Blob([data], { type: 'application/pdf' });
+                    var fileURL = URL.createObjectURL(blob);
+                    var prntWin = window.open();
+                    prntWin.document.write('<html><head><title>Workpack Document</title></head><body>'
+                        + '<embed width="100%" height="100%" name="plugin" src="' + fileURL + '" '
+                        + 'type="application/pdf" internalinstanceid="21"></body></html>');
+                    prntWin.document.close();
+                }).error(function() {
+                    ToastService.error('Download Error', 'There was an error downloading the workpack document.');
+                });
+            };
+
+            vm.getLogbookIcon = function(type) {
+                switch (type) {
+                    case 'airframe': return 'fa-plane';
+                    case 'engine': return 'fa-cog';
+                    case 'propeller': return 'fa-refresh';
+                    default: return 'fa-book';
+                }
+            };
+
+            vm.getCheckTypeIcon = function(type) {
+                if (!type) return 'fa-wrench';
+                switch (type.toLowerCase()) {
+                    case 'annual': return 'fa-calendar-check-o';
+                    case '50hours': case '50hour': case '25hours': case '100hours': case '100hour': case '150hour': return 'fa-tachometer';
+                    case 'extension': return 'fa-clock-o';
+                    case 'interim': return 'fa-cogs';
+                    case '6months': return 'fa-calendar';
+                    case 'cofa': case 'arc': return 'fa-certificate';
+                    case 'engine_overhaul': return 'fa-cog';
+                    case 'propeller_overhaul': return 'fa-repeat';
+                    case 'workpack': return 'fa-briefcase';
+                    default: return 'fa-wrench';
+                }
+            };
 
 
 
@@ -807,7 +1003,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 
@@ -827,7 +1023,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

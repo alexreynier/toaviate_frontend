@@ -1,7 +1,7 @@
  app.controller('ManageLicenceController', ManageLicenceController);
 
-    ManageLicenceController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'AuthenticationService'];
-    function ManageLicenceController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, AuthenticationService) {
+    ManageLicenceController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'AuthenticationService', 'ToastService'];
+    function ManageLicenceController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, AuthenticationService, ToastService) {
         
         var vm = this;
         vm.licence_images = [];
@@ -324,7 +324,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Delete Failed', 'Something went terribly wrong: ' + data.message);
 
                             }
 
@@ -467,7 +467,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                                 vm.show_temp_login = false;
                             } else {
-                                alert("This is the wrong password - please try again...");
+                                ToastService.error('Wrong Password', 'This is the wrong password - please try again...');
                             }
                         });
 
@@ -484,34 +484,34 @@ OLD VERSION FOR LEGACY PURPOSES
 
                 if(vm.licence_images.length < 1 && vm.licence.images.length < 1){
 
-                    $(".drop").focus();
-                    alert("You must at least have 1 image of your licence!");
-
+                    ToastService.highlightField('.drop');
+                    ToastService.warning('Image Required', 'You must at least have 1 image of your licence!');
+                    vm.show_loading = false;
                     return false;   
                 }
 
 
                 if(!vm.licence.licence_type){
-                    $("#licence_type").focus();
-                    alert("You must select a licence type");
-
+                    ToastService.highlightField('licence_type');
+                    ToastService.warning('Licence Type Required', 'You must select a licence type');
+                    vm.show_loading = false;
                     return false;
                 }
 
 
                 if(!vm.licence.state_of_issue){
-                    $("#state_of_issue").focus();
-                    alert("You must select a licence state of issue");
-
+                    ToastService.highlightField('state_of_issue');
+                    ToastService.warning('State Required', 'You must select a licence state of issue');
+                    vm.show_loading = false;
                     return false;
                 }
 
 
                 if(vm.licence.ratings.length < 1){
 
-                    $("#ratings").focus();
-                    alert("You must at least have 1 rating!");
-                    
+                    ToastService.highlightField('ratings');
+                    ToastService.warning('Rating Required', 'You must at least have 1 rating!');
+                    vm.show_loading = false;
                     return false;   
                 }
 
@@ -565,7 +565,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Update Failed', 'Something went terribly wrong: ' + data.message);
                                 vm.show_loading = false;
 
                             }
@@ -598,7 +598,7 @@ OLD VERSION FOR LEGACY PURPOSES
 
                             } else {
 
-                                alert("Something went terribly wrong... \n\n "+data.message);
+                                ToastService.error('Create Failed', 'Something went terribly wrong: ' + data.message);
                                 vm.show_loading = false;
 
                             }

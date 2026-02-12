@@ -9,7 +9,67 @@ function ToastService($timeout) {
     service.success = showSuccess;
     service.error   = showError;
     service.warning = showWarning;
+    service.validateForm = validateForm;
+    service.clearFieldError = clearFieldError;
+    service.highlightField = highlightField;
     return service;
+
+    // ── Form validation helper ──
+    // checks: array of { ok: <truthy condition>, field: 'element-id', label: 'Field Name' }
+    // Returns true if all checks pass, false and shows toast + highlight if any fail.
+    function validateForm(checks) {
+        // Clear any previous highlights
+        var highlighted = document.querySelectorAll('.field-error-highlight');
+        for (var i = 0; i < highlighted.length; i++) {
+            highlighted[i].classList.remove('field-error-highlight');
+        }
+
+        for (var j = 0; j < checks.length; j++) {
+            if (!checks[j].ok) {
+                var field = document.getElementById(checks[j].field);
+                if (field) {
+                    field.classList.add('field-error-highlight');
+                    field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    try { field.focus(); } catch(e) {}
+                }
+                showError('Missing: ' + checks[j].label,
+                    'Please fill in the highlighted field before submitting.');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // ── Clear field error on focus ──
+    function clearFieldError(event) {
+        if (event && event.target) {
+            event.target.classList.remove('field-error-highlight');
+        }
+        if (event && event.target) {
+            var parent = event.target.closest('.field-error-highlight');
+            if (parent) {
+                parent.classList.remove('field-error-highlight');
+            }
+        }
+    }
+
+    // ── Highlight a single field by id or CSS selector + scroll into view ──
+    // Returns the element (or null) for chaining.
+    function highlightField(selector) {
+        // Clear any previous highlights first
+        var prev = document.querySelectorAll('.field-error-highlight');
+        for (var i = 0; i < prev.length; i++) {
+            prev[i].classList.remove('field-error-highlight');
+        }
+        // Try by id first, then by CSS selector
+        var el = document.getElementById(selector) || document.querySelector(selector);
+        if (el) {
+            el.classList.add('field-error-highlight');
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            try { el.focus(); } catch(e) {}
+        }
+        return el;
+    }
 
     // ── Success toast (green tick + optional confetti) ──
     function showSuccess(title, subtitle, opts) {

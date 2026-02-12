@@ -1,7 +1,7 @@
  app.controller('UserSignupController', UserSignupController);
 
-    UserSignupController.$inject = ['UserService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams'];
-    function UserSignupController(UserService, $http, $rootScope, $location, $scope, $state, $stateParams) {
+    UserSignupController.$inject = ['UserService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', 'ToastService'];
+    function UserSignupController(UserService, $http, $rootScope, $location, $scope, $state, $stateParams, ToastService) {
         	
     		
     		//automatically sort stuff out! :)
@@ -14,7 +14,7 @@
                     if(data.success){
                     	$state.go("verified");
                     } else {
-                    	alert(data.message);
+                    	ToastService.error('Error', data.message);
                     	$state.go("login");
                     }
                 });
@@ -289,7 +289,7 @@
 		    	//let's check the passwords match first...
 	            if($scope.formData.user.password !== $scope.formData.user.password2){
 	              $("input[type='password']").removeClass("ng-pristine").addClass("ng-invalid");
-	              alert("Your passwords do not match");
+	              ToastService.warning('Password Mismatch', 'Your passwords do not match');
 	              return false;
 	            }
 
@@ -299,7 +299,7 @@
 	              //console.log("password strength OK");
 	            } else {
 	              $("input[type='password']").removeClass("ng-pristine").addClass("ng-invalid");
-	              alert("Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character");
+	              ToastService.warning('Weak Password', 'Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character');
 	              return false;
 	            }
 
@@ -365,7 +365,7 @@
 		    // function to process the form
 		    $scope.processForm = function() {
 		         if ($scope.formData.$valid) {
-	                alert('our form is valid');
+	                ToastService.success('Form Valid', 'Your form is valid.');
 	            } 
 		    };
 
@@ -391,7 +391,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
                 })
         };
 

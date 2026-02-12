@@ -1,7 +1,7 @@
  app.controller('ManagePaymentsAddController', ManagePaymentsAddController);
 
-    ManagePaymentsAddController.$inject = ['UserService', '$sce', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'PaymentService', 'PoidService'];
-    function ManagePaymentsAddController(UserService, $sce, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, PaymentService, PoidService) {
+    ManagePaymentsAddController.$inject = ['UserService', '$sce', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'PaymentService', 'PoidService', 'ToastService'];
+    function ManagePaymentsAddController(UserService, $sce, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, PaymentService, PoidService, ToastService) {
         
         var vm = this;        
 
@@ -217,16 +217,16 @@
 
                         case "5002":
                             //card declined / incorrect details
-                            alert("Your card was declined, please verify your details or contact your card provider. Should this problem persist, please contact: info@toaviate.com");
+                            ToastService.error('Card Declined', 'Your card was declined, please verify your details or contact your card provider. Should this problem persist, please contact: info@toaviate.com');
 
                         break;
                         case "4060":
                             //card used to exist....?
-                            alert("It appears that you are adding a card that has already been added to your account");
+                            ToastService.warning('Duplicate Card', 'It appears that you are adding a card that has already been added to your account');
 
                         break;
                         default:
-                            alert("Please check your card details are correct and match your billing address.");
+                            ToastService.error('Card Error', 'Please check your card details are correct and match your billing address.');
 
                         break;
 

@@ -1,7 +1,7 @@
 app.controller('UsersController', UsersController);
  
-    UsersController.$inject = ['UserService', '$location', '$rootScope', 'FlashService', '$routeParams'];
-    function UsersController(UserService, $location, $rootScope, FlashService, $routeParams) {
+    UsersController.$inject = ['UserService', '$location', '$rootScope', 'FlashService', '$routeParams', 'ToastService'];
+    function UsersController(UserService, $location, $rootScope, FlashService, $routeParams, ToastService) {
         var vm = this;
         var this_user;
         vm.update = update;
@@ -29,7 +29,7 @@ app.controller('UsersController', UsersController);
                         console.log("response");
                         console.log(response);
                         if(response.message == "Password entered failed") {
-                            alert("The password entered was incorrect");
+                            ToastService.error('Login Failed', 'The password entered was incorrect');
                             vm.dataLoading = false;
                         } else {
                             FlashService.Error(response.error);

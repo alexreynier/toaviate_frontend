@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService) {
         var vm = this;
 
         vm.user = null;
@@ -81,10 +81,19 @@
            
         }
 
-        $scope.save = function(){
-            // //console.log("CLICKED", vm.club.settings);
-            //return false;
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
 
+        $scope.save = function(){
+            var checks = [
+                { ok: vm.club.settings.title,   field: 'title',   label: 'Trading As' },
+                { ok: vm.club.settings.email,   field: 'email',   label: 'Email' },
+                { ok: vm.club.settings.address, field: 'address', label: 'Registered Address' }
+            ];
+            if (vm.club.settings.vat_registered) {
+                checks.push({ ok: vm.club.settings.vat_number, field: 'vat_number', label: 'VAT Number' });
+                checks.push({ ok: vm.club.settings.vat_rate != null && vm.club.settings.vat_rate !== '', field: 'vat_rate', label: 'VAT Rate' });
+            }
+            if (!ToastService.validateForm(checks)) return;
 
             if(!vm.club.settings.update_logo){
                     delete vm.club.settings.logo;
@@ -149,10 +158,10 @@
                     console.log(data);
 
                     if(data.success && data.onboarding_link !== ''){
-                        alert("You will be redirected to Stripe - please complete the setup and you will be returned to ToAviate");
+                        ToastService.success('Stripe Redirect', 'You will be redirected to Stripe - please complete the setup and you will be returned to ToAviate');
                         window.location = data.onboarding_link;
                     } else {
-                        alert("Please try the link again! Stripe didn't seem to want to connect to ToAviate");
+                        ToastService.error('Stripe Error', "Please try the link again! Stripe didn't seem to want to connect to ToAviate");
                         vm.called_stripe_setup = false;
                     }
 
@@ -348,7 +357,7 @@
                     //Delete file from temp folder in server - file needs to remain open until blob is created
                     //deleteFileFromServerTemp(zipName);
                 }).error(function(data, status) {
-                    alert("There was an error downloading the selected document(s).");
+                    ToastService.error('Download Error', 'There was an error downloading the selected document(s)');
                 })
         };
 

@@ -1,7 +1,7 @@
  app.controller('DashboardClubPackagesController', DashboardClubPackagesController);
 
-    DashboardClubPackagesController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PackageService', 'PlaneService'];
-    function DashboardClubPackagesController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PackageService, PlaneService) {
+    DashboardClubPackagesController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PackageService', 'PlaneService', 'ToastService'];
+    function DashboardClubPackagesController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PackageService, PlaneService, ToastService) {
         var vm = this;
 
         vm.charge_type = ["brakes", "session", "plane"];
@@ -105,13 +105,30 @@
 
 
 
+        vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
+
         $scope.save = function(){
+            if (!vm.package) vm.package = {};
+            var pkg = vm.package;
+            var checks = [
+                { ok: pkg.title,                                                field: 'title',      label: 'Package Title' },
+                { ok: pkg.price != null && pkg.price !== '',                     field: 'price',      label: 'Price' },
+                { ok: pkg.hours_dual != null && pkg.hours_dual !== '',           field: 'hours_dual', label: 'Hours Dual' },
+                { ok: pkg.hours_solo != null && pkg.hours_solo !== '',           field: 'hours_solo', label: 'Hours Solo' },
+                { ok: pkg.difference != null && pkg.difference !== '',           field: 'difference', label: 'Difference' },
+                { ok: pkg.validity != null && pkg.validity !== '',               field: 'validity',   label: 'Validity' }
+            ];
+            if (!ToastService.validateForm(checks)) return;
+
+            if (!vm.aircraft || vm.aircraft.length < 1) {
+                ToastService.highlightField('.card');
+                ToastService.warning('Aircraft Required', 'You must add at least 1 aircraft to this package.');
+                return;
+            }
+
             if(vm.action == "add"){
-                //console.log("CREATE click");
                 $scope.create();
             } else {
-                //console.log("EDIT click");
-                //console.log(vm.package);
                 $scope.update();
             }
         }
@@ -143,7 +160,7 @@
                                 vm.aircraft.splice(index, 1);
                                 vm.clean_aircraft_selection();
                             } else {
-                                alert("An error occurred...");
+                                ToastService.error('Error', 'An error occurred');
                             }
                             //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                         });
@@ -185,7 +202,7 @@
                             vm.new_aircraft2 = {};
 
                         } else {
-                            alert("An error occurred...");
+                            ToastService.error('Error', 'An error occurred');
                         }
 
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -257,7 +274,7 @@
                         vm.instructor_charges[index].edit_me = false;
 
                     } else {
-                        alert("An error occurred...");
+                        ToastService.error('Error', 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -284,7 +301,7 @@
                         if(data.success){
                             vm.instructor_charges.splice(index, 1);
                         } else {
-                            alert("An error occurred...");
+                            ToastService.error('Error', 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
@@ -312,7 +329,7 @@
                         }
 
                     } else {
-                        alert("An error occurred...");
+                        ToastService.error('Error', 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -361,7 +378,7 @@
                         if(data.success){
                             vm.packages.splice(index, 1);
                         } else {
-                            alert("An error occurred...");
+                            ToastService.error('Error', 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
@@ -389,7 +406,7 @@
 
         $scope.delete = function(){
             //console.log("CLICK");
-            alert("Are you sure you would like to delete this course?");
+            ToastService.warning('Delete Package', 'Are you sure you would like to delete this package?');
             PackageService.DeletePackage(vm.package.id)
                 .then(function(data){
                     //console.log(data);

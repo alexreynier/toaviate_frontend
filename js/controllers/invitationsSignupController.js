@@ -1,7 +1,7 @@
  app.controller('InvitationsSignupController', InvitationsSignupController);
 
-    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log'];
-    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log) {
+    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService'];
+    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService) {
         	
         	var vm = this;
 
@@ -1177,7 +1177,7 @@ vm.selected_phone;
     		
     		//automatically sort stuff out! :)
     		if($state.params.verify){
-    			alert("VERIFY?");
+    			ToastService.warning('Verification', 'VERIFY?');
     			////console.log("SEND VERIFICATION");
     			UserService.Verify($state.params.user_id, $state.params.verify)
                 .then(function (data) {
@@ -1186,7 +1186,7 @@ vm.selected_phone;
                     if(data.success){
                     	$state.go("verified");
                     } else {
-                    	alert(data.message);
+                    	ToastService.error('Error', data.message);
                     	$state.go("login");
                     }
                 });
@@ -1241,7 +1241,7 @@ vm.selected_phone;
 
                     	////console.log("success");
                     } else {
-                    	alert("Sorry we were unable to find this invitation... Please try clicking the link again.")
+                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to find this invitation. Please try clicking the link again.')
                     	$state.go("login");
                     }
                 });
@@ -1319,7 +1319,7 @@ vm.selected_phone;
 	                    //Delete file from temp folder in server - file needs to remain open until blob is created
 	                    //deleteFileFromServerTemp(zipName);
 	                }).error(function(data, status) {
-	                    alert("There was an error downloading the selected document(s).");
+	                    ToastService.error('Download Failed', 'There was an error downloading the selected document(s).');
 	                })
 	        };
 
@@ -1349,7 +1349,7 @@ vm.selected_phone;
 		    		|| !$scope.formData.dob
 		    		|| !$scope.formData.password
 		    		|| !$scope.formData.password2){
-		    		alert("All form fields are required.");
+		    		ToastService.warning('Missing Fields', 'All form fields are required.');
 
 		    		//not all fields are filled in
 		    		return false;
@@ -1357,13 +1357,13 @@ vm.selected_phone;
 
 		    	if($scope.formData.password.length < 7){
 		    		//not long enough
-		    		alert("Password must be more than 7 characters long");
+		    		ToastService.warning('Password Too Short', 'Password must be more than 7 characters long');
 		    		return false;
 		    	}
 
 		    	if($scope.formData.password !== $scope.formData.password2){
 		    		//passwords do not match
-		    		alert("Your passwords do not match...");
+		    		ToastService.warning('Password Mismatch', 'Your passwords do not match.');
 		    		return false;
 		    	}
 
@@ -1405,13 +1405,13 @@ vm.selected_phone;
 
 
 		                    } else {
-		                    	alert("An error - occurred : "+data.error);
+		                    	ToastService.error('Signup Error', 'An error occurred: ' + data.error);
 		                    	return false;
 		                    }
 		            });
 
 	            } else {
-	            	alert("Please ensure that all fields are complete");
+	            	ToastService.warning('Incomplete Form', 'Please ensure that all fields are complete');
 	            }
 
 
@@ -1504,8 +1504,7 @@ vm.selected_phone;
 
 
 		                    } else {
-		                    	alert("Your verification code is incorrect...");
-    							//$scope.verified_mobile = false;
+		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
 		                    }
 
 		                });
@@ -1532,7 +1531,7 @@ vm.selected_phone;
 
 
 		                    } else {
-		                    	alert("Your verification code is incorrect...");
+		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
     							//$scope.verified_mobile = false;
 		                    }
 
@@ -1569,8 +1568,7 @@ vm.selected_phone;
 
 
 		                    } else {
-		                    	alert("Your verification code is incorrect...");
-    							$scope.verified_mobile = false;
+		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
 		                    }
 
 		                });
@@ -1703,10 +1701,10 @@ vm.selected_phone;
 
 	                    if(data){
 	                    	//console.log("success");
-	                    	alert("ALL GOOD TO GO");
+	                    	ToastService.success('Success', 'All good to go!');
 	                    	$state.go("invitations.verified");
 	                    } else {
-	                    	alert("Sorry we were unable to find this invitation... Please try clicking the link again.")
+	                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to find this invitation. Please try clicking the link again.')
 	                    	$state.go("login");
 	                    }
 	                });
