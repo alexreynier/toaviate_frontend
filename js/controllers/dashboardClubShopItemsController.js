@@ -64,6 +64,7 @@
         vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
 
         $scope.save = function(){
+            if (!vm.club.item) vm.club.item = {};
             var checks = [
                 { ok: vm.club.item.title,                                      field: 'title', label: 'Title' },
                 { ok: vm.club.item.price != null && vm.club.item.price !== '',  field: 'price', label: 'Price' }

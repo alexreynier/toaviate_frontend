@@ -423,10 +423,44 @@
         $scope.save = function(){
             var checks = [];
             if (vm.action == 'add') {
+                // Aircraft Details
                 checks.push({ ok: vm.plane_search && vm.plane_search.registration, field: 'registration', label: 'Registration' });
+                checks.push({ ok: vm.club.plane.manufacturer,    field: 'manufacturer',    label: 'Manufacturer' });
+                checks.push({ ok: vm.club.plane.serial_no,       field: 'serial_no',       label: 'Serial Number' });
+                checks.push({ ok: vm.club.plane.year_built,      field: 'year_built',      label: 'Year Built' });
+                checks.push({ ok: vm.club.plane.plane_class,     field: 'plane_class',     label: 'Aircraft Class' });
+                checks.push({ ok: vm.club.plane.gear_type,       field: 'gear_type',       label: 'Undercarriage Type' });
+                checks.push({ ok: vm.club.plane.seats,           field: 'seats',            label: 'Total Seats' });
+                checks.push({ ok: vm.club.plane.mtow,            field: 'mtow',             label: 'MTOW' });
+                checks.push({ ok: vm.club.plane.airframe_hours != null && vm.club.plane.airframe_hours !== '', field: 'airframe_hours', label: 'Airframe Hours' });
+
+                // Engine 1
+                checks.push({ ok: vm.plane_engine_1.make,         field: 'engine1_make',         label: 'Engine Make' });
+                checks.push({ ok: vm.plane_engine_1.model,        field: 'engine1_model',        label: 'Engine Model' });
+                checks.push({ ok: vm.plane_engine_1.serial_no,    field: 'engine1_serial_no',    label: 'Engine Serial Number' });
+                checks.push({ ok: vm.plane_engine_1.total_hours_at_start != null && vm.plane_engine_1.total_hours_at_start !== '', field: 'engine1_total_hours', label: 'Engine Total Hours' });
+                checks.push({ ok: vm.plane_engine_1.date_fitted,  field: 'engine1_date_fitted',  label: 'Engine Date Fitted' });
+                checks.push({ ok: vm.plane_engine_1.tbo_hours != null && vm.plane_engine_1.tbo_hours !== '', field: 'engine1_tbo_hours', label: 'Engine TBO Hours' });
+
+                // Propeller 1
+                checks.push({ ok: vm.plane_propeller_1.make,         field: 'prop1_make',         label: 'Propeller Make' });
+                checks.push({ ok: vm.plane_propeller_1.model,        field: 'prop1_model',        label: 'Propeller Model' });
+                checks.push({ ok: vm.plane_propeller_1.serial_no,    field: 'prop1_serial_no',    label: 'Propeller Serial Number' });
+                checks.push({ ok: vm.plane_propeller_1.date_fitted,  field: 'prop1_date_fitted',  label: 'Propeller Date Fitted' });
+                checks.push({ ok: vm.plane_propeller_1.tbo_hours != null && vm.plane_propeller_1.tbo_hours !== '', field: 'prop1_tbo_hours', label: 'Propeller TBO Hours' });
+                checks.push({ ok: vm.plane_propeller_1.total_hours_at_start != null && vm.plane_propeller_1.total_hours_at_start !== '', field: 'prop1_hours', label: 'Propeller Hours' });
+
+                // Maintenance
+                checks.push({ ok: vm.plane_maintenance.cofa_category,       field: 'cert_type',          label: 'Certificate Type' });
+                checks.push({ ok: vm.plane_maintenance.certificate_expiry,  field: 'cert_expiry',        label: 'Certificate Expiry' });
+                checks.push({ ok: vm.plane_maintenance.next_maintenance,    field: 'next_maintenance',   label: 'Next Maintenance' });
+                checks.push({ ok: vm.plane_maintenance.hours_remaining != null && vm.plane_maintenance.hours_remaining !== '', field: 'hours_remaining', label: 'Hours Remaining' });
+
+                // Default Charges
+                checks.push({ ok: vm.club.plane.charge_type,     field: 'charge_type',     label: 'Charge Type' });
+                checks.push({ ok: vm.club.plane.tacho_hour_fee != null && vm.club.plane.tacho_hour_fee !== '', field: 'tacho_hour_fee', label: 'Cost Per Hour' });
             }
             checks.push({ ok: vm.club.plane.plane_type, field: 'plane_type', label: 'ICAO Type' });
-            checks.push({ ok: vm.club.plane.seats, field: 'seats', label: 'Total Seats' });
             if (!ToastService.validateForm(checks)) return;
 
             if(vm.action == "add"){
