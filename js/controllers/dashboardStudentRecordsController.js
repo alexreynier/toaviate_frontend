@@ -152,6 +152,11 @@
 
         vm.update_club_selector = function(){
 
+            // Set club_id from the selected club dropdown before fetching courses
+            if (vm.selected_club && vm.selected_club.id) {
+                vm.club_id = vm.selected_club.id;
+            }
+
             CourseService.GetCoursesByClubId(vm.club_id)
                     .then(function(data){
 
