@@ -2265,15 +2265,20 @@
                 
             }
 
-            //vm.bookout.plane_charges where the fees are stored
+            //vm.bookout.plane_cha
+                // rges where th
+                // console.lkogog, tpc_flight_time()e fees are stored
             var plane_units = 0;
-
+            
 
             if(vm.claimed_flight && vm.claimed_flight !== null){
                 // console.log("NO SELECTED FLIGHT??");
 
                 //plane units
-                if(vm.bookout.plane_charges.charge_type == "flight"){
+                if(vm.bookout.plane_charges.tpc_aircraft_surchages){
+                    console.log("TPC SURCHARGE UNITS");
+                    plane_units = vm.bookout.tpc_flight_time;
+                } else if(vm.bookout.plane_charges.charge_type == "flight"){
                     //then the units relate to the entered numbers:
                     plane_units = vm.flight_units.airborne_times;
 
@@ -2304,7 +2309,10 @@
             } else {
                 // console.log("SELECT FLIGHT SO WE CAN USE THE FOLLOWING");
                 //plane units
-                if(vm.bookout.plane_charges.charge_type == "flight"){
+                 if(vm.bookout.plane_charges.tpc_aircraft_surchages){
+                    console.log("TPC SURCHARGE UNITS 2");
+                    plane_units = vm.bookout.tpc_flight_time;
+                } else if(vm.bookout.plane_charges.charge_type == "flight"){
                     //then the units relate to the entered numbers:
                     plane_units = vm.flight_units.flight_time;
 
@@ -2342,8 +2350,8 @@
             }
 
 
-
-            console.log("plane units: ", plane_units);
+            console.log(vm.bookout.plane_charges.tpc_aircraft_surchages);
+            console.log("plane units 2: ", plane_units);
             vm.package_removed = [];
             vm.package_used = false;
 
