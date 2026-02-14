@@ -1,7 +1,7 @@
  app.controller('DashboardClubPlanesController', DashboardClubPlanesController);
 
-    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService'];
-    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService) {
+    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'AircraftChecksService', '$filter'];
+    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, AircraftChecksService, $filter) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -147,7 +147,8 @@
 
                         vm.club.plane.vp = (vm.club.plane.vp == 1)? true:false;
                         vm.club.plane.rg = (vm.club.plane.rg == 1)? true:false; 
-                        vm.club.plane.tb = (vm.club.plane.tb == 1)? true:false; 
+                        vm.club.plane.tb = (vm.club.plane.tb == 1)? true:false;
+                        vm.club.plane.requires_check_a = (vm.club.plane.requires_check_a == 1)? true:false; 
 
                         vm.plane_engine_1 = vm.club.plane.engine_1;
                         vm.plane_engine_2 = vm.club.plane.engine_2;
@@ -157,6 +158,11 @@
 
                         //console.log(vm.club);
                         vm.page_title = "Edit a Plane - "+vm.club.plane.registration;
+
+                        // Load aircraft checks if this plane requires Check A
+                        if (vm.club.plane.requires_check_a) {
+                            vm.loadAircraftChecks();
+                        }
                     });
 
                
@@ -185,6 +191,52 @@
         }  
 
         //'9' needs to refer the the user's account set to manage
+
+        // ── Aircraft Checks History ──
+        vm.aircraft_checks = [];
+        vm.aircraft_checks_loading = false;
+        vm.checks_filter_date = null;
+        vm.audit_log = [];
+        vm.show_audit_trail = false;
+
+        vm.loadAircraftChecks = function() {
+            if (!vm.club.plane || !vm.club.plane.id) return;
+            vm.aircraft_checks_loading = true;
+            AircraftChecksService.GetChecksByPlane(vm.club.plane.id)
+                .then(function(data) {
+                    vm.aircraft_checks_loading = false;
+                    if (data.success) {
+                        vm.aircraft_checks = data.checks;
+                    }
+                });
+        };
+
+        vm.filterChecksByDate = function() {
+            if (!vm.checks_filter_date || !vm.club.plane || !vm.club.plane.id) {
+                vm.loadAircraftChecks();
+                return;
+            }
+            vm.aircraft_checks_loading = true;
+            var dateStr = $filter('date')(vm.checks_filter_date, 'yyyy-MM-dd');
+            AircraftChecksService.GetChecksByPlaneDate(vm.club.plane.id, dateStr)
+                .then(function(data) {
+                    vm.aircraft_checks_loading = false;
+                    if (data.success) {
+                        vm.aircraft_checks = data.checks;
+                    }
+                });
+        };
+
+        vm.viewCheckAudit = function(check) {
+            vm.show_audit_trail = true;
+            vm.audit_log = [];
+            AircraftChecksService.GetAuditLog(check.id)
+                .then(function(data) {
+                    if (data.success) {
+                        vm.audit_log = data.audit_log;
+                    }
+                });
+        };
        
         $scope.back = function(){
             $window.history.back();
@@ -613,7 +665,8 @@
 
             vm.club.plane.vp = (vm.club.plane.vp)? 1:0;
             vm.club.plane.rg = (vm.club.plane.rg)? 1:0; 
-            vm.club.plane.tb = (vm.club.plane.tb)? 1:0; 
+            vm.club.plane.tb = (vm.club.plane.tb)? 1:0;
+            vm.club.plane.requires_check_a = (vm.club.plane.requires_check_a)? 1:0;
 
             vm.club.plane.engine_1 = vm.plane_engine_1;
             vm.club.plane.engine_2 = vm.plane_engine_2;

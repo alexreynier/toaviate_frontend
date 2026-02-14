@@ -107,6 +107,11 @@
           <input type="checkbox" class="form-control inputtext no_top_shadow" name="tb" id="tb" ng-model="vm.club.plane.tb" />
         </div>
 
+        <div class="form-group">
+          <label for="requires_check_a" uib-tooltip="When enabled, pilots must complete a Check A (first flight of the day) or Transit Check (subsequent flights) before booking out this aircraft.">Requires Pre-Flight Check A</label>
+          <input type="checkbox" class="form-control inputtext no_top_shadow" name="requires_check_a" id="requires_check_a" ng-model="vm.club.plane.requires_check_a" />
+        </div>
+
        
       </div>
 
@@ -1361,6 +1366,91 @@
               </div>
 
             </div>
+
+
+            <!-- ── Aircraft Checks History (edit mode only) ── -->
+            <div class="club_docs_all" ng-if="vm.editing && vm.club.plane.requires_check_a">
+              <h2>Aircraft Checks History</h2>
+
+              <div ng-if="vm.aircraft_checks_loading" class="text-center">
+                <i class="fa fa-spinner fa-spin"></i> Loading checks...
+              </div>
+
+              <div ng-if="!vm.aircraft_checks_loading">
+
+                <!-- Filter by date -->
+                <div class="form-group" style="max-width: 300px;">
+                  <label for="checks_filter_date">Filter by Date</label>
+                  <input type="date" class="form-control inputtext" id="checks_filter_date" ng-model="vm.checks_filter_date" ng-change="vm.filterChecksByDate()" />
+                </div>
+
+                <div class="no_defects" ng-if="!vm.aircraft_checks || vm.aircraft_checks.length == 0">
+                  No checks have been recorded for this aircraft yet.
+                </div>
+
+                <div class="card" ng-if="vm.aircraft_checks && vm.aircraft_checks.length > 0">
+                  <table class="table responsive_table">
+                    <thead>
+                      <tr>
+                        <th>Date / Time</th>
+                        <th>Check Type</th>
+                        <th>Performed By</th>
+                        <th class="hide_on_mobile">Fuel (gal)</th>
+                        <th class="hide_on_mobile">Oil (qt)</th>
+                        <th class="hide_on_mobile">Notes</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr ng-repeat="check in vm.aircraft_checks">
+                        <td data-label="Date/Time">{{ check.checked_at | myDateTime }}</td>
+                        <td data-label="Type">
+                          <span class="badge" ng-class="{'badge-success': check.check_type == 'check_a', 'badge-info': check.check_type == 'transit_check', 'badge-default': check.check_type != 'check_a' && check.check_type != 'transit_check'}">
+                            {{ check.check_type_name || check.check_type }}
+                          </span>
+                        </td>
+                        <td data-label="Performed By">{{ check.first_name }} {{ check.last_name }}</td>
+                        <td data-label="Fuel" class="hide_on_mobile">{{ check.fuel_us_gallons }}</td>
+                        <td data-label="Oil" class="hide_on_mobile">{{ check.oil_quarts }}</td>
+                        <td data-label="Notes" class="hide_on_mobile">{{ check.notes | limitTo:40 }}{{ check.notes.length > 40 ? '...' : '' }}</td>
+                        <td data-label="Actions">
+                          <button class="btn btn-xs btn-info" ng-click="vm.viewCheckAudit(check)"><i class="fa fa-history"></i> Audit</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Audit Trail Modal/Inline -->
+                <div class="card" ng-if="vm.show_audit_trail && vm.audit_log && vm.audit_log.length > 0">
+                  <h4>Audit Trail <button class="btn btn-xs btn-danger" ng-click="vm.show_audit_trail = false">Close</button></h4>
+                  <table class="table responsive_table">
+                    <thead>
+                      <tr>
+                        <th>Date/Time</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th class="hide_on_mobile">Field</th>
+                        <th class="hide_on_mobile">Old Value</th>
+                        <th class="hide_on_mobile">New Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr ng-repeat="entry in vm.audit_log">
+                        <td data-label="Date/Time">{{ entry.created_at | myDateTime }}</td>
+                        <td data-label="User">{{ entry.first_name }} {{ entry.last_name }}</td>
+                        <td data-label="Action">{{ entry.action }}</td>
+                        <td data-label="Field" class="hide_on_mobile">{{ entry.field_name || '—' }}</td>
+                        <td data-label="Old" class="hide_on_mobile">{{ entry.old_value || '—' }}</td>
+                        <td data-label="New" class="hide_on_mobile">{{ entry.new_value || '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+              </div>
+            </div>
+            <!-- ── End Aircraft Checks History ── -->
 
 
           <div class="btns_bottom">

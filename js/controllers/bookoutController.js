@@ -1,7 +1,7 @@
  app.controller('BookoutController', BookoutController);
 
-    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService'];
-    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService) {
+    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService', 'AircraftChecksService'];
+    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService, AircraftChecksService) {
         
         var vm = this;
 
@@ -40,6 +40,24 @@
         vm.reported_defects = [];
       
         vm.can_authorise = false;
+
+        // ── Aircraft Check A / Transit Check state ──
+        vm.aircraft_check = {
+            required: false,
+            check_type: null,
+            message: '',
+            loading: false,
+            submitted: false,
+            existing_check_id: null
+        };
+        vm.check_form = {
+            fuel_us_gallons: null,
+            oil_quarts: null,
+            checked_at: null,
+            notes: '',
+            confirmed: false
+        };
+        vm.check_submitting = false;
 
         vm.bookout.plane = {
             id: 12,
@@ -1483,6 +1501,31 @@
                        }
                     });
 
+            // ── Aircraft Check A / Transit Check query ──
+            vm.aircraft_check.loading = true;
+            var flight_date = $filter('date')(vm.bookout.booking_start, 'yyyy-MM-dd');
+            AircraftChecksService.GetRequiredCheck(booking.plane.id, flight_date, booking.id)
+                .then(function(data) {
+                    vm.aircraft_check.loading = false;
+                    if (data.success) {
+                        vm.aircraft_check.required = data.required;
+                        vm.aircraft_check.check_type = data.check_type;
+                        vm.aircraft_check.message = data.message;
+                        vm.aircraft_check.existing_check_id = data.existing_check_id || null;
+
+                        if (data.required) {
+                            // Pre-fill the check form with sensible defaults
+                            var now = new Date();
+                            vm.check_form.checked_at = $filter('date')(now, 'yyyy-MM-ddTHH:mm');
+                            vm.aircraft_check.check_type_label = (data.check_type === 'check_a') ? 'Check A' : 'Transit Check';
+                        }
+
+                        if (data.existing_check_id) {
+                            vm.aircraft_check.submitted = true;
+                        }
+                    }
+                });
+
           
             //booking.plane_details.location.id
             // vm.bookout.pic = selected_pic;
@@ -1596,6 +1639,26 @@
                     return false;
                 }
 
+                // ── Aircraft Check A / Transit Check validation ──
+                if (vm.aircraft_check.required && !vm.aircraft_check.submitted) {
+                    if (!vm.check_form.fuel_us_gallons || vm.check_form.fuel_us_gallons <= 0) {
+                        ToastService.warning('Aircraft Check', 'Please enter the fuel on board (US Gallons).');
+                        return false;
+                    }
+                    if (!vm.check_form.oil_quarts || vm.check_form.oil_quarts <= 0) {
+                        ToastService.warning('Aircraft Check', 'Please enter the oil on board (quarts).');
+                        return false;
+                    }
+                    if (!vm.check_form.checked_at) {
+                        ToastService.warning('Aircraft Check', 'Please enter the date and time that the check was performed.');
+                        return false;
+                    }
+                    if (!vm.check_form.confirmed) {
+                        ToastService.warning('Aircraft Check', 'You must confirm that you have performed this check and accept responsibility.');
+                        return false;
+                    }
+                }
+
                 //checking the pax are either member or accepted the invitation
                 vm.refresh_all_passenger();
 
@@ -1659,14 +1722,48 @@
                 // console.log("READY WITH: ", bookout_obj);
                 // return false;
 
-                BookoutService.SendBookout(vm.user.id, bookout_obj)
-                .then(function(data){
-                    if(data.success){
-                        $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
-                    } else {
-                        ToastService.error('Bookout Failed', 'Something went wrong: ' + (data.message || 'Unknown error'));
-                    }
-                });
+                // ── Submit aircraft check first if required, then bookout ──
+                var doBookout = function() {
+                    BookoutService.SendBookout(vm.user.id, bookout_obj)
+                    .then(function(data){
+                        if(data.success){
+                            $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
+                        } else {
+                            ToastService.error('Bookout Failed', 'Something went wrong: ' + (data.message || 'Unknown error'));
+                        }
+                    });
+                };
+
+                if (vm.aircraft_check.required && !vm.aircraft_check.submitted) {
+                    vm.check_submitting = true;
+                    var flight_date = $filter('date')(vm.bookout.booking_start, 'yyyy-MM-dd');
+                    var check_payload = {
+                        club_id: vm.bookout.club_id,
+                        plane_id: vm.bookout.plane.id,
+                        booking_id: vm.bookout.booking_id,
+                        check_type: vm.aircraft_check.check_type,
+                        performed_by: vm.user.id,
+                        checked_at: vm.check_form.checked_at,
+                        fuel_us_gallons: vm.check_form.fuel_us_gallons,
+                        oil_quarts: vm.check_form.oil_quarts,
+                        flight_date: flight_date,
+                        notes: vm.check_form.notes || ''
+                    };
+
+                    AircraftChecksService.CreateCheck(check_payload)
+                        .then(function(checkData) {
+                            vm.check_submitting = false;
+                            if (checkData.success) {
+                                vm.aircraft_check.submitted = true;
+                                ToastService.success('Check Submitted', vm.aircraft_check.check_type_label + ' submitted successfully.');
+                                doBookout();
+                            } else {
+                                ToastService.error('Check Failed', 'Aircraft check could not be submitted: ' + (checkData.message || 'Unknown error'));
+                            }
+                        });
+                } else {
+                    doBookout();
+                }
 
 
                 //console.log("OBJECT HERE", bookout_obj);

@@ -802,7 +802,7 @@
 
                 if(vm.new_booking.rental_items){
                     //then we may have shizzle to check / update
-                    for(var i=0;i<vm.new_booking.rental_items;i++){
+                    for(var i=0;i<vm.new_booking.rental_items.length;i++){
                         //first and foremost we need to check the available bits....
                         var found = 0;
                         for(var j=0;j<vm.rental_items.length;j++){
@@ -833,7 +833,7 @@
                 //if there is one already selected?
                 //check if anything was already selected...
                 if(vm.new_booking.rental_items){
-                    for(var j=0; j<vm.new_booking.rental_items; j++){
+                    for(var j=0; j<vm.new_booking.rental_items.length; j++){
                         var reset_chosen = 1;
                         for(var i = 0; i<vm.rental_items.length; i++){
                             if(vm.rental_items[i].id == vm.new_booking.rental_items[j].id){
@@ -877,7 +877,7 @@
                 //   if(time.time == moment(future).format("H:mm")){ id = i; return true;}; 
                 // });
                 vm.end_times.some(function(time, i){ 
-                  if(time.time == moment(future).format("H:mm")){ id = i; return i;};  
+                  if(time.time == moment(future).format("H:mm")){ id = i; return true;};  
                 });
 
                 vm.new_booking.end_time = {};
@@ -899,7 +899,7 @@
                 //   if(time.time == moment(future).format("H:mm")){ id = i; return true;}; 
                 // });
                 vm.end_times.some(function(time, i){ 
-                  if(time.time == moment(future).format("H:mm")){ id = i; return i;};  
+                  if(time.time == moment(future).format("H:mm")){ id = i; return true;};  
                 });
 
                 vm.new_booking.end_time = {};
@@ -1411,7 +1411,7 @@
     $scope.override_booking_change = function(override){
 
         vm.error_event[override] = true;
-        //vm.error_event.override = true;
+        vm.error_event.override = 1;
 
         check_before_changing_event(vm.error_event, true);
 
@@ -1421,7 +1421,10 @@
     $scope.override_booking_change2 = function(override){
 
         vm.error_event.admin_override = true;
-        //vm.error_event.override = true;
+        vm.error_event.override = 1;
+        if(override){
+            vm.error_event[override] = true;
+        }
 
         check_before_changing_event(vm.error_event, true);
 

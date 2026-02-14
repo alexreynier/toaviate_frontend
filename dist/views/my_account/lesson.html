@@ -37,15 +37,89 @@
       </div>
 
 
-     
+      <!-- ═══════════════════════════════════════════ -->
+      <!-- LESSON CONTENT FILES VIEWER (Images / PDFs) -->
+      <!-- ═══════════════════════════════════════════ -->
+      <div class="club_docs_all lcf-viewer-section" ng-if="vm.hasContentFiles()">
 
+        <!-- Loading state -->
+        <div class="lcf-viewer-loading" ng-if="vm.contentFilesLoading">
+          <i class="fa fa-spinner fa-spin"></i> Loading lesson content&hellip;
+        </div>
 
-       <div class="club_docs_all">
-        <h2 uib-tooltip="Threat and Error Management">TEM</h2>
+        <!-- Main viewer area -->
+        <div class="lcf-viewer-container" ng-if="!vm.contentFilesLoading">
 
-            <div class="card" ng-if="vm.lesson.tem.length == 0">
-              There are no TEM for this lesson
+          <!-- Active file display -->
+          <div class="lcf-viewer-main">
+            <div class="lcf-viewer-placeholder" ng-if="!vm.activeContentFile">
+              <i class="fa fa-images"></i>
+              <p>Select a file below to view</p>
             </div>
+
+            <!-- Image viewer -->
+            <div class="lcf-viewer-image-wrap" ng-if="vm.activeContentFile && vm.activeContentFile.file_type !== 'pdf' && vm.activeContentFile.mime_type !== 'application/pdf'">
+              <img ng-src="{{ vm.activeContentFile.data_uri }}" alt="{{ vm.activeContentFile.original_name }}" class="lcf-viewer-image" />
+            </div>
+
+            <!-- PDF viewer -->
+            <div class="lcf-viewer-pdf-wrap" ng-if="vm.activeContentFile && (vm.activeContentFile.file_type === 'pdf' || vm.activeContentFile.mime_type === 'application/pdf')">
+              <object ng-attr-data="{{ vm.activeContentFile.data_uri }}" type="application/pdf" class="lcf-viewer-pdf">
+                <p>Your browser does not support inline PDF viewing. <a ng-href="{{ vm.activeContentFile.data_uri }}" target="_blank">Open PDF</a></p>
+              </object>
+            </div>
+
+            <!-- Loading spinner for active file -->
+            <div class="lcf-viewer-file-loading" ng-if="vm.activeContentFile && vm.activeContentFile._loading">
+              <i class="fa fa-spinner fa-spin"></i> Loading&hellip;
+            </div>
+
+            <!-- Error state for active file -->
+            <div class="lcf-viewer-file-error" ng-if="vm.activeContentFile && vm.activeContentFile._loadError">
+              <i class="fa fa-exclamation-triangle"></i> Could not load this file.
+            </div>
+          </div>
+
+          <!-- Thumbnail strip -->
+          <div class="lcf-viewer-thumbnails" ng-if="vm.contentFiles.length > 1">
+            <div class="lcf-viewer-thumb"
+                 ng-repeat="file in vm.contentFiles"
+                 ng-class="{'lcf-viewer-thumb-active': vm.activeContentFile.id === file.id}"
+                 ng-click="vm.selectContentFile(file)">
+
+              <!-- Image thumbnail -->
+              <img ng-if="file.data_uri && file.file_type !== 'pdf' && file.mime_type !== 'application/pdf'"
+                   ng-src="{{ file.data_uri }}" alt="{{ file.original_name }}" />
+
+              <!-- PDF thumbnail -->
+              <div class="lcf-thumb-pdf-icon" ng-if="file.file_type === 'pdf' || file.mime_type === 'application/pdf'">
+                <i class="fa fa-file-pdf"></i>
+              </div>
+
+              <!-- Loading thumb -->
+              <div class="lcf-thumb-loading" ng-if="file._loading">
+                <i class="fa fa-spinner fa-spin"></i>
+              </div>
+
+              <!-- Error thumb -->
+              <div class="lcf-thumb-error" ng-if="file._loadError">
+                <i class="fa fa-exclamation-triangle"></i>
+              </div>
+
+              <span class="lcf-thumb-label">{{ file.original_name }}</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════ -->
+      <!-- TRADITIONAL LESSON SECTIONS (hidden if empty) -->
+      <!-- ═══════════════════════════════════════════ -->
+
+       <div class="club_docs_all" ng-if="vm.hasSectionContent('tem')">
+        <h2 uib-tooltip="Threat and Error Management">TEM</h2>
 
             <div class="card" ng-if="vm.lesson.tem.length > 0">
                 <table>
@@ -76,12 +150,8 @@
       </div>
 
 
-      <div class="club_docs_all">
+      <div class="club_docs_all" ng-if="vm.hasSectionContent('preflight')">
         <h2>Pre-Flight</h2>
-
-            <div class="card" ng-if="vm.lesson.bullets.preflight.length == 0">
-              This lesson doesn't any Pre-Flight Items yet.
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.preflight.length > 0">
                 <table class="lesson_display">
@@ -104,12 +174,8 @@
       </div>
 
 
-      <div class="club_docs_all">
+      <div class="club_docs_all" ng-if="vm.hasSectionContent('airex')">
         <h2>Air Exercises</h2>
-
-            <div class="card" ng-if="vm.lesson.bullets.airex.length == 0">
-              This lesson doesn't contain any Air Exercises yet.
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.airex.length > 0">
                 <table class="lesson_display">
@@ -133,12 +199,8 @@
 
 
     
-      <div class="club_docs_all">
+      <div class="club_docs_all" ng-if="vm.hasSectionContent('debrief')">
         <h2>Debrief</h2>
-
-        <div class="card" ng-if="vm.lesson.bullets.debrief.length == 0">
-              This lesson doesn't contain any specific Debrief Points.
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.debrief.length > 0">
                 <table class="lesson_display">
@@ -161,13 +223,8 @@
 
       </div>
 
-      <div class="club_docs_all">
+      <div class="club_docs_all" ng-if="vm.hasSectionContent('items')">
         <h2>Student Progress Items</h2>
-
-          
-            <div class="card" ng-if="vm.lesson.items.length == 0">
-             There are no student progress tasks for this lesson
-            </div>
 
             <div class="card" ng-if="vm.lesson.items.length > 0">
                 <table>

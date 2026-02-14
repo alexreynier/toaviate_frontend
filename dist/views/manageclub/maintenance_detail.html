@@ -50,6 +50,9 @@
                           <th>
                             Status
                           </th>
+                          <th>
+                            Workpack
+                          </th>
                         </tr>
                         <tr ng-repeat="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
                           <td>
@@ -63,6 +66,17 @@
                           </td>
                           <td>
                             {{ defect.status }}
+                          </td>
+                          <td>
+                            <span ng-if="defect.linked_workpack_number" class="btn btn-xs btn-info" uib-tooltip="Part of workpack: {{ defect.linked_workpack_number }} ({{ defect.linked_workpack_status }})">
+                              <i class="fa fa-briefcase"></i> {{ defect.linked_workpack_number }}
+                            </span>
+                            <span ng-if="defect.defect_workpack_number && !defect.linked_workpack_number" class="btn btn-xs btn-default" uib-tooltip="Standalone workpack: {{ defect.defect_workpack_number }}">
+                              <i class="fa fa-file-text-o"></i> {{ defect.defect_workpack_number }}
+                            </span>
+                            <span ng-if="!defect.linked_workpack_number && !defect.defect_workpack_number">
+                              —
+                            </span>
                           </td>
                         </tr>
                       </table>
@@ -198,6 +212,29 @@
                            <button class="btn btn-primary" ng-click="show_overlay('noise')">UPDATE</button>
                         </td>                 
                       </tr>
+                      <tr>
+                        <td>Certificate of Release to Service (CRS)</td>
+                        <td>
+                          <span ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
+                            <a ng-click="vm.downloadCrs(vm.club.plane.crs.certificate)">
+                              <img class="file_icon2" src="{{ get_icon2(vm.club.plane.crs.certificate) }}" alt="open doc" />
+                            </a>
+                          </span>
+                          <span ng-if="!vm.club.plane.crs || !vm.club.plane.crs.certificate">
+                            NOT SET
+                          </span>
+                        </td>
+                        <td>
+                          <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }} at {{ vm.club.plane.crs.release_time }}</span>
+                          <span ng-if="!vm.club.plane.crs">—</span>
+                        </td>
+                        <td>
+                          <span ng-if="vm.club.plane.crs" style="font-size: 11px; color: #8494a7;">N/A (no expiry)</span>
+                        </td>
+                        <td>
+                           <button class="btn btn-primary" ng-click="show_overlay('crs')">UPDATE</button>
+                        </td>                 
+                      </tr>
                     </table>
                     
                   </div>
@@ -232,6 +269,252 @@
 
                     <button class="btn btn-primary club_add_button extra_space_top extra_space_bottom" ng-click="vm.reset_aeroplane()">Force Recheck Logbooks</button>
 
+                  </div>
+
+
+                  <!-- ═══════════════════════════════════════════ -->
+                  <!-- Maintenance Events History                 -->
+                  <!-- ═══════════════════════════════════════════ -->
+                  <div class="card">
+                    <h4><i class="fa fa-history"></i> Maintenance Events</h4>
+
+                    <!-- Filter Tabs -->
+                    <div class="mx-event-filters">
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'all'}" ng-click="vm.event_filter = 'all'">All</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'annual'}" ng-click="vm.event_filter = 'annual'">Annual</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '50hours'}" ng-click="vm.event_filter = '50hours'">50hr</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '100hours'}" ng-click="vm.event_filter = '100hours'">100hr</button>
+                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'extension'}" ng-click="vm.event_filter = 'extension'">Ext</button>
+                    </div>
+
+                    <div ng-if="!vm.maintenance_events || vm.maintenance_events.length === 0" class="mx-empty-state">
+                      <i class="fa fa-wrench mx-empty-icon"></i>
+                      <p>No maintenance events recorded yet.</p>
+                      <p class="mx-empty-hint">Use "Add Maintenance Check" above to log the first event.</p>
+                    </div>
+
+                    <div class="mx-event-list" ng-if="vm.maintenance_events && vm.maintenance_events.length > 0">
+                      <div class="mx-event-item"
+                           ng-repeat="event in vm.maintenance_events"
+                           ng-if="vm.event_filter === 'all' || event.maintenance_type === vm.event_filter"
+                           ng-click="vm.viewEvent(event)">
+                        <div class="mx-event-icon-col">
+                          <div class="mx-event-icon">
+                            <i class="fa" ng-class="vm.getEventTypeIcon(event.maintenance_type)"></i>
+                          </div>
+                          <div class="mx-event-line" ng-if="!$last"></div>
+                        </div>
+                        <div class="mx-event-content">
+                          <div class="mx-event-header">
+                            <span class="mx-event-type-badge">{{ vm.getEventTypeLabel(event.maintenance_type) }}</span>
+                            <span class="mx-event-date"><i class="fa fa-calendar-o"></i> {{ event.check_date | date:'dd MMM yyyy' }}</span>
+                          </div>
+                          <div class="mx-event-body">
+                            <span ng-if="event.description" class="mx-event-desc">{{ event.description }}</span>
+                            <span ng-if="!event.description" class="mx-event-desc mx-event-desc-empty">No description</span>
+                          </div>
+                          <div class="mx-event-meta">
+                            <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer"></i> {{ event.hours_remaining }} hrs remaining</span>
+                            <span ng-if="event.expiry_date" class="mx-meta-chip"><i class="fa fa-clock-o"></i> Next: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
+                            <span ng-if="event.checked_by" class="mx-meta-chip"><i class="fa fa-user"></i> {{ event.checked_by }}</span>
+                          </div>
+                        </div>
+                        <div class="mx-event-action">
+                          <i class="fa fa-pencil"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+
+                  <!-- Workpacks for this aircraft (read-only summary) -->
+                  <div class="card">
+                    <h4>Maintenance Workpacks</h4>
+
+                    <div ng-if="!vm.workpacks || vm.workpacks.length === 0">
+                      <p>No workpacks for this aircraft. Create one via "Add Maintenance Check".</p>
+                    </div>
+
+                    <table ng-if="vm.workpacks && vm.workpacks.length > 0">
+                      <tr>
+                        <th>Workpack Number</th>
+                        <th>Description</th>
+                        <th>Signatory</th>
+                        <th>Status</th>
+                        <th>Document</th>
+                        <th>Created</th>
+                        <th>View</th>
+                      </tr>
+                      <tr ng-repeat="wp in vm.workpacks">
+                        <td>{{ wp.workpack_number || '—' }}</td>
+                        <td>{{ wp.description || '—' }}</td>
+                        <td>{{ wp.authorised_signatory || '—' }}</td>
+                        <td>
+                          <button class="btn btn-xs status" ng-class="{'expired': wp.status === 'open', 'ok': wp.status === 'completed'}">
+                            {{ wp.status }}
+                          </button>
+                        </td>
+                        <td>
+                          <a ng-if="wp.document" ng-click="downloadWorkpackDocument(wp.document)" uib-tooltip="Download {{ wp.document_original_name || wp.document }}">
+                            <i class="fa fa-file-pdf-o"></i>
+                          </a>
+                          <span ng-if="!wp.document">—</span>
+                        </td>
+                        <td>{{ wp.created_at | myDateTime }}</td>
+                        <td>
+                          <button class="btn btn-xs btn-primary" ng-click="vm.viewWorkpack(wp.id)">
+                            <i class="fa fa-eye"></i> View
+                          </button>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <!-- Workpack Detail (slide-in overlay panel) -->
+                  <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_workpack_detail}" ng-click="vm.closeWorkpackDetail()"></div>
+                  <div class="wp-overlay-panel" ng-class="{'open': vm.show_workpack_detail}" ng-include="'views/manageclub/workpack_detail.html'"></div>
+
+                  <!-- Maintenance Event Edit (slide-in overlay panel) -->
+                  <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_event_detail}" ng-click="vm.closeEventDetail()"></div>
+                  <div class="wp-overlay-panel" ng-class="{'open': vm.show_event_detail}">
+                    <div class="wp-panel-inner" ng-if="vm.selected_event">
+
+                      <!-- ── Header ── -->
+                      <div class="wp-panel-header">
+                        <div class="wp-panel-header-left">
+                          <span class="wp-panel-badge wp-status-open">
+                            <i class="fa" ng-class="vm.getEventTypeIcon(vm.selected_event.maintenance_type)"></i>
+                            {{ vm.getEventTypeLabel(vm.selected_event.maintenance_type) }}
+                          </span>
+                          <h2 class="wp-panel-title">Edit Maintenance Event</h2>
+                          <p class="wp-panel-subtitle">{{ vm.club.plane.registration }} &middot; {{ vm.selected_event.check_date | date:'dd MMM yyyy' }}</p>
+                        </div>
+                        <button class="wp-panel-close" ng-click="vm.closeEventDetail()" title="Close">
+                          <i class="fa fa-times"></i>
+                        </button>
+                      </div>
+
+                      <!-- ── Scrollable Body ── -->
+                      <div class="wp-panel-body">
+
+                        <!-- Event Details Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-wrench"></i> Event Details</h3>
+
+                          <div class="wp-form-group">
+                            <label for="edit_mx_type">Maintenance Type</label>
+                            <select class="form-control inputtext" id="edit_mx_type" ng-model="vm.selected_event.maintenance_type">
+                              <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
+                            </select>
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_check_date">Date of Maintenance</label>
+                            <input type="date" class="form-control inputtext" id="edit_check_date" ng-model="vm.selected_event._check_date" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_check_time">Time of Maintenance</label>
+                            <div class="timepicker_in_form">
+                              <div uib-timepicker ng-model="vm.selected_event._check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
+                            </div>
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_hours_remaining">Hours To Next Check</label>
+                            <input type="number" class="form-control inputtext" id="edit_hours_remaining" ng-model="vm.selected_event.hours_remaining" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_expiry_date">Date Of Next Check</label>
+                            <input type="date" class="form-control inputtext" id="edit_expiry_date" ng-model="vm.selected_event._expiry_date" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_checked_by">Checked By</label>
+                            <input type="text" class="form-control inputtext" id="edit_checked_by" ng-model="vm.selected_event.checked_by" />
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_description">Notes / Description</label>
+                            <textarea class="form-control inputtext" id="edit_description" ng-model="vm.selected_event.description" rows="3"></textarea>
+                          </div>
+                        </div>
+
+                        <!-- Quick Info Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-info-circle"></i> Event Summary</h3>
+                          <div class="wp-info-grid">
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Type</span>
+                              <span class="wp-info-value">{{ vm.getEventTypeLabel(vm.selected_event.maintenance_type) }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Check Date</span>
+                              <span class="wp-info-value">{{ vm.selected_event._check_date | date:'dd/MM/yyyy' }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Next Due</span>
+                              <span class="wp-info-value">{{ vm.selected_event._expiry_date | date:'dd/MM/yyyy' || '—' }}</span>
+                            </div>
+                            <div class="wp-info-item">
+                              <span class="wp-info-label">Hours Remaining</span>
+                              <span class="wp-info-value">{{ vm.selected_event.hours_remaining || '—' }}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Logbook Associations Section -->
+                        <div class="wp-section">
+                          <h3 class="wp-section-title"><i class="fa fa-book"></i> Logbook Associations</h3>
+                          <p class="wp-empty-text" style="margin-bottom: 12px;">Select which logbooks this maintenance event should appear in:</p>
+
+                          <div ng-if="vm.logbook_checkboxes.length === 0 && !vm.logbook_load_error" class="lb-loading">
+                            <i class="fa fa-spinner fa-spin"></i> Loading logbooks...
+                          </div>
+
+                          <div ng-if="vm.logbook_load_error" class="lb-error">
+                            <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
+                            <a href ng-click="vm.loadLogbookLinks(vm.selected_event.id)">Retry</a>
+                          </div>
+
+                          <div class="lb-checkbox-list" ng-if="vm.logbook_checkboxes.length > 0">
+                            <label class="lb-checkbox-item" ng-repeat="lb in vm.logbook_checkboxes">
+                              <div class="lb-checkbox-toggle">
+                                <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleLogbook(lb)" />
+                                <span class="lb-checkbox-slider"></span>
+                              </div>
+                              <div class="lb-checkbox-info">
+                                <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
+                                <span class="lb-checkbox-label">{{ lb.label }}</span>
+                                <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
+                              </div>
+                            </label>
+                          </div>
+
+                          <div class="lb-save-row" ng-if="vm.logbook_checkboxes.length > 0">
+                            <button class="wp-btn wp-btn-primary wp-btn-sm" ng-click="vm.saveLogbookLinks()" ng-disabled="vm.saving_logbook_links">
+                              <i class="fa" ng-class="vm.saving_logbook_links ? 'fa-spinner fa-spin' : 'fa-link'"></i>
+                              {{ vm.saving_logbook_links ? 'Saving...' : 'Update Logbook Links' }}
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      <!-- ── Footer Actions ── -->
+                      <div class="wp-panel-footer">
+                        <div class="wp-footer-actions">
+                          <button class="wp-btn wp-btn-danger" ng-click="vm.closeEventDetail()">
+                            <i class="fa fa-times"></i> Cancel
+                          </button>
+                          <button class="wp-btn wp-btn-success" ng-click="vm.saveEvent()">
+                            <i class="fa fa-check"></i> Save Changes
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
                   </div>
 
 
@@ -300,36 +583,64 @@ DETAILS</h3>
 
 
 
-<div class="overlaydiv" ng-if="vm.show_overlay">
-    <div class="overlay_content">
+<div class="wp-overlay-backdrop" ng-class="{'active': vm.show_overlay}" ng-click="close_overlay()"></div>
+<div class="wp-overlay-panel wp-overlay-panel-wide" ng-class="{'open': vm.show_overlay}">
+  <div class="wp-panel-inner">
 
-        <div class="form center_if_large bookingout_wrapper2">
+    <!-- ── Header ── -->
+    <div class="wp-panel-header">
+      <div class="wp-panel-header-left">
+        <span class="wp-panel-badge" ng-class="{
+          'wp-status-open': vm.show_maintenance,
+          'wp-status-completed': !vm.show_maintenance
+        }">
+          <i class="fa" ng-class="{
+            'fa-wrench': vm.show_maintenance || vm.show_offline,
+            'fa-file-text-o': vm.show_cert || vm.show_crs,
+            'fa-shield': vm.show_insurance,
+            'fa-wifi': vm.show_radio,
+            'fa-volume-up': vm.show_noise
+          }"></i>
+          <span ng-if="vm.show_maintenance">MAINTENANCE CHECK</span>
+          <span ng-if="vm.show_offline && !vm.show_maintenance">TAKE OFFLINE</span>
+          <span ng-if="vm.show_cert && !vm.show_maintenance">UPDATE CERTIFICATE</span>
+          <span ng-if="vm.show_insurance && !vm.show_maintenance">UPDATE INSURANCE</span>
+          <span ng-if="vm.show_radio && !vm.show_maintenance">UPDATE RADIO LICENCE</span>
+          <span ng-if="vm.show_noise && !vm.show_maintenance">UPDATE NOISE CERT</span>
+          <span ng-if="vm.show_crs && !vm.show_maintenance">UPDATE CRS</span>
+        </span>
+        <h2 class="wp-panel-title">{{ vm.club.plane.registration }}</h2>
+        <p class="wp-panel-subtitle" ng-if="vm.show_maintenance">Complete the maintenance check details below</p>
+      </div>
+      <button class="wp-panel-close" ng-click="close_overlay()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
 
-            <!-- the form here //-->
+    <!-- ── Scrollable Body ── -->
+    <div class="wp-panel-body">
+      
+            <!-- ═══════ TAKE OFFLINE ═══════ -->
+            <div class="wp-section" ng-if="vm.show_offline">
+                    <h3 class="wp-section-title"><i class="fa fa-power-off"></i> Take Plane Offline</h3>
 
-            <div class="offline" ng-if="vm.show_offline">
+                    <div class="wp-form-group">
+                      <label for="offline_until">Offline Until Date</label>
+                      <input type="date" class="form-control inputtext" name="offline_until" id="offline_until" ng-model="vm.obj.offline_until" />
+                    </div>
 
-                    <h3>Take Plane Offline</h3>
-
-
-                    <label for="offline_until">Offline Until Date</label>
-                    <input type="date" class="form-control" name="offline_until" id="offline_until" ng-model="vm.obj.offline_until" />
-
-                    <br />
-
-                    <label class="notes_center" for="notes">Reason / Notes</label>
-                    <textarea class="form-control" name="notes" id="notes" ng-model="vm.obj.offline_notes" />
-
-                    <br />
-                    
+                    <div class="wp-form-group">
+                      <label class="notes_center" for="notes">Reason / Notes</label>
+                      <textarea class="form-control inputtext" name="notes" id="notes" ng-model="vm.obj.offline_notes"></textarea>
+                    </div>
             </div>
 
-          
-            <div class="maintenance" ng-if="vm.show_maintenance">
+            <!-- ═══════ MAINTENANCE COMPLETED ═══════ -->
+            <div class="wp-section" ng-if="vm.show_maintenance">
 
-                    <h3>Maintenance Completed</h3>
+                    <h3 class="wp-section-title"><i class="fa fa-wrench"></i> Maintenance Completed</h3>
 
-                    <div class="form-group">
+                    <div class="wp-form-group">
                       <label for="plane_class">Maintenance Type</label>
                       <select class="form-control inputtext" ng-model="vm.obj.maintenance_type">
                         <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
@@ -367,24 +678,24 @@ DETAILS</h3>
                   <div ng-if="vm.obj.maintenance_type !== 'extension'">
 
                     <div class="form-group">
-                      <label for="hours_remaining">Hours Remaining</label>
-                      <input type="number" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.obj.hours_remaining" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="check_date" uib-tooltip="The date the maintenance was complete">Date of Maintenance</label>
+                      <label for="check_date" uib-tooltip="The date the maintenance was completed">Date of Maintenance</label>
                       <input type="date" class="form-control inputtext" name="check_date" id="check_date" ng-model="vm.obj.check_date" />
                     </div>
 
                     <div class="form-group">
-                      <label for="time_picker" uib-tooltip="The time of day at which the maintenance was complete">Time of Maintenance</label>
+                      <label for="time_picker" uib-tooltip="The time of day at which the maintenance was completed">Time of Maintenance</label>
                       <div class="timepicker_in_form">
                         <div uib-timepicker ng-model="vm.obj.check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
                       </div>
                     </div>
 
                     <div class="form-group">
-                      <label for="days_remaining">Next Check Date</label>
+                      <label for="hours_remaining" uib-tooltip="The number of flying hours until the next maintenance check is due">Hours To Next Check</label>
+                      <input type="number" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.obj.hours_remaining" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="next_check" uib-tooltip="The calendar date by which the next maintenance check must be completed">Date Of Next Check</label>
                       <input type="date" class="form-control inputtext" name="next_check" id="next_check" ng-model="vm.obj.next_check" />
                     </div>
                     
@@ -393,22 +704,114 @@ DETAILS</h3>
                   <div class="form-group">
                       <label for="checked_by" uib-tooltip="Engineer who signed out the aircraft">Checked By</label>
                       <input type="text" class="form-control inputtext" name="checked_by" id="checked_by" ng-model="vm.obj.checked_by" />
-                    </div>
-                    
                   </div>
 
-                  <div class="form-group">
+                  <div class="wp-form-group">
                     <label class="notes_center" for="notes">Notes</label>
-                    <textarea class="form-control" name="notes" id="notes" ng-model="vm.obj.notes" />
+                    <textarea class="form-control inputtext" name="notes" id="notes" ng-model="vm.obj.notes"></textarea>
                   </div>
 
             </div>
 
-            <div class="reported_issues" ng-if="vm.show_maintenance">
+                  <!-- ═══════════════════════════════════════════ -->
+                  <!-- WORKPACK (within maintenance overlay) -->
+                  <!-- ═══════════════════════════════════════════ -->
 
-                    <h3>Reported Defects</h3>
+            <div class="wp-section" ng-if="vm.show_maintenance">
+                  <h3 class="wp-section-title"><i class="fa fa-archive"></i> Workpack</h3>
+
+                  <div class="form-group">
+                    <label>Workpack Option</label>
+                    <select class="form-control inputtext" ng-model="vm.obj.workpack_option">
+                      <option value="">— No Workpack —</option>
+                      <option value="existing" ng-if="vm.open_workpacks && vm.open_workpacks.length > 0">Link to Existing Workpack</option>
+                      <option value="new">Create New Workpack</option>
+                    </select>
+                  </div>
+
+                  <!-- Option A: Link to existing -->
+                  <div ng-if="vm.obj.workpack_option === 'existing'">
+                    <div class="form-group">
+                      <label for="workpack_select">Select Workpack</label>
+                      <select class="form-control inputtext" ng-model="vm.obj.workpack_id" id="workpack_select">
+                        <option value="">— Select —</option>
+                        <option ng-repeat="owp in vm.open_workpacks" value="{{ owp.id }}">{{ owp.workpack_number || 'Workpack #' + owp.id }} — {{ owp.description || 'No description' }}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Option B: Create new workpack -->
+                  <div ng-if="vm.obj.workpack_option === 'new'">
+                    <div class="form-group">
+                      <label for="wp_number">Workpack Number</label>
+                      <input type="text" class="form-control inputtext" id="wp_number" ng-model="vm.new_workpack.workpack_number" placeholder="e.g. WP-2026-001" />
+                    </div>
 
                     <div class="form-group">
+                      <label for="wp_signatory">Authorised Signatory</label>
+                      <input type="text" class="form-control inputtext" id="wp_signatory" ng-model="vm.new_workpack.authorised_signatory" placeholder="e.g. John Smith AME" />
+                    </div>
+
+                    <div class="form-group">
+                      <label for="wp_description">Description</label>
+                      <textarea class="form-control" id="wp_description" ng-model="vm.new_workpack.description" placeholder="e.g. 50-hour inspection"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="wp_status">Status</label>
+                      <select class="form-control inputtext" id="wp_status" ng-model="vm.new_workpack.status">
+                        <option value="completed">Completed</option>
+                        <option value="open">Open (work in progress)</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label>Upload Workpack Document (optional)</label>
+                      <div class="form-group centre_content_uploader">
+                        <div
+                          flow-init="{target: '/upload_documents.php', singleFile: true}"
+                          flow-files-submitted="$flow.upload()"
+                          flow-file-success="$file.file_return = $message"
+                          flow-complete="processWorkpackFile($flow.files, 'workpack_doc')"
+                          flow-file-limit="1"
+                          flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+                          <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="vm.workpack_files.workpack_doc.length < 1">
+                            Click To Upload
+                            <br />OR<br />
+                            Drag And Drop Your Document
+                          </div>
+                          <div ng-repeat="file in $flow.files" class="gallery-box">
+                            <span class="title">{{file.name}}</span>
+                            <div class="thumbnail" ng-show="$flow.files.length">
+                              <img src="{{get_icon(file.file)}}" />
+                            </div>
+                            <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                              <div class="progress-bar" role="progressbar"
+                                aria-valuenow="{{file.progress() * 100}}"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                                ng-style="{width: (file.progress() * 100) + '%'}">
+                              </div>
+                            </div>
+                            <div class="btn-group center">
+                              <a class="btn btn-xs btn-danger" ng-click="file.cancel();" ng-if="(file.progress() * 100) == 100">
+                                Remove
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+            </div>
+
+            <!-- ═══════ REPORTED DEFECTS ═══════ -->
+            <div class="wp-section" ng-if="vm.show_maintenance">
+
+                    <h3 class="wp-section-title"><i class="fa fa-exclamation-triangle"></i> Reported Defects</h3>
+
+                    <div>
 
                     <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
                      There are no known maintenance defects outstanding...
@@ -431,7 +834,7 @@ DETAILS</h3>
                             Defect Resolved
                           </th>
                         </tr>
-                        <tr ng-repeat="defect in vm.reported_defects">
+                        <tr ng-repeat-start="defect in vm.reported_defects">
                           
                           <td>
                             {{ defect.defect }}
@@ -444,9 +847,70 @@ DETAILS</h3>
                           </td>
                           <td>
                             <input type="checkbox" ng-model="defect.resolved" ng-change="check_ticked()">
-
                           </td>
                         </tr>
+
+                        <!-- Workpack fields for resolved defect -->
+                        <tr ng-repeat-end ng-if="defect.resolved" class="defect_workpack_row">
+                          <td colspan="4" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                            <div style="border-left: 3px solid #337ab7; padding-left: 12px;">
+                              <strong><i class="fa fa-briefcase"></i> Workpack for this defect:</strong>
+
+                              <!-- Option to link to the maintenance workpack being created above -->
+                              <div class="form-group" style="margin-top: 8px;" ng-if="vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number">
+                                <label>
+                                  <input type="checkbox" ng-model="defect._link_to_workpack" ng-change="defect._link_to_workpack ? (defect._standalone_wp = false) : null" />
+                                  Link to workpack <strong>{{ vm.new_workpack.workpack_number }}</strong> (created above)
+                                </label>
+                              </div>
+
+                              <!-- Standalone workpack fields (hidden if linking to the maintenance workpack) -->
+                              <div ng-if="!defect._link_to_workpack">
+                                <div class="form-group" style="margin-top: 8px;">
+                                  <label>Workpack Number</label>
+                                  <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_number" placeholder="e.g. DEF-WP-42" />
+                                </div>
+
+                                <div class="form-group">
+                                  <label>Signatory</label>
+                                  <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_signatory" placeholder="e.g. Jane Doe L/AE" />
+                                </div>
+
+                                <div class="form-group">
+                                  <label>Upload Document (optional)</label>
+                                  <div class="form-group centre_content_uploader">
+                                    <div
+                                      flow-init="{target: '/upload_documents.php', singleFile: true}"
+                                      flow-files-submitted="$flow.upload()"
+                                      flow-file-success="$file.file_return = $message"
+                                      flow-complete="vm.processDefectFile($flow.files, defect)"
+                                      flow-file-limit="1"
+                                      flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+                                      <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!defect._uploaded_file">
+                                        Click To Upload <br />OR<br /> Drag And Drop
+                                      </div>
+                                      <div ng-repeat="file in $flow.files" class="gallery-box">
+                                        <span class="title">{{file.name}}</span>
+                                        <div class="thumbnail" ng-show="$flow.files.length">
+                                          <img src="{{get_icon(file.file)}}" />
+                                        </div>
+                                        <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                                          <div class="progress-bar" role="progressbar"
+                                            aria-valuenow="{{file.progress() * 100}}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100"
+                                            ng-style="{width: (file.progress() * 100) + '%'}">
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
                       </table>
 
 
@@ -465,9 +929,93 @@ DETAILS</h3>
             </div>
 
 
-            <div class="cert" ng-if="vm.show_maintenance || vm.show_cert">
+            <!-- ═══════ LOGBOOK ASSOCIATIONS (create form) ═══════ -->
+            <div class="wp-section" ng-if="vm.show_maintenance">
 
-                    <h3>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} Document</h3>
+                    <h3 class="wp-section-title"><i class="fa fa-book"></i> Logbook Associations</h3>
+                    <p class="wp-empty-text" style="margin-bottom: 12px;">Select which logbooks this maintenance event should appear in. Airframe is selected by default.</p>
+
+                    <div ng-if="vm.create_logbook_loading" class="lb-loading">
+                      <i class="fa fa-spinner fa-spin"></i> Loading logbooks...
+                    </div>
+
+                    <div ng-if="vm.create_logbook_error" class="lb-error">
+                      <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
+                      <a href ng-click="vm.loadCreateLogbooks()">Retry</a>
+                    </div>
+
+                    <div class="lb-checkbox-list" ng-if="vm.create_logbook_checkboxes.length > 0 && !vm.create_logbook_loading">
+                      <label class="lb-checkbox-item" ng-repeat="lb in vm.create_logbook_checkboxes">
+                        <div class="lb-checkbox-toggle">
+                          <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleCreateLogbook(lb)" />
+                          <span class="lb-checkbox-slider"></span>
+                        </div>
+                        <div class="lb-checkbox-info">
+                          <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
+                          <span class="lb-checkbox-label">{{ lb.label }}</span>
+                          <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
+                        </div>
+                      </label>
+                    </div>
+
+            </div>
+
+
+            <!-- ═══════ CRS (Certificate of Release to Service) ═══════ -->
+            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_crs">
+
+                    <h3 class="wp-section-title"><i class="fa fa-certificate"></i> Certificate of Release to Service (CRS)</h3>
+                    <p class="wp-empty-text" style="margin-bottom: 14px;">Optional — upload a CRS document with release date and time if the aircraft is being released back to service.</p>
+
+                    <div class="wp-form-group">
+                        <span ng-if="!vm.files.crs[0]">Upload CRS certificate (PDF, DOC, etc.)</span>
+
+                        <div class="wp-upload-zone">
+                          <div 
+                             flow-init="{target: '/upload_documents.php', singleFile: true}"
+                           flow-files-submitted="$flow.upload()"
+                           flow-file-success="$file.file_return = $message"
+                           flow-complete="processFile($flow.files, 'crs')"
+                           flow-file-limit="1"
+                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+                              <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">     
+                                  <i class="fa fa-cloud-upload wp-upload-icon"></i>
+                                  <span>Click or drag a file to upload</span>
+                              </div>
+
+                              <div ng-repeat="file in $flow.files" class="wp-upload-file">
+                                <i class="fa fa-file-o"></i>
+                                <span class="wp-upload-filename">{{file.name}}</span>
+                                <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                                  <div class="progress-bar" role="progressbar"
+                                       ng-style="{width: (file.progress() * 100) + '%'}">
+                                  </div>
+                                </div>
+                                <button class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                                  <i class="fa fa-times"></i>
+                                </button>
+                              </div>
+
+                          </div>
+                        </div>
+                    </div>
+
+                    <div class="wp-form-group">
+                      <label for="crs_release_date">Release Date</label>
+                      <input type="date" class="form-control inputtext" name="crs_release_date" id="crs_release_date" ng-model="vm.obj.crs_release_date" />
+                    </div>
+
+                    <div class="wp-form-group">
+                      <label for="crs_release_time">Release Time</label>
+                      <input type="time" class="form-control inputtext" name="crs_release_time" id="crs_release_time" ng-model="vm.obj.crs_release_time" />
+                    </div>
+
+            </div>
+
+
+            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_cert">
+
+                    <h3 class="wp-section-title"><i class="fa fa-file-text"></i> {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} Document</h3>
 
                    <!--  <label for="cert">Certificate PDF</label>
                     <input type="file" class="form-control" name="plane_type" id="cert" ng-model="vm.obj.cert" /> -->
@@ -591,9 +1139,9 @@ DETAILS</h3>
 
 
 
-            <div class="insurance" ng-if="vm.show_maintenance || vm.show_insurance">
+            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_insurance">
 
-                    <h3>Insurance Document</h3>
+                    <h3 class="wp-section-title"><i class="fa fa-shield"></i> Insurance Document</h3>
 
                    <!--  <label for="insurance">Insurace PDF</label>
                     <input type="file" class="form-control" name="plane_type" id="insurance" ng-model="vm.obj.insurance" /> -->
@@ -703,6 +1251,8 @@ DETAILS</h3>
 
                     </div> -->
 
+                    </div>
+
                     <div class="form-group">
                       <label for="insurance_expiry">Insurance Expiry</label>
                       <input type="date" class="form-control inputtext" name="insurance_expiry" id="insurance_expiry" ng-model="vm.obj.insurance_expiry" />
@@ -711,16 +1261,9 @@ DETAILS</h3>
             </div>
 
 
-            
+            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_radio">
 
-
-
-
-    </div>
-
-    <div class="radio" ng-if="vm.show_maintenance || vm.show_radio">
-
-                    <h3>Radio Licence</h3>
+                    <h3 class="wp-section-title"><i class="fa fa-wifi"></i> Radio Licence</h3>
 
                     <!-- <label for="radio_licence">Radio Licence PDF</label>
                     <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
@@ -830,6 +1373,8 @@ DETAILS</h3>
 
                     </div> -->
 
+                    </div>
+
                     <div class="form-group">
                       <label for="radio_expiry">Radio Licence Expiry</label>
                       <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.obj.radio_expiry" />
@@ -838,14 +1383,9 @@ DETAILS</h3>
             </div>
 
 
-           
-        </div>
+            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_noise">
 
-
-
-        <div class="radio" ng-if="vm.show_maintenance || vm.show_noise">
-
-                    <h3>Noise Certificate</h3>
+                    <h3 class="wp-section-title"><i class="fa fa-volume-up"></i> Noise Certificate</h3>
 
                     <!-- <label for="radio_licence">Radio Licence PDF</label>
                     <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
@@ -902,6 +1442,8 @@ DETAILS</h3>
                           
                       </div>
                     </div>
+
+                    </div>
                         
                     <div class="form-group">
                       <label for="radio_expiry">Noise Level</label>
@@ -915,30 +1457,29 @@ DETAILS</h3>
 
             </div>
 
+    </div>
 
-           
-        </div>
+    <!-- ── Footer Actions ── -->
+    <div class="wp-panel-footer">
+      <div class="wp-footer-actions">
+        <button class="wp-btn wp-btn-danger" ng-click="close_overlay()">
+          <i class="fa fa-times"></i> Cancel
+        </button>
+        <button class="wp-btn wp-btn-success" ng-click="save_overlay()">
+          <i class="fa fa-check"></i>
+          <span ng-if="vm.show_maintenance">Save Maintenance</span>
+          <span ng-if="vm.show_offline && !vm.show_maintenance">Take Offline</span>
+          <span ng-if="vm.show_cert && !vm.show_maintenance">Update Certificate</span>
+          <span ng-if="vm.show_insurance && !vm.show_maintenance">Update Insurance</span>
+          <span ng-if="vm.show_radio && !vm.show_maintenance">Update Radio Licence</span>
+          <span ng-if="vm.show_noise && !vm.show_maintenance">Update Noise Cert</span>
+          <span ng-if="vm.show_crs && !vm.show_maintenance">Update CRS</span>
+        </button>
+      </div>
+    </div>
 
-
-
-
-
-
-          <div class="btns_bottom">
-
-            <button class="btn btn-danger" ng-click="close_overlay()">Cancel</button>
-            <button class="btn btn-success" ng-click="save_overlay()">Save</button>
-          </div>
-
-
+  </div>
 </div>
-
-
-
-
-
-          
-
 
 
 <!--  -->

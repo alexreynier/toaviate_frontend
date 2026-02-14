@@ -11,13 +11,37 @@
             </h4>
           </div>
     </div>
-
-
-
-    
+ 
+    <!-- Lesson switch overlay -->
+    <div class="lesson-switch-overlay" ng-if="vm.show_lesson_switcher" ng-click="vm.cancel_debrief_lesson_change()">
+      <div class="lesson-switch-modal" ng-click="$event.stopPropagation()">
+        <div class="lesson-switch-modal-header">
+          <h3>Switch Lesson</h3>
+          <i class="fa fa-times lesson-switch-close" ng-click="vm.cancel_debrief_lesson_change()"></i>
+        </div>
+        <div class="lesson-switch-modal-body">
+          <div class="form-group">
+            <label>Select a different lesson</label>
+            <ui-select ng-model="vm.pending_debrief_lesson_obj" theme="bootstrap" style="width: 100%;" title="Lesson" append-to-body="true">
+              <ui-select-match placeholder="Search for a lesson...">
+                Lesson {{ vm.pending_debrief_lesson_obj.organise }}: {{ vm.pending_debrief_lesson_obj.title }}
+              </ui-select-match>
+              <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search}">
+                <div ng-bind-html="('Lesson ' + lesson.organise + ': ' + lesson.title) | highlight: $select.search"></div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <p style="color: #d9534f; margin: 10px 0;"><i class="fa fa-exclamation-triangle"></i> Changing the lesson will clear any details entered below.</p>
+        </div>
+        <div class="lesson-switch-modal-footer">
+          <button class="btn btn-primary" ng-click="vm.confirm_debrief_lesson_change()" ng-disabled="!vm.pending_debrief_lesson_obj">Confirm</button>
+          <button class="btn btn-default" ng-click="vm.cancel_debrief_lesson_change()">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <div class="club_docs_all" ng-if="vm.show_whole_lesson">
-        <h2>Lesson {{ vm.lesson.organise }}: {{ vm.lesson.title }}</h2>
+        <h2 style="display: flex; align-items: center;">Lesson {{ vm.lesson.organise }}: {{ vm.lesson.title }} <i class="fas fa-exchange-alt pointer" style="font-size: 0.7em; color: #f0ad4e; margin-left: auto; padding: 6px 8px; background: rgba(240,173,78,0.15); border-radius: 6px; transition: background 0.2s;" uib-tooltip="Taught a different lesson?" tooltip-placement="left" ng-click="vm.show_lesson_switcher = true"></i></h2>
 
        
         <div class="course_intro">
@@ -37,15 +61,77 @@
       </div>
 
 
-     
+      <!-- ═══════════════════════════════════════════ -->
+      <!-- LESSON CONTENT FILES VIEWER (Images / PDFs) -->
+      <!-- ═══════════════════════════════════════════ -->
+      <div class="club_docs_all lcf-viewer-section" ng-if="vm.show_whole_lesson && vm.hasContentFiles()">
 
+        <div class="lcf-viewer-loading" ng-if="vm.contentFilesLoading">
+          <i class="fa fa-spinner fa-spin"></i> Loading lesson content&hellip;
+        </div>
 
-       <div class="club_docs_all" ng-if="vm.show_whole_lesson">
-        <h2 uib-tooltip="Threat and Error Management">TEM</h2>
+        <div class="lcf-viewer-container" ng-if="!vm.contentFilesLoading">
 
-            <div class="card centre_me" ng-if="vm.lesson.tem.length == 0">
-              There are no TEM for this lesson
+          <div class="lcf-viewer-main">
+            <div class="lcf-viewer-placeholder" ng-if="!vm.activeContentFile">
+              <i class="fa fa-images"></i>
+              <p>Select a file below to view</p>
             </div>
+
+            <div class="lcf-viewer-image-wrap" ng-if="vm.activeContentFile && vm.activeContentFile.file_type !== 'pdf' && vm.activeContentFile.mime_type !== 'application/pdf'">
+              <img ng-src="{{ vm.activeContentFile.data_uri }}" alt="{{ vm.activeContentFile.original_name }}" class="lcf-viewer-image" />
+            </div>
+
+            <div class="lcf-viewer-pdf-wrap" ng-if="vm.activeContentFile && (vm.activeContentFile.file_type === 'pdf' || vm.activeContentFile.mime_type === 'application/pdf')">
+              <object ng-attr-data="{{ vm.activeContentFile.data_uri }}" type="application/pdf" class="lcf-viewer-pdf">
+                <p>Your browser does not support inline PDF viewing. <a ng-href="{{ vm.activeContentFile.data_uri }}" target="_blank">Open PDF</a></p>
+              </object>
+            </div>
+
+            <div class="lcf-viewer-file-loading" ng-if="vm.activeContentFile && vm.activeContentFile._loading">
+              <i class="fa fa-spinner fa-spin"></i> Loading&hellip;
+            </div>
+
+            <div class="lcf-viewer-file-error" ng-if="vm.activeContentFile && vm.activeContentFile._loadError">
+              <i class="fa fa-exclamation-triangle"></i> Could not load this file.
+            </div>
+          </div>
+
+          <div class="lcf-viewer-thumbnails" ng-if="vm.contentFiles.length > 1">
+            <div class="lcf-viewer-thumb"
+                 ng-repeat="file in vm.contentFiles"
+                 ng-class="{'lcf-viewer-thumb-active': vm.activeContentFile.id === file.id}"
+                 ng-click="vm.selectContentFile(file)">
+
+              <img ng-if="file.data_uri && file.file_type !== 'pdf' && file.mime_type !== 'application/pdf'"
+                   ng-src="{{ file.data_uri }}" alt="{{ file.original_name }}" />
+
+              <div class="lcf-thumb-pdf-icon" ng-if="file.file_type === 'pdf' || file.mime_type === 'application/pdf'">
+                <i class="fa fa-file-pdf"></i>
+              </div>
+
+              <div class="lcf-thumb-loading" ng-if="file._loading">
+                <i class="fa fa-spinner fa-spin"></i>
+              </div>
+
+              <div class="lcf-thumb-error" ng-if="file._loadError">
+                <i class="fa fa-exclamation-triangle"></i>
+              </div>
+
+              <span class="lcf-thumb-label">{{ file.original_name }}</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════ -->
+      <!-- TRADITIONAL LESSON SECTIONS (hidden if empty) -->
+      <!-- ═══════════════════════════════════════════ -->
+
+       <div class="club_docs_all" ng-if="vm.show_whole_lesson && vm.hasSectionContent('tem')">
+        <h2 uib-tooltip="Threat and Error Management">TEM</h2>
 
             <div class="card" ng-if="vm.lesson.tem.length > 0">
                 <table>
@@ -76,12 +162,8 @@
       </div>
 
 
-      <div class="club_docs_all" ng-if="vm.show_whole_lesson">
+      <div class="club_docs_all" ng-if="vm.show_whole_lesson && vm.hasSectionContent('preflight')">
         <h2>Pre-Flight</h2>
-
-            <div class="card centre_me" ng-if="vm.lesson.bullets.preflight.length == 0">
-              This lesson doesn't any Pre-Flight Items.
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.preflight.length > 0">
                 <table class="lesson_display">
@@ -104,12 +186,8 @@
       </div>
 
 
-      <div class="club_docs_all" ng-if="vm.show_whole_lesson">
+      <div class="club_docs_all" ng-if="vm.show_whole_lesson && vm.hasSectionContent('airex')">
         <h2>Air Exercises</h2>
-
-            <div class="card centre_me" ng-if="vm.lesson.bullets.airex.length == 0">
-              This lesson doesn't contain any Air Exercises.
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.airex.length > 0">
                 <table class="lesson_display">
@@ -132,11 +210,8 @@
       </div>
 
 
-     <div class="club_docs_all">
+     <div class="club_docs_all" ng-if="vm.hasSectionContent('debrief')">
         <h2>DEBRIEF</h2>
-            <div class="card centre_me" ng-if="vm.lesson.bullets.airex.length == 0">
-              This lesson doesn't contain any specific debrief reminders
-            </div>
 
             <div class="card" ng-if="vm.lesson.bullets.debrief.length > 0">
                 <table class="lesson_display">
@@ -158,16 +233,16 @@
        <div class="club_docs_all">
         <h2>Student Progress</h2>
           
-            <div class="card centre_me" ng-if="vm.lesson.items.length == 0">
+            <div class="card centre_me" ng-if="vm.lesson.items.length == 0 && !vm.show_all_lessons">
              There are no student progress tasks for this lesson
             </div>
 
-            <div class="card" ng-if="vm.lesson.items.length !== 0">
+            <div class="card">
                 <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
                 <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search2" ng-change="vm.set_updated_search()" class="form-control searchbar smaller_search" uib-tooltip="Using the search function will automatically search the whole course, and not just the lesson already shown, to return to show only this lesson, remove any searched items" />
             </div>
 
-            <div class="card" ng-if="vm.lesson.items.length > 0">
+            <div class="card" ng-if="vm.lesson.items.length > 0 || vm.show_all_lessons">
                 <table class="competence-table competence-table-highlight-all" >
                     <thead>
                         <tr>

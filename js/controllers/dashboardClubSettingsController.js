@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService) {
         var vm = this;
 
         vm.user = null;
@@ -11,7 +11,135 @@
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
-        
+
+        // ── Aircraft Check Types ──
+        vm.check_types = [];
+        vm.check_types_loading = false;
+        vm.editing_check_type = false;
+        vm.check_type_form = { is_active: true, display_order: 1 };
+
+        vm.system_codes = ['check_a', 'transit_check'];
+
+        vm.check_type_codes = [
+            { value: 'check_a',       label: 'Check A (first flight of the day)' },
+            { value: 'transit_check', label: 'Transit Check (subsequent flights)' },
+            { value: 'check_b',       label: 'Check B' },
+            { value: 'daily_check',   label: 'Daily Check' },
+            { value: 'weekly_check',  label: 'Weekly Check' },
+            { value: 'preflight',     label: 'Pre-Flight Inspection' },
+            { value: 'annual_check',  label: 'Annual Check' },
+            { value: 'custom',        label: 'Custom' }
+        ];
+
+        vm.isSystemCode = function(code) {
+            return vm.system_codes.indexOf(code) !== -1;
+        };
+
+        vm.availableCodeOptions = function() {
+            // When editing, show all codes; when adding, hide system codes (they are auto-seeded)
+            if (vm.editing_check_type) {
+                return vm.check_type_codes;
+            }
+            return vm.check_type_codes.filter(function(c) {
+                return !vm.isSystemCode(c.value);
+            });
+        };
+
+        vm.loadCheckTypes = function() {
+            vm.check_types_loading = true;
+            AircraftChecksService.GetCheckTypes(vm.club_id)
+                .then(function(data) {
+                    vm.check_types_loading = false;
+                    if (data.success) {
+                        vm.check_types = data.check_types;
+                    }
+                });
+        };
+
+        vm.saveCheckType = function() {
+            if (!vm.check_type_form.name || !vm.check_type_form.code) {
+                ToastService.warning('Missing Fields', 'Please provide both a Name and Code for the check type.');
+                return;
+            }
+
+            var payload = {
+                club_id: vm.club_id,
+                name: vm.check_type_form.name,
+                code: vm.check_type_form.code,
+                description: vm.check_type_form.description || '',
+                is_active: vm.check_type_form.is_active ? 1 : 0,
+                display_order: vm.check_type_form.display_order || 1
+            };
+
+            if (vm.editing_check_type && vm.check_type_form.id) {
+                AircraftChecksService.UpdateCheckType(vm.check_type_form.id, payload)
+                    .then(function(data) {
+                        if (data.success) {
+                            ToastService.success('Updated', 'Check type updated successfully.');
+                            vm.closeCheckTypeModal();
+                            vm.loadCheckTypes();
+                        } else {
+                            ToastService.error('Error', data.message || 'Failed to update check type.');
+                        }
+                    });
+            } else {
+                AircraftChecksService.CreateCheckType(payload)
+                    .then(function(data) {
+                        if (data.success) {
+                            ToastService.success('Created', 'Check type created successfully.');
+                            vm.closeCheckTypeModal();
+                            vm.loadCheckTypes();
+                        } else {
+                            ToastService.error('Error', data.message || 'Failed to create check type.');
+                        }
+                    });
+            }
+        };
+
+        vm.show_check_type_modal = false;
+
+        vm.openCheckTypeModal = function() {
+            vm.editing_check_type = false;
+            vm.check_type_form = { is_active: true, display_order: 1 };
+            vm.show_check_type_modal = true;
+        };
+
+        vm.closeCheckTypeModal = function() {
+            vm.show_check_type_modal = false;
+            vm.editing_check_type = false;
+            vm.check_type_form = { is_active: true, display_order: 1 };
+        };
+
+        vm.editCheckType = function(ct) {
+            vm.editing_check_type = true;
+            vm.check_type_form = {
+                id: ct.id,
+                name: ct.name,
+                code: ct.code,
+                description: ct.description,
+                is_active: ct.is_active == 1,
+                display_order: ct.display_order
+            };
+            vm.show_check_type_modal = true;
+        };
+
+        vm.cancelEditCheckType = function() {
+            vm.closeCheckTypeModal();
+        };
+
+        vm.deleteCheckType = function(ct) {
+            if (!confirm('Are you sure you want to delete the check type "' + ct.name + '"?')) return;
+            AircraftChecksService.DeleteCheckType(ct.id)
+                .then(function(data) {
+                    if (data.success) {
+                        ToastService.success('Deleted', 'Check type deleted successfully.');
+                        vm.loadCheckTypes();
+                    } else {
+                        ToastService.warning('Cannot Delete', data.message || 'Failed to delete check type.');
+                    }
+                });
+        };
+
         vm.action = $state.current.data.action;
 
 
@@ -29,6 +157,8 @@
                         //console.log(vm.club);
                     });
 
+                // Load aircraft check types
+                vm.loadCheckTypes();
 
             break;
             case "stripe_return":

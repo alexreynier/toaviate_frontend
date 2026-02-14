@@ -216,15 +216,30 @@
                 return false;
             }
 
-            if(vm.this_claim_was_instructional == true){
-                vm.this_was_instructional_claim();
-            }
+            // Preserve the current person / instructional state before overriding flight details
+            var preserved_pic = vm.bookout.pic;
+            var preserved_pic_id = vm.bookout.pic_id;
+            var preserved_put = vm.bookout.put;
+            var preserved_put_id = vm.bookout.put_id;
+            var preserved_instructor = vm.bookout.instructor;
+            var preserved_instructor_id = vm.bookout.instructor_id;
+            var preserved_payer_id = vm.bookout.payer_id;
+            var preserved_user_id = vm.bookout.user_id;
+            var preserved_instructional = vm.this_claim_was_instructional;
+            var preserved_supervised_solo = vm.this_was_supervised_solo;
+            var preserved_course = vm.bookout.course;
+            var preserved_course_id = vm.bookout.course_id;
+            var preserved_tuition_required = vm.bookout.tuition_required;
+            var preserved_tuition_id = vm.bookout.tuition_id;
+            var preserved_tuition_charges = vm.bookout.tuition_charges;
+            var preserved_authorised_solo = vm.bookout.authorised_solo;
 
             vm.this_pls_id_raw = Object.assign({}, vm.bookout);
             console.log("vm.this_pls_id_raw", vm.this_pls_id_raw);
 
             vm.has_used_claimed_flight = true;
 
+            // Override flight details only
             vm.bookout.from_airfield = vm.claimed_flight.from_airport;
             vm.bookout.to_airfield = vm.claimed_flight.to_airport;
 
@@ -271,12 +286,40 @@
             //THIS IS THE KEY HERE delete this one once selected / complete
             vm.bookout.claimed_fox_plane_log_sheet_id = vm.claimed_flight.id;
 
+            // Carry over TPC flight time from the claimed flight
+            if(vm.claimed_flight.tpc_flight_time && vm.claimed_flight.tpc_flight_time > 0){
+                vm.bookout.tpc_flight_time = vm.claimed_flight.tpc_flight_time;
+            }
+            if(vm.claimed_flight.tpc_brakes_off){
+                vm.bookout.tpc_brakes_off = vm.claimed_flight.tpc_brakes_off;
+            }
+            if(vm.claimed_flight.tpc_brakes_on){
+                vm.bookout.tpc_brakes_on = vm.claimed_flight.tpc_brakes_on;
+            }
 
             //set the important bits for the invoice now
             vm.flight_units.brakes_to_brakes = vm.claimed_flight.brakes_time;
             vm.flight_units.airborne_times = vm.claimed_flight.airborne_time;
             vm.flight_units.flight_time = vm.claimed_flight.flight_time;
             vm.flight_units.brakes_times_rounded = vm.bookout.brakes_times_rounded;
+
+            // Restore the preserved person / instructional state
+            vm.bookout.pic = preserved_pic;
+            vm.bookout.pic_id = preserved_pic_id;
+            vm.bookout.put = preserved_put;
+            vm.bookout.put_id = preserved_put_id;
+            vm.bookout.instructor = preserved_instructor;
+            vm.bookout.instructor_id = preserved_instructor_id;
+            vm.bookout.payer_id = preserved_payer_id;
+            vm.bookout.user_id = preserved_user_id;
+            vm.this_claim_was_instructional = preserved_instructional;
+            vm.this_was_supervised_solo = preserved_supervised_solo;
+            vm.bookout.course = preserved_course;
+            vm.bookout.course_id = preserved_course_id;
+            vm.bookout.tuition_required = preserved_tuition_required;
+            vm.bookout.tuition_id = preserved_tuition_id;
+            vm.bookout.tuition_charges = preserved_tuition_charges;
+            vm.bookout.authorised_solo = preserved_authorised_solo;
             
             //calculate the invoice yay
             vm.calculate_invoice_for_flight();
@@ -1552,6 +1595,13 @@
                         vm.flight_units.airborne_times = moment.duration(difference).asHours();
                         //console.log("HELLO DURATION CALC", vm.flight_units.brakes_to_brakes);
 
+                        // Compute TPC flight time (takeoff to landing + 10 mins) when no fox data
+                        if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                            var tpc_end = moment(end_datetime).add(10, 'minutes');
+                            var tpc_diff = moment(tpc_end.startOf('minute')).diff(moment(start_datetime).startOf('minute'));
+                            vm.bookout.tpc_flight_time = moment.duration(tpc_diff).asHours();
+                            console.log("TPC flight time (manual):", vm.bookout.tpc_flight_time);
+                        }
 
                         vm.calculate_invoice_for_flight();
                         //  //console.log("HELLO DURATION CALC2", human_str);
@@ -1585,6 +1635,18 @@
                             //console.log("HELLO DURATION CALC", vm.flight_units.brakes_to_brakes);
 
                             //console.log("FLIGHT BRAKES UNITS : ", vm.flight_units.brakes_to_brakes);
+
+                            // Compute TPC flight time from brakes times when no fox data and no takeoff/landing times available
+                            if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                                // If takeoff/landing times are set, prefer those (already computed in calculate_my_airborne_duration)
+                                if(!vm.bookout.takeoff_time || !vm.bookout.takeoff_time.time || !vm.bookout.landing_time || !vm.bookout.landing_time.time){
+                                    // Fallback: use brakes off to brakes on + 10 mins
+                                    var tpc_end = moment(bend_datetime).add(10, 'minutes');
+                                    var tpc_diff = moment(tpc_end.startOf('minute')).diff(moment(bstart_datetime).startOf('minute'));
+                                    vm.bookout.tpc_flight_time = moment.duration(tpc_diff).asHours();
+                                    console.log("TPC flight time (from brakes, manual):", vm.bookout.tpc_flight_time);
+                                }
+                            }
 
                             vm.calculate_invoice_for_flight();
 
@@ -1646,6 +1708,13 @@
                         vm.flight_units.brakes_to_brakes = moment.duration(difference).asHours();
                         //console.log("HELLO DURATION CALC", vm.flight_units.brakes_to_brakes);
 
+                        // Compute TPC flight time from brakes off/on + 10 mins when no fox data
+                        if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                            var tpc_end = moment(end_datetime).add(10, 'minutes');
+                            var tpc_diff = moment(tpc_end.startOf('minute')).diff(moment(start_datetime).startOf('minute'));
+                            vm.bookout.tpc_flight_time = moment.duration(tpc_diff).asHours();
+                            console.log("TPC flight time (update_dateTime):", vm.bookout.tpc_flight_time);
+                        }
 
                         vm.calculate_invoice_for_flight();
                         //  //console.log("HELLO DURATION CALC2", human_str);
@@ -3755,20 +3824,34 @@
                 var selected_detail_type = vm.flight_types.find(item => item.id === booking.detail_type_id);
                 vm.bookout.flight_type = selected_detail_type;
 
-                if(booking.instructor && booking.instructor !== "" && booking.instructor.user_id == booking.pic_id){
-                    vm.bookout.put = vm.bookout.user;
+                // Resolve put_id: use put.id as fallback when put_id is 0 but the put object exists
+                var effective_put_id = booking.put_id;
+                if((!effective_put_id || effective_put_id == 0) && booking.put && booking.put.id > 0){
+                    effective_put_id = booking.put.id;
+                    vm.bookout.put_id = effective_put_id;
                 }
 
-
-                if(vm.pics && booking.put_id){
-                    var selected_put = vm.pics.find(item => item.user_id === booking.put_id);
+                if(booking.instructor && booking.instructor !== "" && (booking.instructor.id == booking.pic_id || booking.instructor.user_id == booking.pic_id)){
+                    // Instructor is PIC — the student (PUT) should be the user
+                    if(!effective_put_id || effective_put_id == 0){
+                        effective_put_id = booking.user_id;
+                        vm.bookout.put_id = effective_put_id;
+                    }
+                    var selected_put = vm.pics.find(item => item.user_id === effective_put_id);
+                    if(selected_put){
+                        vm.bookout.put = selected_put;
+                    } else if(booking.put && booking.put.id > 0){
+                        vm.bookout.put = booking.put;
+                    } else {
+                        vm.bookout.put = booking.user;
+                    }
+                } else if(vm.pics && effective_put_id > 0){
+                    var selected_put = vm.pics.find(item => item.user_id === effective_put_id);
                     console.log("selected_put : ", selected_put);
-                    vm.bookout.put = selected_put;
+                    if(selected_put){
+                        vm.bookout.put = selected_put;
+                    }
                 }
-
-                // if(booking.instructor && booking.instructor.user_id > 0 && booking.pic_id == booking.user.id){
-
-                // }
 
                 vm.bookout.authorised_solo = (booking.authorised_solo == 1)? true : false;
 
@@ -3796,6 +3879,15 @@
                 var selected_pic = vm.pics.find(item => item.user_id === booking.pic_id);
                 vm.bookout.pic = selected_pic;
 
+                // Detect and pre-set instructional flight state from loaded bookout data
+                if(booking.instructor_id > 0 && (
+                    effective_put_id > 0 ||
+                    booking.tuition_id > 0 ||
+                    (booking.booking && booking.booking.course_id > 0) ||
+                    (booking.user_id > 0 && booking.user_id !== booking.instructor_id)
+                )){
+                    vm.this_claim_was_instructional = true;
+                }
 
             }
 

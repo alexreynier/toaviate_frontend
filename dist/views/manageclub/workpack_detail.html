@@ -1,0 +1,254 @@
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- WORKPACK DETAIL — Slide-in overlay panel                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<div class="wp-panel-inner" ng-if="vm.workpack">
+
+  <!-- ── Header ── -->
+  <div class="wp-panel-header">
+    <div class="wp-panel-header-left">
+      <span class="wp-panel-badge" ng-class="{'wp-status-open': vm.workpack.status === 'open', 'wp-status-completed': vm.workpack.status === 'completed'}">
+        <i class="fa" ng-class="{'fa-wrench': vm.workpack.status === 'open', 'fa-check-circle': vm.workpack.status === 'completed'}"></i>
+        {{ vm.workpack.status === 'open' ? 'OPEN' : 'COMPLETED' }}
+      </span>
+      <h2 class="wp-panel-title">{{ vm.workpack.workpack_number || 'Workpack #' + vm.workpack.id }}</h2>
+      <p class="wp-panel-subtitle" ng-if="vm.workpack.description">{{ vm.workpack.description }}</p>
+    </div>
+    <button class="wp-panel-close" ng-click="vm.closeWorkpackDetail()" title="Close">
+      <i class="fa fa-times"></i>
+    </button>
+  </div>
+
+  <!-- ── Scrollable body ── -->
+  <div class="wp-panel-body">
+
+    <!-- ─── Info Grid ─── -->
+    <div class="wp-section">
+      <h3 class="wp-section-title"><i class="fa fa-info-circle"></i> Details</h3>
+      <div class="wp-info-grid">
+        <div class="wp-info-item">
+          <span class="wp-info-label">Workpack Number</span>
+          <span class="wp-info-value">{{ vm.workpack.workpack_number || '—' }}</span>
+        </div>
+        <div class="wp-info-item">
+          <span class="wp-info-label">Authorised Signatory</span>
+          <span class="wp-info-value">{{ vm.workpack.authorised_signatory || '—' }}</span>
+        </div>
+        <div class="wp-info-item">
+          <span class="wp-info-label">Aircraft</span>
+          <span class="wp-info-value">{{ vm.workpack.plane_registration }}</span>
+        </div>
+        <div class="wp-info-item">
+          <span class="wp-info-label">Created By</span>
+          <span class="wp-info-value">{{ vm.workpack.first_name }} {{ vm.workpack.last_name }}</span>
+        </div>
+        <div class="wp-info-item">
+          <span class="wp-info-label">Created</span>
+          <span class="wp-info-value">{{ vm.workpack.created_at | myDateTime }}</span>
+        </div>
+        <div class="wp-info-item">
+          <span class="wp-info-label">Completed</span>
+          <span class="wp-info-value">{{ vm.workpack.completed_at ? (vm.workpack.completed_at | myDateTime) : '—' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Document ─── -->
+    <div class="wp-section">
+      <h3 class="wp-section-title"><i class="fa fa-file-text-o"></i> Document</h3>
+
+      <div ng-if="vm.workpack.document" class="wp-document-row">
+        <div class="wp-document-info">
+          <i class="fa fa-file-pdf-o wp-doc-icon"></i>
+          <span>{{ vm.workpack.document_original_name || vm.workpack.document }}</span>
+        </div>
+        <div class="wp-document-actions">
+          <button class="wp-btn wp-btn-primary" ng-click="downloadWorkpackDocument(vm.workpack.document)">
+            <i class="fa fa-download"></i> Download
+          </button>
+          <button class="wp-btn wp-btn-danger" ng-click="vm.removeWorkpackDocument()" ng-if="vm.workpack.status === 'open'">
+            <i class="fa fa-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+
+      <div ng-if="!vm.workpack.document && vm.workpack.status === 'open'">
+        <p class="wp-empty-text">No document uploaded.</p>
+        <div class="wp-upload-zone">
+          <div
+            flow-init="{target: '/upload_documents.php', singleFile: true}"
+            flow-files-submitted="$flow.upload()"
+            flow-file-success="$file.file_return = $message"
+            flow-complete="processWorkpackFile($flow.files, 'workpack_doc')"
+            flow-file-limit="1"
+            flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+            <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="vm.workpack_files.workpack_doc.length < 1">
+              <i class="fa fa-cloud-upload wp-upload-icon"></i>
+              <span>Click or drag a file to upload</span>
+            </div>
+            <div ng-repeat="file in $flow.files" class="wp-upload-file">
+              <i class="fa fa-file-o"></i>
+              <span class="wp-upload-filename">{{file.name}}</span>
+              <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                <div class="progress-bar" role="progressbar"
+                  ng-style="{width: (file.progress() * 100) + '%'}">
+                </div>
+              </div>
+              <button class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel();" ng-if="(file.progress() * 100) == 100">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <button class="wp-btn wp-btn-success" ng-click="vm.uploadWorkpackDocument()" ng-if="vm.workpack_files.workpack_doc.length > 0" style="margin-top: 10px;">
+          <i class="fa fa-upload"></i> Upload Document
+        </button>
+      </div>
+
+      <div ng-if="!vm.workpack.document && vm.workpack.status === 'completed'">
+        <p class="wp-empty-text">No document was uploaded for this workpack.</p>
+      </div>
+    </div>
+
+    <!-- ─── Linked Defects ─── -->
+    <div class="wp-section">
+      <h3 class="wp-section-title">
+        <i class="fa fa-exclamation-triangle"></i> Linked Defects
+        <span class="wp-count-badge" ng-if="vm.workpack.defects.length > 0">{{ vm.workpack.defects.length }}</span>
+      </h3>
+
+      <div ng-if="!vm.workpack.defects || vm.workpack.defects.length === 0">
+        <p class="wp-empty-text">No defects linked to this workpack.</p>
+      </div>
+
+      <div class="wp-list" ng-if="vm.workpack.defects && vm.workpack.defects.length > 0">
+        <div class="wp-list-item" ng-repeat="defect in vm.workpack.defects">
+          <div class="wp-list-item-body">
+            <div class="wp-list-item-main">
+              <span class="wp-defect-text">{{ defect.defect }}</span>
+              <span class="wp-severity-tag" ng-class="{
+                'wp-severity-nofly': defect.severity.indexOf('No Fly') > -1,
+                'wp-severity-flyable': defect.severity.indexOf('Flyable') > -1,
+                'wp-severity-noting': defect.severity.indexOf('Not urgent') > -1,
+                'wp-severity-unsure': defect.severity.indexOf('Unsure') > -1
+              }">{{ defect.severity }}</span>
+            </div>
+            <div class="wp-list-item-meta">
+              <span><i class="fa fa-clock-o"></i> {{ defect.created_at | myDateTime }}</span>
+              <span class="wp-status-chip" ng-class="{'wp-chip-open': defect.status === 'open', 'wp-chip-resolved': defect.status === 'resolved'}">{{ defect.status }}</span>
+            </div>
+          </div>
+          <div class="wp-list-item-action" ng-if="vm.workpack.status === 'open'">
+            <button class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.unlinkDefect(defect.id)" title="Unlink defect">
+              <i class="fa fa-unlink"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="wp-section-footer" ng-if="vm.workpack.status === 'open'">
+        <button class="wp-btn wp-btn-primary wp-btn-sm" ng-click="vm.show_link_defect = !vm.show_link_defect">
+          <i class="fa fa-link"></i> Link a Defect
+        </button>
+      </div>
+
+      <!-- Link Defect Inline Form -->
+      <div ng-if="vm.show_link_defect" class="wp-link-form">
+        <h4 class="wp-link-form-title">Select a defect to link:</h4>
+        <div ng-if="vm.club.plane.defects && vm.club.plane.defects.length > 0">
+          <div class="wp-link-option" ng-repeat="defect in vm.club.plane.defects" ng-if="!defect.workpack_id">
+            <div class="wp-link-option-info">
+              <strong>{{ defect.defect }}</strong>
+              <span class="wp-meta-small">{{ defect.severity }} &middot; {{ defect.status }}</span>
+            </div>
+            <button class="wp-btn wp-btn-success wp-btn-sm" ng-click="vm.linkDefectToWorkpack(defect.id)">
+              <i class="fa fa-link"></i> Link
+            </button>
+          </div>
+        </div>
+        <div ng-if="!vm.club.plane.defects || vm.club.plane.defects.length === 0">
+          <p class="wp-empty-text">No defects available to link.</p>
+        </div>
+        <button class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.show_link_defect = false" style="margin-top: 10px;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ─── Linked Maintenance Events ─── -->
+    <div class="wp-section">
+      <h3 class="wp-section-title">
+        <i class="fa fa-calendar-check-o"></i> Linked Maintenance Events
+        <span class="wp-count-badge" ng-if="vm.workpack.maintenance_events.length > 0">{{ vm.workpack.maintenance_events.length }}</span>
+      </h3>
+
+      <div ng-if="!vm.workpack.maintenance_events || vm.workpack.maintenance_events.length === 0">
+        <p class="wp-empty-text">No maintenance events linked to this workpack.</p>
+      </div>
+
+      <div class="wp-list" ng-if="vm.workpack.maintenance_events && vm.workpack.maintenance_events.length > 0">
+        <div class="wp-list-item" ng-repeat="event in vm.workpack.maintenance_events">
+          <div class="wp-list-item-body">
+            <div class="wp-list-item-main">
+              <span class="wp-event-type">{{ event.maintenance_type }}</span>
+              <span class="wp-event-desc" ng-if="event.description"> — {{ event.description }}</span>
+            </div>
+            <div class="wp-list-item-meta">
+              <span><i class="fa fa-calendar"></i> {{ event.check_date | date:'dd/MM/yyyy' }}</span>
+              <span ng-if="event.expiry_date"><i class="fa fa-clock-o"></i> Expires: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
+              <span ng-if="event.hours_remaining"><i class="fa fa-tachometer"></i> {{ event.hours_remaining }} hrs</span>
+            </div>
+          </div>
+          <div class="wp-list-item-action" ng-if="vm.workpack.status === 'open'">
+            <button class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.unlinkMaintenance(event.id)" title="Unlink event">
+              <i class="fa fa-unlink"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="wp-section-footer" ng-if="vm.workpack.status === 'open'">
+        <button class="wp-btn wp-btn-primary wp-btn-sm" ng-click="vm.show_link_maintenance = !vm.show_link_maintenance">
+          <i class="fa fa-link"></i> Link a Maintenance Event
+        </button>
+      </div>
+
+      <!-- Link Maintenance Inline Form -->
+      <div ng-if="vm.show_link_maintenance" class="wp-link-form">
+        <h4 class="wp-link-form-title">Select a maintenance event to link:</h4>
+        <div ng-if="vm.club.plane.maintenance_history && vm.club.plane.maintenance_history.length > 0">
+          <div class="wp-link-option" ng-repeat="event in vm.club.plane.maintenance_history" ng-if="!event.workpack_id">
+            <div class="wp-link-option-info">
+              <strong>{{ event.maintenance_type }}</strong>
+              <span class="wp-meta-small">{{ event.check_date | date:'dd/MM/yyyy' }} &middot; {{ event.description || '—' }}</span>
+            </div>
+            <button class="wp-btn wp-btn-success wp-btn-sm" ng-click="vm.linkMaintenanceToWorkpack(event.id)">
+              <i class="fa fa-link"></i> Link
+            </button>
+          </div>
+        </div>
+        <div ng-if="!vm.club.plane.maintenance_history || vm.club.plane.maintenance_history.length === 0">
+          <p class="wp-empty-text">No maintenance events available to link.</p>
+        </div>
+        <button class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.show_link_maintenance = false" style="margin-top: 10px;">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Footer Actions ── -->
+  <div class="wp-panel-footer">
+    <div ng-if="vm.workpack.status === 'open'" class="wp-footer-actions">
+      <button class="wp-btn wp-btn-success" ng-click="vm.completeWorkpack()">
+        <i class="fa fa-check"></i> Mark as Completed
+      </button>
+      <button class="wp-btn wp-btn-danger" ng-click="vm.deleteWorkpack()">
+        <i class="fa fa-trash"></i> Delete Workpack
+      </button>
+    </div>
+    <div ng-if="vm.workpack.status === 'completed'" class="wp-footer-actions">
+      <button class="wp-btn wp-btn-warning" ng-click="vm.reopenWorkpack()">
+        <i class="fa fa-undo"></i> Reopen Workpack
+      </button>
+    </div>
+  </div>
+
+</div>
