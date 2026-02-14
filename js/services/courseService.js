@@ -59,6 +59,8 @@ app.factory('CourseService', CourseService);
 
         service.GetStudentTrainingRecordsForFlight = GetStudentTrainingRecordsForFlight;
 
+        service.ExportCourseRecord = ExportCourseRecord;
+
         // LESSON CONTENT FILES
         service.GetLessonContentFiles = GetLessonContentFiles;
         service.GetLessonContentFileData = GetLessonContentFileData;
@@ -280,6 +282,19 @@ app.factory('CourseService', CourseService);
             return $http.get('/api/v1/training_records/student/'+course_id+'/'+user_id+'/'+flight_id).then(handleSuccess, handleError2);
         }
 
+
+        function ExportCourseRecord(course_id, student_id) {
+            return $http.get('/api/v1/course_record_export/' + course_id + '/' + student_id, {
+                responseType: 'arraybuffer'
+            }).then(function(res) {
+                return res;
+            }, function(res) {
+                if(res.status == 401){
+                    $location.path('/login');
+                }
+                return { success: false, message: 'Failed to export course record', status: res.status };
+            });
+        }
 
         // LESSON CONTENT FILES
         function GetLessonContentFiles(lesson_id) {

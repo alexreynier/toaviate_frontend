@@ -86,9 +86,12 @@
                     ClubService.GetAllForUser(vm.user_id).then(function(data){
 
                         vm.clubs = data.clubs;
-                        if(vm.clubs.length < 2 && vm.clubs.length > 0){
+                        if(vm.clubs.length == 1){
                             vm.club_id = vm.clubs[0].id;
+                            vm.selected_club = vm.clubs[0];
                             vm.update_club_selector();
+                        } else if(vm.clubs.length > 1){
+                            // Multiple clubs — user must pick one
                         }
                     });
 
@@ -164,6 +167,21 @@
 
                     });
         }
+
+        // Called when a club is selected from the ui-select dropdown
+        vm.onClubSelected = function(club) {
+            vm.selected_club = club;
+            vm.club_id = club.id;
+            vm.course = null;
+            vm.show_record = false;
+            vm.update_club_selector();
+        };
+
+        // Called when a course is selected from the ui-select dropdown
+        vm.onCourseSelected = function(course) {
+            vm.course = course;
+            vm.load_records_user();
+        };
 
         vm.load_records = function(){
             if(!vm.member || !vm.course){
@@ -1017,7 +1035,52 @@
             //this should be false
             return true;
         }
-       
+
+        // Export Course Record as PDF
+        vm.exporting_pdf = false;
+        vm.exportCourseRecord = function() {
+            if (!vm.course_id || !vm.student_id) {
+                ToastService.warning('Export Error', 'Please load a course record first.');
+                return;
+            }
+
+            vm.exporting_pdf = true;
+
+            CourseService.ExportCourseRecord(vm.course_id, vm.student_id)
+                .then(function(response) {
+                    vm.exporting_pdf = false;
+
+                    if (response && response.data) {
+                        var blob = new Blob([response.data], { type: 'application/pdf' });
+                        var downloadUrl = URL.createObjectURL(blob);
+                        var link = document.createElement('a');
+                        link.href = downloadUrl;
+
+                        var studentName = '';
+                        if (vm.student && vm.student.first_name) {
+                            studentName = vm.student.first_name + '_' + vm.student.last_name + '_';
+                        }
+                        var courseName = '';
+                        if (vm.course && vm.course.title) {
+                            courseName = vm.course.title.replace(/[^a-zA-Z0-9]/g, '_') + '_';
+                        }
+                        link.download = 'Course_Record_' + courseName + studentName + vm.course_id + '.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(downloadUrl);
+
+                        ToastService.success('Export Complete', 'Your course record PDF has been downloaded.');
+                    } else {
+                        ToastService.error('Export Failed', 'Could not generate the course record PDF.');
+                    }
+                })
+                .catch(function(err) {
+                    vm.exporting_pdf = false;
+                    console.error('Course record export failed:', err);
+                    ToastService.error('Export Failed', 'An error occurred while generating the PDF. Please try again.');
+                });
+        };
 
 
     }

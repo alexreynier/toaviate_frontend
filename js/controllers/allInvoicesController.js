@@ -478,29 +478,35 @@
 
             // Get the headers
             headers = headers();
-            //var ttt = title.toLowerCase().replace(/\W/g, '_');
-            // Get the filename from the x-filename header or default to "download.bin"
-            var filename = headers['x-filename'] || 'download.zip';
+            // Get the filename from the x-filename header or default to "download.pdf"
+            var filename = headers['x-filename'] || 'invoice.pdf';
 
             // Determine the content type from the header or default to "application/octet-stream"
             var contentType = headers['content-type'] || octetStreamMime;
 
             try {
-                // Try using msSaveBlob if supported
-                var blob = new Blob([data], {
-                    type: contentType
-                });
-                if (navigator.msSaveBlob)
-                    navigator.msSaveBlob(blob, filename);
-                else {
-                    // Try using other saveBlob implementations, if available
-                    var saveBlob = navigator.webkitSaveBlob || navigator.mozSaveBlob || navigator.saveBlob;
-                    if (saveBlob === undefined) throw "Not supported";
-                    saveBlob(blob, filename);
+                var blob = new Blob([data], { type: contentType });
+
+                // Modern browsers: use an anchor element with download attribute
+                if (window.URL && window.URL.createObjectURL) {
+                    var link = document.createElement('a');
+                    var url = window.URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', filename);
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                    success = true;
                 }
-                success = true;
+                // Legacy IE fallback
+                else if (navigator.msSaveBlob) {
+                    navigator.msSaveBlob(blob, filename);
+                    success = true;
+                }
             } catch (ex) {
-                $log.info("!!saveBlob method failed with the following exception:");
+                $log.info("Download method failed:");
                 $log.info(ex);
             }
 
