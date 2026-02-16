@@ -1,7 +1,7 @@
  app.controller('DashboardClubInstructorBookings', DashboardClubInstructorBookings);
 
-    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService'];
-    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService) {
+    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService', 'AdhocAvailabilityService', 'HolidayService'];
+    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService, AdhocAvailabilityService, HolidayService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -51,13 +51,73 @@
 
         //console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
         
-        vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
+        vm.club_id = parseInt($rootScope.globals.currentUser.current_club_admin.id, 10);
         vm.user_id = vm.user.id;
 
 
 
 
          vm.editing = false;
+
+        // ── Slide-panel state ──────────────────────────────────────
+        vm.show_instructor_panel = false;
+        vm.selected_instructor   = null;
+        vm.loadingAvailability   = false;
+        vm.instructor_availability = null;
+        vm.savingInstructor      = false;
+
+        // ── Availability editor panel state ────────────────────────
+        vm.show_avail_panel      = false;
+        vm.availTab              = 'schedule';
+        vm.savingAvailSchedule   = false;
+
+        // Ad-hoc dates
+        vm.adhocDates            = [];
+        vm.adhocSelectedDates    = [];
+        vm.adhocCalendarDate     = null;
+        vm.adhocNotes            = '';
+        vm.loadingAdhocDates     = false;
+        vm.addingAdhoc           = false;
+
+        var defaultAdhocFrom = new Date(); defaultAdhocFrom.setHours(8, 0, 0, 0);
+        var defaultAdhocTo   = new Date(); defaultAdhocTo.setHours(21, 0, 0, 0);
+        vm.adhocFromTime         = angular.copy(defaultAdhocFrom);
+        vm.adhocToTime           = angular.copy(defaultAdhocTo);
+
+        vm.adhocDatepickerOptions = { startingDay: 1, minDate: new Date(), showWeeks: false };
+
+        // Ad-hoc edit
+        vm.editingAdhocSlot      = null;
+        vm.editSlotFrom          = null;
+        vm.editSlotTo            = null;
+        vm.editSlotNotes         = '';
+        vm.savingEditSlot        = false;
+
+        // Holidays
+        vm.instrHolidays         = [];
+        vm.holidayStart          = null;
+        vm.holidayEnd            = null;
+        vm.holidayTitle          = '';
+        vm.holidayAllDay         = true;
+        vm.holidayStartOpen      = false;
+        vm.holidayEndOpen        = false;
+        vm.addingHoliday         = false;
+        vm.holidayDateOptions    = { startingDay: 1 };
+
+        var holFromDefault = new Date(); holFromDefault.setHours(8, 0, 0, 0);
+        var holToDefault   = new Date(); holToDefault.setHours(18, 0, 0, 0);
+        vm.holidayFromTime       = angular.copy(holFromDefault);
+        vm.holidayToTime         = angular.copy(holToDefault);
+
+        vm.avail_days = [
+            { day: 'Monday',    short: 'Mon', from_variable: 'monday_from_time',    to_variable: 'monday_to_time',    disabled_variable: 'monday_disabled' },
+            { day: 'Tuesday',   short: 'Tue', from_variable: 'tuesday_from_time',   to_variable: 'tuesday_to_time',   disabled_variable: 'tuesday_disabled' },
+            { day: 'Wednesday', short: 'Wed', from_variable: 'wednesday_from_time', to_variable: 'wednesday_to_time', disabled_variable: 'wednesday_disabled' },
+            { day: 'Thursday',  short: 'Thu', from_variable: 'thursday_from_time',  to_variable: 'thursday_to_time',  disabled_variable: 'thursday_disabled' },
+            { day: 'Friday',    short: 'Fri', from_variable: 'friday_from_time',    to_variable: 'friday_to_time',    disabled_variable: 'friday_disabled' },
+            { day: 'Saturday',  short: 'Sat', from_variable: 'saturday_from_time',  to_variable: 'saturday_to_time',  disabled_variable: 'saturday_disabled' },
+            { day: 'Sunday',    short: 'Sun', from_variable: 'sunday_from_time',    to_variable: 'sunday_to_time',    disabled_variable: 'sunday_disabled' }
+        ];
         
         switch(vm.action){
            
@@ -70,8 +130,18 @@
                 //console.log("hey");
                 InstructorService.GetAllByClub(vm.club_id, vm.user_id)
                     .then(function(data){
-                        vm.club.instructors = data.instructors;   
-                        //console.log(data);
+                        vm.club.instructors = data.instructors;
+                        // Initialise boolean toggles for email preferences
+                        for (var i = 0; i < vm.club.instructors.length; i++) {
+                            var inst = vm.club.instructors[i];
+                            inst._receiveNotifications = (inst.mute_booking_emails == 0);
+                            inst._receiveReminders     = (inst.mute_booking_reminders == 0);
+                            inst._receiveDailySummary  = (inst.instructor_daily_summary == 1);
+                            // Default availability mode badge (may be overridden when panel opens)
+                            inst._availabilityMode     = inst.availability_mode || 'regular';
+                            // Init daily limit display value
+                            inst._maxExperienceFlights = parseInt(inst.max_experience_flights_per_day, 10) || 0;
+                        }
                         vm.edit_instructor();
                     });
             break;
@@ -83,7 +153,7 @@
         //'9' needs to refer the the user's account set to manage
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         function rgbaToHex (rgba) {
@@ -118,6 +188,32 @@
             let b = parseInt(hex.substring(5), 16);  
             var rtn = "rgba("+r+", "+g+", "+b+", "+opacity+")";
             return rtn;
+        }
+
+        // Parse ISO time strings ("09:00") into Date objects for date:'HH:mm' filter
+        function normaliseAvailTimes(rec) {
+            var dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            dayNames.forEach(function(d) {
+                var fk = d + '_from_time';
+                var tk = d + '_to_time';
+                var dk = d + '_disabled';
+                rec[fk] = parseTimeString(rec[fk]);
+                rec[tk] = parseTimeString(rec[tk]);
+                rec[dk] = parseInt(rec[dk]) || 0;
+            });
+        }
+        function parseTimeString(val) {
+            if (!val || val === '0') {
+                var d = new Date(); d.setHours(0, 0, 0, 0); return d;
+            }
+            if (val instanceof Date) return val;
+            if (typeof val === 'string') {
+                var parts = val.split(':');
+                var dt = new Date();
+                dt.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0);
+                return dt;
+            }
+            return new Date(val);
         }
 
         vm.save_instructor = function(instructor){
@@ -164,6 +260,481 @@
                     vm.club.instructors[i].new_booking_colour = rgbaToHex(vm.club.instructors[i].booking_colour);
                 }
             }
+        }
+
+        // ---- Email preference toggles ----
+        vm.save_email_prefs = function(instructor) {
+            var update = {
+                id: instructor.id,
+                mute_booking_emails:    instructor._receiveNotifications ? 0 : 1,
+                mute_booking_reminders: instructor._receiveReminders    ? 0 : 1,
+                instructor_daily_summary: instructor._receiveDailySummary ? 1 : 0
+            };
+
+            InstructorService.UpdateInstructor(update, vm.club_id)
+                .then(function(data) {
+                    if (data && data.success) {
+                        // Sync the raw values back onto the local object
+                        instructor.mute_booking_emails    = update.mute_booking_emails;
+                        instructor.mute_booking_reminders = update.mute_booking_reminders;
+                        instructor.instructor_daily_summary = update.instructor_daily_summary;
+                        ToastService.success('Saved', 'Email preferences updated.');
+                    } else {
+                        // Revert toggles on failure
+                        instructor._receiveNotifications = (instructor.mute_booking_emails == 0);
+                        instructor._receiveReminders     = (instructor.mute_booking_reminders == 0);
+                        instructor._receiveDailySummary  = (instructor.instructor_daily_summary == 1);
+                        ToastService.error('Error', 'Could not save email preferences.');
+                    }
+                });
+        };
+
+        // ── Slide-panel methods ──────────────────────────────────────
+
+        vm.openPanel = function(instructor) {
+            vm.selected_instructor = instructor;
+            vm.show_instructor_panel = true;
+            vm.instructor_availability = null;
+            vm.loadingAvailability = true;
+
+            // Ensure colour hex values are initialised for the pickers
+            if (instructor.instructor_colour && !instructor.new_colour) {
+                instructor.new_colour = rgbaToHex(instructor.instructor_colour);
+            }
+            if (instructor.booking_colour && !instructor.new_booking_colour) {
+                instructor.new_booking_colour = rgbaToHex(instructor.booking_colour);
+            }
+
+            // Init daily-limit field (from backend or default to 0)
+            if (typeof instructor._maxExperienceFlights === 'undefined') {
+                instructor._maxExperienceFlights = parseInt(instructor.max_experience_flights_per_day, 10) || 0;
+            }
+
+            // Load availability for this club (use user_id + club_id)
+            InstructorService.GetAvailability(instructor.user_id, vm.club_id)
+                .then(function(data) {
+                    vm.loadingAvailability = false;
+                    // Single-club endpoint returns an object, not an array
+                    var match = null;
+                    if (data && !Array.isArray(data) && data.club_id) {
+                        match = data;
+                    } else if (data && Array.isArray(data)) {
+                        // Fallback: array response — find matching club
+                        for (var i = 0; i < data.length; i++) {
+                            if (data[i] && parseInt(data[i].club_id, 10) === vm.club_id) {
+                                match = data[i];
+                                break;
+                            }
+                        }
+                    }
+                    if (!match) {
+                        // Don't overwrite if the avail panel already created a blank record
+                        if (!vm.instructor_availability) {
+                            vm.instructor_availability = null;
+                        }
+                        return;
+                    }
+                    if (!match.availability_mode) {
+                        match.availability_mode = 'regular';
+                    }
+                    // Normalise time strings into Date objects for display
+                    normaliseAvailTimes(match);
+                    vm.instructor_availability = match;
+                    // Update the badge on the card
+                    instructor._availabilityMode = match.availability_mode;
+                })
+                .catch(function() {
+                    vm.loadingAvailability = false;
+                    vm.instructor_availability = null;
+                });
+        };
+
+        vm.closePanel = function() {
+            vm.show_avail_panel = false;
+            vm.show_instructor_panel = false;
+        };
+
+        // Close panel on Escape key (avail panel first, then instructor panel)
+        var panelEscHandler = function(e) {
+            if (e.keyCode === 27) {
+                $scope.$apply(function() {
+                    if (vm.editingAdhocSlot) {
+                        vm.cancelEditSlot();
+                    } else if (vm.show_avail_panel) {
+                        vm.closeAvailPanel();
+                    } else if (vm.show_instructor_panel) {
+                        vm.closePanel();
+                    }
+                });
+            }
+        };
+        document.addEventListener('keydown', panelEscHandler);
+        $scope.$on('$destroy', function() {
+            document.removeEventListener('keydown', panelEscHandler);
+        });
+
+        vm.saveAndClose = function() {
+            if (!vm.selected_instructor) return;
+            vm.savingInstructor = true;
+
+            var instructor = vm.selected_instructor;
+
+            // Apply colour changes
+            if (instructor.new_colour && instructor.new_colour !== '') {
+                instructor.instructor_colour = hexToRGBA(instructor.new_colour, 1);
+            }
+            if (instructor.new_booking_colour && instructor.new_booking_colour !== '') {
+                instructor.booking_colour = hexToRGBA(instructor.new_booking_colour, 1);
+            }
+
+            // Build update payload
+            var payload = {
+                id:                          instructor.id,
+                instructor_colour:           instructor.instructor_colour,
+                booking_colour:              instructor.booking_colour,
+                instructor_notes:            instructor.instructor_notes || '',
+                max_experience_flights_per_day: instructor._maxExperienceFlights || 0
+            };
+
+            InstructorService.UpdateInstructor(payload, vm.club_id)
+                .then(function(data) {
+                    vm.savingInstructor = false;
+                    if (data && data.success !== false) {
+                        ToastService.success('Saved', instructor.first_name + '\'s settings updated.');
+                        vm.show_instructor_panel = false;
+                    } else {
+                        ToastService.error('Error', 'Could not save instructor settings.');
+                    }
+                })
+                .catch(function() {
+                    vm.savingInstructor = false;
+                    ToastService.error('Error', 'Could not save instructor settings.');
+                });
+        };
+
+        // ══════════════════════════════════════════════════════════
+        //  AVAILABILITY EDITOR PANEL
+        // ══════════════════════════════════════════════════════════
+
+        vm.openAvailPanel = function() {
+            if (!vm.instructor_availability) {
+                // Build a blank record for this club + user
+                vm.instructor_availability = buildBlankAvailability(vm.club_id, vm.selected_instructor.user_id);
+                normaliseAvailTimesForEditor(vm.instructor_availability);
+            }
+            vm.availTab = 'schedule';
+            vm.show_avail_panel = true;
+            // Reset ad-hoc form
+            vm.adhocSelectedDates = [];
+            vm.adhocCalendarDate  = null;
+            vm.adhocNotes         = '';
+            vm.adhocFromTime      = angular.copy(defaultAdhocFrom);
+            vm.adhocToTime        = angular.copy(defaultAdhocTo);
+            // Load ad-hoc dates & holidays
+            loadInstructorAdhocDates();
+            loadInstructorHolidays();
+        };
+
+        vm.closeAvailPanel = function() {
+            vm.show_avail_panel = false;
+            vm.editingAdhocSlot = null;
+        };
+
+        // ── Weekly schedule ──────────────────────────────────────
+
+        vm.toggleAvailDay = function(disabledVar) {
+            vm.instructor_availability[disabledVar] = vm.instructor_availability[disabledVar] ? 0 : 1;
+        };
+
+        vm.setAvailMode = function(mode) {
+            if (vm.instructor_availability.availability_mode === mode) return;
+            vm.instructor_availability.availability_mode = mode;
+            saveAvailToBackend(function() {
+                ToastService.success('Mode Updated', 'Switched to ' + (mode === 'adhoc' ? 'ad-hoc' : 'regular') + ' scheduling.');
+                // Update badge on card
+                vm.selected_instructor._availabilityMode = mode;
+                if (mode === 'adhoc') {
+                    vm.availTab = 'extra';
+                }
+            });
+        };
+
+        vm.saveAvailSchedule = function() {
+            vm.savingAvailSchedule = true;
+            saveAvailToBackend(function() {
+                vm.savingAvailSchedule = false;
+                ToastService.success('Schedule Saved', 'Weekly availability updated for this club.');
+            });
+        };
+
+        function saveAvailToBackend(callback) {
+            var rec = vm.instructor_availability;
+            // Always ensure user_id and club_id are correct
+            rec.user_id = vm.selected_instructor.user_id;
+            rec.club_id = vm.club_id;
+
+            // Build a clean payload — convert Date objects to HH:MM time strings
+            var dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            var payload = {
+                user_id:           rec.user_id,
+                club_id:           rec.club_id,
+                availability_mode: rec.availability_mode
+            };
+            dayNames.forEach(function(d) {
+                var fk = d + '_from_time';
+                var tk = d + '_to_time';
+                var dk = d + '_disabled';
+                payload[fk] = dateToTimeStr(rec[fk]);
+                payload[tk] = dateToTimeStr(rec[tk]);
+                payload[dk] = rec[dk];
+            });
+
+            InstructorService.SetAvailability(payload)
+                .then(function(data) {
+                    if (callback) callback();
+                });
+        }
+
+        function dateToTimeStr(val) {
+            if (!val) return '00:00';
+            if (val instanceof Date) {
+                return padAvailTime(val.getHours()) + ':' + padAvailTime(val.getMinutes());
+            }
+            // Already a string — return as-is
+            return String(val);
+        }
+
+        // ── Ad-hoc dates ─────────────────────────────────────────
+
+        vm.onAdhocCalendarSelect = function() {
+            if (!vm.adhocCalendarDate) return;
+            var dateStr = formatAvailDate(vm.adhocCalendarDate);
+            var exists = vm.adhocSelectedDates.some(function(d) {
+                return formatAvailDate(d) === dateStr;
+            });
+            if (!exists) {
+                vm.adhocSelectedDates.push(new Date(vm.adhocCalendarDate));
+            }
+            vm.adhocCalendarDate = null;
+        };
+
+        vm.removeAdhocDate = function(idx) {
+            vm.adhocSelectedDates.splice(idx, 1);
+        };
+
+        vm.addAdhocDates = function() {
+            if (!vm.adhocSelectedDates.length) return;
+
+            var dates = vm.adhocSelectedDates.map(function(d) { return formatAvailDate(d); });
+            var fromStr = padAvailTime(vm.adhocFromTime.getHours()) + ':' + padAvailTime(vm.adhocFromTime.getMinutes());
+            var toStr   = padAvailTime(vm.adhocToTime.getHours()) + ':' + padAvailTime(vm.adhocToTime.getMinutes());
+
+            if (fromStr >= toStr) {
+                ToastService.error('Invalid Times', '"From" must be before "To".');
+                return;
+            }
+
+            var payload = {
+                user_id:   vm.selected_instructor.user_id,
+                club_id:   vm.club_id,
+                dates:     dates,
+                from_time: fromStr,
+                to_time:   toStr,
+                notes:     vm.adhocNotes || null
+            };
+            if (dates.length === 1) {
+                payload.available_date = dates[0];
+                delete payload.dates;
+            }
+
+            vm.addingAdhoc = true;
+            AdhocAvailabilityService.Create(payload)
+                .then(function(resp) {
+                    vm.addingAdhoc = false;
+                    if (resp && resp.success === false) {
+                        ToastService.error('Error', resp.message || 'Failed to add dates.');
+                        return;
+                    }
+                    var added   = (resp && resp.added)   ? resp.added.length   : 0;
+                    var skipped = (resp && resp.skipped) ? resp.skipped.length : 0;
+                    var msg = added + ' date' + (added !== 1 ? 's' : '') + ' added';
+                    if (skipped) msg += ', ' + skipped + ' skipped (overlap)';
+                    ToastService.success('Dates Added', msg);
+                    vm.adhocSelectedDates = [];
+                    vm.adhocNotes = '';
+                    loadInstructorAdhocDates();
+                });
+        };
+
+        vm.editAdhocSlot = function(slot) {
+            vm.editingAdhocSlot = slot;
+            vm.editSlotFrom  = parseAvailTimeStr(slot.from_time);
+            vm.editSlotTo    = parseAvailTimeStr(slot.to_time);
+            vm.editSlotNotes = slot.notes || '';
+        };
+
+        vm.cancelEditSlot = function() {
+            vm.editingAdhocSlot = null;
+        };
+
+        vm.saveEditSlot = function() {
+            if (!vm.editingAdhocSlot) return;
+            var fromStr = padAvailTime(vm.editSlotFrom.getHours()) + ':' + padAvailTime(vm.editSlotFrom.getMinutes());
+            var toStr   = padAvailTime(vm.editSlotTo.getHours()) + ':' + padAvailTime(vm.editSlotTo.getMinutes());
+            if (fromStr >= toStr) {
+                ToastService.error('Invalid Times', '"From" must be before "To".');
+                return;
+            }
+            vm.savingEditSlot = true;
+            AdhocAvailabilityService.Update(vm.editingAdhocSlot.id, {
+                from_time: fromStr, to_time: toStr, notes: vm.editSlotNotes || null
+            }).then(function() {
+                vm.savingEditSlot = false;
+                vm.editingAdhocSlot = null;
+                ToastService.success('Updated', 'Availability slot updated.');
+                loadInstructorAdhocDates();
+            });
+        };
+
+        vm.deleteAdhocSlot = function(slot) {
+            if (!confirm('Remove availability on ' + slot.available_date + '?')) return;
+            AdhocAvailabilityService.Delete(slot.id)
+                .then(function() {
+                    ToastService.success('Removed', 'Slot deleted.');
+                    loadInstructorAdhocDates();
+                });
+        };
+
+        function loadInstructorAdhocDates() {
+            if (!vm.selected_instructor) return;
+            vm.loadingAdhocDates = true;
+            AdhocAvailabilityService.GetAll(vm.selected_instructor.user_id)
+                .then(function(data) {
+                    vm.loadingAdhocDates = false;
+                    if (Array.isArray(data)) {
+                        vm.adhocDates = data.filter(function(d) {
+                            return parseInt(d.club_id, 10) === vm.club_id;
+                        });
+                    } else {
+                        vm.adhocDates = [];
+                    }
+                });
+        }
+
+        // ── Holidays ────────────────────────────────────────────
+
+        vm.addHoliday = function() {
+            if (!vm.holidayStart || !vm.holidayEnd) {
+                ToastService.error('Missing Dates', 'Please select start and end dates.');
+                return;
+            }
+            var startDate = new Date(vm.holidayStart);
+            var endDate   = new Date(vm.holidayEnd);
+            if (!vm.holidayAllDay && vm.holidayFromTime && vm.holidayToTime) {
+                startDate.setHours(vm.holidayFromTime.getHours(), vm.holidayFromTime.getMinutes(), 0, 0);
+                endDate.setHours(vm.holidayToTime.getHours(), vm.holidayToTime.getMinutes(), 0, 0);
+            }
+            var newHoliday = {
+                title:  vm.holidayTitle || 'Holiday',
+                start:  startDate,
+                end:    endDate,
+                allDay: vm.holidayAllDay
+            };
+            vm.addingHoliday = true;
+            HolidayService.Create(vm.selected_instructor.user_id, newHoliday)
+                .then(function() {
+                    vm.addingHoliday = false;
+                    ToastService.success('Holiday Added', 'Time off booked.');
+                    vm.holidayStart = null;
+                    vm.holidayEnd   = null;
+                    vm.holidayTitle = '';
+                    vm.holidayAllDay = true;
+                    loadInstructorHolidays();
+                });
+        };
+
+        vm.deleteHoliday = function(hol, idx) {
+            if (!confirm('Remove this holiday?')) return;
+            HolidayService.Delete(vm.selected_instructor.user_id, hol.id)
+                .then(function() {
+                    vm.instrHolidays.splice(idx, 1);
+                    ToastService.success('Removed', 'Holiday deleted.');
+                });
+        };
+
+        function loadInstructorHolidays() {
+            if (!vm.selected_instructor) return;
+            HolidayService.GetAll(vm.selected_instructor.user_id)
+                .then(function(data) {
+                    if (!data || !Array.isArray(data)) {
+                        vm.instrHolidays = [];
+                        return;
+                    }
+                    vm.instrHolidays = data.map(function(h) {
+                        return {
+                            id:     h.id,
+                            title:  h.title,
+                            start:  new Date(h.from_date),
+                            end:    new Date(h.to_date),
+                            allDay: h.allDay
+                        };
+                    });
+                });
+        }
+
+        // ── Availability helpers ─────────────────────────────────
+
+        function buildBlankAvailability(clubId, userId) {
+            return {
+                club_id:            clubId,
+                user_id:            userId,
+                availability_mode:  'regular',
+                monday_from_time:   '0', monday_to_time:   '0', monday_disabled:    0,
+                tuesday_from_time:  '0', tuesday_to_time:  '0', tuesday_disabled:   0,
+                wednesday_from_time:'0', wednesday_to_time:'0', wednesday_disabled: 0,
+                thursday_from_time: '0', thursday_to_time: '0', thursday_disabled:  0,
+                friday_from_time:   '0', friday_to_time:   '0', friday_disabled:    0,
+                saturday_from_time: '0', saturday_to_time: '0', saturday_disabled:  0,
+                sunday_from_time:   '0', sunday_to_time:   '0', sunday_disabled:    0
+            };
+        }
+
+        function normaliseAvailTimesForEditor(rec) {
+            var dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            var fromDefault = new Date(); fromDefault.setHours(9, 0, 0, 0);
+            var toDefault   = new Date(); toDefault.setHours(18, 0, 0, 0);
+            dayNames.forEach(function(d) {
+                var fk = d + '_from_time';
+                var tk = d + '_to_time';
+                var dk = d + '_disabled';
+                if (rec[fk] === rec[tk]) {
+                    rec[fk] = angular.copy(fromDefault);
+                    rec[tk] = angular.copy(toDefault);
+                } else {
+                    rec[fk] = parseTimeString(rec[fk]);
+                    rec[tk] = parseTimeString(rec[tk]);
+                }
+                rec[dk] = parseInt(rec[dk]) || 0;
+            });
+        }
+
+        function formatAvailDate(d) {
+            var yyyy = d.getFullYear();
+            var mm   = padAvailTime(d.getMonth() + 1);
+            var dd   = padAvailTime(d.getDate());
+            return yyyy + '-' + mm + '-' + dd;
+        }
+
+        function padAvailTime(n) {
+            return n < 10 ? '0' + n : '' + n;
+        }
+
+        function parseAvailTimeStr(str) {
+            if (!str) return new Date();
+            var parts = str.split(':');
+            var d = new Date();
+            d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+            return d;
         }
 
         $scope.save_instructor_order = function(){

@@ -1,11 +1,31 @@
  app.controller('InvitationsSignupController', InvitationsSignupController);
 
-    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService'];
-    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService) {
+    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService', 'PaymentService', 'EnvConfig'];
+    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService, PaymentService, EnvConfig) {
         	
         	var vm = this;
 
         	$scope.formData = {};
+        	$scope.invStep = 1;
+        	$scope.invErrors = {};
+        	$scope.invLoading = false;
+        	$scope.invPaymentMethod = null;     // 'direct_debit' | 'stripe' | 'skip'
+        	$scope.invShowStripeForm = false;
+        	$scope.invPaymentResult = null;     // 'direct_debit' | 'stripe' | 'skipped'
+        	$scope.invShowSkipConfirm = false;
+        	var invStripeElements = null;        // Stripe Elements instance (kept in closure)
+
+        	// ── Step tracking ──
+        	$scope.setInvStep = function(n) {
+        		$scope.invStep = n;
+        	};
+
+        	// ── Clear a single field error on user input ──
+        	$scope.clearInvError = function(field) {
+        		if ($scope.invErrors[field]) {
+        			delete $scope.invErrors[field];
+        		}
+        	};
 
 
 vm.selected_phone;
@@ -1252,6 +1272,8 @@ vm.selected_phone;
 	    
 		    if($cookies.get("session") !== "" && $location.search().redirect_flow_id){
 		    	//console.log("let's sort this shizzle out eh?");
+		    	$scope.invStep = 5;
+		    	$scope.invPaymentResult = 'direct_debit';
 
 		    	var object = {
                     mandate: $location.search().redirect_flow_id,
@@ -1275,6 +1297,12 @@ vm.selected_phone;
 
                 });
 
+		    }
+
+		    // Handle Stripe redirect return (setup_intent in URL)
+		    if ($location.search().stripe_success || $location.search().setup_intent) {
+		    	$scope.invStep = 5;
+		    	$scope.invPaymentResult = 'stripe';
 		    }
 
 
@@ -1371,6 +1399,323 @@ vm.selected_phone;
 		    }
 		    
 
+		    // ══════════════════════════════════════════════
+		    //  Per-step validation (used by new templates)
+		    // ══════════════════════════════════════════════
+
+		    $scope.validateDetails = function() {
+		    	$scope.invErrors = {};
+		    	var valid = true;
+
+		    	if (!$scope.formData.first_name || !$scope.formData.first_name.trim()) {
+		    		$scope.invErrors.first_name = true; valid = false;
+		    	}
+		    	if (!$scope.formData.last_name || !$scope.formData.last_name.trim()) {
+		    		$scope.invErrors.last_name = true; valid = false;
+		    	}
+		    	if (!$scope.formData.dob) {
+		    		$scope.invErrors.dob = true; valid = false;
+		    	}
+		    	if (!$scope.formData.email || !$scope.formData.email.trim()) {
+		    		$scope.invErrors.email = true; valid = false;
+		    	}
+		    	if (!$scope.formData.phone_number || !$scope.formData.phone_number.trim()) {
+		    		$scope.invErrors.phone_number = true; valid = false;
+		    	}
+		    	if (!$scope.formData.password || $scope.formData.password.length < 8) {
+		    		$scope.invErrors.password = true; valid = false;
+		    	}
+		    	if (!$scope.formData.password2 || $scope.formData.password !== $scope.formData.password2) {
+		    		$scope.invErrors.password2 = true; valid = false;
+		    	}
+
+		    	if (!valid) {
+		    		ToastService.warning('Missing Fields', 'Please fill in all required fields.');
+		    		return;
+		    	}
+
+		    	// Password-specific checks
+		    	if ($scope.formData.password.length < 8) {
+		    		$scope.invErrors.password = true;
+		    		ToastService.warning('Password Too Short', 'Password must be at least 8 characters long.');
+		    		return;
+		    	}
+		    	if ($scope.formData.password !== $scope.formData.password2) {
+		    		$scope.invErrors.password2 = true;
+		    		ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		    		return;
+		    	}
+
+		    	$scope.invStep = 3;
+		    	$state.go('invitations.next_of_kin');
+		    };
+
+		    $scope.validateNextOfKin = function() {
+		    	$scope.invErrors = {};
+		    	var valid = true;
+
+		    	if (!$scope.formData.nok) $scope.formData.nok = {};
+
+		    	if (!$scope.formData.nok.first_name || !$scope.formData.nok.first_name.trim()) {
+		    		$scope.invErrors.nok_first_name = true; valid = false;
+		    	}
+		    	if (!$scope.formData.nok.last_name || !$scope.formData.nok.last_name.trim()) {
+		    		$scope.invErrors.nok_last_name = true; valid = false;
+		    	}
+		    	if (!$scope.formData.nok.phone_number || !$scope.formData.nok.phone_number.trim()) {
+		    		$scope.invErrors.nok_phone = true; valid = false;
+		    	}
+		    	if (!$scope.formData.nok.relationship || !$scope.formData.nok.relationship.trim()) {
+		    		$scope.invErrors.nok_relationship = true; valid = false;
+		    	}
+		    	if (!$scope.formData.nok.address || !$scope.formData.nok.address.trim()) {
+		    		$scope.invErrors.nok_address = true; valid = false;
+		    	}
+
+		    	if (!valid) {
+		    		ToastService.warning('Missing Fields', 'Please fill in all required next of kin fields.');
+		    		return;
+		    	}
+
+		    	$scope.invStep = 4;
+		    	$state.go('invitations.your_club');
+		    };
+
+		    $scope.validateAndSetupDD = function() {
+		    	if (!validateTerms()) return;
+
+		    	// Re-validate user + nok before submitting
+		    	if (!check_user_is_valid()) {
+		    		$scope.invStep = 2;
+		    		$state.go('invitations.your_details');
+		    		return;
+		    	}
+		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    		$scope.invStep = 3;
+		    		$state.go('invitations.next_of_kin');
+		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
+		    		return;
+		    	}
+
+		    	$scope.invLoading = true;
+		    	$scope.setup_direct_debit();
+		    };
+
+		    $scope.validateTnc = function() {
+		    	$scope.invErrors = {};
+
+		    	if (!$scope.formData.tnc) {
+		    		$scope.invErrors.tnc = true;
+		    		ToastService.warning('Terms Required', 'You must accept the Terms & Conditions to continue.');
+		    		return;
+		    	}
+
+		    	$scope.processForm();
+		    };
+
+
+		    // ══════════════════════════════════════════════
+		    //  Payment method selection + Stripe + Skip
+		    // ══════════════════════════════════════════════
+
+		    $scope.selectPaymentMethod = function(method) {
+		    	$scope.invPaymentMethod = method;
+		    	$scope.invShowStripeForm = false;
+
+		    	if (method === 'stripe') {
+		    		// Initialise the Stripe card form after a digest cycle
+		    		$scope.invShowStripeForm = true;
+		    		// We wait for the DOM element to exist, then mount
+		    		setTimeout(function() {
+		    			initStripeForm();
+		    		}, 150);
+		    	}
+		    };
+
+		    function initStripeForm() {
+		    	// Only init once — if user toggles back we re-mount
+		    	var uid = $cookies.get('uid');
+		    	var send = {
+		    		club_id: $scope.formData.club_id,
+		    		user_id: uid || 0
+		    	};
+
+		    	PaymentService.CreateNewCustomer(send)
+		    	.then(function(data) {
+		    		if (!data || !data.secret) {
+		    			ToastService.error('Card Setup Error', 'Unable to initialise card form. Please try again.');
+		    			return;
+		    		}
+
+		    		var stripe = Stripe(EnvConfig.getStripeKey());
+
+		    		var options = {
+		    			clientSecret: data.secret,
+		    			appearance: {
+		    				theme: 'stripe',
+		    				variables: {
+		    					colorPrimary: '#2d5a8e',
+		    					borderRadius: '10px',
+		    					fontFamily: 'inherit'
+		    				}
+		    			}
+		    		};
+
+		    		var elements = stripe.elements(options);
+		    		var paymentElement = elements.create('payment', { layout: 'tabs' });
+		    		paymentElement.mount('#inv-payment-element');
+
+		    		// Store for later use during submission
+		    		invStripeElements = { stripe: stripe, elements: elements, clientSecret: data.secret };
+		    	});
+		    }
+
+		    $scope.validateAndSetupStripe = function() {
+		    	// Validate T&C first
+		    	if (!validateTerms()) return;
+
+		    	// Re-validate user + nok
+		    	if (!check_user_is_valid()) {
+		    		$scope.invStep = 2;
+		    		$state.go('invitations.your_details');
+		    		return;
+		    	}
+		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    		$scope.invStep = 3;
+		    		$state.go('invitations.next_of_kin');
+		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
+		    		return;
+		    	}
+
+		    	if (!invStripeElements) {
+		    		ToastService.error('Card Not Ready', 'The card form is still loading. Please wait a moment.');
+		    		return;
+		    	}
+
+		    	$scope.invLoading = true;
+
+		    	// First create the user account (same as DD flow)
+		    	var to_send = angular.copy($scope.formData);
+		    	to_send.request_id = $scope.all.membership_request_id;
+		    	to_send.invitation = $stateParams.token;
+		    	to_send.payment_now = $scope.payment_now;
+		    	to_send.first_payment = $scope.first_payment;
+		    	to_send.payment_method = 'stripe';
+		    	// Pass the SetupIntent secret so backend can link the Stripe Customer to the new user
+		    	if (invStripeElements && invStripeElements.clientSecret) {
+		    		to_send.stripe_setup_secret = invStripeElements.clientSecret;
+		    	}
+
+		    	UserService.InviteSignup(to_send)
+		    	.then(function(data) {
+		    		if (data.success) {
+		    			// Store session
+		    			if (data.uid) $cookies.put('uid', data.uid);
+		    			if (data.session) $cookies.put('session', data.session);
+
+		    			// Now confirm the Stripe SetupIntent
+		    			invStripeElements.stripe.confirmSetup({
+		    				elements: invStripeElements.elements,
+		    				confirmParams: {
+		    					return_url: window.location.origin + '/invitations/' + $stateParams.token + '/direct_debit?stripe_success=1'
+		    				}
+		    			}).then(function(result) {
+		    				if (result.error) {
+		    					$scope.$apply(function() {
+		    						$scope.invLoading = false;
+		    						ToastService.error('Card Error', result.error.message);
+		    						var errEl = document.querySelector('#inv-stripe-error');
+		    						if (errEl) errEl.textContent = result.error.message;
+		    					});
+		    				}
+		    				// If no error, user is redirected to return_url
+		    			});
+		    		} else {
+		    			$scope.invLoading = false;
+		    			ToastService.error('Signup Error', 'An error occurred: ' + (data.error || 'Unknown error'));
+		    		}
+		    	});
+		    };
+
+		    $scope.validateAndSkipPayment = function() {
+		    	// Validate T&C (not payment checkbox since it's free)
+		    	$scope.invErrors = {};
+		    	var valid = true;
+		    	if (!$scope.formData.membership_tnc) {
+		    		$scope.invErrors.membership_tnc = true; valid = false;
+		    	}
+		    	if (!$scope.formData.tnc) {
+		    		$scope.invErrors.tnc = true; valid = false;
+		    	}
+		    	if (!valid) {
+		    		ToastService.warning('Please Accept All Terms', 'You must accept all terms and conditions to continue.');
+		    		return;
+		    	}
+
+		    	// Re-validate user + nok
+		    	if (!check_user_is_valid()) {
+		    		$scope.invStep = 2;
+		    		$state.go('invitations.your_details');
+		    		return;
+		    	}
+		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    		$scope.invStep = 3;
+		    		$state.go('invitations.next_of_kin');
+		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
+		    		return;
+		    	}
+
+		    	// Show confirmation modal
+		    	$scope.invShowSkipConfirm = true;
+		    };
+
+		    $scope.confirmSkipPayment = function() {
+		    	$scope.invShowSkipConfirm = false;
+		    	$scope.invLoading = true;
+
+		    	// Create user without payment
+		    	var to_send = angular.copy($scope.formData);
+		    	to_send.request_id = $scope.all.membership_request_id;
+		    	to_send.invitation = $stateParams.token;
+		    	to_send.payment_now = $scope.payment_now;
+		    	to_send.first_payment = $scope.first_payment;
+		    	to_send.payment_method = 'skip';
+
+		    	UserService.InviteSignup(to_send)
+		    	.then(function(data) {
+		    		$scope.invLoading = false;
+		    		if (data.success) {
+		    			if (data.uid) $cookies.put('uid', data.uid);
+		    			$scope.invPaymentResult = 'skipped';
+		    			$scope.invStep = 5;
+		    			$state.go('invitations.direct_debit');
+		    		} else {
+		    			ToastService.error('Signup Error', 'An error occurred: ' + (data.error || 'Unknown error'));
+		    		}
+		    	});
+		    };
+
+		    // Helper: validate just the T&C checkboxes (shared by DD and Stripe flows)
+		    function validateTerms() {
+		    	$scope.invErrors = {};
+		    	var valid = true;
+		    	if (!$scope.formData.membership_tnc) {
+		    		$scope.invErrors.membership_tnc = true; valid = false;
+		    	}
+		    	if (!$scope.formData.tnc) {
+		    		$scope.invErrors.tnc = true; valid = false;
+		    	}
+		    	// Only require payment checkbox when price > 0
+		    	if ($scope.membership && $scope.membership.price > 0 && !$scope.formData.payment) {
+		    		$scope.invErrors.payment = true; valid = false;
+		    	}
+		    	if (!valid) {
+		    		ToastService.warning('Please Accept All Terms', 'You must accept all terms and conditions to continue.');
+		    	}
+		    	return valid;
+		    }
+
+
 		    $scope.setup_direct_debit = function(){
 
 
@@ -1384,6 +1729,7 @@ vm.selected_phone;
 
 			    	to_send.payment_now = $scope.payment_now;
 			    	to_send.first_payment = $scope.first_payment;
+			    	to_send.payment_method = 'direct_debit';
 			    	// //console.log("OBJ = ", to_send);
 
 			    	//return false;
@@ -1405,12 +1751,14 @@ vm.selected_phone;
 
 
 		                    } else {
+		                    	$scope.invLoading = false;
 		                    	ToastService.error('Signup Error', 'An error occurred: ' + data.error);
 		                    	return false;
 		                    }
 		            });
 
 	            } else {
+	            	$scope.invLoading = false;
 	            	ToastService.warning('Incomplete Form', 'Please ensure that all fields are complete');
 	            }
 
@@ -1487,6 +1835,7 @@ vm.selected_phone;
 
 		    $scope.sendVerification = function(){
 		    	var user_id = $cookies.get("uid");
+		    	$scope.invStep = 6;
 
 		    	MemberService.VerifyInvitedUser(user_id)
 		                .then(function (data) {

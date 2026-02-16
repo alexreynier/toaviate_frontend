@@ -1,0 +1,293 @@
+<div class="snazzy-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-calendar-alt"></i> Booking Settings</h2>
+        <p>Manage your booking page &amp; instructors</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ═══ Instructor List (drag & drop reorderable) ═══ -->
+    <div class="instructor-section">
+      <div class="instructor-section__header">
+        <h3 class="instructor-section__title"><i class="fa fa-chalkboard-teacher"></i> Instructors</h3>
+        <span class="instructor-section__count" ng-if="vm.club.instructors.length > 0">{{ vm.club.instructors.length }}</span>
+      </div>
+
+      <div class="snazzy-page__empty" ng-if="!vm.club.instructors || vm.club.instructors.length == 0">
+        <i class="fa fa-chalkboard-teacher snazzy-page__empty-icon"></i>
+        <p>No instructors found</p>
+      </div>
+
+      <div class="ib-card-list" dnd-list="vm.club.instructors" ng-if="vm.club.instructors.length > 0">
+
+        <div class="ib-card"
+             ng-repeat="instructor in vm.club.instructors"
+             dnd-draggable="instructor"
+             dnd-effect-allowed="move"
+             dnd-moved="vm.club.instructors.splice($index, 1); save_instructor_order()"
+             ng-style="{'border-left-color': instructor.instructor_colour || '#cbd5e1'}"
+             ng-click="vm.openPanel(instructor)"
+             ng-class="{'ib-card--active': vm.selected_instructor.id === instructor.id}">
+
+          <!-- Drag handle -->
+          <div class="ib-card__drag-handle" dnd-handle title="Drag to reorder">
+            <span class="ib-card__grip"></span>
+          </div>
+
+          <!-- Avatar -->
+          <div class="ib-card__avatar" ng-style="{'background': instructor.instructor_colour || '#64748b'}">
+            {{ instructor.first_name.charAt(0) }}{{ instructor.last_name.charAt(0) }}
+          </div>
+
+          <!-- Info -->
+          <div class="ib-card__info">
+            <div class="ib-card__name">{{ instructor.first_name }} {{ instructor.last_name }}</div>
+            <div class="ib-card__email">{{ instructor.email }}</div>
+          </div>
+
+          <!-- Color swatches -->
+          <div class="ib-card__colors">
+            <span class="ib-card__swatch" ng-style="{'background': instructor.instructor_colour}" uib-tooltip="Instructor colour"></span>
+            <span class="ib-card__swatch" ng-style="{'background': instructor.booking_colour}" uib-tooltip="Booking colour"></span>
+          </div>
+
+          <!-- Status -->
+          <div class="ib-card__status">
+            <span class="ib-card__badge" ng-if="instructor._availabilityMode === 'adhoc'">Ad-hoc</span>
+            <span class="ib-card__badge ib-card__badge--active" ng-if="instructor._availabilityMode !== 'adhoc'">Regular</span>
+          </div>
+
+          <!-- Arrow -->
+          <div class="ib-card__chevron">
+            <i class="fa fa-chevron-right"></i>
+          </div>
+
+        </div>
+
+        <!-- DnD placeholder -->
+        <div class="ib-card ib-card--placeholder dndPlaceholder">
+          <div class="ib-card__placeholder-text"><i class="fa fa-arrows-alt"></i> Drop here to reorder</div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     INSTRUCTOR DETAIL SLIDE PANEL
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Backdrop -->
+<div class="wp-overlay-backdrop"
+     ng-class="{'active': vm.show_instructor_panel}"
+     ng-click="vm.closePanel()"></div>
+
+<!-- Panel -->
+<div class="wp-overlay-panel"
+     ng-class="{'open': vm.show_instructor_panel}">
+
+  <div class="wp-panel-inner" ng-if="vm.selected_instructor">
+
+    <!-- ── Header ── -->
+    <div class="wp-panel-header">
+      <div class="wp-panel-header-left">
+        <div class="ib-panel-avatar" ng-style="{'background': vm.selected_instructor.instructor_colour || '#64748b'}">
+          {{ vm.selected_instructor.first_name.charAt(0) }}{{ vm.selected_instructor.last_name.charAt(0) }}
+        </div>
+        <h2 class="wp-panel-title">{{ vm.selected_instructor.first_name }} {{ vm.selected_instructor.last_name }}</h2>
+        <p class="wp-panel-subtitle">{{ vm.selected_instructor.email }}</p>
+      </div>
+      <button class="wp-panel-close" ng-click="vm.closePanel()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+
+    <!-- ── Scrollable Body ── -->
+    <div class="wp-panel-body">
+
+      <!-- SECTION 1: Appearance / Colours -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-palette"></i> Appearance</h3>
+
+        <div class="ib-colour-row">
+          <div class="ib-colour-field">
+            <label>Instructor Colour</label>
+            <div class="ib-colour-picker">
+              <input type="color" ng-model="vm.selected_instructor.new_colour" class="ib-colour-input" />
+              <span class="ib-colour-preview" ng-style="{'background': vm.selected_instructor.new_colour}"></span>
+              <span class="ib-colour-hex">{{ vm.selected_instructor.new_colour }}</span>
+            </div>
+          </div>
+          <div class="ib-colour-field">
+            <label>Booking Colour</label>
+            <div class="ib-colour-picker">
+              <input type="color" ng-model="vm.selected_instructor.new_booking_colour" class="ib-colour-input" />
+              <span class="ib-colour-preview" ng-style="{'background': vm.selected_instructor.new_booking_colour}"></span>
+              <span class="ib-colour-hex">{{ vm.selected_instructor.new_booking_colour }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- SECTION 2: Email Preferences -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-envelope"></i> Email Preferences</h3>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Booking Notifications</span>
+            <span class="ib-toggle-desc">Email each time a student books a lesson</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveNotifications"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Booking Reminders</span>
+            <span class="ib-toggle-desc">Reminder the evening before each booking</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveReminders"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Daily Schedule Summary</span>
+            <span class="ib-toggle-desc">Combined email listing all bookings for tomorrow</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveDailySummary"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+      </div>
+
+
+      <!-- SECTION 3: Daily Limits -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-tachometer-alt"></i> Daily Limits</h3>
+
+        <div class="wp-info-grid">
+          <div class="ib-limit-field">
+            <label>Max Trial Flights / Day</label>
+            <div class="ib-limit-input-wrap">
+              <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxTrialFlights = (vm.selected_instructor._maxTrialFlights > 0) ? vm.selected_instructor._maxTrialFlights - 1 : 0">
+                <i class="fa fa-minus"></i>
+              </button>
+              <input type="number" min="0" class="ib-limit-input" ng-model="vm.selected_instructor._maxTrialFlights" />
+              <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxTrialFlights = (vm.selected_instructor._maxTrialFlights || 0) + 1">
+                <i class="fa fa-plus"></i>
+              </button>
+            </div>
+            <span class="ib-limit-hint">0 = unlimited</span>
+          </div>
+          <div class="ib-limit-field">
+            <label>Max Voucher Flights / Day</label>
+            <div class="ib-limit-input-wrap">
+              <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxVoucherFlights = (vm.selected_instructor._maxVoucherFlights > 0) ? vm.selected_instructor._maxVoucherFlights - 1 : 0">
+                <i class="fa fa-minus"></i>
+              </button>
+              <input type="number" min="0" class="ib-limit-input" ng-model="vm.selected_instructor._maxVoucherFlights" />
+              <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxVoucherFlights = (vm.selected_instructor._maxVoucherFlights || 0) + 1">
+                <i class="fa fa-plus"></i>
+              </button>
+            </div>
+            <span class="ib-limit-hint">0 = unlimited</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- SECTION 4: Availability Overview -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-clock"></i> Availability for This Club</h3>
+
+        <!-- Loading -->
+        <div class="ib-availability-loading" ng-if="vm.loadingAvailability">
+          <i class="fa fa-spinner fa-spin"></i> Loading availability…
+        </div>
+
+        <!-- No availability set -->
+        <div class="ib-availability-empty" ng-if="!vm.loadingAvailability && !vm.instructor_availability">
+          <i class="fa fa-calendar-times"></i>
+          <p>No availability set by this instructor yet.</p>
+        </div>
+
+        <!-- Schedule grid -->
+        <div ng-if="!vm.loadingAvailability && vm.instructor_availability">
+
+          <div class="ib-avail-mode">
+            <span class="ib-card__badge" ng-class="{'ib-card__badge--active': vm.instructor_availability.availability_mode !== 'adhoc'}">
+              <i class="fa" ng-class="vm.instructor_availability.availability_mode === 'adhoc' ? 'fa-calendar-day' : 'fa-calendar-week'"></i>
+              {{ vm.instructor_availability.availability_mode === 'adhoc' ? 'Ad-Hoc Mode' : 'Regular Schedule' }}
+            </span>
+          </div>
+
+          <!-- Weekly schedule display -->
+          <div class="ib-avail-grid" ng-if="vm.instructor_availability.availability_mode !== 'adhoc'">
+            <div class="ib-avail-day" ng-repeat="day in vm.avail_days"
+                 ng-class="{'ib-avail-day--off': vm.instructor_availability[day.disabled_variable]}">
+              <span class="ib-avail-day__name">{{ day.short }}</span>
+              <span class="ib-avail-day__time" ng-if="!vm.instructor_availability[day.disabled_variable]">
+                {{ vm.instructor_availability[day.from_variable] | date:'HH:mm' }}–{{ vm.instructor_availability[day.to_variable] | date:'HH:mm' }}
+              </span>
+              <span class="ib-avail-day__off" ng-if="vm.instructor_availability[day.disabled_variable]">
+                <i class="fa fa-moon"></i> Off
+              </span>
+            </div>
+          </div>
+
+          <p class="ib-avail-adhoc-note" ng-if="vm.instructor_availability.availability_mode === 'adhoc'">
+            This instructor uses ad-hoc scheduling — they manually add each date they're available.
+          </p>
+
+        </div>
+      </div>
+
+
+      <!-- SECTION 5: Notes -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-sticky-note"></i> Notes</h3>
+        <textarea class="ib-notes-textarea" ng-model="vm.selected_instructor.instructor_notes"
+                  placeholder="Internal notes about this instructor…" rows="3"></textarea>
+      </div>
+
+    </div>
+
+    <!-- ── Footer ── -->
+    <div class="wp-panel-footer">
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--secondary" ng-click="vm.closePanel()">
+        <i class="fa fa-times"></i> Cancel
+      </button>
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--primary" ng-click="vm.saveAndClose()">
+        <i class="fa fa-save" ng-if="!vm.savingInstructor"></i>
+        <i class="fa fa-spinner fa-spin" ng-if="vm.savingInstructor"></i>
+        Save Changes
+      </button>
+    </div>
+
+  </div>
+
+</div>

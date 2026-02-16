@@ -1,46 +1,123 @@
 
 <br />
 
-<div ng-if="vm.bookings.length == 0">
-    <h5>You have no new bookings to approve...</h5>
+<!-- ── Bookings Awaiting Confirmation ── -->
+<div class="snazzy-page" ng-if="vm.bookings.length > 0">
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-clipboard-check"></i> Bookings Awaiting Confirmation</h2>
+        <p>{{ vm.bookings.length }} booking{{ vm.bookings.length !== 1 ? 's' : '' }} pending your approval</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+    <div class="snazzy-page__table-card">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Aircraft</th>
+              <th>Date &amp; Time</th>
+              <th>Student</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th class="snazzy-table__td-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="booking in vm.bookings">
+              <td>
+                <span class="snazzy-table__name">{{ booking.registration }}</span>
+                <br />
+                <span class="snazzy-table__muted">{{ booking.plane_type }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__date">{{ booking.start | asDate | date:"dd MMM yyyy" }}</span>
+                <br />
+                <span class="snazzy-table__muted">{{ booking.start | asDate | date:"HH:mm" }} – {{ booking.end | asDate | date:"HH:mm" }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__name">{{ booking.first_name }} {{ booking.last_name }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__muted">{{ booking.phone_number }}</span>
+                <br />
+                <span class="snazzy-table__muted">{{ booking.email }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__badge snazzy-table__badge--warning">
+                  <i class="fas fa-clock"></i> Awaiting Confirmation
+                </span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn snazzy-table__action-btn--success"
+                        ng-click="approve_booking(booking.id)"
+                        uib-tooltip="Approve Booking">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button class="snazzy-table__action-btn snazzy-table__action-btn--danger"
+                        ng-click="open_decline_modal(booking)"
+                        uib-tooltip="Decline Booking">
+                  <i class="fas fa-times"></i>
+                </button>
+                <button class="snazzy-table__action-btn"
+                        ng-click="view_booking(booking.id, booking.start)"
+                        uib-tooltip="View on Calendar">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
-       
 
-<div ng-if="vm.bookings.length > 0">
-    <h5>Bookings To Approve</h5>
+<!-- Empty state — no pending bookings -->
+<div class="snazzy-page" ng-if="vm.bookings.length == 0">
+  <div class="snazzy-approval-empty">
+    <div class="snazzy-approval-empty__icon">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <p class="snazzy-approval-empty__title">All Clear!</p>
+    <p class="snazzy-approval-empty__subtitle">You have no bookings awaiting confirmation</p>
+  </div>
+</div>
 
-
-
-    <table>
-        <tr>
-            <td>
-                BOOKING DETAILS
-            </td>
-            <td>
-                OPTIONS
-            </td>
-        </tr>
-        <tr ng-repeat="booking in vm.bookings">
-            <td>
-                {{ booking.registration }} - {{ booking.plane_type }}
-                <br />
-                {{ booking.start | asDate | date:"dd/MM/yyyy HH:mm"}} to {{ booking.end | asDate | date:"dd/MM/yyyy HH:mm" : "UTC" }}
-                <br />
-                With {{ booking.first_name }} {{ booking.last_name }}
-                <br />
-                Contact: {{ booking.phone_number }} | {{ booking.email }}
-            </td>
-            <td>
-                <input type="button" class="btn btn-primary" ng-click="approve_booking(booking.id)" value="APPROVE" />
-                <input type="button" class="btn btn-danger" ng-click="decline_booking(booking.id)" value="DECLINE" />
-                <input type="button" class="btn btn-warning" ng-click="view_booking(booking.id, booking.start)" value="VIEW" />
-            </td>
-        </tr>
-    </table>
-    <!-- vm.default_date //-->
-
-       
-
+<!-- ── Decline Reason Modal ── -->
+<div class="snazzy-modal-backdrop" ng-if="vm.show_decline_modal" ng-click="close_decline_modal()"></div>
+<div class="snazzy-modal" ng-if="vm.show_decline_modal">
+  <div class="snazzy-modal__header">
+    <h3><i class="fas fa-times-circle"></i> Decline Booking</h3>
+    <button class="snazzy-modal__close" ng-click="close_decline_modal()"><i class="fa fa-times"></i></button>
+  </div>
+  <div class="snazzy-modal__body">
+    <div class="snazzy-modal__booking-summary">
+      <span class="snazzy-table__name">{{ vm.decline_booking_data.first_name }} {{ vm.decline_booking_data.last_name }}</span>
+      <br />
+      <span class="snazzy-table__muted">
+        {{ vm.decline_booking_data.registration }} &middot;
+        {{ vm.decline_booking_data.start | asDate | date:"dd MMM yyyy HH:mm" }} – {{ vm.decline_booking_data.end | asDate | date:"HH:mm" }}
+      </span>
+    </div>
+    <div class="form-group">
+      <label for="decline_reason">Reason for declining (optional)</label>
+      <textarea class="form-control inputtext" id="decline_reason"
+                ng-model="vm.decline_reason"
+                placeholder="e.g. I am unavailable on this date"
+                rows="3"></textarea>
+      <p class="snazzy-setting-description">This reason will be included in the notification email sent to the student.</p>
+    </div>
+  </div>
+  <div class="snazzy-modal__footer">
+    <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="close_decline_modal()">Cancel</button>
+    <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="confirm_decline_booking()">
+      <i class="fas fa-times"></i> Decline Booking
+    </button>
+  </div>
 </div>
 
 

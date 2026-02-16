@@ -48,6 +48,12 @@
                             if(data.success){
                                 vm.membership_now = data.membership;
                                 vm.auto_renew = (data.membership.auto_renew == 1) ? true : false;
+                                vm.receiveBookingReminders = (data.membership.mute_booking_reminders == 0);
+                                vm.isInstructor = (data.membership.instructor == 1);
+                                if (vm.isInstructor) {
+                                    vm.receiveNotifications = (data.membership.mute_booking_emails == 0);
+                                    vm.receiveDailySummary  = (data.membership.instructor_daily_summary == 1);
+                                }
 
                                 //get_member_cards
                                  var send = {
@@ -231,6 +237,12 @@
                             if(data.success){
                                 vm.membership_now = data.membership;
                                 vm.auto_renew = (data.membership.auto_renew == 1) ? true : false;
+                                vm.receiveBookingReminders = (data.membership.mute_booking_reminders == 0);
+                                vm.isInstructor = (data.membership.instructor == 1);
+                                if (vm.isInstructor) {
+                                    vm.receiveNotifications = (data.membership.mute_booking_emails == 0);
+                                    vm.receiveDailySummary  = (data.membership.instructor_daily_summary == 1);
+                                }
 
                                 //get_member_cards
                                  var send = {
@@ -385,6 +397,49 @@
                 });
 
             }
+
+            $scope.update_booking_reminder = function() {
+                var obj = {
+                    mute_booking_reminders: vm.receiveBookingReminders ? 0 : 1
+                };
+
+                MemberService.UpdateOneByUser($stateParams.membership_id, obj)
+                .then(function (data) {
+                    if (data && data.success) {
+                        vm.membership_now.mute_booking_reminders = obj.mute_booking_reminders;
+                        ToastService.success('Saved', 'Booking reminder preference updated.');
+                    } else {
+                        // Revert on failure
+                        vm.receiveBookingReminders = (vm.membership_now.mute_booking_reminders == 0);
+                        ToastService.error('Error', 'Could not update booking reminder preference.');
+                    }
+                });
+            };
+
+            $scope.update_instructor_email_pref = function() {
+                var update = {
+                    id: vm.membership_now.id,
+                    mute_booking_emails:      vm.receiveNotifications ? 0 : 1,
+                    mute_booking_reminders:   vm.receiveBookingReminders ? 0 : 1,
+                    instructor_daily_summary: vm.receiveDailySummary ? 1 : 0
+                };
+
+                InstructorService.UpdateInstructor(update, vm.membership_now.club_id)
+                .then(function (data) {
+                    if (data && data.success) {
+                        vm.membership_now.mute_booking_emails      = update.mute_booking_emails;
+                        vm.membership_now.mute_booking_reminders   = update.mute_booking_reminders;
+                        vm.membership_now.instructor_daily_summary = update.instructor_daily_summary;
+                        ToastService.success('Saved', 'Email preferences updated.');
+                    } else {
+                        // Revert toggles on failure
+                        vm.receiveNotifications    = (vm.membership_now.mute_booking_emails == 0);
+                        vm.receiveBookingReminders = (vm.membership_now.mute_booking_reminders == 0);
+                        vm.receiveDailySummary     = (vm.membership_now.instructor_daily_summary == 1);
+                        ToastService.error('Error', 'Could not save email preferences.');
+                    }
+                });
+            };
 
 
             $scope.edit_membership = function(id){

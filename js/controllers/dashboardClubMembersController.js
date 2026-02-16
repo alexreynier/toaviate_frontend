@@ -285,6 +285,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                         // //console.log(vm.club);
                         vm.club.member.is_manager = (vm.club.member.is_manager == 1) ? true : false;
                         vm.club.member.approved = (vm.club.member.approved == 1) ? true : false;
+                        vm.club.member.free_booking = (vm.club.member.free_booking == 1 || vm.club.member.free_booking === undefined) ? true : false;
 
                         
 
@@ -919,6 +920,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
 
                         vm.club.member.instructor = (vm.club.member.instructor == 1) ? true : false;
+                        vm.club.member.free_booking = (vm.club.member.free_booking == 1 || vm.club.member.free_booking === undefined) ? true : false;
                         //vm.club.member.membership_start = Date.parse(vm.club.member.membership_start);
                         vm.page_title = "Edit a Member - "+vm.club.member.first_name+" "+vm.club.member.last_name;
 
@@ -952,22 +954,69 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             case "list":
                 //need to update this to be part of the authentication
                 //to find out club id
-                MemberService.GetAllByClub(vm.club_id)
-                    .then(function(data){
-                        vm.club.members = data;   
-                        //console.log(vm.club.members);
-                    });
 
-                 MembershipService.GetAllByClub(vm.club_id)
+                // Pagination state
+                vm.membersCurrentPage = 1;
+                vm.membersPerPage = 50;
+                vm.membersHasMore = false;
+                vm.membersTotal = 0;
+                vm.membersLoading = false;
+                vm.membersSearchTerm = '';
+                vm.club.members = [];
+
+                // Load a page of members (appends to existing list unless reset=true)
+                vm.loadMembers = function(reset) {
+                    if (reset) {
+                        vm.membersCurrentPage = 1;
+                        vm.club.members = [];
+                        vm.membersHasMore = false;
+                    }
+
+                    if (vm.membersLoading) return;
+                    vm.membersLoading = true;
+
+                    MemberService.GetAllByClubPaginated(vm.club_id, vm.membersCurrentPage, vm.membersPerPage, vm.membersSearchTerm)
+                        .then(function(data) {
+                            if (data && data.members) {
+                                // Paginated response
+                                vm.club.members = vm.club.members.concat(data.members);
+                                vm.membersHasMore = data.pagination.has_more;
+                                vm.membersTotal = data.pagination.total;
+                                vm.membersCurrentPage++;
+                            } else if (angular.isArray(data)) {
+                                // Legacy fallback (shouldn't happen but just in case)
+                                vm.club.members = data;
+                                vm.membersHasMore = false;
+                                vm.membersTotal = data.length;
+                            }
+                            vm.membersLoading = false;
+                        }, function() {
+                            vm.membersLoading = false;
+                        });
+                };
+
+                // Initial load
+                vm.loadMembers(true);
+
+                // Debounced server-side search
+                var membersSearchTimeout = null;
+                vm.onMembersSearch = function() {
+                    if (membersSearchTimeout) {
+                        clearTimeout(membersSearchTimeout);
+                    }
+                    membersSearchTimeout = setTimeout(function() {
+                        $scope.$apply(function() {
+                            vm.loadMembers(true);
+                        });
+                    }, 350);
+                };
+
+                MembershipService.GetAllByClub(vm.club_id)
                     .then(function(data){
                         vm.club.memberships = data;   
-                        // vm.club.member.membership_id.selected = vm.club.member.membership_id;
-                        // vm.membership = vm.club.member.membership_name;
-                        // vm.club.membership = vm.club.member.membership_name;
-                        //console.log(vm.club.memberships);
                     });
+
                 $scope.checkAll = function () {
-                    //console.log("check all");
                     if ($scope.selectedAll) {
                         $scope.selectedAll = true;
                     } else {
@@ -988,7 +1037,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
         //'9' needs to refer the the user's account set to manage
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         $scope.save = function(){
@@ -1701,19 +1750,16 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             //vm.club.members = [];
             setTimeout(() => {  
 
-                MemberService.GetAllByClub(vm.club_id)
-                .then(function(data){
-                    vm.club.members = data;   
-                    console.log(vm.club.members);
+                vm.membersSearchTerm = '';
+                vm.loadMembers(true);
+                setTimeout(function() {
                     MembershipService.GetAllByClub(vm.club_id)
                     .then(function(data){
                         vm.club.memberships = data;   
                         vm.select_member_approval = false;
                         vm.show_loading = false;
-                        //$state.go('dashboard.manage_club.members');
                     });
-
-                });
+                }, 500);
 
             }, 1000);
 

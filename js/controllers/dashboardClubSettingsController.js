@@ -153,6 +153,7 @@
                         vm.club.settings = data;
                         vm.club.settings.vat_registered = (vm.club.settings.vat_registered == 1)? true : false;
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
+                        vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.vat_rate = parseFloat(vm.club.settings.vat_rate);
                         //console.log(vm.club);
                     });
@@ -262,6 +263,7 @@
 
             vm.club.settings.vat_registered = (vm.club.settings.vat_registered)? 1 : 0;
             vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages)? 1 : 0;
+            vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation)? 1 : 0;
             
 
             ClubService.Update(vm.club.settings)
@@ -397,7 +399,7 @@
             }
 
             $scope.back = function(){
-                $window.history.back();
+                $rootScope.safeBack();
             }
 
             $scope.get_icon = function(file){

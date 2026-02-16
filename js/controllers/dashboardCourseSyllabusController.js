@@ -131,7 +131,7 @@
 
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
 

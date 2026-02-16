@@ -955,6 +955,16 @@ var app = angular
 
 
 
+            .state('dashboard.manage_club.booking_slots', {
+                url: '/booking_slots',
+                controller: 'BookingSlotsAdminController',
+                templateUrl: 'views/manageclub/booking_slots.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
             .state('dashboard.manage_club.member_requests', {
                 url: '/member_requests',
                 controller: 'DashboardClubMemberRequestsController',
@@ -994,19 +1004,19 @@ var app = angular
 
             .state('dashboard.manage_user.instructor_availability', {
                 url: '/instructor/availability',
-                controller: 'DashboardUserInstructorController',
-                templateUrl: 'views/manageuser/instructor_availability.html',
+                controller: 'InstructorScheduleController',
+                templateUrl: 'views/manageuser/instructor_schedule.html',
                 controllerAs: 'vm',
                 data: {
                     action: 'list'
                 }
             })
-            
+
 
             .state('dashboard.manage_user.instructor_holidays', {
                 url: '/instructor/holidays',
-                controller: 'DashboardUserInstructorHolidayController',
-                templateUrl: 'views/manageuser/instructor_holidays.html',
+                controller: 'InstructorScheduleController',
+                templateUrl: 'views/manageuser/instructor_schedule.html',
                 controllerAs: 'vm',
                 data: {
                     action: 'list'
@@ -1016,8 +1026,8 @@ var app = angular
 
             .state('dashboard.manage_user.instructor_holidays_form', {
                 url: '/instructor/holidays/add',
-                controller: 'DashboardUserInstructorHolidayController',
-                templateUrl: 'views/manageuser/instructor_holidays_form.html',
+                controller: 'InstructorScheduleController',
+                templateUrl: 'views/manageuser/instructor_schedule.html',
                 controllerAs: 'vm',
                 data: {
                     action: 'list'
@@ -1056,7 +1066,15 @@ var app = angular
             })
 
 
-
+            .state('dashboard.slot_search', {
+                url: '/find_a_slot',
+                controller: 'SlotSearchController',
+                templateUrl: 'views/bookings/slot_search.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'search'
+                }
+            })
 
 
             .state('dashboard.add_booking', {
@@ -1135,7 +1153,15 @@ var app = angular
         .state('dashboard.my_account', {
             url: '/my_account',
             templateUrl: 'views/my_account/home.html',
+            controllerAs: 'vm',
             controller: 'MyAccountController'
+        })
+
+        .state('dashboard.my_account.upcoming_bookings', {
+            url: '/upcoming_bookings',
+            templateUrl: 'views/my_account/upcoming_bookings.html',
+            controllerAs: 'vm',
+            controller: 'UpcomingBookingsController'
         })
 
         .state('dashboard.my_account.manage', {
@@ -1479,6 +1505,15 @@ var app = angular
 
         //update_direct_debit
 
+
+
+        //MY VOUCHERS
+        .state('dashboard.my_account.my_vouchers', {
+            url: '/my_vouchers',
+            templateUrl: 'views/my_account/my_vouchers.html',
+            controller: 'MyVouchersController',
+            controllerAs: 'vm'
+        })
 
 
         //NEXT OF KIN
@@ -2006,11 +2041,32 @@ var app = angular
 
  	
  	//RUN INJECT
-    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig'];
-    function run($rootScope, $location, $cookieStore, $http, EnvConfig) {
+    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state'];
+    function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state) {
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
+
+        // ── Safe back navigation ──
+        // Track the previous ui-router state so we can avoid going back to login/public pages.
+        var previousStateName = null;
+        var previousStateParams = null;
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup'];
+
+        $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
+            if (fromState && fromState.name) {
+                previousStateName = fromState.name;
+                previousStateParams = fromParams;
+            }
+        });
+
+        $rootScope.safeBack = function() {
+            if (previousStateName && publicStates.indexOf(previousStateName) === -1) {
+                $state.go(previousStateName, previousStateParams);
+            } else {
+                $state.go('dashboard');
+            }
+        };
 
         // Upload URLs — point to the API server so the PHP upload scripts
         // run on the backend where the file system is accessible.

@@ -42,6 +42,7 @@ app.factory('MemberService', MemberService);
 
 
         service.GetAllByClubStudents = GetAllByClubStudents;
+        service.GetAllByClubPaginated = GetAllByClubPaginated;
        
         return service; 
 
@@ -104,6 +105,14 @@ app.factory('MemberService', MemberService);
 
         function GetAllByClub(club_id) {
             return $http.get('/api/v1/members/club/'+club_id).then(handleSuccess, handleError2);
+        }
+
+        function GetAllByClubPaginated(club_id, page, per_page, search) {
+            var params = '?page=' + page + '&per_page=' + per_page;
+            if (search && search.trim() !== '') {
+                params += '&search=' + encodeURIComponent(search.trim());
+            }
+            return $http.get('/api/v1/members/club/' + club_id + params).then(handleSuccess, handleError2);
         }
 
         function GetAllByClubStudents(club_id) {

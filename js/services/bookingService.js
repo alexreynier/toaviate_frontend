@@ -32,6 +32,8 @@ app.factory('BookingService', BookingService);
         service.GetBookingsToBrief = GetBookingsToBrief;
         service.GetBookingsToDebrief = GetBookingsToDebrief;
         service.SetBookingToBriefed = SetBookingToBriefed;
+
+        service.GetUpcoming = GetUpcoming;
         
         service.GetForForDebrief = GetForForDebrief;
         service.GetBookingsToDebrief = GetBookingsToDebrief;
@@ -40,11 +42,15 @@ app.factory('BookingService', BookingService);
 
         service.GetInstructorByUser = GetInstructorByUser;
         service.GetInstructorPlanes = GetInstructorPlanes;
+        service.GetBookingsToApproveClub = GetBookingsToApproveClub;
 
         return service;
 
         function GetBookingsToReview(user_id){
             return $http.get('/api/v1/bookings/to_approve/'+user_id).then(handleSuccess, handleError2);
+        }
+        function GetBookingsToApproveClub(club_id){
+            return $http.get('/api/v1/bookings/to_approve_club/'+club_id).then(handleSuccess, handleError2);
         }
 
         function GetForBookIn(id){
@@ -66,6 +72,12 @@ app.factory('BookingService', BookingService);
 
         function GetTodayBookingsUser(user_id) {
             return $http.get('/api/v1/bookings/user_bookings_today/'+user_id).then(handleSuccess, handleError2);
+        }
+
+        function GetUpcoming(user_id, page, per_page, club_id) {
+            var params = '?page=' + (page || 1) + '&per_page=' + (per_page || 20);
+            if (club_id) params += '&club_id=' + club_id;
+            return $http.get('/api/v1/bookings/upcoming/' + user_id + params).then(handleSuccess, handleError2);
         }
         
         function GetForBookout(user_id, booking_id) {

@@ -34,15 +34,14 @@ app.factory('InstructorService', InstructorService);
             return $http.post('/api/v1/users', user).then(handleSuccess, handleError2);
         }
 
-        function GetAvailability(user_id) {
-            return $http.get('/api/v1/instructor_availability/' + user_id).then(handleSuccess, handleError2);
+        function GetAvailability(user_id, club_id) {
+            var url = '/api/v1/instructor_availability/' + user_id;
+            if (club_id) url += '/' + club_id;
+            return $http.get(url).then(handleSuccess, handleError2);
         }
 
         function SetAvailability(availability) {
-            if(!availability.id){
-                availability.id = 0;
-            }
-            return $http.put('/api/v1/instructor_availability/' + availability.id, availability).then(handleSuccess, handleError2);
+            return $http.put('/api/v1/instructor_availability/' + availability.user_id + '/' + availability.club_id, availability).then(handleSuccess, handleError2);
         }
 
         function Delete(id) {

@@ -12,6 +12,15 @@ app.factory('VoucherService', VoucherService);
 
         service.GetUniqueCode = GetUniqueCode;
         service.CancelVoucher = CancelVoucher;
+
+        // ── Self-service voucher booking ──
+        service.HasVouchers = HasVouchers;
+        service.GetMyVouchersAll = GetMyVouchersAll;
+        service.GetMyVouchers = GetMyVouchers;
+        service.GetVoucherSlots = GetVoucherSlots;
+        service.GetVoucherBooking = GetVoucherBooking;
+        service.BookVoucher = BookVoucher;
+        service.CancelVoucherBooking = CancelVoucherBooking;
        
 
         // service.GetUpdatedCharges = GetUpdatedCharges;
@@ -51,6 +60,42 @@ app.factory('VoucherService', VoucherService);
 
         function CancelVoucher(user_id, id) {
             return $http.delete('/api/v1/vouchers/' + id+'?user_id='+user_id).then(handleSuccess, handleError2);
+        }
+
+        // ── Self-service voucher booking methods ──
+
+        function HasVouchers() {
+            return $http.get('/api/v1/vouchers/has_vouchers').then(handleSuccess, handleError2);
+        }
+
+        function GetMyVouchersAll() {
+            return $http.get('/api/v1/vouchers/my_vouchers_all').then(handleSuccess, handleError2);
+        }
+
+        function GetMyVouchers(clubId) {
+            return $http.get('/api/v1/vouchers/my_vouchers/' + clubId).then(handleSuccess, handleError2);
+        }
+
+        function GetVoucherSlots(voucherId, dateFrom, numDays, params) {
+            var url = '/api/v1/vouchers/voucher_slots/' + voucherId + '/' + dateFrom + '/' + numDays;
+            var queryParts = [];
+            if (params.instructor_id !== undefined) queryParts.push('instructor_id=' + params.instructor_id);
+            if (params.page) queryParts.push('page=' + params.page);
+            if (params.per_page) queryParts.push('per_page=' + params.per_page);
+            if (queryParts.length) url += '?' + queryParts.join('&');
+            return $http.get(url).then(handleSuccess, handleError2);
+        }
+
+        function GetVoucherBooking(voucherId) {
+            return $http.get('/api/v1/vouchers/voucher_booking/' + voucherId).then(handleSuccess, handleError2);
+        }
+
+        function BookVoucher(data) {
+            return $http.post('/api/v1/vouchers/book', data).then(handleSuccess, handleError2);
+        }
+
+        function CancelVoucherBooking(voucherId) {
+            return $http.delete('/api/v1/vouchers/cancel_booking/' + voucherId).then(handleSuccess, handleError2);
         }
 
 

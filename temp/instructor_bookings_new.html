@@ -1,0 +1,206 @@
+<div class="snazzy-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-calendar-alt"></i> Booking Settings</h2>
+        <p>Manage your booking page &amp; instructors</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MANAGE INSTRUCTORS
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="instructor-section">
+      <h3 class="instructor-section__title"><i class="fa fa-chalkboard-teacher"></i> Manage Instructors</h3>
+
+      <div class="snazzy-page__table-card" ng-if="vm.club.instructors.length > 0">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="snazzy-table__hide-mobile">Courses</th>
+                <th class="snazzy-table__hide-mobile">Notes</th>
+                <th>Colours</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody dnd-list="vm.club.instructors">
+              <tr ng-repeat="instructor in vm.club.instructors" dnd-draggable="instructor" dnd-moved="vm.club.instructors.splice($index, 1);save_instructor_order()">
+                <td class="snazzy-table__name" uib-tooltip="{{ instructor.email }}" tooltip-append-to-body="true">
+                  {{ instructor.first_name }} {{ instructor.last_name }}
+                </td>
+                <td class="snazzy-table__hide-mobile">Courses</td>
+                <td class="snazzy-table__hide-mobile">{{ instructor.instructor_notes }}</td>
+                <td>
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:11px; color:#64748b;">Instructor:</span>
+                      <span ng-if="!instructor.edit" class="instructor-color-swatch" style="background:{{ instructor.instructor_colour }}"></span>
+                      <input ng-if="instructor.edit" type="color" ng-model="instructor.new_colour" class="instructor-color-input" />
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:11px; color:#64748b;">Booking:</span>
+                      <span ng-if="!instructor.edit" class="instructor-color-swatch" style="background:{{ instructor.booking_colour }}"></span>
+                      <input ng-if="instructor.edit" type="color" ng-model="instructor.new_booking_colour" class="instructor-color-input" />
+                    </div>
+                  </div>
+                </td>
+                <td class="snazzy-table__td-actions">
+                  <a ng-if="!instructor.edit" ng-click="instructor.edit = true;" class="snazzy-table__action-btn" uib-tooltip="Manage">
+                    <i class="fa fa-edit"></i>
+                  </a>
+                  <a ng-if="instructor.edit" ng-click="vm.save_instructor(instructor)" class="snazzy-table__action-btn snazzy-table__action-btn--success" uib-tooltip="Save">
+                    <i class="fa fa-save"></i>
+                  </a>
+                </td>
+              </tr>
+              <tr class="dndPlaceholder background_content_dnd">
+                <td colspan="5">Drop Here</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Mobile cards for instructors -->
+      <div class="snazzy-mobile-cards" ng-if="vm.club.instructors.length > 0">
+        <div class="snazzy-mobile-card" ng-repeat="instructor in vm.club.instructors">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">{{ instructor.first_name }} {{ instructor.last_name }}</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Email</span>
+              <span>{{ instructor.email }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Notes</span>
+              <span>{{ instructor.instructor_notes }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Colours</span>
+              <span style="display:flex; gap:8px; align-items:center;">
+                <span class="instructor-color-swatch" style="background:{{ instructor.instructor_colour }}"></span>
+                <span class="instructor-color-swatch" style="background:{{ instructor.booking_colour }}"></span>
+              </span>
+            </div>
+          </div>
+          <div class="snazzy-mobile-card__footer">
+            <a ng-if="!instructor.edit" ng-click="instructor.edit = true;" class="snazzy-table__action-btn" uib-tooltip="Manage">
+              <i class="fa fa-edit"></i>
+            </a>
+            <a ng-if="instructor.edit" ng-click="vm.save_instructor(instructor)" class="snazzy-table__action-btn snazzy-table__action-btn--success" uib-tooltip="Save">
+              <i class="fa fa-save"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         EMAIL PREFERENCES
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="instructor-section" ng-if="vm.club.instructors.length > 0">
+      <h3 class="instructor-section__title"><i class="fa fa-envelope"></i> Email Preferences</h3>
+
+      <!-- Desktop table -->
+      <div class="snazzy-page__table-card snazzy-desktop-table">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th>Booking Notifications</th>
+                <th>Booking Reminders</th>
+                <th>Daily Schedule Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instructor in vm.club.instructors">
+                <td class="snazzy-table__name">{{ instructor.first_name }} {{ instructor.last_name }}</td>
+                <td>
+                  <toggle-switch
+                    on-label="On" off-label="Off"
+                    ng-model="instructor._receiveNotifications"
+                    ng-change="vm.save_email_prefs(instructor)">
+                  </toggle-switch>
+                </td>
+                <td>
+                  <toggle-switch
+                    on-label="On" off-label="Off"
+                    ng-model="instructor._receiveReminders"
+                    ng-change="vm.save_email_prefs(instructor)">
+                  </toggle-switch>
+                </td>
+                <td>
+                  <toggle-switch
+                    on-label="On" off-label="Off"
+                    ng-model="instructor._receiveDailySummary"
+                    ng-change="vm.save_email_prefs(instructor)">
+                  </toggle-switch>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Mobile cards for email prefs -->
+      <div class="snazzy-mobile-cards">
+        <div class="snazzy-mobile-card" ng-repeat="instructor in vm.club.instructors">
+          <div class="snazzy-mobile-card__header">
+            <i class="fa fa-user-tie" style="color:#64748b;"></i>
+            <span class="snazzy-mobile-card__title">{{ instructor.first_name }} {{ instructor.last_name }}</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row" style="align-items:center;">
+              <div>
+                <span class="snazzy-mobile-card__label" style="margin-bottom:2px;">Booking Notifications</span>
+                <span style="display:block; font-size:11px; color:#94a3b8;">Email each time a student books a lesson</span>
+              </div>
+              <toggle-switch
+                on-label="On" off-label="Off"
+                ng-model="instructor._receiveNotifications"
+                ng-change="vm.save_email_prefs(instructor)">
+              </toggle-switch>
+            </div>
+            <div class="snazzy-mobile-card__row" style="align-items:center;">
+              <div>
+                <span class="snazzy-mobile-card__label" style="margin-bottom:2px;">Booking Reminders</span>
+                <span style="display:block; font-size:11px; color:#94a3b8;">Reminder the evening before each booking</span>
+              </div>
+              <toggle-switch
+                on-label="On" off-label="Off"
+                ng-model="instructor._receiveReminders"
+                ng-change="vm.save_email_prefs(instructor)">
+              </toggle-switch>
+            </div>
+            <div class="snazzy-mobile-card__row" style="align-items:center;">
+              <div>
+                <span class="snazzy-mobile-card__label" style="margin-bottom:2px;">Daily Schedule Summary</span>
+                <span style="display:block; font-size:11px; color:#94a3b8;">Combined email listing all bookings for tomorrow</span>
+              </div>
+              <toggle-switch
+                on-label="On" off-label="Off"
+                ng-model="instructor._receiveDailySummary"
+                ng-change="vm.save_email_prefs(instructor)">
+              </toggle-switch>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

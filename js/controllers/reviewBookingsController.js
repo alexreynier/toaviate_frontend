@@ -81,10 +81,46 @@
             .then(function(data){
                 // //console.log(data);
                 // //console.log("This has been approved...");
+                if(data.success){
+                    ToastService.success('Booking Approved', 'The booking has been confirmed and the student has been notified.');
+                }
                 get_the_approval_list();
 
             });
         }
+
+        // ── Decline modal ──────────────────────────────────────────
+        vm.show_decline_modal = false;
+        vm.decline_booking_data = null;
+        vm.decline_reason = '';
+
+        $scope.open_decline_modal = function(booking){
+            vm.decline_booking_data = booking;
+            vm.decline_reason = '';
+            vm.show_decline_modal = true;
+        };
+
+        $scope.close_decline_modal = function(){
+            vm.show_decline_modal = false;
+            vm.decline_booking_data = null;
+            vm.decline_reason = '';
+        };
+
+        $scope.confirm_decline_booking = function(){
+            if(!vm.decline_booking_data) return;
+            var content = {};
+            if(vm.decline_reason && vm.decline_reason.trim() !== ''){
+                content.reason = vm.decline_reason.trim();
+            }
+            BookingService.DeclineBooking(vm.decline_booking_data.id, vm.user.id, content)
+            .then(function(data){
+                if(data.success){
+                    ToastService.success('Booking Declined', 'The booking has been declined and the student has been notified.');
+                }
+                $scope.close_decline_modal();
+                get_the_approval_list();
+            });
+        };
 
         $scope.decline_booking = function(id){
 

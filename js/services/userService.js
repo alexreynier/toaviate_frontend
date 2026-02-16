@@ -20,6 +20,7 @@ app.factory('UserService', UserService);
         service.ChangeInvitation = ChangeInvitation;
         service.GetInvoices = GetInvoices;
         service.GetAdminClubs = GetAdminClubs;
+        service.GetInstructorClubs = GetInstructorClubs;
         service.GetUpcoming = GetUpcoming;
         service.GetPayments = GetPayments;
         service.ConfirmPaxInvite = ConfirmPaxInvite;
@@ -40,6 +41,10 @@ app.factory('UserService', UserService);
 
         function GetAdminClubs(user_id){
             return $http.get('/api/v1/clubs/get_all_admin_for_user/'+user_id).then(handleSuccess, handleError2);
+        }
+
+        function GetInstructorClubs(user_id){
+            return $http.get('/api/v1/clubs/get_all_instructor_for_user/'+user_id).then(handleSuccess, handleError2);
         }
 
         function GetInvoices(user_id){

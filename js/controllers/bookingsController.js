@@ -393,7 +393,7 @@
         
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         /* THIS SECTION IS ABOUT THE CALENDAR SHOWN ON ALL PAGES */

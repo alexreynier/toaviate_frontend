@@ -598,7 +598,7 @@ AND THE HTML IS:
         //'9' needs to refer the the user's account set to manage
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         $scope.save = function(){

@@ -100,7 +100,7 @@
         }
 
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };

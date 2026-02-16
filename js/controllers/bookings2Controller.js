@@ -300,9 +300,12 @@
 
                                 vm.new_booking = data.booking;
 
-
-
-
+                                // Set vm.club_id immediately from the booking data so all
+                                // downstream calls (getPlaneInstructors, prepare_add_edit,
+                                // check_plane_availability, etc.) have it available.
+                                if(data.booking.club_id){
+                                    vm.club_id = parseInt(data.booking.club_id);
+                                }
 
                                 if(vm.user.access.instructor.indexOf(data.booking.club_id) > -1 || vm.user.access.manager.indexOf(data.booking.club_id) > -1){
                                     // //console.log("THIS IS AN INSTRUCTOR IN THIS CLUB...");
@@ -491,6 +494,7 @@
                 vm.show_no_membership_message = false;
                 vm.hide_dropdown = false; 
                 vm.clubs = [];
+                vm.is_restricted_member = false;
 
                 //we need to get the memberships that the user is a member of....
                 MemberService.GetUserClubs(vm.user.id)
@@ -504,6 +508,31 @@
                         } else if(vm.clubs.length == 1) {
                             vm.club_id = vm.clubs[0].id;
                             //console.log("SETTING THE CLUB ID HERE:: ", vm.club_id);
+                        }
+
+                        // Check if this member is restricted (no free booking rights)
+                        // Instructors and managers bypass this check
+                        if(vm.club_id) {
+                            var isInstructor = vm.user.access.instructor.indexOf(vm.club_id) > -1;
+                            var isManager = vm.user.access.manager.indexOf(vm.club_id) > -1;
+                            if(!isInstructor && !isManager) {
+                                MemberService.GetOneForUser(vm.user.id)
+                                .then(function(memberData){
+                                    var memberships = memberData.memberships || memberData;
+                                    if(Array.isArray(memberships)) {
+                                        for(var i = 0; i < memberships.length; i++) {
+                                            if(parseInt(memberships[i].club_id) === parseInt(vm.club_id)) {
+                                                if(memberships[i].free_booking == 0 || memberships[i].free_booking === false) {
+                                                    vm.is_restricted_member = true;
+                                                    $state.go('dashboard.slot_search');
+                                                    return;
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
                         }
                     
                         update_bookings();
@@ -558,7 +587,7 @@
         
        
         $scope.back = function(){
-            $window.history.back();
+            $rootScope.safeBack();
         }
 
         /* THIS SECTION IS ABOUT THE CALENDAR SHOWN ON ALL PAGES */
@@ -1261,7 +1290,7 @@
                 delete booking.after_booking_end;
                 // //console.log(booking);
                 // //console.log(vm.new_booking);
-                booking.free_seats = (vm.new_booking.free_seats.constructor === Array) ? 0 : vm.new_booking.free_seats;
+                booking.free_seats = (vm.new_booking.free_seats && vm.new_booking.free_seats.constructor === Array) ? 0 : (vm.new_booking.free_seats || 0);
                 booking.start = vm.new_booking.start_datetime;
                 booking.end = vm.new_booking.end_datetime;
 
@@ -1911,9 +1940,27 @@
         //             ////console.log("====> ", data); 
         //         });
 
-         CourseService.GetCoursesByClubId(vm.new_booking.plane.club_id)
+         CourseService.GetCoursesByClubId(vm.new_booking.plane.club_id || vm.club_id)
                     .then(function(data){
-                        vm.courses = data.items;   
+                        vm.courses = data.items;
+
+                        // Re-select tuition_required from the new courses array
+                        // so the ui-select object reference matches
+                        if(vm.new_booking.course_id){
+                            var found = vm.courses.find(function(course) {
+                                return course.id == vm.new_booking.course_id;
+                            });
+                            if(found){
+                                vm.new_booking.tuition_required = found;
+                            }
+                        } else if(vm.new_booking.tuition_required && vm.new_booking.tuition_required.id){
+                            var found = vm.courses.find(function(course) {
+                                return course.id == vm.new_booking.tuition_required.id;
+                            });
+                            if(found){
+                                vm.new_booking.tuition_required = found;
+                            }
+                        }
                     });
 
 
@@ -2548,7 +2595,11 @@
 
         function prepare_add_edit(club_id=null, after_booking_end=null){
 
-            var cid = (club_id) ? club_id : vm.club_id;
+            var cid = (club_id) ? parseInt(club_id) : vm.club_id;
+            // Also ensure vm.club_id is set if we received a valid cid
+            if(cid > 0 && !vm.club_id){
+                vm.club_id = cid;
+            }
             var bed = (after_booking_end) ? after_booking_end : vm.new_booking.end_datetime;
 
             if(cid > 0 && bed){
@@ -2557,19 +2608,11 @@
 
                  MemberService.GetAllActiveByClub(cid, bed2)
                     .then(function (data) {
-                        // //console.log("CLUB ID IS :", vm.club_id);
 
-                        if(vm.user.access.instructor.indexOf(vm.club_id) > -1 || vm.user.access.manager.indexOf(vm.club_id) > -1){
-                            // //console.log("THIS IS AN INSTRUCTOR IN THIS CLUB...");
+                        if(vm.user.access.instructor.indexOf(cid) > -1 || vm.user.access.manager.indexOf(cid) > -1){
                             vm.booking_self = false;
                             vm.show_self_option = true;
                         }
-
-                        // if(vm.user.access.instructor.indexOf(vm.club_id) > -1){
-                        //     // //console.log("THIS IS AN INSTRUCTOR IN THIS CLUB...");
-                        //     vm.booking_self = false;
-                        //     vm.show_self_option = true;
-                        // }
 
                         //use GB airfields first...
                         vm.members = data.members || data;
@@ -2584,14 +2627,13 @@
                             vm.booking_self = false;
                         }
 
-                        if(!vm.new_booking.user){
-                            // vm.booking_self = false;
-                            //set the member
+                        // For instructional flights (instructor_id present),
+                        // always try to populate the member/user from user_id
+                        if(!vm.new_booking.user && vm.new_booking.user_id){
 
                             if(!vm.all_members){
-                                 MemberService.GetAllByClub(vm.club_id)
+                                 MemberService.GetAllByClub(cid)
                                     .then(function (data) {
-                                       
 
                                             vm.all_members = data;
                                             for(var i=0;i<vm.all_members.length;i++){
@@ -2612,9 +2654,6 @@
                                                                         return true;
                                                                 });
                             }
-
-                            //console.log("MEMBERS: ", vm.all_members);
-                           
 
                         }
 
@@ -3809,7 +3848,7 @@
 
 
 
-                booking.free_seats = (vm.new_booking.free_seats.constructor === Array) ? 0 : vm.new_booking.free_seats;
+                booking.free_seats = (vm.new_booking.free_seats && vm.new_booking.free_seats.constructor === Array) ? 0 : (vm.new_booking.free_seats || 0);
                 booking.start = vm.new_booking.start_datetime;
                 booking.end = vm.new_booking.end_datetime;               
                 booking.plane_id = vm.new_booking.plane.id;
