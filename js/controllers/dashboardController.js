@@ -11,8 +11,8 @@
 
  app.controller('DashboardController', DashboardController);
 
-    DashboardController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope', '$location', 'AuthenticationService', 'ToastService'];
-    function DashboardController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $location, AuthenticationService, ToastService) {
+    DashboardController.$inject = ['UserService','$cookieStore', 'BookingService', 'BookoutService', '$rootScope', '$location', 'AuthenticationService', 'ToastService', '$state'];
+    function DashboardController(UserService, $cookieStore, BookingService, BookoutService, $rootScope, $location, AuthenticationService, ToastService, $state) {
         var vm = this;
 
         if(!$rootScope.globals.currentUser){
@@ -108,7 +108,8 @@
                 localStorage.setItem('toaviate_selected_club_id', String(club.id));
             } catch(e) {}
 
-            console.log('Switched to club:', club.title);
+            // Reload the current state so child controllers re-initialize with the new club
+            $state.reload();
         };
 
 

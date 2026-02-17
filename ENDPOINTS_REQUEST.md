@@ -49,3 +49,29 @@ GET /api/v1/bookings/instructor_planes/:user_id/:instructor_user_id/:start/:end
 ```
 
 Each plane object should include `club_id` so the frontend can derive the club context when the user selects an aircraft. Include availability/booking conflict data if the existing `planes` endpoint already does that.
+
+---
+
+## Endpoint 3: Get schedule version (for auto-refresh polling)
+
+```
+GET /api/v1/bookings/schedule_version/:user_id
+```
+
+- `:user_id` — the logged-in user's ID (for auth)
+
+**Purpose:** Lightweight version-check endpoint for auto-refreshing the desktop/mobile schedule. This mirrors the existing `GET /api/v1/schedule_display/:token/version` endpoint used by the TV schedule display, but for authenticated users.
+
+The frontend polls this every 30 seconds. When the version number changes, it triggers a full calendar refresh. This prevents double-bookings by ensuring all users see schedule updates within ~30 seconds, without the overhead of fetching all booking data on every poll.
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "schedule_version": 42
+}
+```
+
+`schedule_version` should be the same counter/value used by the TV schedule display endpoint — it increments whenever any booking is created, updated, or deleted for any club the user belongs to.
+
+**Bonus:** If the `GET /api/v1/bookings/:user_id/:start/:end` (GetAll) response can also include `schedule_version` in its response body, the frontend will capture it on initial load so the first version comparison is accurate.

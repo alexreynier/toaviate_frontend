@@ -332,7 +332,8 @@ app.controller('MyVouchersController', MyVouchersController);
                 plane_id: vm.selectedPlane.id,
                 instructor_id: vm.selectedInstructor.id,
                 start: vm.selectedSlot.slot_start,
-                end: vm.selectedSlot.slot_end
+                end: vm.selectedSlot.slot_end,
+                experience_title: vm.activeVoucher.experience_title || ''
             };
 
             VoucherService.BookVoucher(bookingData)

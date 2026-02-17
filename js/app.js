@@ -95,6 +95,14 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── Schedule Display (public, no auth) ──
+            .state('schedule_display', {
+                url: '/display/:token',
+                templateUrl: 'views/schedule_display.html',
+                controller: 'ScheduleDisplayController',
+                controllerAs: 'vm'
+            })
+
 
 
             .state('password_reset', {
@@ -2051,7 +2059,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -2094,6 +2102,11 @@ var app = angular
             //console.log($location.path());
             var restrictedPage = $.inArray($location.path(), ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup']) === -1;
 
+            //check if display page
+            if($location.path().indexOf("/display/") > -1){
+                restrictedPage = false;
+            }
+
             //check again... if contains gallery:::
             if($location.path().indexOf("/user_signup") > -1){
                 restrictedPage = true;
@@ -2111,7 +2124,7 @@ var app = angular
 
             // Save the current path as a return destination when being redirected to /login
             // (auto-logout due to session timeout, 401, etc.). Manual logouts clear this separately.
-            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup'];
+            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup', '/display'];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {
                 // Extract the path portion from the full current URL

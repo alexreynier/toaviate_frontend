@@ -43,6 +43,7 @@ app.factory('BookingService', BookingService);
         service.GetInstructorByUser = GetInstructorByUser;
         service.GetInstructorPlanes = GetInstructorPlanes;
         service.GetBookingsToApproveClub = GetBookingsToApproveClub;
+        service.GetScheduleVersion = GetScheduleVersion;
 
         return service;
 
@@ -218,6 +219,15 @@ app.factory('BookingService', BookingService);
 
 
 
+
+
+        // ── Schedule version check (lightweight polling) ──
+        // Mirrors ScheduleDisplayService.GetVersion but for authenticated users.
+        // Backend endpoint: GET /api/v1/bookings/schedule_version/:user_id
+        // Expected response: { success: true, schedule_version: <number> }
+        function GetScheduleVersion(user_id) {
+            return $http.get('/api/v1/bookings/schedule_version/' + user_id).then(handleSuccess, handleError2);
+        }
 
 
         // private functions

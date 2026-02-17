@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService) {
         var vm = this;
 
         vm.user = null;
@@ -140,6 +140,83 @@
                 });
         };
 
+        // ── Schedule Display Token Management ──
+        vm.display_token = null;
+        vm.display_url = '';
+        vm.display_loading = false;
+        vm.display_copied = false;
+
+        vm.loadDisplayToken = function() {
+            vm.display_loading = true;
+            ScheduleDisplayService.GetToken(vm.club_id)
+                .then(function(data) {
+                    vm.display_loading = false;
+                    if (data.success && data.token) {
+                        vm.display_token = data.token;
+                        vm.display_url = window.location.origin + '/display/' + data.token;
+                    } else {
+                        vm.display_token = null;
+                        vm.display_url = '';
+                    }
+                }, function() {
+                    vm.display_loading = false;
+                });
+        };
+
+        vm.generateDisplayToken = function() {
+            vm.display_loading = true;
+            ScheduleDisplayService.GenerateToken(vm.club_id)
+                .then(function(data) {
+                    vm.display_loading = false;
+                    if (data.success && data.token) {
+                        vm.display_token = data.token;
+                        vm.display_url = window.location.origin + '/display/' + data.token;
+                        ToastService.success('Display Link Created', 'Copy the URL and open it on your clubhouse TV.');
+                    } else {
+                        ToastService.error('Error', data.message || 'Failed to generate display token.');
+                    }
+                }, function() {
+                    vm.display_loading = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+        };
+
+        vm.revokeDisplayToken = function() {
+            if (!confirm('Are you sure? This will immediately disable the schedule display on any TV currently using this link.')) return;
+            vm.display_loading = true;
+            ScheduleDisplayService.RevokeToken(vm.club_id)
+                .then(function(data) {
+                    vm.display_loading = false;
+                    if (data.success) {
+                        vm.display_token = null;
+                        vm.display_url = '';
+                        ToastService.success('Revoked', 'Schedule display access has been disabled.');
+                    } else {
+                        ToastService.error('Error', data.message || 'Failed to revoke token.');
+                    }
+                }, function() {
+                    vm.display_loading = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+        };
+
+        vm.copyDisplayUrl = function() {
+            var input = document.getElementById('sd_token_url');
+            if (input) {
+                input.select();
+                document.execCommand('copy');
+                vm.display_copied = true;
+                ToastService.success('Copied!', 'Display URL copied to clipboard.');
+                setTimeout(function() {
+                    $scope.$apply(function() { vm.display_copied = false; });
+                }, 2000);
+            }
+        };
+
+        vm.openDisplayInNewTab = function() {
+            window.open(vm.display_url, '_blank');
+        };
+
         vm.action = $state.current.data.action;
 
 
@@ -160,6 +237,9 @@
 
                 // Load aircraft check types
                 vm.loadCheckTypes();
+
+                // Load schedule display token
+                vm.loadDisplayToken();
 
             break;
             case "stripe_return":

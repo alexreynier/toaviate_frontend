@@ -1,7 +1,7 @@
  app.controller('Bookings2Controller', Bookings2Controller);
 
-    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService'];
-    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService) {
+    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService', '$interval'];
+    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService, $interval) {
         
         var vm = this;
         var defaultStartTime = 480;
@@ -33,7 +33,13 @@
 
         vm.is_edit_show_all = false;
         // vm.club.member.membership_id = {};
-        
+
+        // ── Schedule auto-refresh polling (mirrors TV schedule display) ──
+        var _scheduleVersion = -1;        // current known schedule version
+        var _pollTimer = null;            // $interval handle
+        var _pollIntervalMs = 30000;      // 30 seconds between version checks
+        var _lastViewStart = null;        // calendar view range for refresh
+        var _lastViewEnd = null;
         vm.action = $state.current.data.action;
         vm.return_to = $state.current.data.return_to;
         //vm.club_id = 0;
@@ -609,12 +615,24 @@
     $scope.updateEvents = function(start, end){
         ////console.log("start", start, "end", end);
 
+        // Track the current calendar view range for polling refresh
+        _lastViewStart = start;
+        _lastViewEnd = end;
+
         BookingService.GetAll(vm.user.id, start, end)
         .then(function(data){
             // //console.log(data);
 
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;
+
+            // Capture schedule_version if returned by backend
+            if (data.schedule_version !== undefined) {
+                _scheduleVersion = data.schedule_version;
+            }
+
+            // Start polling once we have our first data load
+            _startSchedulePolling();
 
             // //console.log("hello", $scope.all_events);
             // //console.log("hello", $scope.all_resources);
@@ -623,6 +641,65 @@
 
         });
     }
+
+    // ── Schedule auto-refresh polling ──
+    // Uses the same lightweight version-check pattern as the TV schedule display.
+    // Polls GET /api/v1/bookings/schedule_version/:user_id every 30s.
+    // Only triggers a full calendar refresh when the version number changes.
+
+    function _startSchedulePolling() {
+        if (_pollTimer) return; // already polling
+
+        _pollTimer = $interval(function() {
+            BookingService.GetScheduleVersion(vm.user.id)
+                .then(function(data) {
+                    if (!data || !data.success) return;
+
+                    if (data.schedule_version !== undefined && data.schedule_version !== _scheduleVersion) {
+                        // Version changed — something was added/edited/deleted
+                        _scheduleVersion = data.schedule_version;
+                        _refreshCalendarEvents();
+                    }
+                }, function() {
+                    // Network error or endpoint not available — silently skip
+                    // Will retry next poll cycle
+                });
+        }, _pollIntervalMs);
+    }
+
+    function _refreshCalendarEvents() {
+        // Re-fetch events for the current calendar view range
+        var start = _lastViewStart;
+        var end = _lastViewEnd;
+
+        if (!start) {
+            // Fallback: use today's date
+            start = moment().format("Y-MM-DD");
+            end = "";
+        }
+
+        BookingService.GetAll(vm.user.id, start, end)
+        .then(function(data) {
+            $scope.all_events = data.events;
+            $scope.all_resources = data.resources;
+
+            if (data.schedule_version !== undefined) {
+                _scheduleVersion = data.schedule_version;
+            }
+
+            // Update FullCalendar display
+            $('#calendar').fullCalendar('removeEvents');
+            $('#calendar').fullCalendar('addEventSource', $scope.all_events);
+        });
+    }
+
+    // Cleanup polling on controller destroy (navigating away)
+    $scope.$on('$destroy', function() {
+        if (_pollTimer) {
+            $interval.cancel(_pollTimer);
+            _pollTimer = null;
+        }
+    });
 
 
 
@@ -1381,6 +1458,14 @@
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;
 
+            // Capture schedule_version if returned by backend
+            if (data.schedule_version !== undefined) {
+                _scheduleVersion = data.schedule_version;
+            }
+
+            // Start polling once we have initial data
+            _startSchedulePolling();
+
             // //console.log("hello", $scope.all_events);
             // //console.log("hello", $scope.all_resources);
 
@@ -1418,7 +1503,30 @@
             }
 
         }
-        
+
+        // Update the event's plane data to match the new aircraft resource
+        // so that badges (registration on instructor rows) reflect the change immediately
+        var newPlaneId = null;
+        if (event.resourceId && event.resourceId.toString().indexOf('fi_') === -1) {
+            newPlaneId = event.resourceId;
+        } else if (event.resourceIds) {
+            for (var j = 0; j < event.resourceIds.length; j++) {
+                if (event.resourceIds[j].toString().indexOf('fi_') === -1) {
+                    newPlaneId = event.resourceIds[j];
+                    break;
+                }
+            }
+        }
+        if (newPlaneId && $scope.all_resources) {
+            for (var k = 0; k < $scope.all_resources.length; k++) {
+                if ($scope.all_resources[k].id && $scope.all_resources[k].id.toString() === newPlaneId.toString()) {
+                    if (!event.plane) event.plane = {};
+                    event.plane.id = newPlaneId;
+                    event.plane.registration = $scope.all_resources[k].title || $scope.all_resources[k].registration || '';
+                    break;
+                }
+            }
+        }
 
         // //console.log("HELLO BOOBIES", event);
 
@@ -1603,9 +1711,21 @@
                 if(vm.return_to == "bookout") {
                     // //console.log("WE ARE AT THE BOOKOUT BIT - SO RETURN THERE!!!");
                     $state.go('dashboard.my_account.bookout_with_booking', { "booking_id": event.id });
-                } else {
-                    // //console.log("NORMAL booking");
+                } else if(evnt.edit_booking == 1) {
+                    // Form-based edit — navigate back to the booking view
                     $state.go('dashboard.add_booking');
+                } else {
+                    // Drag/drop or resize on the calendar — update local events from server
+                    // so the calendar reflects the saved position without a full controller reload
+                    var fetchStart = moment(evnt.start).format("Y-MM-DD");
+                    BookingService.GetAll(vm.user.id, fetchStart, "")
+                        .then(function(freshData){
+                            $scope.all_events = freshData.events;
+                            $scope.all_resources = freshData.resources;
+
+                            $('#calendar').fullCalendar('removeEvents');
+                            $('#calendar').fullCalendar('addEventSource', $scope.all_events);
+                        });
                 }
 
 
@@ -3630,7 +3750,7 @@
         vm.bookingPanelOpen = true;
 
         vm.new_booking.start_date = new Date(obj.start);
-        vm.new_booking.end_date = new Date(luxon.DateTime.fromISO(new Date(obj.end).toISOString()).plus({minutes: 60}).toISO());//new Date(obj.start).toISOString();
+        vm.new_booking.end_date = new Date(obj.end);
         vm.new_booking.start_time = {time: moment(obj.start).format("HH:mm")};
 
 
@@ -3655,7 +3775,11 @@
         // console.log(vm.new_booking.start_date);
         // console.log(vm.new_booking.start_date.toISOString());
 
-         BookingService.GetAllPlanes(vm.user.id, vm.new_booking.start_date.toISOString(), vm.new_booking.end_date.toISOString(), 0, 0)
+         // Pass the clicked plane_id as rented_id so the backend always includes it
+         // in the results even if it's near another booking's time window
+         var clicked_plane_id = (obj.plane_id && String(obj.plane_id).indexOf("fi_") !== 0) ? parseInt(obj.plane_id) : 0;
+
+         BookingService.GetAllPlanes(vm.user.id, vm.new_booking.start_date.toISOString(), vm.new_booking.end_date.toISOString(), 0, clicked_plane_id)
             .then(function(data){
                
                 //this gets the events and bookings for the period checked here...

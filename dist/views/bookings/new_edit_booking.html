@@ -502,6 +502,39 @@
             eventDrop: function(event, delta, revertFunc, jsEvent, ui, view){
                 angular.element( document.getElementById('calendar') ).scope().alertOnDrop(event, delta, revertFunc, jsEvent, ui, view);
             },
+            eventAfterRender: function(event, element, view) {
+                // Remove any previously appended badge to avoid duplicates on re-render
+                element.find('.booking-resource-badge').remove();
+
+                // Determine which resource row this element sits in
+                var resourceCell = element.closest('tr[data-resource-id]');
+                if (!resourceCell.length) return;
+                var resourceId = resourceCell.attr('data-resource-id');
+                if (!resourceId) return;
+
+                var badgeText = '';
+                var badgeIcon = '';
+
+                if (resourceId.toString().indexOf('fi_') === 0) {
+                    // Instructor row → show aircraft registration
+                    if (event.plane && event.plane.registration) {
+                        badgeText = event.plane.registration;
+                        badgeIcon = '✈ ';
+                    }
+                } else {
+                    // Aircraft row → show instructor name
+                    if (event.instructor && event.instructor.id && parseInt(event.instructor.id) > 0) {
+                        badgeText = event.instructor.display_name || (event.instructor.first_name + ' ' + event.instructor.last_name);
+                        badgeIcon = '👤 ';
+                    }
+                }
+
+                if (badgeText) {
+                    var badge = $('<span class="booking-resource-badge">' + badgeIcon + badgeText + '</span>');
+                    element.find('.fc-content').append(badge);
+                    element.addClass('has-resource-badge');
+                }
+            },
             eventAfterAllRender: function(view){
                 calView = view;
                 collapseLocations();
