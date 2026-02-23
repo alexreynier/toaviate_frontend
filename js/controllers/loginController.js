@@ -131,6 +131,17 @@ app.controller('LoginController', LoginController);
                                  // Check for a stored return URL from a prior auto-logout
                                  var returnUrl = null;
                                  try { returnUrl = localStorage.getItem('toaviate_return_url'); } catch(e) {}
+                                 // Discard return URLs that point to signup/public flows — users
+                                 // should never be sent back to a signup form after logging in.
+                                 var signupPrefixes = ['/passenger_signup', '/club_signup', '/user_signup', '/invitations', '/register', '/login', '/display'];
+                                 if (returnUrl) {
+                                     for (var sp = 0; sp < signupPrefixes.length; sp++) {
+                                         if (returnUrl === signupPrefixes[sp] || returnUrl.indexOf(signupPrefixes[sp] + '/') === 0) {
+                                             returnUrl = null;
+                                             break;
+                                         }
+                                     }
+                                 }
                                  if (returnUrl) {
                                      try { localStorage.removeItem('toaviate_return_url'); } catch(e) {}
                                      // Wait for credentials/session to fully propagate before navigating

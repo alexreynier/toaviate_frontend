@@ -1,0 +1,621 @@
+<!-- ═══════════════════════════════════════════════════════════
+     VOUCHER WIDGET MANAGEMENT
+     Snazzy design system · Tabbed layout
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="snazzy-page vw-page">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.settings">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-code"></i> Voucher Widget</h2>
+        <p>Sell vouchers directly on your website</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div ng-if="vm.loading" class="snazzy-page__loading">
+    <div class="snazzy-page__spinner"></div>
+    Loading widget settings…
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STRIPE NOT CONNECTED — prompt to set up
+       ═══════════════════════════════════════════════ -->
+  <div ng-if="!vm.loading && !vm.stripe_connected" class="vw-stripe-prompt">
+    <div class="vw-stripe-prompt__icon">
+      <i class="fab fa-stripe-s"></i>
+    </div>
+    <h3>Connect Stripe to Get Started</h3>
+    <p>
+      To sell vouchers through the widget, your club needs an active Stripe integration
+      so you can accept card payments directly from your website visitors.
+    </p>
+    <button class="snazzy-page__btn snazzy-page__btn--primary"
+            ng-click="vm.setupStripe()"
+            ng-disabled="vm.called_stripe_setup">
+      <i class="fab fa-stripe-s"></i>
+      {{ vm.called_stripe_setup ? 'Redirecting to Stripe…' : 'Setup Stripe Integration' }}
+    </button>
+    <p class="vw-stripe-prompt__note">
+      <i class="fas fa-info-circle"></i>
+      You will be redirected to Stripe to complete the setup, then returned here.
+    </p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       MAIN CONTENT (Stripe IS connected)
+       ═══════════════════════════════════════════════ -->
+  <div ng-if="!vm.loading && vm.stripe_connected" class="snazzy-page__body">
+
+    <!-- ── Tab Navigation ── -->
+    <div class="vw-tabs">
+      <button class="vw-tabs__tab"
+              ng-class="{'vw-tabs__tab--active': vm.active_tab === 'setup'}"
+              ng-click="vm.setTab('setup')">
+        <i class="fas fa-plug"></i> Setup &amp; Embed
+      </button>
+      <button class="vw-tabs__tab"
+              ng-class="{'vw-tabs__tab--active': vm.active_tab === 'customise'}"
+              ng-click="vm.setTab('customise')"
+              ng-disabled="!vm.token">
+        <i class="fas fa-palette"></i> Customise
+      </button>
+      <button class="vw-tabs__tab"
+              ng-class="{'vw-tabs__tab--active': vm.active_tab === 'purchases'}"
+              ng-click="vm.setTab('purchases')"
+              ng-disabled="!vm.token">
+        <i class="fas fa-shopping-bag"></i> Purchases
+      </button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════
+         TAB 1 — SETUP & EMBED
+         ═══════════════════════════════════════════ -->
+    <div ng-if="vm.active_tab === 'setup'">
+
+      <!-- ── No token yet ── -->
+      <div ng-if="!vm.token" class="vw-setup-empty">
+        <div class="vw-setup-empty__graphic">
+          <div class="vw-setup-empty__icon-ring">
+            <i class="fas fa-gift"></i>
+          </div>
+        </div>
+        <h3>Sell Vouchers Directly On Your Website</h3>
+        <p>
+          Embed the ToAviate voucher widget on your website so visitors can browse
+          and purchase vouchers without needing a ToAviate account. Payments go
+          straight to your connected Stripe account.
+        </p>
+        <div class="vw-setup-empty__checks">
+          <div class="vw-setup-empty__check">
+            <i class="fas fa-check-circle"></i> Stripe connected
+          </div>
+          <div class="vw-setup-empty__check">
+            <i class="fas fa-check-circle"></i> No coding required — just copy &amp; paste
+          </div>
+          <div class="vw-setup-empty__check">
+            <i class="fas fa-check-circle"></i> Customers don't need a ToAviate account
+          </div>
+        </div>
+        <button class="snazzy-page__btn snazzy-page__btn--success vw-enable-btn"
+                ng-click="vm.generateToken()">
+          <i class="fas fa-rocket"></i> Enable Voucher Widget
+        </button>
+      </div>
+
+      <!-- ── Token exists — show embed code ── -->
+      <div ng-if="vm.token" class="vw-setup-active">
+
+        <!-- Status card -->
+        <div class="vw-status-card">
+          <div class="vw-status-card__indicator">
+            <span class="vw-status-dot vw-status-dot--active"></span>
+            <span class="vw-status-label">Active</span>
+          </div>
+          <div class="vw-status-card__meta">
+            Token created: {{ vm.formatDate(vm.token.created_at) }}
+          </div>
+        </div>
+
+        <!-- Embed code -->
+        <div class="vw-embed-section">
+          <label class="vw-label"><i class="fas fa-code"></i> Embed Code</label>
+          <p class="vw-help-text">Copy this code and paste it into the HTML of your website where you want the voucher shop to appear.</p>
+          <div class="vw-embed-code-wrap">
+            <textarea class="vw-embed-code" id="vw_embed_code" readonly
+                      ng-model="vm.embed_code" onclick="this.select()" rows="4"></textarea>
+            <button class="vw-copy-btn" ng-class="{'vw-copy-btn--copied': vm.embed_copied}"
+                    ng-click="vm.copyEmbedCode()">
+              <i class="fa" ng-class="{'fa-check': vm.embed_copied, 'fa-clipboard': !vm.embed_copied}"></i>
+              {{ vm.embed_copied ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Allowed Domains -->
+        <div class="vw-domains-section">
+          <label class="vw-label"><i class="fas fa-shield-alt"></i> Allowed Domains <span class="vw-label-optional">(optional)</span></label>
+          <p class="vw-help-text">
+            Restrict which websites can display the widget. Enter one domain per line (e.g. <code>flyingclub.co.uk</code>).
+            Leave empty to allow any website.
+          </p>
+          <textarea class="vw-domains-input" ng-model="vm.domains_text"
+                    placeholder="flyingclub.co.uk&#10;www.flyingclub.co.uk" rows="3"></textarea>
+          <button class="snazzy-page__btn snazzy-page__btn--primary vw-domains-save"
+                  ng-click="vm.saveDomains()" ng-disabled="vm.domains_saving">
+            <i class="fas fa-save"></i> {{ vm.domains_saving ? 'Saving…' : 'Save Domains' }}
+          </button>
+        </div>
+
+        <!-- How it works -->
+        <div class="vw-howto">
+          <h4><i class="fas fa-info-circle"></i> How it works</h4>
+          <ol>
+            <li>Copy the embed code above and paste it into your website's HTML</li>
+            <li>The widget automatically loads your club's purchasable experiences</li>
+            <li>Customers can browse, select, and pay — all within the widget</li>
+            <li>Payments go to your Stripe account; vouchers and invoices are created automatically</li>
+            <li>Monitor all widget purchases from the <strong>Purchases</strong> tab</li>
+          </ol>
+        </div>
+
+        <!-- Actions -->
+        <div class="vw-setup-actions">
+          <button class="snazzy-page__btn snazzy-page__btn--info" ng-click="vm.openPreview()"
+                  ng-disabled="vm.preview_loading">
+            <i class="fas" ng-class="{'fa-spinner fa-spin': vm.preview_loading, 'fa-external-link-alt': !vm.preview_loading}"></i>
+            {{ vm.preview_loading ? 'Loading…' : 'Preview Widget' }}
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.openPreviewInline()"
+                  ng-disabled="vm.preview_loading">
+            <i class="fas fa-eye"></i> Preview Inline
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.regenerateToken()">
+            <i class="fas fa-sync-alt"></i> Regenerate Token
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.revokeToken()">
+            <i class="fas fa-power-off"></i> Disable Widget
+          </button>
+        </div>
+
+        <!-- Inline preview iframe -->
+        <div class="vw-preview-inline" ng-if="vm.preview_url">
+          <div class="vw-preview-inline__header">
+            <h4><i class="fas fa-eye"></i> Widget Preview</h4>
+            <button class="vw-preview-inline__close" ng-click="vm.closePreviewInline()">
+              <i class="fas fa-times"></i> Close Preview
+            </button>
+          </div>
+          <div class="vw-preview-inline__frame-wrap">
+            <iframe ng-src="{{ vm.preview_url }}" class="vw-preview-inline__iframe"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    title="Voucher Widget Preview"></iframe>
+          </div>
+          <p class="vw-preview-inline__note">
+            <i class="fas fa-info-circle"></i>
+            This is a live preview using your current settings. Changes you make in the Customise tab will appear after saving and refreshing.
+          </p>
+        </div>
+
+        <div class="vw-regen-notice">
+          <i class="fas fa-exclamation-triangle"></i>
+          Regenerating the token will invalidate the old embed code. You'll need to update it on your website.
+        </div>
+
+        <!-- Email Notifications -->
+        <div class="vw-notifications-section">
+          <label class="vw-label"><i class="fas fa-bell"></i> Email Notifications</label>
+          <p class="vw-help-text">Get notified when vouchers are purchased or refunded through your widget.</p>
+
+          <div ng-if="vm.notifications_loading" class="vw-notifications-loading">
+            <div class="snazzy-page__spinner" style="width:20px;height:20px;"></div>
+            <span>Loading…</span>
+          </div>
+
+          <div ng-if="vm.notifications && !vm.notifications_loading" class="vw-notifications-form">
+            <div class="vw-toggle-row">
+              <label class="snazzy-toggle">
+                <input type="checkbox" ng-model="vm.notifications.email_on_purchase" ng-true-value="1" ng-false-value="0" />
+                <span class="snazzy-toggle__slider"></span>
+              </label>
+              <span>Email me when a voucher is purchased</span>
+            </div>
+            <div class="vw-toggle-row">
+              <label class="snazzy-toggle">
+                <input type="checkbox" ng-model="vm.notifications.email_on_refund" ng-true-value="1" ng-false-value="0" />
+                <span class="snazzy-toggle__slider"></span>
+              </label>
+              <span>Email me when a refund is processed</span>
+            </div>
+            <div class="form-group vw-notification-email-group" ng-if="vm.notifications.email_on_purchase || vm.notifications.email_on_refund">
+              <label>Send notifications to</label>
+              <input type="email" class="vw-text-input" ng-model="vm.notifications.notification_email"
+                     placeholder="{{ vm.notifications.fallback_email || 'manager@flyingclub.co.uk' }}" />
+              <p class="vw-help-text" style="margin-top:4px;" ng-if="vm.notifications.fallback_email">
+                Leave blank to send to your club email (<strong>{{ vm.notifications.fallback_email }}</strong>)
+              </p>
+              <p class="vw-help-text" style="margin-top:4px;" ng-if="!vm.notifications.fallback_email">
+                Leave blank to send to your club settings email address.
+              </p>
+            </div>
+            <button class="snazzy-page__btn snazzy-page__btn--primary vw-notifications-save"
+                    ng-click="vm.saveNotifications()" ng-disabled="vm.notifications_saving">
+              <i class="fas fa-save"></i> {{ vm.notifications_saving ? 'Saving…' : 'Save Preferences' }}
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    <!-- END TAB 1 -->
+
+
+    <!-- ═══════════════════════════════════════════
+         TAB 2 — CUSTOMISE
+         ═══════════════════════════════════════════ -->
+    <div ng-if="vm.active_tab === 'customise' && vm.token">
+
+      <!-- Loading settings -->
+      <div ng-if="!vm.settings" class="snazzy-page__loading">
+        <div class="snazzy-page__spinner"></div>
+        Loading appearance settings…
+      </div>
+
+      <div ng-if="vm.settings" class="vw-customise">
+
+        <div class="vw-customise__grid">
+
+          <!-- ── Left column: Settings form ── -->
+          <div class="vw-customise__form">
+
+            <div class="vw-form-section">
+              <h4 class="vw-form-section__title"><i class="fas fa-palette"></i> Colours</h4>
+              <div class="vw-colour-grid">
+                <div class="vw-colour-field">
+                  <label>Primary</label>
+                  <div class="vw-colour-input-wrap">
+                    <input type="color" ng-model="vm.settings.primary_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-picker" />
+                    <input type="text" ng-model="vm.settings.primary_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-hex" maxlength="7" />
+                  </div>
+                </div>
+                <div class="vw-colour-field">
+                  <label>Secondary</label>
+                  <div class="vw-colour-input-wrap">
+                    <input type="color" ng-model="vm.settings.secondary_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-picker" />
+                    <input type="text" ng-model="vm.settings.secondary_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-hex" maxlength="7" />
+                  </div>
+                </div>
+                <div class="vw-colour-field">
+                  <label>Background</label>
+                  <div class="vw-colour-input-wrap">
+                    <input type="color" ng-model="vm.settings.background_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-picker" />
+                    <input type="text" ng-model="vm.settings.background_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-hex" maxlength="7" />
+                  </div>
+                </div>
+                <div class="vw-colour-field">
+                  <label>Text</label>
+                  <div class="vw-colour-input-wrap">
+                    <input type="color" ng-model="vm.settings.text_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-picker" />
+                    <input type="text" ng-model="vm.settings.text_colour" ng-change="vm.markSettingsDirty()" class="vw-colour-hex" maxlength="7" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vw-form-section">
+              <h4 class="vw-form-section__title"><i class="fas fa-font"></i> Typography &amp; Shape</h4>
+              <div class="form-group">
+                <label>Font Family</label>
+                <select class="vw-select" ng-model="vm.settings.font_family" ng-change="vm.markSettingsDirty()">
+                  <option ng-repeat="f in vm.font_options" value="{{f}}">{{ f.split(',')[0] }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Corner Radius (px)</label>
+                <div class="vw-range-group">
+                  <input type="range" min="0" max="24" step="1" ng-model="vm.settings.border_radius" ng-change="vm.markSettingsDirty()" class="vw-range" />
+                  <span class="vw-range-value">{{ vm.settings.border_radius }}px</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="vw-form-section">
+              <h4 class="vw-form-section__title"><i class="fas fa-toggle-on"></i> Display Options</h4>
+              <div class="vw-toggle-row">
+                <label class="snazzy-toggle">
+                  <input type="checkbox" ng-model="vm.settings.show_descriptions" ng-true-value="1" ng-false-value="0" ng-change="vm.markSettingsDirty()" />
+                  <span class="snazzy-toggle__slider"></span>
+                </label>
+                <span>Show experience descriptions</span>
+              </div>
+              <div class="vw-toggle-row">
+                <label class="snazzy-toggle">
+                  <input type="checkbox" ng-model="vm.settings.show_images" ng-true-value="1" ng-false-value="0" ng-change="vm.markSettingsDirty()" />
+                  <span class="snazzy-toggle__slider"></span>
+                </label>
+                <span>Show experience images</span>
+              </div>
+              <div class="vw-toggle-row vw-toggle-row--dark-mode">
+                <label class="snazzy-toggle">
+                  <input type="checkbox" ng-model="vm.settings.dark_mode" ng-true-value="1" ng-false-value="0"
+                         ng-change="vm.toggleDarkMode(); vm.markSettingsDirty()" />
+                  <span class="snazzy-toggle__slider"></span>
+                </label>
+                <span><i class="fas fa-moon vw-dark-mode-icon"></i> Dark mode</span>
+                <span class="vw-dark-mode-hint">Colours will auto-adjust for dark backgrounds</span>
+              </div>
+            </div>
+
+            <div class="vw-form-section">
+              <h4 class="vw-form-section__title"><i class="fas fa-comment-alt"></i> Text</h4>
+              <div class="form-group">
+                <label>Button Text</label>
+                <input type="text" class="vw-text-input" ng-model="vm.settings.button_text" ng-change="vm.markSettingsDirty()" maxlength="50" placeholder="Buy Voucher" />
+              </div>
+              <div class="form-group">
+                <label>Success Message <span class="vw-label-optional">(optional)</span></label>
+                <textarea class="vw-text-input" ng-model="vm.settings.success_message" ng-change="vm.markSettingsDirty()" rows="2" placeholder="Leave blank for default message"></textarea>
+              </div>
+            </div>
+
+            <div class="vw-form-section">
+              <h4 class="vw-form-section__title"><i class="fas fa-external-link-alt"></i> After Purchase</h4>
+              <div class="form-group">
+                <label>Success Redirect URL <span class="vw-label-optional">(optional)</span></label>
+                <input type="url" class="vw-text-input" ng-model="vm.settings.success_redirect_url" ng-change="vm.markSettingsDirty()"
+                       placeholder="https://yoursite.com/thank-you" />
+                <p class="vw-help-text" style="margin-top:6px;">
+                  <i class="fas fa-info-circle"></i>
+                  After a successful purchase, redirect the customer to this URL on your website (e.g. a "Thank you" page).
+                  Leave blank to show the default success message within the widget.
+                </p>
+              </div>
+            </div>
+
+            <!-- Save / Reset -->
+            <div class="vw-customise__actions">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.resetSettings()">
+                <i class="fas fa-undo"></i> Reset to Defaults
+              </button>
+              <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.saveSettings()"
+                      ng-disabled="vm.saving || !vm.settings_dirty">
+                <i class="fas fa-save"></i> {{ vm.saving ? 'Saving…' : 'Save Changes' }}
+              </button>
+            </div>
+
+          </div>
+
+          <!-- ── Right column: Live Preview ── -->
+          <div class="vw-customise__preview-container">
+            <h4 class="vw-preview-title"><i class="fas fa-eye"></i> Preview</h4>
+            <div class="vw-preview"
+                 ng-class="{'vw-preview--dark': vm.settings.dark_mode}"
+                 ng-style="{
+                   'background-color': vm.settings.background_colour,
+                   'color': vm.settings.text_colour,
+                   'font-family': vm.settings.font_family,
+                   'border-radius': vm.settings.border_radius + 'px'
+                 }">
+              <div class="vw-preview__cards">
+                <!-- Card 1 -->
+                <div class="vw-preview__card" ng-style="{'border-radius': vm.settings.border_radius + 'px'}">
+                  <div class="vw-preview__card-img" ng-if="vm.settings.show_images"
+                       ng-style="{'border-radius': vm.settings.border_radius + 'px ' + vm.settings.border_radius + 'px 0 0'}">
+                    <i class="fas fa-plane"></i>
+                  </div>
+                  <div class="vw-preview__card-body">
+                    <div class="vw-preview__card-title" ng-style="{'color': vm.settings.text_colour}">Trial Flight</div>
+                    <div class="vw-preview__card-desc" ng-if="vm.settings.show_descriptions" ng-style="{'color': vm.settings.text_colour}">30 minute flight with instructor</div>
+                    <div class="vw-preview__card-price" ng-style="{'color': vm.settings.primary_colour}">£120.00</div>
+                    <button class="vw-preview__card-btn"
+                            ng-style="{
+                              'background-color': vm.settings.primary_colour,
+                              'border-radius': vm.settings.border_radius + 'px'
+                            }">
+                      {{ vm.settings.button_text || 'Buy Voucher' }}
+                    </button>
+                  </div>
+                </div>
+                <!-- Card 2 -->
+                <div class="vw-preview__card" ng-style="{'border-radius': vm.settings.border_radius + 'px'}">
+                  <div class="vw-preview__card-img" ng-if="vm.settings.show_images"
+                       ng-style="{'border-radius': vm.settings.border_radius + 'px ' + vm.settings.border_radius + 'px 0 0'}">
+                    <i class="fas fa-gift"></i>
+                  </div>
+                  <div class="vw-preview__card-body">
+                    <div class="vw-preview__card-title" ng-style="{'color': vm.settings.text_colour}">Gift Voucher</div>
+                    <div class="vw-preview__card-desc" ng-if="vm.settings.show_descriptions" ng-style="{'color': vm.settings.text_colour}">The perfect gift for aviation fans</div>
+                    <div class="vw-preview__card-price" ng-style="{'color': vm.settings.primary_colour}">£200.00</div>
+                    <button class="vw-preview__card-btn"
+                            ng-style="{
+                              'background-color': vm.settings.primary_colour,
+                              'border-radius': vm.settings.border_radius + 'px'
+                            }">
+                      {{ vm.settings.button_text || 'Buy Voucher' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="vw-preview__footer">Powered by ToAviate</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+    <!-- END TAB 2 -->
+
+
+    <!-- ═══════════════════════════════════════════
+         TAB 3 — PURCHASES
+         ═══════════════════════════════════════════ -->
+    <div ng-if="vm.active_tab === 'purchases' && vm.token">
+
+      <!-- Toolbar -->
+      <div class="snazzy-page__toolbar">
+        <div class="snazzy-page__search-wrap">
+          <i class="fas fa-search snazzy-page__search-icon"></i>
+          <input type="text" class="snazzy-page__search-input"
+                 placeholder="Search by name, email, experience…"
+                 ng-model="vm.purchases_search" />
+        </div>
+        <span class="snazzy-page__count" ng-if="vm.purchases_total">
+          {{ vm.purchases_total }} purchase{{ vm.purchases_total !== 1 ? 's' : '' }}
+        </span>
+      </div>
+
+      <!-- Loading -->
+      <div ng-if="vm.purchases_loading" class="snazzy-page__loading">
+        <div class="snazzy-page__spinner"></div>
+        Loading purchases…
+      </div>
+
+      <!-- Empty -->
+      <div ng-if="!vm.purchases_loading && vm.purchases.length === 0" class="snazzy-page__empty">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-shopping-bag"></i></div>
+        <p>No widget purchases yet</p>
+        <p>When customers buy vouchers through your widget, they'll appear here.</p>
+      </div>
+
+      <!-- Purchase table -->
+      <div ng-if="!vm.purchases_loading && vm.purchases.length > 0" class="snazzy-page__table-card">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Experience</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th class="hide_on_mobile">Gift</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat-start="p in vm.filteredPurchases()"
+                  ng-click="vm.togglePurchaseDetail(p)"
+                  class="vw-purchase-row">
+                <td data-label="Date" class="snazzy-table__date">{{ vm.formatDate(p.completed_at || p.created_at) }}</td>
+                <td data-label="Experience">{{ p.experience_title }}</td>
+                <td data-label="Customer">{{ p.first_name }} {{ p.last_name }}</td>
+                <td data-label="Amount"><strong>{{ vm.formatCurrency(p.amount_paid, p.currency) }}</strong></td>
+                <td data-label="Status">
+                  <span class="snazzy-table__badge" ng-class="vm.paymentStatusClass(p.payment_status)">
+                    {{ p.payment_status }}
+                  </span>
+                </td>
+                <td data-label="Gift" class="hide_on_mobile">
+                  <span ng-if="p.recipient_email" class="vw-gift-badge"><i class="fas fa-gift"></i></span>
+                  <span ng-if="!p.recipient_email">—</span>
+                </td>
+                <td class="snazzy-table__td-actions">
+                  <a class="snazzy-table__action-btn" title="View details">
+                    <i class="fas" ng-class="{'fa-chevron-up': vm.expanded_purchase_id === p.id, 'fa-chevron-down': vm.expanded_purchase_id !== p.id}"></i>
+                  </a>
+                </td>
+              </tr>
+
+              <!-- Expanded detail row -->
+              <tr ng-repeat-end ng-if="vm.expanded_purchase_id === p.id" class="snazzy-table__detail-row">
+                <td colspan="7">
+                  <div class="snazzy-table__detail-inner vw-purchase-detail">
+                    <div class="vw-detail-grid">
+                      <div class="vw-detail-col">
+                        <h5>Buyer</h5>
+                        <p>{{ p.first_name }} {{ p.last_name }}</p>
+                        <p><a href="mailto:{{ p.email }}">{{ p.email }}</a></p>
+                        <p ng-if="p.phone">{{ p.phone }}</p>
+                      </div>
+                      <div class="vw-detail-col" ng-if="p.recipient_email">
+                        <h5><i class="fas fa-gift"></i> Gift Recipient</h5>
+                        <p>{{ p.recipient_first_name }} {{ p.recipient_last_name }}</p>
+                        <p><a href="mailto:{{ p.recipient_email }}">{{ p.recipient_email }}</a></p>
+                        <p ng-if="p.message" class="vw-gift-message">"{{ p.message }}"</p>
+                      </div>
+                      <div class="vw-detail-col">
+                        <h5>Payment</h5>
+                        <p>Amount: <strong>{{ vm.formatCurrency(p.amount_paid, p.currency) }}</strong></p>
+                        <p ng-if="p.discount_code">Discount: {{ p.discount_code }} (−{{ vm.formatCurrency(p.discount_amount, p.currency) }})</p>
+                        <p ng-if="p.stripe_payment_intent_id" class="vw-detail-mono">PI: {{ p.stripe_payment_intent_id }}</p>
+                        <p ng-if="p.refunded_at" class="vw-refund-info">
+                          <i class="fas fa-undo"></i> Refunded: {{ vm.formatDate(p.refunded_at) }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Refund action -->
+                    <div class="vw-refund-section" ng-if="vm.canRefund(p)">
+                      <div ng-if="vm.show_refund_confirm !== p.id">
+                        <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--sm"
+                                ng-click="vm.showRefundDialog(p, $event)">
+                          <i class="fas fa-undo"></i> Refund Payment
+                        </button>
+                      </div>
+                      <div ng-if="vm.show_refund_confirm === p.id" class="vw-refund-confirm">
+                        <div class="vw-refund-confirm__header">
+                          <i class="fas fa-exclamation-triangle"></i>
+                          <strong>Refund {{ vm.formatCurrency(p.amount_paid, p.currency) }} via Stripe?</strong>
+                        </div>
+                        <div class="form-group">
+                          <label>Reason <span class="vw-label-optional">(optional)</span></label>
+                          <input type="text" class="vw-text-input" ng-model="vm.refund_reason"
+                                 ng-click="$event.stopPropagation()"
+                                 placeholder="e.g. Customer requested cancellation" />
+                        </div>
+                        <div class="vw-refund-confirm__actions">
+                          <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
+                                  ng-click="vm.cancelRefund($event)">
+                            Cancel
+                          </button>
+                          <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--sm"
+                                  ng-click="vm.processRefund(p, $event)"
+                                  ng-disabled="vm.refund_in_progress_id === p.id">
+                            <i class="fas" ng-class="{'fa-spinner fa-spin': vm.refund_in_progress_id === p.id, 'fa-undo': vm.refund_in_progress_id !== p.id}"></i>
+                            {{ vm.refund_in_progress_id === p.id ? 'Processing…' : 'Confirm Refund' }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="vw-refund-completed" ng-if="p.payment_status === 'refunded'">
+                      <i class="fas fa-check-circle"></i> This payment has been refunded
+                    </div>
+                    <div class="vw-detail-source" ng-if="p.referrer_url">
+                      <i class="fas fa-globe"></i> Source: <a ng-href="{{ p.referrer_url }}" target="_blank">{{ p.referrer_url }}</a>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="vw-pagination" ng-if="vm.purchases_total > vm.purchases_per_page">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.prevPage()" ng-disabled="vm.purchases_page <= 1">
+            <i class="fas fa-chevron-left"></i> Previous
+          </button>
+          <span class="vw-pagination__info">Page {{ vm.purchases_page }} of {{ vm.totalPages() }}</span>
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.nextPage()" ng-disabled="vm.purchases_page >= vm.totalPages()">
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <!-- END TAB 3 -->
+
+  </div>
+  <!-- END MAIN CONTENT -->
+
+</div>

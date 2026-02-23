@@ -890,10 +890,13 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
                     Status
                   </th>
                   <th>
+                    Media
+                  </th>
+                  <th>
                     Function
                   </th>
                 </tr>
-                <tr ng-repeat="defect in vm.reported_defects">
+                <tr ng-repeat-start="defect in vm.reported_defects">
                   <td>
                     {{ defect.severity }}
                   </td>
@@ -907,7 +910,19 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
                     {{ defect.status }}
                   </td>
                   <td>
+                    <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                      <i class="fa fa-camera"></i>
+                      <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                      <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                    </span>
+                  </td>
+                  <td>
                     <button ng-if="defect.can_delete" ng-click="vm.delete_defect(defect.id)">Delete</button>
+                  </td>
+                </tr>
+                <tr ng-repeat-end ng-if="defect._showMedia">
+                  <td colspan="6" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                    <defect-media-gallery defect-id="defect.id" club-id="vm.bookout.club_id" media-count="defect.media_count"></defect-media-gallery>
                   </td>
                 </tr>
               </table>
@@ -915,28 +930,10 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
 
 
-            <div class="center_if_large">
-
-            <div class="form-group">
-              <label for="defect">Report Defect</label>
-              <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
-            </div>
-
-            <div class="form-group">
-              <label for="defect">Defect Severity</label>
-
-              <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
-                  <ui-select-match placeholder="Please select defect severity" >
-                    {{ vm.defect_severity.title }}             
-                  </ui-select-match>
-                  <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
-                    <span ng-bind-html="defect.title | highlight: $select.search"></span>
-                  </ui-select-choices>
-              </ui-select>
-            </div>
-
-              <button class="btn btn-success" ng-click="vm.add_defect()">REPORT DEFECT</button>
-
+            <div class="center_if_large" style="margin-top: 12px;">
+              <button class="btn btn-primary" ng-click="vm.openDefectPanel()">
+                <i class="fa fa-plus"></i> Report Defect
+              </button>
             </div>
 
 
@@ -1589,4 +1586,10 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
 </div>
 
-
+<!-- Defect Report Slide-in Panel -->
+<defect-report-panel
+    is-open="vm.showDefectPanel"
+    plane-registration="vm.bookout.registration"
+    on-submit="vm.submitDefect(defectData, pendingFiles)"
+    on-close="vm.closeDefectPanel()">
+</defect-report-panel>

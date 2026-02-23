@@ -6,6 +6,8 @@
             <h2>AIRCRAFT MAINTENANCE</h2> 
             <h4 class="capitalise">
               Manage {{ vm.club.plane.registration }}
+              <span class="ac-badge ac-badge--nav" ng-if="vm.club.plane.nav_only == 1" style="vertical-align: middle;"><i class="fas fa-compass"></i> NAV ONLY</span>
+              <span class="ac-badge ac-badge--dual" ng-if="vm.club.plane.dual_only == 1" style="vertical-align: middle;"><i class="fas fa-user-friends"></i> DUAL ONLY</span>
             </h4>
           </div>
         </div>
@@ -51,10 +53,13 @@
                             Status
                           </th>
                           <th>
+                            Media
+                          </th>
+                          <th>
                             Workpack
                           </th>
                         </tr>
-                        <tr ng-repeat="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
+                        <tr ng-repeat-start="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
                           <td>
                             {{ defect.defect }}
                           </td>
@@ -68,6 +73,13 @@
                             {{ defect.status }}
                           </td>
                           <td>
+                            <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                              <i class="fa fa-camera"></i>
+                              <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                              <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                            </span>
+                          </td>
+                          <td>
                             <span ng-if="defect.linked_workpack_number" class="btn btn-xs btn-info" uib-tooltip="Part of workpack: {{ defect.linked_workpack_number }} ({{ defect.linked_workpack_status }})">
                               <i class="fa fa-briefcase"></i> {{ defect.linked_workpack_number }}
                             </span>
@@ -79,6 +91,11 @@
                             </span>
                           </td>
                         </tr>
+                        <tr ng-repeat-end ng-if="defect._showMedia">
+                          <td colspan="6" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                            <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
+                          </td>
+                        </tr>
                       </table>
                     </div>
 
@@ -86,41 +103,9 @@
                     <div class="center_if_large">
                       Show All Previous Defects <input type="checkbox" name="" ng-model="vm.club.plane.show_all_defects" />
                                  
-                       <button ng-if="!vm.club.plane.show_add_defect" class="btn btn-primary adding_button" ng-click="vm.club.plane.show_add_defect = true">+</button>  
+                       <button class="btn btn-primary adding_button" ng-click="vm.openDefectPanel()">+</button>  
 
                     </div>
-                      
-
-                    <!-- REPORT MAINTENANCE ISSUE //-->
-                    <div class="club_docs_all2 bookingout_wrapper" ng-if="vm.club.plane.show_add_defect">
-                      <h4>Report A Defect for {{vm.club.plane.registration}}</h4>
-                      <div class="center_if_large">
-
-                          <div class="form-group">
-                            <label for="defect">Defect</label>
-                            <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
-                          </div>
-
-                          <div class="form-group">
-                            <label for="defect">Defect Severity</label>
-                            <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
-                                <ui-select-match placeholder="Please select defect severity" >
-                                  {{ vm.defect_severity.title }}             
-                                </ui-select-match>
-                                <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
-                                  <span ng-bind-html="defect.title | highlight: $select.search"></span>
-                                </ui-select-choices>
-                            </ui-select>
-                          </div>
-
-                          <button class="btn btn-danger" ng-click="vm.club.plane.show_add_defect = false;">CANCEL</button>
-
-                          <button class="btn btn-success" ng-click="vm.club.plane.show_add_defect = false; vm.add_defect()">REPORT DEFECT</button>
-                          
-
-                      </div>
-                    </div>
-                     
 
                     
                     </div>
@@ -831,6 +816,9 @@ DETAILS</h3>
                             Severity
                           </th>
                           <th>
+                            Media
+                          </th>
+                          <th>
                             Defect Resolved
                           </th>
                         </tr>
@@ -846,13 +834,27 @@ DETAILS</h3>
                             {{ defect.severity }}
                           </td>
                           <td>
+                            <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                              <i class="fa fa-camera"></i>
+                              <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                              <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                            </span>
+                          </td>
+                          <td>
                             <input type="checkbox" ng-model="defect.resolved" ng-change="check_ticked()">
+                          </td>
+                        </tr>
+
+                        <!-- Defect Media Gallery (expandable) -->
+                        <tr ng-if="defect._showMedia">
+                          <td colspan="5" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                            <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
                           </td>
                         </tr>
 
                         <!-- Workpack fields for resolved defect -->
                         <tr ng-repeat-end ng-if="defect.resolved" class="defect_workpack_row">
-                          <td colspan="4" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                          <td colspan="5" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
                             <div style="border-left: 3px solid #337ab7; padding-left: 12px;">
                               <strong><i class="fa fa-briefcase"></i> Workpack for this defect:</strong>
 
@@ -1492,4 +1494,12 @@ show_cert = false;
      
      </div>
      </div>
+
+<!-- Defect Report Slide-in Panel -->
+<defect-report-panel
+    is-open="vm.showDefectPanel"
+    plane-registration="vm.club.plane.registration"
+    on-submit="vm.submitDefect(defectData, pendingFiles)"
+    on-close="vm.closeDefectPanel()">
+</defect-report-panel>
    </ui-view>

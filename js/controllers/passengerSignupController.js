@@ -18,6 +18,108 @@
 
         	$scope.formData = {};
 
+		    // ── Modern form validation infrastructure ──
+		    $scope.formErrors = {};
+		    $scope.formStep = 1;
+
+		    $scope.setFormStep = function(n) {
+		        $scope.formStep = n;
+		    };
+
+		    $scope.clearFormError = function(field) {
+		        if ($scope.formErrors[field]) {
+		            delete $scope.formErrors[field];
+		        }
+		    };
+
+		    function scrollToFirstError() {
+		        setTimeout(function() {
+		            var el = document.querySelector('.inv-field--error');
+		            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		        }, 100);
+		    }
+
+		    // Step 2: Validate profile (called from form-profile)
+		    $scope.validateProfile = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.first_name || !$scope.formData.first_name.trim()) {
+		            $scope.formErrors.first_name = true; valid = false;
+		        }
+		        if (!$scope.formData.last_name || !$scope.formData.last_name.trim()) {
+		            $scope.formErrors.last_name = true; valid = false;
+		        }
+		        if (!$scope.formData.email || !$scope.formData.email.trim()) {
+		            $scope.formErrors.email = true; valid = false;
+		        }
+		        if (!$scope.formData.dob) {
+		            $scope.formErrors.dob = true; valid = false;
+		        }
+
+		        // Guardian validation if under 18
+		        if ($scope.guardian) {
+		            if (!$scope.formData.guardian) $scope.formData.guardian = {};
+		            if (!$scope.formData.guardian.first_name || !$scope.formData.guardian.first_name.trim()) {
+		                $scope.formErrors.guardian_first_name = true; valid = false;
+		            }
+		            if (!$scope.formData.guardian.last_name || !$scope.formData.guardian.last_name.trim()) {
+		                $scope.formErrors.guardian_last_name = true; valid = false;
+		            }
+		            if (!$scope.formData.guardian.dob) {
+		                $scope.formErrors.guardian_dob = true; valid = false;
+		            }
+		            if (!$scope.formData.guardian.guardianship || !$scope.formData.guardian.guardianship.trim()) {
+		                $scope.formErrors.guardian_guardianship = true; valid = false;
+		            }
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 3;
+		        $scope.next_of_kin();
+		    };
+
+		    // Step 3: Validate next of kin (called from form-nok)
+		    $scope.validateNok = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.nok) $scope.formData.nok = {};
+
+		        if (!$scope.formData.nok.first_name || !$scope.formData.nok.first_name.trim()) {
+		            $scope.formErrors.first_name = true; valid = false;
+		        }
+		        if (!$scope.formData.nok.last_name || !$scope.formData.nok.last_name.trim()) {
+		            $scope.formErrors.last_name = true; valid = false;
+		        }
+		        if (!$scope.formData.nok.phone_number || !$scope.formData.nok.phone_number.trim()) {
+		            $scope.formErrors.phone_number = true; valid = false;
+		        }
+		        if (!$scope.formData.nok.email_address || !$scope.formData.nok.email_address.trim()) {
+		            $scope.formErrors.email_address = true; valid = false;
+		        }
+		        if (!$scope.formData.nok.relationship || !$scope.formData.nok.relationship.trim()) {
+		            $scope.formErrors.relationship = true; valid = false;
+		        }
+		        if (!$scope.formData.nok.address || !$scope.formData.nok.address.trim()) {
+		            $scope.formErrors.address = true; valid = false;
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required next of kin fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 4;
+		        $scope.check_nok();
+		    };
+
 
         	if($scope.formData.password && $scope.formData.password !== "" && $scope.formData.password == $scope.formData.password2){
 
@@ -151,7 +253,7 @@
 		    
 		    $scope.checkValid = function(uisref){
 		    	if(!uisref){
-		    		uisref = $(".btn-info").attr("one-ui-sref");
+		    		uisref = $(".btn-info").attr("one-ui-sref") || $(".inv-btn--primary").attr("one-ui-sref") || $(".inv-btn--success").attr("one-ui-sref");
 		    	}
 		    	//if less than 18 show the guardian form
 		    	if(checking_validity()){
@@ -168,11 +270,13 @@
 		    	
 		    }
 
+		    $scope.submitting = false;
+		    $scope.submitError = '';
+
 		    $scope.submit_passenger = function(){
 
-		    	//prepare the items!!
-		    	//console.log($scope.formData);
-
+		    	if ($scope.submitting) return;
+		    	$scope.submitError = '';
 
 		    	//verification of the profile page
 		    	if(! $scope.formData.first_name || ! $scope.formData.last_name || ! $scope.formData.email || ! $scope.formData.dob){
@@ -237,15 +341,14 @@
 		    		booking_id: $scope.formData.booking_id,
 		    		token: $scope.formData.token,
 		    		membership_id: 0,
-		    		invited_by: $scope.formData.invited_by
+		    		invited_by: $scope.formData.invited_by,
+		    		voucher_id: $scope.formData.voucher_id || null
 		    	}
 
-		    	////console.log("SENDING", to_send);
-
+		    	$scope.submitting = true;
 
 	    		UserService.ConfirmPaxInvite($stateParams.token, to_send)
                 .then(function (data) {
-                	// //console.log("GET SECURE INVITE", data);
                 	if(data.success){
 				    	
                 		//this is successful - now let's clear the contents:
@@ -253,23 +356,19 @@
                 		//and let's remove the top links
                 		$scope.checked_identity = false;
 
+                		// Clear any stored return URL so the user's first login
+                		// goes to the dashboard, not back to this signup form
+                		try { localStorage.removeItem('toaviate_return_url'); } catch(e) {}
 
-                	} else {
-                		ToastService.error('Error', data.message);
-                		return false;
                 	}
 
+                }, function () {
+                	$scope.submitError = 'We couldn\'t reach the server. Please check your connection and try again.';
+                	ToastService.error('Connection Error', 'We couldn\'t reach the server. Please check your connection and try again.');
+                })
+                ['finally'](function () {
+                	$scope.submitting = false;
                 });
-
-
-
-
-		    	$state.go("passenger_signup.thank_you");
-
-
-
-
-
 
 
 		    }
@@ -416,137 +515,329 @@
 
 		   $scope.formcode = [];
 		   $scope.checkedcode = 0;
-		   $scope.goToNextInput = function(event, number) {
-		   	 // //console.log(event.keyCode);
-		   	 // //console.log(number);
-		   	 var no_len = document.getElementById("index"+(number - 1) ).value;
-		   	 // //console.log(no_len.toString().length);
+		   $scope.codeVerifying = false;
+		   $scope.codeError = '';
 
-		   	 // //console.log(document.getElementById("index"+(number - 1) ).value);
-		   	
+		   // ── Resend code ──
+		   $scope.resendCooldown = 0;
+		   $scope.resendSending = false;
+		   $scope.resendMessage = '';
+		   $scope.resendMessageType = '';
+		   $scope.resendMaxed = false;
 
+		   var resendTimer = null;
+		   function startResendCooldown() {
+		       $scope.resendCooldown = 45;
+		       if (resendTimer) clearInterval(resendTimer);
+		       resendTimer = setInterval(function() {
+		           $scope.$apply(function() {
+		               $scope.resendCooldown--;
+		               if ($scope.resendCooldown <= 0) {
+		                   $scope.resendCooldown = 0;
+		                   clearInterval(resendTimer);
+		                   resendTimer = null;
+		               }
+		           });
+		       }, 1000);
+		   }
 
-		   	 if(number == 1 && (event.keyCode == 91 || event.keyCode == 17) && no_len.toString().length == 6){
-		   	 	// //console.log("MATCHINGS", );
-		   	 	var thecode = Array.from(no_len.toString());
-		   	 	for(var i=0; i<6; i++){
-		   	 		$scope.formcode.push(parseInt(thecode[i]));
-		   	 	}
+		   $scope.resendCode = function() {
+		       if ($scope.resendSending || $scope.resendCooldown > 0 || $scope.resendMaxed) return;
+		       $scope.resendSending = true;
+		       $scope.resendMessage = '';
+		       $scope.codeError = '';
 
-		   	 	document.getElementById("index5").focus();
-		   	 	number =6;
-		   		//return false;
-		   	 } else {
-		   	 		//event.keyCode
-				   	if(event.keyCode == 37 && number > 0){
-				   		document.getElementById("index"+(number - 2)).focus();
-				   		return false;
-				   	}
-				   	if(event.keyCode == 39 && number < 6){
-				   		document.getElementById("index"+(number)).focus();
-				   		return false;
-				   	}
-				   	if(event.keyCode == 8 && number > 1 && document.getElementById("index"+(number - 1) ).value == ""){
-				   		// //console.log("match");
-				   		// //console.log("index"+(number - 2));
-				   		document.getElementById("index"+(number - 2)).focus();
-				   		return false;
-				   	}
-		   	 }
+		       // Clear existing code inputs
+		       $scope.formcode = [];
+		       for (var i = 0; i < 6; i++) {
+		           var el = document.getElementById('index' + i);
+		           if (el) el.value = '';
+		       }
 
+		       UserService.ResendPaxCode($stateParams.token)
+		           .then(function(data) {
+		               $scope.resendSending = false;
+		               if (data.success) {
+		                   $scope.resendMessage = data.message || 'A new code has been sent to your email.';
+		                   $scope.resendMessageType = 'success';
+		                   startResendCooldown();
+		                   setTimeout(function() { var f = document.getElementById('index0'); if (f) f.focus(); }, 200);
+		               } else {
+		                   $scope.resendMessage = data.message || 'Unable to resend code. Please try again.';
+		                   $scope.resendMessageType = 'error';
+		                   if (data.message && data.message.indexOf('Too many') > -1) {
+		                       $scope.resendMaxed = true;
+		                   }
+		               }
+		           }, function() {
+		               $scope.resendSending = false;
+		               $scope.resendMessage = 'Something went wrong. Please try again.';
+		               $scope.resendMessageType = 'error';
+		           });
+		   };
 
-		   
+		   $scope.$on('$destroy', function() {
+		       if (resendTimer) clearInterval(resendTimer);
+		   });
 
+		   // ── Stripe-style smooth code input ──
 
-		   	if(number == 6 && $scope.formcode.length == 6){
-		   		var combine = $scope.formcode.join("");
-		   		// //console.log("COMPLETE", combine);
-		   		$scope.checkedcode++;
-		   		// //console.log("tries", $scope.checkedcode);
+		   var CODE_LENGTH = 6;
 
-		   		if($scope.checkedcode > 4){
-		   			ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		   // Fill all 6 boxes from a string (paste or autofill)
+		   function fillCodeFromString(raw) {
+		       var digits = raw.replace(/\D/g, '').substring(0, CODE_LENGTH);
+		       if (!digits.length) return;
+		       $scope.formcode = [];
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           $scope.formcode[i] = digits[i] !== undefined ? parseInt(digits[i]) : '';
+		           var el = document.getElementById('index' + i);
+		           if (el) el.value = $scope.formcode[i] !== '' ? $scope.formcode[i] : '';
+		       }
+		       // Focus the next empty box, or the last one
+		       var focusIdx = Math.min(digits.length, CODE_LENGTH - 1);
+		       var focusEl = document.getElementById('index' + focusIdx);
+		       if (focusEl) focusEl.focus();
+		       // Auto-submit if all 6 digits arrived
+		       if (digits.length >= CODE_LENGTH) {
+		           $scope.submitCode();
+		       }
+		   }
 
-		   			//send another invitation code to the recipient 
+		   // Handle keydown for navigation (backspace, arrows, tab)
+		   $scope.onCodeKeydown = function(event, idx) {
+		       var key = event.key || event.keyCode;
 
+		       // Backspace – clear current or move back
+		       if (key === 'Backspace' || key === 8) {
+		           event.preventDefault();
+		           if ($scope.formcode[idx] !== '' && $scope.formcode[idx] !== undefined) {
+		               $scope.formcode[idx] = '';
+		               document.getElementById('index' + idx).value = '';
+		           } else if (idx > 0) {
+		               $scope.formcode[idx - 1] = '';
+		               var prev = document.getElementById('index' + (idx - 1));
+		               if (prev) { prev.value = ''; prev.focus(); }
+		           }
+		           $scope.codeError = '';
+		           return;
+		       }
 
+		       // Left arrow
+		       if (key === 'ArrowLeft' || key === 37) {
+		           event.preventDefault();
+		           if (idx > 0) document.getElementById('index' + (idx - 1)).focus();
+		           return;
+		       }
 
-		   			return false;
-		   		} else {
+		       // Right arrow
+		       if (key === 'ArrowRight' || key === 39) {
+		           event.preventDefault();
+		           if (idx < CODE_LENGTH - 1) document.getElementById('index' + (idx + 1)).focus();
+		           return;
+		       }
 
-		   			//let's send this out for verification!!
-		   			UserService.GetPaxSecureInvite($stateParams.token, combine)
-	                .then(function (data) {
-	                	// //console.log("GET SECURE INVITE", data);
-	                	if(data.success){
+		       // Digit key – write it and advance
+		       var digit = null;
+		       if (/^[0-9]$/.test(key)) {
+		           digit = key;
+		       } else if (key >= 48 && key <= 57) {
+		           digit = String(key - 48);
+		       } else if (key >= 96 && key <= 105) {
+		           digit = String(key - 96);
+		       }
 
-	                		if(data.invitation.is_already_user){
+		       if (digit !== null) {
+		           event.preventDefault();
+		           $scope.formcode[idx] = parseInt(digit);
+		           document.getElementById('index' + idx).value = digit;
+		           $scope.codeError = '';
 
-	                			$scope.is_already_user = true;
+		           if (idx < CODE_LENGTH - 1) {
+		               document.getElementById('index' + (idx + 1)).focus();
+		           }
 
-								$scope.formData.user_id = data.invitation.user_id;
-								// //console.log("UID", $scope.formData.user_id);
-								$scope.formData.first_name = data.invitation.user.first_name;
-	                			$scope.formData.last_name = data.invitation.user.last_name;
-	                			$scope.formData.email = data.invitation.user.email;
-	                			$scope.formData.dob = new Date(data.invitation.user.dob);
-	                			$scope.formData.club = data.invitation.club;
-	                			$scope.formData.guardian = data.invitation.user.guardian;
-	                			$scope.formData.nok = data.invitation.user.nok;
-	                			$scope.formData.membership_id = data.invitation.membership_id;
-	                			$scope.formData.club_id = data.invitation.club_id;
-	                			$scope.formData.token = data.invitation.invitation_token;
-	                			$scope.formData.status = data.invitation.status;
-	                			$scope.formData.invited_by = data.invitation.invited_by;
-	                			$scope.formData.booking_id = data.invitation.booking_id;
+		           // Auto-submit when the last digit is entered
+		           if (idx === CODE_LENGTH - 1) {
+		               var allFilled = true;
+		               for (var i = 0; i < CODE_LENGTH; i++) {
+		                   if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) { allFilled = false; break; }
+		               }
+		               if (allFilled) {
+		                   $scope.submitCode();
+		               }
+		           }
+		           return;
+		       }
 
-	                			if(data.invitation.user.guardian && data.invitation.user.guardian.first_name !== ""){
-	                				$scope.guardian = true;
-	                			}
+		       // Allow Cmd/Ctrl+V through for paste handler
+		       if ((event.metaKey || event.ctrlKey) && (key === 'v' || key === 86)) {
+		           return; // let the paste event fire
+		       }
 
-	                		} else {
+		       // Block anything else that isn't Tab or navigation
+		       if (key !== 'Tab' && key !== 9) {
+		           event.preventDefault();
+		       }
+		   };
 
-	                			$scope.formData.first_name = data.invitation.first_name;
-	                			$scope.formData.last_name = data.invitation.last_name;
-	                			$scope.formData.email = data.invitation.email;
-	                			$scope.formData.membership_id = data.invitation.membership_id;
-	                			$scope.formData.club_id = data.invitation.club_id;
-	                			$scope.formData.token = data.invitation.invitation_token;
-	                			$scope.formData.status = data.invitation.status;
-	                			$scope.formData.invited_by = data.invitation.invited_by;
-	                			$scope.formData.booking_id = data.invitation.booking_id;
-	                			$scope.formData.club = data.invitation.club;
+		   // Handle input event (catches autofill, mobile keyboards, etc.)
+		   $scope.onCodeInput = function(event, idx) {
+		       var el = event.target || event.srcElement;
+		       var val = el.value;
 
-	                		}
+		       // If multiple characters arrived (autofill/paste that slipped through)
+		       if (val && val.length > 1) {
+		           fillCodeFromString(val);
+		           return;
+		       }
 
-	                		$scope.checked_identity = true;
-	                		$state.go("passenger_signup.your_profile");
+		       // Single digit
+		       if (val && /^[0-9]$/.test(val)) {
+		           $scope.formcode[idx] = parseInt(val);
+		           if (idx < CODE_LENGTH - 1) {
+		               document.getElementById('index' + (idx + 1)).focus();
+		           }
+		       } else {
+		           el.value = '';
+		           $scope.formcode[idx] = '';
+		       }
+		   };
 
-	                	} else {
-	                		ToastService.error('Error', data.message);
-	                		return false;
-	                	}
+		   // Paste handler – attach to each input via native event
+		   function attachPasteHandlers() {
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           (function(idx) {
+		               var el = document.getElementById('index' + idx);
+		               if (el) {
+		                   el.addEventListener('paste', function(e) {
+		                       e.preventDefault();
+		                       var text = (e.clipboardData || window.clipboardData).getData('text');
+		                       $scope.$apply(function() {
+		                           fillCodeFromString(text);
+		                       });
+		                   });
+		                   // Also select content on focus for easy overwrite
+		                   el.addEventListener('focus', function() {
+		                       this.select();
+		                   });
+		               }
+		           })(i);
+		       }
+		   }
 
-	                });
+		   // Attach after Angular renders the template
+		   setTimeout(attachPasteHandlers, 200);
+		   // Re-attach when navigating back to check view
+		   $scope.$on('$viewContentLoaded', function() {
+		       setTimeout(attachPasteHandlers, 200);
+		   });
 
+		   // Submit / verify code
+		   $scope.submitCode = function() {
+		       var combine = '';
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) {
+		               $scope.codeError = 'Please enter all 6 digits.';
+		               document.getElementById('index' + i).focus();
+		               return;
+		           }
+		           combine += $scope.formcode[i];
+		       }
 
-		   		}
+		       $scope.checkedcode++;
 
+		       if ($scope.checkedcode > 4) {
+		           $scope.codeError = '';
+		           ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		           return;
+		       }
 
-		   		return false;
-		   	}
+		       $scope.codeVerifying = true;
+		       $scope.codeError = '';
 
+		       UserService.GetPaxSecureInvite($stateParams.token, combine)
+                .then(function (data) {
+                	$scope.codeVerifying = false;
 
-		    var entry = document.getElementById("index"+(number - 1) ).value;
-		    if(entry > -1 && entry < 10 && entry !== ""){
-		    	document.getElementById("index"+number).focus();
-		    } else {
-		    	document.getElementById("index"+(number - 1) ).value = "";
-		    	document.getElementById("index"+(number - 1)).focus();
-		    	return false;
-		    }
+                	if(data.success){
 
-		  }
+                		if(data.invitation.is_already_user){
+
+                			$scope.is_already_user = true;
+
+							$scope.formData.user_id = data.invitation.user_id;
+							$scope.formData.first_name = data.invitation.user.first_name;
+                			$scope.formData.last_name = data.invitation.user.last_name;
+                			$scope.formData.email = data.invitation.user.email;
+                			$scope.formData.dob = new Date(data.invitation.user.dob);
+                			$scope.formData.club = data.invitation.club;
+                			$scope.formData.guardian = data.invitation.user.guardian;
+                			$scope.formData.nok = data.invitation.user.nok;
+                			$scope.formData.membership_id = data.invitation.membership_id;
+                			$scope.formData.club_id = data.invitation.club_id;
+                			$scope.formData.token = data.invitation.invitation_token;
+                			$scope.formData.status = data.invitation.status;
+                			$scope.formData.invited_by = data.invitation.invited_by;
+                			$scope.formData.booking_id = data.invitation.booking_id;
+
+                			// Voucher-linked invitation support
+                			if (data.invitation.voucher_id) {
+                				$scope.formData.voucher_id = data.invitation.voucher_id;
+                			}
+
+                			if(data.invitation.user.guardian && data.invitation.user.guardian.first_name !== ""){
+                				$scope.guardian = true;
+                			}
+
+                		} else {
+
+                			$scope.formData.first_name = data.invitation.first_name;
+                			$scope.formData.last_name = data.invitation.last_name;
+                			$scope.formData.email = data.invitation.email;
+                			$scope.formData.membership_id = data.invitation.membership_id;
+                			$scope.formData.club_id = data.invitation.club_id;
+                			$scope.formData.token = data.invitation.invitation_token;
+                			$scope.formData.status = data.invitation.status;
+                			$scope.formData.invited_by = data.invitation.invited_by;
+                			$scope.formData.booking_id = data.invitation.booking_id;
+                			$scope.formData.club = data.invitation.club;
+
+                			// Voucher-linked invitation support
+                			if (data.invitation.voucher_id) {
+                				$scope.formData.voucher_id = data.invitation.voucher_id;
+                			}
+
+                		}
+
+                		$scope.checked_identity = true;
+                		$state.go("passenger_signup.your_profile");
+
+                	} else {
+                		// Shake the inputs and show error
+                		$scope.codeError = data.message || 'Invalid code. Please try again.';
+                		var group = document.getElementById('codeInputGroup');
+                		if (group) {
+                		    group.classList.add('inv-code-inputs--shake');
+                		    setTimeout(function() { group.classList.remove('inv-code-inputs--shake'); }, 500);
+                		}
+                		// Clear and refocus first box
+                		$scope.formcode = [];
+                		for (var j = 0; j < CODE_LENGTH; j++) {
+                		    var el = document.getElementById('index' + j);
+                		    if (el) el.value = '';
+                		}
+                		setTimeout(function() {
+                		    var first = document.getElementById('index0');
+                		    if (first) first.focus();
+                		}, 100);
+                	}
+
+                }, function() {
+                	$scope.codeVerifying = false;
+                	$scope.codeError = 'Something went wrong. Please try again.';
+                });
+		   };
 
 		
 

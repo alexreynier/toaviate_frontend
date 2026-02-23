@@ -1,7 +1,7 @@
  app.controller('DashboardClubInstructorBookings', DashboardClubInstructorBookings);
 
-    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService', 'AdhocAvailabilityService', 'HolidayService'];
-    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService, AdhocAvailabilityService, HolidayService) {
+    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService', 'AdhocAvailabilityService', 'HolidayService', 'InstructorQualificationsService', '$timeout', '$q'];
+    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService, AdhocAvailabilityService, HolidayService, InstructorQualificationsService, $timeout, $q) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -103,6 +103,24 @@
         vm.holidayEndOpen        = false;
         vm.addingHoliday         = false;
         vm.holidayDateOptions    = { startingDay: 1 };
+
+        // ── Qualifications state ────────────────────────────────
+        vm.show_qual_panel       = false;
+        vm.qualTab               = 'courses';
+        vm.loadingQualMatrix     = false;
+        vm.loadingQualifications = false;
+        vm.instrQualOverview     = null;
+
+        // Matrix data (rows = instructors with nested qual arrays, columns = items)
+        vm.qualCourseRows        = [];
+        vm.qualCourseColumns     = [];
+        vm.qualTuitionRows       = [];
+        vm.qualTuitionColumns    = [];
+        vm.qualExpRows           = [];
+        vm.qualExpColumns        = [];
+
+        // Debounce timers per instructor
+        var qualSaveTimers       = {};
 
         var holFromDefault = new Date(); holFromDefault.setHours(8, 0, 0, 0);
         var holToDefault   = new Date(); holToDefault.setHours(18, 0, 0, 0);
@@ -296,6 +314,9 @@
             vm.show_instructor_panel = true;
             vm.instructor_availability = null;
             vm.loadingAvailability = true;
+
+            // Load qualifications overview for this instructor
+            vm.loadInstructorQualOverview(instructor.user_id);
 
             // Ensure colour hex values are initialised for the pickers
             if (instructor.instructor_colour && !instructor.new_colour) {
@@ -1866,6 +1887,390 @@
 
 
 
+
+
+        // ══════════════════════════════════════════════════════════
+        //  INSTRUCTOR QUALIFICATIONS
+        // ══════════════════════════════════════════════════════════
+
+        // ── Open / close qualifications matrix panel ─────────────
+
+        vm.openQualificationsPanel = function() {
+            vm.show_qual_panel = true;
+            vm.qualTab = 'courses';
+            vm.loadQualMatrix('courses');
+        };
+
+        vm.closeQualificationsPanel = function() {
+            vm.show_qual_panel = false;
+            // Refresh the instructor detail panel's qualifications overview
+            if (vm.selected_instructor && vm.selected_instructor.user_id) {
+                vm.loadInstructorQualOverview(vm.selected_instructor.user_id);
+            }
+        };
+
+        vm.switchQualTab = function(tab) {
+            if (vm.qualTab === tab) return;
+            vm.qualTab = tab;
+            vm.loadQualMatrix(tab);
+        };
+
+        // ── Load matrix data ─────────────────────────────────────
+
+        vm.loadQualMatrix = function(tab) {
+            vm.loadingQualMatrix = true;
+
+            var promise;
+            if (tab === 'courses') {
+                promise = InstructorQualificationsService.GetCourseMatrix(vm.club_id);
+            } else if (tab === 'tuition') {
+                promise = InstructorQualificationsService.GetTuitionMatrix(vm.club_id);
+            } else {
+                promise = InstructorQualificationsService.GetExperienceMatrix(vm.club_id);
+            }
+
+            promise.then(function(data) {
+                vm.loadingQualMatrix = false;
+                if (!data || data.success === false) {
+                    ToastService.error('Error', 'Could not load qualifications matrix.');
+                    return;
+                }
+                processMatrixData(tab, data);
+            }).catch(function() {
+                vm.loadingQualMatrix = false;
+                ToastService.error('Error', 'Failed to load qualifications.');
+            });
+        };
+
+        function processMatrixData(tab, data) {
+            if (tab === 'courses') {
+                vm.qualCourseColumns = data.courses || [];
+                vm.qualCourseRows = (data.instructors || []).map(function(instr) {
+                    instr._colour = getInstructorColour(instr.user_id);
+                    instr._saving = false;
+                    instr._saved = false;
+                    instr._allSelected = checkAllSelected(instr.courses);
+                    // Ensure boolean values
+                    (instr.courses || []).forEach(function(c) {
+                        c.qualified = !!c.qualified;
+                    });
+                    return instr;
+                });
+                updateColumnAllSelected('courses');
+            } else if (tab === 'tuition') {
+                vm.qualTuitionColumns = data.tuition_types || [];
+                vm.qualTuitionRows = (data.instructors || []).map(function(instr) {
+                    instr._colour = getInstructorColour(instr.user_id);
+                    instr._saving = false;
+                    instr._saved = false;
+                    instr._allSelected = checkAllSelected(instr.tuition_types);
+                    (instr.tuition_types || []).forEach(function(t) {
+                        t.qualified = !!t.qualified;
+                    });
+                    return instr;
+                });
+                updateColumnAllSelected('tuition');
+            } else {
+                vm.qualExpColumns = data.experiences || [];
+                vm.qualExpRows = (data.instructors || []).map(function(instr) {
+                    instr._colour = getInstructorColour(instr.user_id);
+                    instr._saving = false;
+                    instr._saved = false;
+                    instr._allSelected = checkAllSelected(instr.experiences);
+                    (instr.experiences || []).forEach(function(e) {
+                        e.qualified = !!e.qualified;
+                    });
+                    return instr;
+                });
+                updateColumnAllSelected('experiences');
+            }
+        }
+
+        function updateColumnAllSelected(tab) {
+            var cols = tab === 'courses' ? vm.qualCourseColumns :
+                       tab === 'tuition' ? vm.qualTuitionColumns : vm.qualExpColumns;
+            var rows = tab === 'courses' ? vm.qualCourseRows :
+                       tab === 'tuition' ? vm.qualTuitionRows : vm.qualExpRows;
+            var itemKey = tab === 'courses' ? 'courses' :
+                          tab === 'tuition' ? 'tuition_types' : 'experiences';
+            var idField = tab === 'courses' ? 'course_id' :
+                          tab === 'tuition' ? 'tuition_type_id' : 'experience_id';
+            (cols || []).forEach(function(col) {
+                col._allSelected = (rows || []).length > 0 && (rows || []).every(function(instr) {
+                    var items = instr[itemKey] || [];
+                    var match = items.filter(function(q) { return String(q[idField]) === String(col.id); })[0];
+                    return match && match.qualified;
+                });
+            });
+        }
+
+        function getInstructorColour(user_id) {
+            if (!vm.club || !vm.club.instructors) return '#64748b';
+            for (var i = 0; i < vm.club.instructors.length; i++) {
+                if (parseInt(vm.club.instructors[i].user_id, 10) === parseInt(user_id, 10)) {
+                    return vm.club.instructors[i].instructor_colour || '#64748b';
+                }
+            }
+            return '#64748b';
+        }
+
+        function checkAllSelected(items) {
+            if (!items || !items.length) return false;
+            return items.every(function(i) { return !!i.qualified; });
+        }
+
+        // ── Toggle a single checkbox (debounced save) ────────────
+
+        vm.onQualToggle = function(instr, tab) {
+            instr._allSelected = checkAllSelected(
+                tab === 'courses' ? instr.courses :
+                tab === 'tuition' ? instr.tuition_types :
+                instr.experiences
+            );
+            updateColumnAllSelected(tab);
+            instr._saved = false;
+
+            // Debounce: wait 600ms after last toggle before saving
+            var timerKey = tab + '_' + instr.user_id;
+            if (qualSaveTimers[timerKey]) {
+                $timeout.cancel(qualSaveTimers[timerKey]);
+            }
+            qualSaveTimers[timerKey] = $timeout(function() {
+                saveInstructorQuals(instr, tab);
+            }, 600);
+        };
+
+        function saveInstructorQuals(instr, tab) {
+            instr._saving = true;
+            instr._saved = false;
+
+            var promise;
+            if (tab === 'courses') {
+                var courseIds = (instr.courses || []).filter(function(c) { return c.qualified; }).map(function(c) { return c.course_id; });
+                promise = InstructorQualificationsService.SetCourses(vm.club_id, instr.user_id, courseIds);
+            } else if (tab === 'tuition') {
+                var tuitionIds = (instr.tuition_types || []).filter(function(t) { return t.qualified; }).map(function(t) { return t.tuition_type_id; });
+                promise = InstructorQualificationsService.SetTuition(vm.club_id, instr.user_id, tuitionIds);
+            } else {
+                var expIds = (instr.experiences || []).filter(function(e) { return e.qualified; }).map(function(e) { return e.experience_id; });
+                promise = InstructorQualificationsService.SetExperiences(vm.club_id, instr.user_id, expIds);
+            }
+
+            promise.then(function(data) {
+                instr._saving = false;
+                if (data && data.success !== false) {
+                    instr._saved = true;
+                    updateColumnAllSelected(tab);
+                    // Auto-hide "Saved" after 2s
+                    $timeout(function() { instr._saved = false; }, 2000);
+                } else {
+                    ToastService.error('Error', 'Could not save qualifications for ' + instr.first_name + '.');
+                }
+            }).catch(function() {
+                instr._saving = false;
+                ToastService.error('Error', 'Failed to save qualifications.');
+            });
+        }
+
+        // ── Row "Select All" / "Deselect All" ────────────────────
+
+        vm.bulkSelectRow = function(instr, tab) {
+            instr._saving = true;
+            instr._saved = false;
+
+            var mode, promise;
+            if (tab === 'courses') {
+                mode = 'all_courses_to_instructor';
+                promise = InstructorQualificationsService.BulkCourses(vm.club_id, mode, instr.user_id);
+            } else if (tab === 'tuition') {
+                mode = 'all_tuition_to_instructor';
+                promise = InstructorQualificationsService.BulkTuition(vm.club_id, mode, instr.user_id);
+            } else {
+                mode = 'all_experiences_to_instructor';
+                promise = InstructorQualificationsService.BulkExperiences(vm.club_id, mode, instr.user_id);
+            }
+
+            promise.then(function(data) {
+                instr._saving = false;
+                if (data && data.success !== false) {
+                    // Tick all checkboxes locally
+                    var items = tab === 'courses' ? instr.courses : tab === 'tuition' ? instr.tuition_types : instr.experiences;
+                    (items || []).forEach(function(i) { i.qualified = true; });
+                    instr._allSelected = true;
+                    instr._saved = true;
+                    updateColumnAllSelected(tab);
+                    $timeout(function() { instr._saved = false; }, 2000);
+                    ToastService.success('All Assigned', 'All ' + tab + ' assigned to ' + instr.first_name + '.');
+                } else {
+                    ToastService.error('Error', 'Bulk assign failed.');
+                }
+            }).catch(function() {
+                instr._saving = false;
+                ToastService.error('Error', 'Bulk assign failed.');
+            });
+        };
+
+        vm.bulkDeselectRow = function(instr, tab) {
+            // "Deselect all" = set to empty array
+            instr._saving = true;
+            instr._saved = false;
+
+            var promise;
+            if (tab === 'courses') {
+                promise = InstructorQualificationsService.SetCourses(vm.club_id, instr.user_id, []);
+            } else if (tab === 'tuition') {
+                promise = InstructorQualificationsService.SetTuition(vm.club_id, instr.user_id, []);
+            } else {
+                promise = InstructorQualificationsService.SetExperiences(vm.club_id, instr.user_id, []);
+            }
+
+            promise.then(function(data) {
+                instr._saving = false;
+                if (data && data.success !== false) {
+                    var items = tab === 'courses' ? instr.courses : tab === 'tuition' ? instr.tuition_types : instr.experiences;
+                    (items || []).forEach(function(i) { i.qualified = false; });
+                    instr._allSelected = false;
+                    instr._saved = true;
+                    updateColumnAllSelected(tab);
+                    $timeout(function() { instr._saved = false; }, 2000);
+                    ToastService.success('Cleared', 'All ' + tab + ' removed from ' + instr.first_name + '.');
+                } else {
+                    ToastService.error('Error', 'Could not clear qualifications.');
+                }
+            }).catch(function() {
+                instr._saving = false;
+                ToastService.error('Error', 'Could not clear qualifications.');
+            });
+        };
+
+        // ── Column "Select All" ───────────────────────────────────
+
+        vm.bulkSelectColumn = function(tab, col) {
+            var mode, targetId, promise;
+            if (tab === 'courses') {
+                mode = 'all_instructors_to_course';
+                targetId = col.id;
+                promise = InstructorQualificationsService.BulkCourses(vm.club_id, mode, targetId);
+            } else if (tab === 'tuition') {
+                mode = 'all_instructors_to_tuition';
+                targetId = col.id;
+                promise = InstructorQualificationsService.BulkTuition(vm.club_id, mode, targetId);
+            } else {
+                mode = 'all_instructors_to_experience';
+                targetId = col.id;
+                promise = InstructorQualificationsService.BulkExperiences(vm.club_id, mode, targetId);
+            }
+
+            promise.then(function(data) {
+                if (data && data.success !== false) {
+                    // Refresh the matrix to reflect the update
+                    vm.loadQualMatrix(tab);
+                    ToastService.success('Column Assigned', 'All instructors assigned to \'' + col.title + '\'.');
+                } else {
+                    ToastService.error('Error', 'Bulk column assign failed.');
+                }
+            }).catch(function() {
+                ToastService.error('Error', 'Bulk column assign failed.');
+            });
+        };
+
+        vm.bulkDeselectColumn = function(tab, col) {
+            // Deselect a column: for each instructor, remove this item and save their list
+            var rows = tab === 'courses' ? vm.qualCourseRows :
+                       tab === 'tuition' ? vm.qualTuitionRows : vm.qualExpRows;
+            var itemKey = tab === 'courses' ? 'courses' :
+                          tab === 'tuition' ? 'tuition_types' : 'experiences';
+            var promises = [];
+
+            col._saving = true;
+            var idField = tab === 'courses' ? 'course_id' :
+                          tab === 'tuition' ? 'tuition_type_id' : 'experience_id';
+            rows.forEach(function(instr) {
+                var items = instr[itemKey] || [];
+                // Find the item for this column and deselect it
+                items.forEach(function(q) {
+                    if (String(q[idField]) === String(col.id)) q.qualified = false;
+                });
+                // Build the list of still-qualified IDs
+                var qualifiedIds = items.filter(function(q) { return q.qualified; })
+                                       .map(function(q) { return q[idField]; });
+                var promise;
+                if (tab === 'courses') {
+                    promise = InstructorQualificationsService.SetCourses(vm.club_id, instr.user_id, qualifiedIds);
+                } else if (tab === 'tuition') {
+                    promise = InstructorQualificationsService.SetTuition(vm.club_id, instr.user_id, qualifiedIds);
+                } else {
+                    promise = InstructorQualificationsService.SetExperiences(vm.club_id, instr.user_id, qualifiedIds);
+                }
+                promises.push(promise);
+            });
+
+            // Wait for all saves then refresh
+            (promises.length ? promises.reduce(function(chain, p) {
+                return chain.then(function() { return p; });
+            }, $q.when()) : $q.when()).then(function() {
+                col._saving = false;
+                col._allSelected = false;
+                rows.forEach(function(instr) {
+                    instr._allSelected = checkAllSelected(instr[itemKey]);
+                });
+                ToastService.success('Column Cleared', 'All instructors removed from \'' + col.title + '\'.');
+            }).catch(function() {
+                col._saving = false;
+                vm.loadQualMatrix(tab);
+                ToastService.error('Error', 'Could not clear column.');
+            });
+        };
+
+        // ── Load per-instructor overview (for detail panel) ──────
+
+        vm.loadInstructorQualOverview = function(user_id) {
+            vm.loadingQualifications = true;
+            vm.instrQualOverview = null;
+
+            InstructorQualificationsService.GetOverview(vm.club_id, user_id)
+                .then(function(data) {
+                    vm.loadingQualifications = false;
+                    if (data && data.success !== false) {
+                        vm.instrQualOverview = {
+                            qualified_courses:       data.qualified_courses || [],
+                            qualified_tuition_types: data.qualified_tuition_types || [],
+                            qualified_experiences:   data.qualified_experiences || []
+                        };
+                    } else {
+                        vm.instrQualOverview = {
+                            qualified_courses: [],
+                            qualified_tuition_types: [],
+                            qualified_experiences: []
+                        };
+                    }
+                })
+                .catch(function() {
+                    vm.loadingQualifications = false;
+                    vm.instrQualOverview = {
+                        qualified_courses: [],
+                        qualified_tuition_types: [],
+                        qualified_experiences: []
+                    };
+                });
+        };
+
+        // ── Close qual panel on Escape ───────────────────────────
+        var qualEscHandler = function(e) {
+            if (e.keyCode === 27 && vm.show_qual_panel) {
+                $scope.$apply(function() {
+                    vm.closeQualificationsPanel();
+                });
+            }
+        };
+        document.addEventListener('keydown', qualEscHandler);
+        $scope.$on('$destroy', function() {
+            document.removeEventListener('keydown', qualEscHandler);
+            // Cancel any pending debounce timers
+            Object.keys(qualSaveTimers).forEach(function(key) {
+                $timeout.cancel(qualSaveTimers[key]);
+            });
+        });
 
 
         initController();

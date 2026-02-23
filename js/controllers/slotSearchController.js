@@ -1,7 +1,7 @@
 app.controller('SlotSearchController', SlotSearchController);
 
-    SlotSearchController.$inject = ['BookingSlotsService', 'BookingService', 'MemberService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$timeout', '$window', 'ToastService'];
-    function SlotSearchController(BookingSlotsService, BookingService, MemberService, $rootScope, $location, $scope, $state, $stateParams, $timeout, $window, ToastService) {
+    SlotSearchController.$inject = ['BookingSlotsService', 'BookingService', 'MemberService', 'CourseService', 'InstructorCharges', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$timeout', '$window', 'ToastService'];
+    function SlotSearchController(BookingSlotsService, BookingService, MemberService, CourseService, InstructorCharges, $rootScope, $location, $scope, $state, $stateParams, $timeout, $window, ToastService) {
         
         var vm = this;
 
@@ -17,6 +17,8 @@ app.controller('SlotSearchController', SlotSearchController);
         vm.planeType = '';
         vm.instructorId = 0;
         vm.doubleSlot = false;
+        vm.courseId = 0;
+        vm.tuitionId = 0;
 
         // Results
         vm.availableSlots = [];
@@ -25,6 +27,8 @@ app.controller('SlotSearchController', SlotSearchController);
         vm.planeTypes = [];
         vm.instructors = [];
         vm.slotsConfig = [];
+        vm.courses = [];
+        vm.tuitionTypes = [];
         vm.searchPerformed = false;
         vm.searching = false;
         vm.errorMessage = '';
@@ -93,9 +97,23 @@ app.controller('SlotSearchController', SlotSearchController);
                             (vm.member.is_manager === 0 || vm.member.is_manager === '0')
                         );
                     }
+
+                    // Load course & tuition dropdowns
+                    loadCourseAndTuitionOptions();
                     
                     // Auto-search on load
                     vm.searchSlots();
+                });
+        }
+
+        function loadCourseAndTuitionOptions() {
+            CourseService.GetCoursesByClubId(vm.club_id)
+                .then(function(data) {
+                    vm.courses = (data && data.items) ? data.items : (Array.isArray(data) ? data : []);
+                });
+            InstructorCharges.GetByClubId(vm.club_id)
+                .then(function(data) {
+                    vm.tuitionTypes = (data && data.items) ? data.items : (Array.isArray(data) ? data : []);
                 });
         }
 
@@ -124,7 +142,9 @@ app.controller('SlotSearchController', SlotSearchController);
                 plane_type: vm.planeType || null,
                 instructor_id: vm.instructorId || 0,
                 double_slot: vm.doubleSlot ? 1 : 0,
-                user_id: vm.user_id
+                user_id: vm.user_id,
+                course_id: vm.courseId || 0,
+                tuition_id: vm.tuitionId || 0
             };
 
             BookingSlotsService.SearchAvailableSlots(vm.club_id, toDateStr(vm.dateFrom), vm.numDays, params)
@@ -132,7 +152,11 @@ app.controller('SlotSearchController', SlotSearchController);
                     vm.searching = false;
 
                     if (!data.success) {
-                        vm.errorMessage = data.message || 'Search failed. Please try again.';
+                        var msg = data.message || 'Search failed. Please try again.';
+                        if (msg.toLowerCase().indexOf('no instructors are qualified') > -1) {
+                            msg = 'No instructors are qualified for the selected course/tuition type. Please ask your club administrator to update instructor qualifications.';
+                        }
+                        vm.errorMessage = msg;
                         vm.availableSlots = [];
                         vm.groupedSlots = {};
                         vm.groupedDates = [];

@@ -1,7 +1,7 @@
  app.controller('AircraftStatusController', AircraftStatusController);
 
-    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService'];
-    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService) {
+    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService'];
+    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService) {
         
         var vm = this;
 
@@ -23,6 +23,62 @@
             { title: "Not urgent - but needs noting"},
             { title: "Unsure of severity"}
         ]; 
+
+
+        // ── Defect report panel state ──
+        vm.showDefectPanel = false;
+        vm.defectPanelRegistration = '';
+        vm._defectPanelPlaneId = null;
+        vm._defectPanelClubId = null;
+
+        vm.openDefectPanel = function (planeId, registration, clubId) {
+            vm._defectPanelPlaneId = planeId;
+            vm._defectPanelClubId = clubId;
+            vm.defectPanelRegistration = registration;
+            vm.showDefectPanel = true;
+        };
+
+        vm.closeDefectPanel = function () {
+            vm.showDefectPanel = false;
+        };
+
+        vm.submitDefect = function (defectData, pendingFiles) {
+            var obj = {
+                club_id:  vm._defectPanelClubId,
+                user_id:  vm.user_id,
+                plane_id: vm._defectPanelPlaneId,
+                defect:   defectData.defect,
+                severity: defectData.severity,
+                status:   'open'
+            };
+
+            PlaneService.AddDefect(obj)
+                .then(function (data) {
+                    data.item.can_delete = true;
+                    var club = vm.clubs.find(function (c) { return c.id === vm._defectPanelClubId; });
+                    if (club) {
+                        var plane = club.planes.find(function (p) { return p.plane_id === vm._defectPanelPlaneId; });
+                        if (plane) plane.defects.push(data.item);
+                    }
+                    ToastService.success('Defect Reported', 'The defect has been submitted.');
+
+                    // Upload any attached media files
+                    if (pendingFiles && pendingFiles.length > 0) {
+                        pendingFiles.forEach(function (file, idx) {
+                            DefectMediaService.UploadAndAttach(file, data.item.id, vm._defectPanelClubId, idx, vm.user_id)
+                                .then(function (mediaResult) {
+                                    if (mediaResult && mediaResult.success) {
+                                        data.item.media_count = (data.item.media_count || 0) + 1;
+                                    }
+                                });
+                        });
+                    }
+
+                    vm.showDefectPanel = false;
+                    vm.defect = '';
+                    vm.defect_severity = '';
+                });
+        };
 
 
         ////console.log("REG: "+$stateParams.registration);

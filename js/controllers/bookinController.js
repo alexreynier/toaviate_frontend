@@ -1,7 +1,7 @@
  app.controller('BookinController', BookinController);
 
-    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService'];
-    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService) {
+    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService', 'DefectMediaService'];
+    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService, DefectMediaService) {
         
         var vm = this;
 
@@ -62,6 +62,53 @@
             { title: "Not urgent - but needs noting"},
             { title: "Unsure of severity"}
         ];  
+
+
+        // ── Defect report panel state ──
+        vm.showDefectPanel = false;
+        vm.defectPanelRegistration = '';
+
+        vm.openDefectPanel = function () {
+            vm.defectPanelRegistration = vm.bookout.registration;
+            vm.showDefectPanel = true;
+        };
+
+        vm.closeDefectPanel = function () {
+            vm.showDefectPanel = false;
+        };
+
+        vm.submitDefect = function (defectData, pendingFiles) {
+            var obj = {
+                club_id:  vm.bookout.club_id,
+                user_id:  vm.bookout.user_id,
+                plane_id: vm.bookout.plane_id,
+                defect:   defectData.defect,
+                severity: defectData.severity,
+                status:   'open'
+            };
+
+            PlaneService.AddDefect(obj)
+                .then(function (data) {
+                    data.item.can_delete = true;
+                    vm.reported_defects.push(data.item);
+                    ToastService.success('Defect Reported', 'The defect has been submitted.');
+
+                    if (pendingFiles && pendingFiles.length > 0) {
+                        pendingFiles.forEach(function (file, idx) {
+                            DefectMediaService.UploadAndAttach(file, data.item.id, vm.bookout.club_id, idx, vm.user.id)
+                                .then(function (mediaResult) {
+                                    if (mediaResult && mediaResult.success) {
+                                        data.item.media_count = (data.item.media_count || 0) + 1;
+                                    }
+                                });
+                        });
+                    }
+
+                    vm.showDefectPanel = false;
+                    vm.defect = '';
+                    vm.defect_severity = '';
+                });
+        };
 
 
         vm.claim_a_flight = [];

@@ -841,6 +841,14 @@ var app = angular
                 }
             })
 
+            // VOUCHER WIDGET
+            .state('dashboard.manage_club.voucher_widget', {
+                url: '/voucher_widget',
+                controller: 'DashboardClubVoucherWidgetController',
+                templateUrl: 'views/manageclub/voucher_widget.html',
+                controllerAs: 'vm'
+            })
+
             // CLUB PAYMENTS TO:::
             .state('dashboard.manage_club.payments_to', {
                 url: '/bank_settings',

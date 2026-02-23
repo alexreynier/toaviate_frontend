@@ -242,6 +242,109 @@
 		    	
 		    };
 
+		    // ── Modern form validation infrastructure ──
+		    $scope.formErrors = {};
+		    $scope.formStep = 1;
+
+		    $scope.setFormStep = function(n) {
+		        $scope.formStep = n;
+		    };
+
+		    $scope.clearFormError = function(field) {
+		        if ($scope.formErrors[field]) {
+		            delete $scope.formErrors[field];
+		        }
+		    };
+
+		    function scrollToFirstError() {
+		        setTimeout(function() {
+		            var el = document.querySelector('.inv-field--error');
+		            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		        }, 100);
+		    }
+
+		    // Step 1: Validate profile
+		    $scope.validateProfile = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.user || !$scope.formData.user.first_name || !$scope.formData.user.first_name.trim()) {
+		            $scope.formErrors.first_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user || !$scope.formData.user.last_name || !$scope.formData.user.last_name.trim()) {
+		            $scope.formErrors.last_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user || !$scope.formData.user.dob) {
+		            $scope.formErrors.dob = true; valid = false;
+		        }
+		        if (!$scope.formData.user || !$scope.formData.user.email || !$scope.formData.user.email.trim()) {
+		            $scope.formErrors.email = true; valid = false;
+		        }
+		        if (!$scope.formData.user || !$scope.formData.user.password || $scope.formData.user.password.length < 8) {
+		            $scope.formErrors.password = true;
+		            $scope.formErrors.password_msg = 'Password must be at least 8 characters';
+		            valid = false;
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
+		        if (!strongPassword.test($scope.formData.user.password)) {
+		            $scope.formErrors.password = true;
+		            $scope.formErrors.password_msg = 'Must contain uppercase, lowercase, number & special character';
+		            ToastService.warning('Weak Password', 'Your password must contain 1 uppercase, 1 lowercase, 1 number, and 1 special character.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        if ($scope.formData.user.password !== $scope.formData.user.password2) {
+		            $scope.formErrors.password2 = true;
+		            ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 2;
+		        $state.go('user_signup.next_of_kin');
+		    };
+
+		    // Step 2: Validate next of kin
+		    $scope.validateNok = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.user.nok) $scope.formData.user.nok = {};
+
+		        if (!$scope.formData.user.nok.first_name || !$scope.formData.user.nok.first_name.trim()) {
+		            $scope.formErrors.nok_first_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user.nok.last_name || !$scope.formData.user.nok.last_name.trim()) {
+		            $scope.formErrors.nok_last_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user.nok.phone || !$scope.formData.user.nok.phone.trim()) {
+		            $scope.formErrors.nok_phone = true; valid = false;
+		        }
+		        if (!$scope.formData.user.nok.relationship || !$scope.formData.user.nok.relationship.trim()) {
+		            $scope.formErrors.nok_relationship = true; valid = false;
+		        }
+		        if (!$scope.formData.user.nok.address || !$scope.formData.user.nok.address.trim()) {
+		            $scope.formErrors.nok_address = true; valid = false;
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required next of kin fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 3;
+		        $state.go('user_signup.your_club');
+		    };
+
 		    $scope.add_element = function(bit_type){
 
 		    	//remove from first array
@@ -282,7 +385,7 @@
 		    $scope.checkValid = function(uisref){
 		    	if(!uisref || uisref == ""){
 		    		//console.log("here");
-		    		uisref = $(".btn-info").attr("one-ui-sref");
+		    		uisref = $(".btn-info").attr("one-ui-sref") || $(".inv-btn--primary").attr("one-ui-sref") || $(".inv-btn--success").attr("one-ui-sref");
 		    	}
 
 

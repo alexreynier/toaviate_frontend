@@ -1260,46 +1260,194 @@ app.controller('ClubSignupController', ClubSignupController);
 
     		
 
-    		$scope.verify_mobile = function(text_verification){
-    			//console.log("called", vm.text_verification);
+    		// ── Stripe-style smooth code input ──
 
-    			if(vm.text_verification.length == 4){
-    				//then we check
+    		var CODE_LENGTH = 6;
+    		$scope.formcode = [];
+    		$scope.checkedcode = 0;
+    		$scope.codeVerifying = false;
+    		$scope.codeError = '';
 
-    				// //console.log("4 chars", vm.text_verification);
-    				// //console.log("4 chars", last);
-
-    				MemberService.VerifyPhone(vm.text_verification, last)
-		                .then(function (data) {
-		                    // //console.log(data);
-		                    if(data.success){
-		                        //use GB airfields first...
-		                        $scope.verified_mobile = true;
-
-		                        $scope.link = data.link.url;
-		                    	$cookies.put('mid', last);
-		                    	$cookies.put('bid', data.bid);
-
-
-
-
-		                    } else {
-		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
-    							$scope.verified_mobile = false;
-		                    }
-
-		                });
-
-    				// if(text_verification == "1234"){
-
-    				// 	$scope.verified_mobile = true;
-    				// }
-
-    			} else {
-    				//do nothing
-    			}
-
+    		function fillCodeFromString(raw) {
+    		    var digits = raw.replace(/\D/g, '').substring(0, CODE_LENGTH);
+    		    if (!digits.length) return;
+    		    $scope.formcode = [];
+    		    for (var i = 0; i < CODE_LENGTH; i++) {
+    		        $scope.formcode[i] = digits[i] !== undefined ? parseInt(digits[i]) : '';
+    		        var el = document.getElementById('index' + i);
+    		        if (el) el.value = $scope.formcode[i] !== '' ? $scope.formcode[i] : '';
+    		    }
+    		    var focusIdx = Math.min(digits.length, CODE_LENGTH - 1);
+    		    var focusEl = document.getElementById('index' + focusIdx);
+    		    if (focusEl) focusEl.focus();
+    		    if (digits.length >= CODE_LENGTH) {
+    		        $scope.submitCode();
+    		    }
     		}
+
+    		$scope.onCodeKeydown = function(event, idx) {
+    		    var key = event.key || event.keyCode;
+
+    		    if (key === 'Backspace' || key === 8) {
+    		        event.preventDefault();
+    		        if ($scope.formcode[idx] !== '' && $scope.formcode[idx] !== undefined) {
+    		            $scope.formcode[idx] = '';
+    		            document.getElementById('index' + idx).value = '';
+    		        } else if (idx > 0) {
+    		            $scope.formcode[idx - 1] = '';
+    		            var prev = document.getElementById('index' + (idx - 1));
+    		            if (prev) { prev.value = ''; prev.focus(); }
+    		        }
+    		        $scope.codeError = '';
+    		        return;
+    		    }
+
+    		    if (key === 'ArrowLeft' || key === 37) {
+    		        event.preventDefault();
+    		        if (idx > 0) document.getElementById('index' + (idx - 1)).focus();
+    		        return;
+    		    }
+
+    		    if (key === 'ArrowRight' || key === 39) {
+    		        event.preventDefault();
+    		        if (idx < CODE_LENGTH - 1) document.getElementById('index' + (idx + 1)).focus();
+    		        return;
+    		    }
+
+    		    var digit = null;
+    		    if (/^[0-9]$/.test(key)) {
+    		        digit = key;
+    		    } else if (key >= 48 && key <= 57) {
+    		        digit = String(key - 48);
+    		    } else if (key >= 96 && key <= 105) {
+    		        digit = String(key - 96);
+    		    }
+
+    		    if (digit !== null) {
+    		        event.preventDefault();
+    		        $scope.formcode[idx] = parseInt(digit);
+    		        document.getElementById('index' + idx).value = digit;
+    		        $scope.codeError = '';
+
+    		        if (idx < CODE_LENGTH - 1) {
+    		            document.getElementById('index' + (idx + 1)).focus();
+    		        }
+
+    		        if (idx === CODE_LENGTH - 1) {
+    		            var allFilled = true;
+    		            for (var i = 0; i < CODE_LENGTH; i++) {
+    		                if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) { allFilled = false; break; }
+    		            }
+    		            if (allFilled) {
+    		                $scope.submitCode();
+    		            }
+    		        }
+    		        return;
+    		    }
+
+    		    if ((event.metaKey || event.ctrlKey) && (key === 'v' || key === 86)) {
+    		        return;
+    		    }
+
+    		    if (key !== 'Tab' && key !== 9) {
+    		        event.preventDefault();
+    		    }
+    		};
+
+    		$scope.onCodeInput = function(event, idx) {
+    		    var el = event.target || event.srcElement;
+    		    var val = el.value;
+
+    		    if (val && val.length > 1) {
+    		        fillCodeFromString(val);
+    		        return;
+    		    }
+
+    		    if (val && /^[0-9]$/.test(val)) {
+    		        $scope.formcode[idx] = parseInt(val);
+    		        if (idx < CODE_LENGTH - 1) {
+    		            document.getElementById('index' + (idx + 1)).focus();
+    		        }
+    		    } else {
+    		        el.value = '';
+    		        $scope.formcode[idx] = '';
+    		    }
+    		};
+
+    		function attachPasteHandlers() {
+    		    for (var i = 0; i < CODE_LENGTH; i++) {
+    		        (function(idx) {
+    		            var el = document.getElementById('index' + idx);
+    		            if (el) {
+    		                el.addEventListener('paste', function(e) {
+    		                    e.preventDefault();
+    		                    var text = (e.clipboardData || window.clipboardData).getData('text');
+    		                    $scope.$apply(function() {
+    		                        fillCodeFromString(text);
+    		                    });
+    		                });
+    		                el.addEventListener('focus', function() {
+    		                    this.select();
+    		                });
+    		            }
+    		        })(i);
+    		    }
+    		}
+
+    		setTimeout(attachPasteHandlers, 200);
+    		$scope.$on('$viewContentLoaded', function() {
+    		    setTimeout(attachPasteHandlers, 200);
+    		});
+
+    		$scope.submitCode = function() {
+    		    var combine = '';
+    		    for (var i = 0; i < CODE_LENGTH; i++) {
+    		        if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) {
+    		            $scope.codeError = 'Please enter all 6 digits.';
+    		            document.getElementById('index' + i).focus();
+    		            return;
+    		        }
+    		        combine += $scope.formcode[i];
+    		    }
+
+    		    $scope.checkedcode++;
+
+    		    if ($scope.checkedcode > 4) {
+    		        $scope.codeError = '';
+    		        ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times. Please request a new code.');
+    		        return;
+    		    }
+
+    		    $scope.codeVerifying = true;
+    		    $scope.codeError = '';
+
+    		    MemberService.VerifyPhone(combine, last)
+    		        .then(function (data) {
+    		            $scope.codeVerifying = false;
+    		            if (data && data.success) {
+    		                $scope.verified_mobile = true;
+    		                $scope.link = data.link.url;
+    		                $cookies.put('mid', last);
+    		                $cookies.put('bid', data.bid);
+    		            } else {
+    		                $scope.codeError = 'Your verification code is incorrect. Please try again.';
+    		                var group = document.getElementById('codeInputGroup');
+    		                if (group) {
+    		                    group.classList.add('inv-code-inputs--shake');
+    		                    setTimeout(function() { group.classList.remove('inv-code-inputs--shake'); }, 500);
+    		                }
+    		                $scope.verified_mobile = false;
+    		            }
+    		        }, function() {
+    		            $scope.codeVerifying = false;
+    		            $scope.codeError = 'Something went wrong. Please try again.';
+    		        });
+    		};
+
+    		// Keep legacy verify_mobile for backwards compatibility
+    		$scope.verify_mobile = function() {
+    		    $scope.submitCode();
+    		};
 
 
 
@@ -1384,6 +1532,163 @@ app.controller('ClubSignupController', ClubSignupController);
 		    	user: {
 		    		phone: ""
 		    	}
+		    };
+
+		    // ── Modern form validation infrastructure ──
+		    $scope.formErrors = {};
+		    $scope.formStep = 1;
+
+		    $scope.setFormStep = function(n) {
+		        $scope.formStep = n;
+		    };
+
+		    $scope.clearFormError = function(field) {
+		        if ($scope.formErrors[field]) {
+		            delete $scope.formErrors[field];
+		        }
+		    };
+
+		    // Scroll to the first field with an error
+		    function scrollToFirstError() {
+		        setTimeout(function() {
+		            var el = document.querySelector('.inv-field--error');
+		            if (el) {
+		                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		            }
+		        }, 100);
+		    }
+
+		    // Step 1: Validate profile details
+		    $scope.validateProfile = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.user.first_name || !$scope.formData.user.first_name.trim()) {
+		            $scope.formErrors.first_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user.last_name || !$scope.formData.user.last_name.trim()) {
+		            $scope.formErrors.last_name = true; valid = false;
+		        }
+		        if (!$scope.formData.user.dob_day || !$scope.formData.user.dob_month || !$scope.formData.user.dob_year) {
+		            $scope.formErrors.dob = true; valid = false;
+		        }
+		        if (!$scope.formData.user.email || !$scope.formData.user.email.trim()) {
+		            $scope.formErrors.email = true; valid = false;
+		        }
+		        if (!$scope.formData.user.phone || !$scope.formData.user.phone.trim()) {
+		            $scope.formErrors.phone = true; valid = false;
+		        }
+		        if (!$scope.formData.user.password || $scope.formData.user.password.length < 8) {
+		            $scope.formErrors.password = true;
+		            $scope.formErrors.password_msg = 'Password must be at least 8 characters';
+		            valid = false;
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        // Strong password check
+		        var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
+		        if (!strongPassword.test($scope.formData.user.password)) {
+		            $scope.formErrors.password = true;
+		            $scope.formErrors.password_msg = 'Must contain uppercase, lowercase, number & special character';
+		            ToastService.warning('Weak Password', 'Your password must contain 1 uppercase, 1 lowercase, 1 number, and 1 special character.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        if ($scope.formData.user.password !== $scope.formData.user.password2) {
+		            $scope.formErrors.password2 = true;
+		            ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        if (!vm.selected_phone || !vm.selected_phone.CountryCode) {
+		            $scope.formErrors.phone = true;
+		            ToastService.warning('Country Code Required', 'Please select the country prefix for your mobile number.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 2;
+		        $state.go('club_signup.my_club');
+		    };
+
+		    // Step 2: Validate club/organisation details
+		    $scope.validateClub = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.club.title || !$scope.formData.club.title.trim()) {
+		            $scope.formErrors.club_title = true; valid = false;
+		        }
+		        if (!$scope.formData.club.email || !$scope.formData.club.email.trim()) {
+		            $scope.formErrors.club_email = true; valid = false;
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in the required organisation fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 3;
+		        $state.go('club_signup.terms');
+		    };
+
+		    // Step 3: Validate terms & conditions
+		    $scope.validateTerms = function() {
+		        if (!$scope.formData.tnc) {
+		            ToastService.warning('Terms Required', 'Please accept the Terms & Conditions to continue.');
+		            return;
+		        }
+
+		        $scope.formStep = 4;
+		        $scope.processForm();
+		    };
+
+		    // ── club_signup_continued (club_signup2) validation ──
+
+		    // Validate club details for continued signup (step 2)
+		    $scope.validateClub2 = function() {
+		        $scope.formErrors = {};
+		        var valid = true;
+
+		        if (!$scope.formData.club || !$scope.formData.club.title || !$scope.formData.club.title.trim()) {
+		            $scope.formErrors.title = true; valid = false;
+		        }
+		        if (!$scope.formData.club || !$scope.formData.club.email || !$scope.formData.club.email.trim()) {
+		            $scope.formErrors.club_email = true; valid = false;
+		        }
+		        if ($scope.formData.club && $scope.formData.club.is_company) {
+		            if (!$scope.formData.club.company_name || !$scope.formData.club.company_name.trim()) {
+		                $scope.formErrors.company_name = true; valid = false;
+		            }
+		        }
+
+		        if (!valid) {
+		            ToastService.warning('Missing Fields', 'Please fill in all required organisation fields.');
+		            scrollToFirstError();
+		            return;
+		        }
+
+		        $scope.formStep = 3;
+		        $state.go('club_signup2.terms');
+		    };
+
+		    // Validate terms for continued signup (step 3)
+		    $scope.validateTerms2 = function() {
+		        if (!$scope.formData.tnc) {
+		            ToastService.warning('Terms Required', 'Please accept the Terms & Conditions to continue.');
+		            return;
+		        }
+
+		        $scope.formStep = 4;
+		        $state.go('club_signup2.verify');
 		    };
 
 
@@ -1525,7 +1830,7 @@ app.controller('ClubSignupController', ClubSignupController);
             
             
 		    		if($scope.formData.user.password == $scope.formData.user.password2){
-			    		var next = $(".btn-info").attr("one-ui-sref");
+			    		var next = $(".btn-info").attr("one-ui-sref") || $(".inv-btn--primary").attr("one-ui-sref") || $(".inv-btn--success").attr("one-ui-sref");
 			    			//console.log("NEXT", next);
 			    		if(next == "club_signup.verify"){
 			    			//console.log("verifying account");

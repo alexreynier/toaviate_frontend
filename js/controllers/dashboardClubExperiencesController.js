@@ -1,7 +1,7 @@
  app.controller('DashboardClubExperiencesController', DashboardClubExperiencesController);
 
-    DashboardClubExperiencesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'ToastService'];
-    function DashboardClubExperiencesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, ToastService ) {
+    DashboardClubExperiencesController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'ToastService', 'VoucherWidgetService', '$sce', 'EnvConfig', '$timeout'];
+    function DashboardClubExperiencesController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, ToastService, VoucherWidgetService, $sce, EnvConfig, $timeout) {
         var vm = this;
 
         vm.user = null;
@@ -15,6 +15,16 @@
         
         vm.plane_document = {};
         vm.plane_documents = [];
+
+        // ── Experience Images & Blurb ──
+        vm.experience_images = [];
+        vm.images_loading = false;
+        vm.image_uploading = false;
+        vm.image_upload_progress = '';
+        vm.widget_token = null;
+        vm.blurb_saving = false;
+        vm.blurb_dirty = false;
+        vm.drag_source_index = null;
 
         var update_this_file = [];
         
@@ -54,10 +64,17 @@
                 ExperiencesService.GetById($stateParams.id)
                     .then(function(data){
                         vm.club.item = data.item; 
-                        //console.log(vm.club);
-                        // vm.page_title = "Edit an Experience - "+vm.club.item.title;
+                        // Load images for this experience
+                        vm.loadImages();
                     });
 
+                // Load widget token for image serving URLs
+                VoucherWidgetService.GetToken(vm.club_id)
+                    .then(function(data) {
+                        if (data.success && data.token) {
+                            vm.widget_token = data.token.token || data.token;
+                        }
+                    });
 
             break;
             case "list":
@@ -79,6 +96,185 @@
         $scope.back = function(){
             $rootScope.safeBack();
         }
+
+        // ═══════════════════════════════════════════════
+        // EXPERIENCE IMAGES
+        // ═══════════════════════════════════════════════
+
+        vm.loadImages = function() {
+            if (!$stateParams.id) return;
+            vm.images_loading = true;
+            ExperiencesService.GetImages(vm.club_id, $stateParams.id)
+                .then(function(data) {
+                    vm.images_loading = false;
+                    if (data.success && data.images) {
+                        vm.experience_images = data.images;
+                    } else {
+                        vm.experience_images = [];
+                    }
+                }, function() {
+                    vm.images_loading = false;
+                    vm.experience_images = [];
+                });
+        };
+
+        vm.getImageUrl = function(image) {
+            if (!image || !image.file_name) return '';
+            var token = (vm.widget_token && vm.widget_token.token) ? vm.widget_token.token : vm.widget_token;
+            if (!token) {
+                // Fallback: use authenticated endpoint
+                return EnvConfig.getApiBaseUrl() + '/api/v1/voucher_widget_tokens/experience_images/' + vm.club_id + '/' + image.id + '/file';
+            }
+            return EnvConfig.getApiBaseUrl() + '/api/v1/voucher_widget/' + token + '/image/' + image.file_name;
+        };
+
+        vm.onImageFileSelected = function(files) {
+            if (!files || files.length === 0) return;
+            if (!$stateParams.id) {
+                ToastService.warning('Save First', 'Please save the experience before uploading images.');
+                return;
+            }
+            if (vm.experience_images.length >= 10) {
+                ToastService.warning('Limit Reached', 'Maximum 10 images per experience.');
+                return;
+            }
+
+            var file = files[0];
+            var allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+            if (allowed.indexOf(file.type) === -1) {
+                ToastService.error('Invalid File', 'Only JPG, PNG, and GIF images are allowed.');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                ToastService.error('File Too Large', 'Maximum file size is 10 MB.');
+                return;
+            }
+
+            vm.image_uploading = true;
+            vm.image_upload_progress = 'Uploading ' + file.name + '…';
+
+            ExperiencesService.UploadImage(file, vm.club_id, $stateParams.id)
+                .then(function(data) {
+                    vm.image_uploading = false;
+                    vm.image_upload_progress = '';
+                    if (data.success) {
+                        ToastService.success('Uploaded', 'Image uploaded successfully.');
+                        vm.loadImages();
+                    } else {
+                        ToastService.error('Upload Failed', data.message || 'Could not upload image.');
+                    }
+                }, function() {
+                    vm.image_uploading = false;
+                    vm.image_upload_progress = '';
+                    ToastService.error('Upload Failed', 'Could not connect to the server.');
+                });
+        };
+
+        vm.deleteImage = function(image, $event) {
+            if ($event) $event.stopPropagation();
+            if (!confirm('Delete this image?')) return;
+
+            ExperiencesService.DeleteImage(vm.club_id, image.id)
+                .then(function(data) {
+                    if (data.success) {
+                        ToastService.success('Deleted', 'Image removed.');
+                        vm.loadImages();
+                    } else {
+                        ToastService.error('Error', data.message || 'Could not delete image.');
+                    }
+                }, function() {
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+        };
+
+        // Drag-and-drop reorder
+        vm.onDragStart = function(index) {
+            vm.drag_source_index = index;
+        };
+
+        vm.onDrop = function(targetIndex) {
+            if (vm.drag_source_index === null || vm.drag_source_index === targetIndex) return;
+            var moved = vm.experience_images.splice(vm.drag_source_index, 1)[0];
+            vm.experience_images.splice(targetIndex, 0, moved);
+            vm.drag_source_index = null;
+            vm.saveImageOrder();
+        };
+
+        vm.onDragEnd = function() {
+            vm.drag_source_index = null;
+        };
+
+        vm.moveImage = function(index, direction) {
+            var newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= vm.experience_images.length) return;
+            var temp = vm.experience_images[index];
+            vm.experience_images[index] = vm.experience_images[newIndex];
+            vm.experience_images[newIndex] = temp;
+            vm.saveImageOrder();
+        };
+
+        vm.saveImageOrder = function() {
+            var ids = vm.experience_images.map(function(img) { return img.id; });
+            ExperiencesService.ReorderImages(vm.club_id, $stateParams.id, ids)
+                .then(function(data) {
+                    if (!data.success) {
+                        ToastService.error('Error', 'Could not save image order.');
+                    }
+                });
+        };
+
+        // ═══════════════════════════════════════════════
+        // EXPERIENCE BLURB (long_description)
+        // ═══════════════════════════════════════════════
+
+        vm.blurbChanged = function() {
+            vm.blurb_dirty = true;
+        };
+
+        vm.saveBlurb = function() {
+            if (!$stateParams.id) {
+                ToastService.warning('Save First', 'Please save the experience before editing the blurb.');
+                return;
+            }
+            vm.blurb_saving = true;
+            var html = vm.club.item.long_description || '';
+
+            ExperiencesService.UpdateBlurb(vm.club_id, $stateParams.id, html)
+                .then(function(data) {
+                    vm.blurb_saving = false;
+                    if (data.success) {
+                        vm.blurb_dirty = false;
+                        ToastService.success('Saved', 'Experience blurb updated.');
+                    } else {
+                        ToastService.error('Error', data.message || 'Could not save blurb.');
+                    }
+                }, function() {
+                    vm.blurb_saving = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+        };
+
+        // ── Blurb formatting commands ──
+        // Toolbar uses <span> elements (not <button>) so they never steal
+        // focus from the contenteditable editor. This means the selection
+        // is always preserved and document.execCommand works directly.
+
+        vm.execCommand = function(command, value) {
+            document.execCommand(command, false, value || null);
+            vm.blurb_dirty = true;
+        };
+
+        vm.insertLink = function() {
+            var url = prompt('Enter URL:');
+            if (url) {
+                document.execCommand('createLink', false, url);
+                vm.blurb_dirty = true;
+            }
+        };
+
+        vm.trustHtml = function(html) {
+            return $sce.trustAsHtml(html || '');
+        };
 
         vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
 

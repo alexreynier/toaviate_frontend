@@ -18,6 +18,27 @@
 
         	$scope.formData = {};
 
+		    // ── Modern form validation infrastructure ──
+		    $scope.formErrors = {};
+		    $scope.formStep = 1;
+
+		    $scope.setFormStep = function(n) {
+		        $scope.formStep = n;
+		    };
+
+		    $scope.clearFormError = function(field) {
+		        if ($scope.formErrors[field]) {
+		            delete $scope.formErrors[field];
+		        }
+		    };
+
+		    function scrollToFirstError() {
+		        setTimeout(function() {
+		            var el = document.querySelector('.inv-field--error');
+		            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		        }, 100);
+		    }
+
 
         	if($scope.formData.password && $scope.formData.password !== "" && $scope.formData.password == $scope.formData.password2){
 
@@ -111,117 +132,296 @@
 
 		    $scope.formcode = [];
 		   $scope.checkedcode = 0;
-		   $scope.goToNextInput = function(event, number) {
-		   	 // //console.log(event.keyCode);
-		   	 // //console.log(number);
-		   	 var no_len = document.getElementById("index"+(number - 1) ).value;
-		   	 // //console.log(no_len.toString().length);
+		   $scope.codeVerifying = false;
+		   $scope.codeError = '';
 
-		   	 // //console.log(document.getElementById("index"+(number - 1) ).value);
-		   	
+		   // ── Resend code ──
+		   $scope.resendCooldown = 0;
+		   $scope.resendSending = false;
+		   $scope.resendMessage = '';
+		   $scope.resendMessageType = '';
+		   $scope.resendMaxed = false;
 
+		   var resendTimer = null;
+		   function startResendCooldown() {
+		       $scope.resendCooldown = 45;
+		       if (resendTimer) clearInterval(resendTimer);
+		       resendTimer = setInterval(function() {
+		           $scope.$apply(function() {
+		               $scope.resendCooldown--;
+		               if ($scope.resendCooldown <= 0) {
+		                   $scope.resendCooldown = 0;
+		                   clearInterval(resendTimer);
+		                   resendTimer = null;
+		               }
+		           });
+		       }, 1000);
+		   }
 
-		   	 if(number == 1 && (event.keyCode == 91 || event.keyCode == 17) && no_len.toString().length == 6){
-		   	 	// //console.log("MATCHINGS", );
-		   	 	var thecode = Array.from(no_len.toString());
-		   	 	for(var i=0; i<6; i++){
-		   	 		$scope.formcode.push(parseInt(thecode[i]));
-		   	 	}
+		   $scope.resendCode = function() {
+		       if ($scope.resendSending || $scope.resendCooldown > 0 || $scope.resendMaxed) return;
+		       $scope.resendSending = true;
+		       $scope.resendMessage = '';
+		       $scope.codeError = '';
 
-		   	 	document.getElementById("index5").focus();
-		   	 	number =6;
-		   		//return false;
-		   	 } else {
-		   	 		//event.keyCode
-				   	if(event.keyCode == 37 && number > 0){
-				   		document.getElementById("index"+(number - 2)).focus();
-				   		return false;
-				   	}
-				   	if(event.keyCode == 39 && number < 6){
-				   		document.getElementById("index"+(number)).focus();
-				   		return false;
-				   	}
-				   	if(event.keyCode == 8 && number > 1 && document.getElementById("index"+(number - 1) ).value == ""){
-				   		// //console.log("match");
-				   		// //console.log("index"+(number - 2));
-				   		document.getElementById("index"+(number - 2)).focus();
-				   		return false;
-				   	}
-		   	 }
+		       $scope.formcode = [];
+		       for (var i = 0; i < 6; i++) {
+		           var el = document.getElementById('index' + i);
+		           if (el) el.value = '';
+		       }
 
+		       UserService.ResendPaxCode($stateParams.token)
+		           .then(function(data) {
+		               $scope.resendSending = false;
+		               if (data.success) {
+		                   $scope.resendMessage = data.message || 'A new code has been sent to your email.';
+		                   $scope.resendMessageType = 'success';
+		                   startResendCooldown();
+		                   setTimeout(function() { var f = document.getElementById('index0'); if (f) f.focus(); }, 200);
+		               } else {
+		                   $scope.resendMessage = data.message || 'Unable to resend code. Please try again.';
+		                   $scope.resendMessageType = 'error';
+		                   if (data.message && data.message.indexOf('Too many') > -1) {
+		                       $scope.resendMaxed = true;
+		                   }
+		               }
+		           }, function() {
+		               $scope.resendSending = false;
+		               $scope.resendMessage = 'Something went wrong. Please try again.';
+		               $scope.resendMessageType = 'error';
+		           });
+		   };
 
-		   
+		   $scope.$on('$destroy', function() {
+		       if (resendTimer) clearInterval(resendTimer);
+		   });
 
+		   // ── Stripe-style smooth code input ──
 
-		   	if(number == 6 && $scope.formcode.length == 6){
-		   		var combine = $scope.formcode.join("");
-		   		// //console.log("COMPLETE", combine);
-		   		$scope.checkedcode++;
-		   		// //console.log("tries", $scope.checkedcode);
+		   var CODE_LENGTH = 6;
 
-		   		if($scope.checkedcode > 4){
-		   			ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		   function fillCodeFromString(raw) {
+		       var digits = raw.replace(/\D/g, '').substring(0, CODE_LENGTH);
+		       if (!digits.length) return;
+		       $scope.formcode = [];
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           $scope.formcode[i] = digits[i] !== undefined ? parseInt(digits[i]) : '';
+		           var el = document.getElementById('index' + i);
+		           if (el) el.value = $scope.formcode[i] !== '' ? $scope.formcode[i] : '';
+		       }
+		       var focusIdx = Math.min(digits.length, CODE_LENGTH - 1);
+		       var focusEl = document.getElementById('index' + focusIdx);
+		       if (focusEl) focusEl.focus();
+		       if (digits.length >= CODE_LENGTH) {
+		           $scope.submitCode();
+		       }
+		   }
 
-		   			//send another invitation code to the recipient 
+		   $scope.onCodeKeydown = function(event, idx) {
+		       var key = event.key || event.keyCode;
 
+		       if (key === 'Backspace' || key === 8) {
+		           event.preventDefault();
+		           if ($scope.formcode[idx] !== '' && $scope.formcode[idx] !== undefined) {
+		               $scope.formcode[idx] = '';
+		               document.getElementById('index' + idx).value = '';
+		           } else if (idx > 0) {
+		               $scope.formcode[idx - 1] = '';
+		               var prev = document.getElementById('index' + (idx - 1));
+		               if (prev) { prev.value = ''; prev.focus(); }
+		           }
+		           $scope.codeError = '';
+		           return;
+		       }
 
+		       if (key === 'ArrowLeft' || key === 37) {
+		           event.preventDefault();
+		           if (idx > 0) document.getElementById('index' + (idx - 1)).focus();
+		           return;
+		       }
 
-		   			return false;
-		   		} else {
+		       if (key === 'ArrowRight' || key === 39) {
+		           event.preventDefault();
+		           if (idx < CODE_LENGTH - 1) document.getElementById('index' + (idx + 1)).focus();
+		           return;
+		       }
 
-		   			//let's send this out for verification!!
-		   			UserService.GetPaxSecureInvite2($stateParams.token, combine)
-	                .then(function (data) {
-	                	// //console.log("GET SECURE INVITE", data);
-	                	if(data.success){
+		       var digit = null;
+		       if (/^[0-9]$/.test(key)) {
+		           digit = key;
+		       } else if (key >= 48 && key <= 57) {
+		           digit = String(key - 48);
+		       } else if (key >= 96 && key <= 105) {
+		           digit = String(key - 96);
+		       }
 
-	                		if(data.invitation.is_already_user){
+		       if (digit !== null) {
+		           event.preventDefault();
+		           $scope.formcode[idx] = parseInt(digit);
+		           document.getElementById('index' + idx).value = digit;
+		           $scope.codeError = '';
 
-	                			$scope.formData.user_id = data.invitation.user_id;
-	                			$scope.formData.token = $stateParams.token;
-	                			$scope.checked_identity = true;
-	                			$state.go("passenger_signup_complete.your_profile");
-	                		} else {
+		           if (idx < CODE_LENGTH - 1) {
+		               document.getElementById('index' + (idx + 1)).focus();
+		           }
 
-	                			
-	                			ToastService.error('Invitation Not Found', 'We couldn\'t match your invitation with our records - if you think you have an account, please go to the login screen and click the forgotten password link.');
-	                			return false;
-	                		}
+		           if (idx === CODE_LENGTH - 1) {
+		               var allFilled = true;
+		               for (var i = 0; i < CODE_LENGTH; i++) {
+		                   if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) { allFilled = false; break; }
+		               }
+		               if (allFilled) {
+		                   $scope.submitCode();
+		               }
+		           }
+		           return;
+		       }
 
-	                		
+		       if ((event.metaKey || event.ctrlKey) && (key === 'v' || key === 86)) {
+		           return;
+		       }
 
-	                	} else {
-	                		ToastService.error('Error', data.message);
-	                		return false;
-	                	}
+		       if (key !== 'Tab' && key !== 9) {
+		           event.preventDefault();
+		       }
+		   };
 
-	                });
+		   $scope.onCodeInput = function(event, idx) {
+		       var el = event.target || event.srcElement;
+		       var val = el.value;
 
+		       if (val && val.length > 1) {
+		           fillCodeFromString(val);
+		           return;
+		       }
 
-		   		}
+		       if (val && /^[0-9]$/.test(val)) {
+		           $scope.formcode[idx] = parseInt(val);
+		           if (idx < CODE_LENGTH - 1) {
+		               document.getElementById('index' + (idx + 1)).focus();
+		           }
+		       } else {
+		           el.value = '';
+		           $scope.formcode[idx] = '';
+		       }
+		   };
 
+		   function attachPasteHandlers() {
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           (function(idx) {
+		               var el = document.getElementById('index' + idx);
+		               if (el) {
+		                   el.addEventListener('paste', function(e) {
+		                       e.preventDefault();
+		                       var text = (e.clipboardData || window.clipboardData).getData('text');
+		                       $scope.$apply(function() {
+		                           fillCodeFromString(text);
+		                       });
+		                   });
+		                   el.addEventListener('focus', function() {
+		                       this.select();
+		                   });
+		               }
+		           })(i);
+		       }
+		   }
 
-		   		return false;
-		   	}
+		   setTimeout(attachPasteHandlers, 200);
+		   $scope.$on('$viewContentLoaded', function() {
+		       setTimeout(attachPasteHandlers, 200);
+		   });
 
+		   $scope.submitCode = function() {
+		       var combine = '';
+		       for (var i = 0; i < CODE_LENGTH; i++) {
+		           if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) {
+		               $scope.codeError = 'Please enter all 6 digits.';
+		               document.getElementById('index' + i).focus();
+		               return;
+		           }
+		           combine += $scope.formcode[i];
+		       }
 
-		    var entry = document.getElementById("index"+(number - 1) ).value;
-		    if(entry > -1 && entry < 10 && entry !== ""){
-		    	document.getElementById("index"+number).focus();
-		    } else {
-		    	document.getElementById("index"+(number - 1) ).value = "";
-		    	document.getElementById("index"+(number - 1)).focus();
-		    	return false;
-		    }
+		       $scope.checkedcode++;
 
-		  }
+		       if ($scope.checkedcode > 4) {
+		           $scope.codeError = '';
+		           ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		           return;
+		       }
+
+		       $scope.codeVerifying = true;
+		       $scope.codeError = '';
+
+		       UserService.GetPaxSecureInvite2($stateParams.token, combine)
+                .then(function (data) {
+                	$scope.codeVerifying = false;
+
+                	if(data.success){
+
+                		if(data.invitation.is_already_user){
+
+                			$scope.formData.user_id = data.invitation.user_id;
+                			$scope.formData.token = $stateParams.token;
+                			$scope.checked_identity = true;
+                			$state.go("passenger_signup_complete.your_profile");
+                		} else {
+
+                			ToastService.error('Invitation Not Found', 'We couldn\'t match your invitation with our records - if you think you have an account, please go to the login screen and click the forgotten password link.');
+                			return false;
+                		}
+
+                	} else {
+                		$scope.codeError = data.message || 'Invalid code. Please try again.';
+                		var group = document.getElementById('codeInputGroup');
+                		if (group) {
+                		    group.classList.add('inv-code-inputs--shake');
+                		    setTimeout(function() { group.classList.remove('inv-code-inputs--shake'); }, 500);
+                		}
+                		$scope.formcode = [];
+                		for (var j = 0; j < CODE_LENGTH; j++) {
+                		    var el = document.getElementById('index' + j);
+                		    if (el) el.value = '';
+                		}
+                		setTimeout(function() {
+                		    var first = document.getElementById('index0');
+                		    if (first) first.focus();
+                		}, 100);
+                	}
+
+                }, function() {
+                	$scope.codeVerifying = false;
+                	$scope.codeError = 'Something went wrong. Please try again.';
+                });
+		   };
 
 		    $scope.submit_user_for_signup = function(){
 
+		    	$scope.formErrors = {};
+		    	var valid = true;
 
-		    	if($scope.formData.password !== $scope.formData.password2 || $scope.formData.password.length < 8){
-		    		ToastService.warning('Password Mismatch', 'Please ensure your password is at least 8 characters and both of these match');
-		    		return false;
+		    	if (!$scope.formData.password || $scope.formData.password.length < 8) {
+		    	    $scope.formErrors.password = true;
+		    	    $scope.formErrors.password_msg = 'Password must be at least 8 characters';
+		    	    valid = false;
+		    	}
+
+		    	var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
+		    	if ($scope.formData.password && !strongPassword.test($scope.formData.password)) {
+		    	    $scope.formErrors.password = true;
+		    	    $scope.formErrors.password_msg = 'Must contain uppercase, lowercase, number & special character';
+		    	    valid = false;
+		    	}
+
+		    	if ($scope.formData.password !== $scope.formData.password2) {
+		    	    $scope.formErrors.password2 = true;
+		    	    valid = false;
+		    	}
+
+		    	if (!valid) {
+		    	    ToastService.warning('Password Issue', 'Please ensure your password is at least 8 characters, contains mixed case, a number & special character, and both fields match.');
+		    	    scrollToFirstError();
+		    	    return false;
 		    	}
 
 		    	//prepare the items!!

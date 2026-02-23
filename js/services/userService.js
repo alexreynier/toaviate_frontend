@@ -26,6 +26,7 @@ app.factory('UserService', UserService);
         service.ConfirmPaxInvite = ConfirmPaxInvite;
         service.GetPaxSecureInvite2 = GetPaxSecureInvite2;
         service.SignupUserFromPassenger = SignupUserFromPassenger;
+        service.ResendPaxCode = ResendPaxCode;
         service.GetInvoicesUserClub = GetInvoicesUserClub;
 
 
@@ -159,6 +160,11 @@ app.factory('UserService', UserService);
         function SignupUserFromPassenger(token, data){
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
             return $http.post('/api/v1/invitations/create_user', data).then(handleSuccess, handleError2);
+        }
+
+        function ResendPaxCode(token){
+            $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
+            return $http.post('/api/v1/invitations/resend_pax_code', { token: token }).then(handleSuccess, handleError2);
         }
 
         function ChangeInvitation(data, booking_id){

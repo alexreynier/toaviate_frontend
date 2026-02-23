@@ -1,7 +1,7 @@
  app.controller('DashboardClubMaintenanceController', DashboardClubMaintenanceController);
 
-    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService'];
-    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService) {
+    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService', 'DefectMediaService'];
+    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService, DefectMediaService) {
         var vm = this;
 
         vm.user = null;
@@ -1481,6 +1481,53 @@
                     { title: "Not urgent - but needs noting"},
                     { title: "Unsure of severity"}
                 ]; 
+
+
+            // ── Defect report panel state ──
+            vm.showDefectPanel = false;
+            vm.defectPanelRegistration = '';
+
+            vm.openDefectPanel = function () {
+                vm.defectPanelRegistration = vm.club.plane.registration;
+                vm.showDefectPanel = true;
+            };
+
+            vm.closeDefectPanel = function () {
+                vm.showDefectPanel = false;
+            };
+
+            vm.submitDefect = function (defectData, pendingFiles) {
+                var obj = {
+                    club_id:  vm.club_id,
+                    user_id:  vm.user_id,
+                    plane_id: vm.this_plane_id,
+                    defect:   defectData.defect,
+                    severity: defectData.severity,
+                    status:   'open'
+                };
+
+                PlaneService.AddDefect(obj)
+                    .then(function (data) {
+                        data.item.can_delete = true;
+                        vm.club.plane.defects.push(data.item);
+                        ToastService.success('Defect Reported', 'The defect has been submitted.');
+
+                        if (pendingFiles && pendingFiles.length > 0) {
+                            pendingFiles.forEach(function (file, idx) {
+                                DefectMediaService.UploadAndAttach(file, data.item.id, vm.club_id, idx, vm.user_id)
+                                    .then(function (mediaResult) {
+                                        if (mediaResult && mediaResult.success) {
+                                            data.item.media_count = (data.item.media_count || 0) + 1;
+                                        }
+                                    });
+                            });
+                        }
+
+                        vm.showDefectPanel = false;
+                        vm.defect = '';
+                        vm.defect_severity = '';
+                    });
+            };
 
 
             $scope.delete_poid = function(id){

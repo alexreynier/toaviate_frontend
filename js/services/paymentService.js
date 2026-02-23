@@ -14,6 +14,7 @@ app.factory('PaymentService', PaymentService);
         service.Delete = Delete;
         
         service.CreateCustom = CreateCustom;
+        service.CreateCustom2 = CreateCustom2;  
         service.CompleteCustom = CompleteCustom;
 
         service.Create2 = Create2;
@@ -150,6 +151,10 @@ app.factory('PaymentService', PaymentService);
 
         function CreateCustom(payment){
             return $http.post('/api/v1/payments/custom', payment).then(handleSuccess, handleError2);
+        }
+
+        function CreateCustom2(payment){
+            return $http.post('/api/v1/payments/custom_credit', payment).then(handleSuccess, handleError2);
         }
 
         function CompleteCustom(payment){

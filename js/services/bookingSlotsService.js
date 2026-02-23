@@ -62,6 +62,8 @@ app.factory('BookingSlotsService', BookingSlotsService);
             if (params.instructor_id > 0) qs.push('instructor_id=' + params.instructor_id);
             if (params.double_slot) qs.push('double_slot=1');
             if (params.user_id) qs.push('user_id=' + params.user_id);
+            if (params.course_id > 0) qs.push('course_id=' + params.course_id);
+            if (params.tuition_id > 0) qs.push('tuition_id=' + params.tuition_id);
             if (qs.length) url += '?' + qs.join('&');
             return $http.get(url).then(handleSuccess, handleError2);
         }

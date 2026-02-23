@@ -1,12 +1,15 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService) {
         var vm = this;
 
         vm.user = null;
         vm.allUsers = [];
         vm.club = {};
+
+        // ── Voucher Widget status ──
+        vm.voucher_widget_active = false;
 
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user = $rootScope.globals.currentUser;
@@ -240,6 +243,12 @@
 
                 // Load schedule display token
                 vm.loadDisplayToken();
+
+                // Load voucher widget token status
+                VoucherWidgetService.GetToken(vm.club_id)
+                    .then(function(data) {
+                        vm.voucher_widget_active = !!(data.success && data.token && data.token.active);
+                    });
 
             break;
             case "stripe_return":

@@ -1,7 +1,7 @@
 app.factory('ExperiencesService', ExperiencesService);
 
-    ExperiencesService.$inject = ['$http', '$location'];
-    function ExperiencesService($http, $location) {
+    ExperiencesService.$inject = ['$http', '$location', 'EnvConfig'];
+    function ExperiencesService($http, $location, EnvConfig) {
         var service = {};
         
         service.GetByClubId = GetByClubId;
@@ -15,6 +15,16 @@ app.factory('ExperiencesService', ExperiencesService);
         service.UpdateDiscount = UpdateDiscount;
         service.DeleteDiscount = DeleteDiscount;
         service.GetDiscountsByClubIdAndExperienceId = GetDiscountsByClubIdAndExperienceId;
+
+        // ── Experience Images ──
+        service.UploadImage     = UploadImage;
+        service.GetImages       = GetImages;
+        service.DeleteImage     = DeleteImage;
+        service.ReorderImages   = ReorderImages;
+
+        // ── Experience Blurb (long_description) ──
+        service.UpdateBlurb     = UpdateBlurb;
+
         // service.GetUpdatedCharges = GetUpdatedCharges;
 
         return service; 
@@ -75,6 +85,49 @@ app.factory('ExperiencesService', ExperiencesService);
             return $http.delete('/api/v1/experiences/' + id+'?user_id='+user_id).then(handleSuccess, handleError2);
         }
 
+
+        // ─────────────────────────────────────────────
+        // Experience Images
+        // ─────────────────────────────────────────────
+
+        function UploadImage(file, club_id, experience_id) {
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('club_id', club_id);
+            formData.append('experience_id', experience_id);
+
+            return $http.post(EnvConfig.getApiBaseUrl() + '/upload_experience_image.php', formData, {
+                transformRequest: angular.identity,
+                headers: { 'Content-Type': undefined }
+            }).then(handleSuccess, handleError2);
+        }
+
+        function GetImages(club_id, experience_id) {
+            return $http.get('/api/v1/voucher_widget_tokens/experience_images/' + club_id + '/' + experience_id)
+                .then(handleSuccess, handleError2);
+        }
+
+        function DeleteImage(club_id, image_id) {
+            return $http.delete('/api/v1/voucher_widget_tokens/experience_images/' + club_id + '/' + image_id)
+                .then(handleSuccess, handleError2);
+        }
+
+        function ReorderImages(club_id, experience_id, image_ids) {
+            return $http.put('/api/v1/voucher_widget_tokens/experience_images/' + club_id, {
+                experience_id: experience_id,
+                image_ids: image_ids
+            }).then(handleSuccess, handleError2);
+        }
+
+        // ─────────────────────────────────────────────
+        // Experience Blurb (long_description)
+        // ─────────────────────────────────────────────
+
+        function UpdateBlurb(club_id, experience_id, long_description) {
+            return $http.put('/api/v1/voucher_widget_tokens/experience_blurb/' + club_id + '/' + experience_id, {
+                long_description: long_description
+            }).then(handleSuccess, handleError2);
+        }
 
 
         function handleError2(res) {

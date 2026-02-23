@@ -87,6 +87,7 @@ app.factory('BookoutService', BookoutService);
         service.updateBooking = updateBooking;
         service.GetAirfields = GetAirfields;
         service.GetAirfieldsByCode = GetAirfieldsByCode;
+        service.GetAirfieldById = GetAirfieldById;
         service.SendBookout = SendBookout;
         service.GetBookoutsToComplete = GetBookoutsToComplete;
         service.BookInFlight = BookInFlight;
@@ -122,6 +123,10 @@ app.factory('BookoutService', BookoutService);
 
         function GetAirfieldsByCode(code){
             return $http.get('/api/v1/airfields/code/'+code).then(handleSuccess, handleError2);
+        }
+
+        function GetAirfieldById(id){
+            return $http.get('/api/v1/airfields/'+id).then(handleSuccess, handleError2);
         }
 
         function GetAll(user_id, start, end) {

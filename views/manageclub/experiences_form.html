@@ -23,8 +23,169 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="description">Description</label>
+                    <label for="description">Short Description</label>
                     <input type="text" class="form-control inputtext" name="description" id="description" ng-model="vm.club.item.description" />
+                    <p class="exp-help-text">Shown on the widget list card.</p>
+                </div>
+
+
+                <!-- ═══════════════════════════════════════════
+                     BLURB — Rich Text Description
+                     ═══════════════════════════════════════════ -->
+                <div class="form-group exp-blurb-section" ng-if="vm.action === 'edit'">
+                    <label>Detailed Description (Blurb)</label>
+                    <p class="exp-help-text">HTML-formatted description shown on the widget purchase page. Use the toolbar for formatting.</p>
+
+                    <div class="exp-blurb-toolbar" onmousedown="event.preventDefault()">
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('bold')" title="Bold">
+                            <i class="fas fa-bold"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('italic')" title="Italic">
+                            <i class="fas fa-italic"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('underline')" title="Underline">
+                            <i class="fas fa-underline"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__sep"></span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('insertUnorderedList')" title="Bullet List">
+                            <i class="fas fa-list-ul"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('insertOrderedList')" title="Numbered List">
+                            <i class="fas fa-list-ol"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__sep"></span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('formatBlock', '<h3>')" title="Heading">
+                            <i class="fas fa-heading"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('formatBlock', '<p>')" title="Paragraph">
+                            <i class="fas fa-paragraph"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.insertLink()" title="Insert Link">
+                            <i class="fas fa-link"></i>
+                        </span>
+                        <span class="exp-blurb-toolbar__btn" ng-click="vm.execCommand('removeFormat')" title="Clear Formatting">
+                            <i class="fas fa-eraser"></i>
+                        </span>
+                    </div>
+
+                    <div class="exp-blurb-editor"
+                         contenteditable="true"
+                         ng-model="vm.club.item.long_description"
+                         ng-blur="vm.blurbChanged()"
+                         data-placeholder="Write a detailed description of this experience…">
+                    </div>
+
+                    <div class="exp-blurb-actions">
+                        <button type="button" class="btn btn-info exp-blurb-save-btn"
+                                ng-click="vm.saveBlurb()"
+                                ng-disabled="vm.blurb_saving || !vm.blurb_dirty">
+                            <i class="fas fa-save"></i> {{ vm.blurb_saving ? 'Saving…' : 'Save Blurb' }}
+                        </button>
+                        <span class="exp-blurb-status" ng-if="vm.blurb_dirty">
+                            <i class="fas fa-circle" style="color:#f0ad4e;font-size:8px;"></i> Unsaved changes
+                        </span>
+                        <span class="exp-blurb-status" ng-if="!vm.blurb_dirty && vm.club.item.long_description">
+                            <i class="fas fa-check-circle" style="color:#5cb85c;font-size:12px;"></i> Saved
+                        </span>
+                    </div>
+                </div>
+
+                <div class="form-group" ng-if="vm.action === 'add'">
+                    <label>Detailed Description (Blurb)</label>
+                    <p class="exp-help-text" style="color:#999;">
+                        <i class="fas fa-info-circle"></i> Save the experience first, then you can add a detailed HTML description and images.
+                    </p>
+                </div>
+
+
+                <!-- ═══════════════════════════════════════════
+                     EXPERIENCE IMAGES
+                     ═══════════════════════════════════════════ -->
+                <div class="form-group exp-images-section" ng-if="vm.action === 'edit'">
+                    <label>Gallery Images</label>
+                    <p class="exp-help-text">Upload up to 10 images (JPG, PNG, GIF). The first image is used as the widget card thumbnail. Drag to reorder.</p>
+
+                    <!-- Upload area -->
+                    <div class="exp-upload-area" ng-if="vm.experience_images.length < 10 && !vm.image_uploading">
+                        <div class="exp-upload-dropzone"
+                             ondragover="event.preventDefault(); this.classList.add('exp-drag-over')"
+                             ondragleave="this.classList.remove('exp-drag-over')"
+                             ondrop="event.preventDefault(); this.classList.remove('exp-drag-over'); angular.element(this).scope().vm.onImageFileSelected(event.dataTransfer.files)">
+                            <i class="fas fa-cloud-upload-alt exp-upload-icon"></i>
+                            <p class="exp-upload-text">Drag & drop an image here</p>
+                            <p class="exp-upload-or">or</p>
+                            <label class="btn btn-info btn-sm exp-upload-btn">
+                                <i class="fas fa-folder-open"></i> Choose File
+                                <input type="file" accept="image/jpeg,image/png,image/gif"
+                                       class="exp-file-input"
+                                       onchange="angular.element(this).scope().vm.onImageFileSelected(this.files); this.value='';" />
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Upload progress -->
+                    <div class="exp-upload-progress" ng-if="vm.image_uploading">
+                        <div class="exp-upload-spinner"></div>
+                        <span>{{ vm.image_upload_progress }}</span>
+                    </div>
+
+                    <!-- Loading -->
+                    <div class="exp-images-loading" ng-if="vm.images_loading">
+                        <div class="exp-upload-spinner"></div>
+                        <span>Loading images…</span>
+                    </div>
+
+                    <!-- Image grid -->
+                    <div class="exp-images-grid" ng-if="vm.experience_images.length > 0 && !vm.images_loading">
+                        <div class="exp-image-card"
+                             ng-repeat="img in vm.experience_images track by img.id"
+                             draggable="true"
+                             ng-class="{'exp-image-card--primary': $index === 0}"
+                             ng-attr-data-index="{{ $index }}"
+                             ondragstart="angular.element(this).scope().vm.onDragStart(angular.element(this).scope().$index); event.dataTransfer.effectAllowed='move';"
+                             ondragover="event.preventDefault();"
+                             ondrop="event.preventDefault(); angular.element(this).scope().vm.onDrop(angular.element(this).scope().$index);"
+                             ondragend="angular.element(this).scope().vm.onDragEnd()">
+
+                            <div class="exp-image-card__thumb">
+                                <img ng-src="{{ vm.getImageUrl(img) }}" alt="{{ img.original_name }}" />
+                                <span class="exp-image-card__badge" ng-if="$index === 0">Primary</span>
+                            </div>
+
+                            <div class="exp-image-card__info">
+                                <span class="exp-image-card__name" title="{{ img.original_name }}">{{ img.original_name }}</span>
+                            </div>
+
+                            <div class="exp-image-card__actions">
+                                <button type="button" class="exp-image-card__btn exp-image-card__btn--move"
+                                        ng-click="vm.moveImage($index, -1)" ng-disabled="$index === 0"
+                                        title="Move left">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <button type="button" class="exp-image-card__btn exp-image-card__btn--move"
+                                        ng-click="vm.moveImage($index, 1)" ng-disabled="$last"
+                                        title="Move right">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                                <button type="button" class="exp-image-card__btn exp-image-card__btn--delete"
+                                        ng-click="vm.deleteImage(img, $event)"
+                                        title="Delete image">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div class="exp-images-empty" ng-if="vm.experience_images.length === 0 && !vm.images_loading && !vm.image_uploading">
+                        <i class="fas fa-images"></i>
+                        <p>No images uploaded yet.</p>
+                    </div>
+
+                    <!-- Max reached -->
+                    <div class="exp-images-max" ng-if="vm.experience_images.length >= 10 && !vm.image_uploading">
+                        <i class="fas fa-info-circle"></i> Maximum 10 images reached. Delete an image to upload a new one.
+                    </div>
                 </div>
 
                 <div class="form-group">

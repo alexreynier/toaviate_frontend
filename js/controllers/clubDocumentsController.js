@@ -700,92 +700,25 @@ OLD VERSION FOR LEGACY PURPOSES
 
 
         function processArrayBufferToBlob(data, headers) {
-            var octetStreamMime = 'application/octet-stream';
-            var success = false;
-
-            // Get the headers
             headers = headers();
-            //var ttt = title.toLowerCase().replace(/\W/g, '_');
-            // Get the filename from the x-filename header or default to "download.bin"
-            var filename = headers['x-filename'] || 'download.zip';
-
-            // Determine the content type from the header or default to "application/octet-stream"
-            var contentType = headers['content-type'] || octetStreamMime;
+            var filename = headers['x-filename'] || 'download.pdf';
+            var contentType = headers['content-type'] || 'application/octet-stream';
 
             try {
-                // Try using msSaveBlob if supported
-                var blob = new Blob([data], {
-                    type: contentType
-                });
-                if (navigator.msSaveBlob)
-                    navigator.msSaveBlob(blob, filename);
-                else {
-                    // Try using other saveBlob implementations, if available
-                    var saveBlob = navigator.webkitSaveBlob || navigator.mozSaveBlob || navigator.saveBlob;
-                    if (saveBlob === undefined) throw "Not supported";
-                    saveBlob(blob, filename);
-                }
-                success = true;
+                var blob = new Blob([data], { type: contentType });
+                var url = URL.createObjectURL(blob);
+                var link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(function() { URL.revokeObjectURL(url); }, 250);
             } catch (ex) {
-                $log.info("saveBlob method failed with the following exception:");
+                $log.info("Download failed:");
                 $log.info(ex);
             }
 
-            if (!success) {
-                // Get the blob url creator
-                var urlCreator = window.URL || window.webkitURL || window.mozURL || window.msURL;
-                if (urlCreator) {
-                    // Try to use a download link
-                    var link = document.createElement('a');
-                    if ('download' in link) {
-                        // Try to simulate a click
-                        try {
-                            // Prepare a blob URL
-                            var blob = new Blob([data], {
-                                type: contentType
-                            });
-                            var url = urlCreator.createObjectURL(blob);
-                            link.setAttribute('href', url);
-
-                            // Set the download attribute (Supported in Chrome 14+ / Firefox 20+)
-                            link.setAttribute("download", filename);
-
-                            // Simulate clicking the download link
-                            var event = document.createEvent('MouseEvents');
-                            event.initMouseEvent('click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
-                            link.dispatchEvent(event);
-                            success = true;
-
-                        } catch (ex) {
-                            $log.info("Download link method with simulated click failed with the following exception:");
-                            $log.info(ex);
-                        }
-                    }
-
-                    if (!success) {
-                        // Fallback to window.location method
-                        try {
-                            // Prepare a blob URL
-                            // Use application/octet-stream when using window.location to force download
-                            var blob = new Blob([data], {
-                                type: octetStreamMime
-                            });
-                            var url = urlCreator.createObjectURL(blob);
-                            window.location = url;
-                            success = true;
-                        } catch (ex) {
-                            $log.info("Download link method with window.location failed with the following exception:");
-                            $log.info(ex);
-                        }
-                    }
-                }
-            }
-
-            if (!success) {
-                // Fallback to window.open method
-                $log.info("No methods worked for saving the arraybuffer, using last resort window.open");
-                window.open(httpPath, '_blank', '');
-            }
             return filename;
         };
 

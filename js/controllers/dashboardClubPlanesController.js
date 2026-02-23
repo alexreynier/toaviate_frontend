@@ -148,7 +148,9 @@
                         vm.club.plane.vp = (vm.club.plane.vp == 1)? true:false;
                         vm.club.plane.rg = (vm.club.plane.rg == 1)? true:false; 
                         vm.club.plane.tb = (vm.club.plane.tb == 1)? true:false;
-                        vm.club.plane.requires_check_a = (vm.club.plane.requires_check_a == 1)? true:false; 
+                        vm.club.plane.requires_check_a = (vm.club.plane.requires_check_a == 1)? true:false;
+                        vm.club.plane.nav_only = (vm.club.plane.nav_only == 1)? true:false;
+                        vm.club.plane.dual_only = (vm.club.plane.dual_only == 1)? true:false; 
 
                         vm.plane_engine_1 = vm.club.plane.engine_1;
                         vm.plane_engine_2 = vm.club.plane.engine_2;
@@ -178,10 +180,8 @@
                 PlaneService.GetAllByClub(vm.club_id)
                     .then(function(data){
                         vm.club.planes = data;   
-                        //console.log(vm.club.planes);
+                        vm.updateFleetStats();
                     });
-
-                    //console.log("hello alex");
 
 
             break;
@@ -302,6 +302,44 @@
                 });
 
         }
+
+        // ── Fleet Stats ──
+        vm.fleet_stats = { total: 0, visible: 0, hidden: 0 };
+
+        vm.updateFleetStats = function() {
+            if (!vm.club.planes) return;
+            var total = vm.club.planes.length;
+            var hidden = 0;
+            for (var i = 0; i < total; i++) {
+                if (vm.club.planes[i].hidden_from_booking == 1) hidden++;
+            }
+            vm.fleet_stats = { total: total, visible: total - hidden, hidden: hidden };
+        };
+
+        // ── Toggle Hidden from Booking ──
+        vm.toggleHiddenFromBooking = function(plane) {
+            var newValue = (plane.hidden_from_booking == 1) ? 0 : 1;
+            plane._toggling = true;
+
+            PlaneService.ToggleHiddenFromBooking(plane.plane_id, vm.club_id, newValue)
+                .then(function(data) {
+                    plane._toggling = false;
+                    if (data && data.success) {
+                        plane.hidden_from_booking = data.hidden_from_booking;
+                        vm.updateFleetStats();
+                        if (data.hidden_from_booking == 1) {
+                            ToastService.success('Aircraft Hidden', plane.registration + ' has been hidden from the booking calendar');
+                        } else {
+                            ToastService.success('Aircraft Visible', plane.registration + ' is now visible on the booking calendar');
+                        }
+                    } else {
+                        ToastService.warning('Error', 'Could not update visibility for ' + plane.registration);
+                    }
+                }, function() {
+                    plane._toggling = false;
+                    ToastService.warning('Error', 'Could not update visibility. Please try again.');
+                });
+        };
 
 
         $scope.set_aircraft_details = function(){
@@ -667,6 +705,8 @@
             vm.club.plane.rg = (vm.club.plane.rg)? 1:0; 
             vm.club.plane.tb = (vm.club.plane.tb)? 1:0;
             vm.club.plane.requires_check_a = (vm.club.plane.requires_check_a)? 1:0;
+            vm.club.plane.nav_only = (vm.club.plane.nav_only)? 1:0;
+            vm.club.plane.dual_only = (vm.club.plane.dual_only)? 1:0;
 
             vm.club.plane.engine_1 = vm.plane_engine_1;
             vm.club.plane.engine_2 = vm.plane_engine_2;

@@ -1889,49 +1889,192 @@ vm.selected_phone;
 		    }
 
 
-		    $scope.verify_mobile = function(value){
-		    	var val = value.text_verification;
-    			////console.log("called", value.text_verification);
-    			////console.log("called", $scope.text_verification);
+		    // ── Stripe-style smooth code input ──
 
-    			if(val.length == 6){
-    				//then we check
+		    var CODE_LENGTH = 6;
+		    $scope.formcode = [];
+		    $scope.checkedcode = 0;
+		    $scope.codeVerifying = false;
+		    $scope.codeError = '';
 
-    				// //console.log("4 chars", vm.text_verification);
-    				// //console.log("4 chars", last);
+		    function fillCodeFromString(raw) {
+		        var digits = raw.replace(/\D/g, '').substring(0, CODE_LENGTH);
+		        if (!digits.length) return;
+		        $scope.formcode = [];
+		        for (var i = 0; i < CODE_LENGTH; i++) {
+		            $scope.formcode[i] = digits[i] !== undefined ? parseInt(digits[i]) : '';
+		            var el = document.getElementById('index' + i);
+		            if (el) el.value = $scope.formcode[i] !== '' ? $scope.formcode[i] : '';
+		        }
+		        var focusIdx = Math.min(digits.length, CODE_LENGTH - 1);
+		        var focusEl = document.getElementById('index' + focusIdx);
+		        if (focusEl) focusEl.focus();
+		        if (digits.length >= CODE_LENGTH) {
+		            $scope.submitCode();
+		        }
+		    }
 
-    				//VerifyInvitedUser
+		    $scope.onCodeKeydown = function(event, idx) {
+		        var key = event.key || event.keyCode;
 
-    				MemberService.VerifyPhoneInvite(val, $cookies.get("uid"))
-		                .then(function (data) {
-		                    // //console.log(data);
-		                    if(data && data.success){
-		                        //use GB airfields first...
-		                        $scope.verified_mobile = true;
+		        if (key === 'Backspace' || key === 8) {
+		            event.preventDefault();
+		            if ($scope.formcode[idx] !== '' && $scope.formcode[idx] !== undefined) {
+		                $scope.formcode[idx] = '';
+		                document.getElementById('index' + idx).value = '';
+		            } else if (idx > 0) {
+		                $scope.formcode[idx - 1] = '';
+		                var prev = document.getElementById('index' + (idx - 1));
+		                if (prev) { prev.value = ''; prev.focus(); }
+		            }
+		            $scope.codeError = '';
+		            return;
+		        }
 
-		                        //$scope.link = data.link.url;
-		                    	// $cookies.put('mid', last);
-		                    	// $cookies.put('bid', data.bid);
+		        if (key === 'ArrowLeft' || key === 37) {
+		            event.preventDefault();
+		            if (idx > 0) document.getElementById('index' + (idx - 1)).focus();
+		            return;
+		        }
 
+		        if (key === 'ArrowRight' || key === 39) {
+		            event.preventDefault();
+		            if (idx < CODE_LENGTH - 1) document.getElementById('index' + (idx + 1)).focus();
+		            return;
+		        }
 
+		        var digit = null;
+		        if (/^[0-9]$/.test(key)) {
+		            digit = key;
+		        } else if (key >= 48 && key <= 57) {
+		            digit = String(key - 48);
+		        } else if (key >= 96 && key <= 105) {
+		            digit = String(key - 96);
+		        }
 
+		        if (digit !== null) {
+		            event.preventDefault();
+		            $scope.formcode[idx] = parseInt(digit);
+		            document.getElementById('index' + idx).value = digit;
+		            $scope.codeError = '';
 
-		                    } else {
-		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
+		            if (idx < CODE_LENGTH - 1) {
+		                document.getElementById('index' + (idx + 1)).focus();
+		            }
+
+		            if (idx === CODE_LENGTH - 1) {
+		                var allFilled = true;
+		                for (var i = 0; i < CODE_LENGTH; i++) {
+		                    if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) { allFilled = false; break; }
+		                }
+		                if (allFilled) {
+		                    $scope.submitCode();
+		                }
+		            }
+		            return;
+		        }
+
+		        if ((event.metaKey || event.ctrlKey) && (key === 'v' || key === 86)) {
+		            return;
+		        }
+
+		        if (key !== 'Tab' && key !== 9) {
+		            event.preventDefault();
+		        }
+		    };
+
+		    $scope.onCodeInput = function(event, idx) {
+		        var el = event.target || event.srcElement;
+		        var val = el.value;
+
+		        if (val && val.length > 1) {
+		            fillCodeFromString(val);
+		            return;
+		        }
+
+		        if (val && /^[0-9]$/.test(val)) {
+		            $scope.formcode[idx] = parseInt(val);
+		            if (idx < CODE_LENGTH - 1) {
+		                document.getElementById('index' + (idx + 1)).focus();
+		            }
+		        } else {
+		            el.value = '';
+		            $scope.formcode[idx] = '';
+		        }
+		    };
+
+		    function attachPasteHandlers() {
+		        for (var i = 0; i < CODE_LENGTH; i++) {
+		            (function(idx) {
+		                var el = document.getElementById('index' + idx);
+		                if (el) {
+		                    el.addEventListener('paste', function(e) {
+		                        e.preventDefault();
+		                        var text = (e.clipboardData || window.clipboardData).getData('text');
+		                        $scope.$apply(function() {
+		                            fillCodeFromString(text);
+		                        });
+		                    });
+		                    el.addEventListener('focus', function() {
+		                        this.select();
+		                    });
+		                }
+		            })(i);
+		        }
+		    }
+
+		    setTimeout(attachPasteHandlers, 200);
+		    $scope.$on('$viewContentLoaded', function() {
+		        setTimeout(attachPasteHandlers, 200);
+		    });
+
+		    $scope.submitCode = function() {
+		        var combine = '';
+		        for (var i = 0; i < CODE_LENGTH; i++) {
+		            if ($scope.formcode[i] === '' || $scope.formcode[i] === undefined) {
+		                $scope.codeError = 'Please enter all 6 digits.';
+		                document.getElementById('index' + i).focus();
+		                return;
+		            }
+		            combine += $scope.formcode[i];
+		        }
+
+		        $scope.checkedcode++;
+
+		        if ($scope.checkedcode > 4) {
+		            $scope.codeError = '';
+		            ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times. Please request a new code.');
+		            return;
+		        }
+
+		        $scope.codeVerifying = true;
+		        $scope.codeError = '';
+
+		        MemberService.VerifyPhoneInvite(combine, $cookies.get("uid"))
+		            .then(function (data) {
+		                $scope.codeVerifying = false;
+		                if (data && data.success) {
+		                    $scope.verified_mobile = true;
+		                } else {
+		                    $scope.codeError = 'Your verification code is incorrect. Please try again.';
+		                    // Shake animation
+		                    var group = document.getElementById('codeInputGroup');
+		                    if (group) {
+		                        group.classList.add('inv-code-inputs--shake');
+		                        setTimeout(function() { group.classList.remove('inv-code-inputs--shake'); }, 500);
 		                    }
+		                }
+		            }, function() {
+		                $scope.codeVerifying = false;
+		                $scope.codeError = 'Something went wrong. Please try again.';
+		            });
+		    };
 
-		                });
-
-    				// if(text_verification == "1234"){
-
-    				// 	$scope.verified_mobile = true;
-    				// }
-
-    			} else {
-    				//do nothing
-    			}
-
-    		}
+		    // Keep legacy verify_mobile for backwards compatibility
+		    $scope.verify_mobile = function(value) {
+		        // Redirected to submitCode — kept for any external callers
+		        $scope.submitCode();
+		    };
 
     		function titlepath(path,name){
 

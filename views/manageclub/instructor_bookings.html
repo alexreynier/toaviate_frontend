@@ -19,6 +19,9 @@
       <div class="instructor-section__header">
         <h3 class="instructor-section__title"><i class="fa fa-chalkboard-teacher"></i> Instructors</h3>
         <span class="instructor-section__count" ng-if="vm.club.instructors.length > 0">{{ vm.club.instructors.length }}</span>
+        <button class="iq-manage-btn" style="margin-left:auto;" ng-click="vm.openQualificationsPanel()" ng-if="vm.club.instructors.length > 0">
+          <i class="fa fa-award"></i> Manage Qualifications
+        </button>
       </div>
 
       <div class="snazzy-page__empty" ng-if="!vm.club.instructors || vm.club.instructors.length == 0">
@@ -469,13 +472,15 @@
   <div class="wp-panel-inner" ng-if="vm.selected_instructor">
 
     <!-- ── Header ── -->
-    <div class="wp-panel-header">
-      <div class="wp-panel-header-left">
+    <div class="wp-panel-header ib-panel-header--compact">
+      <div class="wp-panel-header-left ib-header-row">
         <div class="ib-panel-avatar" ng-style="{'background': vm.selected_instructor.instructor_colour || '#64748b'}">
           {{ vm.selected_instructor.first_name.charAt(0) }}{{ vm.selected_instructor.last_name.charAt(0) }}
         </div>
-        <h2 class="wp-panel-title">{{ vm.selected_instructor.first_name }} {{ vm.selected_instructor.last_name }}</h2>
-        <p class="wp-panel-subtitle">{{ vm.selected_instructor.email }}</p>
+        <div class="ib-header-text">
+          <h2 class="wp-panel-title">{{ vm.selected_instructor.first_name }} {{ vm.selected_instructor.last_name }}</h2>
+          <p class="wp-panel-subtitle">{{ vm.selected_instructor.email }}</p>
+        </div>
       </div>
       <button class="wp-panel-close" ng-click="vm.closePanel()" title="Close">
         <i class="fa fa-times"></i>
@@ -625,7 +630,70 @@
       </div>
 
 
-      <!-- SECTION 5: Notes -->
+      <!-- SECTION 5: Qualifications Overview -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-award"></i> Qualifications</h3>
+
+        <!-- Loading -->
+        <div class="ib-availability-loading" ng-if="vm.loadingQualifications">
+          <i class="fa fa-spinner fa-spin"></i> Loading qualifications…
+        </div>
+
+        <div class="iq-overview-card" ng-if="!vm.loadingQualifications && vm.instrQualOverview">
+
+          <!-- Courses -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-graduation-cap"></i> Courses</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--course" ng-repeat="c in vm.instrQualOverview.qualified_courses">
+                {{ c.course_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_courses.length">
+                No courses assigned
+              </span>
+            </div>
+          </div>
+
+          <!-- Tuition Types -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-book-open"></i> Tuition Types</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--tuition" ng-repeat="t in vm.instrQualOverview.qualified_tuition_types">
+                {{ t.tuition_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_tuition_types.length">
+                No tuition types assigned
+              </span>
+            </div>
+          </div>
+
+          <!-- Experiences -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-plane"></i> Experiences</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--experience" ng-repeat="e in vm.instrQualOverview.qualified_experiences">
+                {{ e.experience_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_experiences.length">
+                No experiences assigned
+              </span>
+            </div>
+          </div>
+
+          <button class="iq-manage-btn" ng-click="vm.openQualificationsPanel()">
+            <i class="fa fa-th"></i> Manage All Qualifications
+          </button>
+        </div>
+
+        <!-- No data yet -->
+        <div ng-if="!vm.loadingQualifications && !vm.instrQualOverview" class="ib-availability-empty">
+          <i class="fa fa-award"></i>
+          <p>No qualifications loaded.</p>
+        </div>
+      </div>
+
+
+      <!-- SECTION 6: Notes -->
       <div class="wp-section">
         <h3 class="wp-section-title"><i class="fa fa-sticky-note"></i> Notes</h3>
         <textarea class="ib-notes-textarea" ng-model="vm.selected_instructor.instructor_notes"
@@ -649,3 +717,261 @@
   </div>
 
 </div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     INSTRUCTOR QUALIFICATIONS MATRIX PANEL
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Backdrop -->
+<div class="iq-panel-backdrop"
+     ng-class="{'active': vm.show_qual_panel}"
+     ng-click="vm.closeQualificationsPanel()"></div>
+
+<!-- Panel -->
+<div class="iq-panel"
+     ng-class="{'open': vm.show_qual_panel}">
+
+  <div class="iq-panel-inner" ng-if="vm.show_qual_panel">
+
+    <!-- Header -->
+    <div class="iq-panel-header">
+      <div class="iq-panel-header-left">
+        <i class="fa fa-award iq-header-icon"></i>
+        <div class="iq-panel-header-info">
+          <h2>Instructor Qualifications</h2>
+          <p>Manage which instructors can teach each course, tuition type &amp; experience</p>
+        </div>
+      </div>
+      <button class="iq-panel-close" ng-click="vm.closeQualificationsPanel()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="iq-tabs">
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'courses'}" ng-click="vm.switchQualTab('courses')">
+        <i class="fa fa-graduation-cap"></i> Courses
+        <span class="iq-tab__badge" ng-if="vm.qualCourseColumns.length">{{ vm.qualCourseColumns.length }}</span>
+      </button>
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'tuition'}" ng-click="vm.switchQualTab('tuition')">
+        <i class="fa fa-book-open"></i> Tuition Types
+        <span class="iq-tab__badge" ng-if="vm.qualTuitionColumns.length">{{ vm.qualTuitionColumns.length }}</span>
+      </button>
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'experiences'}" ng-click="vm.switchQualTab('experiences')">
+        <i class="fa fa-plane"></i> Experiences
+        <span class="iq-tab__badge" ng-if="vm.qualExpColumns.length">{{ vm.qualExpColumns.length }}</span>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="iq-panel-body">
+
+      <!-- Info banner -->
+      <div class="iq-info-banner">
+        <i class="fa fa-info-circle"></i>
+        <span>Tick the boxes to set which instructors are qualified. If no qualifications are configured, all instructors remain eligible &mdash; existing bookings are unaffected.</span>
+      </div>
+
+
+      <!-- ═══ COURSES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'courses'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading course matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualCourseColumns || !vm.qualCourseColumns.length)">
+          <i class="fa fa-graduation-cap"></i>
+          <p>No courses configured for this club.</p>
+          <span class="iq-empty-hint">Add courses under Club Management &rarr; Courses first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualCourseColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualCourseColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('courses', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('courses', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualCourseRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.courses">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'courses')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'courses')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'courses')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- ═══ TUITION TYPES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'tuition'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading tuition matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualTuitionColumns || !vm.qualTuitionColumns.length)">
+          <i class="fa fa-book-open"></i>
+          <p>No tuition types configured for this club.</p>
+          <span class="iq-empty-hint">Add instructor charges first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualTuitionColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualTuitionColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <span class="iq-col-subtitle" ng-if="col.charge_type">({{ col.charge_type }})</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('tuition', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('tuition', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualTuitionRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.tuition_types">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'tuition')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'tuition')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'tuition')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- ═══ EXPERIENCES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'experiences'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading experiences matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualExpColumns || !vm.qualExpColumns.length)">
+          <i class="fa fa-plane"></i>
+          <p>No voucher experiences configured for this club.</p>
+          <span class="iq-empty-hint">Add experiences under Club Management &rarr; Experiences first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualExpColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualExpColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <span class="iq-col-subtitle" ng-if="col.price">&pound;{{ col.price }}</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('experiences', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('experiences', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualExpRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.experiences">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'experiences')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'experiences')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'experiences')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /iq-panel-body -->
+
+  </div><!-- /iq-panel-inner -->
+
+</div><!-- /iq-panel -->

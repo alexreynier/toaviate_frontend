@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlightsController', DashboardClubFlightsController);
 
-    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService'];
-    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService) {
+    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService'];
+    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -1422,6 +1422,69 @@
 
             
         }
+
+
+        // ═══════════════════════════════════════════════
+        // FLIGHT EDITING — Open the edit modal
+        // ═══════════════════════════════════════════════
+        vm.editFlight = function(flight) {
+            // Determine if this flight has an associated booking
+            var flightBookingId = flight.booking_id || null;
+            // For PLS-only flights (no booking), pass the PLS ID
+            var flightPlsId = flight.booking_id ? null : (flight.pls_id || flight.id);
+
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/flightEditModal.html',
+                controller: 'FlightEditModalController',
+                size: 'lg',
+                backdrop: 'static',
+                keyboard: false,
+                resolve: {
+                    bookingId: function() { return flightBookingId; },
+                    plsId: function() { return flightPlsId; },
+                    clubId: function() { return vm.club_id; }
+                }
+            });
+
+            modalInstance.result.then(function(result) {
+                // Edit was applied successfully — refresh the flights list
+                if (result && result.success) {
+                    ToastService.success('Flight Updated', 'The flight has been updated successfully.', { duration: 4000 });
+                    vm.search_for_flights();
+                }
+            }, function() {
+                // Modal was dismissed (cancelled)
+                $log.info('Flight edit modal dismissed');
+            });
+        };
+
+
+        // ═══════════════════════════════════════════════
+        // CLUB-WIDE EDIT HISTORY
+        // ═══════════════════════════════════════════════
+        vm.showEditHistory = false;
+        vm.clubEditHistory = [];
+        vm.editHistoryPage = 1;
+        vm.editHistoryPagination = null;
+
+        vm.toggleClubEditHistory = function() {
+            vm.showEditHistory = !vm.showEditHistory;
+            if (vm.showEditHistory && vm.clubEditHistory.length === 0) {
+                vm.loadClubEditHistory(1);
+            }
+        };
+
+        vm.loadClubEditHistory = function(page) {
+            vm.editHistoryPage = page || 1;
+            FlightEditsService.GetHistoryByClub(vm.club_id, vm.editHistoryPage, 20)
+                .then(function(data) {
+                    if (data && data.success) {
+                        vm.clubEditHistory = data.edits || [];
+                        vm.editHistoryPagination = data.pagination || null;
+                    }
+                });
+        };
 
 
     }

@@ -46,6 +46,8 @@ app.factory('PlaneService', PlaneService);
 
         service.UpdateAircraftBit = UpdateAircraftBit;
 
+        service.ToggleHiddenFromBooking = ToggleHiddenFromBooking;
+
         service.GetIncompleteClub = GetIncompleteClub;
         // service.GetMaintenanceForUser = GetMaintenanceForUser;
 
@@ -84,6 +86,13 @@ app.factory('PlaneService', PlaneService);
 
         function UpdateAircraftBit(object){
             return $http.post('/api/v1/planes/'+object.plane_id+'/update_aircraft_bit', object).then(handleSuccess, handleError2);
+        }
+
+        function ToggleHiddenFromBooking(plane_id, club_id, hidden_from_booking){
+            return $http.post('/api/v1/planes/'+plane_id+'/toggle_hidden_from_booking', {
+                club_id: club_id,
+                hidden_from_booking: hidden_from_booking
+            }).then(handleSuccess, handleError2);
         }
 
         function GetAirframeLogs(plane_id, offset=0, max=5){

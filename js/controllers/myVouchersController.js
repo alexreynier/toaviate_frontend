@@ -185,7 +185,12 @@ app.controller('MyVouchersController', MyVouchersController);
                     vm.searching = false;
 
                     if (data.success === false) {
-                        vm.searchError = data.message || 'Search failed. Please try again.';
+                        // Provide user-friendly message for qualification errors
+                        var msg = data.message || 'Search failed. Please try again.';
+                        if (msg.toLowerCase().indexOf('no instructors are qualified') > -1) {
+                            msg = 'No instructors are currently available for this experience. Please contact the club to arrange a booking.';
+                        }
+                        vm.searchError = msg;
                         vm.availableSlots = [];
                         vm.groupedSlots = {};
                         vm.groupedDates = [];

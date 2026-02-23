@@ -68,47 +68,39 @@
             <tr>
               <th>Date</th>
               <th>Aircraft</th>
+              <th>Student</th>
               <th>From</th>
               <th>To</th>
               <th class="snazzy-table__hide-mobile">Brakes Off</th>
               <th class="snazzy-table__hide-mobile">Takeoff</th>
               <th class="snazzy-table__hide-mobile">Landing</th>
               <th class="snazzy-table__hide-mobile">Brakes On</th>
-              <th style="text-align:right;">Status</th>
+              <th style="text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody ng-repeat="flight in vm.flights | filter: my_search">
             <tr>
               <td class="snazzy-table__name">{{ flight.flight_date | asDate | date:'dd MMM yyyy' }}</td>
               <td>{{ flight.aircraft.registration }}</td>
-              <td><span uib-tooltip="{{flight.from_airport.title}}"><span ng-if="!flight.edit">{{ flight.from_airport.code }}</span></span></td>
-              <td><span uib-tooltip="{{flight.to_airport.title}}"><span ng-if="!flight.edit">{{ flight.to_airport.code }}</span></span></td>
+              <td>{{ flight.user.first_name }} {{ flight.user.last_name }}</td>
+              <td><span uib-tooltip="{{flight.from_airport.title}}">{{ flight.from_airport.code }}</span></td>
+              <td><span uib-tooltip="{{flight.to_airport.title}}">{{ flight.to_airport.code }}</span></td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Brakes Off Time">
-                  <span ng-if="!flight.edit">{{ flight.brakes_off }}</span>
-                  <span ng-if="flight.edit"><input type="text" class="snazzy-page__date-input" style="width:80px;" /></span>
-                </span>
+                <span uib-tooltip="Brakes Off Time">{{ flight.brakes_off }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Takeoff Time">
-                  <span ng-if="!flight.edit">{{ flight.takeoff_time }}</span>
-                  <span ng-if="flight.edit"> EDITING HERE</span>
-                </span>
+                <span uib-tooltip="Takeoff Time">{{ flight.takeoff_time }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Landing Time">
-                  <span ng-if="!flight.edit">{{ flight.landing_time }}</span>
-                  <span ng-if="flight.edit"> EDITING HERE</span>
-                </span>
+                <span uib-tooltip="Landing Time">{{ flight.landing_time }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Brakes On Time">
-                  <span ng-if="!flight.edit">{{ flight.brakes_on }}</span>
-                  <span ng-if="flight.edit"> EDITING HERE</span>
-                </span>
+                <span uib-tooltip="Brakes On Time">{{ flight.brakes_on }}</span>
               </td>
               <td style="text-align:right;">
-                <span class="snazzy-table__badge snazzy-table__badge--warning">Locked</span>
+                <button class="fe-edit-btn" ng-click="vm.editFlight(flight)" uib-tooltip="Edit this flight">
+                  <i class="fa fa-pencil"></i> Edit
+                </button>
               </td>
             </tr>
           </tbody>
@@ -121,12 +113,18 @@
       <div class="snazzy-mobile-card" ng-repeat="flight in vm.flights | filter: my_search">
         <div class="snazzy-mobile-card__header">
           <span class="snazzy-mobile-card__title">{{ flight.aircraft.registration }}</span>
-          <span class="snazzy-table__badge snazzy-table__badge--warning">Locked</span>
+          <button class="fe-edit-btn" ng-click="vm.editFlight(flight)">
+            <i class="fa fa-pencil"></i> Edit
+          </button>
         </div>
         <div class="snazzy-mobile-card__body">
           <div class="snazzy-mobile-card__row">
             <span class="snazzy-mobile-card__label">Date</span>
             <span>{{ flight.flight_date | asDate | date:'dd MMM yyyy' }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-if="flight.user">
+            <span class="snazzy-mobile-card__label">Student</span>
+            <span>{{ flight.user.first_name }} {{ flight.user.last_name }}</span>
           </div>
           <div class="snazzy-mobile-card__row">
             <span class="snazzy-mobile-card__label">Route</span>
@@ -141,6 +139,58 @@
             <span>{{ flight.takeoff_time }} / {{ flight.landing_time }}</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══ Club-Wide Edit History ═══ -->
+    <div class="snazzy-page__summary-card" style="padding:16px 24px; margin-top:24px; cursor:pointer;" ng-click="vm.toggleClubEditHistory()">
+      <h3 style="margin:0; font-size:15px; font-weight:700; color:#1e293b;">
+        <i class="fa fa-history" style="margin-right:8px; color:#2d5a8e;"></i>
+        Flight Edit Audit Log
+        <i class="fa" ng-class="vm.showEditHistory ? 'fa-chevron-up' : 'fa-chevron-down'" style="float:right; color:#94a3b8; font-size:13px; margin-top:2px;"></i>
+      </h3>
+    </div>
+
+    <div ng-if="vm.showEditHistory" class="snazzy-page__table-card" style="margin-top:0; border-top-left-radius:0; border-top-right-radius:0;">
+      <div class="snazzy-page__table-scroll" ng-if="vm.clubEditHistory.length > 0">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Flight</th>
+              <th>Student</th>
+              <th>Aircraft</th>
+              <th>Type</th>
+              <th>By</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="edit in vm.clubEditHistory">
+              <td>{{ edit.created_at }}</td>
+              <td>#{{ edit.booking_id }}</td>
+              <td>{{ edit.student_name || '—' }}</td>
+              <td>{{ edit.aircraft_reg || '—' }}</td>
+              <td>
+                <span class="snazzy-table__badge snazzy-table__badge--info">{{ edit.edit_type }}</span>
+              </td>
+              <td>{{ edit.admin_name || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div ng-if="vm.clubEditHistory.length === 0" style="padding:24px; text-align:center; color:#94a3b8;">
+        <i class="fa fa-check-circle" style="font-size:24px; margin-bottom:8px; display:block;"></i>
+        No flight edits have been made yet.
+      </div>
+      <!-- Pagination -->
+      <div ng-if="vm.editHistoryPagination && vm.editHistoryPagination.pages > 1" style="padding:12px 24px; display:flex; justify-content:center; gap:8px; align-items:center;">
+        <button class="fe-edit-btn" ng-click="vm.loadClubEditHistory(vm.editHistoryPage - 1)" ng-disabled="vm.editHistoryPage <= 1">
+          <i class="fa fa-chevron-left"></i> Prev
+        </button>
+        <span style="font-size:13px; color:#64748b;">Page {{ vm.editHistoryPage }} of {{ vm.editHistoryPagination.pages }}</span>
+        <button class="fe-edit-btn" ng-click="vm.loadClubEditHistory(vm.editHistoryPage + 1)" ng-disabled="vm.editHistoryPage >= vm.editHistoryPagination.pages">
+          Next <i class="fa fa-chevron-right"></i>
+        </button>
       </div>
     </div>
 
