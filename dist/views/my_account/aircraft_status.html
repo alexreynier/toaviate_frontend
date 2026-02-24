@@ -1,4 +1,4 @@
-<div class="centre_align_boxes2">
+<div class="centre_align_boxes2 aircraft_status_page">
 
 
     <div class="home_upper">
@@ -60,19 +60,37 @@
                           <th>Severity</th>
                           <th>Reported Date &amp; Time</th>
                           <th>Status</th>
+                          <th>Media</th>
                         </tr>
-                        <tr ng-repeat="defect in plane.defects | filter: filter_detail(plane.show_all_defects)">
+                        <tr ng-repeat-start="defect in plane.defects | filter: filter_detail(plane.show_all_defects)">
                           <td>{{ defect.defect }}</td>
                           <td>{{ defect.severity }}</td>
                           <td>{{ defect.created_at | myDateTime }}</td>
                           <td>{{ defect.status }}</td>
+                          <td>
+                            <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                              <i class="fa fa-camera"></i>
+                              <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                              <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                            </span>
+                          </td>
+                        </tr>
+                        <tr ng-repeat-end ng-if="defect._showMedia">
+                          <td colspan="5" style="padding: 10px 15px; background: #f9f9f9;">
+                            <defect-media-gallery defect-id="defect.id" club-id="club.id" media-count="defect.media_count"></defect-media-gallery>
+                          </td>
                         </tr>
                       </table>
                       </div>
 
                       <div class="mc-cards" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) > 0">
                         <div class="mc-card mc-card-warn" ng-repeat="defect in plane.defects | filter: filter_detail(plane.show_all_defects)">
-                          <div class="mc-card-header">{{ defect.defect }}</div>
+                          <div class="mc-card-header">
+                            {{ defect.defect }}
+                            <span class="dm-media-badge" ng-if="defect.media_count > 0" style="float:right;">
+                              <i class="fa fa-camera"></i> {{ defect.media_count }}
+                            </span>
+                          </div>
                           <div class="mc-card-body">
                             <div class="mc-card-grid">
                               <div class="mc-card-stat">
@@ -88,6 +106,16 @@
                               <span class="mc-card-label">Reported</span>
                               <span>{{ defect.created_at | myDateTime }}</span>
                             </div>
+                            <!-- Media section -->
+                            <div class="mc-card-row" style="margin-top: 8px;">
+                              <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                                <i class="fa fa-camera"></i> Photos &amp; Video
+                                <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px; margin-left:4px;"></i>
+                              </span>
+                            </div>
+                            <div ng-if="defect._showMedia" style="margin-top: 8px;">
+                              <defect-media-gallery defect-id="defect.id" club-id="club.id" media-count="defect.media_count"></defect-media-gallery>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -98,40 +126,9 @@
                     <div class="center_if_large">
                       Show All Previous Defects <input type="checkbox" name="" ng-model="plane.show_all_defects" />
                                  
-                       <button ng-if="!plane.show_add_defect" class="btn btn-primary adding_button" ng-click="plane.show_add_defect = true">+</button>  
+                       <button class="btn btn-primary adding_button" ng-click="vm.openDefectPanel(plane.plane_id, plane.registration, club.id)">+</button>  
 
                     </div>
-                      
-
-                    <!-- REPORT MAINTENANCE ISSUE //-->
-                    <div class="club_docs_all2 bookingout_wrapper" ng-if="plane.show_add_defect">
-                      <h4>Report A Defect for {{plane.registration}}</h4>
-                      <div class="center_if_large">
-
-                          <div class="form-group">
-                            <label for="defect">Defect</label>
-                            <input type="text" id="defect" class="form-control inputtext" ng-model="vm.defect" />
-                          </div>
-
-                          <div class="form-group">
-                            <label for="defect">Defect Severity</label>
-                            <ui-select ng-model="vm.defect_severity" theme="bootstrap" style="min-width: 300px;" title="Please select defect severity" append-to-body="true" class="input-group" required>
-                                <ui-select-match placeholder="Please select defect severity" >
-                                  {{ vm.defect_severity.title }}             
-                                </ui-select-match>
-                                <ui-select-choices repeat="defect in vm.defect_severities | filter: {title: $select.search}">
-                                  <span ng-bind-html="defect.title | highlight: $select.search"></span>
-                                </ui-select-choices>
-                            </ui-select>
-                          </div>
-
-                          <button class="btn btn-danger" ng-click="plane.show_add_defect = false;">CANCEL</button>
-                          <button class="btn btn-success" ng-click="plane.show_add_defect = false; vm.add_defect(plane.plane_id, club.id)">REPORT DEFECT</button>
-                          
-
-                      </div>
-                    </div>
-                     
 
                     
                     </div>
@@ -632,3 +629,11 @@
       <img class="max_100" src="{{ vm.receipt_image }}" alt="receipt image" />
   </div>
 </div>
+
+<!-- Defect Report Slide-in Panel -->
+<defect-report-panel
+    is-open="vm.showDefectPanel"
+    plane-registration="vm.defectPanelRegistration"
+    on-submit="vm.submitDefect(defectData, pendingFiles)"
+    on-close="vm.closeDefectPanel()">
+</defect-report-panel>

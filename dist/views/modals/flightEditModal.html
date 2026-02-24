@@ -1,0 +1,875 @@
+<!-- ═══════════════════════════════════════════════════════════
+     FLIGHT EDIT MODAL — 3-Step: Edit → Preview → Result
+     ═══════════════════════════════════════════════════════════ -->
+<div class="fe-modal">
+
+  <!-- ── MODAL HEADER ── -->
+  <div class="modal-header fe-modal__header">
+    <div class="fe-modal__header-left">
+      <i class="fa fa-plane fe-modal__header-icon"></i>
+      <h3 class="modal-title fe-modal__title">
+        <span ng-if="step === 0">Loading Flight…</span>
+        <span ng-if="step === 1">Edit Flight</span>
+        <span ng-if="step === 2">Preview Changes</span>
+        <span ng-if="step === 3">Edit Applied</span>
+      </h3>
+      <span class="fe-modal__subtitle" ng-if="step === 1 && !hasBooking">
+        <i class="fa fa-info-circle"></i> PLS-only — times editing only
+      </span>
+    </div>
+    <button type="button" class="fe-modal__close" ng-click="close()" aria-label="Close">
+      <i class="fa fa-times"></i>
+    </button>
+  </div>
+
+  <!-- ── STEP INDICATOR ── -->
+  <div class="fe-steps" ng-if="step > 0">
+    <div class="fe-steps__item" ng-class="{'fe-steps__item--active': step === 1, 'fe-steps__item--done': step > 1}">
+      <span class="fe-steps__num"><span ng-if="step <= 1">1</span><i ng-if="step > 1" class="fa fa-check"></i></span>
+      <span class="fe-steps__label">Edit</span>
+    </div>
+    <div class="fe-steps__connector" ng-class="{'fe-steps__connector--done': step > 1}"></div>
+    <div class="fe-steps__item" ng-class="{'fe-steps__item--active': step === 2, 'fe-steps__item--done': step > 2}">
+      <span class="fe-steps__num"><span ng-if="step <= 2">2</span><i ng-if="step > 2" class="fa fa-check"></i></span>
+      <span class="fe-steps__label">Preview</span>
+    </div>
+    <div class="fe-steps__connector" ng-class="{'fe-steps__connector--done': step > 2}"></div>
+    <div class="fe-steps__item" ng-class="{'fe-steps__item--active': step === 3}">
+      <span class="fe-steps__num">3</span>
+      <span class="fe-steps__label">Result</span>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 0 — LOADING
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body fe-modal__body" ng-if="step === 0">
+    <div class="fe-loading">
+      <div class="fe-loading__spinner">
+        <i class="fa fa-spinner fa-spin fa-3x"></i>
+      </div>
+      <p class="fe-loading__text">Loading flight data…</p>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 1 — EDIT FORM
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body fe-modal__body" ng-if="step === 1">
+
+    <!-- ── AIRCRAFT & CREW (booking flights only) ── -->
+    <div class="fe-section" ng-if="hasBooking">
+      <div class="fe-section__header" ng-click="toggleSection('aircraft')">
+        <i class="fa fa-plane fe-section__icon"></i>
+        <span class="fe-section__title">Aircraft &amp; Crew</span>
+        <i class="fa fe-section__chevron" ng-class="sections.aircraft ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.aircraft">
+
+        <!-- Row 1: Aircraft + Member -->
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Aircraft</label>
+            <div class="fe-field__readonly">
+              <i class="fa fa-plane"></i>
+              {{ getPlaneRegistration() || '—' }}
+            </div>
+            <span class="fe-field__hint">
+              <i class="fa fa-lock"></i> Cannot be changed
+            </span>
+          </div>
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Student / Member</label>
+            <ui-select ng-model="form.selectedMember"
+                       on-select="onMemberSelect()"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="Search member…">
+                {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+              </ui-select-match>
+              <ui-select-choices repeat="m in availableMembers | propsFilterA: { first_name: $select.search, last_name: $select.search, email: $select.search }"
+                                refresh="searchMembers($select.search)"
+                                refresh-delay="300"
+                                minimum-input-length="2">
+                <div ng-bind-html="m.first_name + ' ' + m.last_name | highlight: $select.search"></div>
+                <small ng-if="m.email" ng-bind-html="m.email | highlight: $select.search"></small>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+        </div>
+
+        <!-- Row 2: Instructor + Course/Solo/PICUS -->
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Instructor</label>
+            <div class="fe-field__with-clear">
+              <ui-select ng-model="form.selectedInstructor"
+                         on-select="onInstructorSelect()"
+                         on-remove="onInstructorRemove()"
+                         allow-clear="true"
+                         theme="bootstrap"
+                         append-to-body="true"
+                         reset-search-input="true">
+                <ui-select-match placeholder="Search instructor…">
+                  {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+                </ui-select-match>
+                <ui-select-choices repeat="i in availableInstructors | propsFilterA: { first_name: $select.search, last_name: $select.search }">
+                  <div ng-bind-html="i.first_name + ' ' + i.last_name | highlight: $select.search"></div>
+                </ui-select-choices>
+              </ui-select>
+              <button type="button" class="fe-field__clear-btn" ng-if="form.selectedInstructor" ng-click="clearInstructor()" title="Remove instructor">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+          </div>
+          <div class="fe-field fe-field--half">
+            <div class="fe-checkbox-group fe-checkbox-group--inline">
+              <label class="fe-checkbox" ng-if="form.selectedInstructor">
+                <input type="checkbox" ng-model="form.authorised_solo" />
+                <span class="fe-checkbox__label">Authorised Solo</span>
+              </label>
+              <label class="fe-checkbox" ng-if="form.selectedInstructor">
+                <input type="checkbox" ng-model="form.is_picus" />
+                <span class="fe-checkbox__label">PICUS</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3: PIC / PUT -->
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Pilot In Command (PIC)</label>
+            <select class="fe-field__input" ng-model="form.pic_id"
+                    ng-options="c.id as c.label for c in piCandidates">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="fe-field fe-field--half" ng-if="form.selectedInstructor">
+            <label class="fe-field__label">Pilot Under Training (PUT)</label>
+            <select class="fe-field__input" ng-model="form.put_id"
+                    ng-options="c.id as c.label for c in piCandidates">
+              <option value="">— None —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 4: Course + Tuition Type (conditional) -->
+        <div class="fe-field-row" ng-if="form.selectedInstructor">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Course</label>
+            <ui-select ng-model="form.selectedCourse"
+                       on-select="onCourseSelect()"
+                       on-remove="onCourseSelect()"
+                       allow-clear="true"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="Select course…">
+                {{ $select.selected.title }}
+              </ui-select-match>
+              <ui-select-choices repeat="c in courses | propsFilterA: { title: $select.search }">
+                <div ng-bind-html="c.title | highlight: $select.search"></div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <div class="fe-field fe-field--half" ng-if="form.selectedCourse">
+            <label class="fe-field__label">Tuition Type</label>
+            <ui-select ng-model="form.selectedTuition"
+                       on-select="onTuitionSelect()"
+                       on-remove="onTuitionSelect()"
+                       allow-clear="true"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="Select tuition type…">
+                {{ $select.selected.title }}
+              </ui-select-match>
+              <ui-select-choices repeat="t in instructorCharges | propsFilterA: { title: $select.search }">
+                <div ng-bind-html="t.title | highlight: $select.search"></div>
+                <small ng-if="t.rate">{{ formatAmount(t.rate) }}/hr</small>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+        </div>
+
+        <!-- Row 5: Lesson / Exercise — REMOVED from flight editing.
+             Lessons should be changed via the Training Records section, not here. -->
+
+      </div>
+    </div>
+
+    <!-- ── FLIGHT TIMES ── -->
+    <div class="fe-section">
+      <div class="fe-section__header" ng-click="toggleSection('times')">
+        <i class="fa fa-clock-o fe-section__icon"></i>
+        <span class="fe-section__title">Flight Times</span>
+        <i class="fa fe-section__chevron" ng-class="sections.times ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.times">
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--third">
+            <label class="fe-field__label">Flight Date</label>
+            <input type="text" class="fe-field__input" ng-model="form.flight_date" placeholder="YYYY-MM-DD" />
+          </div>
+        </div>
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--quarter">
+            <label class="fe-field__label">Brakes Off</label>
+            <ui-select ng-model="selectedBrakesOff"
+                       on-select="onTimeChange('brakes_off', $item)"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="HH:MM">{{ $select.selected.time }}</ui-select-match>
+              <ui-select-choices repeat="t in brakesOffTimes | filter: { time: $select.search, disabled: 0 }">
+                <span ng-bind-html="t.time | highlight: $select.search"></span>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <div class="fe-field fe-field--quarter">
+            <label class="fe-field__label">Takeoff</label>
+            <ui-select ng-model="selectedTakeoff"
+                       on-select="onTimeChange('takeoff', $item)"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="HH:MM">{{ $select.selected.time }}</ui-select-match>
+              <ui-select-choices repeat="t in takeoffTimes | filter: { time: $select.search, disabled: 0 }">
+                <span ng-bind-html="t.time | highlight: $select.search"></span>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <div class="fe-field fe-field--quarter">
+            <label class="fe-field__label">Landing</label>
+            <ui-select ng-model="selectedLanding"
+                       on-select="onTimeChange('landing', $item)"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="HH:MM">{{ $select.selected.time }}</ui-select-match>
+              <ui-select-choices repeat="t in landingTimes | filter: { time: $select.search, disabled: 0 }">
+                <span ng-bind-html="t.time | highlight: $select.search"></span>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <div class="fe-field fe-field--quarter">
+            <label class="fe-field__label">Brakes On</label>
+            <ui-select ng-model="selectedBrakesOn"
+                       on-select="onTimeChange('brakes_on', $item)"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="HH:MM">{{ $select.selected.time }}</ui-select-match>
+              <ui-select-choices repeat="t in brakesOnTimes | filter: { time: $select.search, disabled: 0 }">
+                <span ng-bind-html="t.time | highlight: $select.search"></span>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+        </div>
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Tacho Start</label>
+            <input type="number" step="0.1" class="fe-field__input" ng-model="form.tacho_start" />
+          </div>
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Tacho End</label>
+            <input type="number" step="0.1" class="fe-field__input" ng-model="form.tacho_end" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ROUTE & AIRFIELDS (booking flights only) ── -->
+    <div class="fe-section" ng-if="hasBooking">
+      <div class="fe-section__header" ng-click="toggleSection('route')">
+        <i class="fa fa-map-marker fe-section__icon"></i>
+        <span class="fe-section__title">Route &amp; Airfields</span>
+        <i class="fa fe-section__chevron" ng-class="sections.route ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.route">
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">From</label>
+            <ui-select ng-model="fromAirfield"
+                       on-select="onFromAirfieldSelect()"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="Search airfield…">
+                <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
+              </ui-select-match>
+              <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
+                                refresh="searchAirfields($select.search)"
+                                refresh-delay="300"
+                                minimum-input-length="2">
+                <div>
+                  <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
+                  <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
+                </div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">To</label>
+            <ui-select ng-model="toAirfield"
+                       on-select="onToAirfieldSelect()"
+                       theme="bootstrap"
+                       append-to-body="true"
+                       reset-search-input="true">
+              <ui-select-match placeholder="Search airfield…">
+                <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
+              </ui-select-match>
+              <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
+                                refresh="searchAirfields($select.search)"
+                                refresh-delay="300"
+                                minimum-input-length="2">
+                <div>
+                  <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
+                  <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
+                </div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+        </div>
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--third">
+            <label class="fe-field__label">Landings</label>
+            <input type="number" class="fe-field__input" ng-model="form.landings" min="0" />
+          </div>
+          <div class="fe-field fe-field--third">
+            <label class="fe-field__label">Touch &amp; Go's</label>
+            <input type="number" class="fe-field__input" ng-model="form.touch_and_gos" min="0" />
+          </div>
+          <div class="fe-field fe-field--third">
+            <label class="fe-field__label">Night Landings</label>
+            <input type="number" class="fe-field__input" ng-model="form.night_landings" min="0" />
+          </div>
+        </div>
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--full">
+            <label class="fe-field__label">Route</label>
+            <input type="text" class="fe-field__input" ng-model="form.route" placeholder="e.g. EGBJ — EGHH — EGBJ" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── OTHER (booking flights only) ── -->
+    <div class="fe-section" ng-if="hasBooking">
+      <div class="fe-section__header" ng-click="toggleSection('other')">
+        <i class="fa fa-pencil fe-section__icon"></i>
+        <span class="fe-section__title">Other</span>
+        <i class="fa fe-section__chevron" ng-class="sections.other ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.other">
+        <div class="fe-field-row">
+          <div class="fe-field fe-field--full">
+            <label class="fe-field__label">Remarks</label>
+            <textarea class="fe-field__input fe-field__textarea" ng-model="form.remarks"
+                      rows="3" placeholder="Flight remarks…"></textarea>
+          </div>
+        </div>
+        <div class="fe-field-row">
+          <div class="fe-checkbox-group">
+            <label class="fe-checkbox" ng-if="hasBooking">
+              <input type="checkbox" ng-model="form.maintenance_flight" />
+              <span class="fe-checkbox__label">Maintenance Flight</span>
+            </label>
+          </div>
+        </div>
+        <div class="fe-field-row" ng-if="hasBooking">
+          <div class="fe-field fe-field--half">
+            <label class="fe-field__label">Voucher</label>
+            <div class="fe-field__with-clear">
+              <ui-select ng-model="form.selectedVoucher"
+                         on-select="onVoucherSelect()"
+                         on-remove="onVoucherRemove()"
+                         allow-clear="true"
+                         theme="bootstrap"
+                         append-to-body="true"
+                         reset-search-input="true">
+                <ui-select-match placeholder="Search by code, name or email…">
+                  {{ $select.selected.code }} — {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+                </ui-select-match>
+                <ui-select-choices repeat="v in availableVouchers | propsFilterA: { code: $select.search, first_name: $select.search, last_name: $select.search, email: $select.search }"
+                                  refresh="searchVouchers()"
+                                  refresh-delay="0">
+                  <div>
+                    <strong ng-bind-html="v.code | highlight: $select.search"></strong>
+                    <span ng-bind-html="' — ' + v.first_name + ' ' + v.last_name | highlight: $select.search"></span>
+                  </div>
+                  <small ng-if="v.email" ng-bind-html="v.email | highlight: $select.search"></small>
+                </ui-select-choices>
+              </ui-select>
+              <button type="button" class="fe-field__clear-btn" ng-if="form.selectedVoucher" ng-click="clearVoucher()" title="Remove voucher">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            <span class="fe-field__hint" ng-if="original.voucher">
+              <i class="fa fa-ticket"></i> Original: {{ original.voucher.code || ('#' + original.voucher.id) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CURRENT FINANCIAL SUMMARY (read-only) ── -->
+    <div class="fe-section" ng-if="hasBooking && (invoices.length > 0 || payments.length > 0)">
+      <div class="fe-section__header" ng-click="toggleSection('financial')">
+        <i class="fa fa-file-text-o fe-section__icon"></i>
+        <span class="fe-section__title">Current Financial Summary</span>
+        <i class="fa fe-section__chevron" ng-class="sections.financial ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.financial">
+        <div class="fe-readonly-list">
+          <div class="fe-readonly-item" ng-repeat="inv in invoices">
+            <i class="fa fa-file-text-o"></i>
+            <span>Invoice {{ inv.invoice_number || '#' + inv.id }} — {{ formatAmount(inv.total) }}</span>
+            <span class="fe-readonly-badge" ng-class="inv.status === 'paid' ? 'fe-readonly-badge--green' : 'fe-readonly-badge--amber'">
+              {{ inv.status | uppercase }}
+            </span>
+          </div>
+          <div class="fe-readonly-item" ng-repeat="pay in payments">
+            <i class="fa fa-credit-card"></i>
+            <span>{{ formatAmount(pay.amount) }} via {{ pay.method || 'Card' }}</span>
+            <span class="fe-readonly-badge fe-readonly-badge--green" ng-if="pay.status === 'succeeded'">PAID</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EDIT HISTORY (collapsible, read-only) ── -->
+    <div class="fe-section" ng-if="editHistory.length > 0">
+      <div class="fe-section__header" ng-click="toggleSection('history')">
+        <i class="fa fa-history fe-section__icon"></i>
+        <span class="fe-section__title">Edit History ({{ editHistory.length }})</span>
+        <i class="fa fe-section__chevron" ng-class="sections.history ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-show="sections.history">
+        <div class="fe-history-timeline">
+          <div class="fe-history-entry" ng-repeat="entry in editHistory">
+            <div class="fe-history-entry__date">{{ entry.created_at }}</div>
+            <div class="fe-history-entry__type">{{ entry.edit_type_label || entry.edit_type }}</div>
+            <div class="fe-history-entry__by" ng-if="entry.admin_name">by {{ entry.admin_name }}</div>
+            <div class="fe-history-entry__summary" ng-if="entry.summary">{{ entry.summary }}</div>
+            <a class="fe-history-entry__link" ng-click="loadAuditDetail(entry.id)">View Full Audit →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /step 1 body -->
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 2 — PREVIEW & CONFIRM
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body fe-modal__body" ng-if="step === 2">
+
+    <!-- ── EDIT TYPE BADGE ── -->
+    <div class="fe-edit-type" ng-if="preview.edit_type">
+      <i class="fa" ng-class="getEditTypeIcon(preview.edit_type)"></i>
+      <span class="fe-edit-type__label">{{ formatEditType(preview.edit_type) }}</span>
+    </div>
+
+    <!-- ── CHANGES SUMMARY ── -->
+    <div class="fe-preview-section">
+      <div class="fe-preview-section__header">
+        <i class="fa fa-list"></i> Changes to Apply
+      </div>
+      <div class="fe-preview-section__body">
+        <div class="fe-diff" ng-repeat="change in preview.booking_changes">
+          <span class="fe-diff__label">{{ change.label || change.field }}</span>
+          <span class="fe-diff__old">{{ change.old_display || change.old }}</span>
+          <i class="fa fa-long-arrow-right fe-diff__arrow"></i>
+          <span class="fe-diff__new">{{ change.new_display || change.new }}</span>
+        </div>
+        <div class="fe-diff" ng-repeat="change in preview.pls_changes">
+          <span class="fe-diff__label">{{ change.label || change.field }}</span>
+          <span class="fe-diff__old">{{ change.old_display || change.old }}</span>
+          <i class="fa fa-long-arrow-right fe-diff__arrow"></i>
+          <span class="fe-diff__new">{{ change.new_display || change.new }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FINANCIAL IMPACT ── -->
+    <div class="fe-preview-section fe-preview-section--financial" ng-if="preview.financial_impact.has_impact">
+      <div class="fe-preview-section__header">
+        <i class="fa fa-gbp"></i> Financial Impact
+      </div>
+      <div class="fe-preview-section__body">
+        <div class="fe-financial-summary">
+          <div class="fe-financial-row">
+            <span>Original total:</span>
+            <span>{{ formatAmount(preview.financial_impact.original_total) }}</span>
+          </div>
+          <div class="fe-financial-row">
+            <span>New total:</span>
+            <span>{{ formatAmount(preview.financial_impact.new_total) }}</span>
+          </div>
+          <div class="fe-financial-row fe-financial-row--highlight"
+               ng-class="preview.financial_impact.difference > 0 ? 'fe-financial-row--charge' : 'fe-financial-row--credit'">
+            <span>Difference:</span>
+            <span>
+              <span ng-if="preview.financial_impact.difference > 0">+</span>{{ formatAmount(preview.financial_impact.difference) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Charge Breakdown -->
+        <div class="fe-financial-breakdown" ng-if="preview.financial_impact.breakdown">
+          <h5 class="fe-financial-breakdown__title">Charge Breakdown</h5>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.charge_type">
+            <span>Charge Type:</span>
+            <span class="fe-badge fe-badge--type">{{ preview.financial_impact.breakdown.charge_type | uppercase }}</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.charge_rate">
+            <span>Rate:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.charge_rate) }} / unit</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.units">
+            <span>Units:</span>
+            <span>{{ preview.financial_impact.breakdown.units | number:3 }}</span>
+          </div>
+          <div class="fe-financial-row">
+            <span>Aircraft Charge:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.aircraft_charge) }}</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.landing_total > 0">
+            <span>Landing Fees:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.landing_total) }}</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.tg_total > 0">
+            <span>Touch &amp; Go Fees:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.tg_total) }}</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.surcharge > 0">
+            <span>Surcharge:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.surcharge) }}</span>
+          </div>
+          <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.tuition_total > 0">
+            <span>Tuition:</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.tuition_total) }}</span>
+          </div>
+        </div>
+
+        <!-- Member OWES more -->
+        <div class="fe-financial-action" ng-if="preview.financial_impact.action === 'charge'">
+          <div class="fe-financial-notice fe-financial-notice--charge">
+            <i class="fa fa-exclamation-triangle"></i>
+            The member owes an additional {{ formatAmount(preview.financial_impact.abs_difference) }}
+          </div>
+          <p class="fe-financial-question">How would you like to handle this?</p>
+          <div class="fe-radio-group">
+            <!-- Unpaid invoice: amend or waive -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'unpaid'">
+              <input type="radio" name="financialAction" value="amend_invoice"
+                     ng-click="setFinancialAction('amend_invoice')" ng-checked="financial.action === 'amend_invoice'" />
+              <span class="fe-radio__label">Amend the existing invoice</span>
+            </label>
+            <!-- Paid: create new invoice -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() !== 'unpaid'">
+              <input type="radio" name="financialAction" value="new_invoice"
+                     ng-click="setFinancialAction('new_invoice')" ng-checked="financial.action === 'new_invoice'" />
+              <span class="fe-radio__label">Create new invoice (member pays later)</span>
+            </label>
+            <!-- Stripe: charge now -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'stripe'">
+              <input type="radio" name="financialAction" value="immediate_charge"
+                     ng-click="setFinancialAction('immediate_charge')" ng-checked="financial.action === 'immediate_charge'" />
+              <span class="fe-radio__label">Charge now via Stripe</span>
+            </label>
+            <!-- GoCardless: add to billing cycle -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'gocardless'">
+              <input type="radio" name="financialAction" value="billing_cycle"
+                     ng-click="setFinancialAction('billing_cycle')" ng-checked="financial.action === 'billing_cycle'" />
+              <span class="fe-radio__label">Add to next billing cycle (GoCardless)</span>
+            </label>
+            <!-- Always show waive -->
+            <label class="fe-radio">
+              <input type="radio" name="financialAction" value="waive"
+                     ng-click="setFinancialAction('waive')" ng-checked="financial.action === 'waive'" />
+              <span class="fe-radio__label">Waive the difference</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Member OVERPAID -->
+        <div class="fe-financial-action" ng-if="preview.financial_impact.action === 'credit'">
+          <div class="fe-financial-notice fe-financial-notice--credit">
+            <i class="fa fa-check-circle"></i>
+            The member overpaid by {{ formatAmount(preview.financial_impact.abs_difference) }}
+          </div>
+          <p class="fe-financial-question">How would you like to handle this?</p>
+          <div class="fe-radio-group">
+            <!-- Unpaid invoice: amend or waive -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'unpaid'">
+              <input type="radio" name="financialAction" value="amend_invoice"
+                     ng-click="setFinancialAction('amend_invoice')" ng-checked="financial.action === 'amend_invoice'" />
+              <span class="fe-radio__label">Amend the existing invoice</span>
+            </label>
+            <!-- Paid: credit to account -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() !== 'unpaid'">
+              <input type="radio" name="financialAction" value="credit_account"
+                     ng-click="setFinancialAction('credit_account')" ng-checked="financial.action === 'credit_account'" />
+              <span class="fe-radio__label">Credit to member's account balance</span>
+            </label>
+            <!-- Stripe: refund to card -->
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'stripe'">
+              <input type="radio" name="financialAction" value="stripe_refund"
+                     ng-click="setFinancialAction('stripe_refund')" ng-checked="financial.action === 'stripe_refund'" />
+              <span class="fe-radio__label">Refund to the user's card via Stripe</span>
+            </label>
+            <!-- GoCardless: refund via DD (disabled for now — technical complications) -->
+            <!--
+            <label class="fe-radio" ng-if="getInvoicePaymentState() === 'gocardless'">
+              <input type="radio" name="financialAction" value="gocardless_refund"
+                     ng-click="setFinancialAction('gocardless_refund')" ng-checked="financial.action === 'gocardless_refund'" />
+              <span class="fe-radio__label">Refund user's Direct Debit via GoCardless</span>
+            </label>
+            -->
+            <!-- Always show waive -->
+            <label class="fe-radio">
+              <input type="radio" name="financialAction" value="waive"
+                     ng-click="setFinancialAction('waive')" ng-checked="financial.action === 'waive'" />
+              <span class="fe-radio__label">Waive (no action)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── WARNINGS ── -->
+    <div class="fe-warnings" ng-if="preview.warnings && preview.warnings.length > 0">
+      <div class="fe-warning" ng-repeat="warn in preview.warnings" ng-class="getWarningClass(warn.level)">
+        <i class="fa" ng-class="getWarningIcon(warn.level)"></i>
+        <span>{{ warn.message }}</span>
+      </div>
+    </div>
+
+    <!-- ── TRAINING RECORD IMPACT (only when student/instructor changed) ── -->
+    <div class="fe-preview-section fe-preview-section--training" ng-if="crewChanged && trainingRecords.length > 0">
+      <div class="fe-preview-section__header">
+        <i class="fa fa-graduation-cap"></i> Training Records
+      </div>
+      <div class="fe-preview-section__body">
+        <div class="fe-warning fe-warning--high">
+          <i class="fa fa-exclamation-triangle"></i>
+          <span>
+            The student or instructor has been changed. Existing training records for this flight
+            ({{ trainingRecords.length }}) will be <strong>removed</strong> (an audit trail will be kept)
+            and the flight will be marked as not yet debriefed so the correct instructor/student
+            pairing can create a new training record.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STUDENT REASSIGNMENT ── -->
+    <div class="fe-preview-section fe-preview-section--reassignment" ng-if="preview.student_reassignment">
+      <div class="fe-preview-section__header">
+        <i class="fa fa-user"></i> Student Reassignment
+      </div>
+      <div class="fe-preview-section__body">
+        <div class="fe-reassignment">
+          <div class="fe-reassignment__parties">
+            <div class="fe-reassignment__from">
+              <span class="fe-reassignment__label">FROM</span>
+              <span class="fe-reassignment__name">{{ preview.student_reassignment.old_student.first_name }} {{ preview.student_reassignment.old_student.last_name }}</span>
+              <span class="fe-reassignment__email">{{ preview.student_reassignment.old_student.email }}</span>
+            </div>
+            <i class="fa fa-long-arrow-right fe-reassignment__arrow"></i>
+            <div class="fe-reassignment__to">
+              <span class="fe-reassignment__label">TO</span>
+              <span class="fe-reassignment__name">{{ preview.student_reassignment.new_student.first_name }} {{ preview.student_reassignment.new_student.last_name }}</span>
+              <span class="fe-reassignment__email">{{ preview.student_reassignment.new_student.email }}</span>
+            </div>
+          </div>
+          <div class="fe-reassignment__actions" ng-if="preview.student_reassignment.actions_required.length > 0">
+            <p><strong>Steps that will be taken:</strong></p>
+            <ol>
+              <li ng-repeat="action in preview.student_reassignment.actions_required">{{ action }}</li>
+            </ol>
+          </div>
+          <div class="fe-warning fe-warning--high">
+            <i class="fa fa-exclamation-triangle"></i>
+            <span>This action cannot be easily undone.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AFFECTED ENTITIES ── -->
+    <!-- When crew hasn't changed, training_record entities are hidden since
+         we don't want to suggest changes to training records in that scenario -->
+    <div class="fe-preview-section" ng-if="getVisibleAffectedEntities().length > 0">
+      <div class="fe-preview-section__header" ng-click="showAffected = !showAffected" style="cursor:pointer;">
+        <i class="fa fa-link"></i> Affected Records ({{ getVisibleAffectedEntities().length }})
+        <i class="fa" ng-class="showAffected ? 'fa-chevron-up' : 'fa-chevron-down'" style="float:right;"></i>
+      </div>
+      <div class="fe-preview-section__body" ng-show="showAffected">
+        <div class="fe-entity" ng-repeat="entity in getVisibleAffectedEntities()">
+          <i class="fa" ng-class="getEntityIcon(entity.type)"></i>
+          <span class="fe-entity__type">{{ entity.type | uppercase }}</span>
+          <span class="fe-entity__id" ng-if="entity.id">#{{ entity.id }}</span>
+          <span class="fe-entity__status" ng-if="entity.status">({{ entity.status }})</span>
+          <span class="fe-entity__impact">— {{ entity.impact }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EDIT TYPE / SUMMARY ── -->
+    <div class="fe-preview-summary" ng-if="preview.summary">
+      <i class="fa fa-info-circle"></i>
+      <span>{{ preview.summary }}</span>
+    </div>
+
+  </div><!-- /step 2 body -->
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 3 — RESULT / SUCCESS
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body fe-modal__body" ng-if="step === 3">
+    <div class="fe-result">
+      <div class="fe-result__icon">
+        <i class="fa fa-check-circle"></i>
+      </div>
+      <h3 class="fe-result__title">Flight Edit Applied Successfully</h3>
+      <div class="fe-result__details" ng-if="result">
+        <div class="fe-result__row">
+          <span class="fe-result__label">Edit ID:</span>
+          <span>#{{ result.edit_id }}</span>
+        </div>
+        <div class="fe-result__row">
+          <span class="fe-result__label">Type:</span>
+          <span>{{ result.edit_type }}</span>
+        </div>
+      </div>
+
+      <!-- Affected entities in result -->
+      <div class="fe-result__entities" ng-if="result.affected_entities && result.affected_entities.length > 0">
+        <h4>Changes Applied:</h4>
+        <div class="fe-entity" ng-repeat="entity in result.affected_entities">
+          <i class="fa" ng-class="getEntityIcon(entity.type)"></i>
+          <span class="fe-entity__type">{{ entity.type }}</span>
+          <span class="fe-entity__id" ng-if="entity.id">#{{ entity.id }}</span>
+          <span class="fe-entity__impact">— {{ entity.action }}</span>
+          <span class="fe-entity__amount" ng-if="entity.amount"> ({{ formatAmount(entity.amount) }})</span>
+        </div>
+      </div>
+
+      <!-- Financial outcome -->
+      <div class="fe-result__financial" ng-if="result.financial_impact && result.financial_impact.has_impact">
+        <h4>Financial Outcome:</h4>
+        <p ng-if="result.financial_impact.action === 'charge'">
+          Additional charge of {{ formatAmount(result.financial_impact.abs_difference) }}
+          <span ng-if="financial.action === 'new_invoice'">— invoice created</span>
+          <span ng-if="financial.action === 'immediate_charge'">— charged immediately</span>
+          <span ng-if="financial.action === 'billing_cycle'">— added to billing cycle</span>
+          <span ng-if="financial.action === 'waive'">— waived</span>
+        </p>
+        <p ng-if="result.financial_impact.action === 'credit'">
+          Credit of {{ formatAmount(result.financial_impact.abs_difference) }}
+          <span ng-if="financial.action === 'credit_account'">— credited to account</span>
+          <span ng-if="financial.action === 'stripe_refund'">— refunded via Stripe</span>
+          <span ng-if="financial.action === 'waive'">— waived</span>
+        </p>
+      </div>
+    </div>
+  </div><!-- /step 3 body -->
+
+
+  <!-- ════════════════════════════════════════════════════════
+       AUDIT DETAIL OVERLAY
+       ════════════════════════════════════════════════════════ -->
+  <div class="fe-audit-overlay" ng-if="showAuditDetail">
+    <div class="fe-audit-panel">
+      <div class="fe-audit-panel__header">
+        <h4><i class="fa fa-search"></i> Audit Detail</h4>
+        <button class="fe-modal__close" ng-click="closeAuditDetail()"><i class="fa fa-times"></i></button>
+      </div>
+      <div class="fe-audit-panel__body" ng-if="!auditDetail">
+        <div class="fe-loading">
+          <i class="fa fa-spinner fa-spin fa-2x"></i>
+          <p>Loading audit detail…</p>
+        </div>
+      </div>
+      <div class="fe-audit-panel__body" ng-if="auditDetail">
+        <div class="fe-audit-meta">
+          <div class="fe-audit-meta__row" ng-if="auditDetail.edit">
+            <span class="fe-audit-meta__label">Applied:</span>
+            <span>{{ auditDetail.edit.created_at }}</span>
+          </div>
+          <div class="fe-audit-meta__row" ng-if="auditDetail.edit.admin_name">
+            <span class="fe-audit-meta__label">By:</span>
+            <span>{{ auditDetail.edit.admin_name }} ({{ auditDetail.edit.admin_email }})</span>
+          </div>
+          <div class="fe-audit-meta__row" ng-if="auditDetail.edit.ip_address">
+            <span class="fe-audit-meta__label">IP:</span>
+            <span>{{ auditDetail.edit.ip_address }}</span>
+          </div>
+          <div class="fe-audit-meta__row" ng-if="auditDetail.edit.edit_type">
+            <span class="fe-audit-meta__label">Type:</span>
+            <span>{{ auditDetail.edit.edit_type }}</span>
+          </div>
+        </div>
+        <h5 ng-if="auditDetail.field_changes && auditDetail.field_changes.length > 0">Field Changes:</h5>
+        <div class="fe-diff" ng-repeat="fc in auditDetail.field_changes">
+          <span class="fe-diff__time" ng-if="fc.timestamp">{{ fc.timestamp }}</span>
+          <span class="fe-diff__label">{{ fc.field }}</span>
+          <span class="fe-diff__old">{{ fc.old_value }}</span>
+          <i class="fa fa-long-arrow-right fe-diff__arrow"></i>
+          <span class="fe-diff__new">{{ fc.new_value }}</span>
+        </div>
+        <h5 ng-if="auditDetail.credit_notes && auditDetail.credit_notes.length > 0">Credit Notes:</h5>
+        <div class="fe-entity" ng-repeat="cn in auditDetail.credit_notes">
+          <i class="fa fa-sticky-note"></i>
+          <span>{{ cn.number }} — {{ formatAmount(cn.amount) }}</span>
+        </div>
+        <h5 ng-if="auditDetail.adjustments && auditDetail.adjustments.length > 0">Adjustments:</h5>
+        <div class="fe-entity" ng-repeat="adj in auditDetail.adjustments">
+          <i class="fa fa-balance-scale"></i>
+          <span>{{ formatAmount(adj.amount) }} — {{ adj.status }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── MODAL FOOTER ── -->
+  <div class="modal-footer fe-modal__footer">
+    <!-- Step 1 buttons -->
+    <div ng-if="step === 1">
+      <button class="btn btn-default fe-btn fe-btn--cancel" ng-click="close()">Cancel</button>
+      <button class="btn btn-primary fe-btn fe-btn--primary" ng-click="previewChanges()" ng-disabled="submitting">
+        <i class="fa fa-spinner fa-spin" ng-if="submitting"></i>
+        <i class="fa fa-eye" ng-if="!submitting"></i>
+        {{ submitting ? 'Calculating…' : 'Preview Changes' }}
+      </button>
+    </div>
+    <!-- Step 2 buttons -->
+    <div ng-if="step === 2">
+      <button class="btn btn-default fe-btn fe-btn--cancel" ng-click="backToEdit()">
+        <i class="fa fa-arrow-left"></i> Back to Edit
+      </button>
+      <button class="btn btn-success fe-btn fe-btn--apply" ng-click="applyChanges()" ng-disabled="submitting || requiresFinancialAction()">
+        <i class="fa fa-spinner fa-spin" ng-if="submitting"></i>
+        <i class="fa fa-check" ng-if="!submitting"></i>
+        {{ submitting ? 'Applying…' : 'Apply Changes' }}
+      </button>
+    </div>
+    <!-- Step 3 buttons -->
+    <div ng-if="step === 3">
+      <button class="btn btn-primary fe-btn fe-btn--primary" ng-click="closeAndRefresh()">
+        <i class="fa fa-check"></i> Done
+      </button>
+    </div>
+  </div>
+
+</div>

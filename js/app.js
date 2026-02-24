@@ -849,6 +849,14 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // BOOKEDSCHEDULER SYNC
+            .state('dashboard.manage_club.bs_sync', {
+                url: '/bs_sync',
+                controller: 'DashboardClubBsSyncController',
+                templateUrl: 'views/manageclub/bs_sync.html',
+                controllerAs: 'vm'
+            })
+
             // CLUB PAYMENTS TO:::
             .state('dashboard.manage_club.payments_to', {
                 url: '/bank_settings',
@@ -2067,7 +2075,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -2132,7 +2140,7 @@ var app = angular
 
             // Save the current path as a return destination when being redirected to /login
             // (auto-logout due to session timeout, 401, etc.). Manual logouts clear this separately.
-            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup', '/display'];
+            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup', '/display', '/password_reset', '/registration_success', '/registration_verification'];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {
                 // Extract the path portion from the full current URL

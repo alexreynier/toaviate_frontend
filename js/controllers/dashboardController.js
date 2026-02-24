@@ -121,11 +121,12 @@
         }
 
         function load_bookings(){
-
+            console.log("LOADING BOOKINGS FOR USER ID: ", vm.user.id);
             BookingService.GetTodayBookingsUser(vm.user.id)
                         .then(function(data){
 
                             vm.bookings = data.bookings;   
+                            console.log("bookings", vm.bookings);
                             vm.to_pay = data.to_pay; 
                             vm.to_complete_split = data.to_complete_split;  
                             //console.log("to_pay", data.to_pay);

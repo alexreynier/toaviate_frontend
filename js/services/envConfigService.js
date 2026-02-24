@@ -28,7 +28,7 @@
             },
 
             staging: {
-                api_base_url: 'https://staging-api.toaviate.com',
+                api_base_url: 'https://v1.toaviate.com',
                 stripe_publishable_key: 'pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd',
                 stripe_publishable_key_legacy: 'pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2',
                 api_key: 'eW91a25vd25vdGhpbmdqb25zbm93',

@@ -1,0 +1,592 @@
+<!-- ═══════════════════════════════════════════════════════
+     BookedScheduler Sync — Club Management Page
+     ═══════════════════════════════════════════════════════ -->
+<div class="snazzy-page bs-sync-page">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header bs-sync-header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.settings">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-sync-alt"></i> BookedScheduler Sync</h2>
+        <p>Manage your BookedScheduler integration &amp; data sync</p>
+      </div>
+      <!-- Quick sync button in header -->
+      <div class="snazzy-page__header-actions" ng-if="vm.config">
+        <button class="snazzy-page__action-btn-header" ng-click="vm.quickSync()" ng-disabled="vm.syncRunning">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.syncRunning, 'fa-refresh': !vm.syncRunning}"></i>
+          {{ vm.syncRunning ? 'Syncing...' : 'Sync Now' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── No Config State ── -->
+  <div class="bs-empty-state" ng-if="!vm.loading.status && !vm.config">
+    <div class="bs-empty-state__icon">
+      <i class="fas fa-unlink"></i>
+    </div>
+    <h3>No BookedScheduler Configuration</h3>
+    <p>This club doesn't have a BookedScheduler integration configured yet.<br>
+       Please set it up via the backend or contact support.</p>
+  </div>
+
+
+  <!-- ── Tabs ── -->
+  <div class="bs-tabs" ng-if="vm.config">
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'status'}" ng-click="vm.setTab('status')">
+      <i class="fas fa-tachometer-alt"></i> <span>Status</span>
+    </button>
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'resources'}" ng-click="vm.setTab('resources')">
+      <i class="fas fa-plane"></i> <span>Resources</span>
+    </button>
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'users'}" ng-click="vm.setTab('users')">
+      <i class="fas fa-users"></i> <span>Users</span>
+    </button>
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'sync'}" ng-click="vm.setTab('sync')">
+      <i class="fas fa-sync"></i> <span>Sync</span>
+    </button>
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'imported'}" ng-click="vm.setTab('imported')">
+      <i class="fas fa-user-plus"></i> <span>Imported Users</span>
+    </button>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       TAB 1: STATUS DASHBOARD
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'status' && vm.config">
+
+    <!-- Loading -->
+    <div class="bs-loading" ng-if="vm.loading.status">
+      <i class="fa fa-spinner fa-spin"></i> Loading status...
+    </div>
+
+    <div ng-if="!vm.loading.status && vm.status">
+
+      <!-- Status Cards -->
+      <div class="bs-stat-grid">
+        <div class="bs-stat-card bs-stat-card--blue">
+          <div class="bs-stat-card__icon"><i class="fas fa-plane"></i></div>
+          <div class="bs-stat-card__body">
+            <div class="bs-stat-card__value">{{ vm.status.resources_mapped }} / {{ vm.status.resources_total }}</div>
+            <div class="bs-stat-card__label">Resources Mapped</div>
+          </div>
+          <div class="bs-stat-card__bar">
+            <div class="bs-stat-card__bar-fill" ng-style="{'width': (vm.status.resources_total ? (vm.status.resources_mapped / vm.status.resources_total * 100) : 0) + '%'}"></div>
+          </div>
+        </div>
+
+        <div class="bs-stat-card bs-stat-card--emerald">
+          <div class="bs-stat-card__icon"><i class="fas fa-users"></i></div>
+          <div class="bs-stat-card__body">
+            <div class="bs-stat-card__value">{{ vm.status.users_mapped }} / {{ vm.status.users_total }}</div>
+            <div class="bs-stat-card__label">Users Mapped</div>
+          </div>
+          <div class="bs-stat-card__bar">
+            <div class="bs-stat-card__bar-fill" ng-style="{'width': (vm.status.users_total ? (vm.status.users_mapped / vm.status.users_total * 100) : 0) + '%'}"></div>
+          </div>
+        </div>
+
+        <div class="bs-stat-card bs-stat-card--violet">
+          <div class="bs-stat-card__icon"><i class="fas fa-calendar-check"></i></div>
+          <div class="bs-stat-card__body">
+            <div class="bs-stat-card__value">{{ vm.status.bookings_synced | number }}</div>
+            <div class="bs-stat-card__label">Bookings Synced</div>
+          </div>
+        </div>
+
+        <div class="bs-stat-card" ng-class="{'bs-stat-card--green': vm.status.last_sync.status === 'completed', 'bs-stat-card--red': vm.status.last_sync.status === 'failed'}">
+          <div class="bs-stat-card__icon"><i class="fas fa-clock"></i></div>
+          <div class="bs-stat-card__body">
+            <div class="bs-stat-card__value">{{ vm.timeAgo(vm.status.last_sync.completed_at || vm.status.last_sync.started_at) }}</div>
+            <div class="bs-stat-card__label">Last Sync
+              <span class="bs-badge bs-badge--green" ng-if="vm.status.last_sync.status === 'completed'">
+                <i class="fa fa-check"></i> Success
+              </span>
+              <span class="bs-badge bs-badge--red" ng-if="vm.status.last_sync.status === 'failed'">
+                <i class="fa fa-times"></i> Failed
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sync Toggle -->
+      <div class="bs-config-bar">
+        <div class="bs-config-bar__left">
+          <label class="bs-toggle-row">
+            <span class="bs-toggle-row__label">Automatic Sync</span>
+            <label class="snazzy-toggle">
+              <input type="checkbox" ng-checked="vm.config.sync_enabled == 1" ng-click="vm.toggleSync()" />
+              <span class="snazzy-toggle__slider"></span>
+            </label>
+            <span class="bs-toggle-row__status" ng-class="{'bs-text--green': vm.config.sync_enabled == 1}">
+              {{ vm.config.sync_enabled == 1 ? 'Enabled' : 'Disabled' }}
+            </span>
+          </label>
+          <span class="bs-config-bar__interval" ng-if="vm.config.sync_enabled == 1">
+            Every {{ vm.config.sync_interval_minutes }} minutes
+          </span>
+        </div>
+      </div>
+
+      <!-- Configuration Panel -->
+      <div class="bs-panel">
+        <div class="bs-panel__header">
+          <h3><i class="fas fa-cog"></i> Configuration</h3>
+          <button class="bs-btn bs-btn--ghost" ng-click="vm.startEditConfig()" ng-if="!vm.configEditing">
+            <i class="fa fa-pencil"></i> Edit
+          </button>
+        </div>
+        <div class="bs-panel__body">
+
+          <!-- View mode -->
+          <div class="bs-config-grid" ng-if="!vm.configEditing">
+            <div class="bs-config-item">
+              <span class="bs-config-item__label">API URL</span>
+              <span class="bs-config-item__value">{{ vm.config.api_url }}</span>
+            </div>
+            <div class="bs-config-item">
+              <span class="bs-config-item__label">Sync Interval</span>
+              <span class="bs-config-item__value">{{ vm.config.sync_interval_minutes }} minutes</span>
+            </div>
+            <div class="bs-config-item">
+              <span class="bs-config-item__label">Last Synced</span>
+              <span class="bs-config-item__value">{{ vm.config.last_synced_at || 'Never' }}</span>
+            </div>
+            <div class="bs-config-item">
+              <span class="bs-config-item__label">Auto Sync</span>
+              <span class="bs-config-item__value">
+                <span class="bs-badge bs-badge--green" ng-if="vm.config.sync_enabled == 1">Enabled</span>
+                <span class="bs-badge bs-badge--grey" ng-if="vm.config.sync_enabled != 1">Disabled</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Edit mode -->
+          <div ng-if="vm.configEditing">
+            <div class="bs-form-row">
+              <div class="bs-form-group">
+                <label>Sync Interval (minutes)</label>
+                <input type="number" class="bs-input" ng-model="vm.configForm.sync_interval_minutes" min="5" />
+              </div>
+              <div class="bs-form-group">
+                <label>Start Date</label>
+                <input type="date" class="bs-input" ng-model="vm.configForm.sync_start_date" />
+              </div>
+              <div class="bs-form-group">
+                <label>End Date</label>
+                <input type="date" class="bs-input" ng-model="vm.configForm.sync_end_date" />
+              </div>
+            </div>
+            <div class="bs-form-actions">
+              <button class="bs-btn bs-btn--primary" ng-click="vm.saveConfig()" ng-disabled="vm.loading.config">
+                <i class="fa fa-check"></i> Save
+              </button>
+              <button class="bs-btn bs-btn--ghost" ng-click="vm.cancelEditConfig()">Cancel</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       TAB 2: RESOURCE MAPPINGS
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'resources' && vm.config">
+
+    <div class="bs-panel">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-plane"></i> Resource Mappings</h3>
+        <button class="bs-btn bs-btn--primary" ng-click="vm.discoverResources()" ng-disabled="vm.discovering.resources">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.resources, 'fa-search': !vm.discovering.resources}"></i>
+          {{ vm.discovering.resources ? 'Discovering...' : 'Discover Resources' }}
+        </button>
+      </div>
+      <div class="bs-panel__body">
+
+        <div class="bs-loading" ng-if="vm.loading.resources">
+          <i class="fa fa-spinner fa-spin"></i> Loading resources...
+        </div>
+
+        <div class="bs-empty-inline" ng-if="!vm.loading.resources && vm.resources.length === 0">
+          <i class="fas fa-plane-slash"></i> No resources found. Click "Discover Resources" to pull them from BookedScheduler.
+        </div>
+
+        <div class="bs-table-wrap" ng-if="!vm.loading.resources && vm.resources.length > 0">
+          <table class="bs-table">
+            <thead>
+              <tr>
+                <th>BS Resource</th>
+                <th>TA Aircraft</th>
+                <th>Match</th>
+                <th class="bs-table__actions-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="res in vm.resources" ng-class="{'bs-row--mapped': vm.resourceMapped(res), 'bs-row--unmapped': !vm.resourceMapped(res)}">
+                <td data-label="BS Resource">
+                  <strong>{{ res.bs_resource_name }}</strong>
+                  <span class="bs-sub">ID: {{ res.bs_resource_id }}</span>
+                </td>
+                <td data-label="TA Aircraft">
+                  <!-- Mapped -->
+                  <span ng-if="vm.resourceMapped(res)">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ res.registration }} <span class="bs-sub" ng-if="res.plane_type">({{ res.plane_type }})</span>
+                  </span>
+                  <!-- Unmapped — dropdown -->
+                  <select class="bs-select" ng-if="!vm.resourceMapped(res)" ng-model="res._selected_plane">
+                    <option value="">— Select aircraft —</option>
+                    <option ng-repeat="p in vm.clubPlanes" ng-value="p.id">{{ p.registration || p.name }} {{ p.plane_type ? '(' + p.plane_type + ')' : '' }}</option>
+                  </select>
+                </td>
+                <td data-label="Match">
+                  <span class="bs-badge bs-badge--green" ng-if="res.match_type === 'auto_registration' || res.match_type === 'auto'">Auto</span>
+                  <span class="bs-badge bs-badge--orange" ng-if="res.match_type === 'manual' || !res.match_type">Manual</span>
+                </td>
+                <td data-label="Action" class="bs-table__actions-col">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!vm.resourceMapped(res)" ng-click="vm.saveResourceMap(res)" ng-disabled="res._saving">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': res._saving, 'fa-save': !res._saving}"></i> Save
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       TAB 3: USER MAPPINGS
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'users' && vm.config">
+
+    <div class="bs-panel">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-users"></i> User Mappings</h3>
+        <button class="bs-btn bs-btn--primary" ng-click="vm.discoverUsers()" ng-disabled="vm.discovering.users">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.users, 'fa-search': !vm.discovering.users}"></i>
+          {{ vm.discovering.users ? 'Discovering...' : 'Discover Users' }}
+        </button>
+      </div>
+      <div class="bs-panel__body">
+
+        <!-- Filter bar -->
+        <div class="bs-filter-bar">
+          <div class="bs-filter-bar__search">
+            <i class="fa fa-search"></i>
+            <input type="text" class="bs-input" placeholder="Search users..." ng-model="vm.usersSearch" />
+          </div>
+          <div class="bs-filter-bar__pills">
+            <button class="bs-pill" ng-class="{'bs-pill--active': vm.usersFilter === 'all'}" ng-click="vm.usersFilter = 'all'; vm.usersPage = 1;">All</button>
+            <button class="bs-pill" ng-class="{'bs-pill--active': vm.usersFilter === 'mapped'}" ng-click="vm.usersFilter = 'mapped'; vm.usersPage = 1;">Mapped</button>
+            <button class="bs-pill" ng-class="{'bs-pill--active': vm.usersFilter === 'unmapped'}" ng-click="vm.usersFilter = 'unmapped'; vm.usersPage = 1;">Unmapped</button>
+          </div>
+          <div class="bs-filter-bar__meta">
+            <span class="bs-count-badge">{{ vm.filteredUsers().length }}</span> users
+          </div>
+        </div>
+
+        <div class="bs-loading" ng-if="vm.loading.users">
+          <i class="fa fa-spinner fa-spin"></i> Loading users...
+        </div>
+
+        <div class="bs-empty-inline" ng-if="!vm.loading.users && vm.users.length === 0">
+          <i class="fas fa-user-slash"></i> No users found. Click "Discover Users" to pull them from BookedScheduler.
+        </div>
+
+        <div class="bs-table-wrap" ng-if="!vm.loading.users && vm.users.length > 0">
+          <table class="bs-table">
+            <thead>
+              <tr>
+                <th>BS User</th>
+                <th>TA User</th>
+                <th>Match</th>
+                <th class="bs-table__actions-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="u in vm.pagedUsers()" ng-class="{'bs-row--mapped': vm.userMapped(u), 'bs-row--unmapped': !vm.userMapped(u)}">
+                <td data-label="BS User">
+                  <strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong>
+                  <span class="bs-sub">{{ u.bs_email }}</span>
+                </td>
+                <td data-label="TA User">
+                  <!-- Mapped -->
+                  <span ng-if="vm.userMapped(u)">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ u.ta_first_name }} {{ u.ta_last_name }}
+                    <span class="bs-sub">{{ u.ta_email }}</span>
+                  </span>
+                  <!-- Unmapped — dropdown -->
+                  <select class="bs-select" ng-if="!vm.userMapped(u)" ng-model="u._selected_member">
+                    <option value="">— Select member —</option>
+                    <option ng-repeat="m in vm.clubMembers" ng-value="m.user_id || m.id">{{ m.first_name }} {{ m.last_name }} ({{ m.email }})</option>
+                  </select>
+                </td>
+                <td data-label="Match">
+                  <span class="bs-badge bs-badge--green" ng-if="u.match_type && u.match_type.indexOf('auto') !== -1">Auto</span>
+                  <span class="bs-badge bs-badge--orange" ng-if="!u.match_type || u.match_type === 'manual'">Manual</span>
+                </td>
+                <td data-label="Action" class="bs-table__actions-col">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!vm.userMapped(u)" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': u._saving, 'fa-save': !u._saving}"></i> Save
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Pagination -->
+          <div class="bs-pagination" ng-if="vm.usersTotalPages() > 1">
+            <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-disabled="vm.usersPage <= 1" ng-click="vm.usersSetPage(vm.usersPage - 1)">
+              <i class="fa fa-chevron-left"></i>
+            </button>
+            <span class="bs-pagination__info">Page {{ vm.usersPage }} of {{ vm.usersTotalPages() }}</span>
+            <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-disabled="vm.usersPage >= vm.usersTotalPages()" ng-click="vm.usersSetPage(vm.usersPage + 1)">
+              <i class="fa fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       TAB 4: SYNC
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'sync' && vm.config">
+
+    <!-- Sync Controls -->
+    <div class="bs-panel">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-sync"></i> Run Sync</h3>
+      </div>
+      <div class="bs-panel__body">
+
+        <div class="bs-form-row">
+          <div class="bs-form-group">
+            <label>Sync Type</label>
+            <select class="bs-select" ng-model="vm.syncForm.sync_type">
+              <option value="incremental">Incremental</option>
+              <option value="full">Full</option>
+            </select>
+          </div>
+          <div class="bs-form-group">
+            <label>Start Date</label>
+            <input type="date" class="bs-input" ng-model="vm.syncForm.start_date" />
+          </div>
+          <div class="bs-form-group">
+            <label>End Date</label>
+            <input type="date" class="bs-input" ng-model="vm.syncForm.end_date" />
+          </div>
+        </div>
+
+        <button class="bs-btn bs-btn--primary bs-btn--lg" ng-click="vm.runSync()" ng-disabled="vm.syncRunning">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.syncRunning, 'fa-play': !vm.syncRunning}"></i>
+          {{ vm.syncRunning ? 'Syncing Reservations...' : 'Run Sync' }}
+        </button>
+
+        <!-- Result toast -->
+        <div class="bs-sync-result" ng-if="vm.syncResult">
+          <div class="bs-sync-result__grid">
+            <div class="bs-sync-result__item">
+              <span class="bs-sync-result__num">{{ vm.syncResult.reservations_fetched }}</span>
+              <span class="bs-sync-result__lbl">Fetched</span>
+            </div>
+            <div class="bs-sync-result__item bs-sync-result__item--green">
+              <span class="bs-sync-result__num">{{ vm.syncResult.bookings_created }}</span>
+              <span class="bs-sync-result__lbl">Created</span>
+            </div>
+            <div class="bs-sync-result__item bs-sync-result__item--blue">
+              <span class="bs-sync-result__num">{{ vm.syncResult.bookings_updated }}</span>
+              <span class="bs-sync-result__lbl">Updated</span>
+            </div>
+            <div class="bs-sync-result__item">
+              <span class="bs-sync-result__num">{{ vm.syncResult.bookings_skipped }}</span>
+              <span class="bs-sync-result__lbl">Skipped</span>
+            </div>
+            <div class="bs-sync-result__item" ng-class="{'bs-sync-result__item--red': vm.syncResult.errors > 0}">
+              <span class="bs-sync-result__num">{{ vm.syncResult.errors }}</span>
+              <span class="bs-sync-result__lbl">Errors</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sync Logs -->
+    <div class="bs-panel">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-list-alt"></i> Sync Logs</h3>
+        <button class="bs-btn bs-btn--ghost" ng-click="vm.loadLogs()">
+          <i class="fa fa-refresh"></i> Refresh
+        </button>
+      </div>
+      <div class="bs-panel__body">
+
+        <div class="bs-loading" ng-if="vm.loading.logs">
+          <i class="fa fa-spinner fa-spin"></i> Loading logs...
+        </div>
+
+        <div class="bs-empty-inline" ng-if="!vm.loading.logs && vm.logs.length === 0">
+          <i class="fas fa-clipboard-list"></i> No sync logs yet.
+        </div>
+
+        <div class="bs-table-wrap" ng-if="!vm.loading.logs && vm.logs.length > 0">
+          <table class="bs-table bs-table--compact">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Fetched</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="log in vm.logs" ng-class="{'bs-row--error': log.status === 'failed' || log.errors > 0}">
+                <td data-label="Date">{{ log.started_at }}</td>
+                <td data-label="Type">
+                  <span class="bs-badge bs-badge--blue" ng-if="log.sync_type === 'incremental'">Incr</span>
+                  <span class="bs-badge bs-badge--violet" ng-if="log.sync_type === 'full'">Full</span>
+                  <span class="bs-badge bs-badge--orange" ng-if="log.sync_type === 'manual'">Manual</span>
+                </td>
+                <td data-label="Status">
+                  <i class="fa fa-check-circle bs-text--green" ng-if="log.status === 'completed'"></i>
+                  <i class="fa fa-times-circle bs-text--red" ng-if="log.status === 'failed'"></i>
+                  <i class="fa fa-spinner fa-spin" ng-if="log.status === 'running'"></i>
+                </td>
+                <td data-label="Fetched">{{ log.reservations_fetched }}</td>
+                <td data-label="Created">{{ log.bookings_created }}</td>
+                <td data-label="Updated">{{ log.bookings_updated }}</td>
+                <td data-label="Errors">
+                  <span ng-class="{'bs-text--red': log.errors > 0}">{{ log.errors }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="bs-panel bs-panel--danger">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+      </div>
+      <div class="bs-panel__body">
+        <p class="bs-danger-text">
+          Delete <strong>all</strong> synced bookings. This permanently removes every TA booking that was imported from BookedScheduler.
+        </p>
+        <button class="bs-btn bs-btn--danger" ng-click="vm.confirmDeleteBookings()" ng-if="!vm.showDeleteConfirm">
+          <i class="fa fa-trash"></i> Delete All Synced Bookings
+        </button>
+
+        <!-- Confirmation -->
+        <div class="bs-danger-confirm" ng-if="vm.showDeleteConfirm">
+          <p><strong>Are you sure?</strong> This will delete <strong>{{ vm.status.bookings_synced }}</strong> bookings. This cannot be undone.</p>
+          <div class="bs-danger-confirm__actions">
+            <button class="bs-btn bs-btn--danger" ng-click="vm.deleteBookings()" ng-disabled="vm.deleting">
+              <i class="fa" ng-class="{'fa-spinner fa-spin': vm.deleting, 'fa-trash': !vm.deleting}"></i>
+              {{ vm.deleting ? 'Deleting...' : 'Yes, Delete Everything' }}
+            </button>
+            <button class="bs-btn bs-btn--ghost" ng-click="vm.cancelDelete()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       TAB 5: IMPORTED USERS
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'imported' && vm.config">
+
+    <div class="bs-panel">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-user-plus"></i> Imported Users</h3>
+        <button class="bs-btn bs-btn--primary" ng-click="vm.convertAll()" ng-disabled="vm.convertingAll" ng-if="vm.importedUsers.length > 0">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.convertingAll, 'fa-magic': !vm.convertingAll}"></i>
+          {{ vm.convertingAll ? 'Converting...' : 'Convert All' }}
+        </button>
+      </div>
+      <div class="bs-panel__body">
+
+        <p class="bs-help-text">
+          Imported users have temporary <code>@toaviate.com</code> emails. Converting a user sends an invitation to their <strong>real</strong> email from BookedScheduler, so they can create a proper ToAviate account.
+        </p>
+
+        <div class="bs-filter-bar" ng-if="vm.importedUsers.length > 0">
+          <div class="bs-filter-bar__search">
+            <i class="fa fa-search"></i>
+            <input type="text" class="bs-input" placeholder="Search imported users..." ng-model="vm.importedSearch" />
+          </div>
+          <div class="bs-filter-bar__meta">
+            <span class="bs-count-badge">{{ vm.filteredImported().length }}</span> users
+          </div>
+        </div>
+
+        <div class="bs-loading" ng-if="vm.loading.imported">
+          <i class="fa fa-spinner fa-spin"></i> Loading imported users...
+        </div>
+
+        <div class="bs-empty-inline" ng-if="!vm.loading.imported && vm.importedUsers.length === 0">
+          <i class="fas fa-user-check"></i> No imported users found — all users are real accounts.
+        </div>
+
+        <div class="bs-table-wrap" ng-if="!vm.loading.imported && vm.importedUsers.length > 0">
+          <table class="bs-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Temp Email</th>
+                <th>Real Email</th>
+                <th class="bs-table__actions-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="u in vm.filteredImported()">
+                <td data-label="Name"><strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong></td>
+                <td data-label="Temp Email"><span class="bs-mono">{{ u.ta_email }}</span></td>
+                <td data-label="Real Email"><span class="bs-mono">{{ u.bs_email }}</span></td>
+                <td data-label="Action" class="bs-table__actions-col">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.convertUser(u)" ng-disabled="u._converting || u._converted" ng-if="!u._converted">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': u._converting, 'fa-paper-plane': !u._converting}"></i>
+                    {{ u._converting ? 'Sending...' : 'Convert' }}
+                  </button>
+                  <span class="bs-badge bs-badge--green" ng-if="u._converted">
+                    <i class="fa fa-check"></i> Invited
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>

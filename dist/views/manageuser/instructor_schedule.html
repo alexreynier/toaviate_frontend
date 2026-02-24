@@ -1,0 +1,468 @@
+<div class="centre_align_boxes2">
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  HEADER                                                    -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="is-page-header">
+    <div class="is-header-icon"><i class="fas fa-calendar-check"></i></div>
+    <div>
+      <h2 class="is-page-title">My Availability</h2>
+      <p class="is-page-subtitle">Manage your schedule, holidays &amp; extra dates — all in one place.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  CLUB SELECTOR (multi-club instructors)                    -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="is-club-selector" ng-if="vm.available_times.length > 1">
+    <div class="is-club-selector-label">
+      <i class="fas fa-building"></i>
+      <span>Select Club</span>
+    </div>
+    <div class="is-club-pills">
+      <button class="is-club-pill"
+              ng-repeat="club in vm.available_times"
+              ng-class="{ active: vm.selected_club === club }"
+              ng-click="selectClub(club)">
+        <span class="is-club-pill-icon"><i class="fas fa-map-marker-alt"></i></span>
+        <span class="is-club-pill-name">{{ club.club_name }}</span>
+        <span class="is-club-pill-check" ng-if="vm.selected_club === club"><i class="fas fa-check"></i></span>
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  MAIN CONTENT — shown once data loaded                    -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="is-schedule-wrap" ng-if="vm.available_time">
+
+    <!-- Club name badge -->
+    <div class="is-club-badge">
+      <i class="fas fa-building"></i>
+      <span>{{ vm.available_time.club_name }}</span>
+    </div>
+
+
+    <!-- ─── TAB BAR ──────────────────────────────────────────── -->
+    <div class="is-tabs">
+      <button class="is-tab" ng-class="{ active: vm.activeTab === 'schedule' }" ng-click="setTab('schedule')">
+        <i class="fas fa-clock"></i><span>Weekly Schedule</span>
+      </button>
+      <button class="is-tab" ng-class="{ active: vm.activeTab === 'extra' }" ng-click="setTab('extra')">
+        <i class="fas fa-calendar-plus"></i><span>Extra Dates</span>
+      </button>
+      <button class="is-tab" ng-class="{ active: vm.activeTab === 'holidays' }" ng-click="setTab('holidays')">
+        <i class="fas fa-umbrella-beach"></i><span>Holidays</span>
+      </button>
+    </div>
+
+
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  TAB 1 — WEEKLY SCHEDULE                                  -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="is-tab-body" ng-show="vm.activeTab === 'schedule'">
+
+      <!-- Mode toggle -->
+      <div class="is-mode-toggle">
+        <div class="is-mode-label">
+          <i class="fas fa-info-circle"></i>
+          <span>Scheduling mode</span>
+        </div>
+        <div class="is-mode-options">
+          <button class="is-mode-btn" ng-class="{ active: vm.available_time.availability_mode !== 'adhoc' }" ng-click="setMode('regular')">
+            <i class="fas fa-calendar-week"></i> Regular Schedule
+          </button>
+          <button class="is-mode-btn" ng-class="{ active: vm.available_time.availability_mode === 'adhoc' }" ng-click="setMode('adhoc')">
+            <i class="fas fa-calendar-day"></i> Ad-Hoc Only
+          </button>
+        </div>
+        <p class="is-mode-hint" ng-if="vm.available_time.availability_mode !== 'adhoc'">
+          You're available every week on set days/times. Add extra dates via the "Extra Dates" tab.
+        </p>
+        <p class="is-mode-hint" ng-if="vm.available_time.availability_mode === 'adhoc'">
+          You're only available on dates you explicitly add. Manage them in the "Extra Dates" tab.
+        </p>
+      </div>
+
+
+      <!-- Weekly grid — hidden in adhoc mode -->
+      <div ng-if="vm.available_time.availability_mode !== 'adhoc'">
+
+        <div class="is-day-card" ng-repeat="day in vm.days" ng-class="{ disabled: vm.available_time[day.disabled_variable] }">
+
+          <div class="is-day-header">
+            <span class="is-day-name">{{ day.day }}</span>
+            <label class="is-toggle-switch">
+              <input type="checkbox"
+                     ng-checked="!vm.available_time[day.disabled_variable]"
+                     ng-click="toggleDay(day.disabled_variable)">
+              <span class="is-toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="is-day-times" ng-if="!vm.available_time[day.disabled_variable]">
+            <div class="is-time-group">
+              <label class="is-label-sm">From</label>
+              <div uib-timepicker
+                   ng-model="vm.available_time[day.from_variable]"
+                   hour-step="1" minute-step="15"
+                   show-meridian="false"
+                   class="is-timepicker">
+              </div>
+            </div>
+
+            <div class="is-time-separator"><i class="fas fa-long-arrow-alt-right"></i></div>
+
+            <div class="is-time-group">
+              <label class="is-label-sm">To</label>
+              <div uib-timepicker
+                   ng-model="vm.available_time[day.to_variable]"
+                   hour-step="1" minute-step="15"
+                   show-meridian="false"
+                   class="is-timepicker">
+              </div>
+            </div>
+          </div>
+
+          <div class="is-day-off-badge" ng-if="vm.available_time[day.disabled_variable]">
+            <i class="fas fa-moon"></i> Day off
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Ad-hoc mode message -->
+      <div class="is-adhoc-notice" ng-if="vm.available_time.availability_mode === 'adhoc'">
+        <div class="is-notice-icon"><i class="fas fa-calendar-day"></i></div>
+        <h4>Ad-Hoc Mode Active</h4>
+        <p>Your weekly schedule is paused. You're only bookable on dates you add manually.</p>
+        <button class="is-btn is-btn-primary" ng-click="setTab('extra')">
+          <i class="fas fa-plus"></i> Manage My Dates
+        </button>
+      </div>
+
+      <!-- Save button -->
+      <div class="is-actions" ng-if="vm.available_time.availability_mode !== 'adhoc'">
+        <button class="is-btn is-btn-primary is-btn-lg" ng-click="saveSchedule()" ng-disabled="vm.saving">
+          <i class="fas fa-save" ng-if="!vm.saving"></i>
+          <i class="fas fa-spinner fa-spin" ng-if="vm.saving"></i>
+          Save Schedule
+        </button>
+      </div>
+
+    </div>
+
+
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  TAB 2 — EXTRA / AD-HOC DATES                            -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="is-tab-body" ng-show="vm.activeTab === 'extra'">
+
+      <div class="is-extra-info" ng-if="vm.available_time.availability_mode !== 'adhoc'">
+        <i class="fas fa-lightbulb"></i>
+        Add dates <strong>beyond</strong> your normal weekly pattern — e.g. offer a Saturday you wouldn't normally work.
+      </div>
+
+      <div class="is-extra-info" ng-if="vm.available_time.availability_mode === 'adhoc'">
+        <i class="fas fa-lightbulb"></i>
+        You're in <strong>ad-hoc mode</strong> — add every date you want to be available on.
+      </div>
+
+
+      <!-- Add dates form -->
+      <div class="is-add-dates-card">
+        <h4 class="is-card-title"><i class="fas fa-plus-circle"></i> Add Available Dates</h4>
+
+        <!-- Calendar date picker -->
+        <div class="is-date-picker-section">
+          <label class="is-label">Pick dates</label>
+          <div class="is-multi-date-wrapper">
+            <div class="is-selected-dates" ng-if="vm.adhocSelectedDates.length">
+              <span class="is-date-chip" ng-repeat="d in vm.adhocSelectedDates track by $index">
+                {{ d | date:'EEE d MMM' }}
+                <i class="fas fa-times" ng-click="removeSelectedDate($index)"></i>
+              </span>
+            </div>
+            <p class="is-no-dates" ng-if="!vm.adhocSelectedDates.length">No dates selected — pick from the calendar below.</p>
+            <div class="is-inline-calendar">
+              <div uib-datepicker
+                   ng-model="vm.adhocCalendarDate"
+                   ng-change="onCalendarDateSelect()"
+                   datepicker-options="vm.datepickerOptions"
+                   class="is-uib-datepicker">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time range -->
+        <div class="is-time-range-row">
+          <div class="is-time-group">
+            <label class="is-label">From</label>
+            <div uib-timepicker
+                 ng-model="vm.adhocFromTime"
+                 hour-step="1" minute-step="15"
+                 show-meridian="false"
+                 class="is-timepicker">
+            </div>
+          </div>
+          <div class="is-time-separator"><i class="fas fa-long-arrow-alt-right"></i></div>
+          <div class="is-time-group">
+            <label class="is-label">To</label>
+            <div uib-timepicker
+                 ng-model="vm.adhocToTime"
+                 hour-step="1" minute-step="15"
+                 show-meridian="false"
+                 class="is-timepicker">
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="is-notes-row">
+          <label class="is-label">Notes <span class="is-optional">(optional)</span></label>
+          <input type="text" class="is-input" ng-model="vm.adhocNotes" placeholder="e.g. Weekend cover, Extra Saturday…" maxlength="255">
+        </div>
+
+        <!-- Add button -->
+        <div class="is-actions">
+          <button class="is-btn is-btn-primary" ng-click="addAdhocDates()" ng-disabled="vm.addingAdhoc || !vm.adhocSelectedDates.length">
+            <i class="fas fa-plus" ng-if="!vm.addingAdhoc"></i>
+            <i class="fas fa-spinner fa-spin" ng-if="vm.addingAdhoc"></i>
+            Add {{ vm.adhocSelectedDates.length || '' }} Date<span ng-if="vm.adhocSelectedDates.length > 1">s</span>
+          </button>
+        </div>
+      </div>
+
+
+      <!-- Upcoming dates list -->
+      <div class="is-upcoming-section" ng-if="vm.adhocDates.length">
+        <h4 class="is-section-title"><i class="fas fa-list"></i> Upcoming Available Dates</h4>
+
+        <div class="is-adhoc-list">
+          <div class="is-adhoc-item" ng-repeat="slot in vm.adhocDates | orderBy:'available_date'">
+            <div class="is-adhoc-date">
+              <span class="is-adhoc-day-name">{{ slot.available_date | asDate | date:'EEE' }}</span>
+              <span class="is-adhoc-date-num">{{ slot.available_date | asDate | date:'d MMM yyyy' }}</span>
+            </div>
+            <div class="is-adhoc-time">
+              <i class="fas fa-clock"></i>
+              {{ slot.from_time | brakesTime }} — {{ slot.to_time | brakesTime }}
+            </div>
+            <div class="is-adhoc-notes" ng-if="slot.notes">
+              <i class="fas fa-sticky-note"></i> {{ slot.notes }}
+            </div>
+            <div class="is-adhoc-actions">
+              <button class="is-btn-icon" ng-click="editAdhocSlot(slot)" uib-tooltip="Edit">
+                <i class="fas fa-pen"></i>
+              </button>
+              <button class="is-btn-icon is-btn-danger" ng-click="deleteAdhocSlot(slot)" uib-tooltip="Delete">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="is-empty-state" ng-if="!vm.adhocDates.length && !vm.loadingAdhoc">
+        <i class="fas fa-calendar-plus"></i>
+        <p>No extra dates yet. Add your first one above!</p>
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!--  TAB 3 — HOLIDAYS                                        -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="is-tab-body" ng-show="vm.activeTab === 'holidays'">
+
+      <!-- Add holiday form -->
+      <div class="is-add-dates-card">
+        <h4 class="is-card-title"><i class="fas fa-umbrella-beach"></i> Book Time Off</h4>
+
+        <div class="is-holiday-form">
+
+          <div class="is-date-range-row">
+            <div class="is-date-group">
+              <label class="is-label">From</label>
+              <div class="is-datepicker-wrap">
+                <p class="input-group">
+                  <input type="text" class="form-control is-input" uib-datepicker-popup="dd MMM yyyy"
+                         ng-model="vm.holidayStart" is-open="vm.holidayStartOpen"
+                         datepicker-options="vm.holidayDateOptions"
+                         placeholder="Start date" />
+                  <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-click="vm.holidayStartOpen = !vm.holidayStartOpen">
+                      <i class="fas fa-calendar-alt"></i>
+                    </button>
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div class="is-date-group">
+              <label class="is-label">To</label>
+              <div class="is-datepicker-wrap">
+                <p class="input-group">
+                  <input type="text" class="form-control is-input" uib-datepicker-popup="dd MMM yyyy"
+                         ng-model="vm.holidayEnd" is-open="vm.holidayEndOpen"
+                         datepicker-options="vm.holidayDateOptions"
+                         placeholder="End date" />
+                  <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-click="vm.holidayEndOpen = !vm.holidayEndOpen">
+                      <i class="fas fa-calendar-alt"></i>
+                    </button>
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="is-holiday-options-row">
+            <div class="is-notes-row">
+              <label class="is-label">Title <span class="is-optional">(optional)</span></label>
+              <input type="text" class="is-input" ng-model="vm.holidayTitle" placeholder="e.g. Annual leave, Family trip…">
+            </div>
+
+            <label class="is-checkbox-label">
+              <input type="checkbox" ng-model="vm.holidayAllDay">
+              <span>Whole day(s)</span>
+            </label>
+          </div>
+
+          <!-- Time selection when not all-day -->
+          <div class="is-time-range-row" ng-if="!vm.holidayAllDay">
+            <div class="is-time-group">
+              <label class="is-label">From time</label>
+              <div uib-timepicker
+                   ng-model="vm.holidayFromTime"
+                   hour-step="1" minute-step="15"
+                   show-meridian="false"
+                   class="is-timepicker">
+              </div>
+            </div>
+            <div class="is-time-separator"><i class="fas fa-long-arrow-alt-right"></i></div>
+            <div class="is-time-group">
+              <label class="is-label">To time</label>
+              <div uib-timepicker
+                   ng-model="vm.holidayToTime"
+                   hour-step="1" minute-step="15"
+                   show-meridian="false"
+                   class="is-timepicker">
+              </div>
+            </div>
+          </div>
+
+          <div class="is-actions">
+            <button class="is-btn is-btn-warning" ng-click="addHoliday()" ng-disabled="vm.addingHoliday">
+              <i class="fas fa-plus" ng-if="!vm.addingHoliday"></i>
+              <i class="fas fa-spinner fa-spin" ng-if="vm.addingHoliday"></i>
+              Add Holiday
+            </button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Holiday list -->
+      <div class="is-upcoming-section" ng-if="vm.holidays.length">
+        <h4 class="is-section-title"><i class="fas fa-list"></i> My Holidays</h4>
+
+        <div class="is-adhoc-list is-holiday-list">
+          <div class="is-adhoc-item is-holiday-item" ng-repeat="hol in vm.holidays | orderBy:'start'">
+            <div class="is-adhoc-date is-holiday-date-col">
+              <span class="is-holiday-title">{{ hol.title || 'Holiday' }}</span>
+              <span class="is-adhoc-date-num">
+                {{ hol.start | date:'EEE d MMM yyyy' }}
+                <span ng-if="hol.end && (hol.start | date:'yyyyMMdd') !== (hol.end | date:'yyyyMMdd')">
+                  — {{ hol.end | date:'EEE d MMM yyyy' }}
+                </span>
+              </span>
+            </div>
+            <div class="is-adhoc-time" ng-if="!hol.allDay">
+              <i class="fas fa-clock"></i>
+              {{ hol.start | date:'HH:mm' }} — {{ hol.end | date:'HH:mm' }}
+            </div>
+            <div class="is-adhoc-time" ng-if="hol.allDay">
+              <i class="fas fa-sun"></i> All day
+            </div>
+            <div class="is-adhoc-actions">
+              <button class="is-btn-icon is-btn-danger" ng-click="deleteHoliday(hol, $index)" uib-tooltip="Delete">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="is-empty-state" ng-if="!vm.holidays.length">
+        <i class="fas fa-umbrella-beach"></i>
+        <p>No holidays booked. Enjoy the flying!</p>
+      </div>
+
+    </div>
+
+
+  </div>
+  <!-- / main content -->
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  EDIT AD-HOC SLOT MODAL (inline)                          -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div class="is-modal-overlay" ng-if="vm.editingSlot" ng-click="cancelEditSlot()">
+    <div class="is-modal-card" ng-click="$event.stopPropagation()">
+      <h4 class="is-card-title"><i class="fas fa-pen"></i> Edit Availability Slot</h4>
+
+      <div class="is-time-range-row">
+        <div class="is-time-group">
+          <label class="is-label">From</label>
+          <div uib-timepicker
+               ng-model="vm.editSlotFrom"
+               hour-step="1" minute-step="15"
+               show-meridian="false"
+               class="is-timepicker">
+          </div>
+        </div>
+        <div class="is-time-separator"><i class="fas fa-long-arrow-alt-right"></i></div>
+        <div class="is-time-group">
+          <label class="is-label">To</label>
+          <div uib-timepicker
+               ng-model="vm.editSlotTo"
+               hour-step="1" minute-step="15"
+               show-meridian="false"
+               class="is-timepicker">
+          </div>
+        </div>
+      </div>
+
+      <div class="is-notes-row">
+        <label class="is-label">Notes</label>
+        <input type="text" class="is-input" ng-model="vm.editSlotNotes" maxlength="255">
+      </div>
+
+      <div class="is-modal-actions">
+        <button class="is-btn is-btn-outline" ng-click="cancelEditSlot()">Cancel</button>
+        <button class="is-btn is-btn-primary" ng-click="saveEditSlot()" ng-disabled="vm.savingEdit">
+          <i class="fas fa-save" ng-if="!vm.savingEdit"></i>
+          <i class="fas fa-spinner fa-spin" ng-if="vm.savingEdit"></i>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Loading state -->
+  <div class="is-loading" ng-if="!vm.available_time">
+    <i class="fas fa-spinner fa-spin fa-2x"></i>
+    <p>Loading your availability…</p>
+  </div>
+
+</div>

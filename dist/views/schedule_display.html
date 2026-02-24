@@ -1,0 +1,310 @@
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  Schedule Display — Public, Read-Only TV Screen View              -->
+<!--  Standalone page: no auth, no navigation, full-screen calendar    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Hide the demo notice bar and force full-screen layout on this page -->
+<style>
+    .demo_version_notice { display: none !important; }
+    body { margin: 0 !important; padding: 0 !important; }
+    .main_container { padding: 0 !important; margin: 0 !important; }
+</style>
+
+<!-- Loading State -->
+<div class="sd-loading" ng-if="vm.loading">
+    <div class="sd-loading-spinner">
+        <i class="fa fa-plane fa-spin"></i>
+    </div>
+    <h2>Loading Schedule...</h2>
+</div>
+
+<!-- Error State -->
+<div class="sd-error" ng-if="vm.error">
+    <div class="sd-error-card">
+        <div class="sd-error-icon"><i class="fa fa-exclamation-triangle"></i></div>
+        <h2>Display Unavailable</h2>
+        <p>{{ vm.error_message }}</p>
+    </div>
+</div>
+
+<!-- Revoked State -->
+<div class="sd-error" ng-if="vm.revoked">
+    <div class="sd-error-card">
+        <div class="sd-error-icon"><i class="fa fa-ban"></i></div>
+        <h2>Access Revoked</h2>
+        <p>This display link has been deactivated by the club manager. Please contact them for a new link.</p>
+    </div>
+</div>
+
+<!-- Main Display -->
+<div class="sd-page" ng-if="!vm.loading && !vm.error && !vm.revoked">
+
+    <!-- Header Bar -->
+    <div class="sd-header">
+        <div class="sd-header-left">
+            <span class="sd-status-dot" ng-class="{'sd-status-offline': !vm.connected}"></span>
+            <span class="sd-club-name">{{ vm.club_name }}</span>
+        </div>
+        <div class="sd-header-center">
+            <span class="sd-today-label">{{ vm.today_label }}</span>
+        </div>
+        <div class="sd-header-right">
+            <span class="sd-clock">{{ vm.current_time }}</span>
+        </div>
+    </div>
+
+    <!-- Calendar Container -->
+    <div id="sd-calendar"></div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FullCalendar Initialisation (jQuery / FC v3 Scheduler)             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<script>
+
+(function() {
+
+    var calendarReady = false;
+    var initialLoadDone = false;  // prevent viewRender from double-fetching on init
+
+    function getScope() {
+        var el = document.getElementById('sd-calendar');
+        if (!el) return null;
+        return angular.element(el).scope();
+    }
+
+    function waitForCalendarEl() {
+        var el = document.getElementById('sd-calendar');
+        if (!el || !el.offsetParent) {
+            setTimeout(waitForCalendarEl, 200);
+            return;
+        }
+        initCalendar();
+    }
+
+    // Poll until scope is available, then watch for loading = false
+    (function waitForScope() {
+        var scope = getScope();
+        if (scope) {
+            scope.$watch('vm.loading', function(loading) {
+                if (loading === false && !scope.vm.error && !scope.vm.revoked) {
+                    setTimeout(waitForCalendarEl, 100);
+                }
+            });
+        } else {
+            setTimeout(waitForScope, 300);
+        }
+    })();
+
+
+    function refreshCalendarData(newData) {
+        // Remove existing resources
+        var existingResources = $('#sd-calendar').fullCalendar('getResources');
+        for (var i = 0; i < existingResources.length; i++) {
+            $('#sd-calendar').fullCalendar('removeResource', existingResources[i].id);
+        }
+        // Add new resources
+        for (var j = 0; j < newData.resources.length; j++) {
+            $('#sd-calendar').fullCalendar('addResource', newData.resources[j]);
+        }
+        // Refresh events
+        $('#sd-calendar').fullCalendar('removeEvents');
+        $('#sd-calendar').fullCalendar('removeEventSources');
+        $('#sd-calendar').fullCalendar('addEventSource', newData.events);
+    }
+
+
+    function initCalendar() {
+        if (calendarReady) return;
+        calendarReady = true;
+
+        var $scope = getScope();
+        if (!$scope) return;
+
+        var today = moment().format('YYYY-MM-DD');
+        var tomorrow = moment().add(1, 'days').format('YYYY-MM-DD');
+
+        // Load initial data, then create the calendar
+        $scope.loadSchedule(today, tomorrow).then(function(data) {
+            if (!data) return;
+
+            // Use setTimeout to escape any in-progress Angular digest
+            // before touching jQuery/DOM (FullCalendar init)
+            setTimeout(function() {
+
+                $('#sd-calendar').fullCalendar({
+                    theme: true,
+                    now: new Date(),
+                    editable: false,
+                    selectable: false,
+                    eventStartEditable: false,
+                    eventDurationEditable: false,
+                    expandRows: true,
+                    aspectRatio: 1.5,
+                    scrollTime: moment().subtract(1, 'hours').format('HH:00:00'),
+                    header: {
+                        left: 'today prev,next',
+                        center: 'title',
+                        right: ''
+                    },
+                    defaultView: 'timelineDay',
+                    views: {
+                        timelineDay: {
+                            type: 'timeline',
+                            duration: { days: 1 },
+                            slotDuration: '00:30',
+                            slotLabelFormat: 'HH:mm'
+                        }
+                    },
+                    firstDay: 1,
+                    resourceOrder: 'rOrder',
+                    resourceLabelText: 'Planes',
+                    height: 'auto',
+                    resourceColumns: [
+                        {
+                            labelText: 'Registration',
+                            field: 'title'
+                        },
+                        {
+                            labelText: 'Type',
+                            field: 'plane_type'
+                        }
+                    ],
+                    resourceRender: function(resourceObj, labelTds, bodyTds) {
+                        if (resourceObj.waiting == 1) {
+                            labelTds.addClass('waiting_list');
+                            bodyTds.addClass('waiting_list');
+                        } else {
+                            if (resourceObj.eventBackgroundColor) {
+                                labelTds.css('background', resourceObj.eventBackgroundColor);
+                            }
+                            if (resourceObj.bodyBackgroundColor) {
+                                bodyTds.css('background', resourceObj.bodyBackgroundColor);
+                            }
+                        }
+                    },
+                    resources: data.resources,
+                    events: data.events,
+                    timeFormat: 'HH:mm',
+                    titleFormat: 'D MMM YYYY',
+                    slotDuration: '00:30',
+                    nowIndicator: true,
+                    businessHours: {
+                        dow: [0, 1, 2, 3, 4, 5, 6],
+                        start: '06:00',
+                        end: '22:00'
+                    },
+                    // Read-only: no interaction callbacks
+                    dayClick: function() {},
+                    eventClick: function() {},
+                    eventAfterRender: function(event, element, view) {
+                        element.find('.booking-resource-badge').remove();
+
+                        var resourceCell = element.closest('tr[data-resource-id]');
+                        if (!resourceCell.length) return;
+                        var resourceId = resourceCell.attr('data-resource-id');
+                        if (!resourceId) return;
+
+                        var badgeText = '';
+                        var badgeIcon = '';
+
+                        if (resourceId.toString().indexOf('fi_') === 0) {
+                            if (event.plane && event.plane.registration) {
+                                badgeText = event.plane.registration;
+                                badgeIcon = '✈ ';
+                            }
+                        } else {
+                            if (event.instructor) {
+                                var instrName = '';
+                                if (typeof event.instructor === 'string') {
+                                    instrName = event.instructor;
+                                } else if (event.instructor.display_name) {
+                                    instrName = event.instructor.display_name;
+                                } else if (event.instructor.first_name) {
+                                    instrName = event.instructor.first_name + ' ' + event.instructor.last_name;
+                                }
+                                if (instrName && instrName.trim()) {
+                                    badgeText = instrName;
+                                    badgeIcon = '👤 ';
+                                }
+                            }
+                        }
+
+                        if (badgeText) {
+                            var badge = $('<span class="booking-resource-badge">' + badgeIcon + badgeText + '</span>');
+                            element.find('.fc-content').append(badge);
+                            element.addClass('has-resource-badge');
+                        }
+
+                        // Voucher/trial flight indicator
+                        element.find('.booking-voucher-icon').remove();
+                        if (event.voucher_id && parseInt(event.voucher_id) > 0) {
+                            var voucherIcon = $('<span class="booking-voucher-icon"><i class="fa fa-ticket-alt"></i></span>');
+                            element.find('.fc-content').append(voucherIcon);
+                            element.addClass('has-voucher');
+                        }
+                    },
+                    viewRender: function(view) {
+                        // Skip the first fire (initial render — data is already loaded)
+                        if (!initialLoadDone) {
+                            initialLoadDone = true;
+                            return;
+                        }
+
+                        var start = moment(view.start).format('YYYY-MM-DD');
+                        var end   = moment(view.end).format('YYYY-MM-DD');
+
+                        $scope.loadSchedule(start, end).then(function(newData) {
+                            if (!newData) return;
+                            setTimeout(function() {
+                                refreshCalendarData(newData);
+                                // Update the header date label safely
+                                if (!$scope.$$phase) {
+                                    $scope.$apply(function() {
+                                        $scope.vm.today_label = view.title;
+                                    });
+                                } else {
+                                    $scope.vm.today_label = view.title;
+                                }
+                            }, 0);
+                        });
+                    }
+                }); // end fullCalendar init
+
+                // Mark initial load complete (viewRender may fire synchronously above)
+                initialLoadDone = true;
+
+                // Start smart polling
+                $scope.startPolling();
+
+                // Schedule midnight rollover
+                $scope.scheduleMidnightRollover();
+
+                // Listen for version changes (from polling)
+                $scope.$on('schedule:version-changed', function() {
+                    var view = $('#sd-calendar').fullCalendar('getView');
+                    if (!view) return;
+
+                    var start = moment(view.start).format('YYYY-MM-DD');
+                    var end   = moment(view.end).format('YYYY-MM-DD');
+
+                    $scope.loadSchedule(start, end).then(function(newData) {
+                        if (!newData) return;
+                        setTimeout(function() { refreshCalendarData(newData); }, 0);
+                    });
+                });
+
+                // Listen for midnight rollover
+                $scope.$on('schedule:midnight-rollover', function() {
+                    $('#sd-calendar').fullCalendar('today');
+                });
+
+            }, 0); // end setTimeout (escape digest)
+        }); // end loadSchedule
+    }
+
+})();
+
+</script>

@@ -1,89 +1,977 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page">
 
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-calendar-alt"></i> Booking Settings</h2>
+        <p>Manage your booking page &amp; instructors</p>
+      </div>
+    </div>
+  </div>
 
-      <div class="home_upper">
-        <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-          <div class="welcome_title"> 
-            <h2>BOOKING SETTINGS</h2> 
-            <h4 class="capitalise">
-              Manage your booking page & instructors
-            </h4>
+  <div class="snazzy-page__body">
+
+    <!-- ═══ Instructor List (drag & drop reorderable) ═══ -->
+    <div class="instructor-section">
+      <div class="instructor-section__header">
+        <h3 class="instructor-section__title"><i class="fa fa-chalkboard-teacher"></i> Instructors</h3>
+        <span class="instructor-section__count" ng-if="vm.club.instructors.length > 0">{{ vm.club.instructors.length }}</span>
+        <button class="iq-manage-btn" style="margin-left:auto;" ng-click="vm.openQualificationsPanel()" ng-if="vm.club.instructors.length > 0">
+          <i class="fa fa-award"></i> Manage Qualifications
+        </button>
+      </div>
+
+      <div class="snazzy-page__empty" ng-if="!vm.club.instructors || vm.club.instructors.length == 0">
+        <i class="fa fa-chalkboard-teacher snazzy-page__empty-icon"></i>
+        <p>No instructors found</p>
+      </div>
+
+      <div class="ib-card-list" dnd-list="vm.club.instructors" ng-if="vm.club.instructors.length > 0">
+
+        <div class="ib-card"
+             ng-repeat="instructor in vm.club.instructors"
+             dnd-draggable="instructor"
+             dnd-effect-allowed="move"
+             dnd-moved="vm.club.instructors.splice($index, 1); save_instructor_order()"
+             ng-style="{'border-left-color': instructor.instructor_colour || '#cbd5e1'}"
+             ng-click="vm.openPanel(instructor)"
+             ng-class="{'ib-card--active': vm.selected_instructor.id === instructor.id}">
+
+          <!-- Drag handle -->
+          <div class="ib-card__drag-handle" dnd-handle title="Drag to reorder">
+            <span class="ib-card__grip"></span>
           </div>
+
+          <!-- Avatar -->
+          <div class="ib-card__avatar" ng-style="{'background': instructor.instructor_colour || '#64748b'}">
+            {{ instructor.first_name.charAt(0) }}{{ instructor.last_name.charAt(0) }}
+          </div>
+
+          <!-- Info -->
+          <div class="ib-card__info">
+            <div class="ib-card__name">{{ instructor.first_name }} {{ instructor.last_name }}</div>
+            <div class="ib-card__email">{{ instructor.email }}</div>
+          </div>
+
+          <!-- Color swatches -->
+          <div class="ib-card__colors">
+            <span class="ib-card__swatch" ng-style="{'background': instructor.instructor_colour}" uib-tooltip="Instructor colour"></span>
+            <span class="ib-card__swatch" ng-style="{'background': instructor.booking_colour}" uib-tooltip="Booking colour"></span>
+          </div>
+
+          <!-- Status -->
+          <div class="ib-card__status">
+            <span class="ib-card__badge" ng-if="instructor._availabilityMode === 'adhoc'">Ad-hoc</span>
+            <span class="ib-card__badge ib-card__badge--active" ng-if="instructor._availabilityMode !== 'adhoc'">Regular</span>
+          </div>
+
+          <!-- Arrow -->
+          <div class="ib-card__chevron">
+            <i class="fa fa-chevron-right"></i>
+          </div>
+
+        </div>
+
+        <!-- DnD placeholder -->
+        <div class="ib-card ib-card--placeholder dndPlaceholder">
+          <div class="ib-card__placeholder-text"><i class="fa fa-arrows-alt"></i> Drop here to reorder</div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     AVAILABILITY EDITOR — nested slide panel
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Second backdrop (sits above first panel) -->
+<div class="ib-avail-backdrop"
+     ng-class="{'active': vm.show_avail_panel}"
+     ng-click="vm.closeAvailPanel()"></div>
+
+<!-- Availability editor panel -->
+<div class="ib-avail-editor-panel"
+     ng-class="{'open': vm.show_avail_panel}">
+
+  <div class="wp-panel-inner" ng-if="vm.show_avail_panel && vm.selected_instructor">
+
+    <!-- Header -->
+    <div class="wp-panel-header">
+      <div class="wp-panel-header-left">
+        <button class="ib-avail-back-btn" ng-click="vm.closeAvailPanel()">
+          <i class="fa fa-arrow-left"></i>
+        </button>
+        <div>
+          <h2 class="wp-panel-title">Availability</h2>
+          <p class="wp-panel-subtitle">{{ vm.selected_instructor.first_name }} {{ vm.selected_instructor.last_name }}</p>
+        </div>
+      </div>
+      <button class="wp-panel-close" ng-click="vm.closeAvailPanel()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Scrollable Body -->
+    <div class="wp-panel-body">
+
+      <!-- ─── Tab Bar ─── -->
+      <div class="ib-avail-tabs">
+        <button class="ib-avail-tab" ng-class="{'ib-avail-tab--active': vm.availTab === 'schedule'}" ng-click="vm.availTab = 'schedule'">
+          <i class="fa fa-clock"></i> Weekly Schedule
+        </button>
+        <button class="ib-avail-tab" ng-class="{'ib-avail-tab--active': vm.availTab === 'extra'}" ng-click="vm.availTab = 'extra'">
+          <i class="fa fa-calendar-plus"></i> Extra Dates
+        </button>
+        <button class="ib-avail-tab" ng-class="{'ib-avail-tab--active': vm.availTab === 'holidays'}" ng-click="vm.availTab = 'holidays'">
+          <i class="fa fa-umbrella-beach"></i> Holidays
+        </button>
       </div>
 
 
-      <div class="club_docs bookingout_wrapper">
-            
-          
+      <!-- ═══ TAB 1: WEEKLY SCHEDULE ═══ -->
+      <div class="ib-avail-tab-body" ng-show="vm.availTab === 'schedule'">
 
-           <div class="plane_docs">
+        <!-- Mode toggle -->
+        <div class="ib-avail-mode-toggle">
+          <span class="ib-avail-mode-label"><i class="fa fa-info-circle"></i> Scheduling mode</span>
+          <div class="ib-avail-mode-btns">
+            <button class="ib-avail-mode-btn" ng-class="{'ib-avail-mode-btn--active': vm.instructor_availability.availability_mode !== 'adhoc'}" ng-click="vm.setAvailMode('regular')">
+              <i class="fa fa-calendar-week"></i> Regular
+            </button>
+            <button class="ib-avail-mode-btn" ng-class="{'ib-avail-mode-btn--active': vm.instructor_availability.availability_mode === 'adhoc'}" ng-click="vm.setAvailMode('adhoc')">
+              <i class="fa fa-calendar-day"></i> Ad-Hoc
+            </button>
+          </div>
+        </div>
 
-        <h4>Manage Instructors</h4>
+        <!-- Weekly day cards -->
+        <div ng-if="vm.instructor_availability.availability_mode !== 'adhoc'">
 
-            <div class="card" ng-if="vm.club.instructors.length > 0">
-                <table>
-                    <tr>
-                        <th>Name</th>
-                        <th>Courses</th>
-                        <th>Notes</th>
-                        <th>Colours</th>
-                        <th>Functions</th>
-                    </tr>
-                    <tbody dnd-list="vm.club.instructors">
-                         <tr ng-repeat="instructor in vm.club.instructors" dnd-draggable="instructor" dnd-moved="vm.club.instructors.splice($index, 1);save_instructor_order()">
-                            <td uib-tooltip="{{ instructor.email }}" tooltip-append-to-body="true">{{ instructor.first_name }} {{ instructor.last_name }}</td>
-                            <td> Courses </td>
-                            <td>{{ instructor.instructor_notes }}</td>
-                            <td>
-                                instructor_colour: <span ng-if="!instructor.edit"><span class="coloured_square" style="background: {{ instructor.instructor_colour }}"> &nbsp;</span></span> <span ng-if="instructor.edit"><input type="color" ng-model="instructor.new_colour" /> </span> <br />
-                                booking_colour:
-                                 <span ng-if="!instructor.edit"><span class="coloured_square" style="background: {{ instructor.booking_colour }}"> &nbsp;</span></span>
-                                <span ng-if="instructor.edit"><input type="color" ng-model="instructor.new_booking_colour" /> </span>
-                            </td>
-                            <td>
-                                <a ng-if="!instructor.edit" ng-click="instructor.edit = true;" uib-tooltip="Manage"><i class="fa fa-edit list_icons"></i></a> &nbsp; 
+          <div class="ib-avail-day-card" ng-repeat="day in vm.avail_days"
+               ng-class="{'ib-avail-day-card--disabled': vm.instructor_availability[day.disabled_variable]}">
 
-                                <a ng-if="instructor.edit" ng-click="vm.save_instructor(instructor)" uib-tooltip="Save"><i class="fa fa-save list_icons green"></i></a>
-                                <!-- <a ng-click="open(plane.id)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a> -->
-                            </td>
-                        </tr>
-                        <tr class="dndPlaceholder background_content_dnd">
-                            <td colspan="5">
-                              Drop Here
-                            </td>
-                          </tr>
-                    </tbody>
-
-                </table>
-
+            <div class="ib-avail-day-card__header">
+              <span class="ib-avail-day-card__name">{{ day.day }}</span>
+              <label class="ib-avail-day-card__toggle">
+                <input type="checkbox"
+                       ng-checked="!vm.instructor_availability[day.disabled_variable]"
+                       ng-click="vm.toggleAvailDay(day.disabled_variable)">
+                <span class="ib-avail-day-card__slider"></span>
+              </label>
             </div>
+
+            <div class="ib-avail-day-card__times" ng-if="!vm.instructor_availability[day.disabled_variable]">
+              <div class="ib-avail-time-group">
+                <label>From</label>
+                <div uib-timepicker
+                     ng-model="vm.instructor_availability[day.from_variable]"
+                     hour-step="1" minute-step="15"
+                     show-meridian="false"
+                     class="ib-avail-timepicker">
+                </div>
+              </div>
+              <div class="ib-avail-time-sep"><i class="fa fa-long-arrow-alt-right"></i></div>
+              <div class="ib-avail-time-group">
+                <label>To</label>
+                <div uib-timepicker
+                     ng-model="vm.instructor_availability[day.to_variable]"
+                     hour-step="1" minute-step="15"
+                     show-meridian="false"
+                     class="ib-avail-timepicker">
+                </div>
+              </div>
+            </div>
+
+            <div class="ib-avail-day-card__off" ng-if="vm.instructor_availability[day.disabled_variable]">
+              <i class="fa fa-moon"></i> Day off
+            </div>
+
+          </div>
+
+          <!-- Save schedule button -->
+          <div class="ib-avail-actions">
+            <button class="ib-avail-save-btn" ng-click="vm.saveAvailSchedule()" ng-disabled="vm.savingAvailSchedule">
+              <i class="fa fa-save" ng-if="!vm.savingAvailSchedule"></i>
+              <i class="fa fa-spinner fa-spin" ng-if="vm.savingAvailSchedule"></i>
+              Save Schedule
+            </button>
+          </div>
 
         </div>
 
+        <!-- Ad-hoc mode message -->
+        <div class="ib-avail-adhoc-msg" ng-if="vm.instructor_availability.availability_mode === 'adhoc'">
+          <div class="ib-avail-adhoc-msg__icon"><i class="fa fa-calendar-day"></i></div>
+          <h4>Ad-Hoc Mode Active</h4>
+          <p>Weekly schedule is paused. This instructor is only bookable on dates added manually.</p>
+          <button class="ib-avail-save-btn" ng-click="vm.availTab = 'extra'">
+            <i class="fa fa-plus"></i> Manage Dates
+          </button>
+        </div>
 
-      <!--   <div class="club_docs">
+      </div>
 
-        <h4>Booking Settings</h4>
-            TBC
 
-            <div class="form-group">
-              <label for="title">Title</label>
-              <input type="text" class="form-control inputtext" name="title" id="title" ng-model="vm.club.course.title" />
+      <!-- ═══ TAB 2: EXTRA / AD-HOC DATES ═══ -->
+      <div class="ib-avail-tab-body" ng-show="vm.availTab === 'extra'">
+
+        <p class="ib-avail-info" ng-if="vm.instructor_availability.availability_mode !== 'adhoc'">
+          <i class="fa fa-lightbulb"></i>
+          Add dates <strong>beyond</strong> the normal weekly pattern — e.g. an extra Saturday.
+        </p>
+        <p class="ib-avail-info" ng-if="vm.instructor_availability.availability_mode === 'adhoc'">
+          <i class="fa fa-lightbulb"></i>
+          Ad-hoc mode — add every date this instructor should be available.
+        </p>
+
+        <!-- Add dates form -->
+        <div class="ib-avail-add-card">
+          <h4 class="ib-avail-add-card__title"><i class="fa fa-plus-circle"></i> Add Available Dates</h4>
+
+          <!-- Selected dates chips -->
+          <div class="ib-avail-date-chips" ng-if="vm.adhocSelectedDates.length">
+            <span class="ib-avail-date-chip" ng-repeat="d in vm.adhocSelectedDates track by $index">
+              {{ d | date:'EEE d MMM' }}
+              <i class="fa fa-times" ng-click="vm.removeAdhocDate($index)"></i>
+            </span>
+          </div>
+          <p class="ib-avail-no-dates" ng-if="!vm.adhocSelectedDates.length">Pick dates from the calendar below.</p>
+
+          <!-- Inline calendar -->
+          <div class="ib-avail-calendar-wrap">
+            <div uib-datepicker
+                 ng-model="vm.adhocCalendarDate"
+                 ng-change="vm.onAdhocCalendarSelect()"
+                 datepicker-options="vm.adhocDatepickerOptions"
+                 class="ib-avail-datepicker">
             </div>
+          </div>
 
-            <div class="form-group">
-              <label for="description">Description</label>
-              <input type="text" class="form-control inputtext" name="description" id="description" ng-model="vm.club.course.description" />
+          <!-- Time range -->
+          <div class="ib-avail-time-row">
+            <div class="ib-avail-time-group">
+              <label>From</label>
+              <div uib-timepicker ng-model="vm.adhocFromTime" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
             </div>
+            <div class="ib-avail-time-sep"><i class="fa fa-long-arrow-alt-right"></i></div>
+            <div class="ib-avail-time-group">
+              <label>To</label>
+              <div uib-timepicker ng-model="vm.adhocToTime" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="ib-avail-notes-row">
+            <label>Notes <span class="ib-avail-optional">(optional)</span></label>
+            <input type="text" class="ib-avail-input" ng-model="vm.adhocNotes" placeholder="e.g. Weekend cover, Extra Saturday…" maxlength="255">
+          </div>
+
+          <!-- Add button -->
+          <div class="ib-avail-actions">
+            <button class="ib-avail-save-btn" ng-click="vm.addAdhocDates()" ng-disabled="vm.addingAdhoc || !vm.adhocSelectedDates.length">
+              <i class="fa fa-plus" ng-if="!vm.addingAdhoc"></i>
+              <i class="fa fa-spinner fa-spin" ng-if="vm.addingAdhoc"></i>
+              Add {{ vm.adhocSelectedDates.length || '' }} Date<span ng-if="vm.adhocSelectedDates.length > 1">s</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Upcoming dates list -->
+        <div ng-if="vm.adhocDates.length" class="ib-avail-upcoming">
+          <h4 class="ib-avail-upcoming__title"><i class="fa fa-list"></i> Upcoming Dates</h4>
+
+          <div class="ib-avail-slot" ng-repeat="slot in vm.adhocDates | orderBy:'available_date'">
+            <div class="ib-avail-slot__date">
+              <span class="ib-avail-slot__day">{{ slot.available_date | asDate | date:'EEE' }}</span>
+              <span class="ib-avail-slot__full-date">{{ slot.available_date | asDate | date:'d MMM yyyy' }}</span>
+            </div>
+            <div class="ib-avail-slot__time">
+              <i class="fa fa-clock"></i> {{ slot.from_time | brakesTime }} — {{ slot.to_time | brakesTime }}
+            </div>
+            <div class="ib-avail-slot__notes" ng-if="slot.notes">
+              <i class="fa fa-sticky-note"></i> {{ slot.notes }}
+            </div>
+            <div class="ib-avail-slot__actions">
+              <button class="ib-avail-slot__btn" ng-click="vm.editAdhocSlot(slot)" uib-tooltip="Edit"><i class="fa fa-pen"></i></button>
+              <button class="ib-avail-slot__btn ib-avail-slot__btn--danger" ng-click="vm.deleteAdhocSlot(slot)" uib-tooltip="Delete"><i class="fa fa-trash-alt"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ib-avail-empty" ng-if="!vm.adhocDates.length && !vm.loadingAdhocDates">
+          <i class="fa fa-calendar-plus"></i>
+          <p>No extra dates yet — add the first one above.</p>
+        </div>
+      </div>
 
 
-        </div> -->
+      <!-- ═══ TAB 3: HOLIDAYS ═══ -->
+      <div class="ib-avail-tab-body" ng-show="vm.availTab === 'holidays'">
+
+        <!-- Add holiday form -->
+        <div class="ib-avail-add-card">
+          <h4 class="ib-avail-add-card__title"><i class="fa fa-umbrella-beach"></i> Book Time Off</h4>
+
+          <div class="ib-avail-holiday-dates">
+            <div class="ib-avail-date-field">
+              <label>From</label>
+              <p class="input-group">
+                <input type="text" class="form-control ib-avail-input" uib-datepicker-popup="dd MMM yyyy"
+                       ng-model="vm.holidayStart" is-open="vm.holidayStartOpen"
+                       datepicker-options="vm.holidayDateOptions" placeholder="Start date" />
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default" ng-click="vm.holidayStartOpen = !vm.holidayStartOpen">
+                    <i class="fa fa-calendar-alt"></i>
+                  </button>
+                </span>
+              </p>
+            </div>
+            <div class="ib-avail-date-field">
+              <label>To</label>
+              <p class="input-group">
+                <input type="text" class="form-control ib-avail-input" uib-datepicker-popup="dd MMM yyyy"
+                       ng-model="vm.holidayEnd" is-open="vm.holidayEndOpen"
+                       datepicker-options="vm.holidayDateOptions" placeholder="End date" />
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default" ng-click="vm.holidayEndOpen = !vm.holidayEndOpen">
+                    <i class="fa fa-calendar-alt"></i>
+                  </button>
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div class="ib-avail-holiday-options">
+            <div class="ib-avail-notes-row">
+              <label>Title <span class="ib-avail-optional">(optional)</span></label>
+              <input type="text" class="ib-avail-input" ng-model="vm.holidayTitle" placeholder="e.g. Annual leave…">
+            </div>
+            <label class="ib-avail-checkbox">
+              <input type="checkbox" ng-model="vm.holidayAllDay">
+              <span>Whole day(s)</span>
+            </label>
+          </div>
+
+          <!-- Time selection when not all-day -->
+          <div class="ib-avail-time-row" ng-if="!vm.holidayAllDay">
+            <div class="ib-avail-time-group">
+              <label>From time</label>
+              <div uib-timepicker ng-model="vm.holidayFromTime" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
+            </div>
+            <div class="ib-avail-time-sep"><i class="fa fa-long-arrow-alt-right"></i></div>
+            <div class="ib-avail-time-group">
+              <label>To time</label>
+              <div uib-timepicker ng-model="vm.holidayToTime" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
+            </div>
+          </div>
+
+          <div class="ib-avail-actions">
+            <button class="ib-avail-save-btn ib-avail-save-btn--warning" ng-click="vm.addHoliday()" ng-disabled="vm.addingHoliday">
+              <i class="fa fa-plus" ng-if="!vm.addingHoliday"></i>
+              <i class="fa fa-spinner fa-spin" ng-if="vm.addingHoliday"></i>
+              Add Holiday
+            </button>
+          </div>
+        </div>
+
+        <!-- Holiday list -->
+        <div ng-if="vm.instrHolidays.length" class="ib-avail-upcoming">
+          <h4 class="ib-avail-upcoming__title"><i class="fa fa-list"></i> Holidays</h4>
+
+          <div class="ib-avail-slot ib-avail-slot--holiday" ng-repeat="hol in vm.instrHolidays | orderBy:'start'">
+            <div class="ib-avail-slot__date">
+              <span class="ib-avail-slot__day">{{ hol.title || 'Holiday' }}</span>
+              <span class="ib-avail-slot__full-date">
+                {{ hol.start | date:'EEE d MMM yyyy' }}
+                <span ng-if="hol.end && (hol.start | date:'yyyyMMdd') !== (hol.end | date:'yyyyMMdd')">
+                  — {{ hol.end | date:'EEE d MMM yyyy' }}
+                </span>
+              </span>
+            </div>
+            <div class="ib-avail-slot__time" ng-if="!hol.allDay">
+              <i class="fa fa-clock"></i> {{ hol.start | date:'HH:mm' }} — {{ hol.end | date:'HH:mm' }}
+            </div>
+            <div class="ib-avail-slot__time" ng-if="hol.allDay">
+              <i class="fa fa-sun"></i> All day
+            </div>
+            <div class="ib-avail-slot__actions">
+              <button class="ib-avail-slot__btn ib-avail-slot__btn--danger" ng-click="vm.deleteHoliday(hol, $index)" uib-tooltip="Delete">
+                <i class="fa fa-trash-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ib-avail-empty" ng-if="!vm.instrHolidays.length">
+          <i class="fa fa-umbrella-beach"></i>
+          <p>No holidays booked for this instructor.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
 
 </div>
 
 
+<!-- ═══ Edit ad-hoc slot modal ═══ -->
+<div class="ib-avail-modal-overlay" ng-if="vm.editingAdhocSlot" ng-click="vm.cancelEditSlot()">
+  <div class="ib-avail-modal-card" ng-click="$event.stopPropagation()">
+    <h4><i class="fa fa-pen"></i> Edit Availability Slot</h4>
 
-        </div>
+    <div class="ib-avail-time-row">
+      <div class="ib-avail-time-group">
+        <label>From</label>
+        <div uib-timepicker ng-model="vm.editSlotFrom" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
+      </div>
+      <div class="ib-avail-time-sep"><i class="fa fa-long-arrow-alt-right"></i></div>
+      <div class="ib-avail-time-group">
+        <label>To</label>
+        <div uib-timepicker ng-model="vm.editSlotTo" hour-step="1" minute-step="15" show-meridian="false" class="ib-avail-timepicker"></div>
+      </div>
+    </div>
+
+    <div class="ib-avail-notes-row">
+      <label>Notes</label>
+      <input type="text" class="ib-avail-input" ng-model="vm.editSlotNotes" maxlength="255">
+    </div>
+
+    <div class="ib-avail-modal-actions">
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--secondary" ng-click="vm.cancelEditSlot()">Cancel</button>
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--primary" ng-click="vm.saveEditSlot()" ng-disabled="vm.savingEditSlot">
+        <i class="fa fa-save" ng-if="!vm.savingEditSlot"></i>
+        <i class="fa fa-spinner fa-spin" ng-if="vm.savingEditSlot"></i>
+        Save
+      </button>
+    </div>
+  </div>
 </div>
+<!-- ═══════════════════════════════════════════════════════════════
+     INSTRUCTOR DETAIL SLIDE PANEL
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Backdrop -->
+<div class="wp-overlay-backdrop"
+     ng-class="{'active': vm.show_instructor_panel}"
+     ng-click="vm.closePanel()"></div>
+
+<!-- Panel -->
+<div class="wp-overlay-panel"
+     ng-class="{'open': vm.show_instructor_panel}">
+
+  <div class="wp-panel-inner" ng-if="vm.selected_instructor">
+
+    <!-- ── Header ── -->
+    <div class="wp-panel-header ib-panel-header--compact">
+      <div class="wp-panel-header-left ib-header-row">
+        <div class="ib-panel-avatar" ng-style="{'background': vm.selected_instructor.instructor_colour || '#64748b'}">
+          {{ vm.selected_instructor.first_name.charAt(0) }}{{ vm.selected_instructor.last_name.charAt(0) }}
+        </div>
+        <div class="ib-header-text">
+          <h2 class="wp-panel-title">{{ vm.selected_instructor.first_name }} {{ vm.selected_instructor.last_name }}</h2>
+          <p class="wp-panel-subtitle">{{ vm.selected_instructor.email }}</p>
+        </div>
+      </div>
+      <button class="wp-panel-close" ng-click="vm.closePanel()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+
+    <!-- ── Scrollable Body ── -->
+    <div class="wp-panel-body">
+
+      <!-- SECTION 1: Appearance / Colours -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-palette"></i> Appearance</h3>
+
+        <div class="ib-colour-row">
+          <div class="ib-colour-field">
+            <label>Instructor Colour</label>
+            <div class="ib-colour-picker">
+              <input type="color" ng-model="vm.selected_instructor.new_colour" class="ib-colour-input" />
+              <span class="ib-colour-preview" ng-style="{'background': vm.selected_instructor.new_colour}"></span>
+              <span class="ib-colour-hex">{{ vm.selected_instructor.new_colour }}</span>
+            </div>
+          </div>
+          <div class="ib-colour-field">
+            <label>Booking Colour</label>
+            <div class="ib-colour-picker">
+              <input type="color" ng-model="vm.selected_instructor.new_booking_colour" class="ib-colour-input" />
+              <span class="ib-colour-preview" ng-style="{'background': vm.selected_instructor.new_booking_colour}"></span>
+              <span class="ib-colour-hex">{{ vm.selected_instructor.new_booking_colour }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- SECTION 2: Email Preferences -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-envelope"></i> Email Preferences</h3>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Booking Notifications</span>
+            <span class="ib-toggle-desc">Email each time a student books a lesson</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveNotifications"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Booking Reminders</span>
+            <span class="ib-toggle-desc">Reminder the evening before each booking</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveReminders"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+
+        <div class="ib-toggle-row">
+          <div class="ib-toggle-info">
+            <span class="ib-toggle-label">Daily Schedule Summary</span>
+            <span class="ib-toggle-desc">Combined email listing all bookings for tomorrow</span>
+          </div>
+          <toggle-switch
+            on-label="On" off-label="Off"
+            ng-model="vm.selected_instructor._receiveDailySummary"
+            ng-change="vm.save_email_prefs(vm.selected_instructor)">
+          </toggle-switch>
+        </div>
+      </div>
+
+
+      <!-- SECTION 3: Daily Limits -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-tachometer-alt"></i> Daily Limits</h3>
+
+        <div class="ib-limit-field">
+          <label>Max Experience / Voucher Flights Per Day</label>
+          <div class="ib-limit-input-wrap">
+            <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxExperienceFlights = (vm.selected_instructor._maxExperienceFlights > 0) ? vm.selected_instructor._maxExperienceFlights - 1 : 0">
+              <i class="fa fa-minus"></i>
+            </button>
+            <input type="number" min="0" class="ib-limit-input" ng-model="vm.selected_instructor._maxExperienceFlights" />
+            <button class="ib-limit-btn" ng-click="vm.selected_instructor._maxExperienceFlights = (vm.selected_instructor._maxExperienceFlights || 0) + 1">
+              <i class="fa fa-plus"></i>
+            </button>
+          </div>
+          <span class="ib-limit-hint">0 = unlimited &middot; limits the number of trial / air experience flights this instructor can be booked for each day</span>
+        </div>
+      </div>
+
+
+      <!-- SECTION 4: Availability Overview -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-clock"></i> Availability for This Club</h3>
+
+        <!-- Loading -->
+        <div class="ib-availability-loading" ng-if="vm.loadingAvailability">
+          <i class="fa fa-spinner fa-spin"></i> Loading availability…
+        </div>
+
+        <!-- No availability set -->
+        <div class="ib-availability-empty" ng-if="!vm.loadingAvailability && !vm.instructor_availability">
+          <i class="fa fa-calendar-times"></i>
+          <p>No availability set for this club yet.</p>
+          <button class="ib-avail-manage-btn" ng-click="vm.openAvailPanel()">
+            <i class="fa fa-plus-circle"></i> Set Up Availability
+          </button>
+        </div>
+
+        <!-- Availability summary -->
+        <div ng-if="!vm.loadingAvailability && vm.instructor_availability">
+
+          <div class="ib-avail-mode">
+            <span class="ib-card__badge" ng-class="{'ib-card__badge--active': vm.instructor_availability.availability_mode !== 'adhoc'}">
+              <i class="fa" ng-class="vm.instructor_availability.availability_mode === 'adhoc' ? 'fa-calendar-day' : 'fa-calendar-week'"></i>
+              {{ vm.instructor_availability.availability_mode === 'adhoc' ? 'Ad-Hoc Mode' : 'Regular Schedule' }}
+            </span>
+          </div>
+
+          <!-- Compact weekly grid -->
+          <div class="ib-avail-grid" ng-if="vm.instructor_availability.availability_mode !== 'adhoc'">
+            <div class="ib-avail-day" ng-repeat="day in vm.avail_days"
+                 ng-class="{'ib-avail-day--off': vm.instructor_availability[day.disabled_variable]}">
+              <span class="ib-avail-day__name">{{ day.short }}</span>
+              <span class="ib-avail-day__time" ng-if="!vm.instructor_availability[day.disabled_variable]">
+                {{ vm.instructor_availability[day.from_variable] | date:'HH:mm' }}–{{ vm.instructor_availability[day.to_variable] | date:'HH:mm' }}
+              </span>
+              <span class="ib-avail-day__off" ng-if="vm.instructor_availability[day.disabled_variable]">
+                <i class="fa fa-moon"></i> Off
+              </span>
+            </div>
+          </div>
+
+          <p class="ib-avail-adhoc-note" ng-if="vm.instructor_availability.availability_mode === 'adhoc'">
+            This instructor uses ad-hoc scheduling — they manually add each available date.
+          </p>
+
+          <button class="ib-avail-manage-btn" ng-click="vm.openAvailPanel()">
+            <i class="fa fa-pencil-alt"></i> Manage Availability
+          </button>
+        </div>
+      </div>
+
+
+      <!-- SECTION 5: Qualifications Overview -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-award"></i> Qualifications</h3>
+
+        <!-- Loading -->
+        <div class="ib-availability-loading" ng-if="vm.loadingQualifications">
+          <i class="fa fa-spinner fa-spin"></i> Loading qualifications…
+        </div>
+
+        <div class="iq-overview-card" ng-if="!vm.loadingQualifications && vm.instrQualOverview">
+
+          <!-- Courses -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-graduation-cap"></i> Courses</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--course" ng-repeat="c in vm.instrQualOverview.qualified_courses">
+                {{ c.course_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_courses.length">
+                No courses assigned
+              </span>
+            </div>
+          </div>
+
+          <!-- Tuition Types -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-book-open"></i> Tuition Types</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--tuition" ng-repeat="t in vm.instrQualOverview.qualified_tuition_types">
+                {{ t.tuition_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_tuition_types.length">
+                No tuition types assigned
+              </span>
+            </div>
+          </div>
+
+          <!-- Experiences -->
+          <div class="iq-overview-group">
+            <span class="iq-overview-group__label"><i class="fa fa-plane"></i> Experiences</span>
+            <div class="iq-overview-group__items">
+              <span class="iq-chip iq-chip--experience" ng-repeat="e in vm.instrQualOverview.qualified_experiences">
+                {{ e.experience_title }}
+              </span>
+              <span class="iq-chip iq-chip--none" ng-if="!vm.instrQualOverview.qualified_experiences.length">
+                No experiences assigned
+              </span>
+            </div>
+          </div>
+
+          <button class="iq-manage-btn" ng-click="vm.openQualificationsPanel()">
+            <i class="fa fa-th"></i> Manage All Qualifications
+          </button>
+        </div>
+
+        <!-- No data yet -->
+        <div ng-if="!vm.loadingQualifications && !vm.instrQualOverview" class="ib-availability-empty">
+          <i class="fa fa-award"></i>
+          <p>No qualifications loaded.</p>
+        </div>
+      </div>
+
+
+      <!-- SECTION 6: Notes -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-sticky-note"></i> Notes</h3>
+        <textarea class="ib-notes-textarea" ng-model="vm.selected_instructor.instructor_notes"
+                  placeholder="Internal notes about this instructor…" rows="3"></textarea>
+      </div>
+
+    </div>
+
+    <!-- ── Footer ── -->
+    <div class="wp-panel-footer">
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--secondary" ng-click="vm.closePanel()">
+        <i class="fa fa-times"></i> Cancel
+      </button>
+      <button class="wp-panel-footer-btn wp-panel-footer-btn--primary" ng-click="vm.saveAndClose()">
+        <i class="fa fa-save" ng-if="!vm.savingInstructor"></i>
+        <i class="fa fa-spinner fa-spin" ng-if="vm.savingInstructor"></i>
+        Save Changes
+      </button>
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     INSTRUCTOR QUALIFICATIONS MATRIX PANEL
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Backdrop -->
+<div class="iq-panel-backdrop"
+     ng-class="{'active': vm.show_qual_panel}"
+     ng-click="vm.closeQualificationsPanel()"></div>
+
+<!-- Panel -->
+<div class="iq-panel"
+     ng-class="{'open': vm.show_qual_panel}">
+
+  <div class="iq-panel-inner" ng-if="vm.show_qual_panel">
+
+    <!-- Header -->
+    <div class="iq-panel-header">
+      <div class="iq-panel-header-left">
+        <i class="fa fa-award iq-header-icon"></i>
+        <div class="iq-panel-header-info">
+          <h2>Instructor Qualifications</h2>
+          <p>Manage which instructors can teach each course, tuition type &amp; experience</p>
+        </div>
+      </div>
+      <button class="iq-panel-close" ng-click="vm.closeQualificationsPanel()" title="Close">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="iq-tabs">
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'courses'}" ng-click="vm.switchQualTab('courses')">
+        <i class="fa fa-graduation-cap"></i> Courses
+        <span class="iq-tab__badge" ng-if="vm.qualCourseColumns.length">{{ vm.qualCourseColumns.length }}</span>
+      </button>
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'tuition'}" ng-click="vm.switchQualTab('tuition')">
+        <i class="fa fa-book-open"></i> Tuition Types
+        <span class="iq-tab__badge" ng-if="vm.qualTuitionColumns.length">{{ vm.qualTuitionColumns.length }}</span>
+      </button>
+      <button class="iq-tab" ng-class="{'iq-tab--active': vm.qualTab === 'experiences'}" ng-click="vm.switchQualTab('experiences')">
+        <i class="fa fa-plane"></i> Experiences
+        <span class="iq-tab__badge" ng-if="vm.qualExpColumns.length">{{ vm.qualExpColumns.length }}</span>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="iq-panel-body">
+
+      <!-- Info banner -->
+      <div class="iq-info-banner">
+        <i class="fa fa-info-circle"></i>
+        <span>Tick the boxes to set which instructors are qualified. If no qualifications are configured, all instructors remain eligible &mdash; existing bookings are unaffected.</span>
+      </div>
+
+
+      <!-- ═══ COURSES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'courses'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading course matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualCourseColumns || !vm.qualCourseColumns.length)">
+          <i class="fa fa-graduation-cap"></i>
+          <p>No courses configured for this club.</p>
+          <span class="iq-empty-hint">Add courses under Club Management &rarr; Courses first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualCourseColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualCourseColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('courses', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('courses', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualCourseRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.courses">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'courses')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'courses')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'courses')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- ═══ TUITION TYPES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'tuition'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading tuition matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualTuitionColumns || !vm.qualTuitionColumns.length)">
+          <i class="fa fa-book-open"></i>
+          <p>No tuition types configured for this club.</p>
+          <span class="iq-empty-hint">Add instructor charges first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualTuitionColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualTuitionColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <span class="iq-col-subtitle" ng-if="col.charge_type">({{ col.charge_type }})</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('tuition', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('tuition', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualTuitionRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.tuition_types">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'tuition')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'tuition')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'tuition')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- ═══ EXPERIENCES TAB ═══ -->
+      <div ng-if="vm.qualTab === 'experiences'">
+
+        <div class="iq-loading" ng-if="vm.loadingQualMatrix">
+          <i class="fa fa-spinner fa-spin"></i> Loading experiences matrix&hellip;
+        </div>
+
+        <div class="iq-empty" ng-if="!vm.loadingQualMatrix && (!vm.qualExpColumns || !vm.qualExpColumns.length)">
+          <i class="fa fa-plane"></i>
+          <p>No voucher experiences configured for this club.</p>
+          <span class="iq-empty-hint">Add experiences under Club Management &rarr; Experiences first.</span>
+        </div>
+
+        <div class="iq-matrix-wrap" ng-if="!vm.loadingQualMatrix && vm.qualExpColumns.length">
+          <table class="iq-matrix">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th ng-repeat="col in vm.qualExpColumns">
+                  <span class="iq-col-title">{{ col.title }}</span>
+                  <span class="iq-col-subtitle" ng-if="col.price">&pound;{{ col.price }}</span>
+                  <button class="iq-col-select-all" ng-if="!col._allSelected" ng-click="vm.bulkSelectColumn('experiences', col)" ng-disabled="col._saving" uib-tooltip="Assign all instructors">
+                    All
+                  </button>
+                  <button class="iq-col-select-all iq-col-deselect" ng-if="col._allSelected" ng-click="vm.bulkDeselectColumn('experiences', col)" ng-disabled="col._saving" uib-tooltip="Remove all instructors">
+                    None
+                  </button>
+                </th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="instr in vm.qualExpRows">
+                <td>
+                  <div class="iq-instructor-cell">
+                    <div class="iq-instructor-avatar" ng-style="{'background': instr._colour || '#64748b'}">
+                      {{ instr.first_name.charAt(0) }}{{ instr.last_name.charAt(0) }}
+                    </div>
+                    <span class="iq-instructor-name">{{ instr.first_name }} {{ instr.last_name }}</span>
+                  </div>
+                </td>
+                <td ng-repeat="qual in instr.experiences">
+                  <label class="iq-checkbox" ng-class="{'iq-checkbox--saving': instr._saving}">
+                    <input type="checkbox" ng-model="qual.qualified" ng-change="vm.onQualToggle(instr, 'experiences')">
+                    <span class="iq-checkbox__mark"><i class="fa fa-check"></i></span>
+                  </label>
+                </td>
+                <td>
+                  <div class="iq-row-actions">
+                    <span class="iq-row-saving" ng-if="instr._saving"><i class="fa fa-spinner fa-spin"></i> Saving</span>
+                    <span class="iq-row-saved" ng-if="instr._saved && !instr._saving"><i class="fa fa-check-circle"></i> Saved</span>
+                    <button class="iq-row-select-all" ng-if="!instr._allSelected && !instr._saving" ng-click="vm.bulkSelectRow(instr, 'experiences')">
+                      <i class="fa fa-check-double"></i> All
+                    </button>
+                    <button class="iq-row-select-all iq-row-deselect" ng-if="instr._allSelected && !instr._saving" ng-click="vm.bulkDeselectRow(instr, 'experiences')">
+                      <i class="fa fa-times"></i> None
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /iq-panel-body -->
+
+  </div><!-- /iq-panel-inner -->
+
+</div><!-- /iq-panel -->

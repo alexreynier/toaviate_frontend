@@ -27,7 +27,7 @@ module.exports = function (grunt) {
               // {expand: true, src: ['**'], dest: 'dest/', filter: 'isFile'},
               //'js/**', 'libs/**',
               // includes files within path and its sub-directories
-              {expand: true, src: [ 'views/**', 'js/directives/*.html', 'js/app.js', 'images/**', 'css/**', 'index.html', 'libs/img/**', '.htaccess'], dest: 'dist/'},
+              {expand: true, src: [ 'views/**', 'js/directives/*.html', 'js/app.js', 'images/**', 'css/**', 'favicon/**', 'index.html', 'libs/img/**', '.htaccess'], dest: 'dist/'},
 
               {expand: true, flatten: true, src: [ 'libs/css/fonts/**'], dest: 'dist/css/fonts'},
               {expand: true, flatten: true, src: [ 'libs/css/webfonts/**'], dest: 'dist/css/webfonts'},
@@ -68,7 +68,32 @@ module.exports = function (grunt) {
                 dest: 'dist/js/libs.js'
             },
             css: {
-                src: ['libs/css/bootstrap.datetime.css', 'libs/css/jquery-ui.min.css', 'libs/css/bootstrap.min.css', 'libs/css/font-awesome.css', 'libs/css/select.css', 'libs/css/timepicker.css', 'libs/css/bootstrap-datepicker.css', 'libs/css/phone.css', 'libs/css/toggle.css', 'css/styles.css', 'libs/css/slider.css', 'css/calendar.css', 'libs/css/scheduler.css'],
+                src: [
+                    'libs/css/bootstrap.datetime.css',
+                    'libs/css/jquery-ui.min.css',
+                    'libs/css/bootstrap.min.css',
+                    'libs/css/font-awesome.css',
+                    'libs/css/select.css',
+                    'libs/css/timepicker.css',
+                    'libs/css/bootstrap-datepicker.css',
+                    'libs/css/phone.css',
+                    'libs/css/toggle.css',
+                    'css/styles.css',
+                    'css/snazzy-pages.css',
+                    'libs/css/slider.css',
+                    'css/calendar.css',
+                    'css/instructor-schedule.css',
+                    'css/slot-search.css',
+                    'css/voucher-booking.css',
+                    'css/schedule-display.css',
+                    'css/voucher-widget.css',
+                    'css/flight-edit.css',
+                    'css/defect-media.css',
+                    'css/defect-report.css',
+                    'css/experience-form.css',
+                    'css/instructor-qualifications.css',
+                    'libs/css/scheduler.css'
+                ],
                 dest: 'dist/css/compiled.css'
             }
         },

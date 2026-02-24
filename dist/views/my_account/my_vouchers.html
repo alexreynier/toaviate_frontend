@@ -1,0 +1,502 @@
+<div class="voucher-booking">
+
+  <!-- ══════════════════════════════════════════════
+       HEADER
+       ══════════════════════════════════════════════ -->
+  <div class="voucher-booking__header">
+    <div class="voucher-booking__header-inner">
+      <div class="back-box" ng-click="vm.goBack()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="voucher-booking__title">
+        <h2><i class="fa fa-ticket-alt"></i> My Vouchers</h2>
+        <p ng-if="vm.viewState === 'list'">Manage your experience vouchers</p>
+        <p ng-if="vm.viewState === 'slot_search'">Find an available slot for your voucher flight</p>
+        <p ng-if="vm.viewState === 'booking_detail'">Your voucher booking details</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Club Selector REMOVED — all vouchers shown across all clubs ── -->
+
+
+  <!-- ══════════════════════════════════════════════
+       VIEW: VOUCHER LIST
+       ══════════════════════════════════════════════ -->
+  <div ng-if="vm.viewState === 'list'">
+
+    <!-- Loading -->
+    <div class="voucher-booking__loading" ng-if="vm.loading">
+      <div class="voucher-booking__spinner"></div>
+      <span>Loading your vouchers...</span>
+    </div>
+
+    <!-- Error -->
+    <div class="voucher-booking__alert" ng-if="vm.errorMessage && !vm.loading">
+      <div class="voucher-booking__alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <div class="voucher-booking__alert-text">{{ vm.errorMessage }}</div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="voucher-booking__empty" ng-if="!vm.loading && !vm.errorMessage && vm.unredeemedVouchers.length === 0 && vm.bookedVouchers.length === 0 && vm.completedVouchers.length === 0">
+      <div class="voucher-booking__empty-icon"><i class="fa fa-ticket-alt"></i></div>
+      <h3>No Vouchers Found</h3>
+      <p>You don't have any active vouchers. If you believe you should have one, please contact the club.</p>
+    </div>
+
+    <!-- ── UNREDEEMED VOUCHERS — prominent, at top ── -->
+    <div class="voucher-booking__section" ng-if="!vm.loading && vm.unredeemedVouchers.length > 0">
+      <div class="voucher-booking__section-header">
+        <i class="fa fa-gift"></i>
+        <span>Ready to Book</span>
+        <small class="voucher-booking__section-count">{{ vm.unredeemedVouchers.length }} voucher{{ vm.unredeemedVouchers.length !== 1 ? 's' : '' }}</small>
+      </div>
+
+      <div class="voucher-booking__voucher-list">
+        <div class="voucher-booking__voucher-card" ng-repeat="voucher in vm.unredeemedVouchers">
+
+          <!-- Voucher header -->
+          <div class="voucher-booking__voucher-top">
+            <div class="voucher-booking__voucher-experience">
+              <i class="fa fa-gift"></i>
+              <span>{{ voucher.experience_title || 'Experience Voucher' }}</span>
+            </div>
+            <div class="voucher-booking__voucher-code">
+              <span class="voucher-booking__code-label">Code:</span>
+              <span class="voucher-booking__code-value">{{ voucher.code }}</span>
+            </div>
+          </div>
+
+          <!-- Voucher details -->
+          <div class="voucher-booking__voucher-body">
+
+            <div class="voucher-booking__voucher-info-grid">
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-user"></i> Name</span>
+                <span class="voucher-booking__info-value">{{ voucher.first_name }} {{ voucher.last_name }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-calendar-alt"></i> Expires</span>
+                <span class="voucher-booking__info-value">{{ vm.formatExpiryDate(voucher.expiry_date) }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item" ng-if="voucher.experience_price">
+                <span class="voucher-booking__info-label"><i class="fa fa-tag"></i> Value</span>
+                <span class="voucher-booking__info-value">&pound;{{ voucher.experience_price }}</span>
+              </div>
+            </div>
+
+            <!-- Available aircraft (hidden from voucher users) -->
+
+            <!-- Book Now button -->
+            <div class="voucher-booking__voucher-actions">
+              <button class="voucher-booking__book-now-btn" ng-click="vm.startSlotSearch(voucher)">
+                <i class="fa fa-calendar-plus"></i> Book My Flight
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── UPCOMING FLIGHTS — booked, awaiting flight ── -->
+    <div class="voucher-booking__section" ng-if="!vm.loading && vm.bookedVouchers.length > 0">
+      <div class="voucher-booking__section-header voucher-booking__section-header--booked">
+        <i class="fa fa-plane-departure"></i>
+        <span>Upcoming Flights</span>
+        <small class="voucher-booking__section-count">{{ vm.bookedVouchers.length }} booking{{ vm.bookedVouchers.length !== 1 ? 's' : '' }}</small>
+      </div>
+
+      <div class="voucher-booking__voucher-list">
+        <div class="voucher-booking__voucher-card voucher-booking__voucher-card--booked" ng-repeat="voucher in vm.bookedVouchers">
+
+          <!-- Voucher header -->
+          <div class="voucher-booking__voucher-top voucher-booking__voucher-top--booked">
+            <div class="voucher-booking__voucher-experience">
+              <i class="fa fa-plane"></i>
+              <span>{{ voucher.experience_title || 'Experience Voucher' }}</span>
+            </div>
+            <div class="voucher-booking__status-badge voucher-booking__status-badge--booked">
+              <i class="fa fa-calendar-check"></i> Booked
+            </div>
+          </div>
+
+          <!-- Voucher body -->
+          <div class="voucher-booking__voucher-body">
+
+            <div class="voucher-booking__voucher-info-grid">
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-user"></i> Name</span>
+                <span class="voucher-booking__info-value">{{ voucher.first_name }} {{ voucher.last_name }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-barcode"></i> Code</span>
+                <span class="voucher-booking__info-value">{{ voucher.code }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item" ng-if="voucher.club_title">
+                <span class="voucher-booking__info-label"><i class="fa fa-building"></i> Club</span>
+                <span class="voucher-booking__info-value">{{ voucher.club_title }}</span>
+              </div>
+            </div>
+
+            <!-- Booking details -->
+            <div class="voucher-booking__flight-details" ng-if="voucher.booking">
+              <div class="voucher-booking__flight-details-header">
+                <i class="fa fa-info-circle"></i> Booking Details
+              </div>
+              <div class="voucher-booking__flight-details-grid">
+                <div class="voucher-booking__flight-detail-item">
+                  <span class="voucher-booking__fd-label"><i class="fa fa-calendar"></i> Date & Time</span>
+                  <span class="voucher-booking__fd-value">{{ vm.formatDateTime(voucher.booking.start) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cancel / rebook actions -->
+            <div class="voucher-booking__booking-actions">
+              <button class="voucher-booking__cancel-btn"
+                      ng-if="voucher.can_cancel"
+                      ng-click="vm.cancelBooking(voucher)"
+                      ng-disabled="vm.cancelInProgress">
+                <i class="fa fa-times-circle" ng-if="!vm.cancelInProgress"></i>
+                <i class="fa fa-spinner fa-spin" ng-if="vm.cancelInProgress"></i>
+                {{ vm.cancelInProgress ? 'Cancelling...' : 'Cancel & Rebook' }}
+              </button>
+              <div class="voucher-booking__cancel-message" ng-if="!voucher.can_cancel && voucher.cancel_message">
+                <i class="fa fa-info-circle"></i>
+                {{ voucher.cancel_message }}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COMPLETED FLIGHTS — flight done ── -->
+    <div class="voucher-booking__section" ng-if="!vm.loading && vm.completedVouchers.length > 0">
+      <div class="voucher-booking__section-header voucher-booking__section-header--completed">
+        <i class="fa fa-check-double"></i>
+        <span>Completed Flights</span>
+        <small class="voucher-booking__section-count">{{ vm.completedVouchers.length }} flight{{ vm.completedVouchers.length !== 1 ? 's' : '' }}</small>
+      </div>
+
+      <div class="voucher-booking__voucher-list">
+        <div class="voucher-booking__voucher-card voucher-booking__voucher-card--completed" ng-repeat="voucher in vm.completedVouchers">
+
+          <!-- Voucher header -->
+          <div class="voucher-booking__voucher-top voucher-booking__voucher-top--completed">
+            <div class="voucher-booking__voucher-experience">
+              <i class="fa fa-flag-checkered"></i>
+              <span>{{ voucher.experience_title || 'Experience Voucher' }}</span>
+            </div>
+            <div class="voucher-booking__status-badge voucher-booking__status-badge--completed">
+              <i class="fa fa-check-circle"></i> Flight Complete
+            </div>
+          </div>
+
+          <!-- Voucher body -->
+          <div class="voucher-booking__voucher-body">
+
+            <div class="voucher-booking__voucher-info-grid">
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-user"></i> Name</span>
+                <span class="voucher-booking__info-value">{{ voucher.first_name }} {{ voucher.last_name }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item">
+                <span class="voucher-booking__info-label"><i class="fa fa-barcode"></i> Code</span>
+                <span class="voucher-booking__info-value">{{ voucher.code }}</span>
+              </div>
+              <div class="voucher-booking__voucher-info-item" ng-if="voucher.club_title">
+                <span class="voucher-booking__info-label"><i class="fa fa-building"></i> Club</span>
+                <span class="voucher-booking__info-value">{{ voucher.club_title }}</span>
+              </div>
+            </div>
+
+            <!-- Flight details -->
+            <div class="voucher-booking__flight-details voucher-booking__flight-details--completed" ng-if="voucher.flight">
+              <div class="voucher-booking__flight-details-header voucher-booking__flight-details-header--completed">
+                <i class="fa fa-plane-arrival"></i> Flight Details
+              </div>
+              <div class="voucher-booking__flight-details-grid">
+                <div class="voucher-booking__flight-detail-item">
+                  <span class="voucher-booking__fd-label"><i class="fa fa-calendar"></i> Date</span>
+                  <span class="voucher-booking__fd-value">{{ vm.formatDateTime(voucher.flight.date) }}</span>
+                </div>
+                <div class="voucher-booking__flight-detail-item" ng-if="voucher.flight.duration_minutes">
+                  <span class="voucher-booking__fd-label"><i class="fa fa-stopwatch"></i> Duration</span>
+                  <span class="voucher-booking__fd-value">{{ vm.formatFlightDuration(voucher.flight.duration_minutes) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fallback: show booking details if no flight object yet -->
+            <div class="voucher-booking__flight-details voucher-booking__flight-details--completed" ng-if="!voucher.flight && voucher.booking">
+              <div class="voucher-booking__flight-details-header voucher-booking__flight-details-header--completed">
+                <i class="fa fa-info-circle"></i> Booking Details
+              </div>
+              <div class="voucher-booking__flight-details-grid">
+                <div class="voucher-booking__flight-detail-item">
+                  <span class="voucher-booking__fd-label"><i class="fa fa-calendar"></i> Date & Time</span>
+                  <span class="voucher-booking__fd-value">{{ vm.formatDateTime(voucher.booking.start) }}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       VIEW: SLOT SEARCH
+       ══════════════════════════════════════════════ -->
+  <div ng-if="vm.viewState === 'slot_search'">
+
+    <!-- Experience info banner -->
+    <div class="voucher-booking__experience-banner" ng-if="vm.activeVoucher">
+      <div class="voucher-booking__card">
+        <div class="voucher-booking__experience-info">
+          <div class="voucher-booking__exp-left">
+            <i class="fa fa-gift voucher-booking__exp-icon"></i>
+            <div>
+              <strong>{{ vm.activeVoucher.experience_title || 'Experience Voucher' }}</strong>
+              <small>Code: {{ vm.activeVoucher.code }} &middot; Expires: {{ vm.formatExpiryDate(vm.activeVoucher.expiry_date) }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="voucher-booking__filters">
+      <div class="voucher-booking__card">
+        <div class="voucher-booking__filters-grid">
+
+          <div class="voucher-booking__filter-group">
+            <label><i class="fa fa-calendar"></i> From Date</label>
+            <input type="date" class="voucher-booking__input" ng-model="vm.dateFrom" ng-change="vm.debouncedSearch()" />
+          </div>
+
+          <div class="voucher-booking__filter-group">
+            <label><i class="fa fa-forward"></i> Days Ahead</label>
+            <select class="voucher-booking__select" ng-model="vm.numDays" ng-change="vm.searchSlots()">
+              <option value="7">1 Week</option>
+              <option value="14">2 Weeks</option>
+              <option value="28">4 Weeks</option>
+              <option value="60">2 Months</option>
+            </select>
+          </div>
+
+          <!-- Instructor filter hidden from voucher users -->
+
+        </div>
+
+        <!-- Quick date nav -->
+        <div class="voucher-booking__date-nav">
+          <button class="voucher-booking__nav-btn" ng-click="vm.goToPrevWeek()" uib-tooltip="Previous week">
+            <i class="fa fa-chevron-left"></i>
+          </button>
+          <button class="voucher-booking__nav-btn voucher-booking__nav-btn--today" ng-click="vm.goToToday()">
+            Tomorrow
+          </button>
+          <button class="voucher-booking__nav-btn" ng-click="vm.goToNextWeek()" uib-tooltip="Next week">
+            <i class="fa fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="voucher-booking__alert" ng-if="vm.searchError">
+      <div class="voucher-booking__alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <div class="voucher-booking__alert-text">{{ vm.searchError }}</div>
+    </div>
+
+    <!-- Loading -->
+    <div class="voucher-booking__loading" ng-if="vm.searching && !vm.searchPerformed">
+      <div class="voucher-booking__spinner"></div>
+      <span>Searching for available slots...</span>
+    </div>
+
+    <!-- Results -->
+    <div class="voucher-booking__results" ng-if="vm.searchPerformed && !vm.searching">
+
+      <!-- Empty -->
+      <div class="voucher-booking__empty" ng-if="vm.availableSlots.length === 0 && !vm.searchError">
+        <div class="voucher-booking__empty-icon"><i class="fa fa-cloud-sun"></i></div>
+        <h3>No Available Slots</h3>
+        <p>No slots were found for these dates. Try widening your search or checking different dates.</p>
+      </div>
+
+      <!-- Grouped by date -->
+      <div class="voucher-booking__day-group" ng-repeat="date in vm.groupedDates">
+        <div class="voucher-booking__day-header">
+          <div class="voucher-booking__day-info">
+            <span class="voucher-booking__day-name">{{ vm.formatDay(vm.groupedSlots[date].day) }}</span>
+            <span class="voucher-booking__day-date">{{ vm.formatDate(date) }}</span>
+            <span class="voucher-booking__day-badge" ng-if="vm.isToday(date)">Today</span>
+            <span class="voucher-booking__day-badge voucher-booking__day-badge--tomorrow" ng-if="vm.isTomorrow(date)">Tomorrow</span>
+          </div>
+          <span class="voucher-booking__day-count">{{ vm.groupedSlots[date].slots.length }} slot{{ vm.groupedSlots[date].slots.length !== 1 ? 's' : '' }}</span>
+        </div>
+
+        <div class="voucher-booking__slots-grid">
+          <div class="voucher-booking__slot-card" ng-repeat="slot in vm.groupedSlots[date].slots">
+
+            <!-- Time bar -->
+            <div class="voucher-booking__slot-time-bar">
+              <div class="voucher-booking__slot-times">
+                <i class="fa fa-clock"></i>
+                <strong>{{ vm.formatTime(slot.start_time) }}</strong>
+                <span class="voucher-booking__slot-dash">&ndash;</span>
+                <strong>{{ vm.formatTime(slot.end_time) }}</strong>
+              </div>
+              <div class="voucher-booking__slot-badges">
+                <span class="voucher-booking__slot-label" ng-if="slot.label">{{ slot.label }}</span>
+              </div>
+            </div>
+
+            <!-- Aircraft and instructor details hidden from voucher users -->
+
+            <!-- Book button -->
+            <button class="voucher-booking__slot-book-btn" ng-click="vm.selectSlot(slot)">
+              <i class="fa fa-check-circle"></i> Select This Slot
+            </button>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Load more -->
+      <div class="voucher-booking__load-more" ng-if="vm.pagination.has_more && vm.availableSlots.length > 0">
+        <button class="voucher-booking__load-more-btn" ng-click="vm.loadMoreSlots()" ng-disabled="vm.searching">
+          <i class="fa fa-plus-circle" ng-if="!vm.searching"></i>
+          <i class="fa fa-spinner fa-spin" ng-if="vm.searching"></i>
+          {{ vm.searching ? 'Loading...' : 'Load More Slots' }}
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Inline loading when paginating -->
+    <div class="voucher-booking__loading" ng-if="vm.searching && vm.searchPerformed">
+      <div class="voucher-booking__spinner"></div>
+      <span>Loading more slots...</span>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       VIEW: BOOKING DETAIL
+       ══════════════════════════════════════════════ -->
+  <div ng-if="vm.viewState === 'booking_detail' && vm.activeVoucher">
+    <div class="voucher-booking__card voucher-booking__detail-card">
+      <div class="voucher-booking__detail-header">
+        <i class="fa fa-check-circle voucher-booking__detail-icon"></i>
+        <h3>Booking Confirmed</h3>
+      </div>
+
+      <div class="voucher-booking__detail-grid" ng-if="vm.activeVoucher.booking">
+        <div class="voucher-booking__detail-row">
+          <span class="voucher-booking__detail-label"><i class="fa fa-gift"></i> Experience</span>
+          <span class="voucher-booking__detail-value">{{ vm.activeVoucher.experience_title }}</span>
+        </div>
+        <div class="voucher-booking__detail-row">
+          <span class="voucher-booking__detail-label"><i class="fa fa-calendar"></i> Date &amp; Time</span>
+          <span class="voucher-booking__detail-value">{{ vm.formatDateTime(vm.activeVoucher.booking.start) }}</span>
+        </div>
+        <!-- Aircraft and instructor hidden from voucher users -->
+        <div class="voucher-booking__detail-row">
+          <span class="voucher-booking__detail-label"><i class="fa fa-barcode"></i> Voucher Code</span>
+          <span class="voucher-booking__detail-value">{{ vm.activeVoucher.code }}</span>
+        </div>
+      </div>
+
+      <div class="voucher-booking__detail-actions" ng-if="vm.activeVoucher.booking">
+        <button class="voucher-booking__cancel-btn"
+                ng-if="vm.activeVoucher.can_cancel"
+                ng-click="vm.cancelBooking(vm.activeVoucher)"
+                ng-disabled="vm.cancelInProgress">
+          <i class="fa fa-times-circle" ng-if="!vm.cancelInProgress"></i>
+          <i class="fa fa-spinner fa-spin" ng-if="vm.cancelInProgress"></i>
+          {{ vm.cancelInProgress ? 'Cancelling...' : 'Cancel & Rebook' }}
+        </button>
+        <div class="voucher-booking__cancel-message" ng-if="!vm.activeVoucher.can_cancel && vm.activeVoucher.cancel_message">
+          <i class="fa fa-info-circle"></i>
+          {{ vm.activeVoucher.cancel_message }}
+        </div>
+      </div>
+
+      <div ng-if="!vm.activeVoucher.booking" class="voucher-booking__detail-no-booking">
+        <p>No booking found for this voucher.</p>
+        <button class="voucher-booking__book-now-btn" ng-click="vm.startSlotSearch(vm.activeVoucher)">
+          <i class="fa fa-calendar-plus"></i> Book My Flight
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     BOOKING CONFIRMATION MODAL
+     ══════════════════════════════════════════════ -->
+<div class="voucher-booking__modal-backdrop" ng-if="vm.showBookingModal" ng-click="vm.closeBookingModal()"></div>
+<div class="voucher-booking__modal" ng-if="vm.showBookingModal">
+  <div class="voucher-booking__modal-card">
+
+    <div class="voucher-booking__modal-header">
+      <h3><i class="fa fa-calendar-plus"></i> Confirm Voucher Booking</h3>
+      <button class="voucher-booking__modal-close" ng-click="vm.closeBookingModal()"><i class="fa fa-times"></i></button>
+    </div>
+
+    <div class="voucher-booking__modal-body">
+
+      <!-- Experience -->
+      <div class="voucher-booking__modal-experience" ng-if="vm.activeVoucher">
+        <i class="fa fa-gift"></i>
+        <span>{{ vm.activeVoucher.experience_title || 'Voucher Flight' }}</span>
+      </div>
+
+      <!-- Time summary -->
+      <div class="voucher-booking__modal-summary">
+        <div class="voucher-booking__modal-summary-row">
+          <span class="voucher-booking__modal-label"><i class="fa fa-calendar"></i> Date</span>
+          <span class="voucher-booking__modal-value">{{ vm.formatDay(vm.selectedSlot.day) }}, {{ vm.formatDate(vm.selectedSlot.date) }}</span>
+        </div>
+        <div class="voucher-booking__modal-summary-row">
+          <span class="voucher-booking__modal-label"><i class="fa fa-clock"></i> Time</span>
+          <span class="voucher-booking__modal-value">{{ vm.formatTime(vm.selectedSlot.start_time) }} &ndash; {{ vm.formatTime(vm.selectedSlot.end_time) }}</span>
+        </div>
+        <div class="voucher-booking__modal-summary-row" ng-if="vm.selectedSlot.label">
+          <span class="voucher-booking__modal-label"><i class="fa fa-tag"></i> Slot</span>
+          <span class="voucher-booking__modal-value">{{ vm.selectedSlot.label }}</span>
+        </div>
+      </div>
+
+      <!-- Aircraft and instructor selectors hidden from voucher users -->
+
+    </div>
+
+    <div class="voucher-booking__modal-footer">
+      <button class="btn voucher-booking__modal-btn voucher-booking__modal-btn--cancel" ng-click="vm.closeBookingModal()">
+        Cancel
+      </button>
+      <button class="btn voucher-booking__modal-btn voucher-booking__modal-btn--confirm"
+              ng-click="vm.confirmBooking()"
+              ng-disabled="vm.bookingInProgress">
+        <i class="fa fa-check" ng-if="!vm.bookingInProgress"></i>
+        <i class="fa fa-spinner fa-spin" ng-if="vm.bookingInProgress"></i>
+        {{ vm.bookingInProgress ? 'Booking...' : 'Confirm Booking' }}
+      </button>
+    </div>
+
+  </div>
+</div>
+

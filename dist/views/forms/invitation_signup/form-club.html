@@ -1,46 +1,143 @@
+<div>
+  <h2 class="inv-title">Terms &amp; Payment</h2>
+  <p class="inv-subtitle">Please review and accept the terms below, then choose how you'd like to pay.</p>
 
-<div class="form-group">
- 
-
-  <div class="form-group">
-      <div class="checkbox">
-          <label>
-             <input type="checkbox" ng-model="formData.membership_tnc" value="membership_tnc"  required>
-              I have read, understand and agree to the full <a ng-click="downloadClubDocument()">Terms &amp; Conditions</a> of the flight organisation.
-          </label>
-
-      </div>
+  <!-- Payment summary (only when price > 0) -->
+  <div class="inv-payment-banner" ng-if="membership.price > 0">
+    <div>
+      <div class="inv-payment-banner__label">Membership Payment</div>
+      <div class="inv-payment-banner__date" ng-if="payment_now == 0">First payment on {{ first_payment | asDate | date:"dd/MM/yyyy" }}</div>
+    </div>
+    <div class="inv-payment-banner__amount">{{ membership.currency }} {{ membership.price }}</div>
   </div>
 
-
-  <div class="form-group">
-      <div class="checkbox">
-          <label>
-             <input type="checkbox" ng-model="formData.tnc" value="tnc"  required>
-             I have read, understand and agree to the full <a ng-click="downloadClubDocument('2av8_terms')">Terms &amp; Conditions</a> and <a ng-click="downloadClubDocument('2av8_privacy')">Privacy Policy</a> of the software.
-          </label>
-      </div>
+  <!-- Free membership notice -->
+  <div class="inv-info" ng-if="membership.price == 0">
+    <i class="fa fa-gift"></i>
+    <span>This is a free membership — no payment is required. You can optionally add a payment method now, or set one up later from your account.</span>
   </div>
 
+  <!-- Club T&C -->
+  <label class="inv-agreement" ng-class="{'inv-agreement--checked': formData.membership_tnc, 'inv-agreement--error': invErrors.membership_tnc}">
+    <input type="checkbox" ng-model="formData.membership_tnc" ng-change="clearInvError('membership_tnc')">
+    <div class="inv-agreement__check"></div>
+    <div class="inv-agreement__text">
+      I have read, understand and agree to the <a ng-click="downloadClubDocument(); $event.preventDefault();">Terms &amp; Conditions</a> of the flight organisation.
+    </div>
+  </label>
 
+  <!-- Software T&C -->
+  <label class="inv-agreement" ng-class="{'inv-agreement--checked': formData.tnc, 'inv-agreement--error': invErrors.tnc}">
+    <input type="checkbox" ng-model="formData.tnc" ng-change="clearInvError('tnc')">
+    <div class="inv-agreement__check"></div>
+    <div class="inv-agreement__text">
+      I have read, understand and agree to the <a ng-click="downloadClubDocument('2av8_terms'); $event.preventDefault();">Terms &amp; Conditions</a> and <a ng-click="downloadClubDocument('2av8_privacy'); $event.preventDefault();">Privacy Policy</a> of the software.
+    </div>
+  </label>
 
-  <div class="form-group">
-      <div class="checkbox">
-          <label>
-             <input type="checkbox" ng-model="formData.payment" value="payment"  required>
-             I understand and agree to pay the sum of {{ membership.price }} {{ membership.currency }} <span ng-if="payment_now == 0">on {{ first_payment | asDate | date:"dd/MM/yyyy"}}</span>
-          </label>
+  <!-- Payment agreement (only when price > 0) -->
+  <label class="inv-agreement" ng-if="membership.price > 0" ng-class="{'inv-agreement--checked': formData.payment, 'inv-agreement--error': invErrors.payment}">
+    <input type="checkbox" ng-model="formData.payment" ng-change="clearInvError('payment')">
+    <div class="inv-agreement__check"></div>
+    <div class="inv-agreement__text">
+      I understand and agree to pay the sum of <strong>{{ membership.price }} {{ membership.currency }}</strong><span ng-if="payment_now == 0"> on {{ first_payment | asDate | date:"dd/MM/yyyy" }}</span>.
+    </div>
+  </label>
+
+  <div class="inv-divider"></div>
+
+  <!-- ═══ Payment method choice ═══ -->
+  <h3 class="inv-title" style="font-size:18px;">Choose a Payment Method</h3>
+  <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price > 0">Select how you'd like to pay for your membership.</p>
+  <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price == 0">Adding a payment method is optional but recommended for future bookings.</p>
+
+  <div class="inv-payment-options">
+
+    <!-- Direct Debit option -->
+    <div class="inv-payment-option" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'direct_debit'}" ng-click="selectPaymentMethod('direct_debit')">
+      <div class="inv-payment-option__radio"></div>
+      <div class="inv-payment-option__icon"><i class="fa fa-university"></i></div>
+      <div class="inv-payment-option__body">
+        <div class="inv-payment-option__title">Direct Debit</div>
+        <div class="inv-payment-option__desc">Set up via GoCardless. Payments are taken automatically from your bank account.</div>
       </div>
+    </div>
+
+    <!-- Stripe Card option (only if club has Stripe) -->
+    <div class="inv-payment-option" ng-if="club.club_stripe_id" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'stripe'}" ng-click="selectPaymentMethod('stripe')">
+      <div class="inv-payment-option__radio"></div>
+      <div class="inv-payment-option__icon"><i class="fa fa-credit-card"></i></div>
+      <div class="inv-payment-option__body">
+        <div class="inv-payment-option__title">Credit / Debit Card</div>
+        <div class="inv-payment-option__desc">Add a card via Stripe. Payments are charged to your card.</div>
+      </div>
+    </div>
+
+    <!-- Skip option (only if price is 0) -->
+    <div class="inv-payment-option" ng-if="membership.price == 0" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'skip'}" ng-click="selectPaymentMethod('skip')">
+      <div class="inv-payment-option__radio"></div>
+      <div class="inv-payment-option__icon"><i class="fa fa-clock-o"></i></div>
+      <div class="inv-payment-option__body">
+        <div class="inv-payment-option__title">I'll Set It Up Later</div>
+        <div class="inv-payment-option__desc">Skip for now — you'll need to add a payment method before booking an aircraft solo.</div>
+      </div>
+    </div>
+
   </div>
 
-<div class="form-group row">
-	<div class="col-xs-6 col-xs-offset-3">
-     <a one-ui-sref="invitations.tnc" ng-click="setup_direct_debit();" class="btn btn-block btn-info">
-      SETUP DIRECT DEBIT
-      </a>
+  <!-- Stripe card form container (shown inline when stripe selected) -->
+  <div ng-if="invPaymentMethod === 'stripe' && invShowStripeForm" class="inv-stripe-form">
+    <form id="inv-payment-form">
+      <div id="inv-payment-element">
+        <!-- Stripe Elements will mount here -->
+      </div>
+      <div id="inv-stripe-error" class="inv-field__error" style="display:block; margin-top:8px;"></div>
+    </form>
+  </div>
 
-	   <!--  <a one-ui-sref="invitations.tnc" ng-click="checkValid()" class="btn btn-block btn-info">
-	    Next Section <span class="glyphicon glyphicon-circle-arrow-right"></span>
-	    </a> -->
-	</div>
+  <!-- Buttons -->
+  <div class="inv-btn-group">
+    <a class="inv-btn inv-btn--secondary inv-btn--back" ui-sref="invitations.next_of_kin" ng-click="setInvStep(3)">
+      <i class="fa fa-arrow-left"></i>
+    </a>
+
+    <!-- Direct Debit button -->
+    <a ng-if="invPaymentMethod === 'direct_debit'" class="inv-btn inv-btn--success" ng-class="{'inv-btn--loading': invLoading}" ng-click="validateAndSetupDD()">
+      <i class="fa" ng-class="invLoading ? 'fa-spinner' : 'fa-university'"></i>
+      <span ng-if="!invLoading">Setup Direct Debit</span>
+      <span ng-if="invLoading">Setting up&hellip;</span>
+    </a>
+
+    <!-- Stripe button -->
+    <a ng-if="invPaymentMethod === 'stripe'" class="inv-btn inv-btn--success" ng-class="{'inv-btn--loading': invLoading}" ng-click="validateAndSetupStripe()">
+      <i class="fa" ng-class="invLoading ? 'fa-spinner' : 'fa-credit-card'"></i>
+      <span ng-if="!invLoading">Add Card &amp; Continue</span>
+      <span ng-if="invLoading">Processing&hellip;</span>
+    </a>
+
+    <!-- Skip button -->
+    <a ng-if="invPaymentMethod === 'skip'" class="inv-btn inv-btn--primary" ng-class="{'inv-btn--loading': invLoading}" ng-click="validateAndSkipPayment()">
+      <i class="fa" ng-class="invLoading ? 'fa-spinner' : 'fa-arrow-right'"></i>
+      <span ng-if="!invLoading">Continue Without Payment</span>
+      <span ng-if="invLoading">Continuing&hellip;</span>
+    </a>
+
+    <!-- No method selected yet -->
+    <a ng-if="!invPaymentMethod" class="inv-btn inv-btn--primary" style="opacity:0.5; cursor:not-allowed;">
+      <i class="fa fa-arrow-right"></i> Select a Payment Method
+    </a>
+  </div>
+
+  <!-- Skip confirmation modal -->
+  <div class="inv-modal-overlay" ng-if="invShowSkipConfirm" ng-click="invShowSkipConfirm = false">
+    <div class="inv-modal" ng-click="$event.stopPropagation()">
+      <div class="inv-modal__icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <h3 class="inv-modal__title">Skip Payment Setup?</h3>
+      <p class="inv-modal__text">You can add a payment method later from your account, but you <strong>will need one before booking an aircraft solo</strong>.</p>
+      <div class="inv-modal__btns">
+        <a class="inv-btn inv-btn--secondary" ng-click="invShowSkipConfirm = false" style="flex:1;">Go Back</a>
+        <a class="inv-btn inv-btn--primary" ng-click="confirmSkipPayment()" style="flex:1;">Skip for Now</a>
+      </div>
+    </div>
+  </div>
 </div>

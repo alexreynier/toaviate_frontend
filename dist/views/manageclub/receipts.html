@@ -1,116 +1,138 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page">
 
-
-     <div class="home_upper">
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
       <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-        <div class="welcome_title">
-          <h2>RECEIPTS</h2> 
-          <h4 class="capitalise">
-            View all receipts
-          </h4>
-          <!-- {{ vm.welcome_message }} -->
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-receipt"></i> Receipts</h2>
+        <p>View all receipts</p>
       </div>
     </div>
+  </div>
 
+  <div class="snazzy-page__body">
 
     <ui-view class="sub_section2">
 
-        <p ng-if="vm.receipts.length == 0">
-            It looks like you have no new receipts requiring approval
-        </p>
+        <div class="snazzy-page__empty" ng-if="vm.receipts.length == 0">
+            <i class="fa fa-receipt snazzy-page__empty-icon"></i>
+            <p>No receipts found</p>
+        </div>
 
-       
+        <!-- Desktop table -->
+        <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="vm.receipts.length > 0">
+          <div class="snazzy-page__table-scroll">
+            <table class="snazzy-table">
+              <thead>
+                <tr>
+                  <th>Aircraft</th>
+                  <th>Receipt Type</th>
+                  <th>Quantity</th>
+                  <th>Receipt Price</th>
+                  <th>Invoice No</th>
+                  <th>Reimbursed</th>
+                  <th>Approved</th>
+                  <th>Image</th>
+                  <th>Requested At</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="receipt in vm.receipts">
+                  <td><span class="snazzy-table__badge">{{ receipt.registration }}</span></td>
+                  <td>{{ receipt.item }}</td>
+                  <td>
+                    <span uib-tooltip="Quantity Entered by user" ng-if="receipt.modified_quantity == 0">{{ receipt.quantity }}</span>
+                    <span uib-tooltip="Quantity Modified from {{ receipt.quantity }}" ng-if="receipt.modified_quantity !== 0">{{ receipt.modified_quantity }}</span>
+                  </td>
+                  <td>
+                    <span uib-tooltip="Price entered by user with original currency" ng-if="receipt.modified_price == 0 && !receipt.modified_currency">{{ receipt.currency }}{{ receipt.price }}</span>
+                    <span uib-tooltip="Price entered by user with modified currency" ng-if="receipt.modified_currency && receipt.modified_price == 0">{{ receipt.modified_currency }}{{ receipt.price }}</span>
+                    <span uib-tooltip="Price Modified from: {{ receipt.currency }}{{ receipt.price }}" ng-if="receipt.modified_price !== 0">{{ (receipt.modified_currency) ? receipt.modified_currency : receipt.currency }}{{ receipt.modified_price }}</span>
+                  </td>
+                  <td>{{ receipt.invoice_number }}</td>
+                  <td>
+                    <span class="snazzy-table__badge" ng-class="{'snazzy-table__badge--success': receipt.reimbursement == 1}">{{ (receipt.reimbursement == 1)? "YES" : "NO" }}</span>
+                  </td>
+                  <td>
+                    <span class="snazzy-table__badge" ng-class="{'snazzy-table__badge--success': receipt.approved == 1, 'snazzy-table__badge--warning': receipt.approved != 1}">{{ (receipt.approved == 1)? "YES" : "NO" }}</span>
+                  </td>
+                  <td>
+                    <img ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ get_icon3(receipt.image) }}" alt="Receipt" style="width:28px; height:28px; border-radius:6px; cursor:pointer; border: 1px solid #e2e8f0;" />
+                  </td>
+                  <td class="snazzy-table__date">{{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-          <table class="centre_me" ng-if="vm.receipts.length > 0">
-            <tr>
-              <td>
-                Aircraft
-              </td>
-              <td>
-                Receipt Type
-              </td>
-              <td>
-                Quantity
-              </td>
-              <td>
-                Receipt Price
-              </td>
-              <td>
-                Invoice No
-              </td>
-              <td>
-                Reimbursed
-              </td>
-              <td>
-                Approved
-              </td>
-              <td>
-                Image
-              </td>
-              <td>
-                Requested At
-              </td>
-              <td>
-<!--                 Functions
- -->              </td>
-            </tr>
-            <tr ng-repeat="receipt in vm.receipts">
-              <td>
-                {{ receipt.registration }}
-              </td>
-              <td>
-                {{ receipt.item }}
-              </td>
-              <td>
-                <span uib-tooltip="Quantity Entered by user" ng-if="receipt.modified_quantity == 0">{{ receipt.quantity }}</span>
-                <span uib-tooltip="Quantity Modified from {{ receipt.quantity }}" ng-if="receipt.modified_quantity !== 0">{{ receipt.modified_quantity }}</span>
-              </td>
-              <td>
-                {{ receipt.invoice_number }}
-              </td>
-              <td>
-                <span uib-tooltip="Price entered by user with original currency" ng-if="receipt.modified_price == 0 && !receipt.modified_currency">{{ receipt.currency }}{{ receipt.price }}</span>
-                <span uib-tooltip="Price entered by user with modified currency" ng-if="receipt.modified_currency && receipt.modified_price == 0">{{ receipt.modified_currency }}{{ receipt.price }}</span>
-                <span uib-tooltip="Price Modified from: {{ receipt.currency }}{{ receipt.price }}" ng-if="receipt.modified_price !== 0">{{  (receipt.modified_currency) ? receipt.modified_currency : receipt.currency }}{{ receipt.modified_price }}</span>
-              </td>
-              <td>
-                {{ (receipt.reimbursement == 1)? "YES" : "NO" }}
-              </td>
-              <td>
-                {{ (receipt.approved == 1)? "YES" : "NO" }}
-              </td>
-              <td>
+          <!-- Load more -->
+          <div class="snazzy-page__load-more" ng-if="!vm.all_loaded">
+            <button class="snazzy-page__load-more-btn" ng-click="vm.load_more()">
+              <i class="fa fa-chevron-down"></i> Load More Receipts
+            </button>
+          </div>
+          <div class="snazzy-page__all-loaded" ng-if="vm.all_loaded">
+            <i class="fa fa-check-circle"></i> All receipts loaded
+          </div>
+        </div>
 
-                <img ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ get_icon3(receipt.image) }}" alt="Receipt" />
-              </td>   
-              <td>
-                {{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}
-              </td>              
-            
-              <td>
-                <!-- <div class="functions">
-                  <button ng-click="decline_receipt(receipt.id)" class="btn btn-danger function_btn">REJECT RECEIPT</button>
-                  <button ng-click="accept_receipt(receipt.id)" class="btn btn-info function_btn">APPROVE RECEIPT</button>
+        <!-- Mobile cards -->
+        <div class="snazzy-mobile-cards" ng-if="vm.receipts.length > 0">
+          <div class="snazzy-mobile-card" ng-repeat="receipt in vm.receipts">
+            <div class="snazzy-mobile-card__header">
+              <i class="fa fa-receipt"></i> {{ receipt.registration }} — {{ receipt.item }}
+            </div>
+            <div class="snazzy-mobile-card__body">
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Quantity</span>
+                <span class="snazzy-mobile-card__value">{{ (receipt.modified_quantity !== 0) ? receipt.modified_quantity : receipt.quantity }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Price</span>
+                <span class="snazzy-mobile-card__value">{{ (receipt.modified_currency) ? receipt.modified_currency : receipt.currency }}{{ (receipt.modified_price !== 0) ? receipt.modified_price : receipt.price }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Invoice No</span>
+                <span class="snazzy-mobile-card__value">{{ receipt.invoice_number || '—' }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Reimbursed</span>
+                <span class="snazzy-mobile-card__value"><span class="snazzy-table__badge" ng-class="{'snazzy-table__badge--success': receipt.reimbursement == 1}">{{ (receipt.reimbursement == 1)? "YES" : "NO" }}</span></span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Approved</span>
+                <span class="snazzy-mobile-card__value"><span class="snazzy-table__badge" ng-class="{'snazzy-table__badge--success': receipt.approved == 1, 'snazzy-table__badge--warning': receipt.approved != 1}">{{ (receipt.approved == 1)? "YES" : "NO" }}</span></span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Date</span>
+                <span class="snazzy-mobile-card__value">{{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}</span>
+              </div>
+            </div>
+            <div class="snazzy-mobile-card__actions">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.show_receipt_image(receipt)"><i class="fa fa-image"></i> View</button>
+            </div>
+          </div>
 
-                </div> -->
-              </td>
-            </tr>
-          </table>
-        
-
-          <button class="btn btn-primary view_journey_logs" ng-if="!vm.all_loaded" ng-click="vm.load_more()">LOAD MORE</button>  
-                        <p class="centre_me" ng-if="vm.all_loaded">You have loaded all your receipts...</p>
-
-
+          <div style="text-align:center; padding: 16px;" ng-if="!vm.all_loaded">
+            <button class="snazzy-page__load-more-btn" ng-click="vm.load_more()"><i class="fa fa-chevron-down"></i> Load More</button>
+          </div>
+          <div class="snazzy-page__all-loaded" ng-if="vm.all_loaded">
+            <i class="fa fa-check-circle"></i> All receipts loaded
+          </div>
+        </div>
 
     </ui-view>
 
+  </div>
+
 </div>
-<div class="popup_bg" ng-if="vm.show_receipt" ng-click="vm.show_receipt = false;"> <!-- ng-click="vm.close_passenger_invitation()" -->
-    <div class="popup_box">
-      <h4>Receipt</h4>
-      <img class="max_100" src="{{ vm.receipt_image }}" alt="receipt image" />
+
+<!-- Receipt image popup -->
+<div class="snazzy-overlay" ng-if="vm.show_receipt" ng-click="vm.show_receipt = false;">
+  <div class="receipt-image-popup" ng-click="$event.stopPropagation()">
+    <h4>Receipt</h4>
+    <img src="{{ vm.receipt_image }}" alt="receipt image" />
   </div>
 </div>

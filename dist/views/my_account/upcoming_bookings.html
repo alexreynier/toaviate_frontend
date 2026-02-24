@@ -1,0 +1,314 @@
+<div class="snazzy-page">
+
+  <!-- ═══ Header ═══ -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-calendar-alt"></i> My Bookings</h2>
+        <p>Your upcoming schedule across all clubs</p>
+      </div>
+      <div class="snazzy-page__header-actions">
+        <a class="snazzy-page__action-btn-header" ui-sref="dashboard.add_booking">
+          <i class="fa fa-calendar"></i> View Scheduler
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ═══ Summary Card ═══ -->
+    <div class="snazzy-page__summary-card ub-summary" ng-if="vm.pagination.total > 0">
+      <div class="ub-summary__grid">
+        <div class="ub-summary__stat">
+          <span class="ub-summary__stat-value">{{ vm.pagination.total }}</span>
+          <span class="ub-summary__stat-label">Upcoming Bookings</span>
+        </div>
+        <div class="ub-summary__stat" ng-if="vm.nextBooking">
+          <span class="ub-summary__stat-value">{{ vm.nextBooking.date | asDate | date:'dd MMM' }}</span>
+          <span class="ub-summary__stat-label">Next Booking</span>
+        </div>
+        <div class="ub-summary__stat" ng-if="vm.nextBooking">
+          <span class="ub-summary__stat-value">{{ vm.nextBooking.plane_registration }}</span>
+          <span class="ub-summary__stat-label">Aircraft</span>
+        </div>
+        <div class="ub-summary__stat" ng-if="vm.clubCount > 1">
+          <span class="ub-summary__stat-value">{{ vm.clubCount }}</span>
+          <span class="ub-summary__stat-label">Clubs</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Filters ═══ -->
+    <div class="snazzy-page__filter-bar">
+      <div class="snazzy-page__filter-group" ng-if="vm.clubs.length > 1">
+        <label>Club</label>
+        <select class="snazzy-page__date-input" ng-model="vm.selectedClubId" ng-change="vm.filterByClub()">
+          <option value="">All Clubs</option>
+          <option ng-repeat="club in vm.clubs" value="{{ club.id }}">{{ club.name }}</option>
+        </select>
+      </div>
+      <div class="snazzy-page__filter-group" style="flex:1; min-width:200px;">
+        <label>Search</label>
+        <div style="position:relative;">
+          <i class="fa fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;"></i>
+          <input type="search"
+                 placeholder="Search by aircraft, instructor, description..."
+                 ng-model="vm.searchText"
+                 ng-change="vm.filterBookings()"
+                 class="snazzy-page__date-input"
+                 style="padding-left:34px; width:100%;" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Loading State ═══ -->
+    <div class="snazzy-page__empty" ng-if="vm.loading">
+      <div class="snazzy-page__spinner"></div>
+      <p>Loading your bookings...</p>
+    </div>
+
+    <!-- ═══ Empty State ═══ -->
+    <div class="snazzy-page__empty" ng-if="!vm.loading && vm.filteredBookings.length === 0">
+      <i class="fa fa-calendar-check snazzy-page__empty-icon"></i>
+      <p ng-if="!vm.searchText">No upcoming bookings found</p>
+      <p ng-if="vm.searchText">No bookings match your search</p>
+      <a class="snazzy-page__btn snazzy-page__btn--primary" ui-sref="dashboard.add_booking" style="margin-top:12px;">
+        <i class="fa fa-plus"></i> Book a Flight
+      </a>
+    </div>
+
+    <!-- ═══ Bookings List (Desktop) ═══ -->
+    <div class="snazzy-desktop-table" ng-if="!vm.loading && vm.filteredBookings.length > 0">
+
+      <div ng-repeat="group in vm.groupedBookings track by group.date">
+
+        <!-- Date Header -->
+        <div class="ub-date-header">
+          <span class="ub-date-header__date">{{ group.dateFormatted }}</span>
+          <span class="ub-date-header__day">{{ group.day | capitalise }}</span>
+          <span class="ub-date-header__count">{{ group.bookings.length }} booking{{ group.bookings.length > 1 ? 's' : '' }}</span>
+        </div>
+
+        <!-- Table for this date -->
+        <div class="snazzy-page__table-card" style="margin-bottom:16px;">
+          <div class="snazzy-page__table-scroll">
+            <table class="snazzy-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Aircraft</th>
+                  <th class="snazzy-table__hide-mobile">Type</th>
+                  <th>Instructor / Student</th>
+                  <th class="snazzy-table__hide-mobile">Club</th>
+                  <th class="snazzy-table__hide-mobile">Description</th>
+                  <th style="text-align:right;">Status</th>
+                  <th style="text-align:center; width:80px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="b in group.bookings" ng-click="vm.viewBooking(b)" style="cursor:pointer;">
+                  <td class="snazzy-table__name">
+                    <strong>{{ b.start_time }} &ndash; {{ b.end_time }}</strong>
+                  </td>
+                  <td>
+                    <span class="ub-plane-reg">{{ b.plane_registration }}</span>
+                  </td>
+                  <td class="snazzy-table__hide-mobile">{{ b.plane_type }}</td>
+                  <td>
+                    <span ng-if="b.is_instructor" class="ub-person-tag ub-person-tag--student">
+                      <i class="fa fa-user-graduate"></i> {{ b.student_name }}
+                    </span>
+                    <span ng-if="!b.is_instructor && b.instructor_name" class="ub-person-tag ub-person-tag--instructor">
+                      <i class="fa fa-chalkboard-teacher"></i> {{ b.instructor_name }}
+                    </span>
+                    <span ng-if="!b.is_instructor && !b.instructor_name" class="ub-person-tag ub-person-tag--solo">
+                      <i class="fa fa-user"></i> Solo
+                    </span>
+                  </td>
+                  <td class="snazzy-table__hide-mobile">{{ b.club_name }}</td>
+                  <td class="snazzy-table__hide-mobile">
+                    <span class="ub-description">{{ b.description }}</span>
+                  </td>
+                  <td style="text-align:right;">
+                    <span ng-if="b.requires_approval && !b.booking_approved" class="snazzy-table__badge snazzy-table__badge--warning">
+                      Awaiting Approval
+                    </span>
+                    <span ng-if="b.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--info">
+                      Maintenance
+                    </span>
+                    <span ng-if="(!b.requires_approval || b.booking_approved) && !b.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--success">
+                      Confirmed
+                    </span>
+                  </td>
+                  <td style="text-align:center;" ng-click="$event.stopPropagation();">
+                    <button class="snazzy-table__action-btn" uib-tooltip="View on Scheduler" ng-click="vm.viewOnScheduler(b)">
+                      <i class="fa fa-calendar-alt"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ═══ Bookings List (Mobile Cards) ═══ -->
+    <div class="snazzy-mobile-cards" ng-if="!vm.loading && vm.filteredBookings.length > 0">
+
+      <div ng-repeat="group in vm.groupedBookings track by group.date">
+
+        <!-- Date Header -->
+        <div class="ub-date-header">
+          <span class="ub-date-header__date">{{ group.dateFormatted }}</span>
+          <span class="ub-date-header__day">{{ group.day | capitalise }}</span>
+          <span class="ub-date-header__count">{{ group.bookings.length }} booking{{ group.bookings.length > 1 ? 's' : '' }}</span>
+        </div>
+
+        <div class="snazzy-mobile-card ub-mobile-booking" ng-repeat="b in group.bookings" ng-click="vm.viewBooking(b)">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">
+              <span class="ub-plane-reg">{{ b.plane_registration }}</span>
+              <span class="ub-plane-type-small">({{ b.plane_type }})</span>
+            </span>
+            <span ng-if="b.requires_approval && !b.booking_approved" class="snazzy-table__badge snazzy-table__badge--warning">Pending</span>
+            <span ng-if="b.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--info">Maint</span>
+            <span ng-if="(!b.requires_approval || b.booking_approved) && !b.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--success">Confirmed</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Time</span>
+              <span><strong>{{ b.start_time }} &ndash; {{ b.end_time }}</strong></span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label" ng-if="b.is_instructor">Student</span>
+              <span class="snazzy-mobile-card__label" ng-if="!b.is_instructor && b.instructor_name">Instructor</span>
+              <span class="snazzy-mobile-card__label" ng-if="!b.is_instructor && !b.instructor_name">Pilot</span>
+              <span ng-if="b.is_instructor">{{ b.student_name }}</span>
+              <span ng-if="!b.is_instructor && b.instructor_name">{{ b.instructor_name }}</span>
+              <span ng-if="!b.is_instructor && !b.instructor_name">Solo</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.clubs.length > 1">
+              <span class="snazzy-mobile-card__label">Club</span>
+              <span>{{ b.club_name }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="b.description">
+              <span class="snazzy-mobile-card__label">Notes</span>
+              <span class="ub-description">{{ b.description }}</span>
+            </div>
+            <div class="snazzy-mobile-card__actions">
+              <a class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="$event.stopPropagation(); vm.viewOnScheduler(b);">
+                <i class="fa fa-calendar-alt"></i> Scheduler
+              </a>
+              <a class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-click="$event.stopPropagation(); vm.viewBooking(b);">
+                <i class="fa fa-eye"></i> Details
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ═══ Load More ═══ -->
+    <div class="ub-load-more" ng-if="vm.pagination.has_more && !vm.loading && vm.filteredBookings.length > 0">
+      <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--block"
+              ng-click="vm.loadMore()"
+              ng-disabled="vm.loadingMore">
+        <span ng-if="!vm.loadingMore">
+          <i class="fa fa-chevron-down"></i>
+          Load More (Page {{ vm.pagination.page }} of {{ vm.pagination.total_pages }})
+        </span>
+        <span ng-if="vm.loadingMore">
+          <i class="fa fa-spinner fa-spin"></i> Loading...
+        </span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ═══ Booking Detail Modal ═══ -->
+  <div class="snazzy-overlay" ng-if="vm.showDetail" ng-click="vm.closeDetail()">
+    <div class="snazzy-modal ub-detail-modal" ng-click="$event.stopPropagation();">
+      <div class="snazzy-modal__header">
+        <h3><i class="fa fa-calendar-alt"></i> Booking Details</h3>
+        <button class="snazzy-modal__close" ng-click="vm.closeDetail()">&times;</button>
+      </div>
+      <div class="snazzy-modal__body" ng-if="vm.selectedBooking">
+
+        <div class="ub-detail__section">
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Date</span>
+            <span class="ub-detail__value">{{ vm.selectedBooking.date | asDate | date:'EEEE, dd MMMM yyyy' }}</span>
+          </div>
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Time</span>
+            <span class="ub-detail__value"><strong>{{ vm.selectedBooking.start_time }} &ndash; {{ vm.selectedBooking.end_time }}</strong></span>
+          </div>
+        </div>
+
+        <div class="ub-detail__section">
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Aircraft</span>
+            <span class="ub-detail__value">
+              <span class="ub-plane-reg">{{ vm.selectedBooking.plane_registration }}</span>
+              <span class="ub-plane-type-small">({{ vm.selectedBooking.plane_type }})</span>
+            </span>
+          </div>
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Club</span>
+            <span class="ub-detail__value">{{ vm.selectedBooking.club_name }}</span>
+          </div>
+        </div>
+
+        <div class="ub-detail__section">
+          <div class="ub-detail__row" ng-if="vm.selectedBooking.is_instructor">
+            <span class="ub-detail__label">Student</span>
+            <span class="ub-detail__value">{{ vm.selectedBooking.student_name }}</span>
+          </div>
+          <div class="ub-detail__row" ng-if="!vm.selectedBooking.is_instructor && vm.selectedBooking.instructor_name">
+            <span class="ub-detail__label">Instructor</span>
+            <span class="ub-detail__value">{{ vm.selectedBooking.instructor_name }}</span>
+          </div>
+          <div class="ub-detail__row" ng-if="!vm.selectedBooking.is_instructor && !vm.selectedBooking.instructor_name">
+            <span class="ub-detail__label">Flight Type</span>
+            <span class="ub-detail__value">Solo</span>
+          </div>
+        </div>
+
+        <div class="ub-detail__section" ng-if="vm.selectedBooking.description">
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Notes</span>
+            <span class="ub-detail__value">{{ vm.selectedBooking.description }}</span>
+          </div>
+        </div>
+
+        <div class="ub-detail__section">
+          <div class="ub-detail__row">
+            <span class="ub-detail__label">Status</span>
+            <span class="ub-detail__value">
+              <span ng-if="vm.selectedBooking.requires_approval && !vm.selectedBooking.booking_approved" class="snazzy-table__badge snazzy-table__badge--warning">Awaiting Approval</span>
+              <span ng-if="vm.selectedBooking.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--info">Maintenance Flight</span>
+              <span ng-if="(!vm.selectedBooking.requires_approval || vm.selectedBooking.booking_approved) && !vm.selectedBooking.maintenance_flight" class="snazzy-table__badge snazzy-table__badge--success">Confirmed</span>
+            </span>
+          </div>
+        </div>
+
+      </div>
+      <div class="snazzy-modal__footer">
+        <a class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.viewOnScheduler(vm.selectedBooking)">
+          <i class="fa fa-calendar-alt"></i> View on Scheduler
+        </a>
+        <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeDetail()">Close</button>
+      </div>
+    </div>
+  </div>
+
+</div>

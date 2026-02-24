@@ -1,4 +1,4 @@
-<div class="centre_align_boxes2">
+<div class="centre_align_boxes2 invoices_page">
 
 
      <div class="home_upper">
@@ -82,6 +82,8 @@
 
         <div ng-if="vm.invoices.length > 0">
 
+            <!-- Desktop table -->
+            <div class="inv-table-wrap">
              <table>
                     <tr class="bold_text">
                         <td>
@@ -283,6 +285,76 @@
 
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="inv-mobile-cards">
+              <div class="inv-card" ng-repeat="invoice in vm.invoices | filter: search">
+                <div class="inv-card-header">
+                  <span class="inv-card-num">#{{ invoice.invoice_number }}</span>
+                  <span class="inv-card-status" ng-class="'inv-status-' + invoice.status">{{ get_human_status(invoice.status) }}</span>
+                </div>
+                <div class="inv-card-row" ng-if="vm.upcoming.length > 1">
+                  <span class="inv-card-label">Club</span>
+                  <span>{{ invoice.club_title }}</span>
+                </div>
+                <div class="inv-card-row">
+                  <span class="inv-card-label">Aircraft</span>
+                  <span>{{ invoice.plane_registration }}</span>
+                </div>
+                <div class="inv-card-row">
+                  <span class="inv-card-label">Amount</span>
+                  <span class="inv-card-amount">{{ invoice.currency }} {{ invoice.total | number:2 }}</span>
+                </div>
+                <div class="inv-card-row">
+                  <span class="inv-card-label">Date</span>
+                  <span>{{ invoice.created_at | asDate | date:'dd MMM yyyy' }}</span>
+                </div>
+                <div class="inv-card-actions">
+                  <button class="btn btn-sm inv-card-btn" ng-click="invoice.show_more = !invoice.show_more">
+                    <i class="fa" ng-class="invoice.show_more ? 'fa-eye-slash' : 'fa-eye'"></i>
+                    {{ invoice.show_more ? 'Hide' : 'Details' }}
+                  </button>
+                  <button class="btn btn-sm inv-card-btn" ng-click="downloadInvoice(invoice.id)">
+                    <i class="fa fa-download"></i> Download
+                  </button>
+                  <button class="btn btn-sm inv-card-btn inv-card-pay" ng-if="vm.show_payment_option(invoice)" ng-click="vm.show_payment(invoice)">
+                    <i class="fa fa-credit-card"></i> Pay Now
+                  </button>
+                </div>
+                <div ng-if="invoice.show_more" class="inv-card-detail">
+                  <div class="user_invoices_bg">
+                    <h4>Billing Summary</h4>
+                    <div class="repeat_invoices" ng-repeat="flight in invoice.flights">
+                      <div ng-if="!invoice.membership_id || invoice.membership_id == 0">
+                        <h5 ng-if="invoice.legs >= 1 && invoice.plane_id > 0">
+                          Flight From {{ flight.from }} To {{ flight.to }}<br />
+                          Date: {{ flight.flight_details.flight_date | asDate | date:"dd MMM yyyy" }}
+                        </h5>
+                      </div>
+                      <h5 ng-if="invoice.membership_id > 0">Membership Invoice</h5>
+                      <hr />
+                      <table>
+                        <tr class="bold_text">
+                          <td>Item</td>
+                          <td class="right_text_align">Total</td>
+                        </tr>
+                        <tr ng-repeat="items in flight.items" ng-if="!items.ui_hidden">
+                          <td>{{ items.title }}</td>
+                          <td class="right_text_align">
+                            <span ng-if="!items.member_package_id || items.member_package_id == 0">{{ invoice.currency }} {{ items.total | number:2 }}</span>
+                          </td>
+                        </tr>
+                        <tr class="total_line bold_text">
+                          <td>TOTAL</td>
+                          <td class="right_text_align"><b>{{ invoice.currency }} {{ flight.total | number:2 }}</b></td>
+                        </tr>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
         </div>
 

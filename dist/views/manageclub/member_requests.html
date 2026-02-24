@@ -1,78 +1,116 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page">
 
-
-     <div class="home_upper">
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
       <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-        <div class="welcome_title">
-          <h2>MEMBERSHIP REQUESTS</h2> 
-          <h4 class="capitalise">
-            Welcome new members to your organisation
-          </h4>
-          <!-- {{ vm.welcome_message }} -->
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-user-plus"></i> Membership Requests</h2>
+        <p>Welcome new members to your organisation</p>
       </div>
     </div>
+  </div>
 
+  <div class="snazzy-page__body">
 
+    <ui-view>
 
-    <ui-view class="sub_section2">
+      <!-- ═══ Empty state ═══ -->
+      <div class="snazzy-page__empty" ng-if="vm.requests.length == 0">
+        <i class="fa fa-inbox snazzy-page__empty-icon"></i>
+        <p>It looks like you have no new joining requests!</p>
+      </div>
 
-        <p ng-if="vm.requests.length == 0">
-            It looks like you have no new joining requests!
-        </p>
-
-
-          <table ng-if="vm.requests.length > 0">
-            <tr>
-              <td>
-                First Name
-              </td>
-              <td>
-                Last Name
-              </td>
-              <td>
-                Email Address
-              </td>
-              <td>
-                Mobile Number
-              </td>
-              <td>
-                Status
-              </td>
-              <td>
-                Functions
-              </td>
-            </tr>
-            <tr ng-repeat="request in vm.requests">
-              <td>
-                {{ request.first_name }}
-              </td>
-              <td>
-                {{ request.last_name }}
-              </td>
-              <td>
-                {{ request.email }}
-              </td>
-              <td>
-                {{ request.phone_number }}
-              </td>
-              <td>
-                {{ request.status }}
-              </td>              
-            
-              <td>
-                <div class="functions">
-                  <button ng-if="request.requested_by == 'user'" ng-click="decline_request(request.id)" class="btn btn-danger function_btn">Decline Request</button>
-                  <button ng-if="request.requested_by == 'user'" ng-click="accept_request(request.id)" class="btn btn-info function_btn">Accept Request</button>
-
-                  <button ng-if="request.requested_by == 'club'" ng-click="delete_request(request.id)" class="btn btn-danger function_btn">Cancel Request</button>
-                <button ng-if="request.requested_by == 'club'" ng-click="resend_request(request.id)" class="btn btn-info function_btn">Resend Request</button>
-                </div>
-              </td>
-            </tr>
+      <!-- ═══ Requests Table (Desktop) ═══ -->
+      <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="vm.requests.length > 0">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th class="snazzy-table__hide-mobile">Email Address</th>
+                <th class="snazzy-table__hide-mobile">Mobile Number</th>
+                <th>Status</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="request in vm.requests">
+                <td class="snazzy-table__name">{{ request.first_name }}</td>
+                <td class="snazzy-table__name">{{ request.last_name }}</td>
+                <td class="snazzy-table__hide-mobile">{{ request.email }}</td>
+                <td class="snazzy-table__hide-mobile">{{ request.phone_number }}</td>
+                <td>
+                  <span class="snazzy-table__badge snazzy-table__badge--info">{{ request.status }}</span>
+                </td>
+                <td class="snazzy-table__td-actions">
+                  <!-- User-initiated requests -->
+                  <button ng-if="request.requested_by == 'user'" ng-click="decline_request(request.id)"
+                    class="snazzy-table__action-btn snazzy-table__action-btn--danger" uib-tooltip="Decline Request">
+                    <i class="fa fa-times"></i>
+                  </button>
+                  <button ng-if="request.requested_by == 'user'" ng-click="accept_request(request.id)"
+                    class="snazzy-table__action-btn snazzy-table__action-btn--success" uib-tooltip="Accept Request">
+                    <i class="fa fa-check"></i>
+                  </button>
+                  <!-- Club-initiated requests -->
+                  <button ng-if="request.requested_by == 'club'" ng-click="delete_request(request.id)"
+                    class="snazzy-table__action-btn snazzy-table__action-btn--danger" uib-tooltip="Cancel Request">
+                    <i class="fa fa-trash-alt"></i>
+                  </button>
+                  <button ng-if="request.requested_by == 'club'" ng-click="resend_request(request.id)"
+                    class="snazzy-table__action-btn" uib-tooltip="Resend Request">
+                    <i class="fa fa-paper-plane"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
           </table>
-      
+        </div>
+      </div>
+
+      <!-- ═══ Mobile Cards ═══ -->
+      <div class="snazzy-mobile-cards" ng-if="vm.requests.length > 0">
+        <div class="snazzy-mobile-card" ng-repeat="request in vm.requests">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">{{ request.first_name }} {{ request.last_name }}</span>
+            <span class="snazzy-table__badge snazzy-table__badge--info">{{ request.status }}</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Email</span>
+              <span>{{ request.email }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Mobile</span>
+              <span>{{ request.phone_number }}</span>
+            </div>
+          </div>
+          <div class="snazzy-mobile-card__footer">
+            <button ng-if="request.requested_by == 'user'" ng-click="decline_request(request.id)"
+              class="snazzy-page__btn snazzy-page__btn--outline" style="font-size:12px; padding:6px 14px;">
+              <i class="fa fa-times"></i> Decline
+            </button>
+            <button ng-if="request.requested_by == 'user'" ng-click="accept_request(request.id)"
+              class="snazzy-page__btn snazzy-page__btn--primary" style="font-size:12px; padding:6px 14px;">
+              <i class="fa fa-check"></i> Accept
+            </button>
+            <button ng-if="request.requested_by == 'club'" ng-click="delete_request(request.id)"
+              class="snazzy-page__btn snazzy-page__btn--outline" style="font-size:12px; padding:6px 14px;">
+              <i class="fa fa-trash-alt"></i> Cancel
+            </button>
+            <button ng-if="request.requested_by == 'club'" ng-click="resend_request(request.id)"
+              class="snazzy-page__btn snazzy-page__btn--primary" style="font-size:12px; padding:6px 14px;">
+              <i class="fa fa-paper-plane"></i> Resend
+            </button>
+          </div>
+        </div>
+      </div>
+
     </ui-view>
+
+  </div>
 
 </div>

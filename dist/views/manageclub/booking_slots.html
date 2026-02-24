@@ -1,0 +1,182 @@
+<div class="slot-search">
+
+  <!-- ── Header ── -->
+  <div class="slot-search__header">
+    <div class="slot-search__header-inner">
+      <div class="back-box" ng-click="vm.goBack()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="slot-search__title">
+        <h2><i class="fa fa-clock"></i> Booking Time Slots</h2>
+        <p>Configure slot-based booking times for restricted members</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════ Section: Max Future Bookings ══════ -->
+  <div class="member-detail__section">
+    <div class="member-detail__section-header">
+      <i class="fa fa-shield-alt member-detail__section-icon"></i>
+      <div>
+        <h3>Booking Limits</h3>
+        <p>Control how many future bookings restricted members can hold</p>
+      </div>
+    </div>
+
+    <div class="member-detail__card">
+      <div class="booking-settings__field" style="border-top: none; padding-top: 0;">
+        <div class="booking-settings__label">Max Future Bookings (Restricted Members)</div>
+        <div class="booking-settings__desc">
+          Set to <strong>0</strong> for unlimited. Otherwise, restricted members (those without free booking rights) 
+          can only hold this many future bookings at any one time. Instructors and managers are always exempt.
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <input type="number" class="booking-settings__input" ng-model="vm.max_future_bookings" min="0" placeholder="0" />
+          <button class="booking-slots-admin__btn booking-slots-admin__btn--primary" ng-click="vm.saveMaxFutureBookings()">
+            <i class="fa fa-save"></i> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════ Section: Booking Slots ══════ -->
+  <div class="member-detail__section">
+    <div class="member-detail__section-header">
+      <i class="fa fa-calendar-alt member-detail__section-icon"></i>
+      <div>
+        <h3>Time Slots</h3>
+        <p>Define the available booking time slots for your club</p>
+      </div>
+    </div>
+
+    <div class="member-detail__card">
+      <div class="booking-slots-admin">
+
+        <!-- Actions bar -->
+        <div class="booking-slots-admin__header">
+          <div class="booking-slots-admin__title">
+            {{ vm.slots.length }} slot{{ vm.slots.length !== 1 ? 's' : '' }} configured
+          </div>
+          <div class="booking-slots-admin__actions">
+            <button class="booking-slots-admin__btn booking-slots-admin__btn--secondary" ng-click="vm.seedDefaults()" ng-if="vm.slots.length === 0">
+              <i class="fa fa-magic"></i> Create Defaults
+            </button>
+            <button class="booking-slots-admin__btn booking-slots-admin__btn--primary" ng-click="vm.openAddForm()">
+              <i class="fa fa-plus"></i> Add Slot
+            </button>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="slot-search__loading" ng-if="vm.loading" style="padding: 24px;">
+          <div class="slot-search__spinner"></div>
+          <span>Loading slots...</span>
+        </div>
+
+        <!-- Empty state -->
+        <div class="booking-slots-admin__empty" ng-if="!vm.loading && vm.slots.length === 0">
+          <i class="fa fa-calendar-times"></i>
+          <p>No booking slots configured yet. Click <strong>Create Defaults</strong> to add the standard 4-slot pattern, or add slots manually.</p>
+        </div>
+
+        <!-- Slots table -->
+        <div class="booking-slots-admin__table-wrap" ng-if="!vm.loading && vm.slots.length > 0">
+          <table class="booking-slots-admin__table">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Label</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="slot in vm.slots | orderBy:'slot_order'">
+                <td>{{ slot.slot_order }}</td>
+                <td><strong>{{ slot.label || '—' }}</strong></td>
+                <td>{{ vm.formatTime(slot.start_time) }}</td>
+                <td>{{ vm.formatTime(slot.end_time) }}</td>
+                <td>
+                  <span class="booking-slots-admin__status-dot"
+                        ng-class="{'booking-slots-admin__status-dot--active': slot.active == 1, 'booking-slots-admin__status-dot--inactive': slot.active != 1}"
+                        ng-click="vm.toggleActive(slot)"
+                        style="cursor: pointer;"
+                        uib-tooltip="{{ slot.active == 1 ? 'Active — click to deactivate' : 'Inactive — click to activate' }}">
+                  </span>
+                </td>
+                <td>
+                  <button class="booking-slots-admin__btn booking-slots-admin__btn--secondary" ng-click="vm.openEditForm(slot)" uib-tooltip="Edit" style="display: inline-flex; padding: 6px 10px;">
+                    <i class="fa fa-pen"></i>
+                  </button>
+                  <button class="booking-slots-admin__btn booking-slots-admin__btn--danger" ng-click="vm.deleteSlot(slot)" uib-tooltip="Delete" style="display: inline-flex; padding: 6px 10px;">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ══════ Add/Edit Slot Form Overlay ══════ -->
+<div class="booking-slots-admin__form-overlay" ng-if="vm.showForm" ng-click="vm.closeForm()">
+  <div class="booking-slots-admin__form-card" ng-click="$event.stopPropagation()">
+    
+    <div class="booking-slots-admin__form-header">
+      <i class="fa fa-clock"></i>
+      {{ vm.editingSlot ? 'Edit Slot' : 'Add New Slot' }}
+    </div>
+
+    <div class="booking-slots-admin__form-body">
+
+      <div class="booking-slots-admin__form-field">
+        <label>Label</label>
+        <input type="text" class="booking-slots-admin__form-input" ng-model="vm.form.label" placeholder="e.g. Morning 1" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div class="booking-slots-admin__form-field">
+          <label>Start Time</label>
+          <input type="time" class="booking-slots-admin__form-input" ng-model="vm.form.start_time" required />
+        </div>
+        <div class="booking-slots-admin__form-field">
+          <label>End Time</label>
+          <input type="time" class="booking-slots-admin__form-input" ng-model="vm.form.end_time" required />
+        </div>
+      </div>
+
+      <div class="booking-slots-admin__form-field">
+        <label>Display Order</label>
+        <input type="number" class="booking-slots-admin__form-input" ng-model="vm.form.slot_order" min="0" />
+      </div>
+
+      <div class="booking-slots-admin__form-field">
+        <label class="slot-search__checkbox-label" style="padding: 0;">
+          <input type="checkbox" ng-model="vm.form.active" class="slot-search__checkbox" />
+          <span class="slot-search__check-custom"></span>
+          <span>Active</span>
+        </label>
+      </div>
+
+    </div>
+
+    <div class="booking-slots-admin__form-footer">
+      <button class="slot-search__modal-btn slot-search__modal-btn--cancel" ng-click="vm.closeForm()">Cancel</button>
+      <button class="slot-search__modal-btn slot-search__modal-btn--confirm" ng-click="vm.saveSlot()">
+        <i class="fa fa-save"></i> {{ vm.editingSlot ? 'Update Slot' : 'Create Slot' }}
+      </button>
+    </div>
+
+  </div>
+</div>

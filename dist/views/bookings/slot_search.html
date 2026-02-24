@@ -1,0 +1,298 @@
+<div class="slot-search">
+
+  <!-- ── Header ── -->
+  <div class="slot-search__header">
+    <div class="slot-search__header-inner">
+      <div class="back-box" ng-click="vm.goBack()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="slot-search__title">
+        <h2><i class="fa fa-calendar-check"></i> Find a Slot</h2>
+        <p>Search for available booking slots</p>
+      </div>
+      <div class="slot-search__header-actions">
+        <button class="btn slot-search__calendar-btn" ng-click="vm.goToCalendar()" ng-if="!vm.is_restricted">
+          <i class="fa fa-calendar-alt"></i> Calendar View
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Club Selector (multi-club users) ── -->
+  <div class="slot-search__club-selector" ng-if="vm.showClubSelector">
+    <div class="slot-search__card">
+      <div class="slot-search__club-row">
+        <i class="fa fa-building slot-search__club-icon"></i>
+        <div class="slot-search__club-select-wrap">
+          <label>Club</label>
+          <select class="slot-search__select" ng-model="vm.selectedClub" ng-options="club as club.title for club in vm.clubs" ng-change="vm.onClubChange()"></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Filters ── -->
+  <div class="slot-search__filters">
+    <div class="slot-search__card">
+      <div class="slot-search__filters-grid">
+
+        <div class="slot-search__filter-group">
+          <label><i class="fa fa-calendar"></i> From Date</label>
+          <input type="date" class="slot-search__input" ng-model="vm.dateFrom" ng-change="vm.debouncedSearch()" />
+        </div>
+
+        <div class="slot-search__filter-group">
+          <label><i class="fa fa-forward"></i> Days Ahead</label>
+          <select class="slot-search__select" ng-model="vm.numDays" ng-change="vm.searchSlots()">
+            <option value="7">1 Week</option>
+            <option value="14">2 Weeks</option>
+            <option value="28">4 Weeks</option>
+            <option value="60">2 Months</option>
+          </select>
+        </div>
+
+        <div class="slot-search__filter-group">
+          <label><i class="fa fa-plane"></i> Aircraft Type</label>
+          <select class="slot-search__select" ng-model="vm.planeType" ng-change="vm.searchSlots()">
+            <option value="">All Types</option>
+            <option ng-repeat="t in vm.planeTypes" value="{{ t }}">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="slot-search__filter-group">
+          <label><i class="fa fa-chalkboard-teacher"></i> Instructor</label>
+          <select class="slot-search__select" ng-model="vm.instructorId" ng-change="vm.searchSlots()">
+            <option value="0">Any Instructor</option>
+            <option ng-repeat="i in vm.instructors" value="{{ i.id }}">{{ i.first_name }} {{ i.last_name }}</option>
+          </select>
+        </div>
+
+        <div class="slot-search__filter-group" ng-if="vm.courses.length">
+          <label><i class="fa fa-graduation-cap"></i> Course</label>
+          <select class="slot-search__select" ng-model="vm.courseId" ng-change="vm.searchSlots()">
+            <option value="0">Any Course</option>
+            <option ng-repeat="c in vm.courses" value="{{ c.id }}">{{ c.title }}</option>
+          </select>
+        </div>
+
+        <!-- Tuition type filter hidden for now
+        <div class="slot-search__filter-group" ng-if="vm.tuitionTypes.length">
+          <label><i class="fa fa-book-open"></i> Tuition Type</label>
+          <select class="slot-search__select" ng-model="vm.tuitionId" ng-change="vm.searchSlots()">
+            <option value="0">Any Tuition Type</option>
+            <option ng-repeat="t in vm.tuitionTypes" value="{{ t.id }}">{{ t.title }}</option>
+          </select>
+        </div>
+        -->
+
+        <div class="slot-search__filter-group slot-search__filter-group--checkbox">
+          <label class="slot-search__checkbox-label">
+            <input type="checkbox" ng-model="vm.doubleSlot" ng-change="vm.searchSlots()" class="slot-search__checkbox" />
+            <span class="slot-search__check-custom"></span>
+            <span>Double Slot <small>(consecutive pair)</small></span>
+          </label>
+        </div>
+
+      </div>
+
+      <!-- Quick date nav -->
+      <div class="slot-search__date-nav">
+        <button class="slot-search__nav-btn" ng-click="vm.goToPrevWeek()" uib-tooltip="Previous week">
+          <i class="fa fa-chevron-left"></i>
+        </button>
+        <button class="slot-search__nav-btn slot-search__nav-btn--today" ng-click="vm.goToToday()">
+          Today
+        </button>
+        <button class="slot-search__nav-btn" ng-click="vm.goToNextWeek()" uib-tooltip="Next week">
+          <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Error / Max bookings message ── -->
+  <div class="slot-search__alert" ng-if="vm.errorMessage">
+    <div class="slot-search__alert-icon"><i class="fa fa-exclamation-triangle"></i></div>
+    <div class="slot-search__alert-text">{{ vm.errorMessage }}</div>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div class="slot-search__loading" ng-if="vm.searching">
+    <div class="slot-search__spinner"></div>
+    <span>Searching for available slots...</span>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="slot-search__results" ng-if="vm.searchPerformed && !vm.searching">
+
+    <!-- Empty state -->
+    <div class="slot-search__empty" ng-if="vm.availableSlots.length === 0 && !vm.errorMessage">
+      <div class="slot-search__empty-icon"><i class="fa fa-cloud-sun"></i></div>
+      <h3>No Available Slots</h3>
+      <p>No slots found for these dates and filters. Try widening your search or checking different dates.</p>
+    </div>
+
+    <!-- Slot results grouped by date -->
+    <div class="slot-search__day-group" ng-repeat="date in vm.groupedDates">
+      <div class="slot-search__day-header">
+        <div class="slot-search__day-info">
+          <span class="slot-search__day-name">{{ vm.formatDay(vm.groupedSlots[date].day) }}</span>
+          <span class="slot-search__day-date">{{ vm.formatDate(date) }}</span>
+          <span class="slot-search__day-badge slot-search__day-badge--today" ng-if="vm.isToday(date)">Today</span>
+          <span class="slot-search__day-badge slot-search__day-badge--tomorrow" ng-if="vm.isTomorrow(date)">Tomorrow</span>
+        </div>
+        <span class="slot-search__day-count">{{ vm.groupedSlots[date].slots.length }} slot{{ vm.groupedSlots[date].slots.length !== 1 ? 's' : '' }}</span>
+      </div>
+
+      <div class="slot-search__slots-grid">
+        <div class="slot-search__slot-card" ng-repeat="slot in vm.groupedSlots[date].slots" ng-class="{'slot-search__slot-card--double': slot.is_double}">
+          
+          <!-- Slot time bar -->
+          <div class="slot-search__slot-time-bar">
+            <div class="slot-search__slot-times">
+              <i class="fa fa-clock"></i>
+              <strong>{{ vm.formatTime(slot.start_time) }}</strong>
+              <span class="slot-search__slot-dash">&ndash;</span>
+              <strong>{{ vm.formatTime(slot.end_time) }}</strong>
+            </div>
+            <div class="slot-search__slot-badges">
+              <span class="slot-search__slot-label" ng-if="slot.label">{{ slot.label }}</span>
+              <span class="slot-search__slot-badge-double" ng-if="slot.is_double"><i class="fa fa-layer-group"></i> Double</span>
+            </div>
+          </div>
+
+          <!-- Aircraft available -->
+          <div class="slot-search__slot-section">
+            <div class="slot-search__slot-section-label"><i class="fa fa-plane"></i> Aircraft</div>
+            <div class="slot-search__slot-tags">
+              <span class="slot-search__tag slot-search__tag--plane" ng-repeat="p in slot.available_planes">
+                {{ p.registration }} <small>({{ p.plane_type }})</small>
+              </span>
+            </div>
+          </div>
+
+          <!-- Instructors available -->
+          <div class="slot-search__slot-section">
+            <div class="slot-search__slot-section-label"><i class="fa fa-chalkboard-teacher"></i> Instructors</div>
+            <div class="slot-search__slot-tags" ng-if="slot.available_instructors.length > 0">
+              <span class="slot-search__tag slot-search__tag--instructor" ng-repeat="i in slot.available_instructors">
+                {{ i.first_name }} {{ i.last_name }}
+              </span>
+            </div>
+            <div class="slot-search__slot-solo" ng-if="slot.available_instructors.length === 0">
+              <i class="fa fa-user"></i> Solo / No instructor available
+            </div>
+          </div>
+
+          <!-- Book button -->
+          <button class="slot-search__book-btn" ng-click="vm.selectSlot(slot)">
+            <i class="fa fa-check-circle"></i> Book This Slot
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- ══════ Booking Confirmation Modal ══════ -->
+<div class="slot-search__modal-backdrop" ng-if="vm.showBookingModal" ng-click="vm.closeBookingModal()"></div>
+<div class="slot-search__modal" ng-if="vm.showBookingModal">
+  <div class="slot-search__modal-card">
+
+    <div class="slot-search__modal-header">
+      <h3><i class="fa fa-calendar-plus"></i> Confirm Booking</h3>
+      <button class="slot-search__modal-close" ng-click="vm.closeBookingModal()"><i class="fa fa-times"></i></button>
+    </div>
+
+    <div class="slot-search__modal-body">
+
+      <!-- Time summary -->
+      <div class="slot-search__modal-summary">
+        <div class="slot-search__modal-summary-row">
+          <span class="slot-search__modal-label"><i class="fa fa-calendar"></i> Date</span>
+          <span class="slot-search__modal-value">{{ vm.formatDay(vm.selectedSlot.day) }}, {{ vm.formatDate(vm.selectedSlot.date) }}</span>
+        </div>
+        <div class="slot-search__modal-summary-row">
+          <span class="slot-search__modal-label"><i class="fa fa-clock"></i> Time</span>
+          <span class="slot-search__modal-value">{{ vm.formatTime(vm.selectedSlot.start_time) }} &ndash; {{ vm.formatTime(vm.selectedSlot.end_time) }}</span>
+        </div>
+        <div class="slot-search__modal-summary-row" ng-if="vm.selectedSlot.label">
+          <span class="slot-search__modal-label"><i class="fa fa-tag"></i> Slot</span>
+          <span class="slot-search__modal-value">{{ vm.selectedSlot.label }}</span>
+        </div>
+      </div>
+
+      <!-- Aircraft selector -->
+      <div class="slot-search__modal-field">
+        <label><i class="fa fa-plane"></i> Select Aircraft</label>
+        <div class="slot-search__modal-options">
+          <div class="slot-search__modal-option"
+               ng-repeat="p in vm.selectedSlot.available_planes"
+               ng-class="{'slot-search__modal-option--selected': vm.selectedPlane.id === p.id}"
+               ng-click="vm.selectedPlane = p">
+            <span class="slot-search__modal-option-radio"></span>
+            <div class="slot-search__modal-option-info">
+              <strong>{{ p.registration }}</strong>
+              <small>{{ p.type_name || p.plane_type }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instructor selector -->
+      <div class="slot-search__modal-field" ng-if="vm.selectedSlot.available_instructors.length > 0">
+        <label><i class="fa fa-chalkboard-teacher"></i> Select Instructor <small>(optional)</small></label>
+        <div class="slot-search__modal-options">
+          <div class="slot-search__modal-option"
+               ng-class="{'slot-search__modal-option--selected': !vm.selectedInstructor}"
+               ng-click="vm.selectedInstructor = null">
+            <span class="slot-search__modal-option-radio"></span>
+            <div class="slot-search__modal-option-info">
+              <strong>No Instructor</strong>
+              <small>Solo flight</small>
+            </div>
+          </div>
+          <div class="slot-search__modal-option"
+               ng-repeat="i in vm.selectedSlot.available_instructors"
+               ng-class="{'slot-search__modal-option--selected': vm.selectedInstructor.id === i.id}"
+               ng-click="vm.selectedInstructor = i">
+            <span class="slot-search__modal-option-radio"></span>
+            <div class="slot-search__modal-option-info">
+              <strong>{{ i.first_name }} {{ i.last_name }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="slot-search__modal-footer">
+      <button class="btn slot-search__modal-btn slot-search__modal-btn--cancel" ng-click="vm.closeBookingModal()">
+        Cancel
+      </button>
+      <button class="btn slot-search__modal-btn slot-search__modal-btn--confirm"
+              ng-click="vm.confirmBooking()"
+              ng-disabled="!vm.selectedPlane || vm.bookingInProgress">
+        <i class="fa fa-check" ng-if="!vm.bookingInProgress"></i>
+        <i class="fa fa-spinner fa-spin" ng-if="vm.bookingInProgress"></i>
+        {{ vm.bookingInProgress ? 'Booking...' : 'Confirm Booking' }}
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ── Loading spinner (full-page) ── -->
+<div ng-if="vm.show_loading" class="positioning-container2">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+    <div class="airplane-container">
+      <span class="fa fa-plane fa-2x"></span>
+    </div>
+  </div>
+</div>
