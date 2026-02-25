@@ -24,17 +24,6 @@
   </div>
 
 
-  <!-- ── No Config State ── -->
-  <div class="bs-empty-state" ng-if="!vm.loading.status && !vm.config">
-    <div class="bs-empty-state__icon">
-      <i class="fas fa-unlink"></i>
-    </div>
-    <h3>No BookedScheduler Configuration</h3>
-    <p>This club doesn't have a BookedScheduler integration configured yet.<br>
-       Please set it up via the backend or contact support.</p>
-  </div>
-
-
   <!-- ── Tabs ── -->
   <div class="bs-tabs" ng-if="vm.config">
     <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'status'}" ng-click="vm.setTab('status')">
@@ -52,6 +41,409 @@
     <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'imported'}" ng-click="vm.setTab('imported')">
       <i class="fas fa-user-plus"></i> <span>Imported Users</span>
     </button>
+    <button class="bs-tab" ng-class="{'bs-tab--active': vm.activeTab === 'setup'}" ng-click="vm.setTab('setup')">
+      <i class="fas fa-magic"></i> <span>Setup</span>
+    </button>
+  </div>
+
+  <!-- ── Tabs for no-config state (only shows Setup) ── -->
+  <div class="bs-tabs" ng-if="!vm.config && !vm.loading.status">
+    <button class="bs-tab bs-tab--active">
+      <i class="fas fa-magic"></i> <span>Initial Setup</span>
+    </button>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
+       SETUP WIZARD
+       ════════════════════════════════════════════════════ -->
+  <div class="bs-tab-panel" ng-if="vm.activeTab === 'setup' || vm.noConfig">
+
+    <!-- Wizard Stepper -->
+    <div class="bs-wizard-stepper">
+      <div class="bs-wizard-step" ng-class="{'bs-wizard-step--active': vm.setupStep === 1, 'bs-wizard-step--done': vm.setupStep > 1}">
+        <div class="bs-wizard-step__number">
+          <span ng-if="vm.setupStep <= 1">1</span>
+          <i class="fa fa-check" ng-if="vm.setupStep > 1"></i>
+        </div>
+        <div class="bs-wizard-step__label">Configure</div>
+      </div>
+      <div class="bs-wizard-step__line" ng-class="{'bs-wizard-step__line--done': vm.setupStep > 1}"></div>
+      <div class="bs-wizard-step" ng-class="{'bs-wizard-step--active': vm.setupStep === 2, 'bs-wizard-step--done': vm.setupStep > 2}">
+        <div class="bs-wizard-step__number">
+          <span ng-if="vm.setupStep <= 2">2</span>
+          <i class="fa fa-check" ng-if="vm.setupStep > 2"></i>
+        </div>
+        <div class="bs-wizard-step__label">Upload CSV</div>
+      </div>
+      <div class="bs-wizard-step__line" ng-class="{'bs-wizard-step__line--done': vm.setupStep > 2}"></div>
+      <div class="bs-wizard-step" ng-class="{'bs-wizard-step--active': vm.setupStep === 3, 'bs-wizard-step--done': vm.setupStep > 3}">
+        <div class="bs-wizard-step__number">
+          <span ng-if="vm.setupStep <= 3">3</span>
+          <i class="fa fa-check" ng-if="vm.setupStep > 3"></i>
+        </div>
+        <div class="bs-wizard-step__label">Import</div>
+      </div>
+      <div class="bs-wizard-step__line" ng-class="{'bs-wizard-step__line--done': vm.setupStep > 3}"></div>
+      <div class="bs-wizard-step" ng-class="{'bs-wizard-step--active': vm.setupStep === 4, 'bs-wizard-step--done': false}">
+        <div class="bs-wizard-step__number"><span>4</span></div>
+        <div class="bs-wizard-step__label">Review</div>
+      </div>
+    </div>
+
+
+    <!-- ── Step 1: Configuration ── -->
+    <div class="bs-panel" ng-if="vm.setupStep === 1">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-plug"></i> Connect to BookedScheduler</h3>
+      </div>
+      <div class="bs-panel__body">
+        <p class="bs-help-text">
+          Enter your BookedScheduler API credentials. The system will connect and verify the integration.
+        </p>
+
+        <div class="bs-form-row">
+          <div class="bs-form-group bs-form-group--full">
+            <label>API URL <span class="bs-required">*</span></label>
+            <input type="url" class="bs-input" ng-model="vm.setupConfigForm.api_url" placeholder="https://booked.yoursite.com/Web/Services" />
+            <span class="bs-form-hint">Full URL to the BookedScheduler Web Services endpoint</span>
+          </div>
+        </div>
+        <div class="bs-form-row">
+          <div class="bs-form-group">
+            <label>Username <span class="bs-required">*</span></label>
+            <input type="text" class="bs-input" ng-model="vm.setupConfigForm.api_username" placeholder="admin" />
+          </div>
+          <div class="bs-form-group">
+            <label>Password <span class="bs-required">*</span></label>
+            <input type="password" class="bs-input" ng-model="vm.setupConfigForm.api_password" placeholder="••••••••" />
+          </div>
+        </div>
+        <div class="bs-form-row">
+          <div class="bs-form-group">
+            <label>Sync Interval (min)</label>
+            <input type="number" class="bs-input" ng-model="vm.setupConfigForm.sync_interval_minutes" min="5" />
+          </div>
+          <div class="bs-form-group">
+            <label>Start Date</label>
+            <input type="date" class="bs-input" ng-model="vm.setupConfigForm.sync_start_date" />
+          </div>
+          <div class="bs-form-group">
+            <label>End Date</label>
+            <input type="date" class="bs-input" ng-model="vm.setupConfigForm.sync_end_date" />
+          </div>
+        </div>
+
+        <div class="bs-form-actions">
+          <button class="bs-btn bs-btn--primary bs-btn--lg" ng-click="vm.saveSetupConfig()" ng-disabled="vm.setupSaving">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.setupSaving, 'fa-arrow-right': !vm.setupSaving}"></i>
+            {{ vm.setupSaving ? 'Saving...' : 'Save & Continue' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── Step 2: CSV Upload ── -->
+    <div class="bs-panel" ng-if="vm.setupStep === 2">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-file-csv"></i> Upload User CSV</h3>
+      </div>
+      <div class="bs-panel__body">
+        <p class="bs-help-text">
+          Upload a CSV export of your BookedScheduler users. This file maps BS users to ToAviate accounts. The CSV should contain columns like <code>First Name</code>, <code>Last Name</code>, and <code>Email</code>.
+        </p>
+
+        <!-- Upload Zone -->
+        <div class="bs-dropzone" ng-class="{'bs-dropzone--has-file': vm.csvFileName}">
+          <div class="bs-dropzone__icon">
+            <i class="fas" ng-class="{'fa-file-csv': vm.csvFileName, 'fa-cloud-upload-alt': !vm.csvFileName}"></i>
+          </div>
+          <div class="bs-dropzone__text" ng-if="!vm.csvFileName">
+            <strong>Choose a CSV file</strong>
+            <span>or drag &amp; drop it here</span>
+          </div>
+          <div class="bs-dropzone__text" ng-if="vm.csvFileName">
+            <strong>{{ vm.csvFileName }}</strong>
+            <span class="bs-dropzone__remove" ng-click="vm.clearCsvFile()">
+              <i class="fa fa-times"></i> Remove
+            </span>
+          </div>
+          <input type="file" class="bs-dropzone__input" accept=".csv" onchange="angular.element(this).scope().vm.onCsvFileSelect(this.files)" />
+        </div>
+
+        <!-- Membership Select -->
+        <div class="bs-form-row" style="margin-top: 20px;">
+          <div class="bs-form-group">
+            <label>Default Membership (optional)</label>
+            <select class="bs-select" ng-model="vm.uploadMembershipId">
+              <option value="0">— No default membership —</option>
+              <option ng-repeat="m in vm.memberships" ng-value="m.id">{{ m.name }}</option>
+            </select>
+            <span class="bs-form-hint">Newly imported users will be assigned to this membership level</span>
+          </div>
+        </div>
+
+        <!-- Import Mode -->
+        <div class="bs-mode-select">
+          <h4><i class="fas fa-sliders-h"></i> Import Mode</h4>
+          <div class="bs-radio-cards">
+            <label class="bs-radio-card" ng-class="{'bs-radio-card--active': vm.uploadMode === 'full'}">
+              <input type="radio" ng-model="vm.uploadMode" value="full" />
+              <div class="bs-radio-card__icon"><i class="fas fa-rocket"></i></div>
+              <div class="bs-radio-card__body">
+                <strong>Full Setup</strong>
+                <span>Import CSV users, discover aircraft &amp; instructors, map resources, then run initial sync. Recommended for first-time setup.</span>
+              </div>
+            </label>
+            <label class="bs-radio-card" ng-class="{'bs-radio-card--active': vm.uploadMode === 'import_only'}">
+              <input type="radio" ng-model="vm.uploadMode" value="import_only" />
+              <div class="bs-radio-card__icon"><i class="fas fa-file-import"></i></div>
+              <div class="bs-radio-card__body">
+                <strong>Import Users Only</strong>
+                <span>Only import user CSV data. You can discover resources and run sync manually from the individual tabs afterwards.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="bs-form-actions">
+          <button class="bs-btn bs-btn--ghost" ng-click="vm.setupStep = 1">
+            <i class="fa fa-arrow-left"></i> Back
+          </button>
+          <button class="bs-btn bs-btn--primary bs-btn--lg" ng-click="vm.startUpload()" ng-disabled="!vm.csvFileName || vm.uploading">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.uploading, 'fa-upload': !vm.uploading}"></i>
+            {{ vm.uploading ? 'Uploading...' : (vm.uploadMode === 'full' ? 'Run Full Setup' : 'Import Users') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── Step 3: Importing (Progress) ── -->
+    <div class="bs-panel" ng-if="vm.setupStep === 3">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-cog fa-spin"></i> {{ vm.uploadMode === 'full' ? 'Running Full Setup...' : 'Importing Users...' }}</h3>
+      </div>
+      <div class="bs-panel__body bs-import-progress">
+        <div class="bs-import-progress__spinner">
+          <i class="fa fa-spinner fa-spin fa-3x"></i>
+        </div>
+        <p class="bs-help-text" ng-if="vm.uploadMode === 'full'">
+          This may take a couple of minutes. The system is importing users, discovering resources, mapping them, and initiating the first sync.
+        </p>
+        <p class="bs-help-text" ng-if="vm.uploadMode === 'import_only'">
+          Importing users from your CSV. This should only take a moment.
+        </p>
+      </div>
+    </div>
+
+
+    <!-- ── Step 4: Review Results ── -->
+    <div class="bs-panel" ng-if="vm.setupStep === 4">
+      <div class="bs-panel__header">
+        <h3><i class="fas fa-clipboard-check"></i> Setup Results</h3>
+      </div>
+      <div class="bs-panel__body">
+
+        <!-- Full Setup Results (step-by-step) -->
+        <div ng-if="vm.uploadMode === 'full' && vm.setupResult">
+
+          <!-- Individual step results (if response has "steps") -->
+          <div class="bs-setup-steps" ng-if="vm.setupResult.import_csv || vm.setupResult.discover_resources || vm.setupResult.discover_instructors || vm.setupResult.discover_users || vm.setupResult.sync">
+
+            <div class="bs-setup-step-item" ng-if="vm.setupResult.import_csv">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.import_csv.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.import_csv.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>Import CSV Users</strong>
+                <span ng-if="vm.setupResult.import_csv.stats">
+                  {{ vm.setupResult.import_csv.stats.created || 0 }} created,
+                  {{ vm.setupResult.import_csv.stats.mapped || 0 }} mapped,
+                  {{ vm.setupResult.import_csv.stats.skipped || 0 }} skipped
+                </span>
+                <span ng-if="vm.setupResult.import_csv.message">{{ vm.setupResult.import_csv.message }}</span>
+              </div>
+            </div>
+
+            <div class="bs-setup-step-item" ng-if="vm.setupResult.discover_resources">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.discover_resources.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.discover_resources.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>Discover Aircraft</strong>
+                <span ng-if="vm.setupResult.discover_resources.stats">
+                  {{ vm.setupResult.discover_resources.stats.discovered || 0 }} found,
+                  {{ vm.setupResult.discover_resources.stats.mapped || 0 }} auto-mapped
+                </span>
+              </div>
+            </div>
+
+            <div class="bs-setup-step-item" ng-if="vm.setupResult.discover_instructors">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.discover_instructors.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.discover_instructors.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>Discover Instructors</strong>
+                <span ng-if="vm.setupResult.discover_instructors.stats">
+                  {{ vm.setupResult.discover_instructors.stats.discovered || 0 }} found,
+                  {{ vm.setupResult.discover_instructors.stats.mapped || 0 }} auto-mapped
+                </span>
+              </div>
+            </div>
+
+            <div class="bs-setup-step-item" ng-if="vm.setupResult.discover_users">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.discover_users.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.discover_users.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>Discover User Mappings</strong>
+                <span ng-if="vm.setupResult.discover_users.stats">
+                  {{ vm.setupResult.discover_users.stats.discovered || 0 }} found,
+                  {{ vm.setupResult.discover_users.stats.mapped || 0 }} auto-mapped
+                </span>
+              </div>
+            </div>
+
+            <div class="bs-setup-step-item" ng-if="vm.setupResult.sync">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.sync.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.sync.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>Initial Sync</strong>
+                <span ng-if="vm.setupResult.sync.stats">
+                  {{ vm.setupResult.sync.stats.bookings_created || 0 }} bookings created,
+                  {{ vm.setupResult.sync.stats.bookings_updated || 0 }} updated,
+                  {{ vm.setupResult.sync.stats.errors || 0 }} errors
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fallback: generic result display -->
+          <div class="bs-setup-steps" ng-if="!vm.setupResult.import_csv && !vm.setupResult.discover_resources">
+            <div class="bs-setup-step-item">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.setupResult.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.setupResult.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>{{ vm.setupResult.success !== false ? 'Setup Complete' : 'Setup Issue' }}</strong>
+                <span>{{ vm.setupResult.message || 'The setup process has finished.' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import-Only Results -->
+        <div ng-if="vm.uploadMode === 'import_only' && vm.importResult">
+          <div class="bs-setup-steps">
+            <div class="bs-setup-step-item">
+              <div class="bs-setup-step-item__icon">
+                <i class="fa fa-check-circle bs-text--green" ng-if="vm.importResult.success !== false"></i>
+                <i class="fa fa-times-circle bs-text--red" ng-if="vm.importResult.success === false"></i>
+              </div>
+              <div class="bs-setup-step-item__body">
+                <strong>CSV Import</strong>
+                <span ng-if="vm.importResult.created !== undefined">
+                  {{ vm.importResult.created || 0 }} created,
+                  {{ vm.importResult.mapped || 0 }} mapped,
+                  {{ vm.importResult.skipped || 0 }} skipped
+                </span>
+                <span ng-if="vm.importResult.message">{{ vm.importResult.message }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step-by-step operations after import-only -->
+          <div class="bs-stepbystep-panel">
+            <h4><i class="fas fa-list-ol"></i> Next Steps (Optional)</h4>
+            <p class="bs-help-text">You can now run each discovery step individually, or head over to the relevant tabs to manage them in detail.</p>
+
+            <div class="bs-stepbystep-grid">
+              <div class="bs-stepbystep-card">
+                <div class="bs-stepbystep-card__header">
+                  <i class="fas fa-plane"></i> Discover Aircraft
+                </div>
+                <div class="bs-stepbystep-card__body">
+                  <button class="bs-btn bs-btn--primary bs-btn--sm" ng-click="vm.stepDiscoverAircraft()" ng-disabled="vm.discovering.resources">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.resources, 'fa-search': !vm.discovering.resources}"></i>
+                    {{ vm.discovering.resources ? 'Discovering...' : 'Discover' }}
+                  </button>
+                  <div class="bs-stepbystep-card__result" ng-if="vm.stepByStep.discoverAircraft">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ vm.stepByStep.discoverAircraft.stats.discovered || vm.stepByStep.discoverAircraft.discovered || 0 }} found
+                  </div>
+                </div>
+              </div>
+
+              <div class="bs-stepbystep-card">
+                <div class="bs-stepbystep-card__header">
+                  <i class="fas fa-user-tie"></i> Discover Instructors
+                </div>
+                <div class="bs-stepbystep-card__body">
+                  <button class="bs-btn bs-btn--primary bs-btn--sm" ng-click="vm.stepDiscoverInstructors()" ng-disabled="vm.discovering.instructors">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.instructors, 'fa-search': !vm.discovering.instructors}"></i>
+                    {{ vm.discovering.instructors ? 'Discovering...' : 'Discover' }}
+                  </button>
+                  <div class="bs-stepbystep-card__result" ng-if="vm.stepByStep.discoverInstructors">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ vm.stepByStep.discoverInstructors.stats.discovered || vm.stepByStep.discoverInstructors.discovered || 0 }} found
+                  </div>
+                </div>
+              </div>
+
+              <div class="bs-stepbystep-card">
+                <div class="bs-stepbystep-card__header">
+                  <i class="fas fa-users"></i> Map Users from Reservations
+                </div>
+                <div class="bs-stepbystep-card__body">
+                  <button class="bs-btn bs-btn--primary bs-btn--sm" ng-click="vm.stepDiscoverUsers()" ng-disabled="vm.discovering.usersReservations">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.usersReservations, 'fa-search': !vm.discovering.usersReservations}"></i>
+                    {{ vm.discovering.usersReservations ? 'Discovering...' : 'Discover' }}
+                  </button>
+                  <div class="bs-stepbystep-card__result" ng-if="vm.stepByStep.discoverUsers">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ vm.stepByStep.discoverUsers.stats.discovered || vm.stepByStep.discoverUsers.discovered || 0 }} found
+                  </div>
+                </div>
+              </div>
+
+              <div class="bs-stepbystep-card">
+                <div class="bs-stepbystep-card__header">
+                  <i class="fas fa-sync"></i> Run Initial Sync
+                </div>
+                <div class="bs-stepbystep-card__body">
+                  <button class="bs-btn bs-btn--primary bs-btn--sm" ng-click="vm.stepRunSync()" ng-disabled="vm.syncRunning">
+                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.syncRunning, 'fa-play': !vm.syncRunning}"></i>
+                    {{ vm.syncRunning ? 'Syncing...' : 'Run Sync' }}
+                  </button>
+                  <div class="bs-stepbystep-card__result" ng-if="vm.stepByStep.sync">
+                    <i class="fa fa-check-circle bs-text--green"></i>
+                    {{ vm.stepByStep.sync.bookings_created || 0 }} bookings created
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bs-form-actions" style="margin-top: 24px;">
+          <button class="bs-btn bs-btn--ghost" ng-click="vm.rerunSetup()">
+            <i class="fa fa-redo"></i> Re-run Setup
+          </button>
+          <button class="bs-btn bs-btn--primary bs-btn--lg" ng-click="vm.finishSetup()">
+            <i class="fa fa-arrow-right"></i> Go to Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
 
@@ -206,10 +598,16 @@
     <div class="bs-panel">
       <div class="bs-panel__header">
         <h3><i class="fas fa-plane"></i> Resource Mappings</h3>
-        <button class="bs-btn bs-btn--primary" ng-click="vm.discoverResources()" ng-disabled="vm.discovering.resources">
-          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.resources, 'fa-search': !vm.discovering.resources}"></i>
-          {{ vm.discovering.resources ? 'Discovering...' : 'Discover Resources' }}
-        </button>
+        <div class="bs-btn-group">
+          <button class="bs-btn bs-btn--primary" ng-click="vm.discoverResources()" ng-disabled="vm.discovering.resources">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.resources, 'fa-search': !vm.discovering.resources}"></i>
+            {{ vm.discovering.resources ? 'Discovering...' : 'Discover Aircraft' }}
+          </button>
+          <button class="bs-btn bs-btn--secondary" ng-click="vm.discoverInstructors()" ng-disabled="vm.discovering.instructors">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.instructors, 'fa-user-tie': !vm.discovering.instructors}"></i>
+            {{ vm.discovering.instructors ? 'Discovering...' : 'Discover Instructors' }}
+          </button>
+        </div>
       </div>
       <div class="bs-panel__body">
 
@@ -246,7 +644,7 @@
                   <!-- Unmapped — dropdown -->
                   <select class="bs-select" ng-if="!vm.resourceMapped(res)" ng-model="res._selected_plane">
                     <option value="">— Select aircraft —</option>
-                    <option ng-repeat="p in vm.clubPlanes" ng-value="p.id">{{ p.registration || p.name }} {{ p.plane_type ? '(' + p.plane_type + ')' : '' }}</option>
+                    <option ng-repeat="p in vm.clubPlanes" ng-value="p.id" value="{{p.id}}">{{ p.registration || p.name }} {{ p.plane_type ? '(' + p.plane_type + ')' : '' }} - {{ p.id }}</option>
                   </select>
                 </td>
                 <td data-label="Match">
@@ -276,10 +674,16 @@
     <div class="bs-panel">
       <div class="bs-panel__header">
         <h3><i class="fas fa-users"></i> User Mappings</h3>
-        <button class="bs-btn bs-btn--primary" ng-click="vm.discoverUsers()" ng-disabled="vm.discovering.users">
-          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.users, 'fa-search': !vm.discovering.users}"></i>
-          {{ vm.discovering.users ? 'Discovering...' : 'Discover Users' }}
-        </button>
+        <div class="bs-btn-group">
+          <button class="bs-btn bs-btn--primary" ng-click="vm.discoverUsers()" ng-disabled="vm.discovering.users">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.users, 'fa-search': !vm.discovering.users}"></i>
+            {{ vm.discovering.users ? 'Discovering...' : 'Discover Users' }}
+          </button>
+          <button class="bs-btn bs-btn--secondary" ng-click="vm.discoverUsersFromReservations()" ng-disabled="vm.discovering.usersReservations">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.discovering.usersReservations, 'fa-calendar-alt': !vm.discovering.usersReservations}"></i>
+            {{ vm.discovering.usersReservations ? 'Discovering...' : 'From Reservations' }}
+          </button>
+        </div>
       </div>
       <div class="bs-panel__body">
 
@@ -494,22 +898,75 @@
         <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
       </div>
       <div class="bs-panel__body">
-        <p class="bs-danger-text">
-          Delete <strong>all</strong> synced bookings. This permanently removes every TA booking that was imported from BookedScheduler.
-        </p>
-        <button class="bs-btn bs-btn--danger" ng-click="vm.confirmDeleteBookings()" ng-if="!vm.showDeleteConfirm">
-          <i class="fa fa-trash"></i> Delete All Synced Bookings
-        </button>
 
-        <!-- Confirmation -->
-        <div class="bs-danger-confirm" ng-if="vm.showDeleteConfirm">
-          <p><strong>Are you sure?</strong> This will delete <strong>{{ vm.status.bookings_synced }}</strong> bookings. This cannot be undone.</p>
-          <div class="bs-danger-confirm__actions">
-            <button class="bs-btn bs-btn--danger" ng-click="vm.deleteBookings()" ng-disabled="vm.deleting">
-              <i class="fa" ng-class="{'fa-spinner fa-spin': vm.deleting, 'fa-trash': !vm.deleting}"></i>
-              {{ vm.deleting ? 'Deleting...' : 'Yes, Delete Everything' }}
+        <!-- Delete Bookings -->
+        <div class="bs-danger-section">
+          <div class="bs-danger-section__info">
+            <h4>Delete Synced Bookings</h4>
+            <p class="bs-danger-text">
+              Remove <strong>all</strong> synced bookings. This permanently deletes every TA booking that was imported from BookedScheduler.
+            </p>
+          </div>
+          <button class="bs-btn bs-btn--danger" ng-click="vm.confirmDeleteBookings()" ng-if="!vm.showDeleteConfirm">
+            <i class="fa fa-trash"></i> Delete Bookings
+          </button>
+
+          <div class="bs-danger-confirm" ng-if="vm.showDeleteConfirm">
+            <p><strong>Are you sure?</strong> This will delete <strong>{{ vm.status.bookings_synced }}</strong> bookings. This cannot be undone.</p>
+            <div class="bs-danger-confirm__actions">
+              <button class="bs-btn bs-btn--danger" ng-click="vm.deleteBookings()" ng-disabled="vm.deleting">
+                <i class="fa" ng-class="{'fa-spinner fa-spin': vm.deleting, 'fa-trash': !vm.deleting}"></i>
+                {{ vm.deleting ? 'Deleting...' : 'Yes, Delete Everything' }}
+              </button>
+              <button class="bs-btn bs-btn--ghost" ng-click="vm.cancelDelete()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <hr class="bs-danger-divider" />
+
+        <!-- Purge All Data -->
+        <div class="bs-danger-section">
+          <div class="bs-danger-section__info">
+            <h4>Purge All Imported Data</h4>
+            <p class="bs-danger-text">
+              <strong>Nuclear option.</strong> This removes ALL imported users, resource mappings, user mappings, and synced bookings.
+              Your configuration will be preserved so you can re-run setup afterwards.
+            </p>
+          </div>
+          <button class="bs-btn bs-btn--danger" ng-click="vm.openPurge()" ng-if="!vm.showPurgeConfirm">
+            <i class="fa fa-bomb"></i> Purge Everything
+          </button>
+
+          <div class="bs-danger-confirm" ng-if="vm.showPurgeConfirm">
+            <p><strong>This is irreversible!</strong> Type <code>PURGE</code> below to confirm.</p>
+            <div class="bs-purge-input-row">
+              <input type="text" class="bs-input bs-input--danger" ng-model="vm.purgeTyped" placeholder="Type PURGE to confirm" autocomplete="off" />
+            </div>
+            <div class="bs-danger-confirm__actions">
+              <button class="bs-btn bs-btn--danger" ng-click="vm.executePurge()" ng-disabled="vm.purging || vm.purgeTyped !== 'PURGE'">
+                <i class="fa" ng-class="{'fa-spinner fa-spin': vm.purging, 'fa-bomb': !vm.purging}"></i>
+                {{ vm.purging ? 'Purging...' : 'Confirm Purge' }}
+              </button>
+              <button class="bs-btn bs-btn--ghost" ng-click="vm.cancelPurge()">Cancel</button>
+            </div>
+          </div>
+
+          <div class="bs-purge-result" ng-if="vm.purgeResult">
+            <div class="bs-setup-step-item">
+              <div class="bs-setup-step-item__icon"><i class="fa fa-check-circle bs-text--green"></i></div>
+              <div class="bs-setup-step-item__body">
+                <strong>Purge Complete</strong>
+                <span>
+                  {{ vm.purgeResult.users_deleted || 0 }} users,
+                  {{ vm.purgeResult.resources_deleted || 0 }} resources,
+                  {{ vm.purgeResult.bookings_deleted || 0 }} bookings removed
+                </span>
+              </div>
+            </div>
+            <button class="bs-btn bs-btn--primary" ng-click="vm.activeTab = 'setup'; vm.setupStep = 2; vm.loadMemberships();" style="margin-top:12px;">
+              <i class="fa fa-redo"></i> Re-run Setup
             </button>
-            <button class="bs-btn bs-btn--ghost" ng-click="vm.cancelDelete()">Cancel</button>
           </div>
         </div>
       </div>

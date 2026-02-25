@@ -16,12 +16,19 @@ app.factory('BsSyncService', BsSyncService);
         // ── Resources ──
         service.GetResources       = GetResources;
         service.DiscoverResources  = DiscoverResources;
+        service.DiscoverInstructors = DiscoverInstructors;
         service.SaveResourceMap    = SaveResourceMap;
 
         // ── Users ──
         service.GetUsers           = GetUsers;
         service.DiscoverUsers      = DiscoverUsers;
+        service.DiscoverUsersFromReservations = DiscoverUsersFromReservations;
         service.SaveUserMap        = SaveUserMap;
+
+        // ── Setup / Import ──
+        service.FullSetup          = FullSetup;
+        service.ImportCSV          = ImportCSV;
+        service.Purge              = Purge;
 
         // ── Sync ──
         service.RunSync            = RunSync;
@@ -62,6 +69,11 @@ app.factory('BsSyncService', BsSyncService);
                 .then(handleSuccess, handleError);
         }
 
+        function DiscoverInstructors(club_id) {
+            return $http.post('/api/v1/bs_sync/resources/' + club_id + '?type=instructors')
+                .then(handleSuccess, handleError);
+        }
+
         function SaveResourceMap(club_id, bs_resource_id, data) {
             return $http.put('/api/v1/bs_sync/resources/' + club_id + '/' + bs_resource_id, data)
                 .then(handleSuccess, handleError);
@@ -81,8 +93,42 @@ app.factory('BsSyncService', BsSyncService);
                 .then(handleSuccess, handleError);
         }
 
+        function DiscoverUsersFromReservations(club_id) {
+            return $http.post('/api/v1/bs_sync/users/' + club_id + '?source=reservations')
+                .then(handleSuccess, handleError);
+        }
+
         function SaveUserMap(club_id, bs_user_id, data) {
             return $http.put('/api/v1/bs_sync/users/' + club_id + '/' + bs_user_id, data)
+                .then(handleSuccess, handleError);
+        }
+
+        // ── Setup / Import (multipart) ───────────────
+
+        function FullSetup(club_id, file, membership_id) {
+            var fd = new FormData();
+            fd.append('file', file);
+            fd.append('membership_id', membership_id || 0);
+            return $http.post('/api/v1/bs_sync/setup/' + club_id, fd, {
+                transformRequest: angular.identity,
+                headers: { 'Content-Type': undefined },
+                timeout: 120000   // 2 min — this is a long-running call
+            }).then(handleSuccess, handleError);
+        }
+
+        function ImportCSV(club_id, file, membership_id) {
+            var fd = new FormData();
+            fd.append('file', file);
+            fd.append('membership_id', membership_id || 0);
+            return $http.post('/api/v1/bs_sync/import-csv/' + club_id, fd, {
+                transformRequest: angular.identity,
+                headers: { 'Content-Type': undefined },
+                timeout: 60000
+            }).then(handleSuccess, handleError);
+        }
+
+        function Purge(club_id) {
+            return $http.delete('/api/v1/bs_sync/purge/' + club_id)
                 .then(handleSuccess, handleError);
         }
 
