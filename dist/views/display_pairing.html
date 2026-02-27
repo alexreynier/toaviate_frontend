@@ -1,0 +1,104 @@
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  TV Pairing — Connect a TV to the Schedule Display                -->
+<!--  Standalone page: no auth, no navigation, full-screen             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Hide the demo notice bar and force full-screen layout on this page -->
+<style>
+    .demo_version_notice { display: none !important; }
+    body { margin: 0 !important; padding: 0 !important; }
+    .main_container { padding: 0 !important; margin: 0 !important; }
+</style>
+
+
+<!-- Loading State -->
+<div class="dp-screen" ng-if="vm.loading">
+    <div class="dp-loading">
+        <div class="dp-loading-icon">
+            <i class="fa fa-tv"></i>
+        </div>
+        <h2>Preparing your display&hellip;</h2>
+        <p>Generating pairing code</p>
+    </div>
+</div>
+
+
+<!-- Error State -->
+<div class="dp-screen" ng-if="vm.error && !vm.loading">
+    <div class="dp-error-card">
+        <div class="dp-error-icon"><i class="fa fa-exclamation-triangle"></i></div>
+        <h2>Something went wrong</h2>
+        <p>{{ vm.error_message }}</p>
+        <button class="dp-btn dp-btn--primary" ng-click="vm.requestNewCode()">
+            <i class="fa fa-refresh"></i> Try Again
+        </button>
+    </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN PAIRING SCREEN
+     ═══════════════════════════════════════════════════ -->
+<div class="dp-screen" ng-if="!vm.loading && !vm.error">
+
+    <!-- Ambient background effects -->
+    <div class="dp-bg-glow dp-bg-glow--1"></div>
+    <div class="dp-bg-glow dp-bg-glow--2"></div>
+
+    <!-- Clock (top-right) -->
+    <div class="dp-clock">{{ vm.current_time }}</div>
+
+    <!-- ── Waiting for code entry ── -->
+    <div class="dp-pairing-card" ng-if="!vm.paired">
+
+        <!-- Logo area -->
+        <div class="dp-logo">
+            <i class="fa fa-plane"></i>
+        </div>
+
+        <h1 class="dp-title">Connect This Display</h1>
+        <p class="dp-subtitle">Enter the code below in your ToAviate admin panel</p>
+
+        <!-- Code digits -->
+        <div class="dp-code-row">
+            <div class="dp-digit" ng-repeat="digit in vm.codeDigits track by $index"
+                 ng-class="{'dp-digit--reveal': !vm.expired}"
+                 style="animation-delay: {{ $index * 0.08 }}s">
+                <span>{{ digit }}</span>
+            </div>
+        </div>
+
+        <!-- Countdown / Expired -->
+        <div class="dp-meta" ng-if="!vm.expired">
+            <div class="dp-countdown">
+                <i class="fa fa-clock-o"></i>
+                Code expires in <strong>{{ vm.countdownDisplay }}</strong>
+            </div>
+            <div class="dp-instructions">
+                Go to <strong>Club Settings → Schedule Display</strong> and enter this code
+            </div>
+        </div>
+
+        <div class="dp-expired" ng-if="vm.expired">
+            <div class="dp-expired-notice">
+                <i class="fa fa-exclamation-circle"></i> Code expired
+            </div>
+            <button class="dp-btn dp-btn--glow" ng-click="vm.requestNewCode()">
+                <i class="fa fa-refresh"></i> Get New Code
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Successfully paired ── -->
+    <div class="dp-success-card" ng-if="vm.paired">
+        <div class="dp-success-icon">
+            <i class="fa fa-check-circle"></i>
+        </div>
+        <h1 class="dp-title dp-title--success">Connected!</h1>
+        <p class="dp-subtitle">Redirecting to your schedule display&hellip;</p>
+        <div class="dp-success-loader">
+            <div class="dp-success-loader__bar"></div>
+        </div>
+    </div>
+
+</div>

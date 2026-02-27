@@ -95,6 +95,14 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── Display Pairing (public, no auth — must be before schedule_display) ──
+            .state('display_pairing', {
+                url: '/display/tv',
+                templateUrl: 'views/display_pairing.html',
+                controller: 'DisplayPairingController',
+                controllerAs: 'vm'
+            })
+
             // ── Schedule Display (public, no auth) ──
             .state('schedule_display', {
                 url: '/display/:token',
@@ -2075,7 +2083,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {

@@ -45,8 +45,27 @@
             case "view_lesson":
                 vm.selected_lesson = $stateParams.lesson_id;
 
-                //console.log("view an existing lesson");
-                load_lesson();
+                // If no lesson_id provided (no course on booking), show course picker
+                if (!vm.selected_lesson || vm.selected_lesson == '0' || vm.selected_lesson == 'undefined') {
+                    vm.no_course_selected = true;
+                    vm.course_picker_loading = true;
+                    vm.course_picker_courses = [];
+                    vm.course_picker_lessons = [];
+                    vm.course_picker_selected_course = null;
+
+                    CourseService.GetCoursesByClubId(vm.club_id)
+                        .then(function(data) {
+                            vm.course_picker_courses = data.items || [];
+                            vm.course_picker_loading = false;
+                        })
+                        .catch(function() {
+                            vm.course_picker_loading = false;
+                            ToastService.error('Load Failed', 'Could not load courses for this club.');
+                        });
+                } else {
+                    vm.no_course_selected = false;
+                    load_lesson();
+                }
 
 
             break;
@@ -203,6 +222,36 @@
 
         vm.show_all_lessons = false;
         vm.tag_full_flight = true;
+
+        // ═══════════════════════════════════════════════
+        // COURSE PICKER (when no course set on booking)
+        // ═══════════════════════════════════════════════
+        vm.select_briefing_course = function(course) {
+            vm.course_picker_selected_course = course;
+            vm.course_picker_lessons_loading = true;
+            vm.course_picker_lessons = [];
+
+            CourseService.GetLessonsByCourseId(course.id)
+                .then(function(data) {
+                    vm.course_picker_lessons = data.items || [];
+                    vm.course_picker_lessons_loading = false;
+                })
+                .catch(function() {
+                    vm.course_picker_lessons_loading = false;
+                    ToastService.error('Load Failed', 'Could not load lessons for this course.');
+                });
+        };
+
+        vm.select_briefing_lesson = function(lesson) {
+            vm.selected_lesson = lesson.id;
+            vm.no_course_selected = false;
+            load_lesson();
+        };
+
+        vm.back_to_course_list = function() {
+            vm.course_picker_selected_course = null;
+            vm.course_picker_lessons = [];
+        };
 
         vm.update_flight_tag = function(){
             console.log(vm.plane_log_sheet);

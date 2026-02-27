@@ -259,6 +259,13 @@ app.controller('SlotSearchController', SlotSearchController);
             vm.selectedInstructor = null;
         };
 
+        // ── Check if selected instructor requires approval ──
+        vm.selectedInstructorRequiresApproval = function() {
+            if (!vm.selectedInstructor) return false;
+            var mode = vm.selectedInstructor.booking_mode;
+            return (mode === 'admin_approval' || mode === 'instructor_approval');
+        };
+
         // ── Create booking ──
         vm.confirmBooking = function() {
             if (!vm.selectedSlot || !vm.selectedPlane) {
@@ -284,7 +291,18 @@ app.controller('SlotSearchController', SlotSearchController);
                     vm.bookingInProgress = false;
 
                     if (data.success) {
-                        ToastService.success('Booked!', 'Your booking has been confirmed.');
+                        // Check if the booking requires approval
+                        if (data.requires_approval || data.booking_status === 'pending_admin' || data.booking_status === 'pending_instructor') {
+                            var approverLabel = data.booking_status === 'pending_admin'
+                                ? 'a club administrator'
+                                : 'the instructor';
+                            ToastService.success(
+                                'Request Submitted',
+                                'Your booking request has been submitted and is awaiting approval from ' + approverLabel + '. You\'ll receive an email once a decision is made.'
+                            );
+                        } else {
+                            ToastService.success('Booked!', 'Your booking has been confirmed.');
+                        }
                         vm.closeBookingModal();
                         // Refresh results
                         vm.searchSlots();

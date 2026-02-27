@@ -1,7 +1,7 @@
  app.controller('DashboardClubInstructorBookings', DashboardClubInstructorBookings);
 
-    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService', 'AdhocAvailabilityService', 'HolidayService', 'InstructorQualificationsService', '$timeout', '$q'];
-    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService, AdhocAvailabilityService, HolidayService, InstructorQualificationsService, $timeout, $q) {
+    DashboardClubInstructorBookings.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'InstructorService', 'ToastService', 'AdhocAvailabilityService', 'HolidayService', 'InstructorQualificationsService', '$timeout', '$q', 'BookingPreferencesService'];
+    function DashboardClubInstructorBookings(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, InstructorService, ToastService, AdhocAvailabilityService, HolidayService, InstructorQualificationsService, $timeout, $q, BookingPreferencesService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -104,6 +104,15 @@
         vm.addingHoliday         = false;
         vm.holidayDateOptions    = { startingDay: 1 };
 
+        // ── Booking preferences state ────────────────────────────
+        vm.bookingPrefs          = null;
+        vm.bookingPrefsModes     = [];
+        vm.loadingBookingPrefs   = false;
+        vm.savingBookingMode     = false;
+        vm.savingExpMode         = false;
+        vm.bpSavedBooking        = false;
+        vm.bpSavedExperience     = false;
+
         // ── Qualifications state ────────────────────────────────
         vm.show_qual_panel       = false;
         vm.qualTab               = 'courses';
@@ -161,6 +170,28 @@
                             inst._maxExperienceFlights = parseInt(inst.max_experience_flights_per_day, 10) || 0;
                         }
                         vm.edit_instructor();
+
+                        // Load booking preferences for all instructors (for card badges)
+                        BookingPreferencesService.GetClubPreferences(vm.club_id)
+                            .then(function(bpData) {
+                                if (bpData && bpData.success !== false && bpData.instructors) {
+                                    // Cache the modes list
+                                    if (bpData.available_modes && bpData.available_modes.length) {
+                                        vm.bookingPrefsModes = bpData.available_modes;
+                                    }
+                                    // Map preferences onto instructor cards
+                                    for (var j = 0; j < bpData.instructors.length; j++) {
+                                        var bp = bpData.instructors[j];
+                                        for (var k = 0; k < vm.club.instructors.length; k++) {
+                                            if (parseInt(vm.club.instructors[k].user_id, 10) === parseInt(bp.user_id, 10)) {
+                                                vm.club.instructors[k]._bookingMode    = bp.booking_mode || 'open';
+                                                vm.club.instructors[k]._expBookingMode = bp.experience_booking_mode || 'open';
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            });
                     });
             break;
             default:
@@ -317,6 +348,9 @@
 
             // Load qualifications overview for this instructor
             vm.loadInstructorQualOverview(instructor.user_id);
+
+            // Load booking preferences for this instructor
+            vm.loadBookingPreferences(instructor.user_id);
 
             // Ensure colour hex values are initialised for the pickers
             if (instructor.instructor_colour && !instructor.new_colour) {
@@ -2400,6 +2434,170 @@
 
             
         }
+
+        // ══════════════════════════════════════════════════════════
+        //  BOOKING PREFERENCES (per-instructor booking modes)
+        // ══════════════════════════════════════════════════════════
+
+        /**
+         * Helper: map a mode string to a badge category for CSS classes
+         */
+        vm.getBpBadgeClass = function(mode) {
+            switch (mode) {
+                case 'open':                  return 'open';
+                case 'admin_approval':
+                case 'instructor_approval':   return 'approval';
+                case 'admin_and_self':
+                case 'self_only':             return 'restricted';
+                default:                      return 'open';
+            }
+        };
+
+        vm.getBpModeIcon = function(mode) {
+            switch (mode) {
+                case 'open':                  return 'fa-door-open';
+                case 'admin_approval':        return 'fa-user-shield';
+                case 'instructor_approval':   return 'fa-clipboard-check';
+                case 'admin_and_self':        return 'fa-lock';
+                case 'self_only':             return 'fa-user-lock';
+                default:                      return 'fa-door-open';
+            }
+        };
+
+        vm.getBpBadgeLabel = function(mode) {
+            switch (mode) {
+                case 'open':                  return 'Open';
+                case 'admin_approval':        return 'Admin Approval';
+                case 'instructor_approval':   return 'Approval';
+                case 'admin_and_self':        return 'Admin Only';
+                case 'self_only':             return 'Self Only';
+                default:                      return 'Open';
+            }
+        };
+
+        /**
+         * Load preferences + available modes when the slide panel opens
+         */
+        vm.loadBookingPreferences = function(userId) {
+            vm.loadingBookingPrefs = true;
+            vm.bookingPrefs = null;
+            vm.bpSavedBooking = false;
+            vm.bpSavedExperience = false;
+
+            // Load the modes reference list (once) and the instructor's prefs in parallel
+            var modesPromise = vm.bookingPrefsModes.length
+                ? $q.when(vm.bookingPrefsModes)
+                : BookingPreferencesService.GetModes().then(function(data) {
+                    if (data && data.success && data.modes) {
+                        vm.bookingPrefsModes = data.modes;
+                    }
+                    return vm.bookingPrefsModes;
+                });
+
+            var prefsPromise = BookingPreferencesService.GetPreferences(userId, vm.club_id);
+
+            $q.all([modesPromise, prefsPromise]).then(function(results) {
+                var prefsData = results[1];
+                vm.loadingBookingPrefs = false;
+                if (prefsData && prefsData.success !== false && prefsData.preferences) {
+                    vm.bookingPrefs = {
+                        booking_mode:            prefsData.preferences.booking_mode || 'open',
+                        experience_booking_mode: prefsData.preferences.experience_booking_mode || 'open',
+                        is_default:              prefsData.preferences.is_default || false
+                    };
+                } else {
+                    // Fallback to defaults
+                    vm.bookingPrefs = {
+                        booking_mode: 'open',
+                        experience_booking_mode: 'open',
+                        is_default: true
+                    };
+                }
+
+                // Also update the instructor card badge data
+                if (vm.selected_instructor) {
+                    vm.selected_instructor._bookingMode    = vm.bookingPrefs.booking_mode;
+                    vm.selected_instructor._expBookingMode = vm.bookingPrefs.experience_booking_mode;
+                }
+            }).catch(function() {
+                vm.loadingBookingPrefs = false;
+                vm.bookingPrefs = {
+                    booking_mode: 'open',
+                    experience_booking_mode: 'open',
+                    is_default: true
+                };
+            });
+        };
+
+        /**
+         * Set the booking mode (regular training flights)
+         */
+        vm.setBookingMode = function(mode) {
+            if (!vm.bookingPrefs || vm.savingBookingMode) return;
+            if (vm.bookingPrefs.booking_mode === mode) return;
+
+            var previousMode = vm.bookingPrefs.booking_mode;
+            vm.bookingPrefs.booking_mode = mode;
+            vm.savingBookingMode = true;
+            vm.bpSavedBooking = false;
+
+            BookingPreferencesService.SavePreferences(
+                vm.selected_instructor.user_id,
+                vm.club_id,
+                { booking_mode: mode }
+            ).then(function(data) {
+                vm.savingBookingMode = false;
+                if (data && data.success !== false) {
+                    vm.bookingPrefs.is_default = false;
+                    vm.selected_instructor._bookingMode = mode;
+                    vm.bpSavedBooking = true;
+                    // Auto-hide the saved indicator after 2s
+                    $timeout(function() { vm.bpSavedBooking = false; }, 2000);
+                } else {
+                    // Revert on failure
+                    vm.bookingPrefs.booking_mode = previousMode;
+                    ToastService.error('Error', data.message || 'Could not save booking preference.');
+                }
+            }).catch(function() {
+                vm.savingBookingMode = false;
+                vm.bookingPrefs.booking_mode = previousMode;
+                ToastService.error('Error', 'Could not save booking preference.');
+            });
+        };
+
+        /**
+         * Set the experience/voucher booking mode
+         */
+        vm.setExperienceBookingMode = function(mode) {
+            if (!vm.bookingPrefs || vm.savingExpMode) return;
+            if (vm.bookingPrefs.experience_booking_mode === mode) return;
+
+            var previousMode = vm.bookingPrefs.experience_booking_mode;
+            vm.bookingPrefs.experience_booking_mode = mode;
+            vm.savingExpMode = true;
+            vm.bpSavedExperience = false;
+
+            BookingPreferencesService.SavePreferences(
+                vm.selected_instructor.user_id,
+                vm.club_id,
+                { experience_booking_mode: mode }
+            ).then(function(data) {
+                vm.savingExpMode = false;
+                if (data && data.success !== false) {
+                    vm.bookingPrefs.is_default = false;
+                    vm.selected_instructor._expBookingMode = mode;
+                    vm.bpSavedExperience = true;
+                    $timeout(function() { vm.bpSavedExperience = false; }, 2000);
+                } else {
+                    vm.bookingPrefs.experience_booking_mode = previousMode;
+                    ToastService.error('Error', data.message || 'Could not save booking preference.');
+                }
+            }).catch(function() {
+                vm.savingExpMode = false;
+                vm.bookingPrefs.experience_booking_mode = previousMode;
+                ToastService.error('Error', 'Could not save booking preference.');
+            });
+        };
 
 
     }

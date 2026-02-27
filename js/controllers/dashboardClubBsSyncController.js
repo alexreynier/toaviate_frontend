@@ -65,6 +65,9 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         // ── Resources ──
         vm.resources = [];
         vm.clubPlanes = [];
+        vm.clubMembersForResources = [];   // members/instructors for resource mapping dropdown
+        vm.resourceMapOptions = [];         // flat array for ng-options: [{value, label, group}]
+        vm.userMapOptions = [];             // flat array for ng-options on users tab: [{value, label}]
 
         // ── Users ──
         vm.users = [];
@@ -73,6 +76,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.usersSearch = '';
         vm.usersPage = 1;
         vm.usersPerPage = 50;
+
+        // ── Cached computed lists (avoid recalculating on every $digest) ──
+        vm._filteredUsers = [];
+        vm._pagedUsers = [];
+        vm._totalPages = 1;
+        vm._filteredImported = [];
 
         // ── Sync ──
         vm.syncForm = { sync_type: 'incremental', start_date: null, end_date: null };
@@ -104,6 +113,74 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             var m = ('0' + (d.getMonth() + 1)).slice(-2);
             var dd = ('0' + d.getDate()).slice(-2);
             return y + '-' + m + '-' + dd;
+        }
+
+        // ════════════════════════════════════════════
+        // SHARED: Load club members once, share between resources & users tabs
+        // ════════════════════════════════════════════
+        var _membersLoaded = false;
+        var _membersLoadedPromise = null;
+        function _ensureMembersLoaded() {
+            if (_membersLoaded) return _membersLoadedPromise;
+            _membersLoaded = true;
+            _membersLoadedPromise = MemberService.GetAllByClub(vm.club_id).then(function(data) {
+                var members = angular.isArray(data) ? data : (data.members || []);
+                vm.clubMembers = members;
+                vm.clubMembersForResources = members;
+                _rebuildUserMapOptions();
+                _rebuildResourceMapOptions();
+                return members;
+            });
+            return _membersLoadedPromise;
+        }
+
+        // Build the flat options array for user mapping dropdowns (used with ng-options)
+        function _rebuildUserMapOptions() {
+            vm.userMapOptions = vm.clubMembers.map(function(m) {
+                var uid = String(m.user_id || m.id);
+                return {
+                    value: uid,
+                    label: (m.first_name || '') + ' ' + (m.last_name || '') + (m.email ? ' (' + m.email + ')' : '')
+                };
+            });
+        }
+
+        // Build the flat options array for resource mapping dropdowns (planes + users, with group key)
+        function _rebuildResourceMapOptions() {
+            var opts = [];
+            for (var i = 0; i < vm.clubPlanes.length; i++) {
+                var p = vm.clubPlanes[i];
+                opts.push({
+                    value: 'plane_' + p.id,
+                    label: (p.registration || p.name || '') + (p.plane_type ? ' (' + p.plane_type + ')' : ''),
+                    group: 'Aircraft'
+                });
+            }
+            for (var j = 0; j < vm.clubMembersForResources.length; j++) {
+                var m = vm.clubMembersForResources[j];
+                opts.push({
+                    value: 'user_' + (m.user_id || m.id),
+                    label: (m.first_name || '') + ' ' + (m.last_name || '') + (m.email ? ' (' + m.email + ')' : ''),
+                    group: 'Users / Instructors'
+                });
+            }
+            vm.resourceMapOptions = opts;
+        }
+
+        // Stamp _isMapped and _isMappedToUser flags directly on each resource object
+        function _stampResourceFlags() {
+            for (var i = 0; i < vm.resources.length; i++) {
+                var r = vm.resources[i];
+                r._isMapped = !!((r.ta_plane_id && r.ta_club_plane_id) || r.ta_user_id);
+                r._isMappedToUser = !!(r.ta_user_id && !r.ta_plane_id);
+            }
+        }
+
+        // Stamp _isMapped flags directly on each user object
+        function _stampUserFlags() {
+            for (var i = 0; i < vm.users.length; i++) {
+                vm.users[i]._isMapped = !!vm.users[i].ta_user_id;
+            }
         }
 
         // ════════════════════════════════════════════
@@ -440,6 +517,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             BsSyncService.GetResources(vm.club_id).then(function(data) {
                 vm.loading.resources = false;
                 vm.resources = angular.isArray(data) ? data : (data.resources || []);
+                _stampResourceFlags();
             }, function() {
                 vm.loading.resources = false;
             });
@@ -448,8 +526,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             if (vm.clubPlanes.length === 0) {
                 PlaneService.GetAllByClub(vm.club_id).then(function(data) {
                     vm.clubPlanes = data || [];
+                    _rebuildResourceMapOptions();
                 });
             }
+
+            // Also load club members/instructors for the dropdown (shared with users tab)
+            _ensureMembersLoaded();
         };
 
         vm.discoverResources = function() {
@@ -485,39 +567,69 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         };
 
         vm.saveResourceMap = function(res) {
-            // console.log("Saving resource map", res);
-            if (!res._selected_plane) {
-                ToastService.warning('Select Aircraft', 'Please select a TA aircraft to map this resource to.');
+            var selectedValue = res._selected_resource;
+            if (!selectedValue) {
+                ToastService.warning('Select Match', 'Please select an aircraft or user to map this resource to.');
                 return;
             }
-            // console.log("vm.clubPlanes", vm.clubPlanes);
-            // console.log("res._selected_plane", res._selected_plane);
-            var plane = vm.clubPlanes.find(function(p) { return p.id == res._selected_plane; });
-            // console.log("Selected plane for mapping", plane);
-            if (!plane) return;
-            // console.log("Saving map for resource", res.bs_resource_name, "to plane", plane.registration);
+
+            // Values prefixed with 'plane_' or 'user_' to distinguish the two types
+            var parts = selectedValue.split('_');
+            var mapType = parts[0];     // 'plane' or 'user'
+            var mapId   = parts.slice(1).join('_'); // the id (rejoin in case id contains underscores)
 
             res._saving = true;
-            BsSyncService.SaveResourceMap(vm.club_id, res.bs_resource_id, {
-                ta_plane_id: plane.plane_id || plane.id,
-                ta_club_plane_id: plane.cp_id || plane.id
-            }).then(function(data) {
-                res._saving = false;
-                if (data.success !== false) {
-                    ToastService.success('Mapped', res.bs_resource_name + ' → ' + (plane.registration || plane.name));
-                    vm.loadResources();
-                } else {
-                    ToastService.error('Error', data.message || 'Failed to save mapping.');
-                }
-            }, function() {
-                res._saving = false;
-                ToastService.error('Error', 'Could not connect to the server.');
-            });
+
+            if (mapType === 'plane') {
+                var plane = vm.clubPlanes.find(function(p) { return String(p.id) === String(mapId); });
+                if (!plane) { res._saving = false; return; }
+
+                BsSyncService.SaveResourceMap(vm.club_id, res.bs_resource_id, {
+                    ta_plane_id: plane.plane_id || plane.id,
+                    ta_club_plane_id: plane.cp_id || plane.id,
+                    ta_user_id: null
+                }).then(function(data) {
+                    res._saving = false;
+                    if (data.success !== false) {
+                        ToastService.success('Mapped', res.bs_resource_name + ' → ' + (plane.registration || plane.name));
+                        vm.loadResources();
+                    } else {
+                        ToastService.error('Error', data.message || 'Failed to save mapping.');
+                    }
+                }, function() {
+                    res._saving = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+
+            } else if (mapType === 'user') {
+                var member = vm.clubMembersForResources.find(function(m) { return String(m.user_id || m.id) === String(mapId); });
+                if (!member) { res._saving = false; return; }
+
+                BsSyncService.SaveResourceMap(vm.club_id, res.bs_resource_id, {
+                    ta_plane_id: null,
+                    ta_club_plane_id: null,
+                    ta_user_id: member.user_id || member.id
+                }).then(function(data) {
+                    res._saving = false;
+                    if (data.success !== false) {
+                        ToastService.success('Mapped', res.bs_resource_name + ' → ' + (member.first_name + ' ' + member.last_name));
+                        vm.loadResources();
+                    } else {
+                        ToastService.error('Error', data.message || 'Failed to save mapping.');
+                    }
+                }, function() {
+                    res._saving = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+            }
         };
 
         vm.resourceMapped = function(res) {
+            return res._isMapped;
+        };
 
-            return res.ta_plane_id && res.ta_club_plane_id;
+        vm.resourceMappedToUser = function(res) {
+            return res._isMappedToUser;
         };
 
 
@@ -530,17 +642,15 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             BsSyncService.GetUsers(vm.club_id, unmapped).then(function(data) {
                 vm.loading.users = false;
                 vm.users = angular.isArray(data) ? data : (data.users || []);
+                _stampUserFlags();
                 vm.usersPage = 1;
+                _recomputeFilteredUsers();
             }, function() {
                 vm.loading.users = false;
             });
 
-            // Load club members for mapping dropdown
-            if (vm.clubMembers.length === 0) {
-                MemberService.GetAllByClub(vm.club_id).then(function(data) {
-                    vm.clubMembers = angular.isArray(data) ? data : (data.members || []);
-                });
-            }
+            // Load club members for mapping dropdown (shared with resources tab)
+            _ensureMembersLoaded();
         };
 
         vm.discoverUsers = function() {
@@ -597,7 +707,8 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             });
         };
 
-        vm.filteredUsers = function() {
+        // Recompute cached filtered/paged users — called by $watch, NOT from template
+        function _recomputeFilteredUsers() {
             var list = vm.users;
             if (vm.usersFilter === 'mapped') {
                 list = list.filter(function(u) { return u.ta_user_id; });
@@ -610,25 +721,35 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                     return (u.bs_first_name + ' ' + u.bs_last_name + ' ' + u.bs_email + ' ' + (u.ta_first_name || '') + ' ' + (u.ta_last_name || '')).toLowerCase().indexOf(q) !== -1;
                 });
             }
-            return list;
-        };
-
-        vm.pagedUsers = function() {
-            var all = vm.filteredUsers();
+            vm._filteredUsers = list;
+            vm._totalPages = Math.ceil(list.length / vm.usersPerPage) || 1;
+            if (vm.usersPage > vm._totalPages) vm.usersPage = 1;
             var start = (vm.usersPage - 1) * vm.usersPerPage;
-            return all.slice(start, start + vm.usersPerPage);
-        };
+            vm._pagedUsers = list.slice(start, start + vm.usersPerPage);
+        }
 
-        vm.usersTotalPages = function() {
-            return Math.ceil(vm.filteredUsers().length / vm.usersPerPage) || 1;
-        };
+        // Watch the inputs that affect filtering — debounced search, instant filter/page
+        $scope.$watchGroup([
+            function() { return vm.usersFilter; },
+            function() { return vm.usersPage; }
+        ], _recomputeFilteredUsers);
+
+        // Debounced watch for search text (300ms)
+        var _usersSearchDebounce = null;
+        $scope.$watch(function() { return vm.usersSearch; }, function() {
+            if (_usersSearchDebounce) $timeout.cancel(_usersSearchDebounce);
+            _usersSearchDebounce = $timeout(function() {
+                vm.usersPage = 1;
+                _recomputeFilteredUsers();
+            }, 300);
+        });
 
         vm.usersSetPage = function(p) {
-            if (p >= 1 && p <= vm.usersTotalPages()) vm.usersPage = p;
+            if (p >= 1 && p <= vm._totalPages) vm.usersPage = p;
         };
 
         vm.userMapped = function(u) {
-            return !!u.ta_user_id;
+            return u._isMapped;
         };
 
 
@@ -732,7 +853,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.convertAll = function() {
             if (!confirm('This will send invitations to ALL imported users. Continue?')) return;
             vm.convertingAll = true;
-            var toConvert = vm.filteredImported().filter(function(u) { return !u._converted; });
+            var toConvert = vm._filteredImported.filter(function(u) { return !u._converted; });
             var idx = 0;
 
             function next() {
@@ -758,13 +879,26 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             next();
         };
 
-        vm.filteredImported = function() {
-            if (!vm.importedSearch) return vm.importedUsers;
-            var q = vm.importedSearch.toLowerCase();
-            return vm.importedUsers.filter(function(u) {
-                return ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '') + ' ' + (u.bs_email || '') + ' ' + (u.ta_email || '')).toLowerCase().indexOf(q) !== -1;
-            });
-        };
+        // Recompute filtered imported users — called by $watch
+        function _recomputeFilteredImported() {
+            if (!vm.importedSearch) {
+                vm._filteredImported = vm.importedUsers;
+            } else {
+                var q = vm.importedSearch.toLowerCase();
+                vm._filteredImported = vm.importedUsers.filter(function(u) {
+                    return ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '') + ' ' + (u.bs_email || '') + ' ' + (u.ta_email || '')).toLowerCase().indexOf(q) !== -1;
+                });
+            }
+        }
+
+        $scope.$watch(function() { return vm.importedUsers; }, _recomputeFilteredImported);
+
+        // Debounced search for imported users
+        var _importedSearchDebounce = null;
+        $scope.$watch(function() { return vm.importedSearch; }, function() {
+            if (_importedSearchDebounce) $timeout.cancel(_importedSearchDebounce);
+            _importedSearchDebounce = $timeout(_recomputeFilteredImported, 300);
+        });
 
 
         // ════════════════════════════════════════════

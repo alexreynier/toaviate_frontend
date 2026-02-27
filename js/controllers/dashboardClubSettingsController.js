@@ -148,6 +148,10 @@
         vm.display_url = '';
         vm.display_loading = false;
         vm.display_copied = false;
+        vm.show_all_instructors = true;
+        vm.pairing_code = '';
+        vm.pairing_loading = false;
+        vm.display_pairing_url = window.location.origin + '/display/tv';
 
         vm.loadDisplayToken = function() {
             vm.display_loading = true;
@@ -157,6 +161,7 @@
                     if (data.success && data.token) {
                         vm.display_token = data.token;
                         vm.display_url = window.location.origin + '/display/' + data.token;
+                        vm.show_all_instructors = data.show_all_instructors === 1 || data.show_all_instructors === true;
                     } else {
                         vm.display_token = null;
                         vm.display_url = '';
@@ -220,6 +225,42 @@
             window.open(vm.display_url, '_blank');
         };
 
+        vm.toggleShowAllInstructors = function() {
+            ScheduleDisplayService.UpdateDisplaySettings(vm.club_id, {
+                show_all_instructors: vm.show_all_instructors ? 1 : 0
+            }).then(function(data) {
+                if (data.success) {
+                    ToastService.success('Updated', 'Display setting saved. The TV will update automatically.');
+                } else {
+                    ToastService.error('Error', data.message || 'Failed to update setting.');
+                    vm.show_all_instructors = !vm.show_all_instructors; // revert
+                }
+            }, function() {
+                ToastService.error('Error', 'Could not connect to the server.');
+                vm.show_all_instructors = !vm.show_all_instructors; // revert
+            });
+        };
+
+        vm.linkPairingCode = function() {
+            if (!vm.pairing_code || vm.pairing_code.length < 6) return;
+            vm.pairing_loading = true;
+            ScheduleDisplayService.LinkPairingCode(vm.pairing_code, vm.club_id)
+                .then(function(data) {
+                    vm.pairing_loading = false;
+                    if (data.success) {
+                        ToastService.success('TV Paired!', data.message || 'The TV display is now connected and will show your schedule.');
+                        vm.pairing_code = '';
+                        // Refresh the token display in case it was auto-generated
+                        vm.loadDisplayToken();
+                    } else {
+                        ToastService.error('Pairing Failed', data.message || 'Invalid or expired code. Please check the code on the TV screen.');
+                    }
+                }, function() {
+                    vm.pairing_loading = false;
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
+        };
+
         vm.action = $state.current.data.action;
 
 
@@ -234,6 +275,7 @@
                         vm.club.settings.vat_registered = (vm.club.settings.vat_registered == 1)? true : false;
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
+                        vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
                         vm.club.settings.vat_rate = parseFloat(vm.club.settings.vat_rate);
                         //console.log(vm.club);
                     });

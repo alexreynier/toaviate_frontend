@@ -624,27 +624,33 @@
             <thead>
               <tr>
                 <th>BS Resource</th>
-                <th>TA Aircraft</th>
+                <th>TA Match</th>
                 <th>Match</th>
                 <th class="bs-table__actions-col">Action</th>
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="res in vm.resources" ng-class="{'bs-row--mapped': vm.resourceMapped(res), 'bs-row--unmapped': !vm.resourceMapped(res)}">
+              <tr ng-repeat="res in vm.resources track by res.bs_resource_id" ng-class="{'bs-row--mapped': res._isMapped, 'bs-row--unmapped': !res._isMapped}">
                 <td data-label="BS Resource">
                   <strong>{{ res.bs_resource_name }}</strong>
                   <span class="bs-sub">ID: {{ res.bs_resource_id }}</span>
                 </td>
-                <td data-label="TA Aircraft">
-                  <!-- Mapped -->
-                  <span ng-if="vm.resourceMapped(res)">
-                    <i class="fa fa-check-circle bs-text--green"></i>
+                <td data-label="TA Match">
+                  <!-- Mapped to aircraft -->
+                  <span ng-if="res._isMapped && !res._isMappedToUser">
+                    <i class="fa fa-plane bs-text--green" style="margin-right:4px;"></i>
                     {{ res.registration }} <span class="bs-sub" ng-if="res.plane_type">({{ res.plane_type }})</span>
                   </span>
-                  <!-- Unmapped — dropdown -->
-                  <select class="bs-select" ng-if="!vm.resourceMapped(res)" ng-model="res._selected_plane">
-                    <option value="">— Select aircraft —</option>
-                    <option ng-repeat="p in vm.clubPlanes" ng-value="p.id" value="{{p.id}}">{{ p.registration || p.name }} {{ p.plane_type ? '(' + p.plane_type + ')' : '' }} - {{ p.id }}</option>
+                  <!-- Mapped to user/instructor -->
+                  <span ng-if="res._isMapped && res._isMappedToUser">
+                    <i class="fa fa-user-tie bs-text--green" style="margin-right:4px;"></i>
+                    {{ res.ta_first_name }} {{ res.ta_last_name }}
+                    <span class="bs-sub" ng-if="res.ta_email">({{ res.ta_email }})</span>
+                  </span>
+                  <!-- Unmapped — single dropdown with grouped ng-options -->
+                  <select class="bs-select" ng-if="!res._isMapped" ng-model="res._selected_resource"
+                          ng-options="opt.value as opt.label group by opt.group for opt in vm.resourceMapOptions">
+                    <option value="">— Select aircraft or user —</option>
                   </select>
                 </td>
                 <td data-label="Match">
@@ -652,7 +658,7 @@
                   <span class="bs-badge bs-badge--orange" ng-if="res.match_type === 'manual' || !res.match_type">Manual</span>
                 </td>
                 <td data-label="Action" class="bs-table__actions-col">
-                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!vm.resourceMapped(res)" ng-click="vm.saveResourceMap(res)" ng-disabled="res._saving">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!res._isMapped" ng-click="vm.saveResourceMap(res)" ng-disabled="res._saving">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': res._saving, 'fa-save': !res._saving}"></i> Save
                   </button>
                 </td>
@@ -691,7 +697,7 @@
         <div class="bs-filter-bar">
           <div class="bs-filter-bar__search">
             <i class="fa fa-search"></i>
-            <input type="text" class="bs-input" placeholder="Search users..." ng-model="vm.usersSearch" />
+            <input type="text" class="bs-input" placeholder="Search users..." ng-model="vm.usersSearch" ng-model-options="{debounce: 300}" />
           </div>
           <div class="bs-filter-bar__pills">
             <button class="bs-pill" ng-class="{'bs-pill--active': vm.usersFilter === 'all'}" ng-click="vm.usersFilter = 'all'; vm.usersPage = 1;">All</button>
@@ -699,7 +705,7 @@
             <button class="bs-pill" ng-class="{'bs-pill--active': vm.usersFilter === 'unmapped'}" ng-click="vm.usersFilter = 'unmapped'; vm.usersPage = 1;">Unmapped</button>
           </div>
           <div class="bs-filter-bar__meta">
-            <span class="bs-count-badge">{{ vm.filteredUsers().length }}</span> users
+            <span class="bs-count-badge">{{ vm._filteredUsers.length }}</span> users
           </div>
         </div>
 
@@ -722,22 +728,22 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="u in vm.pagedUsers()" ng-class="{'bs-row--mapped': vm.userMapped(u), 'bs-row--unmapped': !vm.userMapped(u)}">
+              <tr ng-repeat="u in vm._pagedUsers track by (u.bs_user_id || $index)" ng-class="{'bs-row--mapped': u._isMapped, 'bs-row--unmapped': !u._isMapped}">
                 <td data-label="BS User">
                   <strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong>
                   <span class="bs-sub">{{ u.bs_email }}</span>
                 </td>
                 <td data-label="TA User">
                   <!-- Mapped -->
-                  <span ng-if="vm.userMapped(u)">
+                  <span ng-if="u._isMapped">
                     <i class="fa fa-check-circle bs-text--green"></i>
                     {{ u.ta_first_name }} {{ u.ta_last_name }}
                     <span class="bs-sub">{{ u.ta_email }}</span>
                   </span>
-                  <!-- Unmapped — dropdown -->
-                  <select class="bs-select" ng-if="!vm.userMapped(u)" ng-model="u._selected_member">
+                  <!-- Unmapped — ng-options dropdown -->
+                  <select class="bs-select" ng-if="!u._isMapped" ng-model="u._selected_member"
+                          ng-options="opt.value as opt.label for opt in vm.userMapOptions">
                     <option value="">— Select member —</option>
-                    <option ng-repeat="m in vm.clubMembers" ng-value="m.user_id || m.id">{{ m.first_name }} {{ m.last_name }} ({{ m.email }})</option>
                   </select>
                 </td>
                 <td data-label="Match">
@@ -745,7 +751,7 @@
                   <span class="bs-badge bs-badge--orange" ng-if="!u.match_type || u.match_type === 'manual'">Manual</span>
                 </td>
                 <td data-label="Action" class="bs-table__actions-col">
-                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!vm.userMapped(u)" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!u._isMapped" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': u._saving, 'fa-save': !u._saving}"></i> Save
                   </button>
                 </td>
@@ -754,12 +760,12 @@
           </table>
 
           <!-- Pagination -->
-          <div class="bs-pagination" ng-if="vm.usersTotalPages() > 1">
+          <div class="bs-pagination" ng-if="vm._totalPages > 1">
             <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-disabled="vm.usersPage <= 1" ng-click="vm.usersSetPage(vm.usersPage - 1)">
               <i class="fa fa-chevron-left"></i>
             </button>
-            <span class="bs-pagination__info">Page {{ vm.usersPage }} of {{ vm.usersTotalPages() }}</span>
-            <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-disabled="vm.usersPage >= vm.usersTotalPages()" ng-click="vm.usersSetPage(vm.usersPage + 1)">
+            <span class="bs-pagination__info">Page {{ vm.usersPage }} of {{ vm._totalPages }}</span>
+            <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-disabled="vm.usersPage >= vm._totalPages" ng-click="vm.usersSetPage(vm.usersPage + 1)">
               <i class="fa fa-chevron-right"></i>
             </button>
           </div>
@@ -866,7 +872,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="log in vm.logs" ng-class="{'bs-row--error': log.status === 'failed' || log.errors > 0}">
+              <tr ng-repeat="log in vm.logs track by (log.id || $index)" ng-class="{'bs-row--error': log.status === 'failed' || log.errors > 0}">
                 <td data-label="Date">{{ log.started_at }}</td>
                 <td data-label="Type">
                   <span class="bs-badge bs-badge--blue" ng-if="log.sync_type === 'incremental'">Incr</span>
@@ -997,10 +1003,10 @@
         <div class="bs-filter-bar" ng-if="vm.importedUsers.length > 0">
           <div class="bs-filter-bar__search">
             <i class="fa fa-search"></i>
-            <input type="text" class="bs-input" placeholder="Search imported users..." ng-model="vm.importedSearch" />
+            <input type="text" class="bs-input" placeholder="Search imported users..." ng-model="vm.importedSearch" ng-model-options="{debounce: 300}" />
           </div>
           <div class="bs-filter-bar__meta">
-            <span class="bs-count-badge">{{ vm.filteredImported().length }}</span> users
+            <span class="bs-count-badge">{{ vm._filteredImported.length }}</span> users
           </div>
         </div>
 
@@ -1023,7 +1029,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="u in vm.filteredImported()">
+              <tr ng-repeat="u in vm._filteredImported track by (u.ta_user_id || $index)">
                 <td data-label="Name"><strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong></td>
                 <td data-label="Temp Email"><span class="bs-mono">{{ u.ta_email }}</span></td>
                 <td data-label="Real Email"><span class="bs-mono">{{ u.bs_email }}</span></td>

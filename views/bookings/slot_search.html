@@ -177,6 +177,9 @@
             <div class="slot-search__slot-tags" ng-if="slot.available_instructors.length > 0">
               <span class="slot-search__tag slot-search__tag--instructor" ng-repeat="i in slot.available_instructors">
                 {{ i.first_name }} {{ i.last_name }}
+                <span class="bp-slot-hint bp-slot-hint--approval" ng-if="i.booking_mode === 'admin_approval' || i.booking_mode === 'instructor_approval'">
+                  <i class="fa fa-clock"></i> Requires approval
+                </span>
               </span>
             </div>
             <div class="slot-search__slot-solo" ng-if="slot.available_instructors.length === 0">
@@ -204,7 +207,8 @@
   <div class="slot-search__modal-card">
 
     <div class="slot-search__modal-header">
-      <h3><i class="fa fa-calendar-plus"></i> Confirm Booking</h3>
+      <h3 ng-if="!vm.selectedInstructorRequiresApproval()"><i class="fa fa-calendar-plus"></i> Confirm Booking</h3>
+      <h3 ng-if="vm.selectedInstructorRequiresApproval()"><i class="fa fa-paper-plane"></i> Submit Booking Request</h3>
       <button class="slot-search__modal-close" ng-click="vm.closeBookingModal()"><i class="fa fa-times"></i></button>
     </div>
 
@@ -263,8 +267,20 @@
             <span class="slot-search__modal-option-radio"></span>
             <div class="slot-search__modal-option-info">
               <strong>{{ i.first_name }} {{ i.last_name }}</strong>
+              <small class="slot-search__approval-hint" ng-if="i.booking_mode === 'admin_approval' || i.booking_mode === 'instructor_approval'">
+                <i class="fa fa-clock"></i> Booking will require approval
+              </small>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Approval notice -->
+      <div class="slot-search__modal-approval-notice" ng-if="vm.selectedInstructorRequiresApproval()">
+        <div class="slot-search__modal-approval-icon"><i class="fa fa-info-circle"></i></div>
+        <div class="slot-search__modal-approval-text">
+          <strong>This will be a booking request</strong>
+          <p>{{ vm.selectedInstructor.booking_mode === 'admin_approval' ? 'A club administrator' : 'The instructor' }} will need to approve your request before it is confirmed. You'll receive an email once a decision is made.</p>
         </div>
       </div>
 
@@ -275,11 +291,13 @@
         Cancel
       </button>
       <button class="btn slot-search__modal-btn slot-search__modal-btn--confirm"
+              ng-class="{'slot-search__modal-btn--request': vm.selectedInstructorRequiresApproval()}"
               ng-click="vm.confirmBooking()"
               ng-disabled="!vm.selectedPlane || vm.bookingInProgress">
-        <i class="fa fa-check" ng-if="!vm.bookingInProgress"></i>
+        <i class="fa fa-check" ng-if="!vm.bookingInProgress && !vm.selectedInstructorRequiresApproval()"></i>
+        <i class="fa fa-paper-plane" ng-if="!vm.bookingInProgress && vm.selectedInstructorRequiresApproval()"></i>
         <i class="fa fa-spinner fa-spin" ng-if="vm.bookingInProgress"></i>
-        {{ vm.bookingInProgress ? 'Booking...' : 'Confirm Booking' }}
+        {{ vm.bookingInProgress ? 'Submitting...' : (vm.selectedInstructorRequiresApproval() ? 'Submit Request' : 'Confirm Booking') }}
       </button>
     </div>
 

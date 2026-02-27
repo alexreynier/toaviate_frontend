@@ -47,6 +47,7 @@
         // Sliding booking panel state
         vm.bookingPanelOpen = false;
         vm.toggleBookingPanel = function() {
+            if (vm.is_restricted_member) return; // Read-only mode — no booking panel
             vm.bookingPanelOpen = !vm.bookingPanelOpen;
         };
 
@@ -530,8 +531,7 @@
                                             if(parseInt(memberships[i].club_id) === parseInt(vm.club_id)) {
                                                 if(memberships[i].free_booking == 0 || memberships[i].free_booking === false) {
                                                     vm.is_restricted_member = true;
-                                                    $state.go('dashboard.slot_search');
-                                                    return;
+                                                    // Don't redirect — let the member view the calendar as read-only
                                                 }
                                                 break;
                                             }
@@ -713,8 +713,10 @@
     
     $scope.alertOnClicked = function(calEvent, jsEvent, view){
 
-            // Auto-open the booking panel when an event is clicked
-            vm.bookingPanelOpen = true;
+            // Auto-open the booking panel when an event is clicked (skip for read-only members)
+            if (!vm.is_restricted_member) {
+                vm.bookingPanelOpen = true;
+            }
 
             vm.see_booking = calEvent;    
 
@@ -850,6 +852,11 @@
 
 
     $scope.addOne = function(start=null, plane_id=null, end=null, resourceObj=null){
+        // Block booking for read-only (restricted) members
+        if (vm.is_restricted_member) {
+            ToastService.warning('Read-Only Calendar', 'Your membership requires slot-based booking. Use the slot finder to book.');
+            return;
+        }
         // //console.log("ADDING HERE --> with ", start);
 
         if(start && !end){    
@@ -1431,8 +1438,26 @@
                 if(vm.user.access.instructor.indexOf(vm.club_id) > -1 || vm.user.access.manager.indexOf(vm.club_id) > -1){
                     // //console.log("THIS IS AN INSTRUCTOR/MANAGER IN THIS CLUB...");
                     vm.booking_self = false;
+                    vm.is_restricted_member = false; // instructors/managers always have full access
                 } else {
                     vm.booking_self = true;
+                    // Re-check free booking rights for the newly selected club
+                    vm.is_restricted_member = false;
+                    MemberService.GetOneForUser(vm.user.id)
+                    .then(function(memberData){
+                        var memberships = memberData.memberships || memberData;
+                        if(Array.isArray(memberships)) {
+                            for(var i = 0; i < memberships.length; i++) {
+                                if(parseInt(memberships[i].club_id) === parseInt(vm.club_id)) {
+                                    if(memberships[i].free_booking == 0 || memberships[i].free_booking === false) {
+                                        vm.is_restricted_member = true;
+                                        vm.bookingPanelOpen = false;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    });
                 }
             //now we need to update the planes the user can see on the calendar! 
             update_bookings();
@@ -1487,7 +1512,9 @@
 
     /* alert on Drop */
      $scope.alertOnDrop = function(event, delta, revertFunc, jsEvent, ui, view){
-  
+
+        // Block drag for read-only (restricted) members
+        if (vm.is_restricted_member) { revertFunc(); return; }
 
         if(event.resourceId){
             if(event.resourceId.toString().indexOf("w") > -1){
@@ -1538,7 +1565,10 @@
 
     /* alert on Resize */
     $scope.alertOnResize = function(event, delta, revertFunc, jsEvent, ui, view ){
-        
+
+        // Block resize for read-only (restricted) members
+        if (vm.is_restricted_member) { revertFunc(); return; }
+
         check_before_changing_event(event);
 
     };
@@ -2509,6 +2539,12 @@
 
 
         $scope.cancel_booking = function(booking_id){
+
+            // Block cancellation for read-only (restricted) members
+            if (vm.is_restricted_member) {
+                ToastService.warning('Read-Only Calendar', 'Your membership does not allow direct booking changes from the calendar.');
+                return;
+            }
 
             //HOW DO WE CANCEL A BOOKING???
             //at some point we need to define the booking cancellation reasons here (and make a nice popup style cancel)
@@ -3887,6 +3923,12 @@
     }
 
     $scope.make_booking = function(isValid){
+
+       // Block booking for read-only (restricted) members
+       if (vm.is_restricted_member) {
+           ToastService.warning('Read-Only Calendar', 'Your membership requires slot-based booking. Use the slot finder to book.');
+           return false;
+       }
 
        //console.log("make booking", isValid);
             $scope.submitted = true;
