@@ -111,6 +111,21 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── Airfield Bookout — Public Pilot Form (no auth) ──
+            .state('airfield_bookout_form', {
+                url: '/bookout/:icao',
+                templateUrl: 'views/airfield_bookout_form.html',
+                controller: 'AirfieldBookoutFormController',
+                controllerAs: 'vm'
+            })
+
+            // ── Airfield Bookout — Controller Display (no auth, token-based) ──
+            .state('airfield_bookout_display', {
+                url: '/bookout-display/:token',
+                templateUrl: 'views/airfield_bookout_display.html',
+                controller: 'AirfieldBookoutDisplayController',
+                controllerAs: 'vm'
+            })
 
 
             .state('password_reset', {
@@ -627,7 +642,7 @@ var app = angular
             })
 
             .state('dashboard.manage_user.briefing_lesson', {
-                url: '/briefing/:booking_id/lesson/:lesson_id',
+                url: '/briefing/:booking_id/lesson/:lesson_id/:club_id',
                 controller: 'DashboardInstructorBriefController',
                 templateUrl: 'views/manageuser/briefing_lesson.html',
                 controllerAs: 'vm',
@@ -862,6 +877,14 @@ var app = angular
                 url: '/bs_sync',
                 controller: 'DashboardClubBsSyncController',
                 templateUrl: 'views/manageclub/bs_sync.html',
+                controllerAs: 'vm'
+            })
+
+            // AIRFIELD BOOKOUT SYSTEM (Admin Settings)
+            .state('dashboard.manage_club.airfield_bookout', {
+                url: '/airfield_bookout',
+                controller: 'DashboardClubAirfieldBookoutController',
+                templateUrl: 'views/manageclub/airfield_bookout.html',
                 controllerAs: 'vm'
             })
 
@@ -2083,7 +2106,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {

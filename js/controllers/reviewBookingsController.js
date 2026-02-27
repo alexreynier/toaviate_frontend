@@ -57,6 +57,29 @@
         }
         get_the_approval_list();
 
+        // ── Upcoming instructor bookings (list view) ──
+        vm.upcoming_bookings = [];
+        vm.upcoming_loading = true;
+
+        function loadUpcomingBookings() {
+            var start = moment().format('Y-M-D');
+            var end = moment().add(30, 'days').format('Y-M-D');
+            BookingService.GetAllInstructor(vm.user.id, start, end)
+                .then(function(data) {
+                    var events = data.events || [];
+                    // Sort by start date ascending and filter to future only
+                    var now = new Date();
+                    vm.upcoming_bookings = events
+                        .filter(function(e) { return new Date(e.end) >= now; })
+                        .sort(function(a, b) { return new Date(a.start) - new Date(b.start); });
+                    vm.upcoming_loading = false;
+                })
+                .catch(function() {
+                    vm.upcoming_loading = false;
+                });
+        }
+        loadUpcomingBookings();
+
         $scope.all_events = [];
         $scope.all_resources = [];
 

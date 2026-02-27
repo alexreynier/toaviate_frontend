@@ -1,0 +1,293 @@
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  Airfield Bookout — Pilot Form (Public, No Auth)                  -->
+<!--  Standalone page: /bookout/:icao                                  -->
+<!--  Pilots submit, edit, and delete flight bookouts here             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Force full-screen layout on this standalone page -->
+<style>
+    .demo_version_notice { display: none !important; }
+    body { margin: 0 !important; padding: 0 !important; overflow-x: hidden; }
+    .main_container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+</style>
+
+
+<!-- ═══ Loading ═══ -->
+<div class="abf-loading" ng-if="vm.loading">
+    <div class="abf-loading__spinner">
+        <i class="fa fa-plane fa-spin"></i>
+    </div>
+    <h2>Loading Bookout Form…</h2>
+</div>
+
+
+<!-- ═══ Error ═══ -->
+<div class="abf-error" ng-if="vm.error">
+    <div class="abf-error__card">
+        <div class="abf-error__icon"><i class="fa fa-exclamation-triangle"></i></div>
+        <h2>Bookout Unavailable</h2>
+        <p>{{ vm.error_message }}</p>
+    </div>
+</div>
+
+
+<!-- ═══ Main Form Page ═══ -->
+<div class="abf-page" ng-if="!vm.loading && !vm.error">
+
+    <!-- ── Header ── -->
+    <div class="abf-header">
+        <div class="abf-header__inner">
+            <div class="abf-header__icon">
+                <i class="fa fa-plane-departure"></i>
+            </div>
+            <div class="abf-header__text">
+                <h1>{{ vm.airfield.title }}</h1>
+                <span class="abf-header__icao">{{ vm.airfield.code }}</span>
+                <p>Flight Bookout Form</p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════ -->
+    <!--  SUCCESS STATE — After submission  -->
+    <!-- ═══════════════════════════════════ -->
+    <div class="abf-success" ng-if="vm.submitted">
+        <div class="abf-success__card">
+            <div class="abf-success__icon">
+                <i class="fa fa-check-circle"></i>
+            </div>
+            <h2 ng-if="!vm.editing">Bookout Submitted!</h2>
+            <h2 ng-if="vm.editing">Bookout Updated!</h2>
+            <p>Your flight bookout for <strong>{{ vm.form.registration }}</strong> has been {{ vm.editing ? 'updated' : 'recorded' }}.</p>
+
+            <div class="abf-success__code-box">
+                <label>Your Edit Code</label>
+                <div class="abf-success__code">{{ vm.result_code }}</div>
+                <button class="abf-btn abf-btn--outline" ng-click="vm.copyEditCode()">
+                    <i class="fa fa-copy"></i> Copy Code
+                </button>
+                <p class="abf-success__code-hint">
+                    <i class="fa fa-info-circle"></i>
+                    Save this code — you'll need it to edit or cancel your bookout.
+                </p>
+            </div>
+
+            <button class="abf-btn abf-btn--primary abf-btn--lg" ng-click="vm.startNewBookout()">
+                <i class="fa fa-plus"></i> New Bookout
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════ -->
+    <!--  FORM — Create / Edit              -->
+    <!-- ═══════════════════════════════════ -->
+    <div class="abf-body" ng-if="!vm.submitted">
+
+        <div class="abf-form-card">
+
+            <!-- Edit mode banner -->
+            <div class="abf-edit-banner" ng-if="vm.editing">
+                <i class="fa fa-pencil-alt"></i>
+                <span>Editing bookout — <strong>{{ vm.form.registration }}</strong></span>
+                <button class="abf-edit-banner__cancel" ng-click="vm.cancelEdit()">
+                    <i class="fa fa-times"></i> Cancel
+                </button>
+            </div>
+
+            <!-- ── Registration ── -->
+            <div class="abf-field">
+                <label class="abf-label">
+                    Aircraft Registration <span class="abf-required">*</span>
+                </label>
+                <div class="abf-autocomplete">
+                    <div class="abf-input-icon-wrap">
+                        <i class="fa fa-plane abf-input-icon"></i>
+                        <input type="text"
+                               class="abf-input abf-input--with-icon"
+                               ng-model="vm.form.registration"
+                               ng-change="vm.filterAircraft()"
+                               ng-blur="vm.onRegistrationBlur()"
+                               placeholder="e.g. G-BXSE"
+                               autocomplete="off"
+                               maxlength="10" />
+                    </div>
+                    <div class="abf-dropdown" ng-if="vm.show_dropdown">
+                        <div class="abf-dropdown__item"
+                             ng-repeat="ac in vm.filtered_aircraft"
+                             ng-mousedown="vm.selectAircraft(ac)">
+                            <span class="abf-dropdown__reg">{{ ac.registration }}</span>
+                            <span class="abf-dropdown__type">{{ ac.plane_type }}</span>
+                            <span class="abf-dropdown__mfr" ng-if="ac.manufacturer">{{ ac.manufacturer }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Aircraft Type ── -->
+            <div class="abf-field">
+                <label class="abf-label">Aircraft Type</label>
+                <input type="text"
+                       class="abf-input"
+                       ng-model="vm.form.aircraft_type"
+                       placeholder="e.g. PA-28 Warrior (auto-filled)" />
+            </div>
+
+            <!-- ── PIC Name ── -->
+            <div class="abf-field">
+                <label class="abf-label">
+                    PIC Surname <span class="abf-required">*</span>
+                </label>
+                <div class="abf-input-icon-wrap">
+                    <i class="fa fa-user abf-input-icon"></i>
+                    <input type="text"
+                           class="abf-input abf-input--with-icon"
+                           ng-model="vm.form.pic_name"
+                           placeholder="Surname of Pilot in Command" />
+                </div>
+            </div>
+
+            <!-- ── From / To ── -->
+            <div class="abf-field-row">
+                <div class="abf-field abf-field--half">
+                    <label class="abf-label">From</label>
+                    <input type="text"
+                           class="abf-input"
+                           ng-model="vm.form.from"
+                           placeholder="ICAO / leave blank" />
+                    <div class="abf-quick-picks">
+                        <button class="abf-quick-pick" ng-click="vm.setQuickFrom('LOCAL')"
+                                ng-class="{'abf-quick-pick--active': vm.form.from === 'LOCAL'}">
+                            <i class="fa fa-home"></i> Local
+                        </button>
+                        <button class="abf-quick-pick" ng-click="vm.setQuickFrom('CCTS')"
+                                ng-class="{'abf-quick-pick--active': vm.form.from === 'CCTS'}">
+                            <i class="fa fa-sync-alt"></i> Circuits
+                        </button>
+                    </div>
+                </div>
+                <div class="abf-field abf-field--half">
+                    <label class="abf-label">To</label>
+                    <input type="text"
+                           class="abf-input"
+                           ng-model="vm.form.to"
+                           placeholder="ICAO / leave blank" />
+                    <div class="abf-quick-picks">
+                        <button class="abf-quick-pick" ng-click="vm.setQuickTo('LOCAL')"
+                                ng-class="{'abf-quick-pick--active': vm.form.to === 'LOCAL'}">
+                            <i class="fa fa-home"></i> Local
+                        </button>
+                        <button class="abf-quick-pick" ng-click="vm.setQuickTo('CCTS')"
+                                ng-class="{'abf-quick-pick--active': vm.form.to === 'CCTS'}">
+                            <i class="fa fa-sync-alt"></i> Circuits
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── POB ── -->
+            <div class="abf-field-row">
+                <div class="abf-field abf-field--half">
+                    <label class="abf-label">POB Outbound</label>
+                    <div class="abf-stepper">
+                        <button class="abf-stepper__btn" ng-click="vm.form.pob_outbound = Math.max(1, (vm.form.pob_outbound || 1) - 1)">
+                            <i class="fa fa-minus"></i>
+                        </button>
+                        <input type="number" class="abf-stepper__input"
+                               ng-model="vm.form.pob_outbound" min="1" max="50" />
+                        <button class="abf-stepper__btn" ng-click="vm.form.pob_outbound = (vm.form.pob_outbound || 1) + 1">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="abf-field abf-field--half">
+                    <label class="abf-label">POB Inbound</label>
+                    <div class="abf-stepper">
+                        <button class="abf-stepper__btn" ng-click="vm.form.pob_inbound = Math.max(1, (vm.form.pob_inbound || 1) - 1)">
+                            <i class="fa fa-minus"></i>
+                        </button>
+                        <input type="number" class="abf-stepper__input"
+                               ng-model="vm.form.pob_inbound" min="1" max="50"
+                               placeholder="—" />
+                        <button class="abf-stepper__btn" ng-click="vm.form.pob_inbound = (vm.form.pob_inbound || 1) + 1">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                    </div>
+                    <span class="abf-field-hint">Leave blank if same as outbound</span>
+                </div>
+            </div>
+
+            <!-- ── Notes ── -->
+            <div class="abf-field">
+                <label class="abf-label">Notes</label>
+                <textarea class="abf-textarea"
+                          ng-model="vm.form.notes"
+                          placeholder="e.g. Student nav exercise, scenic flight..."
+                          rows="2"></textarea>
+            </div>
+
+            <!-- ── Submit / Update buttons ── -->
+            <div class="abf-actions">
+                <button class="abf-btn abf-btn--primary abf-btn--lg abf-btn--block"
+                        ng-if="!vm.editing"
+                        ng-click="vm.submitBookout()"
+                        ng-disabled="vm.submitting || !vm.form.registration || !vm.form.pic_name">
+                    <i class="fa" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                    {{ vm.submitting ? 'Submitting…' : 'Submit Bookout' }}
+                </button>
+
+                <button class="abf-btn abf-btn--success abf-btn--lg abf-btn--block"
+                        ng-if="vm.editing"
+                        ng-click="vm.updateBookout()"
+                        ng-disabled="vm.submitting || !vm.form.registration || !vm.form.pic_name">
+                    <i class="fa" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    {{ vm.submitting ? 'Saving…' : 'Save Changes' }}
+                </button>
+
+                <button class="abf-btn abf-btn--danger"
+                        ng-if="vm.editing"
+                        ng-click="vm.deleteBookout()"
+                        ng-disabled="vm.deleting">
+                    <i class="fa" ng-class="vm.deleting ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
+                    Delete Bookout
+                </button>
+            </div>
+        </div>
+
+
+        <!-- ── Edit Existing Bookout ── -->
+        <div class="abf-edit-section" ng-if="!vm.editing">
+            <button class="abf-link-btn" ng-click="vm.showEditLookup()" ng-if="!vm.show_edit_lookup">
+                <i class="fa fa-pencil-alt"></i> Edit or cancel an existing bookout
+            </button>
+
+            <div class="abf-edit-lookup" ng-if="vm.show_edit_lookup">
+                <label class="abf-label">Enter your edit code</label>
+                <div class="abf-edit-lookup__row">
+                    <input type="text"
+                           class="abf-input"
+                           ng-model="vm.edit_lookup_code"
+                           placeholder="8-character edit code"
+                           maxlength="16"
+                           ng-keypress="$event.keyCode === 13 && vm.lookupEditCode()"
+                           style="text-transform: uppercase; letter-spacing: 2px; font-weight: 600;" />
+                    <button class="abf-btn abf-btn--primary"
+                            ng-click="vm.lookupEditCode()"
+                            ng-disabled="vm.submitting || !vm.edit_lookup_code">
+                        <i class="fa" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                        Look Up
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ── Footer / Branding ── -->
+    <div class="abf-footer">
+        <img src="images/main_logo.png" alt="ToAviate" class="abf-footer__logo" />
+    </div>
+
+</div>

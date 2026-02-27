@@ -494,7 +494,7 @@
 
         console.log("START", vm.new_booking.start_datetime);
         // console.log("START", moment(vm.new_booking.start_datetime).format("Y-M-D HH:mm"));
-        console.log("START iso", new Date(vm.new_booking.start_datetime).toIsoString());
+        console.log("START iso", new Date(vm.new_booking.start_datetime).toISOString());
         console.log("END", vm.new_booking.end_datetime);
 
         BookingService.GetAllPlanes(vm.user.id, vm.new_booking.start_datetime, vm.new_booking.end_datetime, 0, plane_id)

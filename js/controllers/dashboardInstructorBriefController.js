@@ -44,6 +44,7 @@
             break;
             case "view_lesson":
                 vm.selected_lesson = $stateParams.lesson_id;
+                vm.briefing_club_id = $stateParams.club_id || vm.club_id;
 
                 // If no lesson_id provided (no course on booking), show course picker
                 if (!vm.selected_lesson || vm.selected_lesson == '0' || vm.selected_lesson == 'undefined') {
@@ -53,7 +54,7 @@
                     vm.course_picker_lessons = [];
                     vm.course_picker_selected_course = null;
 
-                    CourseService.GetCoursesByClubId(vm.club_id)
+                    CourseService.GetCoursesByClubId(vm.briefing_club_id)
                         .then(function(data) {
                             vm.course_picker_courses = data.items || [];
                             vm.course_picker_loading = false;

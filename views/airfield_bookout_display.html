@@ -1,0 +1,166 @@
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  Airfield Bookout — Controller / ATC Display                      -->
+<!--  Full-screen dashboard: /bookout-display/:token                   -->
+<!--  Live table of all bookouts with status workflow                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Force full-screen layout -->
+<style>
+    .demo_version_notice { display: none !important; }
+    body { margin: 0 !important; padding: 0 !important; overflow-x: hidden; background: #0b1929 !important; }
+    .main_container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+</style>
+
+
+<!-- ═══ Loading ═══ -->
+<div class="abd-loading" ng-if="vm.loading">
+    <div class="abd-loading__spinner">
+        <i class="fa fa-broadcast-tower fa-spin"></i>
+    </div>
+    <h2>Loading Bookout Display…</h2>
+</div>
+
+
+<!-- ═══ Error ═══ -->
+<div class="abd-error" ng-if="vm.error && !vm.loading">
+    <div class="abd-error__card">
+        <div class="abd-error__icon"><i class="fa fa-exclamation-triangle"></i></div>
+        <h2>Display Unavailable</h2>
+        <p>{{ vm.error_message }}</p>
+    </div>
+</div>
+
+
+<!-- ═══ Main Display ═══ -->
+<div class="abd-page" ng-if="!vm.loading && !vm.error">
+
+    <!-- ── Header Bar ── -->
+    <div class="abd-header">
+        <div class="abd-header__left">
+            <span class="abd-status-dot" ng-class="{'abd-status-dot--offline': !vm.connected}"></span>
+            <span class="abd-header__airfield">{{ vm.airfield.code }}</span>
+            <span class="abd-header__name">{{ vm.airfield.title }}</span>
+            <span class="abd-header__label" ng-if="vm.label">{{ vm.label }}</span>
+        </div>
+        <div class="abd-header__center">
+            <span class="abd-header__date">{{ vm.current_date }}</span>
+        </div>
+        <div class="abd-header__right">
+            <span class="abd-header__clock">{{ vm.current_time }}</span>
+        </div>
+    </div>
+
+
+    <!-- ── Stats Bar ── -->
+    <div class="abd-stats">
+        <div class="abd-stat abd-stat--active">
+            <span class="abd-stat__count">{{ (vm.bookouts | filter: {status: 'active'}).length }}</span>
+            <span class="abd-stat__label">New</span>
+        </div>
+        <div class="abd-stat abd-stat--copied">
+            <span class="abd-stat__count">{{ (vm.bookouts | filter: {status: 'copied'}).length }}</span>
+            <span class="abd-stat__label">Copied</span>
+        </div>
+        <div class="abd-stat abd-stat--confirmed">
+            <span class="abd-stat__count">{{ (vm.bookouts | filter: {status: 'confirmed'}).length }}</span>
+            <span class="abd-stat__label">Confirmed</span>
+        </div>
+        <div class="abd-stat abd-stat--total">
+            <span class="abd-stat__count">{{ vm.bookouts.length }}</span>
+            <span class="abd-stat__label">Total</span>
+        </div>
+    </div>
+
+
+    <!-- ── Bookout Table ── -->
+    <div class="abd-table-wrap" ng-if="vm.bookouts.length > 0">
+        <table class="abd-table">
+            <thead>
+                <tr>
+                    <th class="abd-th--status">Status</th>
+                    <th class="abd-th--reg">Reg</th>
+                    <th class="abd-th--type">Type</th>
+                    <th class="abd-th--pic">PIC</th>
+                    <th class="abd-th--loc">From</th>
+                    <th class="abd-th--loc">To</th>
+                    <th class="abd-th--pob">POB Out</th>
+                    <th class="abd-th--pob">POB In</th>
+                    <th>Notes</th>
+                    <th class="abd-th--time">Time</th>
+                    <th class="abd-th--actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr ng-repeat="b in vm.bookouts | orderBy: '-created_at'"
+                    ng-class="vm.getStatusClass(b.status)"
+                    class="abd-row">
+                    <td class="abd-td--status">
+                        <span class="abd-badge abd-badge--{{ b.status }}">
+                            {{ vm.getStatusLabel(b.status) }}
+                        </span>
+                    </td>
+                    <td class="abd-td--reg">{{ b.registration }}</td>
+                    <td class="abd-td--type">{{ b.aircraft_type || '—' }}</td>
+                    <td class="abd-td--pic">{{ b.pic_name }}</td>
+                    <td class="abd-td--loc">{{ b.from_location || '—' }}</td>
+                    <td class="abd-td--loc">{{ b.to_location || '—' }}</td>
+                    <td class="abd-td--pob">{{ b.pob_outbound || '—' }}</td>
+                    <td class="abd-td--pob">{{ vm.formatPobIn(b) }}</td>
+                    <td class="abd-td--notes">{{ b.notes || '' }}</td>
+                    <td class="abd-td--time">{{ vm.formatTime(b.created_at) }}</td>
+                    <td class="abd-td--actions">
+                        <!-- Active → Copy -->
+                        <button class="abd-action-btn abd-action-btn--copy"
+                                ng-if="b.status === 'active'"
+                                ng-click="vm.copyRow(b)"
+                                title="Copy to clipboard &amp; mark as copied">
+                            <i class="fa fa-copy"></i> Copy
+                        </button>
+                        <!-- Copied → Confirm -->
+                        <button class="abd-action-btn abd-action-btn--confirm"
+                                ng-if="b.status === 'copied'"
+                                ng-click="vm.confirmRow(b)"
+                                title="Mark as confirmed">
+                            <i class="fa fa-check"></i> Confirm
+                        </button>
+                        <!-- Confirmed → Close -->
+                        <button class="abd-action-btn abd-action-btn--close"
+                                ng-if="b.status === 'confirmed'"
+                                ng-click="vm.closeRow(b)"
+                                title="Close &amp; archive">
+                            <i class="fa fa-times"></i> Close
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+
+    <!-- ── Empty State ── -->
+    <div class="abd-empty" ng-if="vm.bookouts.length === 0">
+        <div class="abd-empty__icon">
+            <i class="fa fa-plane"></i>
+        </div>
+        <h2>No Active Bookouts</h2>
+        <p>Bookouts will appear here in real-time as pilots submit them.</p>
+    </div>
+
+
+    <!-- ── Footer ── -->
+    <div class="abd-footer">
+        <div class="abd-footer__left">
+            <span class="abd-footer__updated">
+                <i class="fa fa-sync-alt" ng-class="{'fa-spin': !vm.connected}"></i>
+                Last updated: {{ vm.last_updated || '—' }}
+            </span>
+            <span class="abd-footer__connection" ng-class="{'abd-footer__connection--offline': !vm.connected}">
+                {{ vm.connected ? 'Connected' : 'Reconnecting…' }}
+            </span>
+        </div>
+        <div class="abd-footer__right">
+            <img src="images/main_logo.png" alt="ToAviate" class="abd-footer__logo" />
+        </div>
+    </div>
+
+</div>
