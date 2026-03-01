@@ -8,8 +8,17 @@
 
 app.factory('AirfieldBookoutService', AirfieldBookoutService);
 
-    AirfieldBookoutService.$inject = ['$http'];
-    function AirfieldBookoutService($http) {
+    AirfieldBookoutService.$inject = ['$http', 'EnvConfig'];
+    function AirfieldBookoutService($http, EnvConfig) {
+
+        var apiKeyHeader = { 'Api-Key': EnvConfig.getApiKey() };
+        var siteOrigin = window.location.origin;
+        var airfieldSearchHeaders = {
+            'Api-Key': EnvConfig.getApiKey(),
+            'Authorization': 'Basic aGVyZWJlOmRyYWdvbnM=',
+            'X-Origin': siteOrigin,
+            'X-Referer': siteOrigin + window.location.pathname
+        };
 
         var service = {};
 
@@ -26,6 +35,8 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         service.GetBookoutByCode    = GetBookoutByCode;
         service.UpdateBookout       = UpdateBookout;
         service.DeleteBookout       = DeleteBookout;
+        service.SearchAirfields     = SearchAirfields;
+        service.SearchAirfieldsByCode = SearchAirfieldsByCode;
 
         // ── Controller Display (token-based) ──
         service.GetDisplayInfo      = GetDisplayInfo;
@@ -128,6 +139,22 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
 
         function CloseBookout(token, bookoutId) {
             return $http.post('/api/v1/airfield_bookout_display/' + token + '/close/' + bookoutId)
+                .then(handleSuccess, handleError);
+        }
+
+
+        // ═══════════════════════════════════════════
+        //  Airfield Search (for From / To fields)
+        // ═══════════════════════════════════════════
+
+        function SearchAirfields(search) {
+            var code = search.replace(/\s/g, '_');
+            return $http.get('/api/v1/airfields/all/' + code, { headers: airfieldSearchHeaders })
+                .then(handleSuccess, handleError);
+        }
+
+        function SearchAirfieldsByCode(code) {
+            return $http.get('/api/v1/airfields/code/' + code, { headers: airfieldSearchHeaders })
                 .then(handleSuccess, handleError);
         }
 

@@ -191,8 +191,8 @@ app.factory('BookingService', BookingService);
 
         }
 
-        function SetBookingToBriefed(booking_id){
-            return $http.put('/api/v1/bookings/set_briefed/'+booking_id, {}).then(handleSuccess, handleError2);
+        function SetBookingToBriefed(booking_id, data){
+            return $http.put('/api/v1/bookings/set_briefed/'+booking_id, data || {}).then(handleSuccess, handleError2);
 
         }
 

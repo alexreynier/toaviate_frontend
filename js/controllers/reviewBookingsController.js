@@ -361,7 +361,7 @@
 
             var club_id = (vm.new_booking.edit_booking == 1) ? vm.new_booking.club_id : vm.new_booking.plane.club_id;
 
-            BookingService.GetRentalItems(club_id, moment(vm.new_booking.start_datetime).format("Y-M-D HH:mm"), moment(vm.new_booking.end_datetime).format("Y-M-D HH:mm"), 0)
+            BookingService.GetRentalItems(club_id, new Date(vm.new_booking.start_datetime).toISOString(), new Date(vm.new_booking.end_datetime).toISOString(), 0)
             .then(function(data){
            
                 vm.rental_items = data;

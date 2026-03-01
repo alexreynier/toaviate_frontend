@@ -656,7 +656,21 @@
         vm.go_book_out = function(){
 
             var set_briefed = {booking_id: vm.booking_id, briefed: 1};
-            BookingService.SetBookingToBriefed(vm.booking_id)
+
+            // Send the selected course + lesson so the booking is updated
+            var briefData = {};
+            if(vm.lesson && vm.lesson.course_id){
+                briefData.course_id = vm.lesson.course_id;
+            } else if(vm.course_picker_selected_course && vm.course_picker_selected_course.id){
+                briefData.course_id = vm.course_picker_selected_course.id;
+            } else if(vm.course_id){
+                briefData.course_id = vm.course_id;
+            }
+            if(vm.selected_lesson){
+                briefData.lesson_id = vm.selected_lesson;
+            }
+
+            BookingService.SetBookingToBriefed(vm.booking_id, briefData)
                     .then(function(data){
 
                         if(data.success){

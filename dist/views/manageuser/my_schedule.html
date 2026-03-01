@@ -22,6 +22,7 @@
               <th>Date &amp; Time</th>
               <th>Student</th>
               <th>Contact</th>
+              <th>Course / Voucher</th>
               <th>Status</th>
               <th class="snazzy-table__td-actions">Actions</th>
             </tr>
@@ -40,11 +41,23 @@
               </td>
               <td>
                 <span class="snazzy-table__name">{{ booking.first_name }} {{ booking.last_name }}</span>
+                <br />
+                <a class="snazzy-table__muted" ui-sref="dashboard.manage_user.student_records" uib-tooltip="View Student Records" style="text-decoration: underline; cursor: pointer;">
+                  <i class="fas fa-graduation-cap"></i> Records
+                </a>
               </td>
               <td>
                 <span class="snazzy-table__muted">{{ booking.phone_number }}</span>
                 <br />
                 <span class="snazzy-table__muted">{{ booking.email }}</span>
+              </td>
+              <td>
+                <span ng-if="booking.course_name" class="snazzy-table__name">{{ booking.course_name }}</span>
+                <span ng-if="!booking.course_name" class="snazzy-table__muted"><i>No course</i></span>
+                <br ng-if="booking.voucher_code" />
+                <span ng-if="booking.voucher_code" class="snazzy-table__badge snazzy-table__badge--info">
+                  <i class="fas fa-ticket-alt"></i> {{ booking.voucher_code }}
+                </span>
               </td>
               <td>
                 <span class="snazzy-table__badge snazzy-table__badge--warning">
@@ -62,11 +75,11 @@
                         uib-tooltip="Decline Booking">
                   <i class="fas fa-times"></i>
                 </button>
-                <button class="snazzy-table__action-btn"
-                        ng-click="view_booking(booking.id, booking.start)"
-                        uib-tooltip="View on Calendar">
-                  <i class="fas fa-eye"></i>
-                </button>
+                <a class="snazzy-table__action-btn"
+                   ui-sref="dashboard.bookings({start: booking.start})"
+                   uib-tooltip="View on Scheduler">
+                  <i class="fas fa-calendar-day"></i>
+                </a>
               </td>
             </tr>
           </tbody>
@@ -125,7 +138,7 @@
 
 
 
-<script>
+<!--<script>
 
     var all_resources, all_events, calView;
 
@@ -296,8 +309,9 @@
     });
 
 </script>
+-->
 
-<style>
+<!-- <style>
 
     body {
         margin: 0;
@@ -316,6 +330,89 @@
 <div>
     <h3>My Schedule</h3>
     <div id='calendar'></div>
+</div> -->
+
+
+<!-- ── Upcoming Bookings List ── -->
+<div class="snazzy-page">
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-calendar-alt"></i> Upcoming Bookings</h2>
+        <p>Your instructor bookings for the next 30 days</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- Loading -->
+    <div ng-if="vm.upcoming_loading" style="text-align: center; padding: 30px;">
+      <i class="fa fa-spinner fa-spin fa-2x"></i>
+      <p style="margin-top: 10px;">Loading upcoming bookings&hellip;</p>
+    </div>
+
+    <!-- Empty state -->
+    <div ng-if="!vm.upcoming_loading && vm.upcoming_bookings.length === 0" class="snazzy-approval-empty">
+      <div class="snazzy-approval-empty__icon">
+        <i class="fas fa-calendar-check"></i>
+      </div>
+      <p class="snazzy-approval-empty__title">No Upcoming Bookings</p>
+      <p class="snazzy-approval-empty__subtitle">You don't have any instructor bookings in the next 30 days</p>
+    </div>
+
+    <!-- Bookings table -->
+    <div ng-if="!vm.upcoming_loading && vm.upcoming_bookings.length > 0" class="snazzy-page__table-card">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Aircraft</th>
+              <th>Date &amp; Time</th>
+              <th>Student</th>
+              <th>Status</th>
+              <th class="snazzy-table__td-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="event in vm.upcoming_bookings">
+              <td>
+                <span class="snazzy-table__name">{{ event.plane.registration || event.resourceId }}</span>
+                <br />
+                <span class="snazzy-table__muted">{{ event.plane.plane_type || event.plane_type }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__date">{{ event.start | asDate | date:"dd MMM yyyy" }}</span>
+                <br />
+                <span class="snazzy-table__muted">{{ event.start | asDate | date:"HH:mm" }} – {{ event.end | asDate | date:"HH:mm" }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__name">{{ event.title }}</span>
+                <br />
+                <a class="snazzy-table__muted" ui-sref="dashboard.manage_user.student_records" uib-tooltip="View Student Records" style="text-decoration: underline; cursor: pointer;">
+                  <i class="fas fa-graduation-cap"></i> Student Records
+                </a>
+              </td>
+              <td>
+                <span ng-if="event.confirmed == 0" class="snazzy-table__badge snazzy-table__badge--warning">
+                  <i class="fas fa-clock"></i> Pending
+                </span>
+                <span ng-if="event.confirmed != 0" class="snazzy-table__badge snazzy-table__badge--success">
+                  <i class="fas fa-check"></i> Confirmed
+                </span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <a class="snazzy-table__action-btn" ui-sref="dashboard.bookings({plane_id: event.plane.id || event.resourceId, start: event.start})" uib-tooltip="View on Scheduler">
+                  <i class="fas fa-calendar-day"></i>
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 

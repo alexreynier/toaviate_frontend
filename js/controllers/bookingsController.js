@@ -593,7 +593,7 @@
 
             var club_id = (vm.new_booking.edit_booking == 1) ? vm.new_booking.club_id : vm.new_booking.plane.club_id;
 
-            BookingService.GetRentalItems(club_id, moment(vm.new_booking.start_datetime).format("Y-M-D HH:mm"), moment(vm.new_booking.end_datetime).format("Y-M-D HH:mm"), 0)
+            BookingService.GetRentalItems(club_id, new Date(vm.new_booking.start_datetime).toISOString(), new Date(vm.new_booking.end_datetime).toISOString(), 0)
             .then(function(data){
            
                 vm.rental_items = data;
@@ -1012,7 +1012,7 @@
                 }
 
                 if(!vm.booking_self){
-                    booking.user_id = vm.new_booking.user.user_id;
+                    booking.user_id = vm.new_booking.user.user_id || vm.new_booking.user.id;
                     booking.instructor_id = (vm.new_booking.instructor) ? vm.new_booking.instructor.id : vm.user.id;
                 } else {
                     booking.user_id = vm.user.id;
@@ -2178,8 +2178,8 @@
             end.setMinutes(end_split[1]);
             end.setSeconds(0);
 
-            vm.new_booking.start_datetime = moment(start).format("Y-M-D HH:mm");
-            vm.new_booking.end_datetime = moment(end).format("Y-M-D HH:mm");
+            vm.new_booking.start_datetime = start.toISOString();
+            vm.new_booking.end_datetime = end.toISOString();
         }
 
         function get_times(data, tofrom){
@@ -2604,7 +2604,7 @@
                 } else {
                     // //console.log("NON SELF");
 
-                    booking.user_id = vm.new_booking.user.user_id;
+                    booking.user_id = vm.new_booking.user.user_id || vm.new_booking.user.id;
                     if(vm.user.access.manager.indexOf(vm.club_id) > -1){
                         //admin does not automatically become the instructor...
                         booking.instructor_id = (vm.new_booking.instructor) ? vm.new_booking.instructor.id : 0;                

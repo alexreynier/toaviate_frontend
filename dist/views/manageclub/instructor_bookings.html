@@ -62,6 +62,23 @@
             <span class="ib-card__swatch" ng-style="{'background': instructor.booking_colour}" uib-tooltip="Booking colour"></span>
           </div>
 
+          <!-- Booking preference badges -->
+          <div class="ib-card__bp-modes" ng-if="instructor._bookingMode">
+            <span class="ib-card__bp-tag"
+                  ng-class="'ib-card__bp-tag--' + vm.getBpBadgeClass(instructor._bookingMode)"
+                  uib-tooltip="Training booking mode">
+              <i class="fa" ng-class="vm.getBpModeIcon(instructor._bookingMode)"></i>
+              {{ vm.getBpBadgeLabel(instructor._bookingMode) }}
+            </span>
+            <span class="ib-card__bp-tag"
+                  ng-class="'ib-card__bp-tag--' + vm.getBpBadgeClass(instructor._expBookingMode)"
+                  uib-tooltip="Experience flight mode"
+                  ng-if="instructor._expBookingMode && instructor._expBookingMode !== instructor._bookingMode">
+              <i class="fa fa-plane" style="font-size:8px"></i>
+              {{ vm.getBpBadgeLabel(instructor._expBookingMode) }}
+            </span>
+          </div>
+
           <!-- Status -->
           <div class="ib-card__status">
             <span class="ib-card__badge" ng-if="instructor._availabilityMode === 'adhoc'">Ad-hoc</span>
@@ -557,7 +574,106 @@
       </div>
 
 
-      <!-- SECTION 3: Daily Limits -->
+      <!-- SECTION 3: Booking Preferences -->
+      <div class="wp-section">
+        <h3 class="wp-section-title"><i class="fa fa-shield-alt"></i> Booking Preferences</h3>
+
+        <!-- Loading state -->
+        <div class="bp-loading" ng-if="vm.loadingBookingPrefs">
+          <i class="fa fa-spinner fa-spin"></i> Loading preferences&hellip;
+        </div>
+
+        <div ng-if="!vm.loadingBookingPrefs && vm.bookingPrefs">
+
+          <!-- Info callout -->
+          <div class="bp-info-callout">
+            <div class="bp-info-callout__icon"><i class="fa fa-info"></i></div>
+            <p class="bp-info-callout__text">
+              Control how <strong>{{ vm.selected_instructor.first_name }}'s</strong> bookings are handled.
+              Changes save instantly and affect new bookings &mdash; existing confirmed bookings are not changed.
+            </p>
+          </div>
+
+          <!-- ── Training Bookings Mode ── -->
+          <div class="bp-mode-group">
+            <div class="bp-mode-group__label">
+              <i class="fa fa-graduation-cap"></i> Training Bookings
+              <span class="bp-saved-indicator" ng-if="vm.bpSavedBooking"><i class="fa fa-check-circle"></i> Saved</span>
+            </div>
+
+            <div class="bp-mode-cards">
+              <div class="bp-mode-card"
+                   ng-repeat="mode in vm.bookingPrefsModes"
+                   ng-class="{'bp-mode-card--selected': vm.bookingPrefs.booking_mode === mode.mode}"
+                   ng-click="vm.setBookingMode(mode.mode)">
+
+                <!-- Saving overlay -->
+                <div class="bp-mode-card__saving" ng-if="vm.savingBookingMode && vm.bookingPrefs.booking_mode === mode.mode">
+                  <i class="fa fa-spinner fa-spin"></i>
+                </div>
+
+                <div class="bp-mode-card__radio">
+                  <div class="bp-mode-card__radio-dot"></div>
+                </div>
+                <div class="bp-mode-card__content">
+                  <p class="bp-mode-card__title">{{ mode.label }}</p>
+                  <p class="bp-mode-card__desc">{{ mode.description }}</p>
+                </div>
+                <span class="bp-mode-card__badge"
+                      ng-class="'bp-badge--' + vm.getBpBadgeClass(mode.mode)">
+                  <i class="fa" ng-class="vm.getBpModeIcon(mode.mode)"></i>
+                  {{ mode.approval_required ? 'Needs Approval' : (mode.who_can_book === 'Instructor only' || mode.who_can_book === 'Admin or instructor only' ? 'Restricted' : 'Auto-Confirm') }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="bp-divider">
+            <div class="bp-divider__line"></div>
+            <span class="bp-divider__text">and for</span>
+            <div class="bp-divider__line"></div>
+          </div>
+
+          <!-- ── Experience / Voucher Bookings Mode ── -->
+          <div class="bp-mode-group">
+            <div class="bp-mode-group__label">
+              <i class="fa fa-plane"></i> Experience &amp; Voucher Flights
+              <span class="bp-saved-indicator" ng-if="vm.bpSavedExperience"><i class="fa fa-check-circle"></i> Saved</span>
+            </div>
+
+            <div class="bp-mode-cards">
+              <div class="bp-mode-card"
+                   ng-repeat="mode in vm.bookingPrefsModes"
+                   ng-class="{'bp-mode-card--selected': vm.bookingPrefs.experience_booking_mode === mode.mode}"
+                   ng-click="vm.setExperienceBookingMode(mode.mode)">
+
+                <!-- Saving overlay -->
+                <div class="bp-mode-card__saving" ng-if="vm.savingExpMode && vm.bookingPrefs.experience_booking_mode === mode.mode">
+                  <i class="fa fa-spinner fa-spin"></i>
+                </div>
+
+                <div class="bp-mode-card__radio">
+                  <div class="bp-mode-card__radio-dot"></div>
+                </div>
+                <div class="bp-mode-card__content">
+                  <p class="bp-mode-card__title">{{ mode.label }}</p>
+                  <p class="bp-mode-card__desc">{{ mode.description }}</p>
+                </div>
+                <span class="bp-mode-card__badge"
+                      ng-class="'bp-badge--' + vm.getBpBadgeClass(mode.mode)">
+                  <i class="fa" ng-class="vm.getBpModeIcon(mode.mode)"></i>
+                  {{ mode.approval_required ? 'Needs Approval' : (mode.who_can_book === 'Instructor only' || mode.who_can_book === 'Admin or instructor only' ? 'Restricted' : 'Auto-Confirm') }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- SECTION 4: Daily Limits -->
       <div class="wp-section">
         <h3 class="wp-section-title"><i class="fa fa-tachometer-alt"></i> Daily Limits</h3>
 

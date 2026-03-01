@@ -56,12 +56,31 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         vm.show_dropdown = false;
         vm.lookup_done   = false;
 
+        // ── Airfield ui-select ──
+        vm.selected_from         = null;
+        vm.selected_to           = null;
+        vm.from_airfield_options = [];
+        vm.to_airfield_options   = [];
+        vm.preset_airfields      = [];   // LOCAL, CCTS + base airfield
+
+        // ── Search tracking ──
+        var _lastFromSearch = '';
+        var _lastToSearch   = '';
+
         // ── Public methods ──
         vm.filterAircraft       = filterAircraft;
         vm.selectAircraft       = selectAircraft;
         vm.onRegistrationBlur   = onRegistrationBlur;
         vm.setQuickFrom         = setQuickFrom;
         vm.setQuickTo           = setQuickTo;
+        vm.setQuickRoute        = setQuickRoute;
+        vm.searchFromAirfields  = searchFromAirfields;
+        vm.searchToAirfields    = searchToAirfields;
+        vm.onFromSelected       = onFromSelected;
+        vm.onToSelected         = onToSelected;
+        vm.onFromRemoved        = onFromRemoved;
+        vm.onToRemoved          = onToRemoved;
+        vm.airfieldTagTransform = airfieldTagTransform;
         vm.submitBookout        = submitBookout;
         vm.startNewBookout      = startNewBookout;
         vm.showEditLookup       = showEditLookup;
@@ -90,6 +109,20 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                     if (data.success) {
                         vm.airfield      = data.airfield;
                         vm.aircraft_list = data.aircraft || [];
+
+                        // Build preset airfield options for From / To ui-select
+                        vm.preset_airfields = [
+                            { code: 'LOCAL', title: 'Local Flight' },
+                            { code: 'CCTS',  title: 'Circuits' }
+                        ];
+                        if (vm.airfield && vm.airfield.code) {
+                            vm.preset_airfields.push({
+                                code:  vm.airfield.code,
+                                title: vm.airfield.title || vm.airfield.code
+                            });
+                        }
+                        vm.from_airfield_options = angular.copy(vm.preset_airfields);
+                        vm.to_airfield_options   = angular.copy(vm.preset_airfields);
                     } else {
                         vm.error = true;
                         vm.error_message = data.message || 'Airfield not found. Please check the ICAO code.';
@@ -157,15 +190,137 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
 
 
         // ═══════════════════════════════════════════
-        //  Quick-pick buttons
+        //  Quick-pick buttons  (each sets BOTH from AND to)
         // ═══════════════════════════════════════════
 
         function setQuickFrom(value) {
-            vm.form.from = value;
+            // Kept for backward compat — sets BOTH fields
+            _applyQuickPick(value);
         }
 
         function setQuickTo(value) {
-            vm.form.to = value;
+            _applyQuickPick(value);
+        }
+
+        function setQuickRoute(value) {
+            _applyQuickPick(value);
+        }
+
+        function _applyQuickPick(value) {
+            vm.form.from = value;
+            vm.form.to   = value;
+
+            // Sync the ui-select model objects
+            var match = _findPresetByCode(value);
+            vm.selected_from = match || { code: value, title: value };
+            vm.selected_to   = match || { code: value, title: value };
+        }
+
+        function _findPresetByCode(code) {
+            for (var i = 0; i < vm.preset_airfields.length; i++) {
+                if (vm.preset_airfields[i].code === code) return vm.preset_airfields[i];
+            }
+            return null;
+        }
+
+
+        // ═══════════════════════════════════════════
+        //  Airfield Search for From / To ui-select
+        // ═══════════════════════════════════════════
+
+        function searchFromAirfields(search) {
+            _lastFromSearch = search || '';
+            _searchAirfields(search, 'from');
+        }
+
+        function searchToAirfields(search) {
+            _lastToSearch = search || '';
+            _searchAirfields(search, 'to');
+        }
+
+        function _searchAirfields(search, field) {
+            if (!search || search.length < 1) {
+                if (field === 'from') vm.from_airfield_options = angular.copy(vm.preset_airfields);
+                else                  vm.to_airfield_options   = angular.copy(vm.preset_airfields);
+                return;
+            }
+
+            var q = search.toUpperCase();
+
+            // Client-side filter presets first (LOCAL, CCTS, base airfield)
+            var presetMatches = vm.preset_airfields.filter(function(af) {
+                return af.code.toUpperCase().indexOf(q) > -1 ||
+                       af.title.toUpperCase().indexOf(q) > -1;
+            });
+
+            // Server search — service adds Api-Key header automatically
+            if (q.length >= 2 && q.length <= 4) {
+                AirfieldBookoutService.SearchAirfieldsByCode(q)
+                    .then(function(data) {
+                        var results = (data && data.airfields) ? data.airfields : [];
+                        _mergeAndSet(field, presetMatches, results);
+                    }, function() {
+                        _mergeAndSet(field, presetMatches, []);
+                    });
+            } else if (q.length > 4) {
+                AirfieldBookoutService.SearchAirfields(q)
+                    .then(function(data) {
+                        var results = (data && data.airfields) ? data.airfields : [];
+                        _mergeAndSet(field, presetMatches, results);
+                    }, function() {
+                        _mergeAndSet(field, presetMatches, []);
+                    });
+            } else {
+                _mergeAndSet(field, presetMatches, []);
+            }
+        }
+
+        function _mergeAndSet(field, presets, serverResults) {
+            var codes = {};
+            var merged = [];
+            presets.forEach(function(p) { codes[p.code] = true; merged.push(p); });
+            serverResults.forEach(function(af) {
+                if (!codes[af.code]) {
+                    codes[af.code] = true;
+                    merged.push(af);
+                }
+            });
+
+            // Inject a custom free-text entry at the top if the search text
+            // doesn't exactly match any existing option's code
+            var searchText = (field === 'from') ? _lastFromSearch : _lastToSearch;
+            if (searchText && searchText.length > 0) {
+                var upper = searchText.toUpperCase();
+                var exactMatch = merged.some(function(af) {
+                    return af.code.toUpperCase() === upper;
+                });
+                if (!exactMatch) {
+                    merged.unshift({ code: upper, title: upper, _custom: true });
+                }
+            }
+
+            if (field === 'from') vm.from_airfield_options = merged;
+            else                  vm.to_airfield_options   = merged;
+        }
+
+        function onFromSelected($item) {
+            vm.form.from = $item ? $item.code : '';
+        }
+
+        function onToSelected($item) {
+            vm.form.to = $item ? $item.code : '';
+        }
+
+        function onFromRemoved() {
+            vm.form.from = '';
+        }
+
+        function onToRemoved() {
+            vm.form.to = '';
+        }
+
+        function airfieldTagTransform(text) {
+            return { code: text.toUpperCase(), title: text.toUpperCase(), _custom: true };
         }
 
 
@@ -184,7 +339,7 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                 from:          vm.form.from || null,
                 to:            vm.form.to || null,
                 pob_outbound:  vm.form.pob_outbound || 1,
-                pob_inbound:   vm.form.pob_inbound || null,
+                pob_inbound:   vm.form.pob_inbound || vm.form.pob_outbound || 1,
                 notes:         vm.form.notes || null,
                 plane_id:      vm.form.plane_id || null
             };
@@ -239,6 +394,16 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                         vm.form.notes          = data.notes || '';
                         vm.form.plane_id       = data.plane_id || null;
                         vm.lookup_done         = true;
+
+                        // Sync ui-select models
+                        if (vm.form.from) {
+                            vm.selected_from = _findPresetByCode(vm.form.from) ||
+                                               { code: vm.form.from, title: vm.form.from };
+                        }
+                        if (vm.form.to) {
+                            vm.selected_to = _findPresetByCode(vm.form.to) ||
+                                             { code: vm.form.to, title: vm.form.to };
+                        }
                     } else {
                         alert(data.message || 'Bookout not found with that edit code.');
                     }
@@ -257,7 +422,7 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                 from:          vm.form.from || null,
                 to:            vm.form.to || null,
                 pob_outbound:  vm.form.pob_outbound || 1,
-                pob_inbound:   vm.form.pob_inbound || null,
+                pob_inbound:   vm.form.pob_inbound || vm.form.pob_outbound || 1,
                 notes:         vm.form.notes || null
             };
 
@@ -327,7 +492,11 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                 notes:          '',
                 plane_id:       null
             };
-            vm.lookup_done = false;
+            vm.lookup_done   = false;
+            vm.selected_from = null;
+            vm.selected_to   = null;
+            vm.from_airfield_options = angular.copy(vm.preset_airfields);
+            vm.to_airfield_options   = angular.copy(vm.preset_airfields);
         }
 
         function copyEditCode() {

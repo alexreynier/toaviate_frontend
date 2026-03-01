@@ -1,0 +1,202 @@
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  Airfield Bookout — Admin Settings Panel                          -->
+<!--  Set base airfield, manage display tokens for ATC controllers     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<div class="snazzy-page">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.manage_club">
+                <i class="fa fa-arrow-circle-left"></i> BACK
+            </div>
+            <div class="snazzy-page__title">
+                <h2><i class="fa fa-broadcast-tower"></i> Airfield Bookout System</h2>
+                <p>Let pilots book out at your airfield &amp; give ATC a live display</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Loading ── -->
+    <div style="text-align: center; padding: 60px 0;" ng-if="vm.loading">
+        <div class="snazzy-page__spinner"></div>
+        <p style="margin-top: 16px; color: #64748b;">Loading settings…</p>
+    </div>
+
+
+    <!-- ── Body ── -->
+    <div class="snazzy-page__body" ng-if="!vm.loading">
+
+        <!-- Tabs -->
+        <div class="vw-tabs" style="max-width: 500px;">
+            <button class="vw-tabs__tab"
+                    ng-class="{'vw-tabs__tab--active': vm.active_tab === 'settings'}"
+                    ng-click="vm.setTab('settings')">
+                <i class="fa fa-cog"></i> Settings
+            </button>
+            <button class="vw-tabs__tab"
+                    ng-class="{'vw-tabs__tab--active': vm.active_tab === 'tokens'}"
+                    ng-click="vm.setTab('tokens')">
+                <i class="fa fa-key"></i> Display Tokens
+            </button>
+        </div>
+
+
+        <!-- ═══════════════════════ -->
+        <!--  TAB 1 — SETTINGS      -->
+        <!-- ═══════════════════════ -->
+        <div ng-if="vm.active_tab === 'settings'">
+
+            <!-- Base Airfield Card -->
+            <div class="ab-admin-card">
+                <div class="ab-admin-card__header">
+                    <i class="fa fa-map-marker-alt"></i>
+                    <span>Base Airfield</span>
+                </div>
+                <div class="ab-admin-card__body">
+
+                    <!-- Current airfield -->
+                    <div ng-if="vm.airfield" class="ab-admin-airfield-current">
+                        <div class="ab-admin-airfield-badge">
+                            <span class="ab-admin-airfield-badge__code">{{ vm.airfield.code }}</span>
+                            <span class="ab-admin-airfield-badge__name">{{ vm.airfield.title }}</span>
+                        </div>
+                        <p class="ab-admin-hint">This is the airfield your club shares the bookout system with. All clubs at this airfield see the same bookout list.</p>
+                    </div>
+
+                    <!-- No airfield set -->
+                    <div ng-if="!vm.airfield" class="ab-admin-no-airfield">
+                        <i class="fa fa-info-circle"></i>
+                        <p>No base airfield set. Search below to link your club to an airfield.</p>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="ab-admin-search-group">
+                        <label>{{ vm.airfield ? 'Change airfield' : 'Search for your airfield' }}</label>
+                        <div class="ab-admin-search-row">
+                            <input type="text"
+                                   class="ab-admin-input"
+                                   ng-model="vm.airfield_search"
+                                   ng-change="vm.searchAirfields()"
+                                   placeholder="Type ICAO code or airfield name…" />
+                            <span ng-if="vm.searching" class="ab-admin-spin"><i class="fa fa-spinner fa-spin"></i></span>
+                        </div>
+
+                        <!-- Results dropdown -->
+                        <div class="ab-admin-search-results" ng-if="vm.airfield_results.length > 0">
+                            <div class="ab-admin-search-result"
+                                 ng-repeat="af in vm.airfield_results"
+                                 ng-click="vm.selectAirfield(af)">
+                                <strong>{{ af.code }}</strong>
+                                <span>{{ af.title || af.name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pilot Form URL Card -->
+            <div class="ab-admin-card" ng-if="vm.airfield">
+                <div class="ab-admin-card__header">
+                    <i class="fa fa-link"></i>
+                    <span>Pilot Bookout Form URL</span>
+                </div>
+                <div class="ab-admin-card__body">
+                    <p class="ab-admin-hint">Share this URL with pilots so they can book out at {{ vm.airfield.code }}. No login required.</p>
+                    <div class="ab-admin-url-row">
+                        <input type="text" class="ab-admin-url-input" readonly
+                               ng-value="vm.getPilotFormUrl()" />
+                        <button class="snazzy-page__btn snazzy-page__btn--primary"
+                                ng-click="vm.copyUrl(vm.getPilotFormUrl())">
+                            <i class="fa fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- ═══════════════════════ -->
+        <!--  TAB 2 — TOKENS        -->
+        <!-- ═══════════════════════ -->
+        <div ng-if="vm.active_tab === 'tokens'">
+
+            <!-- No airfield warning -->
+            <div class="ab-admin-no-airfield" ng-if="!vm.airfield" style="margin-bottom: 24px;">
+                <i class="fa fa-exclamation-triangle"></i>
+                <p>Set a base airfield first (in Settings tab) before generating display tokens.</p>
+            </div>
+
+            <div ng-if="vm.airfield">
+
+                <!-- Generate new token -->
+                <div class="ab-admin-card">
+                    <div class="ab-admin-card__header">
+                        <i class="fa fa-plus-circle"></i>
+                        <span>Generate Display Token</span>
+                    </div>
+                    <div class="ab-admin-card__body">
+                        <p class="ab-admin-hint">Create a token for each controller position (e.g. Tower, FISO). Each token gives access to the live bookout display.</p>
+                        <div class="ab-admin-search-row" style="max-width: 400px;">
+                            <input type="text"
+                                   class="ab-admin-input"
+                                   ng-model="vm.new_label"
+                                   placeholder="Label (e.g. Tower, FISO) — optional"
+                                   ng-keypress="$event.keyCode === 13 && vm.generateToken()" />
+                            <button class="snazzy-page__btn snazzy-page__btn--success"
+                                    ng-click="vm.generateToken()"
+                                    ng-disabled="vm.generating">
+                                <i class="fa" ng-class="vm.generating ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+                                Generate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active tokens list -->
+                <div class="ab-admin-card" ng-if="vm.tokens.length > 0">
+                    <div class="ab-admin-card__header">
+                        <i class="fa fa-key"></i>
+                        <span>Active Tokens ({{ vm.tokens.length }})</span>
+                    </div>
+                    <div class="ab-admin-card__body" style="padding: 0;">
+                        <div class="ab-admin-token-item" ng-repeat="t in vm.tokens">
+                            <div class="ab-admin-token-info">
+                                <div class="ab-admin-token-label">
+                                    <i class="fa fa-desktop"></i>
+                                    {{ t.label || 'Display Token' }}
+                                </div>
+                                <div class="ab-admin-token-url">{{ vm.getDisplayUrl(t) }}</div>
+                                <div class="ab-admin-token-meta" ng-if="t.created_at">
+                                    Created {{ t.created_at }}
+                                </div>
+                            </div>
+                            <div class="ab-admin-token-actions">
+                                <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm"
+                                        ng-click="vm.copyUrl(vm.getDisplayUrl(t))"
+                                        uib-tooltip="Copy display URL">
+                                    <i class="fa fa-copy"></i> Copy URL
+                                </button>
+                                <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--sm"
+                                        ng-click="vm.revokeToken(t)"
+                                        uib-tooltip="Revoke this token">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty state -->
+                <div class="ab-admin-empty" ng-if="vm.tokens.length === 0">
+                    <i class="fa fa-desktop ab-admin-empty__icon"></i>
+                    <p>No display tokens yet. Generate one above to give your ATC / FISO access to the live bookout display.</p>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>

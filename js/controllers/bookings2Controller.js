@@ -1410,7 +1410,7 @@
                 }
 
                 if(!vm.booking_self){
-                    booking.user_id = vm.new_booking.user.user_id;
+                    booking.user_id = vm.new_booking.user.user_id || vm.new_booking.user.id;
                     booking.instructor_id = (vm.new_booking.instructor) ? vm.new_booking.instructor.id : 0;
                 } else {
                     booking.user_id = vm.user.id;
@@ -2783,11 +2783,21 @@
                             vm.booking_self = false;
                         }
 
-                        // For instructional flights (instructor_id present),
-                        // always try to populate the member/user from user_id
-                        if(!vm.new_booking.user && vm.new_booking.user_id){
+                        // Always try to populate the member/user from user_id
+                        // Check that .user is a proper member object (has first_name);
+                        // the API may return .user as a string name or number.
+                        var hasValidUser = vm.new_booking.user && typeof vm.new_booking.user === 'object' && vm.new_booking.user.first_name;
+                        if(!hasValidUser && vm.new_booking.user_id){
 
-                            if(!vm.all_members){
+                            // First try matching from the active members we already loaded
+                            var uid = vm.new_booking.user_id;
+                            var foundInActive = vm.members ? vm.members.find(function(member) {
+                                return member.user_id == uid || member.id == uid;
+                            }) : null;
+
+                            if(foundInActive){
+                                vm.new_booking.user = foundInActive;
+                            } else if(!vm.all_members){
                                  MemberService.GetAllByClub(cid)
                                     .then(function (data) {
 
@@ -2796,18 +2806,16 @@
                                                 vm.all_members[i].is_member = true;
                                             }
 
-                                             vm.new_booking.user = vm.all_members.find(function(member, index) {
-                                                                    if(member.user_id == vm.new_booking.user_id)
-                                                                        return true;
+                                             vm.new_booking.user = vm.all_members.find(function(member) {
+                                                                    return member.user_id == uid || member.id == uid;
                                                                 });
 
                                     });
 
 
                             } else {
-                                vm.new_booking.user = vm.all_members.find(function(member, index) {
-                                                                    if(member.user_id == vm.new_booking.user_id)
-                                                                        return true;
+                                vm.new_booking.user = vm.all_members.find(function(member) {
+                                                                    return member.user_id == uid || member.id == uid;
                                                                 });
                             }
 
@@ -3997,7 +4005,7 @@
                 } else {
                     // //console.log("NON SELF");
 
-                    booking.user_id = vm.new_booking.user.user_id;
+                    booking.user_id = vm.new_booking.user.user_id || vm.new_booking.user.id;
                     if(vm.user.access.manager.indexOf(vm.club_id) > -1){
                         //admin does not automatically become the instructor...
                         booking.instructor_id = (vm.new_booking.instructor) ? vm.new_booking.instructor.id : 0;                

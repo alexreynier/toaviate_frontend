@@ -93,7 +93,9 @@ module.exports = function (grunt) {
                     'css/defect-report.css',
                     'css/experience-form.css',
                     'css/instructor-qualifications.css',
+                    'css/booking-preferences.css',
                     'css/bs-sync.css',
+                    'css/airfield-bookout.css',
                     'libs/css/scheduler.css'
                 ],
                 dest: 'dist/css/compiled.css'
