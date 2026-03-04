@@ -218,6 +218,7 @@
                 manager: [],
                 pilot: [],
                 instructor: [],
+                super_admin: [],
                 items: access,
                 show_manager: false,
                 show_instructor: false,
@@ -241,7 +242,10 @@
 
                 if(access[i].is_manager == 1){
                     obj.manager.push(access[i].club_id);
+                }
 
+                if(access[i].club_super_admin == 1){
+                    obj.super_admin.push(access[i].club_id);
                 }
 
 

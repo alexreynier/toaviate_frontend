@@ -1,5 +1,9 @@
 module.exports = function (grunt) {
- 
+
+    // --env flag: 'development' (default), 'staging', or 'production'
+    var env = grunt.option('env') || 'development';
+    grunt.log.writeln('>> Building for environment: ' + env);
+
     grunt.initConfig({
         pkg: grunt.file.readJSON('package.json'),
  
@@ -151,6 +155,20 @@ module.exports = function (grunt) {
             }
           }
         },
+        'string-replace': {
+            envConfig: {
+                files: {
+                    'dist/js/services.js': 'dist/js/services.js'
+                },
+                options: {
+                    replacements: [{
+                        pattern: /var environment = '[^']*';/,
+                        replacement: "var environment = '" + env + "';"
+                    }]
+                }
+            }
+        },
+
         uglify: {
             options: {
                 report: 'min',
@@ -179,11 +197,33 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-rev');
     grunt.loadNpmTasks('grunt-usemin');
     grunt.loadNpmTasks('grunt-babel');
+    grunt.loadNpmTasks('grunt-string-replace');
 
 
 
     // Tell Grunt what to do when we type "grunt" into the terminal --> 
     grunt.registerTask('default', [
-        'clean:before', 'copy', 'useminPrepare', 'concat', 'babel', 'cssmin', 'uglify', 'rev', 'usemin', 'clean:after'
+        'clean:before', 'copy', 'useminPrepare', 'concat', 'string-replace:envConfig', 'babel', 'cssmin', 'uglify', 'rev', 'usemin', 'clean:after'
     ]);
+
+    // Convenience aliases:
+    //   grunt staging    -->  grunt --env=staging
+    //   grunt production -->  grunt --env=production
+    grunt.registerTask('staging', 'Build for staging', function () {
+        grunt.option('env', 'staging');
+        grunt.config.set('string-replace.envConfig.options.replacements', [{
+            pattern: /var environment = '[^']*';/,
+            replacement: "var environment = 'staging';"
+        }]);
+        grunt.task.run('default');
+    });
+
+    grunt.registerTask('production', 'Build for production', function () {
+        grunt.option('env', 'production');
+        grunt.config.set('string-replace.envConfig.options.replacements', [{
+            pattern: /var environment = '[^']*';/,
+            replacement: "var environment = 'production';"
+        }]);
+        grunt.task.run('default');
+    });
 };

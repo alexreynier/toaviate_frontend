@@ -24,6 +24,9 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
 
+        // Check if the current user is a club super admin for this club
+        vm.is_club_super_admin = (vm.user.access && vm.user.access.super_admin && vm.user.access.super_admin.indexOf(vm.club_id) > -1);
+
         vm.no_show_cols = ["membership_start", "membership_id", "selected"];
 
         vm.show_loading = true;
@@ -286,6 +289,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                         vm.club.member.is_manager = (vm.club.member.is_manager == 1) ? true : false;
                         vm.club.member.approved = (vm.club.member.approved == 1) ? true : false;
                         vm.club.member.free_booking = (vm.club.member.free_booking == 1 || vm.club.member.free_booking === undefined) ? true : false;
+                        vm.club.member.club_super_admin = (vm.club.member.club_super_admin == 1) ? true : false;
 
                         
 
@@ -921,6 +925,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                         vm.club.member.instructor = (vm.club.member.instructor == 1) ? true : false;
                         vm.club.member.free_booking = (vm.club.member.free_booking == 1 || vm.club.member.free_booking === undefined) ? true : false;
+                        vm.club.member.club_super_admin = (vm.club.member.club_super_admin == 1) ? true : false;
                         //vm.club.member.membership_start = Date.parse(vm.club.member.membership_start);
                         vm.page_title = "Edit a Member - "+vm.club.member.first_name+" "+vm.club.member.last_name;
 
