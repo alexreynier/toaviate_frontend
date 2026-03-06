@@ -50,6 +50,9 @@
         vm.show_crs = false;
         vm.crs_records = [];
 
+        // Maintenance list view: false = table, true = cards
+        vm.mxCardView = false;
+
         vm.obj = {
             issues: [],
             issue_confirmation: false

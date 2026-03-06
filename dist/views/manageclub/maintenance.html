@@ -1,66 +1,218 @@
 
 <ui-view>
 
-    <div class="centre_align_boxes2">
+<div class="snazzy-page">
 
+  <!-- ═══ Header ═══ -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-wrench"></i> Aircraft Maintenance</h2>
+        <p>Manage aircraft maintenance status</p>
+      </div>
+      <div class="snazzy-page__header-actions snazzy-page__header-actions--mx">
+        <button class="snazzy-page__view-toggle" ng-click="vm.mxCardView = !vm.mxCardView" uib-tooltip="{{ vm.mxCardView ? 'Switch to table view' : 'Switch to card view' }}">
+          <i class="fa" ng-class="vm.mxCardView ? 'fa-th-list' : 'fa-th-large'"></i>
+        </button>
+      </div>
+    </div>
+  </div>
 
-        <div class="home_upper">
-            <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-          <div class="welcome_title">
-            <h2>AIRCRAFT MAINTENANCE</h2> 
-            <h4 class="capitalise">
-              Manage aircraft maintenance status
-            </h4>
+  <div class="snazzy-page__body">
+
+    <!-- ═══ Summary Cards ═══ -->
+    <div class="mx-summary-strip" ng-if="vm.club.planes.length > 0">
+      <div class="mx-summary-strip__item">
+        <span class="mx-summary-strip__count">{{ vm.club.planes.length }}</span>
+        <span class="mx-summary-strip__label">Aircraft</span>
+      </div>
+    </div>
+
+    <!-- ═══ Search ═══ -->
+    <div class="snazzy-page__search-bar" ng-if="vm.club.planes.length > 0">
+      <i class="fa fa-search snazzy-page__search-icon"></i>
+      <input type="search" placeholder="Search aircraft…" ng-model="vm.mxSearch" class="snazzy-page__search-input" />
+    </div>
+
+    <!-- ═══ Loading ═══ -->
+    <div class="snazzy-page__empty" ng-if="!vm.club.planes">
+      <div class="snazzy-page__spinner"></div>
+      <p>Loading aircraft…</p>
+    </div>
+
+    <!-- ═══ Empty State ═══ -->
+    <div class="snazzy-page__empty" ng-if="vm.club.planes && vm.club.planes.length === 0">
+      <i class="fa fa-plane snazzy-page__empty-icon"></i>
+      <p>No aircraft found for this club</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TABLE VIEW (Desktop default, hidden on mobile unless toggled)
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__table-card" ng-if="vm.club.planes.length > 0" ng-hide="vm.mxCardView">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Registration</th>
+              <th>Type</th>
+              <th class="snazzy-table__hide-mobile">Designations</th>
+              <th style="text-align:center;">Hours Rem.</th>
+              <th style="text-align:center;" class="snazzy-table__hide-mobile">Days Rem.</th>
+              <th style="text-align:center;" class="snazzy-table__hide-mobile">ARC Cert</th>
+              <th style="text-align:center;" class="snazzy-table__hide-mobile">Radio</th>
+              <th style="text-align:center;" class="snazzy-table__hide-mobile">Insurance</th>
+              <th style="text-align:right;">Manage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="plane in vm.club.planes | filter: vm.mxSearch">
+              <td class="snazzy-table__name">{{ plane.registration }}</td>
+              <td>{{ plane.plane_type }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <span class="snazzy-table__badge snazzy-table__badge--info" ng-if="plane.nav_only == 1" uib-tooltip="Navigation training only"><i class="fas fa-compass"></i> NAV</span>
+                <span class="snazzy-table__badge snazzy-table__badge--warning" ng-if="plane.dual_only == 1" uib-tooltip="Dual (instructor required) only"><i class="fas fa-user-friends"></i> DUAL</span>
+                <span ng-if="plane.nav_only != 1 && plane.dual_only != 1" class="snazzy-table__muted">—</span>
+              </td>
+              <td style="text-align:center;">
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': plane.maintenance.hours_status == 'green' || !plane.maintenance.hours_status,
+                  'snazzy-table__badge--warning': plane.maintenance.hours_status == 'yellow',
+                  'snazzy-table__badge--danger': plane.maintenance.hours_status == 'red' || plane.maintenance.hours_status == 'expired'
+                }">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
+              </td>
+              <td style="text-align:center;" class="snazzy-table__hide-mobile">
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': plane.certificate.status == 'green' || !plane.certificate.status,
+                  'snazzy-table__badge--warning': plane.certificate.status == 'yellow',
+                  'snazzy-table__badge--danger': plane.certificate.status == 'red' || plane.certificate.status == 'expired'
+                }">{{ plane.certificate.days_to_expiry || '—' }}</span>
+              </td>
+              <td style="text-align:center;" class="snazzy-table__hide-mobile">
+                <span class="no_{{plane.certificate.status}}">{{ plane.certificate.date_expiry || "unknown" }}</span>
+              </td>
+              <td style="text-align:center;" class="snazzy-table__hide-mobile">
+                <span class="no_{{plane.radio_licence.status}}">{{ plane.radio_licence.date_expiry || "unknown" }}</span>
+              </td>
+              <td style="text-align:center;" class="snazzy-table__hide-mobile">
+                <span class="no_{{plane.insurance.status}}">{{ plane.insurance.date_expiry || "unknown" }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <a class="snazzy-table__action-btn" ui-sref="dashboard.manage_club.maintenance.detail({plane_id: plane.plane_id, club_id: '6', action: 'edit'})" uib-tooltip="Manage">
+                  <i class="fa fa-edit"></i>
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CARD VIEW (Mobile default, or toggled on desktop)
+         ══════════════════════════════════════════════════════════ -->
+    <div class="mx-card-grid" ng-if="vm.club.planes.length > 0" ng-show="vm.mxCardView">
+      <div class="snazzy-mobile-card mx-aircraft-card" ng-repeat="plane in vm.club.planes | filter: vm.mxSearch">
+        <div class="snazzy-mobile-card__header">
+          <span class="snazzy-mobile-card__title"><i class="fa fa-plane"></i> {{ plane.registration }}</span>
+          <span class="mx-aircraft-card__type">{{ plane.plane_type }}</span>
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row" ng-if="plane.nav_only == 1 || plane.dual_only == 1">
+            <span class="snazzy-mobile-card__label">Designations</span>
+            <span>
+              <span class="snazzy-table__badge snazzy-table__badge--info" ng-if="plane.nav_only == 1">NAV</span>
+              <span class="snazzy-table__badge snazzy-table__badge--warning" ng-if="plane.dual_only == 1">DUAL</span>
+            </span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Hours Remaining</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--success': plane.maintenance.hours_status == 'green' || !plane.maintenance.hours_status,
+              'snazzy-table__badge--warning': plane.maintenance.hours_status == 'yellow',
+              'snazzy-table__badge--danger': plane.maintenance.hours_status == 'red' || plane.maintenance.hours_status == 'expired'
+            }">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Days Remaining</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--success': plane.certificate.status == 'green' || !plane.certificate.status,
+              'snazzy-table__badge--warning': plane.certificate.status == 'yellow',
+              'snazzy-table__badge--danger': plane.certificate.status == 'red' || plane.certificate.status == 'expired'
+            }">{{ plane.certificate.days_to_expiry || '—' }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">ARC Certificate</span>
+            <span class="no_{{plane.certificate.status}}">{{ plane.certificate.date_expiry || "unknown" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Radio Licence</span>
+            <span class="no_{{plane.radio_licence.status}}">{{ plane.radio_licence.date_expiry || "unknown" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Insurance</span>
+            <span class="no_{{plane.insurance.status}}">{{ plane.insurance.date_expiry || "unknown" }}</span>
           </div>
         </div>
-
-        <div class="club_docs">
-
-<!--             <button class="btn btn-info club_add_button" ui-sref="dashboard.manage_club.maintenance.add_maintenance">Add A Maintenance Issue</button>
- -->
-            <div class="card">
-
-                <table>
-                    <tr>
-                        <th>Registration</th>
-                        <th>Type</th>
-                        <th>Designations</th>
-                        <th class="center_td">Hours Remaining</th>
-                        <th class="center_td">Time Remaining</th>
-                        <th class="center_td">ARC Certificate</th>
-                        <th class="center_td">Radio</th>
-                        <th class="center_td">Insurance</th>
-                        <th>Manage</th>
-                    </tr>
-
-                    <tr ng-repeat="plane in vm.club.planes">
-                        <td>{{ plane.registration }}</td>
-                        <td>{{ plane.plane_type }}</td>
-                        <td>
-                          <span class="ac-badge ac-badge--nav" ng-if="plane.nav_only == 1" uib-tooltip="Navigation training only"><i class="fas fa-compass"></i> NAV</span>
-                          <span class="ac-badge ac-badge--dual" ng-if="plane.dual_only == 1" uib-tooltip="Dual (instructor required) only"><i class="fas fa-user-friends"></i> DUAL</span>
-                          <span ng-if="plane.nav_only != 1 && plane.dual_only != 1">—</span>
-                        </td>
-                        <td class="center_td"><span class="no_{{plane.maintenance.hours_status}}">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span></td>
-                        <td class="center_td"><span class="no_{{plane.certificate.status}}">{{ plane.certificate.days_to_expiry }}</span></td>
-                        <td class="center_td"><span class="no_{{plane.certificate.status}}">{{ plane.certificate.date_expiry || "unknown" }}</span></td>
-                        <td class="center_td"><span class="no_{{plane.radio_licence.status}}">{{ plane.radio_licence.date_expiry  || "unknown"}}</span></td>
-                        <td class="center_td"><span class="no_{{plane.insurance.status}}">{{ plane.insurance.date_expiry  || "unknown"}}</span></td>
-                        <td class="center_td"><a ui-sref="dashboard.manage_club.maintenance.detail({plane_id: plane.plane_id, club_id: '6', action: 'edit'})" uib-tooltip="Manage"><i class="fa fa-edit list_icons"></i></a></td>
-                    </tr>
-
-                </table>
-
-
-            </div>
-
+        <div class="snazzy-mobile-card__actions">
+          <a class="snazzy-page__btn snazzy-page__btn--primary" ui-sref="dashboard.manage_club.maintenance.detail({plane_id: plane.plane_id, club_id: '6', action: 'edit'})">
+            <i class="fa fa-edit"></i> Manage
+          </a>
         </div>
-
-        
-
-
+      </div>
     </div>
+
+    <!-- ═══ Auto mobile cards (shown on small screens when table is active) ═══ -->
+    <div class="snazzy-mobile-cards mx-auto-mobile-cards" ng-if="vm.club.planes.length > 0" ng-hide="vm.mxCardView">
+      <div class="snazzy-mobile-card" ng-repeat="plane in vm.club.planes | filter: vm.mxSearch">
+        <div class="snazzy-mobile-card__header">
+          <span class="snazzy-mobile-card__title"><i class="fa fa-plane"></i> {{ plane.registration }}</span>
+          <a class="snazzy-table__action-btn" style="color:#fff;" ui-sref="dashboard.manage_club.maintenance.detail({plane_id: plane.plane_id, club_id: '6', action: 'edit'})">
+            <i class="fa fa-edit"></i>
+          </a>
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Type</span>
+            <span>{{ plane.plane_type }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Hours Rem.</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--success': plane.maintenance.hours_status == 'green' || !plane.maintenance.hours_status,
+              'snazzy-table__badge--warning': plane.maintenance.hours_status == 'yellow',
+              'snazzy-table__badge--danger': plane.maintenance.hours_status == 'red' || plane.maintenance.hours_status == 'expired'
+            }">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Days Rem.</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--success': plane.certificate.status == 'green' || !plane.certificate.status,
+              'snazzy-table__badge--warning': plane.certificate.status == 'yellow',
+              'snazzy-table__badge--danger': plane.certificate.status == 'red' || plane.certificate.status == 'expired'
+            }">{{ plane.certificate.days_to_expiry || '—' }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">ARC Cert</span>
+            <span class="no_{{plane.certificate.status}}">{{ plane.certificate.date_expiry || "unknown" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Radio</span>
+            <span class="no_{{plane.radio_licence.status}}">{{ plane.radio_licence.date_expiry || "unknown" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Insurance</span>
+            <span class="no_{{plane.insurance.status}}">{{ plane.insurance.date_expiry || "unknown" }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
 
 </ui-view>

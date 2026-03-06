@@ -2606,10 +2606,18 @@
             
         }
 
-        setTimeout(function(){
-            get_all_members();
-
-        }, 200);
+        // Only fire the eager member preload when we already know the club
+        // (i.e. the "list" / calendar view where vm.club_id is set
+        // synchronously from GetUserClubs before this point).
+        // In the "edit" case vm.club_id is set asynchronously inside
+        // BookingService.GetEdit().then(), so this timeout would race
+        // and hit /members/club/undefined.  prepare_add_edit() already
+        // loads the members once the edit data arrives.
+        if(vm.action !== 'edit'){
+            setTimeout(function(){
+                get_all_members();
+            }, 200);
+        }
 
 
         vm.invite_passenger = function(email, i){
@@ -2792,7 +2800,7 @@
                             // First try matching from the active members we already loaded
                             var uid = vm.new_booking.user_id;
                             var foundInActive = vm.members ? vm.members.find(function(member) {
-                                return member.user_id == uid || member.id == uid;
+                                return member.user_id == uid;
                             }) : null;
 
                             if(foundInActive){
@@ -2807,7 +2815,7 @@
                                             }
 
                                              vm.new_booking.user = vm.all_members.find(function(member) {
-                                                                    return member.user_id == uid || member.id == uid;
+                                                                    return member.user_id == uid;
                                                                 });
 
                                     });
@@ -2815,7 +2823,7 @@
 
                             } else {
                                 vm.new_booking.user = vm.all_members.find(function(member) {
-                                                                    return member.user_id == uid || member.id == uid;
+                                                                    return member.user_id == uid;
                                                                 });
                             }
 

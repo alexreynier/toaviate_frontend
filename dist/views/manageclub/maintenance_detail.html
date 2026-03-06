@@ -1,363 +1,623 @@
 <ui-view>
-<div class="centre_align_boxes2">
+<div class="snazzy-page mx-detail-page">
 
-        <div class="home_upper">
-          <div class="welcome_title">
-            <h2>AIRCRAFT MAINTENANCE</h2> 
-            <h4 class="capitalise">
-              Manage {{ vm.club.plane.registration }}
-              <span class="ac-badge ac-badge--nav" ng-if="vm.club.plane.nav_only == 1" style="vertical-align: middle;"><i class="fas fa-compass"></i> NAV ONLY</span>
-              <span class="ac-badge ac-badge--dual" ng-if="vm.club.plane.dual_only == 1" style="vertical-align: middle;"><i class="fas fa-user-friends"></i> DUAL ONLY</span>
-            </h4>
+  <!-- ═══ Header ═══ -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.maintenance">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-wrench"></i> {{ vm.club.plane.registration }}</h2>
+        <p>Aircraft Maintenance</p>
+        <span class="snazzy-table__badge snazzy-table__badge--info" ng-if="vm.club.plane.nav_only == 1" style="margin-left:4px;"><i class="fas fa-compass"></i> NAV ONLY</span>
+        <span class="snazzy-table__badge snazzy-table__badge--warning" ng-if="vm.club.plane.dual_only == 1" style="margin-left:4px;"><i class="fas fa-user-friends"></i> DUAL ONLY</span>
+      </div>
+      <div class="snazzy-page__header-actions snazzy-page__header-actions--mx">
+        <button class="snazzy-page__action-btn-header" ng-click="show_overlay('maintenance')">
+          <i class="fa fa-plus"></i> Add Maintenance Check
+        </button>
+        <button class="snazzy-page__action-btn-header snazzy-page__action-btn-header--danger" ng-click="show_overlay('offline')">
+          <i class="fa fa-power-off"></i> Take Offline
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ══════════════════════════════════════════════════════════
+         STATUS SUMMARY CARDS
+         ══════════════════════════════════════════════════════════ -->
+    <div class="mx-detail-stats">
+      <div class="mx-detail-stat">
+        <div class="mx-detail-stat__icon mx-detail-stat__icon--hours">
+          <i class="fa fa-tachometer"></i>
+        </div>
+        <div class="mx-detail-stat__content">
+          <span class="mx-detail-stat__label">Hours Remaining</span>
+          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.hours_status }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) }}</span>
+        </div>
+      </div>
+      <div class="mx-detail-stat">
+        <div class="mx-detail-stat__icon mx-detail-stat__icon--days">
+          <i class="fa fa-calendar"></i>
+        </div>
+        <div class="mx-detail-stat__content">
+          <span class="mx-detail-stat__label">Days Remaining</span>
+          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.days_status }}">{{ vm.club.plane.maintenance.days_remaining }}</span>
+        </div>
+      </div>
+      <div class="mx-detail-stat">
+        <div class="mx-detail-stat__icon mx-detail-stat__icon--meter">
+          <i class="fa fa-clock-o"></i>
+        </div>
+        <div class="mx-detail-stat__content">
+          <span class="mx-detail-stat__label">Meter Reading</span>
+          <span class="mx-detail-stat__value">{{ vm.club.plane.location.meter_reading }}</span>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         DEFECT REPORTS
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__summary-card mx-section-card">
+      <div class="mx-section-card__header">
+        <h3><i class="fa fa-exclamation-triangle"></i> Defect Reports</h3>
+        <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-click="vm.openDefectPanel()">
+          <i class="fa fa-plus"></i> Report Defect
+        </button>
+      </div>
+
+      <div class="snazzy-page__empty" style="padding:24px;" ng-if="!vm.club.plane.defects || count_defects(vm.club.plane.defects, vm.club.plane.show_all_defects) < 1">
+        <i class="fa fa-check-circle snazzy-page__empty-icon" style="color:#22c55e;"></i>
+        <p>No currently reported maintenance issues</p>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="snazzy-page__table-scroll mx-defect-desktop" ng-if="vm.club.plane.defects && count_defects(vm.club.plane.defects, vm.club.plane.show_all_defects) > 0">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Defect</th>
+              <th>Severity</th>
+              <th class="snazzy-table__hide-mobile">Reported</th>
+              <th>Status</th>
+              <th class="snazzy-table__hide-mobile">Media</th>
+              <th class="snazzy-table__hide-mobile">Workpack</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat-start="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
+              <td class="snazzy-table__name">{{ defect.defect }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--danger': defect.severity === 'high',
+                  'snazzy-table__badge--warning': defect.severity === 'medium',
+                  'snazzy-table__badge--info': defect.severity === 'low' || !defect.severity
+                }">{{ defect.severity }}</span>
+              </td>
+              <td class="snazzy-table__date snazzy-table__hide-mobile">{{ defect.created_at | myDateTime }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': defect.status === 'resolved' || defect.status === 'closed',
+                  'snazzy-table__badge--danger': defect.status === 'open',
+                  'snazzy-table__badge--warning': defect.status === 'deferred'
+                }">{{ defect.status }}</span>
+              </td>
+              <td class="snazzy-table__hide-mobile">
+                <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                  <i class="fa fa-camera"></i>
+                  <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                  <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                </span>
+              </td>
+              <td class="snazzy-table__hide-mobile">
+                <span ng-if="defect.linked_workpack_number" class="snazzy-table__badge snazzy-table__badge--info" uib-tooltip="Part of workpack: {{ defect.linked_workpack_number }} ({{ defect.linked_workpack_status }})">
+                  <i class="fa fa-briefcase"></i> {{ defect.linked_workpack_number }}
+                </span>
+                <span ng-if="defect.defect_workpack_number && !defect.linked_workpack_number" class="snazzy-table__badge" uib-tooltip="Standalone workpack: {{ defect.defect_workpack_number }}">
+                  <i class="fa fa-file-text-o"></i> {{ defect.defect_workpack_number }}
+                </span>
+                <span ng-if="!defect.linked_workpack_number && !defect.defect_workpack_number" class="snazzy-table__muted">—</span>
+              </td>
+            </tr>
+            <tr ng-repeat-end ng-if="defect._showMedia" class="snazzy-table__detail-row">
+              <td colspan="6">
+                <div class="snazzy-table__detail-inner">
+                  <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards for defects -->
+      <div class="mx-defect-mobile" ng-if="vm.club.plane.defects && count_defects(vm.club.plane.defects, vm.club.plane.show_all_defects) > 0">
+        <div class="snazzy-mobile-card" ng-repeat="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">{{ defect.defect | limitTo:40 }}</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--success': defect.status === 'resolved' || defect.status === 'closed',
+              'snazzy-table__badge--danger': defect.status === 'open',
+              'snazzy-table__badge--warning': defect.status === 'deferred'
+            }" style="font-size:10px;">{{ defect.status }}</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Severity</span>
+              <span class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--danger': defect.severity === 'high',
+                'snazzy-table__badge--warning': defect.severity === 'medium',
+                'snazzy-table__badge--info': defect.severity === 'low' || !defect.severity
+              }">{{ defect.severity }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Reported</span>
+              <span>{{ defect.created_at | myDateTime }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="defect.media_count > 0">
+              <span class="snazzy-mobile-card__label">Media</span>
+              <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                <i class="fa fa-camera"></i> {{ defect.media_count }}
+                <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+              </span>
+            </div>
+          </div>
+          <div ng-if="defect._showMedia" style="padding:12px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+            <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
           </div>
         </div>
+      </div>
 
-        <div class="club_docs bookingout_wrapper">
-            
-            <div class="centre_align_boxes2 center_if_large extra_space_top extra_space_bottom">
-             <button class="btn btn-primary " ng-click="show_overlay('maintenance')">Add Maintenance Check</button>
+      <div class="mx-section-card__footer">
+        <label class="mx-toggle-label">
+          <input type="checkbox" ng-model="vm.club.plane.show_all_defects" />
+          Show all previous defects
+        </label>
+      </div>
+    </div>
 
-             <button class="btn btn-danger " ng-click="show_overlay('offline')">Take Offline</button>
+
+    <!-- ══════════════════════════════════════════════════════════
+         DOCUMENTS & CERTIFICATES
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__summary-card mx-section-card">
+      <div class="mx-section-card__header">
+        <h3><i class="fa fa-file-text"></i> Documents &amp; Certificates</h3>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="snazzy-page__table-scroll mx-docs-desktop">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th class="snazzy-table__hide-mobile">View</th>
+              <th>Expiry Date</th>
+              <th>Status</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- ARC / Permit -->
+            <tr>
+              <td class="snazzy-table__name">{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-click="downloadDocument(vm.club.plane.certificate.certificate, 'certificate')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.certificate.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                </a>
+              </td>
+              <td class="snazzy-table__date">{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
+                  'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
+                  'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
+                }">{{ vm.club.plane.certificate.status }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('cert')" uib-tooltip="Update certificate">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </td>
+            </tr>
+            <!-- Insurance -->
+            <tr>
+              <td class="snazzy-table__name">Insurance</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                </a>
+              </td>
+              <td class="snazzy-table__date">{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': vm.club.plane.insurance.status === 'ok' || vm.club.plane.insurance.status === 'green',
+                  'snazzy-table__badge--warning': vm.club.plane.insurance.status === 'yellow',
+                  'snazzy-table__badge--danger': vm.club.plane.insurance.status === 'expired' || vm.club.plane.insurance.status === 'red'
+                }">{{ vm.club.plane.insurance.status }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('insurance')" uib-tooltip="Update insurance">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </td>
+            </tr>
+            <!-- Radio Licence -->
+            <tr>
+              <td class="snazzy-table__name">Radio Licence</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                </a>
+              </td>
+              <td class="snazzy-table__date">{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': vm.club.plane.radio_licence.status === 'ok' || vm.club.plane.radio_licence.status === 'green',
+                  'snazzy-table__badge--warning': vm.club.plane.radio_licence.status === 'yellow',
+                  'snazzy-table__badge--danger': vm.club.plane.radio_licence.status === 'expired' || vm.club.plane.radio_licence.status === 'red'
+                }">{{ vm.club.plane.radio_licence.status }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('radio')" uib-tooltip="Update radio licence">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </td>
+            </tr>
+            <!-- Noise Certificate -->
+            <tr>
+              <td class="snazzy-table__name">Noise Certificate</td>
+              <td class="snazzy-table__hide-mobile">
+                <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate">
+                  <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                    <img class="file_icon2" src="{{ get_icon2(vm.club.plane.noise.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                  </a>
+                </span>
+                <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
+              </td>
+              <td class="snazzy-table__date">N/A</td>
+              <td>
+                <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--success': vm.club.plane.noise.status === 'ok' || vm.club.plane.noise.status === 'green',
+                  'snazzy-table__badge--warning': vm.club.plane.noise.status === 'yellow',
+                  'snazzy-table__badge--danger': vm.club.plane.noise.status === 'expired' || vm.club.plane.noise.status === 'red'
+                }">{{ vm.club.plane.noise.status }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('noise')" uib-tooltip="Update noise certificate">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </td>
+            </tr>
+            <!-- CRS -->
+            <tr>
+              <td class="snazzy-table__name">Certificate of Release to Service (CRS)</td>
+              <td class="snazzy-table__hide-mobile">
+                <span ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
+                  <a ng-click="vm.downloadCrs(vm.club.plane.crs.certificate)" class="snazzy-table__action-btn" uib-tooltip="Download CRS">
+                    <img class="file_icon2" src="{{ get_icon2(vm.club.plane.crs.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                  </a>
+                </span>
+                <span ng-if="!vm.club.plane.crs || !vm.club.plane.crs.certificate" class="snazzy-table__muted">NOT SET</span>
+              </td>
+              <td class="snazzy-table__date">
+                <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }} at {{ vm.club.plane.crs.release_time }}</span>
+                <span ng-if="!vm.club.plane.crs">—</span>
+              </td>
+              <td>
+                <span ng-if="vm.club.plane.crs" class="snazzy-table__muted" style="font-size:11px;">N/A (no expiry)</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('crs')" uib-tooltip="Update CRS">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards for documents -->
+      <div class="mx-docs-mobile">
+        <!-- ARC -->
+        <div class="snazzy-mobile-card" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">{{ vm.club.plane.maintenance_type == "cofa" ? "ARC" : "Permit to Fly" }}</span>
+            <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('cert')"><i class="fa fa-edit"></i></button>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Expiry</span>
+              <span>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</span>
             </div>
-
-           <div class="plane_docs">
-
-
-
-
-                  <div class="form-group">
-
-
-                    <div class="no_defects" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) < 1">
-                     There are no currently reported maintenance issues...
-                    </div>
-
-
-
-                    <div class="card">
-
-                       
-
-                     <table ng-if="vm.club.plane.defects && count_defects(vm.club.plane.defects, vm.club.plane.show_all_defects) > 0">
-                        <tr>
-                          <th>
-                            Defect Reported
-                          </th>
-                           <th>
-                            Severity
-                          </th>
-                          <th>
-                            Reported Date &amp; Time
-                          </th>
-                          <th>
-                            Status
-                          </th>
-                          <th>
-                            Media
-                          </th>
-                          <th>
-                            Workpack
-                          </th>
-                        </tr>
-                        <tr ng-repeat-start="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
-                          <td>
-                            {{ defect.defect }}
-                          </td>
-                          <td>
-                            {{ defect.severity }}
-                          </td>
-                          <td>
-                            {{ defect.created_at | myDateTime }}
-                          </td>
-                          <td>
-                            {{ defect.status }}
-                          </td>
-                          <td>
-                            <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
-                              <i class="fa fa-camera"></i>
-                              <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
-                              <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
-                            </span>
-                          </td>
-                          <td>
-                            <span ng-if="defect.linked_workpack_number" class="btn btn-xs btn-info" uib-tooltip="Part of workpack: {{ defect.linked_workpack_number }} ({{ defect.linked_workpack_status }})">
-                              <i class="fa fa-briefcase"></i> {{ defect.linked_workpack_number }}
-                            </span>
-                            <span ng-if="defect.defect_workpack_number && !defect.linked_workpack_number" class="btn btn-xs btn-default" uib-tooltip="Standalone workpack: {{ defect.defect_workpack_number }}">
-                              <i class="fa fa-file-text-o"></i> {{ defect.defect_workpack_number }}
-                            </span>
-                            <span ng-if="!defect.linked_workpack_number && !defect.defect_workpack_number">
-                              —
-                            </span>
-                          </td>
-                        </tr>
-                        <tr ng-repeat-end ng-if="defect._showMedia">
-                          <td colspan="6" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
-                            <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
-                          </td>
-                        </tr>
-                      </table>
-                    </div>
-
-
-                    <div class="center_if_large">
-                      Show All Previous Defects <input type="checkbox" name="" ng-model="vm.club.plane.show_all_defects" />
-                                 
-                       <button class="btn btn-primary adding_button" ng-click="vm.openDefectPanel()">+</button>  
-
-                    </div>
-
-                    
-                    </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Status</span>
+              <span class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
+                'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
+                'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
+              }">{{ vm.club.plane.certificate.status }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Insurance -->
+        <div class="snazzy-mobile-card" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">Insurance</span>
+            <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('insurance')"><i class="fa fa-edit"></i></button>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Expiry</span>
+              <span>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Status</span>
+              <span class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--success': vm.club.plane.insurance.status === 'ok' || vm.club.plane.insurance.status === 'green',
+                'snazzy-table__badge--warning': vm.club.plane.insurance.status === 'yellow',
+                'snazzy-table__badge--danger': vm.club.plane.insurance.status === 'expired' || vm.club.plane.insurance.status === 'red'
+              }">{{ vm.club.plane.insurance.status }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Radio -->
+        <div class="snazzy-mobile-card" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">Radio Licence</span>
+            <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('radio')"><i class="fa fa-edit"></i></button>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Expiry</span>
+              <span>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Status</span>
+              <span class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--success': vm.club.plane.radio_licence.status === 'ok' || vm.club.plane.radio_licence.status === 'green',
+                'snazzy-table__badge--warning': vm.club.plane.radio_licence.status === 'yellow',
+                'snazzy-table__badge--danger': vm.club.plane.radio_licence.status === 'expired' || vm.club.plane.radio_licence.status === 'red'
+              }">{{ vm.club.plane.radio_licence.status }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Noise -->
+        <div class="snazzy-mobile-card" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">Noise Certificate</span>
+            <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('noise')"><i class="fa fa-edit"></i></button>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Status</span>
+              <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--success': vm.club.plane.noise.status === 'ok',
+                'snazzy-table__badge--danger': vm.club.plane.noise.status === 'expired'
+              }">{{ vm.club.plane.noise.status }}</span>
+              <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
+            </div>
+          </div>
+        </div>
+        <!-- CRS -->
+        <div class="snazzy-mobile-card" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">CRS</span>
+            <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('crs')"><i class="fa fa-edit"></i></button>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Release Date</span>
+              <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }}</span>
+              <span ng-if="!vm.club.plane.crs" class="snazzy-table__muted">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
 
-                    <hr />
+    <!-- ══════════════════════════════════════════════════════════
+         LOGBOOKS
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__summary-card mx-section-card">
+      <div class="mx-section-card__header">
+        <h3><i class="fa fa-book"></i> Logbooks</h3>
+      </div>
+      <div class="mx-logbook-grid">
+        <a class="mx-logbook-link" ui-sref="dashboard.manage_club.maintenance.detail.airframe_logbook({plane_id: vm.club.plane.id, action: 'list'})">
+          <i class="fa fa-plane mx-logbook-link__icon"></i>
+          <span>Airframe Logbook</span>
+          <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
+        </a>
+        <a class="mx-logbook-link" ng-if="vm.club.plane.engine_1_id > 0" ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_1_id, action: 'list'})">
+          <i class="fa fa-cog mx-logbook-link__icon"></i>
+          <span>Engine Logbook</span>
+          <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
+        </a>
+        <a class="mx-logbook-link" ng-if="vm.club.plane.engine_2_id > 0" ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_2_id, action: 'list'})">
+          <i class="fa fa-cog mx-logbook-link__icon"></i>
+          <span>Engine 2 Logbook</span>
+          <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
+        </a>
+        <a class="mx-logbook-link" ng-if="vm.club.plane.propeller_1_id > 0" ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_1_id, action: 'list'})">
+          <i class="fa fa-refresh mx-logbook-link__icon"></i>
+          <span>Propeller Logbook</span>
+          <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
+        </a>
+        <a class="mx-logbook-link" ng-if="vm.club.plane.propeller_2_id > 0" ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_2_id, action: 'list'})">
+          <i class="fa fa-refresh mx-logbook-link__icon"></i>
+          <span>Propeller 2 Logbook</span>
+          <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
+        </a>
+      </div>
+      <div class="mx-section-card__footer">
+        <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.reset_aeroplane()">
+          <i class="fa fa-refresh"></i> Force Recheck Logbooks
+        </button>
+      </div>
+    </div>
 
 
-                    <div class="card">
+    <!-- ══════════════════════════════════════════════════════════
+         MAINTENANCE EVENTS HISTORY
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__summary-card mx-section-card">
+      <div class="mx-section-card__header">
+        <h3><i class="fa fa-history"></i> Maintenance Events</h3>
+      </div>
 
-                      <div class="cards">
-                        <h4>Hours Remaining</h4>
-                        <span class="big_number no_{{ vm.club.plane.maintenance.hours_status }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) }}</span>
-                      </div>
+      <!-- Filter Tabs -->
+      <div class="mx-event-filters" style="padding:0 20px;">
+        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'all'}" ng-click="vm.event_filter = 'all'">All</button>
+        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'annual'}" ng-click="vm.event_filter = 'annual'">Annual</button>
+        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '50hours'}" ng-click="vm.event_filter = '50hours'">50hr</button>
+        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '100hours'}" ng-click="vm.event_filter = '100hours'">100hr</button>
+        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'extension'}" ng-click="vm.event_filter = 'extension'">Ext</button>
+      </div>
 
-                      <div class="cards">
-                        <h4>Days Remaining</h4>
-                        <span class="big_number no_{{ vm.club.plane.maintenance.days_status }}">{{ vm.club.plane.maintenance.days_remaining }}</span>
-                      </div>
+      <div ng-if="!vm.maintenance_events || vm.maintenance_events.length === 0" class="snazzy-page__empty" style="padding:24px;">
+        <i class="fa fa-wrench snazzy-page__empty-icon"></i>
+        <p>No maintenance events recorded yet.</p>
+        <p style="color:#94a3b8; font-size:12px;">Use "Add Maintenance Check" above to log the first event.</p>
+      </div>
 
-                      <div class="cards">
-                        <h4>Meter Reading</h4>
-                        <span class="big_number">{{ vm.club.plane.location.meter_reading }}</span>
-                      </div>
-
-                  </div>
-
-                  <div class="card">
-
-                    <table>
-                      <tr>
-                        <th>Document</th>
-                        <th>View Document</th>
-                        <th>Expiry Date</th>
-                        <th>Status</th>
-                        <th>Management</th>
-                      </tr>
-                      <tr>
-                        <td>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
-                        <td><a ng-click="downloadDocument(vm.club.plane.certificate.certificate, 'certificate')">
-                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.certificate.certificate) }}" alt="open doc" />
-                        </a></td>
-                        <td>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
-                        <td><button class="btn status {{vm.club.plane.certificate.status}}">{{vm.club.plane.certificate.status}}</button></td>     
-                        <td>
-                          <button class="btn btn-primary" ng-click="show_overlay('cert')">UPDATE</button>
-                        </td>           
-                      </tr>
-                      <tr>
-                        <td>Insurance</td>
-                        <td><a ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')">
-                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" />
-                        </a></td>
-                        <td>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
-                        <td><button class="btn status {{vm.club.plane.insurance.status}}">{{vm.club.plane.insurance.status}}</button></td>
-                        <td>
-                          <button class="btn btn-primary" ng-click="show_overlay('insurance')">UPDATE</button>
-                        </td>                 
-                      </tr>
-                      <tr>
-                        <td>Radio Licence</td>
-                        <td><a ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')">
-                          <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" />
-                        </a></td>
-                        <td>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
-                        <td><button class="btn status {{vm.club.plane.radio_licence.status}}">{{vm.club.plane.radio_licence.status}}</button></td>
-                        <td>
-                          <button class="btn btn-primary" ng-click="show_overlay('radio')">UPDATE</button>
-                        </td>                 
-                      </tr>
-                      <tr>
-                        <td>Noise Certificate</td>
-                        <td>
-                          <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate">
-                            <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')">
-                              <img class="file_icon2" src="{{ get_icon2(vm.club.plane.noise.certificate) }}" alt="open doc" />
-                            </a>
-                          </span>
-                          <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate">
-                            NOT SET
-                          </span>
-                        </td>
-                        <td>N/A</td>
-                        <td>
-                          <!-- <button ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="btn status">{{status.noise}}</button> -->
-                          <button ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="btn status {{vm.club.plane.noise.status}}">{{vm.club.plane.noise.status}}</button>
-                        </td>
-                        <td>
-                           <button class="btn btn-primary" ng-click="show_overlay('noise')">UPDATE</button>
-                        </td>                 
-                      </tr>
-                      <tr>
-                        <td>Certificate of Release to Service (CRS)</td>
-                        <td>
-                          <span ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
-                            <a ng-click="vm.downloadCrs(vm.club.plane.crs.certificate)">
-                              <img class="file_icon2" src="{{ get_icon2(vm.club.plane.crs.certificate) }}" alt="open doc" />
-                            </a>
-                          </span>
-                          <span ng-if="!vm.club.plane.crs || !vm.club.plane.crs.certificate">
-                            NOT SET
-                          </span>
-                        </td>
-                        <td>
-                          <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }} at {{ vm.club.plane.crs.release_time }}</span>
-                          <span ng-if="!vm.club.plane.crs">—</span>
-                        </td>
-                        <td>
-                          <span ng-if="vm.club.plane.crs" style="font-size: 11px; color: #8494a7;">N/A (no expiry)</span>
-                        </td>
-                        <td>
-                           <button class="btn btn-primary" ng-click="show_overlay('crs')">UPDATE</button>
-                        </td>                 
-                      </tr>
-                    </table>
-                    
-                  </div>
-
-                  <div class="card">
-
-                    <div class="main_select_box" ui-sref="dashboard.manage_club.maintenance.detail.airframe_logbook({plane_id: vm.club.plane.id, action: 'list'})" >Open Airframe Logbook</div>
+      <div class="mx-event-list" ng-if="vm.maintenance_events && vm.maintenance_events.length > 0" style="padding:0 20px 20px;">
+        <div class="mx-event-item"
+             ng-repeat="event in vm.maintenance_events"
+             ng-if="vm.event_filter === 'all' || event.maintenance_type === vm.event_filter"
+             ng-click="vm.viewEvent(event)">
+          <div class="mx-event-icon-col">
+            <div class="mx-event-icon">
+              <i class="fa" ng-class="vm.getEventTypeIcon(event.maintenance_type)"></i>
+            </div>
+            <div class="mx-event-line" ng-if="!$last"></div>
+          </div>
+          <div class="mx-event-content">
+            <div class="mx-event-header">
+              <span class="mx-event-type-badge">{{ vm.getEventTypeLabel(event.maintenance_type) }}</span>
+              <span class="mx-event-date"><i class="fa fa-calendar-o"></i> {{ event.check_date | date:'dd MMM yyyy' }}</span>
+            </div>
+            <div class="mx-event-body">
+              <span ng-if="event.description" class="mx-event-desc">{{ event.description }}</span>
+              <span ng-if="!event.description" class="mx-event-desc mx-event-desc-empty">No description</span>
+            </div>
+            <div class="mx-event-meta">
+              <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer"></i> {{ event.hours_remaining }} hrs remaining</span>
+              <span ng-if="event.expiry_date" class="mx-meta-chip"><i class="fa fa-clock-o"></i> Next: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
+              <span ng-if="event.checked_by" class="mx-meta-chip"><i class="fa fa-user"></i> {{ event.checked_by }}</span>
+            </div>
+          </div>
+          <div class="mx-event-action">
+            <i class="fa fa-edit"></i>
+          </div>
+        </div>
+      </div>
+    </div>
 
 
-                    <div ng-if="vm.club.plane.engine_1_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_1_id, action: 'list'})" >Open Engine Logbook</div>
+    <!-- ══════════════════════════════════════════════════════════
+         WORKPACKS
+         ══════════════════════════════════════════════════════════ -->
+    <div class="snazzy-page__summary-card mx-section-card">
+      <div class="mx-section-card__header">
+        <h3><i class="fa fa-archive"></i> Maintenance Workpacks</h3>
+      </div>
+
+      <div ng-if="!vm.workpacks || vm.workpacks.length === 0" class="snazzy-page__empty" style="padding:24px;">
+        <i class="fa fa-archive snazzy-page__empty-icon"></i>
+        <p>No workpacks for this aircraft</p>
+        <p style="color:#94a3b8; font-size:12px;">Create one via "Add Maintenance Check".</p>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="snazzy-page__table-scroll mx-wp-desktop" ng-if="vm.workpacks && vm.workpacks.length > 0">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Workpack #</th>
+              <th class="snazzy-table__hide-mobile">Description</th>
+              <th class="snazzy-table__hide-mobile">Signatory</th>
+              <th>Status</th>
+              <th class="snazzy-table__hide-mobile">Document</th>
+              <th class="snazzy-table__hide-mobile">Created</th>
+              <th style="text-align:right;">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="wp in vm.workpacks">
+              <td class="snazzy-table__name">{{ wp.workpack_number || '—' }}</td>
+              <td class="snazzy-table__hide-mobile">{{ wp.description || '—' }}</td>
+              <td class="snazzy-table__hide-mobile">{{ wp.authorised_signatory || '—' }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--danger': wp.status === 'open',
+                  'snazzy-table__badge--success': wp.status === 'completed'
+                }">{{ wp.status }}</span>
+              </td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-if="wp.document" ng-click="downloadWorkpackDocument(wp.document)" class="snazzy-table__action-btn" uib-tooltip="Download {{ wp.document_original_name || wp.document }}">
+                  <i class="fa fa-file-pdf-o"></i>
+                </a>
+                <span ng-if="!wp.document" class="snazzy-table__muted">—</span>
+              </td>
+              <td class="snazzy-table__date snazzy-table__hide-mobile">{{ wp.created_at | myDateTime }}</td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-table__action-btn" ng-click="vm.viewWorkpack(wp.id)" uib-tooltip="View workpack">
+                  <i class="fa fa-eye"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards for workpacks -->
+      <div class="mx-wp-mobile" ng-if="vm.workpacks && vm.workpacks.length > 0">
+        <div class="snazzy-mobile-card" ng-repeat="wp in vm.workpacks" style="margin:8px 12px;">
+          <div class="snazzy-mobile-card__header">
+            <span class="snazzy-mobile-card__title">{{ wp.workpack_number || 'Workpack' }}</span>
+            <span class="snazzy-table__badge" ng-class="{
+              'snazzy-table__badge--danger': wp.status === 'open',
+              'snazzy-table__badge--success': wp.status === 'completed'
+            }" style="font-size:10px;">{{ wp.status }}</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row" ng-if="wp.description">
+              <span class="snazzy-mobile-card__label">Description</span>
+              <span>{{ wp.description }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="wp.authorised_signatory">
+              <span class="snazzy-mobile-card__label">Signatory</span>
+              <span>{{ wp.authorised_signatory }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Created</span>
+              <span>{{ wp.created_at | myDateTime }}</span>
+            </div>
+          </div>
+          <div class="snazzy-mobile-card__actions">
+            <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-click="vm.viewWorkpack(wp.id)">
+              <i class="fa fa-eye"></i> View
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end .snazzy-page__body -->
+
+</div><!-- end .snazzy-page -->
 
 
-                    <div ng-if="vm.club.plane.propeller_1_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_1_id, action: 'list'})" >Open Propeller Logbook</div>
-
-
-                    <div ng-if="vm.club.plane.propeller_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_2_id, action: 'list'})" >Open Propeller 2 Logbook</div>
-
-                    <div ng-if="vm.club.plane.engine_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_2_id, action: 'list'})" >Open Engine 2 Logbook</div>
-
-                   <!--  <div ng-if="vm.club.plane.propeller_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.propeller_logbook({plane_id: vm.club.plane.id, prop_id: vm.club.plane.propeller_2_id, action: 'list'})" >Open Propeller 2 Logbook</div>
-
-
-                    <div ng-if="vm.club.plane.engine_2_id > 0" class="main_select_box " ui-sref="dashboard.manage_club.maintenance.detail.engine_logbook({plane_id: vm.club.plane.id, engine_id: vm.club.plane.engine_2_id, action: 'list'})" >Open Engine 2 Logbook</div> -->
-
-                   <!--  SOMETHING NEW
-                    {{ vm.club.plane | json}} -->
-                    
-
-                  </div>
-
-                  <div class="card">
-
-                    <button class="btn btn-primary club_add_button extra_space_top extra_space_bottom" ng-click="vm.reset_aeroplane()">Force Recheck Logbooks</button>
-
-                  </div>
-
-
-                  <!-- ═══════════════════════════════════════════ -->
-                  <!-- Maintenance Events History                 -->
-                  <!-- ═══════════════════════════════════════════ -->
-                  <div class="card">
-                    <h4><i class="fa fa-history"></i> Maintenance Events</h4>
-
-                    <!-- Filter Tabs -->
-                    <div class="mx-event-filters">
-                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'all'}" ng-click="vm.event_filter = 'all'">All</button>
-                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'annual'}" ng-click="vm.event_filter = 'annual'">Annual</button>
-                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '50hours'}" ng-click="vm.event_filter = '50hours'">50hr</button>
-                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '100hours'}" ng-click="vm.event_filter = '100hours'">100hr</button>
-                      <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'extension'}" ng-click="vm.event_filter = 'extension'">Ext</button>
-                    </div>
-
-                    <div ng-if="!vm.maintenance_events || vm.maintenance_events.length === 0" class="mx-empty-state">
-                      <i class="fa fa-wrench mx-empty-icon"></i>
-                      <p>No maintenance events recorded yet.</p>
-                      <p class="mx-empty-hint">Use "Add Maintenance Check" above to log the first event.</p>
-                    </div>
-
-                    <div class="mx-event-list" ng-if="vm.maintenance_events && vm.maintenance_events.length > 0">
-                      <div class="mx-event-item"
-                           ng-repeat="event in vm.maintenance_events"
-                           ng-if="vm.event_filter === 'all' || event.maintenance_type === vm.event_filter"
-                           ng-click="vm.viewEvent(event)">
-                        <div class="mx-event-icon-col">
-                          <div class="mx-event-icon">
-                            <i class="fa" ng-class="vm.getEventTypeIcon(event.maintenance_type)"></i>
-                          </div>
-                          <div class="mx-event-line" ng-if="!$last"></div>
-                        </div>
-                        <div class="mx-event-content">
-                          <div class="mx-event-header">
-                            <span class="mx-event-type-badge">{{ vm.getEventTypeLabel(event.maintenance_type) }}</span>
-                            <span class="mx-event-date"><i class="fa fa-calendar-o"></i> {{ event.check_date | date:'dd MMM yyyy' }}</span>
-                          </div>
-                          <div class="mx-event-body">
-                            <span ng-if="event.description" class="mx-event-desc">{{ event.description }}</span>
-                            <span ng-if="!event.description" class="mx-event-desc mx-event-desc-empty">No description</span>
-                          </div>
-                          <div class="mx-event-meta">
-                            <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer"></i> {{ event.hours_remaining }} hrs remaining</span>
-                            <span ng-if="event.expiry_date" class="mx-meta-chip"><i class="fa fa-clock-o"></i> Next: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
-                            <span ng-if="event.checked_by" class="mx-meta-chip"><i class="fa fa-user"></i> {{ event.checked_by }}</span>
-                          </div>
-                        </div>
-                        <div class="mx-event-action">
-                          <i class="fa fa-pencil"></i>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-
-                  <!-- Workpacks for this aircraft (read-only summary) -->
-                  <div class="card">
-                    <h4>Maintenance Workpacks</h4>
-
-                    <div ng-if="!vm.workpacks || vm.workpacks.length === 0">
-                      <p>No workpacks for this aircraft. Create one via "Add Maintenance Check".</p>
-                    </div>
-
-                    <table ng-if="vm.workpacks && vm.workpacks.length > 0">
-                      <tr>
-                        <th>Workpack Number</th>
-                        <th>Description</th>
-                        <th>Signatory</th>
-                        <th>Status</th>
-                        <th>Document</th>
-                        <th>Created</th>
-                        <th>View</th>
-                      </tr>
-                      <tr ng-repeat="wp in vm.workpacks">
-                        <td>{{ wp.workpack_number || '—' }}</td>
-                        <td>{{ wp.description || '—' }}</td>
-                        <td>{{ wp.authorised_signatory || '—' }}</td>
-                        <td>
-                          <button class="btn btn-xs status" ng-class="{'expired': wp.status === 'open', 'ok': wp.status === 'completed'}">
-                            {{ wp.status }}
-                          </button>
-                        </td>
-                        <td>
-                          <a ng-if="wp.document" ng-click="downloadWorkpackDocument(wp.document)" uib-tooltip="Download {{ wp.document_original_name || wp.document }}">
-                            <i class="fa fa-file-pdf-o"></i>
-                          </a>
-                          <span ng-if="!wp.document">—</span>
-                        </td>
-                        <td>{{ wp.created_at | myDateTime }}</td>
-                        <td>
-                          <button class="btn btn-xs btn-primary" ng-click="vm.viewWorkpack(wp.id)">
-                            <i class="fa fa-eye"></i> View
-                          </button>
-                        </td>
-                      </tr>
-                    </table>
-                  </div>
-
-                  <!-- Workpack Detail (slide-in overlay panel) -->
-                  <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_workpack_detail}" ng-click="vm.closeWorkpackDetail()"></div>
-                  <div class="wp-overlay-panel" ng-class="{'open': vm.show_workpack_detail}" ng-include="'views/manageclub/workpack_detail.html'"></div>
+<!-- Workpack Detail (slide-in overlay panel) -->
+<div class="wp-overlay-backdrop" ng-class="{'active': vm.show_workpack_detail}" ng-click="vm.closeWorkpackDetail()"></div>
+<div class="wp-overlay-panel" ng-class="{'open': vm.show_workpack_detail}" ng-include="'views/manageclub/workpack_detail.html'"></div>
 
                   <!-- Maintenance Event Edit (slide-in overlay panel) -->
                   <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_event_detail}" ng-click="vm.closeEventDetail()"></div>
@@ -501,68 +761,6 @@
 
                     </div>
                   </div>
-
-
-                  <!-- FoxService ? ResetOneClubPlanes ? reset_plane -->
-
-        <!-- <div class="card">
-
-            <button class="btn btn-primary club_add_button extra_space_top extra_space_bottom" ng-click="show_overlay('maintenance')">Add Maintenance Check</button>
-
-
-
-            <h4>Next Check</h4>
-            <br />
-            {{ vm.club.plane.maintenance.hours_remaining }} hours remaining
-            <br />
-            <span class="{{getColours(vm.club.plane.maintenance.days_remaining)}}">{{ vm.club.plane.maintenance.days_remaining }} days remaining</span>
-            <div ng-if="vm.club.plane.maintenance.day_remaining_message">
-              !!! <br />
-              normally days remaining: {{ vm.club.plane.maintenance.normal_days_remaining }}
-              <br />
-              normally next maintenance date:       {{ vm.club.plane.maintenance.normal_next_maintenance }}
-               <br />
-              normally limit in days:       {{ vm.club.plane.maintenance.normal_limit }}
-               <br />
-              Message:       {{ vm.club.plane.maintenance.day_remaining_message }}
-
-            </div>
-
-            
-             
-
-
-        </div>
-
-        <div class="card">
-
-            <h4>Legal Documents</h4>
-            <br />
-            {{ vm.club.plane.certificate.days_to_expiry }} days {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }} remaining
-            
-            <br />
-            {{ vm.club.plane.radio_licence.days_to_expiry }} days Radio Licence Expiry remaining
-             
-            <br />
-            {{ vm.club.plane.insurance.days_to_expiry }} days insurance expiry remaining
-             
-            <br />
-
-        </div>
- -->
-        
-
-
-      </div>
-</div>
-
-<!-- <h3>
-DETAILS</h3>
-<br />
-
-{{vm.send_obj}} -->
-
-
 
 
 
@@ -1484,17 +1682,6 @@ DETAILS</h3>
 </div>
 
 
-<!--  -->
-
-<!-- 
-show_cert = false;
-        show_maintenance = false;
-        show_radio = false;
-        show_insurance = false; -->
-     
-     </div>
-     </div>
-
 <!-- Defect Report Slide-in Panel -->
 <defect-report-panel
     is-open="vm.showDefectPanel"
@@ -1502,4 +1689,5 @@ show_cert = false;
     on-submit="vm.submitDefect(defectData, pendingFiles)"
     on-close="vm.closeDefectPanel()">
 </defect-report-panel>
-   </ui-view>
+
+</ui-view>
