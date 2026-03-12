@@ -1023,7 +1023,11 @@
         // ── File input handler ──
         vm.triggerFileInput = function() {
             var input = document.getElementById('lesson-content-file-input');
-            if (input) input.click();
+            if (input) {
+                // Stop the click from bubbling back to the parent ng-click div
+                input.onclick = function(e) { e.stopPropagation(); };
+                input.click();
+            }
         };
 
         vm.onFileInputChange = function(files) {

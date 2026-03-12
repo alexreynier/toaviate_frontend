@@ -1,45 +1,140 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page">
 
-  <div class="home_upper">
-        <div class="welcome_title">
-            <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-          <h2>CLUB RENTAL ITEMS</h2> 
-          <h4 class="capitalise">
-            Manage your items for rental
-          </h4>
-        </div>
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-boxes"></i> Rental Items</h2>
+        <p>Manage your items for rental</p>
+      </div>
+      <div class="snazzy-page__header-actions">
+        <a class="snazzy-page__action-btn-header" ui-sref="dashboard.manage_club.add_item">
+          <i class="fa fa-plus"></i> Add Item
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="snazzy-page__body">
+
+    <!-- Toolbar -->
+    <div class="snazzy-page__toolbar" ng-if="vm.club.items.length > 0">
+      <div class="snazzy-page__search-wrap">
+        <i class="fa fa-search snazzy-page__search-icon"></i>
+        <input type="text" class="snazzy-page__search-input" placeholder="Search items..." ng-model="vm.itemSearch" />
+      </div>
+      <div class="snazzy-page__meta">
+        <span class="snazzy-page__count-badge">{{ (vm.club.items | filter:vm.itemSearch).length }}</span> items
+      </div>
     </div>
 
-    <div class="club_docs bookingout_wrapper">
-
-    <button class="btn btn-info club_add_button" ui-sref="dashboard.manage_club.add_item">Add an Item</button>
-        
-        <div class="card">
-            <table>
-                <tr class="table_header">
-                    <th>Title</th>
-                    <th>Description</th>
-                    <th>Cost</td>
-                    <th>Cost Schedule</th>
-                    <th>Number Available</th>
-                    <th>Edit</th>
-                    <th>Delete</th>
-                </tr>
-
-                <tr ng-repeat="item in vm.club.items">
-                    <td>{{ item.title }}</td>
-                    <td>{{ item.description }}</td>
-                    <td>{{ item.cost }}</td>
-                    <td>{{ (item.cost_schedule == 1) ? "per day" : (item.cost_schedule == 2) ? "per hour" :  (item.cost_schedule == 3) ? "per booking" : "not set" }}</td>
-                    <td>{{ item.number_available }}</td>
-                    <td><a ui-sref="dashboard.manage_club.edit_item({item_id: item.id, action: 'edit'})" uib-tooltip="Edit"><i class="fa fa-edit list_icons"></i></a></td>
-                    <td><a ng-click="delete(item)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a></td>
-                </tr>
-
-            </table>
-        </div>
-
+    <!-- Empty state -->
+    <div class="snazzy-page__empty" ng-if="!vm.club.items || vm.club.items.length < 1">
+      <i class="fa fa-boxes snazzy-page__empty-icon"></i>
+      <p>No rental items yet</p>
+      <p>Add your first item to get started</p>
+      <div style="margin-top: 16px;">
+        <a class="snazzy-page__btn snazzy-page__btn--primary" ui-sref="dashboard.manage_club.add_item">
+          <i class="fa fa-plus"></i> Add Item
+        </a>
+      </div>
     </div>
+
+    <!-- Desktop table -->
+    <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="vm.club.items.length > 0">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Description</th>
+              <th>Cost</th>
+              <th>Cost Schedule</th>
+              <th>Available</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="item in vm.club.items | filter:vm.itemSearch">
+              <td class="snazzy-table__name">{{ item.title }}</td>
+              <td class="snazzy-table__muted">{{ item.description || '—' }}</td>
+              <td>£{{ item.cost | number:2 }}</td>
+              <td>
+                <span class="snazzy-table__badge" ng-class="{
+                  'snazzy-table__badge--info': item.cost_schedule == 1,
+                  'snazzy-table__badge--success': item.cost_schedule == 2,
+                  'snazzy-table__badge--warning': item.cost_schedule == 3
+                }">{{ (item.cost_schedule == 1) ? "Per Day" : (item.cost_schedule == 2) ? "Per Hour" : (item.cost_schedule == 3) ? "Per Booking" : "Not Set" }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__badge">{{ item.number_available }}</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <a class="snazzy-table__action-btn" ui-sref="dashboard.manage_club.edit_item({item_id: item.id, action: 'edit'})" uib-tooltip="Edit Item">
+                  <i class="fa fa-edit"></i>
+                </a>
+                <a class="snazzy-table__action-btn snazzy-table__action-btn--danger" ng-click="delete(item)" uib-tooltip="Delete Item">
+                  <i class="fa fa-trash-alt"></i>
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Mobile cards -->
+    <div class="snazzy-mobile-cards" ng-if="vm.club.items.length > 0">
+      <div class="snazzy-mobile-card" ng-repeat="item in vm.club.items | filter:vm.itemSearch">
+        <div class="snazzy-mobile-card__header">
+          <i class="fa fa-box"></i> {{ item.title }}
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row" ng-if="item.description">
+            <span class="snazzy-mobile-card__label">Description</span>
+            <span class="snazzy-mobile-card__value">{{ item.description }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Cost</span>
+            <span class="snazzy-mobile-card__value">£{{ item.cost | number:2 }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Cost Schedule</span>
+            <span class="snazzy-mobile-card__value">
+              <span class="snazzy-table__badge" ng-class="{
+                'snazzy-table__badge--info': item.cost_schedule == 1,
+                'snazzy-table__badge--success': item.cost_schedule == 2,
+                'snazzy-table__badge--warning': item.cost_schedule == 3
+              }">{{ (item.cost_schedule == 1) ? "Per Day" : (item.cost_schedule == 2) ? "Per Hour" : (item.cost_schedule == 3) ? "Per Booking" : "Not Set" }}</span>
+            </span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Available</span>
+            <span class="snazzy-mobile-card__value">{{ item.number_available }}</span>
+          </div>
+        </div>
+        <div class="snazzy-mobile-card__actions">
+          <a class="snazzy-page__btn snazzy-page__btn--primary" ui-sref="dashboard.manage_club.edit_item({item_id: item.id, action: 'edit'})">
+            <i class="fa fa-edit"></i> Edit
+          </a>
+          <a class="snazzy-page__btn snazzy-page__btn--danger" ng-click="delete(item)">
+            <i class="fa fa-trash-alt"></i> Delete
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Back button -->
+    <div class="snazzy-page__actions-bar">
+      <button class="snazzy-page__btn snazzy-page__btn--outline" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-left"></i> Back
+      </button>
+    </div>
+
+  </div>
+
 </div>

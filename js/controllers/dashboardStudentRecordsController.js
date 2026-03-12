@@ -138,6 +138,7 @@
             vm.member = null;
             vm.course = null;
             vm.show_record = false;
+            vm._initialMembers = [];
 
             load_students_for_club(vm.club_id);
         };
@@ -145,13 +146,51 @@
         function load_students_for_club(club_id) {
             vm.members = [];
             vm.courses = [];
+            vm._initialMembers = [];
 
             MemberService.GetAllByClubStudents(club_id)
                 .then(function(data) {
                     vm.courses = data.courses;
-                    vm.members = data.members;
+                    vm.members = data.members || [];
+                    vm._initialMembers = vm.members.slice();
                 });
         }
+
+        /**
+         * Called by the ui-select refresh attribute when the user types
+         * in the Member dropdown. Fires an HTTP search when the local
+         * client-side filter would otherwise show zero results.
+         */
+        vm.refreshStudentMembers = function(search) {
+            if (!search || search.length < 2) {
+                // Restore the initial list when the search field is cleared
+                if (vm._initialMembers && vm._initialMembers.length) {
+                    vm.members = vm._initialMembers.slice();
+                }
+                return;
+            }
+
+            MemberService.GetAllByClubAndName(vm.club_id, search)
+                .then(function(data) {
+                    if (data.success && data.members) {
+                        // Merge server results with any existing members so we
+                        // don't lose the current selection from the list.
+                        var existing = vm.members || [];
+                        var merged   = existing.slice();
+                        var ids      = {};
+                        for (var i = 0; i < merged.length; i++) {
+                            ids[merged[i].user_id || merged[i].id] = true;
+                        }
+                        for (var j = 0; j < data.members.length; j++) {
+                            var key = data.members[j].user_id || data.members[j].id;
+                            if (!ids[key]) {
+                                merged.push(data.members[j]);
+                            }
+                        }
+                        vm.members = merged;
+                    }
+                });
+        };
 
         vm.update_club_selector = function(){
 

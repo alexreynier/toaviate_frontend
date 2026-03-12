@@ -1,7 +1,7 @@
  app.controller('DashboardClubMaintenanceController', DashboardClubMaintenanceController);
 
-    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService', 'DefectMediaService'];
-    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService, DefectMediaService) {
+    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter'];
+    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService, DefectMediaService, AircraftChecksService, $filter) {
         var vm = this;
 
         vm.user = null;
@@ -85,6 +85,13 @@
        vm.show_event_detail = false;
        vm.event_filter = 'all';
 
+       // ── Aircraft Checks (Transit / Check A) ──
+       vm.aircraft_checks = [];
+       vm.aircraft_checks_loading = false;
+       vm.checks_filter_date = null;
+       vm.checks_audit_log = [];
+       vm.show_checks_audit = false;
+
        // ── Logbook Links ──
        vm.available_logbooks = [];
        vm.event_logbook_links = [];
@@ -150,7 +157,50 @@
                         vm.maintenance_events = data;
                     }
                 });
+
+            // Load aircraft checks for this plane
+            vm.loadAircraftChecks();
         }
+
+        // ── Aircraft Checks helpers ──
+        vm.loadAircraftChecks = function() {
+            if (!$stateParams.plane_id) return;
+            vm.aircraft_checks_loading = true;
+            AircraftChecksService.GetChecksByPlane($stateParams.plane_id)
+                .then(function(data) {
+                    vm.aircraft_checks_loading = false;
+                    if (data.success) {
+                        vm.aircraft_checks = data.checks;
+                    }
+                });
+        };
+
+        vm.filterChecksByDate = function() {
+            if (!vm.checks_filter_date || !$stateParams.plane_id) {
+                vm.loadAircraftChecks();
+                return;
+            }
+            vm.aircraft_checks_loading = true;
+            var dateStr = $filter('date')(vm.checks_filter_date, 'yyyy-MM-dd');
+            AircraftChecksService.GetChecksByPlaneDate($stateParams.plane_id, dateStr)
+                .then(function(data) {
+                    vm.aircraft_checks_loading = false;
+                    if (data.success) {
+                        vm.aircraft_checks = data.checks;
+                    }
+                });
+        };
+
+        vm.viewChecksAudit = function(check) {
+            vm.show_checks_audit = true;
+            vm.checks_audit_log = [];
+            AircraftChecksService.GetAuditLog(check.id)
+                .then(function(data) {
+                    if (data.success) {
+                        vm.checks_audit_log = data.audit_log;
+                    }
+                });
+        };
 
         switch(vm.action){
             case "add":

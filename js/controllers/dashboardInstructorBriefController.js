@@ -44,7 +44,6 @@
             break;
             case "view_lesson":
                 vm.selected_lesson = $stateParams.lesson_id;
-                vm.briefing_club_id = $stateParams.club_id || vm.club_id;
 
                 // If no lesson_id provided (no course on booking), show course picker
                 if (!vm.selected_lesson || vm.selected_lesson == '0' || vm.selected_lesson == 'undefined') {
@@ -54,17 +53,28 @@
                     vm.course_picker_lessons = [];
                     vm.course_picker_selected_course = null;
 
-                    CourseService.GetCoursesByClubId(vm.briefing_club_id)
-                        .then(function(data) {
-                            vm.course_picker_courses = data.items || [];
-                            vm.course_picker_loading = false;
-                        })
-                        .catch(function() {
-                            vm.course_picker_loading = false;
-                            ToastService.error('Load Failed', 'Could not load courses for this club.');
-                        });
+                    // Use club_id from URL if available; otherwise look it up
+                    // from the booking's aircraft so courses match the correct
+                    // club (not the instructor's default club).
+                    if ($stateParams.club_id) {
+                        vm.briefing_club_id = $stateParams.club_id;
+                        loadCoursesForBriefing();
+                    } else {
+                        BookingService.GetForBookout(vm.user_id, $stateParams.booking_id)
+                            .then(function(data) {
+                                vm.briefing_club_id = (data.success && data.booking && data.booking.club_id)
+                                    ? data.booking.club_id
+                                    : vm.club_id;
+                                loadCoursesForBriefing();
+                            })
+                            .catch(function() {
+                                vm.briefing_club_id = vm.club_id;
+                                loadCoursesForBriefing();
+                            });
+                    }
                 } else {
                     vm.no_course_selected = false;
+                    vm.briefing_club_id = $stateParams.club_id || vm.club_id;
                     load_lesson();
                 }
 
@@ -585,6 +595,19 @@
                         }
                     });
             }
+        }
+
+        // Load courses for the course picker using the resolved briefing_club_id
+        function loadCoursesForBriefing() {
+            CourseService.GetCoursesByClubId(vm.briefing_club_id)
+                .then(function(data) {
+                    vm.course_picker_courses = data.items || [];
+                    vm.course_picker_loading = false;
+                })
+                .catch(function() {
+                    vm.course_picker_loading = false;
+                    ToastService.error('Load Failed', 'Could not load courses for this club.');
+                });
         }
 
         function load_lesson(){

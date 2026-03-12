@@ -1,7 +1,7 @@
  app.controller('AircraftStatusController', AircraftStatusController);
 
-    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService'];
-    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService) {
+    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService', 'AircraftChecksService'];
+    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService, AircraftChecksService) {
         
         var vm = this;
 
@@ -89,11 +89,47 @@
                     ////console.log("data is : ", data);
                    vm.clubs = data.clubs;
 
-
-
+                   // Load aircraft checks for each plane (today only initially)
+                   var todayStr = new Date().toISOString().slice(0, 10);
+                   if (vm.clubs && vm.clubs.length > 0) {
+                       vm.clubs.forEach(function(club) {
+                           if (club.planes && club.planes.length > 0) {
+                               club.planes.forEach(function(plane) {
+                                   plane._checks_loading = true;
+                                   plane._aircraft_checks = [];
+                                   plane._checks_show_all = false;
+                                   AircraftChecksService.GetChecksByPlaneDate(plane.plane_id, todayStr)
+                                       .then(function(checkData) {
+                                           plane._checks_loading = false;
+                                           if (checkData.success) {
+                                               plane._aircraft_checks = checkData.checks || [];
+                                           }
+                                       })
+                                       .catch(function() {
+                                           plane._checks_loading = false;
+                                       });
+                               });
+                           }
+                       });
+                   }
 
                 });
 
+
+            vm.loadAllChecks = function(plane) {
+                plane._checks_loading = true;
+                plane._checks_show_all = true;
+                AircraftChecksService.GetChecksByPlane(plane.plane_id)
+                    .then(function(checkData) {
+                        plane._checks_loading = false;
+                        if (checkData.success) {
+                            plane._aircraft_checks = checkData.checks || [];
+                        }
+                    })
+                    .catch(function() {
+                        plane._checks_loading = false;
+                    });
+            };
 
             vm.get_initial = function(text){
                 return text.charAt(0);

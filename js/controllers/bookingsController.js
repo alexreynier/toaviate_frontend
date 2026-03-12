@@ -1849,6 +1849,7 @@
 
                         //use GB airfields first...
                         vm.members = data;
+                        vm._initialMembers = (data || []).slice();
 
 
                         if(vm.new_booking.instructor && vm.new_booking.instructor.id == vm.user.id){
@@ -2027,6 +2028,44 @@
             vm.new_pax = -1;
             vm.show_new_passenger_invitation = false;
         }
+
+        /**
+         * Server-side member search for the main Member ui-select.
+         * Unlike get_members, this does NOT reference the passenger array
+         * so it is safe to call from the booking-level member dropdown.
+         */
+        $scope.search_booking_members = function(search) {
+            if (!search || search.length < 2) {
+                // Restore original member list when search is cleared
+                if (vm._initialMembers && vm._initialMembers.length) {
+                    vm.members = vm._initialMembers.slice();
+                }
+                return;
+            }
+
+            if ((vm.club_id == 0 || !vm.club_id) && vm.new_booking.plane && vm.new_booking.plane.id) {
+                vm.club_id = vm.new_booking.plane.club_id;
+            }
+
+            MemberService.GetAllByClubAndName(vm.club_id, search)
+                .then(function(data) {
+                    if (data.success && data.members) {
+                        var existing = vm.members || [];
+                        var merged = existing.slice();
+                        var ids = {};
+                        for (var i = 0; i < merged.length; i++) {
+                            ids[merged[i].user_id || merged[i].id] = true;
+                        }
+                        for (var j = 0; j < data.members.length; j++) {
+                            var key = data.members[j].user_id || data.members[j].id;
+                            if (!ids[key]) {
+                                merged.push(data.members[j]);
+                            }
+                        }
+                        vm.members = merged;
+                    }
+                });
+        };
 
         $scope.get_members = function(name, index){
 

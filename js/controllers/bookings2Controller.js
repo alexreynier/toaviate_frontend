@@ -4052,6 +4052,7 @@
                     if(data.success == true){
                         // //console.log("WAS SENT HERE! ");
                         $scope.clear_booking();
+                        vm.bookingPanelOpen = false;
                         
                         //console.log("START IS", booking.start);
                         // var split = booking.start.split("-");

@@ -37,6 +37,9 @@ module.exports = function (grunt) {
               {expand: true, flatten: true, src: [ 'libs/css/webfonts/**'], dest: 'dist/css/webfonts'},
               {expand: true, flatten: true, src: [ 'libs/css/images/**'], dest: 'dist/css/images'},
 
+              // PDF.js library (kept separate from libs bundle, served from /js/ alongside other built assets)
+              {expand: true, flatten: true, src: [ 'libs/js/pdf.min.js', 'libs/js/pdf.worker.min.js'], dest: 'dist/js'},
+
 
               //'libs/css/images/**', 'libs/css/fonts/**', 'libs/css/webfonts/**'
 
@@ -132,7 +135,10 @@ module.exports = function (grunt) {
  
         rev: {
             files: {
-                src: ['dist/**/*.{js,css}', '!dist/js/shims/**']
+                src: ['dist/**/*.{js,css}', '!dist/js/shims/**', '!dist/js/pdf.min.js', '!dist/js/pdf.worker.min.js'],
+                filter: function(filepath) {
+                    return filepath.indexOf('pdf.min.js') === -1 && filepath.indexOf('pdf.worker.min.js') === -1;
+                }
             }
         },
  
@@ -164,6 +170,17 @@ module.exports = function (grunt) {
                     replacements: [{
                         pattern: /var environment = '[^']*';/,
                         replacement: "var environment = '" + env + "';"
+                    }]
+                }
+            },
+            pdfPaths: {
+                files: {
+                    'dist/index.html': 'dist/index.html'
+                },
+                options: {
+                    replacements: [{
+                        pattern: 'libs/js/pdf.min.js',
+                        replacement: 'js/pdf.min.js'
                     }]
                 }
             }
@@ -203,7 +220,7 @@ module.exports = function (grunt) {
 
     // Tell Grunt what to do when we type "grunt" into the terminal --> 
     grunt.registerTask('default', [
-        'clean:before', 'copy', 'useminPrepare', 'concat', 'string-replace:envConfig', 'babel', 'cssmin', 'uglify', 'rev', 'usemin', 'clean:after'
+        'clean:before', 'copy', 'useminPrepare', 'concat', 'string-replace:envConfig', 'babel', 'cssmin', 'uglify', 'rev', 'usemin', 'string-replace:pdfPaths', 'clean:after'
     ]);
 
     // Convenience aliases:

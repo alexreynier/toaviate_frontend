@@ -103,9 +103,43 @@
                     .then(function(data){
                         $scope.members = data;   
                         $scope.members.unshift({id: -12, first_name: "New", last_name: "Client"});
-                        // $scope.item.title = "hjel";
+                        $scope._initialMembers = $scope.members.slice();
                         // //console.log("members",$scope.members);
                     });
+
+            /**
+             * Server-side member search for the shop ui-select.
+             * Fires when the user types in the member dropdown and the
+             * local filter produces no matches.
+             */
+            $scope.refreshShopMembers = function(search) {
+                if (!search || search.length < 2) {
+                    if ($scope._initialMembers && $scope._initialMembers.length) {
+                        $scope.members = $scope._initialMembers.slice();
+                    }
+                    return;
+                }
+
+                MemberService.GetAllByClubAndName($scope.club_id, search)
+                    .then(function(data) {
+                        if (data.success && data.members) {
+                            // Keep the "New Client" sentinel and merge server results
+                            var existing = $scope.members || [];
+                            var merged = existing.slice();
+                            var ids = {};
+                            for (var i = 0; i < merged.length; i++) {
+                                ids[merged[i].user_id || merged[i].id] = true;
+                            }
+                            for (var j = 0; j < data.members.length; j++) {
+                                var key = data.members[j].user_id || data.members[j].id;
+                                if (!ids[key]) {
+                                    merged.push(data.members[j]);
+                                }
+                            }
+                            $scope.members = merged;
+                        }
+                    });
+            };
 
 
             $scope.delete_receipt = function(number){
