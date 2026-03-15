@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPSI 570C Display OCR - Proof of Concept</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card: #16213e;
+            --accent: #0f3460;
+            --green: #4ecca3;
+            --text: #e0e0e0;
+            --muted: #888;
+            --warn: #e2b93d;
+            --danger: #e74c3c;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 6px;
+            font-size: 1.5rem;
+            color: var(--green);
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 24px;
+            font-size: 0.85rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Upload area */
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .upload-box {
+            background: var(--card);
+            border: 2px dashed var(--accent);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
+        }
+        .upload-box:hover {
+            border-color: var(--green);
+            background: var(--accent);
+        }
+        .upload-box.has-image {
+            border-style: solid;
+            border-color: var(--green);
+            padding: 8px;
+        }
+        .upload-box input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .upload-box img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            display: none;
+        }
+        .upload-box.has-image img {
+            display: block;
+            margin: 0 auto;
+        }
+        .upload-box .placeholder {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .upload-box.has-image .placeholder { display: none; }
+        .upload-label {
+            font-weight: 600;
+            color: var(--green);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Controls */
+        .controls {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .btn {
+            background: var(--green);
+            color: var(--bg);
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: var(--accent);
+            color: var(--text);
+            margin-left: 8px;
+        }
+
+        /* Results */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .result-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--accent);
+        }
+        .result-card .label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .result-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .result-card .value.green { color: var(--green); }
+        .result-card .value.warn { color: var(--warn); }
+        .result-card .value.danger { color: var(--danger); }
+        .result-card .source {
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        /* Processing log */
+        .log-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        .log-section h3 {
+            color: var(--green);
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        #log {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: var(--muted);
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        #log .time { color: var(--green); }
+        #log .warn { color: var(--warn); }
+        #log .error { color: var(--danger); }
+
+        /* Progress */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 2px;
+            margin: 12px 0;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar.active { display: block; }
+        .progress-bar .fill {
+            height: 100%;
+            background: var(--green);
+            border-radius: 2px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* Debug canvases */
+        .debug-section {
+            margin-top: 24px;
+        }
+        .debug-section h3 {
+            color: var(--green);
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        .debug-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+        }
+        .debug-item {
+            background: var(--card);
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid var(--accent);
+        }
+        .debug-item .title {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+        .debug-item canvas {
+            width: 100%;
+            border-radius: 4px;
+            image-rendering: pixelated;
+        }
+        .debug-item .ocr-text {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--warn);
+            margin-top: 8px;
+            word-break: break-all;
+        }
+
+        /* Timing */
+        .timing {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 12px;
+        }
+        .timing strong {
+            color: var(--green);
+        }
+
+        /* Config panel */
+        .config-panel {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            border: 1px solid var(--accent);
+        }
+        .config-panel h3 {
+            color: var(--green);
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        .config-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-item label {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        .config-item select, .config-item input {
+            background: var(--accent);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .upload-section { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EPSI 570C Display OCR</h1>
+        <p class="subtitle">Extract battery %, SOH, and HOBBS from Pipistrel Velis Electro instrument photos</p>
+
+        <div class="upload-section">
+            <div class="upload-box" id="upload1">
+                <span class="upload-label">Image 1 — FLIGHT Tab</span>
+                <div class="placeholder">Click or drop image here<br><small>Battery %, HOBBS</small></div>
+                <img id="preview1">
+                <input type="file" accept="image/*" id="file1">
+            </div>
+            <div class="upload-box" id="upload2">
+                <span class="upload-label">Image 2 — SYSTEM Tab</span>
+                <div class="placeholder">Click or drop image here<br><small>SOH, Battery details, HOBBS</small></div>
+                <img id="preview2">
+                <input type="file" accept="image/*" id="file2">
+            </div>
+        </div>
+
+        <div class="config-panel">
+            <h3>Processing Options</h3>
+            <div class="config-row">
+                <div class="config-item">
+                    <label>Threshold:</label>
+                    <input type="range" id="threshold" min="50" max="200" value="100" style="width: 120px;">
+                    <span id="thresholdVal">100</span>
+                </div>
+                <div class="config-item">
+                    <label>Scale factor:</label>
+                    <select id="scaleFactor">
+                        <option value="2">2x</option>
+                        <option value="3" selected>3x</option>
+                        <option value="4">4x</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>OCR mode:</label>
+                    <select id="ocrMode">
+                        <option value="full">Full image OCR</option>
+                        <option value="regions" selected>Region-based (faster)</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>
+                        <input type="checkbox" id="showDebug" checked> Show debug
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="processBtn" disabled>Extract Data</button>
+            <button class="btn btn-secondary" id="clearBtn">Clear All</button>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="fill" id="progressFill"></div>
+        </div>
+
+        <div class="results-grid" id="results" style="display:none;">
+            <div class="result-card">
+                <div class="label">Front Battery</div>
+                <div class="value green" id="frontPct">—</div>
+                <div class="source" id="frontPctSrc"></div>
+            </div>
+            <div class="result-card">
+                <div class="label">Rear Battery</div>
+                <div class="value green" id="rearPct">—</div>
+                <div class="source" id="rearPctSrc"></div>
+            </div>
+            <div class="result-card">
+                <div class="label">Front SOH</div>
+                <div class="value warn" id="frontSoh">—</div>
+                <div class="source" id="frontSohSrc"></div>
+            </div>
+            <div class="result-card">
+                <div class="label">Rear SOH</div>
+                <div class="value warn" id="rearSoh">—</div>
+                <div class="source" id="rearSohSrc"></div>
+            </div>
+            <div class="result-card">
+                <div class="label">HOBBS</div>
+                <div class="value green" id="hobbs">—</div>
+                <div class="source" id="hobbsSrc"></div>
+            </div>
+        </div>
+        <div class="timing" id="timing"></div>
+
+        <div class="debug-section" id="debugSection" style="display:none;">
+            <h3>Debug: Preprocessed Regions & OCR Output</h3>
+            <div class="debug-grid" id="debugGrid"></div>
+        </div>
+
+        <div class="log-section">
+            <h3>Processing Log</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ========================
+        // DOM refs
+        // ========================
+        const file1 = document.getElementById('file1');
+        const file2 = document.getElementById('file2');
+        const preview1 = document.getElementById('preview1');
+        const preview2 = document.getElementById('preview2');
+        const upload1 = document.getElementById('upload1');
+        const upload2 = document.getElementById('upload2');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const resultsDiv = document.getElementById('results');
+        const debugSection = document.getElementById('debugSection');
+        const debugGrid = document.getElementById('debugGrid');
+        const logDiv = document.getElementById('log');
+        const thresholdSlider = document.getElementById('threshold');
+        const thresholdVal = document.getElementById('thresholdVal');
+
+        let image1 = null, image2 = null;
+        let worker = null;
+
+        // ========================
+        // Logging
+        // ========================
+        function log(msg, type = '') {
+            const ts = new Date().toISOString().substr(11, 12);
+            logDiv.innerHTML += `<div><span class="time">[${ts}]</span> <span class="${type}">${msg}</span></div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // ========================
+        // File handling
+        // ========================
+        function handleFile(file, previewEl, uploadBox, slot) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    previewEl.src = e.target.result;
+                    uploadBox.classList.add('has-image');
+                    if (slot === 1) image1 = img;
+                    else image2 = img;
+                    processBtn.disabled = !(image1 || image2);
+                    log(`Image ${slot} loaded: ${img.width}x${img.height}`);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        file1.addEventListener('change', (e) => handleFile(e.target.files[0], preview1, upload1, 1));
+        file2.addEventListener('change', (e) => handleFile(e.target.files[0], preview2, upload2, 2));
+
+        clearBtn.addEventListener('click', () => {
+            image1 = image2 = null;
+            preview1.src = preview2.src = '';
+            upload1.classList.remove('has-image');
+            upload2.classList.remove('has-image');
+            file1.value = file2.value = '';
+            processBtn.disabled = true;
+            resultsDiv.style.display = 'none';
+            debugSection.style.display = 'none';
+            debugGrid.innerHTML = '';
+            logDiv.innerHTML = '';
+            document.getElementById('timing').textContent = '';
+        });
+
+        thresholdSlider.addEventListener('input', () => {
+            thresholdVal.textContent = thresholdSlider.value;
+        });
+
+        // ========================
+        // Image preprocessing
+        // ========================
+        function preprocessRegion(sourceImg, rx, ry, rw, rh, options = {}) {
+            const scale = parseInt(document.getElementById('scaleFactor').value) || 3;
+            const thresh = parseInt(thresholdSlider.value) || 100;
+            const invert = options.invert !== false; // default true
+
+            // Step 1: Crop from source
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = rw;
+            cropCanvas.height = rh;
+            const cropCtx = cropCanvas.getContext('2d');
+            cropCtx.drawImage(sourceImg, rx, ry, rw, rh, 0, 0, rw, rh);
+
+            // Step 2: Scale up for better OCR
+            const scaledCanvas = document.createElement('canvas');
+            scaledCanvas.width = rw * scale;
+            scaledCanvas.height = rh * scale;
+            const scaledCtx = scaledCanvas.getContext('2d');
+            scaledCtx.imageSmoothingEnabled = true;
+            scaledCtx.imageSmoothingQuality = 'high';
+            scaledCtx.drawImage(cropCanvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
+
+            // Step 3: Grayscale + threshold
+            const imgData = scaledCtx.getImageData(0, 0, scaledCanvas.width, scaledCanvas.height);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                // Luminance
+                const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+
+                // Also check if pixel is "greenish" or "whitish" (instrument display text colors)
+                const r = data[i], g = data[i + 1], b = data[i + 2];
+                const isGreen = g > r * 1.2 && g > b * 1.2 && g > 60;
+                const isWhite = r > 150 && g > 150 && b > 150;
+                const isYellow = r > 150 && g > 150 && b < 80;
+                const isBright = isGreen || isWhite || isYellow || gray > thresh;
+
+                if (invert) {
+                    // Dark text on white bg (what Tesseract prefers)
+                    const val = isBright ? 0 : 255;
+                    data[i] = data[i + 1] = data[i + 2] = val;
+                } else {
+                    const val = isBright ? 255 : 0;
+                    data[i] = data[i + 1] = data[i + 2] = val;
+                }
+                data[i + 3] = 255;
+            }
+
+            scaledCtx.putImageData(imgData, 0, 0);
+
+            // Step 4: Add padding (Tesseract likes whitespace around text)
+            const pad = 20;
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = scaledCanvas.width + pad * 2;
+            finalCanvas.height = scaledCanvas.height + pad * 2;
+            const finalCtx = finalCanvas.getContext('2d');
+            finalCtx.fillStyle = invert ? '#FFFFFF' : '#000000';
+            finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+            finalCtx.drawImage(scaledCanvas, pad, pad);
+
+            return finalCanvas;
+        }
+
+        // ========================
+        // Display detection: find the EPSI screen area within the photo
+        // ========================
+        function detectDisplayBounds(img) {
+            // We use a simple approach: look for the dark rectangular display area
+            // The EPSI 570C has a dark background with bright text
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            // For now, return reasonable defaults based on typical cockpit photos
+            // In production, you'd do edge detection here
+            // The display typically occupies the center-right portion of these photos
+            return { x: 0, y: 0, w: img.width, h: img.height };
+        }
+
+        // ========================
+        // Region definitions for FLIGHT tab (Image 1)
+        // These are approximate ratios within the EPSI display area
+        // ========================
+        function getFlightTabRegions(img) {
+            const w = img.width, h = img.height;
+            // These ratios are calibrated for the typical cockpit photo framing of the EPSI 570C
+            // The EPSI display itself is roughly in the center of each photo
+            return [
+                {
+                    name: 'Battery Percentages (Flight)',
+                    // The "66% 63%" text area near top of display
+                    x: Math.round(w * 0.33),
+                    y: Math.round(h * 0.18),
+                    w: Math.round(w * 0.35),
+                    h: Math.round(h * 0.08),
+                    extract: 'batteryPct'
+                },
+                {
+                    name: 'HOBBS (Flight)',
+                    // The "140:28" at bottom right of display  
+                    x: Math.round(w * 0.52),
+                    y: Math.round(h * 0.72),
+                    w: Math.round(w * 0.28),
+                    h: Math.round(h * 0.08),
+                    extract: 'hobbs'
+                },
+                {
+                    name: 'Full Display Text (Flight)',
+                    // Wider region to catch everything as fallback
+                    x: Math.round(w * 0.25),
+                    y: Math.round(h * 0.12),
+                    w: Math.round(w * 0.52),
+                    h: Math.round(h * 0.80),
+                    extract: 'fullFlight'
+                }
+            ];
+        }
+
+        // Region definitions for SYSTEM tab (Image 2)
+        function getSystemTabRegions(img) {
+            const w = img.width, h = img.height;
+            return [
+                {
+                    name: 'Battery SOH (System)',
+                    // The SOH row in the BATTERY section
+                    x: Math.round(w * 0.25),
+                    y: Math.round(h * 0.27),
+                    w: Math.round(w * 0.35),
+                    h: Math.round(h * 0.07),
+                    extract: 'soh'
+                },
+                {
+                    name: 'HOBBS (System)',
+                    // HOBBS value in system tab
+                    x: Math.round(w * 0.38),
+                    y: Math.round(h * 0.68),
+                    w: Math.round(w * 0.25),
+                    h: Math.round(h * 0.07),
+                    extract: 'hobbsSys'
+                },
+                {
+                    name: 'Full Display Text (System)',
+                    // Full system display for fallback parsing
+                    x: Math.round(w * 0.22),
+                    y: Math.round(h * 0.15),
+                    w: Math.round(w * 0.58),
+                    h: Math.round(h * 0.78),
+                    extract: 'fullSystem'
+                }
+            ];
+        }
+
+        // ========================
+        // OCR Engine
+        // ========================
+        async function initWorker() {
+            if (worker) return worker;
+            log('Initializing Tesseract.js worker...');
+            const t0 = performance.now();
+            worker = await Tesseract.createWorker('eng', 1, {
+                logger: (m) => {
+                    if (m.status === 'recognizing text') {
+                        updateProgress(m.progress * 100);
+                    }
+                }
+            });
+            // Set parameters for digit/number recognition
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789%:.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/ ',
+                tessedit_pageseg_mode: '6', // Assume uniform block of text
+            });
+            const elapsed = (performance.now() - t0).toFixed(0);
+            log(`Worker ready in ${elapsed}ms`);
+            return worker;
+        }
+
+        async function ocrRegion(canvas, regionName) {
+            const w = await initWorker();
+            const t0 = performance.now();
+            log(`OCR: ${regionName}...`);
+
+            const result = await w.recognize(canvas);
+            const elapsed = (performance.now() - t0).toFixed(0);
+            const text = result.data.text.trim();
+            log(`OCR [${regionName}]: "${text}" (${elapsed}ms, conf: ${result.data.confidence.toFixed(1)}%)`);
+            return { text, confidence: result.data.confidence, elapsed: parseInt(elapsed) };
+        }
+
+        // ========================
+        // Full-image OCR mode (slower but more reliable as fallback)
+        // ========================
+        async function ocrFullImage(img, label) {
+            const canvas = preprocessRegion(img, 0, 0, img.width, img.height, {});
+            addDebugCanvas(canvas, label + ' (full preprocessed)', '');
+            return await ocrRegion(canvas, label);
+        }
+
+        // ========================
+        // Parsing extracted text
+        // ========================
+        const parsers = {
+            batteryPct(text) {
+                // Looking for two percentages like "66% 63%" or "66 63" near F and R labels
+                const pcts = text.match(/(\d{1,3})\s*%/g);
+                if (pcts && pcts.length >= 2) {
+                    return {
+                        frontPct: pcts[0].replace('%', '').trim(),
+                        rearPct: pcts[1].replace('%', '').trim()
+                    };
+                }
+                // Try without % sign
+                const nums = text.match(/\b(\d{2,3})\b/g);
+                if (nums && nums.length >= 2) {
+                    const valid = nums.filter(n => parseInt(n) <= 100 && parseInt(n) >= 0);
+                    if (valid.length >= 2) {
+                        return { frontPct: valid[0], rearPct: valid[1] };
+                    }
+                }
+                return null;
+            },
+
+            hobbs(text) {
+                // Looking for pattern like "140:28" or "140 28" — hours:minutes
+                const match = text.match(/(\d{1,5})\s*[:.]\s*(\d{2})/);
+                if (match) {
+                    const hours = parseInt(match[1]);
+                    const mins = parseInt(match[2]);
+                    if (mins < 60 && hours < 99999) {
+                        return { hobbs: `${hours}:${match[2]}` };
+                    }
+                }
+                return null;
+            },
+
+            hobbsSys(text) {
+                return parsers.hobbs(text);
+            },
+
+            soh(text) {
+                // Looking for SOH percentages like "90% 70%" 
+                const pcts = text.match(/(\d{1,3})\s*%/g);
+                if (pcts && pcts.length >= 2) {
+                    return {
+                        frontSoh: pcts[0].replace('%', '').trim(),
+                        rearSoh: pcts[1].replace('%', '').trim()
+                    };
+                }
+                const nums = text.match(/\b(\d{2,3})\b/g);
+                if (nums && nums.length >= 2) {
+                    const valid = nums.filter(n => parseInt(n) <= 100 && parseInt(n) >= 5);
+                    if (valid.length >= 2) {
+                        return { frontSoh: valid[0], rearSoh: valid[1] };
+                    }
+                }
+                return null;
+            },
+
+            fullFlight(text) {
+                const results = {};
+                // Try to find battery percentages
+                const pctMatch = text.match(/(\d{2,3})\s*%\s*(\d{2,3})\s*%/);
+                if (pctMatch) {
+                    results.frontPct = pctMatch[1];
+                    results.rearPct = pctMatch[2];
+                }
+                // Try to find HOBBS  
+                const hobbsMatch = text.match(/HOBBS[:\s]*(\d{1,5})\s*[:.]\s*(\d{2})/i);
+                if (hobbsMatch) {
+                    results.hobbs = `${parseInt(hobbsMatch[1])}:${hobbsMatch[2]}`;
+                } else {
+                    // Broader hobbs search
+                    const hm = text.match(/(\d{2,5})\s*[:.]\s*(\d{2})/g);
+                    if (hm) {
+                        for (const candidate of hm) {
+                            const m = candidate.match(/(\d{2,5})\s*[:.]\s*(\d{2})/);
+                            if (m && parseInt(m[2]) < 60 && parseInt(m[1]) > 10) {
+                                results.hobbs = `${parseInt(m[1])}:${m[2]}`;
+                                break;
+                            }
+                        }
+                    }
+                }
+                return Object.keys(results).length ? results : null;
+            },
+
+            fullSystem(text) {
+                const results = {};
+                // SOH
+                const sohMatch = text.match(/SOH[:\s]*(\d{1,3})\s*%?\s*(\d{1,3})\s*%?/i);
+                if (sohMatch) {
+                    results.frontSoh = sohMatch[1];
+                    results.rearSoh = sohMatch[2];
+                }
+                // HOBBS
+                const hobbsMatch = text.match(/HOBBS[:\s]*(\d{1,5})\s*[:.]\s*(\d{2})/i);
+                if (hobbsMatch) {
+                    results.hobbs = `${parseInt(hobbsMatch[1])}:${hobbsMatch[2]}`;
+                }
+                return Object.keys(results).length ? results : null;
+            }
+        };
+
+        // ========================
+        // Debug visualization
+        // ========================
+        function addDebugCanvas(canvas, title, ocrText) {
+            if (!document.getElementById('showDebug').checked) return;
+            const item = document.createElement('div');
+            item.className = 'debug-item';
+            item.innerHTML = `<div class="title">${title}</div>`;
+
+            const displayCanvas = document.createElement('canvas');
+            displayCanvas.width = canvas.width;
+            displayCanvas.height = canvas.height;
+            displayCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            item.appendChild(displayCanvas);
+
+            if (ocrText) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'ocr-text';
+                textDiv.textContent = `"${ocrText}"`;
+                item.appendChild(textDiv);
+            }
+            debugGrid.appendChild(item);
+        }
+
+        function addRegionOverlay(img, regions, label) {
+            if (!document.getElementById('showDebug').checked) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            // Draw region rectangles
+            ctx.lineWidth = 3;
+            const colors = ['#4ecca3', '#e2b93d', '#e74c3c', '#3498db', '#9b59b6'];
+            regions.forEach((r, i) => {
+                ctx.strokeStyle = colors[i % colors.length];
+                ctx.strokeRect(r.x, r.y, r.w, r.h);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.font = `${Math.max(14, img.width * 0.015)}px sans-serif`;
+                ctx.fillText(r.name, r.x + 4, r.y - 5);
+            });
+
+            const item = document.createElement('div');
+            item.className = 'debug-item';
+            item.style.gridColumn = '1 / -1';
+            item.innerHTML = `<div class="title">${label} — Region overlay</div>`;
+            const dispCanvas = document.createElement('canvas');
+            dispCanvas.width = canvas.width;
+            dispCanvas.height = canvas.height;
+            dispCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            item.appendChild(dispCanvas);
+            debugGrid.appendChild(item);
+        }
+
+        // ========================
+        // Progress
+        // ========================
+        function updateProgress(pct) {
+            progressFill.style.width = pct + '%';
+        }
+
+        // ========================
+        // Main processing pipeline
+        // ========================
+        async function process() {
+            const totalT0 = performance.now();
+            processBtn.disabled = true;
+            progressBar.classList.add('active');
+            debugGrid.innerHTML = '';
+            resultsDiv.style.display = 'none';
+
+            const collected = {
+                frontPct: null,
+                rearPct: null,
+                frontSoh: null,
+                rearSoh: null,
+                hobbs: null
+            };
+            const sources = {
+                frontPct: '',
+                rearPct: '',
+                frontSoh: '',
+                rearSoh: '',
+                hobbs: ''
+            };
+
+            const mode = document.getElementById('ocrMode').value;
+
+            try {
+                // Process Image 1 (FLIGHT tab)
+                if (image1) {
+                    log('--- Processing Image 1 (FLIGHT tab) ---');
+                    updateProgress(10);
+
+                    if (mode === 'regions') {
+                        const regions = getFlightTabRegions(image1);
+                        addRegionOverlay(image1, regions, 'Image 1 (FLIGHT)');
+
+                        for (const region of regions) {
+                            const canvas = preprocessRegion(image1, region.x, region.y, region.w, region.h);
+                            const ocrResult = await ocrRegion(canvas, region.name);
+                            addDebugCanvas(canvas, region.name, ocrResult.text);
+
+                            const parsed = parsers[region.extract]?.(ocrResult.text);
+                            if (parsed) {
+                                for (const [key, val] of Object.entries(parsed)) {
+                                    if (!collected[key] && val) {
+                                        collected[key] = val;
+                                        sources[key] = `Image 1 / ${region.name} (${ocrResult.confidence.toFixed(0)}%)`;
+                                        log(`✓ Found ${key} = ${val}`, 'time');
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        const result = await ocrFullImage(image1, 'Image 1 FLIGHT');
+                        const parsed = parsers.fullFlight(result.text);
+                        if (parsed) {
+                            for (const [key, val] of Object.entries(parsed)) {
+                                if (!collected[key] && val) {
+                                    collected[key] = val;
+                                    sources[key] = `Image 1 full OCR`;
+                                }
+                            }
+                        }
+                    }
+
+                    updateProgress(50);
+                }
+
+                // Process Image 2 (SYSTEM tab)
+                if (image2) {
+                    log('--- Processing Image 2 (SYSTEM tab) ---');
+                    updateProgress(55);
+
+                    if (mode === 'regions') {
+                        const regions = getSystemTabRegions(image2);
+                        addRegionOverlay(image2, regions, 'Image 2 (SYSTEM)');
+
+                        for (const region of regions) {
+                            const canvas = preprocessRegion(image2, region.x, region.y, region.w, region.h);
+                            const ocrResult = await ocrRegion(canvas, region.name);
+                            addDebugCanvas(canvas, region.name, ocrResult.text);
+
+                            const parsed = parsers[region.extract]?.(ocrResult.text);
+                            if (parsed) {
+                                for (const [key, val] of Object.entries(parsed)) {
+                                    if (!collected[key] && val) {
+                                        collected[key] = val;
+                                        sources[key] = `Image 2 / ${region.name} (${ocrResult.confidence.toFixed(0)}%)`;
+                                        log(`✓ Found ${key} = ${val}`, 'time');
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        const result = await ocrFullImage(image2, 'Image 2 SYSTEM');
+                        const parsed = parsers.fullSystem(result.text);
+                        if (parsed) {
+                            for (const [key, val] of Object.entries(parsed)) {
+                                if (!collected[key] && val) {
+                                    collected[key] = val;
+                                    sources[key] = `Image 2 full OCR`;
+                                }
+                            }
+                        }
+                    }
+
+                    updateProgress(95);
+                }
+
+                // Display results
+                displayResults(collected, sources);
+
+            } catch (err) {
+                log(`ERROR: ${err.message}`, 'error');
+                console.error(err);
+            } finally {
+                updateProgress(100);
+                const totalElapsed = (performance.now() - totalT0).toFixed(0);
+                document.getElementById('timing').innerHTML = `Total processing time: <strong>${totalElapsed}ms</strong>`;
+                log(`Total time: ${totalElapsed}ms`);
+
+                setTimeout(() => {
+                    progressBar.classList.remove('active');
+                    processBtn.disabled = false;
+                }, 500);
+            }
+        }
+
+        function displayResults(data, sources) {
+            resultsDiv.style.display = '';
+            if (document.getElementById('showDebug').checked) {
+                debugSection.style.display = '';
+            }
+
+            const setResult = (id, value, srcId, source) => {
+                const el = document.getElementById(id);
+                const srcEl = document.getElementById(srcId);
+                if (value) {
+                    el.textContent = value + (id.includes('Pct') || id.includes('Soh') ? '%' : '');
+                    srcEl.textContent = source;
+
+                    // Color coding
+                    if (id.includes('Pct')) {
+                        const v = parseInt(value);
+                        el.className = 'value ' + (v >= 50 ? 'green' : v >= 30 ? 'warn' : 'danger');
+                    } else if (id.includes('Soh')) {
+                        const v = parseInt(value);
+                        el.className = 'value ' + (v >= 80 ? 'green' : v >= 60 ? 'warn' : 'danger');
+                    }
+                } else {
+                    el.textContent = '—';
+                    el.className = 'value';
+                    srcEl.textContent = 'Not detected';
+                }
+            };
+
+            setResult('frontPct', data.frontPct, 'frontPctSrc', sources.frontPct);
+            setResult('rearPct', data.rearPct, 'rearPctSrc', sources.rearPct);
+            setResult('frontSoh', data.frontSoh, 'frontSohSrc', sources.frontSoh);
+            setResult('rearSoh', data.rearSoh, 'rearSohSrc', sources.rearSoh);
+            setResult('hobbs', data.hobbs, 'hobbsSrc', sources.hobbs);
+
+            // Log what was/wasn't found
+            for (const [key, val] of Object.entries(data)) {
+                if (!val) log(`⚠ ${key} not detected`, 'warn');
+            }
+        }
+
+        processBtn.addEventListener('click', process);
+
+        // ========================
+        // Initialize Tesseract worker eagerly on page load
+        // ========================
+        window.addEventListener('load', () => {
+            log('Page loaded. Loading Tesseract engine in background...');
+            initWorker().then(() => {
+                log('Tesseract ready — load images and click Extract Data');
+            }).catch(err => {
+                log('Failed to init Tesseract: ' + err.message, 'error');
+            });
+        });
+
+    })();
+    </script>
+</body>
+</html>

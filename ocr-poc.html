@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPSI 570C Display OCR v3</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg: #111827; --card: #1f2937; --accent: #374151;
+            --green: #10b981; --text: #f3f4f6; --muted: #9ca3af;
+            --warn: #f59e0b; --danger: #ef4444; --blue: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 1.4rem; color: var(--green); margin-bottom: 4px; }
+        .subtitle { text-align: center; color: var(--muted); font-size: 0.8rem; margin-bottom: 16px; }
+
+        .engine-status { text-align: center; padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px; transition: all 0.3s; }
+        .engine-status.loading { background: var(--accent); color: var(--warn); }
+        .engine-status.ready { background: #064e3b; color: var(--green); }
+        .engine-status.error { background: #7f1d1d; color: var(--danger); }
+
+        .upload-section { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .upload-box {
+            background: var(--card); border: 2px dashed var(--accent); border-radius: 10px;
+            padding: 16px; text-align: center; cursor: pointer; position: relative;
+            transition: border-color 0.2s; min-height: 120px; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .upload-box:hover { border-color: var(--green); }
+        .upload-box.has-image { border-style: solid; border-color: var(--green); padding: 6px; }
+        .upload-box input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .upload-box img { max-width: 100%; max-height: 250px; border-radius: 6px; display: none; }
+        .upload-box.has-image img { display: block; }
+        .upload-label { font-weight: 600; color: var(--green); font-size: 0.85rem; margin-bottom: 4px; }
+        .upload-hint { color: var(--muted); font-size: 0.75rem; }
+        .upload-box.has-image .upload-hint { display: none; }
+        .tab-badge {
+            position: absolute; top: 8px; right: 8px; padding: 2px 8px;
+            border-radius: 4px; font-size: 0.65rem; font-weight: 600; display: none;
+        }
+        .tab-badge.flight { background: #064e3b; color: var(--green); display: inline-block; }
+        .tab-badge.system { background: #1e3a5f; color: var(--blue); display: inline-block; }
+
+        .controls { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+        .btn { padding: 10px 28px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s; }
+        .btn-primary { background: var(--green); color: var(--bg); }
+        .btn-secondary { background: var(--accent); color: var(--text); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn:hover:not(:disabled) { opacity: 0.9; }
+
+        .progress-section { margin-bottom: 16px; display: none; }
+        .progress-section.active { display: block; }
+        .progress-bar { width: 100%; height: 4px; background: var(--accent); border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--green); transition: width 0.2s; width: 0%; }
+        .progress-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; text-align: center; }
+
+        .results-grid { display: none; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+        .result-card { background: var(--card); border-radius: 10px; padding: 14px 10px; text-align: center; border: 1px solid var(--accent); }
+        .result-card .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .result-card .value { font-size: 1.6rem; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace; }
+        .result-card .sub { font-size: 0.6rem; color: var(--muted); margin-top: 4px; }
+        .green { color: var(--green); } .warn { color: var(--warn); } .danger { color: var(--danger); } .blue { color: var(--blue); }
+
+        .timings { background: var(--card); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: none; }
+        .timings h3 { font-size: 0.8rem; color: var(--green); margin-bottom: 8px; }
+        .timing-row { display: flex; justify-content: space-between; font-size: 0.75rem; padding: 2px 0; }
+        .timing-row .step { color: var(--muted); } .timing-row .time { color: var(--green); font-family: monospace; }
+        .timing-total { border-top: 1px solid var(--accent); margin-top: 6px; padding-top: 6px; font-weight: 600; }
+
+        .debug-section { margin-top: 16px; display: none; }
+        .debug-section h3 { font-size: 0.8rem; color: var(--green); margin-bottom: 8px; }
+        .debug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+        .debug-item { background: var(--card); border-radius: 8px; padding: 8px; border: 1px solid var(--accent); }
+        .debug-item .title { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; }
+        .debug-item canvas { width: 100%; border-radius: 4px; }
+        .debug-item .ocr-text { font-family: monospace; font-size: 0.7rem; color: var(--warn); margin-top: 4px; word-break: break-all; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+        .debug-wide { grid-column: 1 / -1; }
+        .toggle-debug { font-size: 0.75rem; color: var(--muted); cursor: pointer; text-align: center; margin-top: 8px; }
+        .toggle-debug:hover { color: var(--green); }
+
+        @media (max-width: 768px) {
+            .upload-section { grid-template-columns: 1fr; }
+            .results-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>EPSI 570C Display OCR</h1>
+    <p class="subtitle">Extracts Battery %, SOH &amp; HOBBS from Pipistrel Velis Electro — runs 100% locally in browser</p>
+
+    <div class="engine-status loading" id="engineStatus">Loading OCR engine (first load downloads ~12MB model, then cached)...</div>
+
+    <div class="upload-section">
+        <div class="upload-box" id="upload1">
+            <span class="upload-label">Image 1 — FLIGHT Tab</span>
+            <div class="upload-hint">Battery charge %, HOBBS</div>
+            <img id="preview1">
+            <input type="file" accept="image/*" id="file1">
+            <span class="tab-badge" id="tabBadge1"></span>
+        </div>
+        <div class="upload-box" id="upload2">
+            <span class="upload-label">Image 2 — SYSTEM Tab</span>
+            <div class="upload-hint">SOH, Battery details, HOBBS</div>
+            <img id="preview2">
+            <input type="file" accept="image/*" id="file2">
+            <span class="tab-badge" id="tabBadge2"></span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-primary" id="processBtn" disabled>Extract Data</button>
+        <button class="btn btn-secondary" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="progress-section" id="progressSection">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel">Initializing...</div>
+    </div>
+
+    <div class="results-grid" id="resultsGrid">
+        <div class="result-card">
+            <div class="label">Front Battery</div>
+            <div class="value green" id="resFrontPct">—</div>
+            <div class="sub" id="resFrontPctSub"></div>
+        </div>
+        <div class="result-card">
+            <div class="label">Rear Battery</div>
+            <div class="value green" id="resRearPct">—</div>
+            <div class="sub" id="resRearPctSub"></div>
+        </div>
+        <div class="result-card">
+            <div class="label">Front SOH</div>
+            <div class="value blue" id="resFrontSoh">—</div>
+            <div class="sub" id="resFrontSohSub"></div>
+        </div>
+        <div class="result-card">
+            <div class="label">Rear SOH</div>
+            <div class="value blue" id="resRearSoh">—</div>
+            <div class="sub" id="resRearSohSub"></div>
+        </div>
+        <div class="result-card">
+            <div class="label">HOBBS</div>
+            <div class="value green" id="resHobbs">—</div>
+            <div class="sub" id="resHobbsSub"></div>
+        </div>
+    </div>
+
+    <div class="timings" id="timingsPanel">
+        <h3>Performance Breakdown</h3>
+        <div id="timingsList"></div>
+    </div>
+
+    <div class="toggle-debug" id="toggleDebug">Show debug regions ▼</div>
+    <div class="debug-section" id="debugSection">
+        <h3>Detection &amp; OCR Debug</h3>
+        <div class="debug-grid" id="debugGrid"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    /* ==================================================================
+       DOM REFERENCES
+       ================================================================== */
+    const $ = id => document.getElementById(id);
+    const file1 = $('file1'), file2 = $('file2');
+    const preview1 = $('preview1'), preview2 = $('preview2');
+    const upload1 = $('upload1'), upload2 = $('upload2');
+    const processBtn = $('processBtn'), clearBtn = $('clearBtn');
+    const progressSection = $('progressSection');
+    const progressFill = $('progressFill'), progressLabel = $('progressLabel');
+    const resultsGrid = $('resultsGrid');
+    const timingsPanel = $('timingsPanel'), timingsList = $('timingsList');
+    const debugSection = $('debugSection'), debugGrid = $('debugGrid');
+    const engineStatus = $('engineStatus');
+
+    let image1 = null, image2 = null;
+    let ocrWorker = null;
+    let workerReady = false;
+    let debugVisible = false;
+    const timings = [];
+
+    /* ==================================================================
+       UTILITIES
+       ================================================================== */
+    function time(label) {
+        const t0 = performance.now();
+        return () => { const ms = Math.round(performance.now() - t0); timings.push({ label, ms }); return ms; };
+    }
+    function progress(pct, label) {
+        progressFill.style.width = pct + '%';
+        if (label) progressLabel.textContent = label;
+    }
+    function imgToCanvas(img) {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth || img.width;
+        c.height = img.naturalHeight || img.height;
+        c.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0);
+        return c;
+    }
+    function cropCanvas(src, x, y, w, h) {
+        x = Math.max(0, Math.round(x));
+        y = Math.max(0, Math.round(y));
+        w = Math.max(10, Math.round(w));
+        h = Math.max(10, Math.round(h));
+        const srcW = src.width, srcH = src.height;
+        if (x + w > srcW) w = srcW - x;
+        if (y + h > srcH) h = srcH - y;
+        w = Math.max(10, w); h = Math.max(10, h);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d', { willReadFrequently: true }).drawImage(src, x, y, w, h, 0, 0, w, h);
+        return c;
+    }
+
+    /* ==================================================================
+       1. FIND THE EPSI 570C DISPLAY — dark-rectangle + edge-contrast
+       ==================================================================
+       Strategy:
+         a) Build reduced-res grayscale + green-pixel maps
+         b) Identify DARK rectangular regions (the LCD screen background
+            is near-black compared to the surrounding instrument panel)
+         c) Score each candidate rectangle by:
+            - Green content inside (EPSI gauges are bright green)
+            - Edge contrast (sharp brightness change at bezel boundary)
+            - Aspect ratio (EPSI is roughly square, ~0.8:1 to 1.4:1)
+            - Area (not too tiny, not the entire photo)
+         d) Return the highest-scoring rectangle as the display bounds
+       ================================================================== */
+    function findDisplayBounds(canvas) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const W = canvas.width, H = canvas.height;
+        const d = ctx.getImageData(0, 0, W, H).data;
+
+        /* --- Reduced resolution sampling --- */
+        const maxDim = 500;
+        const step = Math.max(1, Math.floor(Math.min(W, H) / maxDim));
+        const rW = Math.ceil(W / step), rH = Math.ceil(H / step);
+
+        /* --- Build grayscale and green maps --- */
+        const gray = new Uint8Array(rW * rH);
+        const greenMap = new Uint8Array(rW * rH);
+
+        for (let ry = 0; ry < rH; ry++) {
+            const y = Math.min(H - 1, ry * step);
+            for (let rx = 0; rx < rW; rx++) {
+                const x = Math.min(W - 1, rx * step);
+                const i = (y * W + x) * 4;
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                gray[ry * rW + rx] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                /* EPSI green: bright, highly saturated */
+                if (g > 80 && g > r * 1.4 && g > b * 1.4) {
+                    greenMap[ry * rW + rx] = 1;
+                }
+            }
+        }
+
+        /* --- Brightness statistics for adaptive thresholding --- */
+        const sorted = Array.from(gray).sort((a, b) => a - b);
+        const p25 = sorted[Math.floor(sorted.length * 0.25)];
+        const median = sorted[Math.floor(sorted.length * 0.5)];
+        /*
+         * LCD background is near-black (brightness < 25-40).
+         * Panel/bezel is medium-brightness. We set a threshold that
+         * captures the very dark LCD pixels but not the panel.
+         */
+        const darkThresh = Math.max(25, Math.min(p25 + 12, median * 0.4, 55));
+
+        /* --- Build dark mask --- */
+        const darkMask = new Uint8Array(rW * rH);
+        for (let i = 0; i < gray.length; i++) {
+            darkMask[i] = gray[i] <= darkThresh ? 1 : 0;
+        }
+
+        /* --- Row darkness profile --- */
+        const rowDarkPct = new Float32Array(rH);
+        for (let ry = 0; ry < rH; ry++) {
+            let cnt = 0;
+            for (let rx = 0; rx < rW; rx++) {
+                if (darkMask[ry * rW + rx]) cnt++;
+            }
+            rowDarkPct[ry] = cnt / rW;
+        }
+
+        /* --- Find contiguous dark row bands --- */
+        const minBandH = Math.max(5, Math.floor(rH * 0.04));
+        const rowBands = [];
+        let inBand = false, bandStart = 0;
+        for (let ry = 0; ry <= rH; ry++) {
+            const val = ry < rH ? rowDarkPct[ry] : 0;
+            if (val >= 0.08 && !inBand) { inBand = true; bandStart = ry; }
+            else if (val < 0.08 && inBand) {
+                inBand = false;
+                if (ry - bandStart >= minBandH) rowBands.push({ start: bandStart, end: ry });
+            }
+        }
+
+        /* --- For each row band, find dark column ranges and score --- */
+        const candidates = [];
+        for (const band of rowBands) {
+            const bandH = band.end - band.start;
+            const colDark = new Float32Array(rW);
+            for (let rx = 0; rx < rW; rx++) {
+                let cnt = 0;
+                for (let ry = band.start; ry < band.end; ry++) {
+                    if (darkMask[ry * rW + rx]) cnt++;
+                }
+                colDark[rx] = cnt / bandH;
+            }
+
+            const minColW = Math.max(5, Math.floor(rW * 0.04));
+            let inCol = false, colStart = 0;
+            for (let rx = 0; rx <= rW; rx++) {
+                const val = rx < rW ? colDark[rx] : 0;
+                if (val >= 0.10 && !inCol) { inCol = true; colStart = rx; }
+                else if (val < 0.10 && inCol) {
+                    inCol = false;
+                    if (rx - colStart >= minColW) {
+                        scoreCandidateRect(band, colStart, rx, candidates,
+                            rW, rH, step, gray, greenMap, W, H);
+                    }
+                }
+            }
+        }
+
+        if (candidates.length === 0) {
+            console.warn('findDisplayBounds: no candidates found, using fallback');
+            return { x: Math.round(W * 0.15), y: Math.round(H * 0.1),
+                     w: Math.round(W * 0.7), h: Math.round(H * 0.8), conf: 'fallback' };
+        }
+
+        candidates.sort((a, b) => b.score - a.score);
+        const best = candidates[0];
+
+        console.log('Display candidates (top 5):',
+            candidates.slice(0, 5).map(c =>
+                `score=${c.score.toFixed(1)} green=${(c.greenPct * 100).toFixed(1)}% ` +
+                `edge=${c.edgeContrast.toFixed(0)} ar=${c.aspectRatio.toFixed(2)} ${c.w}x${c.h}`
+            )
+        );
+
+        return {
+            x: best.x, y: best.y, w: best.w, h: best.h,
+            conf: `score:${best.score.toFixed(0)} edge:${best.edgeContrast.toFixed(0)} ` +
+                  `green:${(best.greenPct * 100).toFixed(1)}%`
+        };
+    }
+
+    function scoreCandidateRect(band, colStart, colEnd, candidates,
+                                rW, rH, step, gray, greenMap, imgW, imgH) {
+        const bandH = band.end - band.start;
+        const colW = colEnd - colStart;
+
+        /* Green content and interior brightness */
+        let greenCount = 0, brightSum = 0, totalPx = 0;
+        for (let ry = band.start; ry < band.end; ry++) {
+            for (let rx = colStart; rx < colEnd; rx++) {
+                const idx = ry * rW + rx;
+                greenCount += greenMap[idx];
+                brightSum += gray[idx];
+                totalPx++;
+            }
+        }
+        const greenPct = totalPx > 0 ? greenCount / totalPx : 0;
+        const avgBrightInside = totalPx > 0 ? brightSum / totalPx : 128;
+
+        /* Must contain some green (EPSI has green gauges/text) */
+        if (greenPct < 0.003) return;
+
+        /* Edge contrast: avg brightness just outside vs just inside */
+        const margin = Math.max(2, Math.floor(Math.min(colW, bandH) * 0.08));
+        let outsideBright = 0, outsideCount = 0;
+
+        /* Top edge outside */
+        for (let ry = Math.max(0, band.start - margin); ry < band.start; ry++) {
+            for (let rx = colStart; rx < colEnd; rx += 2) {
+                outsideBright += gray[ry * rW + rx]; outsideCount++;
+            }
+        }
+        /* Bottom edge outside */
+        for (let ry = band.end; ry < Math.min(rH, band.end + margin); ry++) {
+            for (let rx = colStart; rx < colEnd; rx += 2) {
+                outsideBright += gray[ry * rW + rx]; outsideCount++;
+            }
+        }
+        /* Left edge outside */
+        for (let rx = Math.max(0, colStart - margin); rx < colStart; rx++) {
+            for (let ry = band.start; ry < band.end; ry += 2) {
+                outsideBright += gray[ry * rW + rx]; outsideCount++;
+            }
+        }
+        /* Right edge outside */
+        for (let rx = colEnd; rx < Math.min(rW, colEnd + margin); rx++) {
+            for (let ry = band.start; ry < band.end; ry += 2) {
+                outsideBright += gray[ry * rW + rx]; outsideCount++;
+            }
+        }
+
+        const avgBrightOutside = outsideCount > 0 ? outsideBright / outsideCount : avgBrightInside;
+        const edgeContrast = avgBrightOutside - avgBrightInside;
+
+        const pixW = colW * step, pixH = bandH * step;
+        const aspectRatio = pixW / pixH;
+        const areaFrac = (pixW * pixH) / (imgW * imgH);
+
+        /* --- Scoring --- */
+        let score = 0;
+        /* Green content (EPSI indicator) — up to 30 */
+        score += Math.min(greenPct * 300, 30);
+        /* Edge contrast (sharp bezel boundary) — up to 30 */
+        score += Math.min(Math.max(0, edgeContrast) * 0.5, 30);
+        /* Dark interior (LCD background near 0) — up to 15 */
+        score += Math.max(0, (50 - avgBrightInside) * 0.3);
+        /* Aspect ratio (EPSI is roughly square) */
+        if (aspectRatio >= 0.75 && aspectRatio <= 1.5) score += 15;
+        else if (aspectRatio >= 0.5 && aspectRatio <= 2.0) score += 5;
+        /* Reasonable area */
+        if (areaFrac >= 0.01 && areaFrac <= 0.5) score += 10;
+
+        candidates.push({
+            x: colStart * step, y: band.start * step, w: pixW, h: pixH,
+            score, greenPct, edgeContrast, aspectRatio, avgBrightInside
+        });
+    }
+
+    /* ==================================================================
+       2. REFINE DISPLAY EDGES — gradient-based edge finding
+       ==================================================================
+       Scans from the outside of the rough bounds toward the center,
+       looking for the steepest brightness gradient. That gradient is
+       the exact edge where the dark LCD meets the lighter bezel/panel.
+       ================================================================== */
+    function refineDisplayEdges(canvas, rough) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const W = canvas.width, H = canvas.height;
+
+        /* Expand rough bounds to sample surrounding panel */
+        const pad = Math.round(Math.max(rough.w, rough.h) * 0.15);
+        const wx = Math.max(0, rough.x - pad);
+        const wy = Math.max(0, rough.y - pad);
+        const ww = Math.min(W - wx, rough.w + pad * 2);
+        const wh = Math.min(H - wy, rough.h + pad * 2);
+        if (ww < 30 || wh < 30) return rough;
+
+        const d = ctx.getImageData(wx, wy, ww, wh).data;
+
+        function bright(lx, ly) {
+            lx = Math.round(lx); ly = Math.round(ly);
+            if (lx < 0 || lx >= ww || ly < 0 || ly >= wh) return 60;
+            const i = (ly * ww + lx) * 4;
+            return Math.max(d[i], d[i + 1], d[i + 2]);
+        }
+
+        /*
+         * Scan along an axis from 'from' toward 'to', averaging brightness
+         * across a perpendicular strip. Return the position of the steepest
+         * brightness drop (panel→LCD = light→dark).
+         */
+        function findEdge(from, to, perpFrom, perpTo, horizontal) {
+            const dir = from < to ? 1 : -1;
+            const len = Math.abs(to - from);
+            const gradW = Math.max(2, Math.floor(len * 0.03));
+            let maxGrad = 0, edgePos = from;
+
+            /* Step through positions along the scan direction */
+            for (let i = gradW; i < len - gradW; i++) {
+                const pos = from + i * dir;
+                let before = 0, after = 0, cnt = 0;
+
+                /* Average across perpendicular strip (middle 60%) */
+                const pLen = perpTo - perpFrom;
+                const ps = perpFrom + Math.floor(pLen * 0.2);
+                const pe = perpFrom + Math.floor(pLen * 0.8);
+
+                for (let s = ps; s < pe; s += 3) {
+                    for (let w = -gradW; w < 0; w++) {
+                        const pp = pos + w * dir;
+                        before += horizontal ? bright(pp, s) : bright(s, pp);
+                    }
+                    for (let w = 1; w <= gradW; w++) {
+                        const pp = pos + w * dir;
+                        after += horizontal ? bright(pp, s) : bright(s, pp);
+                    }
+                    cnt++;
+                }
+
+                if (cnt > 0) {
+                    /* "before" = farther from center (panel), "after" = closer to center (LCD) */
+                    const grad = (before - after) / (cnt * gradW);
+                    if (grad > maxGrad && grad > 3) {
+                        maxGrad = grad;
+                        edgePos = pos;
+                    }
+                }
+            }
+            return edgePos;
+        }
+
+        const relL = rough.x - wx;
+        const relT = rough.y - wy;
+        const relR = relL + rough.w;
+        const relB = relT + rough.h;
+        const midX = (relL + relR) / 2;
+        const midY = (relT + relB) / 2;
+
+        /* Scan from each side toward center */
+        const left  = findEdge(0,      Math.floor(midX), relT, relB, true);
+        const right = findEdge(ww - 1, Math.floor(midX), relT, relB, true);
+        const top   = findEdge(0,      Math.floor(midY), left, right, false);
+        const bot   = findEdge(wh - 1, Math.floor(midY), left, right, false);
+
+        const refined = {
+            x: wx + left, y: wy + top,
+            w: Math.max(10, right - left),
+            h: Math.max(10, bot - top),
+            conf: rough.conf
+        };
+
+        /* Sanity check: refined should be similar to rough */
+        const areaRatio = (refined.w * refined.h) / (rough.w * rough.h);
+        if (areaRatio < 0.4 || areaRatio > 2.5) {
+            console.warn('Edge refinement suspicious, using rough bounds:', { rough, refined, areaRatio });
+            return rough;
+        }
+
+        return refined;
+    }
+
+    /* ==================================================================
+       3. TAB CLASSIFICATION — FLIGHT vs SYSTEM
+       ==================================================================
+       FLIGHT tab: has vertical charge bars on left + right sides
+                   → green pixels are concentrated on the sides
+       SYSTEM tab: text/values in the center, fewer side elements
+                   → green pixels are concentrated in the center
+       ================================================================== */
+    function classifyTab(displayCanvas) {
+        const ctx = displayCanvas.getContext('2d', { willReadFrequently: true });
+        const w = displayCanvas.width, h = displayCanvas.height;
+        const sH = Math.floor(h * 0.45);
+        const d = ctx.getImageData(0, 0, w, sH).data;
+
+        let leftG = 0, rightG = 0, centerG = 0;
+        const q1 = Math.floor(w * 0.3), q3 = Math.floor(w * 0.7);
+
+        for (let y = 0; y < sH; y += 3) {
+            for (let x = 0; x < w; x += 3) {
+                const i = (y * w + x) * 4;
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                if (g > 70 && g > r * 1.1 && g > b * 1.1) {
+                    if (x < q1) leftG++;
+                    else if (x > q3) rightG++;
+                    else centerG++;
+                }
+            }
+        }
+        const total = leftG + rightG + centerG;
+        if (total < 15) return 'unknown';
+        const sideRatio = (leftG + rightG) / total;
+        return sideRatio > 0.35 ? 'flight' : 'system';
+    }
+
+    /* ==================================================================
+       4. PREPARE FOR OCR
+       ==================================================================
+       Converts a region of the display canvas into an image optimised
+       for Tesseract:
+         - Scale up (text needs to be ~30-40px tall)
+         - Convert to high-contrast B&W
+         - Invert if needed (Tesseract expects dark text on light bg)
+         - Color-aware: boost green channel (EPSI text) and white text
+         - Add white padding
+       ================================================================== */
+    const MAX_OCR_PIXELS = 4000000;
+
+    function prepareForOCR(canvas, sx, sy, sw, sh, opts = {}) {
+        let {
+            scale = 3, invert = true, adaptive = false,
+            threshold = 80, colorAware = true, pad = 20
+        } = opts;
+
+        sw = Math.max(10, Math.round(sw));
+        sh = Math.max(10, Math.round(sh));
+
+        /* Cap scale so we stay under WASM memory limit */
+        const maxScale = Math.floor(Math.sqrt(MAX_OCR_PIXELS / (sw * sh)));
+        scale = Math.min(scale, Math.max(1, maxScale));
+
+        const crop = cropCanvas(canvas, sx, sy, sw, sh);
+        const sc = document.createElement('canvas');
+        sc.width = sw * scale; sc.height = sh * scale;
+        const sCtx = sc.getContext('2d', { willReadFrequently: true });
+        sCtx.imageSmoothingEnabled = true;
+        sCtx.imageSmoothingQuality = 'high';
+        sCtx.drawImage(crop, 0, 0, sc.width, sc.height);
+
+        const imgData = sCtx.getImageData(0, 0, sc.width, sc.height);
+        const dd = imgData.data;
+        const sW = sc.width, sH = sc.height;
+
+        if (adaptive) {
+            /* --- Adaptive threshold using integral image --- */
+            const g = new Float32Array(sW * sH);
+            for (let i = 0; i < g.length; i++) {
+                const r = dd[i * 4], gv = dd[i * 4 + 1], b = dd[i * 4 + 2];
+                if (colorAware && gv > 55 && gv > r * 1.05 && gv > b * 1.05) {
+                    g[i] = Math.min(255, gv * 1.6);
+                } else if (colorAware && r > 130 && gv > 130 && b > 130) {
+                    g[i] = Math.min(255, (r + gv + b) / 3 * 1.4);
+                } else {
+                    g[i] = 0.299 * r + 0.587 * gv + 0.114 * b;
+                }
+            }
+
+            const intg = new Float64Array((sW + 1) * (sH + 1));
+            for (let y = 0; y < sH; y++) {
+                let rs = 0;
+                for (let x = 0; x < sW; x++) {
+                    rs += g[y * sW + x];
+                    intg[(y + 1) * (sW + 1) + (x + 1)] = intg[y * (sW + 1) + (x + 1)] + rs;
+                }
+            }
+
+            const bH = Math.max(8, Math.floor(Math.min(sW, sH) * 0.06));
+            const bias = 6;
+            for (let y = 0; y < sH; y++) {
+                for (let x = 0; x < sW; x++) {
+                    const x1 = Math.max(0, x - bH), y1 = Math.max(0, y - bH);
+                    const x2 = Math.min(sW - 1, x + bH), y2 = Math.min(sH - 1, y + bH);
+                    const cnt = (x2 - x1 + 1) * (y2 - y1 + 1);
+                    const sum = intg[(y2 + 1) * (sW + 1) + (x2 + 1)]
+                              - intg[y1 * (sW + 1) + (x2 + 1)]
+                              - intg[(y2 + 1) * (sW + 1) + x1]
+                              + intg[y1 * (sW + 1) + x1];
+                    const bright = g[y * sW + x] > (sum / cnt) - bias;
+                    const v = invert ? (bright ? 0 : 255) : (bright ? 255 : 0);
+                    const pi = (y * sW + x) * 4;
+                    dd[pi] = dd[pi + 1] = dd[pi + 2] = v; dd[pi + 3] = 255;
+                }
+            }
+        } else {
+            /* --- Global threshold --- */
+            for (let i = 0; i < dd.length; i += 4) {
+                const r = dd[i], gv = dd[i + 1], b = dd[i + 2];
+                let bright = false;
+                if (colorAware) {
+                    if (gv > 55 && gv > r * 1.05 && gv > b * 1.05) bright = true;
+                    else if (r > 130 && gv > 130 && b > 130) bright = true;
+                    else if (r > 130 && gv > 110 && b < 70) bright = true;
+                    else bright = (0.299 * r + 0.587 * gv + 0.114 * b) > threshold;
+                } else {
+                    bright = (0.299 * r + 0.587 * gv + 0.114 * b) > threshold;
+                }
+                const v = invert ? (bright ? 0 : 255) : (bright ? 255 : 0);
+                dd[i] = dd[i + 1] = dd[i + 2] = v; dd[i + 3] = 255;
+            }
+        }
+        sCtx.putImageData(imgData, 0, 0);
+
+        /* Pad with white (inverted) or black */
+        const fin = document.createElement('canvas');
+        fin.width = sc.width + pad * 2; fin.height = sc.height + pad * 2;
+        const fCtx = fin.getContext('2d');
+        fCtx.fillStyle = invert ? '#FFF' : '#000';
+        fCtx.fillRect(0, 0, fin.width, fin.height);
+        fCtx.drawImage(sc, pad, pad);
+        return fin;
+    }
+
+    /* ==================================================================
+       5. BAR PIXEL ANALYSIS — instant battery % from fill ratio
+       ================================================================== */
+    function analyzeChargeBars(dspCanvas) {
+        const ctx = dspCanvas.getContext('2d', { willReadFrequently: true });
+        const W = dspCanvas.width, H = dspCanvas.height;
+
+        /* The F/R battery bars occupy the central vertical area */
+        const bx = Math.floor(W * 0.33), bw = Math.floor(W * 0.34);
+        const by = Math.floor(H * 0.22), bh = Math.floor(H * 0.48);
+        const d = ctx.getImageData(bx, by, bw, bh).data;
+
+        /* Green density per column */
+        const colG = new Float32Array(bw);
+        for (let x = 0; x < bw; x++) {
+            let c = 0;
+            for (let y = 0; y < bh; y++) {
+                const i = (y * bw + x) * 4;
+                if (d[i + 1] > 80 && d[i + 1] > d[i] * 1.2 && d[i + 1] > d[i + 2] * 1.2) c++;
+            }
+            colG[x] = c / bh;
+        }
+
+        /* Detect bar columns (peaks in green density) */
+        const bars = [];
+        let inBar = false, start = 0;
+        for (let x = 0; x < bw; x++) {
+            if (colG[x] > 0.12 && !inBar) { inBar = true; start = x; }
+            else if (colG[x] < 0.06 && inBar) {
+                inBar = false;
+                if (x - start > 3) bars.push({ x: start, w: x - start });
+            }
+        }
+        if (inBar && bw - start > 3) bars.push({ x: start, w: bw - start });
+
+        /* Measure green fill ratio per bar */
+        return bars.map(bar => {
+            let greenRows = 0, total = 0;
+            for (let y = 0; y < bh; y++) {
+                let found = false;
+                for (let x = bar.x; x < bar.x + bar.w; x++) {
+                    const i = (y * bw + x) * 4;
+                    if (d[i + 1] > 80 && d[i + 1] > d[i] * 1.2 && d[i + 1] > d[i + 2] * 1.2) {
+                        found = true; break;
+                    }
+                }
+                total++;
+                if (found) greenRows++;
+            }
+            return { pct: Math.round((greenRows / total) * 100), absX: bx + bar.x };
+        });
+    }
+
+    /* ==================================================================
+       6. OCR ENGINE (Tesseract.js v5)
+       ================================================================== */
+    async function initWorker() {
+        if (ocrWorker && workerReady) return ocrWorker;
+        engineStatus.textContent = 'Loading OCR engine...';
+        engineStatus.className = 'engine-status loading';
+        try {
+            ocrWorker = await Tesseract.createWorker('eng', 1, {
+                logger: m => {
+                    if (m.status === 'loading tesseract core')
+                        engineStatus.textContent = 'Loading OCR core...';
+                    else if (m.status === 'loading language traineddata')
+                        engineStatus.textContent = `Downloading language model... ${Math.round((m.progress || 0) * 100)}%`;
+                    else if (m.status === 'initializing api')
+                        engineStatus.textContent = 'Initializing OCR...';
+                }
+            });
+            workerReady = true;
+            engineStatus.textContent = '✓ OCR engine ready';
+            engineStatus.className = 'engine-status ready';
+            return ocrWorker;
+        } catch (err) {
+            engineStatus.textContent = '✗ OCR engine failed: ' + err.message;
+            engineStatus.className = 'engine-status error';
+            throw err;
+        }
+    }
+
+    async function ocr(canvas, label, opts = {}) {
+        const w = await initWorker();
+        const params = { tessedit_pageseg_mode: opts.psm || '6' };
+        if (opts.whitelist) params.tessedit_char_whitelist = opts.whitelist;
+        await w.setParameters(params);
+
+        if (canvas.width < 10 || canvas.height < 10) {
+            console.warn(`OCR [${label}]: canvas too small (${canvas.width}x${canvas.height}), skipping`);
+            return { text: '', conf: 0, ms: 0 };
+        }
+
+        const t = time('OCR: ' + label);
+        try {
+            const { data } = await w.recognize(canvas);
+            const ms = t();
+            return { text: data.text.trim(), conf: data.confidence, ms };
+        } catch (err) {
+            const ms = t();
+            console.error(`OCR [${label}] error:`, err);
+            try { await ocrWorker.terminate(); } catch (_) {}
+            ocrWorker = null; workerReady = false;
+            await initWorker();
+            return { text: '', conf: 0, ms };
+        }
+    }
+
+    /* ==================================================================
+       7. EXTRACT FLIGHT TAB DATA
+       ==================================================================
+       Regions (relative to display canvas):
+         Battery % text : 24-76% X, 10-23% Y  (e.g. "66% 63%")
+         HOBBS          : 38-73% X, 74-87% Y  (e.g. "140:28")
+         Charge bars    : 33-67% X, 22-70% Y  (pixel analysis, no OCR)
+       ================================================================== */
+    async function extractFlightData(dsp) {
+        const res = {};
+        const W = dsp.width, H = dsp.height;
+
+        /* --- Battery % text --- */
+        const pR = { x: W * 0.24, y: H * 0.10, w: W * 0.52, h: H * 0.13 };
+        const pCanvas = prepareForOCR(dsp, pR.x, pR.y, pR.w, pR.h,
+            { scale: 3, threshold: 65, colorAware: true });
+        addDebug(pCanvas, 'Battery % region (B&W)');
+
+        progress(35, 'OCR: Battery percentages...');
+        const pOcr = await ocr(pCanvas, 'Batt%', { whitelist: '0123456789% ', psm: '7' });
+        addDebug(null, 'Battery % raw OCR', pOcr.text);
+
+        const pNums = pOcr.text.match(/(\d{1,3})\s*%?/g);
+        if (pNums) {
+            const vals = pNums.map(s => parseInt(s)).filter(v => v >= 0 && v <= 100);
+            if (vals.length >= 2) {
+                res.frontPct = vals[0]; res.rearPct = vals[1]; res.pctConf = pOcr.conf;
+            }
+        }
+
+        /* --- Bar pixel analysis (instant, no OCR) --- */
+        const bT = time('Bar pixel analysis');
+        const bars = analyzeChargeBars(dsp);
+        bT();
+        if (bars.length >= 2) {
+            res.barFrontPct = bars[0].pct;
+            res.barRearPct = bars[1].pct;
+            addDebug(null, 'Bar analysis',
+                `${bars.length} bars: ${bars.map(b => b.pct + '%').join(', ')}`);
+            if (res.frontPct == null) {
+                res.frontPct = bars[0].pct; res.rearPct = bars[1].pct; res.pctSrc = 'bars';
+            } else {
+                res.pctSrc = 'ocr';
+            }
+        }
+
+        /* --- HOBBS --- */
+        const hR = { x: W * 0.38, y: H * 0.74, w: W * 0.35, h: H * 0.13 };
+        const hCanvas = prepareForOCR(dsp, hR.x, hR.y, hR.w, hR.h,
+            { scale: 3, threshold: 65, colorAware: true });
+        addDebug(hCanvas, 'HOBBS region (B&W)');
+
+        progress(55, 'OCR: HOBBS...');
+        const hOcr = await ocr(hCanvas, 'HOBBS-flight', { whitelist: '0123456789:. ', psm: '7' });
+        addDebug(null, 'HOBBS raw OCR', hOcr.text);
+
+        const hM = hOcr.text.match(/(\d{1,5})\s*[:.;|]\s*(\d{2})/);
+        if (hM && parseInt(hM[2]) < 60) res.hobbs = `${parseInt(hM[1])}:${hM[2]}`;
+
+        /* Overlay showing which regions were used */
+        addOverlay(dsp, [
+            { ...pR, label: 'Battery %', color: '#10b981' },
+            { ...hR, label: 'HOBBS', color: '#f59e0b' }
+        ], 'FLIGHT — extraction regions');
+
+        return res;
+    }
+
+    /* ==================================================================
+       8. EXTRACT SYSTEM TAB DATA
+       ==================================================================
+       Targeted small-region OCR only (no full-display OCR).
+       Multiple Y-offset attempts for SOH and HOBBS since the exact
+       position varies between photos. Stops on first successful parse.
+       ================================================================== */
+    async function extractSystemData(dsp) {
+        const res = {};
+        const W = dsp.width, H = dsp.height;
+
+        /* --- SOH: try multiple Y positions --- */
+        const sohAttempts = [
+            { x: W * 0.01, y: H * 0.17, w: W * 0.60, h: H * 0.10 },
+            { x: W * 0.01, y: H * 0.22, w: W * 0.60, h: H * 0.10 },
+            { x: W * 0.01, y: H * 0.12, w: W * 0.60, h: H * 0.10 },
+            { x: W * 0.01, y: H * 0.27, w: W * 0.60, h: H * 0.10 },
+        ];
+
+        for (let i = 0; i < sohAttempts.length && res.frontSoh == null; i++) {
+            const r = sohAttempts[i];
+            const sc = prepareForOCR(dsp, r.x, r.y, r.w, r.h,
+                { scale: 4, threshold: 55, colorAware: true });
+            addDebug(sc, `SOH attempt ${i + 1}`);
+
+            progress(75 + i * 3, `OCR: SOH attempt ${i + 1}...`);
+            const o = await ocr(sc, `SOH-${i + 1}`,
+                { whitelist: '0123456789%SOHsoh: ', psm: '7' });
+            addDebug(null, `SOH OCR #${i + 1}`, o.text);
+
+            const nums = o.text.match(/(\d{1,3})\s*%?/g);
+            if (nums) {
+                const v = nums.map(s => parseInt(s)).filter(n => n > 5 && n <= 100);
+                if (v.length >= 2) { res.frontSoh = v[0]; res.rearSoh = v[1]; }
+            }
+        }
+
+        /* --- HOBBS: try multiple Y positions --- */
+        const hobbsAttempts = [
+            { x: W * 0.30, y: H * 0.60, w: W * 0.40, h: H * 0.10 },
+            { x: W * 0.30, y: H * 0.65, w: W * 0.40, h: H * 0.10 },
+            { x: W * 0.30, y: H * 0.55, w: W * 0.40, h: H * 0.10 },
+            { x: W * 0.30, y: H * 0.70, w: W * 0.40, h: H * 0.10 },
+        ];
+
+        for (let i = 0; i < hobbsAttempts.length && !res.hobbs; i++) {
+            const r = hobbsAttempts[i];
+            const hc = prepareForOCR(dsp, r.x, r.y, r.w, r.h,
+                { scale: 4, threshold: 55, colorAware: true });
+            addDebug(hc, `HOBBS-sys attempt ${i + 1}`);
+
+            progress(85 + i * 3, `OCR: HOBBS attempt ${i + 1}...`);
+            const ho = await ocr(hc, `HOBBS-sys-${i + 1}`,
+                { whitelist: '0123456789:. ', psm: '7' });
+            addDebug(null, `HOBBS-sys OCR #${i + 1}`, ho.text);
+
+            const hm = ho.text.match(/(\d{1,5})\s*[:.;|]\s*(\d{2})/);
+            if (hm && parseInt(hm[2]) < 60)
+                res.hobbs = `${parseInt(hm[1])}:${hm[2]}`;
+        }
+
+        /* Overlay */
+        const shownRegions = [];
+        if (res.frontSoh != null) {
+            const idx = sohAttempts.findIndex((_, i) => i < sohAttempts.length);
+            shownRegions.push({ ...sohAttempts[0], label: 'SOH', color: '#3b82f6' });
+        }
+        if (res.hobbs) {
+            shownRegions.push({ ...hobbsAttempts[0], label: 'HOBBS', color: '#f59e0b' });
+        }
+        if (shownRegions.length > 0) {
+            addOverlay(dsp, shownRegions, 'SYSTEM — extraction regions');
+        }
+
+        return res;
+    }
+
+    /* ==================================================================
+       9. DEBUG HELPERS
+       ================================================================== */
+    function addDebug(canvas, title, text) {
+        const item = document.createElement('div');
+        item.className = 'debug-item';
+        item.innerHTML = `<div class="title">${title}</div>`;
+        if (canvas) {
+            const dc = document.createElement('canvas');
+            dc.width = canvas.width; dc.height = canvas.height;
+            dc.getContext('2d').drawImage(canvas, 0, 0);
+            item.appendChild(dc);
+        }
+        if (text) {
+            const t = document.createElement('div');
+            t.className = 'ocr-text'; t.textContent = text;
+            item.appendChild(t);
+        }
+        debugGrid.appendChild(item);
+    }
+
+    function addOverlay(dsp, regions, title) {
+        const ov = document.createElement('canvas');
+        ov.width = dsp.width; ov.height = dsp.height;
+        const ctx = ov.getContext('2d');
+        ctx.drawImage(dsp, 0, 0);
+        ctx.lineWidth = Math.max(2, Math.round(dsp.width * 0.004));
+        for (const r of regions) {
+            ctx.strokeStyle = r.color;
+            ctx.strokeRect(r.x, r.y, r.w, r.h);
+            ctx.fillStyle = r.color;
+            ctx.font = `bold ${Math.max(12, Math.round(dsp.width * 0.02))}px system-ui`;
+            ctx.fillText(r.label, r.x + 4, r.y - 5);
+        }
+        const item = document.createElement('div');
+        item.className = 'debug-item debug-wide';
+        item.innerHTML = `<div class="title">${title}</div>`;
+        const dc = document.createElement('canvas');
+        dc.width = ov.width; dc.height = ov.height;
+        dc.getContext('2d').drawImage(ov, 0, 0);
+        item.appendChild(dc);
+        debugGrid.appendChild(item);
+    }
+
+    /** Draw the detected display boundary on the ORIGINAL photo for debug */
+    function addDetectionOverlay(photoCanvas, bounds, label) {
+        const ov = document.createElement('canvas');
+        ov.width = photoCanvas.width; ov.height = photoCanvas.height;
+        const ctx = ov.getContext('2d');
+        ctx.drawImage(photoCanvas, 0, 0);
+
+        /* Semi-transparent dark overlay outside the detected region */
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, ov.width, ov.height);
+        /* Clear the detected region to show original */
+        ctx.clearRect(bounds.x, bounds.y, bounds.w, bounds.h);
+        ctx.drawImage(photoCanvas, bounds.x, bounds.y, bounds.w, bounds.h,
+                       bounds.x, bounds.y, bounds.w, bounds.h);
+
+        /* Draw green border around detected display */
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = Math.max(3, Math.round(Math.max(ov.width, ov.height) * 0.005));
+        ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+
+        /* Label */
+        ctx.fillStyle = '#10b981';
+        const fontSize = Math.max(14, Math.round(ov.width * 0.02));
+        ctx.font = `bold ${fontSize}px system-ui`;
+        ctx.fillText(`${label} — ${bounds.w}×${bounds.h} [${bounds.conf}]`,
+                     bounds.x + 4, bounds.y - 8);
+
+        const item = document.createElement('div');
+        item.className = 'debug-item debug-wide';
+        item.innerHTML = `<div class="title">Display detection: ${label}</div>`;
+        const dc = document.createElement('canvas');
+        dc.width = ov.width; dc.height = ov.height;
+        dc.getContext('2d').drawImage(ov, 0, 0);
+        item.appendChild(dc);
+        debugGrid.appendChild(item);
+    }
+
+    /* ==================================================================
+       10. RESULTS + TIMINGS
+       ================================================================== */
+    function showResults(data) {
+        resultsGrid.style.display = 'grid';
+        const set = (id, val, suffix = '', sub = '') => {
+            const el = $(id);
+            el.textContent = val != null ? val + suffix : '—';
+            if (val != null) {
+                const v = parseInt(val);
+                if (id.includes('Pct'))
+                    el.className = 'value ' + (v >= 50 ? 'green' : v >= 30 ? 'warn' : 'danger');
+                else if (id.includes('Soh'))
+                    el.className = 'value ' + (v >= 80 ? 'green' : v >= 60 ? 'warn' : 'danger');
+            }
+            $(id + 'Sub').textContent = sub;
+        };
+        set('resFrontPct', data.frontPct, '%',
+            data.barFrontPct != null ? `Bar: ~${data.barFrontPct}%` : '');
+        set('resRearPct', data.rearPct, '%',
+            data.barRearPct != null ? `Bar: ~${data.barRearPct}%` : '');
+        set('resFrontSoh', data.frontSoh, '%');
+        set('resRearSoh', data.rearSoh, '%');
+        set('resHobbs', data.hobbs, '',
+            data.hobbsSys && data.hobbsSys !== data.hobbs ? `Sys: ${data.hobbsSys}` : '');
+    }
+
+    function showTimings() {
+        timingsPanel.style.display = 'block';
+        const total = timings.reduce((s, t) => s + t.ms, 0);
+        timingsList.innerHTML = timings.map(t =>
+            `<div class="timing-row"><span class="step">${t.label}</span>` +
+            `<span class="time">${t.ms}ms</span></div>`
+        ).join('') +
+        `<div class="timing-row timing-total"><span class="step">TOTAL</span>` +
+        `<span class="time">${total}ms</span></div>`;
+    }
+
+    /* ==================================================================
+       11. MAIN PIPELINE
+       ==================================================================
+       For each uploaded image:
+         1. Find the EPSI 570C display edges (dark rectangle detection)
+         2. Refine edges using brightness gradient
+         3. Crop to just the display
+         4. Classify tab (FLIGHT / SYSTEM)
+         5. Extract data via targeted OCR on specific regions
+       ================================================================== */
+    async function process() {
+        timings.length = 0;
+        debugGrid.innerHTML = '';
+        processBtn.disabled = true;
+        progressSection.classList.add('active');
+        resultsGrid.style.display = 'none';
+        timingsPanel.style.display = 'none';
+
+        const collected = {};
+
+        try {
+            progress(5, 'Checking OCR engine...');
+            await initWorker();
+
+            /* === IMAGE 1 (expected: FLIGHT) === */
+            if (image1) {
+                progress(10, 'Finding EPSI display edges (image 1)...');
+                const photo1 = imgToCanvas(image1);
+
+                /* Step 1: Find display — dark rectangle with green content */
+                const tFind1 = time('Find display (img 1)');
+                const rough1 = findDisplayBounds(photo1);
+                tFind1();
+
+                /* Step 2: Refine edges using gradient */
+                const tRefine1 = time('Refine edges (img 1)');
+                const bounds1 = refineDisplayEdges(photo1, rough1);
+                tRefine1();
+
+                /* Debug: show detection on original photo */
+                addDetectionOverlay(photo1, bounds1, 'Image 1');
+
+                /* Step 3: Crop to display */
+                const tCrop1 = time('Crop display (img 1)');
+                const display1 = cropCanvas(photo1, bounds1.x, bounds1.y, bounds1.w, bounds1.h);
+                tCrop1();
+                addDebug(display1, `Display crop: ${bounds1.w}×${bounds1.h}`);
+
+                /* Step 4: Classify tab */
+                const tab1 = classifyTab(display1);
+                const badge1 = $('tabBadge1');
+                badge1.textContent = tab1 === 'flight' ? 'FLIGHT ✓' : tab1 === 'system' ? 'SYSTEM?' : '?';
+                badge1.className = 'tab-badge ' + (tab1 === 'flight' ? 'flight' : 'system');
+
+                /* Step 5: Extract data */
+                progress(20, `Processing ${tab1.toUpperCase()}...`);
+                if (tab1 === 'system') {
+                    const sr = await extractSystemData(display1);
+                    Object.assign(collected, sr);
+                } else {
+                    const fr = await extractFlightData(display1);
+                    Object.assign(collected, fr);
+                }
+            }
+
+            /* === IMAGE 2 (expected: SYSTEM) === */
+            if (image2) {
+                progress(65, 'Finding EPSI display edges (image 2)...');
+                const photo2 = imgToCanvas(image2);
+
+                const tFind2 = time('Find display (img 2)');
+                const rough2 = findDisplayBounds(photo2);
+                tFind2();
+
+                const tRefine2 = time('Refine edges (img 2)');
+                const bounds2 = refineDisplayEdges(photo2, rough2);
+                tRefine2();
+
+                addDetectionOverlay(photo2, bounds2, 'Image 2');
+
+                const tCrop2 = time('Crop display (img 2)');
+                const display2 = cropCanvas(photo2, bounds2.x, bounds2.y, bounds2.w, bounds2.h);
+                tCrop2();
+                addDebug(display2, `Display crop: ${bounds2.w}×${bounds2.h}`);
+
+                const tab2 = classifyTab(display2);
+                const badge2 = $('tabBadge2');
+                badge2.textContent = tab2 === 'system' ? 'SYSTEM ✓' : tab2 === 'flight' ? 'FLIGHT?' : '?';
+                badge2.className = 'tab-badge ' + (tab2 === 'system' ? 'system' : 'flight');
+
+                progress(70, `Processing ${tab2.toUpperCase()}...`);
+                if (tab2 === 'system') {
+                    const sr = await extractSystemData(display2);
+                    if (sr.frontSoh != null) collected.frontSoh = sr.frontSoh;
+                    if (sr.rearSoh != null) collected.rearSoh = sr.rearSoh;
+                    if (sr.hobbs) {
+                        collected.hobbsSys = sr.hobbs;
+                        if (!collected.hobbs) collected.hobbs = sr.hobbs;
+                    }
+                } else {
+                    const fr = await extractFlightData(display2);
+                    if (fr.frontPct != null && collected.frontPct == null)
+                        collected.frontPct = fr.frontPct;
+                    if (fr.rearPct != null && collected.rearPct == null)
+                        collected.rearPct = fr.rearPct;
+                    if (fr.hobbs && !collected.hobbs) collected.hobbs = fr.hobbs;
+                    if (fr.barFrontPct != null && collected.barFrontPct == null)
+                        collected.barFrontPct = fr.barFrontPct;
+                    if (fr.barRearPct != null && collected.barRearPct == null)
+                        collected.barRearPct = fr.barRearPct;
+                }
+            }
+
+            progress(100, 'Done!');
+            showResults(collected);
+            showTimings();
+
+        } catch (err) {
+            console.error(err);
+            progressLabel.textContent = 'Error: ' + err.message;
+        } finally {
+            processBtn.disabled = false;
+            setTimeout(() => progressSection.classList.remove('active'), 2000);
+        }
+    }
+
+    /* ==================================================================
+       12. EVENT HANDLERS
+       ================================================================== */
+    function handleFile(file, prev, box, slot) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                prev.src = e.target.result;
+                box.classList.add('has-image');
+                if (slot === 1) image1 = img; else image2 = img;
+                processBtn.disabled = !(image1 || image2) || !workerReady;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    file1.addEventListener('change', e => handleFile(e.target.files[0], preview1, upload1, 1));
+    file2.addEventListener('change', e => handleFile(e.target.files[0], preview2, upload2, 2));
+
+    clearBtn.addEventListener('click', () => {
+        image1 = image2 = null;
+        preview1.src = preview2.src = '';
+        upload1.classList.remove('has-image');
+        upload2.classList.remove('has-image');
+        file1.value = file2.value = '';
+        processBtn.disabled = true;
+        resultsGrid.style.display = 'none';
+        timingsPanel.style.display = 'none';
+        debugSection.style.display = 'none';
+        debugGrid.innerHTML = '';
+        $('tabBadge1').className = 'tab-badge';
+        $('tabBadge2').className = 'tab-badge';
+    });
+
+    processBtn.addEventListener('click', process);
+
+    $('toggleDebug').addEventListener('click', () => {
+        debugVisible = !debugVisible;
+        debugSection.style.display = debugVisible ? 'block' : 'none';
+        $('toggleDebug').textContent = debugVisible ? 'Hide debug regions ▲' : 'Show debug regions ▼';
+    });
+
+    /* ==================================================================
+       13. WARM START — pre-load Tesseract + warmup recognize
+       ================================================================== */
+    window.addEventListener('load', () => {
+        initWorker().then(() => {
+            const wm = document.createElement('canvas');
+            wm.width = 60; wm.height = 24;
+            const wCtx = wm.getContext('2d');
+            wCtx.fillStyle = '#FFF'; wCtx.fillRect(0, 0, 60, 24);
+            wCtx.fillStyle = '#000'; wCtx.font = '16px monospace'; wCtx.fillText('140:28', 2, 18);
+            return ocrWorker.recognize(wm);
+        }).then(() => {
+            engineStatus.textContent = '✓ OCR engine ready (warmed up)';
+            processBtn.disabled = !(image1 || image2);
+        }).catch(err => console.error('Warmup failed:', err));
+    });
+
+})();
+</script>
+</body>
+</html>
