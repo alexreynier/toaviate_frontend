@@ -1052,7 +1052,7 @@
     <table ng-if="vm.see_booking.id !== 'TEMP'">
         <tr>
             <td>
-                <span>Booked By:</span>
+                <span>Booked For:</span>
             </td>
             <td>
                 {{ vm.see_booking.title }}
@@ -1168,7 +1168,6 @@
                     <button class="btn btn-primary" ng-click="close_details()" >Close</button>
                     <button class="btn btn-danger" ng-click="cancel_booking(vm.see_booking.id)" >Cancel Booking</button>
                     <button class="btn btn-primary" ui-sref="dashboard.edit_booking({booking_id: vm.see_booking.id})">Edit Booking</button>
-                    <button class="btn btn-success" ng-if="vm.see_booking.instructor && vm.see_booking.instructor.id > 0" ng-click="vm.bookWithInstructor(vm.see_booking)">Book with Instructor</button>
                 </div>
                   <!-- Read-only close for restricted members -->
                   <div class="bottom_btn_popup_btns" ng-if="vm.is_restricted_member">
@@ -1195,6 +1194,8 @@
         <br />
 
         <p>{{ error.message }}</p>
+
+        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px; font-size:13px; color:#666;">{{ error.api }}</p>
 
         <div ng-if="error.type == 'rental_items'">
             <span ng-repeat="rental in error.api">
@@ -1289,6 +1290,8 @@
 
         <p>{{ error.message }}</p>
 
+        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px; font-size:13px; color:#666;">{{ error.api }}</p>
+
         <div ng-if="error.type == 'rental_items'">
             <span ng-repeat="rental in error.api">
             {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.</b>
@@ -1310,25 +1313,30 @@
 
 
 <div class="popup_bg" ng-if="vm.new_booking_errors.length > 0"  ng-click="vm.decline_new_booking_error()">
-    <div class="popup_box" ng-repeat="error in vm.new_booking_errors">
+    <div class="popup_box" ng-repeat="error in vm.new_booking_errors" ng-click="$event.stopPropagation()">
 
-        <h3> Booking Error </h3>
-        <br />
-
-        <p>{{ error.message }}</p>
-
-        <div ng-if="error.type == 'rental_items'">
-            <span ng-repeat="rental in error.api">
-            {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.</b>
+        <div style="margin-bottom:16px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#fff3e0;margin-bottom:8px;">
+                <i class="fa fa-exclamation-triangle" style="font-size:22px;color:#f59e0b;"></i>
             </span>
         </div>
 
-      
+        <h3> Booking Conflict </h3>
 
-      <div class="bottom_btn">
+        <p style="color:#475569;font-size:14px;line-height:1.6;">{{ error.message }}</p>
 
-        <button ng-click="decline_booking_change()" class="btn btn-warning">Cancel Change</button>
-        <button ng-if="error.button !== ''" ng-click="vm.override_new_booking_errors(error.override)" class="btn btn-primary" ng-click="">{{error.button}}</button>
+        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.5;">{{ error.api }}</p>
+
+        <div ng-if="error.type == 'rental_items'">
+            <span ng-repeat="rental in error.api">
+            {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.
+            </span>
+        </div>
+
+      <div class="bottom_btn" style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+
+        <button ng-click="vm.decline_new_booking_error()" class="btn btn-warning">Cancel</button>
+        <button ng-if="error.button !== ''" ng-click="vm.override_new_booking_errors(error.override)" class="btn btn-primary">{{error.button}}</button>
 
     </div>
 

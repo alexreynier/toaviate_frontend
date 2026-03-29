@@ -118,6 +118,8 @@
                 return true;
             } else if(status == "issued"){
                 return true;
+            } else if(status == "created"){
+                return true;
             } else {
                 return false;
             }
@@ -385,6 +387,7 @@
             var returned;
             switch(status){
                 case 'issued':
+                case 'created':
             
                   returned = "Created";
 

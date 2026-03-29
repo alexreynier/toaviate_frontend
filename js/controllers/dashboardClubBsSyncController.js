@@ -29,8 +29,11 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.setupStep = 1;          // 1=config, 2=upload, 3=importing, 4=review
         vm.setupConfigForm = {
             api_url: '',
+            auth_method: 'api_key',
             api_username: '',
             api_password: '',
+            api_id: '',
+            api_key: '',
             sync_enabled: 1,
             sync_interval_minutes: 30,
             sync_start_date: new Date(2024, 0, 1),
@@ -123,15 +126,38 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         function _ensureMembersLoaded() {
             if (_membersLoaded) return _membersLoadedPromise;
             _membersLoaded = true;
-            _membersLoadedPromise = MemberService.GetAllByClub(vm.club_id).then(function(data) {
-                var members = angular.isArray(data) ? data : (data.members || []);
-                vm.clubMembers = members;
-                vm.clubMembersForResources = members;
-                _rebuildUserMapOptions();
-                _rebuildResourceMapOptions();
-                return members;
-            });
+            _membersLoadedPromise = _loadAllMembers();
             return _membersLoadedPromise;
+        }
+
+        // Fetch ALL club members across all pages so the dropdowns include everyone
+        function _loadAllMembers() {
+            var allMembers = [];
+            function loadPage(page) {
+                return MemberService.GetAllByClubPaginated(vm.club_id, page, 200).then(function(data) {
+                    if (data && data.members) {
+                        // Paginated response — accumulate and check for more pages
+                        allMembers = allMembers.concat(data.members);
+                        if (data.pagination && data.pagination.has_more) {
+                            return loadPage(page + 1);
+                        }
+                    } else if (angular.isArray(data)) {
+                        // Legacy flat-array response — use as-is
+                        allMembers = data;
+                    }
+                    // Stamp _isImported flag on BS-imported placeholder accounts
+                    for (var i = 0; i < allMembers.length; i++) {
+                        var email = allMembers[i].email || '';
+                        allMembers[i]._isImported = /^bs\d+@toaviate\.com$/i.test(email);
+                    }
+                    vm.clubMembers = allMembers;
+                    vm.clubMembersForResources = allMembers;
+                    _rebuildUserMapOptions();
+                    _rebuildResourceMapOptions();
+                    return allMembers;
+                });
+            }
+            return loadPage(1);
         }
 
         // Build the flat options array for user mapping dropdowns (used with ng-options)
@@ -265,6 +291,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             vm.configForm = angular.copy(vm.config);
             vm.configForm.sync_start_date = parseDate(vm.configForm.sync_start_date);
             vm.configForm.sync_end_date = parseDate(vm.configForm.sync_end_date);
+            vm.configForm.auth_method = vm.configForm.auth_method || 'session';
             vm.configEditing = true;
         };
 
@@ -278,8 +305,16 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 sync_enabled: vm.configForm.sync_enabled ? 1 : 0,
                 sync_interval_minutes: vm.configForm.sync_interval_minutes,
                 sync_start_date: formatDate(vm.configForm.sync_start_date),
-                sync_end_date: formatDate(vm.configForm.sync_end_date)
+                sync_end_date: formatDate(vm.configForm.sync_end_date),
+                auth_method: vm.configForm.auth_method || 'session'
             };
+            if (payload.auth_method === 'api_key') {
+                payload.api_id = vm.configForm.api_id;
+                payload.api_key = vm.configForm.api_key;
+            } else {
+                if (vm.configForm.api_username) payload.api_username = vm.configForm.api_username;
+                if (vm.configForm.api_password) payload.api_password = vm.configForm.api_password;
+            }
             BsSyncService.UpdateConfig(vm.club_id, payload).then(function(data) {
                 vm.loading.config = false;
                 if (data.success) {
@@ -302,9 +337,20 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
 
         // Step 1: Save config
         vm.saveSetupConfig = function() {
-            if (!vm.setupConfigForm.api_url || !vm.setupConfigForm.api_username || !vm.setupConfigForm.api_password) {
-                ToastService.warning('Missing Fields', 'Please fill in the API URL, username, and password.');
+            if (!vm.setupConfigForm.api_url) {
+                ToastService.warning('Missing Fields', 'Please fill in the API URL.');
                 return;
+            }
+            if (vm.setupConfigForm.auth_method === 'api_key') {
+                if (!vm.setupConfigForm.api_id || !vm.setupConfigForm.api_key) {
+                    ToastService.warning('Missing Fields', 'Please fill in the API ID and API Key.');
+                    return;
+                }
+            } else {
+                if (!vm.setupConfigForm.api_username || !vm.setupConfigForm.api_password) {
+                    ToastService.warning('Missing Fields', 'Please fill in the username and password.');
+                    return;
+                }
             }
             vm.setupSaving = true;
             var setupPayload = angular.copy(vm.setupConfigForm);
@@ -632,6 +678,37 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             return res._isMappedToUser;
         };
 
+        vm.startRemapResource = function(res) {
+            res._remapping = true;
+            res._selected_resource = null;
+        };
+
+        vm.cancelRemapResource = function(res) {
+            res._remapping = false;
+            res._selected_resource = null;
+        };
+
+        vm.unmapResource = function(res) {
+            if (!confirm('Remove the mapping for ' + res.bs_resource_name + '?')) return;
+            res._saving = true;
+            BsSyncService.SaveResourceMap(vm.club_id, res.bs_resource_id, {
+                ta_plane_id: null,
+                ta_club_plane_id: null,
+                ta_user_id: null
+            }).then(function(data) {
+                res._saving = false;
+                if (data.success !== false) {
+                    ToastService.success('Unmapped', res.bs_resource_name + ' has been unmapped.');
+                    vm.loadResources();
+                } else {
+                    ToastService.error('Error', data.message || 'Failed to unmap resource.');
+                }
+            }, function() {
+                res._saving = false;
+                ToastService.error('Error', 'Could not connect to the server.');
+            });
+        };
+
 
         // ════════════════════════════════════════════
         // TAB 3: USERS
@@ -686,13 +763,14 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         };
 
         vm.saveUserMap = function(u) {
-            if (!u._selected_member) {
+            var memberObj = u._selected_member_obj;
+            if (!memberObj) {
                 ToastService.warning('Select Member', 'Please select a TA member to map this user to.');
                 return;
             }
             u._saving = true;
             BsSyncService.SaveUserMap(vm.club_id, u.bs_user_id, {
-                ta_user_id: u._selected_member
+                ta_user_id: memberObj.user_id || memberObj.id
             }).then(function(data) {
                 u._saving = false;
                 if (data.success !== false) {
@@ -700,6 +778,44 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                     vm.loadUsers();
                 } else {
                     ToastService.error('Error', data.message || 'Failed to save mapping.');
+                }
+            }, function() {
+                u._saving = false;
+                ToastService.error('Error', 'Could not connect to the server.');
+            });
+        };
+
+        vm.startRemapUser = function(u) {
+            u._remapping = true;
+            // Pre-select the currently mapped member object
+            u._selected_member_obj = null;
+            var taId = String(u.ta_user_id || '');
+            for (var i = 0; i < vm.clubMembers.length; i++) {
+                var m = vm.clubMembers[i];
+                if (String(m.user_id || m.id) === taId) {
+                    u._selected_member_obj = m;
+                    break;
+                }
+            }
+        };
+
+        vm.cancelRemapUser = function(u) {
+            u._remapping = false;
+            u._selected_member_obj = null;
+        };
+
+        vm.unmapUser = function(u) {
+            if (!confirm('Remove the mapping for ' + u.bs_first_name + ' ' + u.bs_last_name + '?')) return;
+            u._saving = true;
+            BsSyncService.SaveUserMap(vm.club_id, u.bs_user_id, {
+                ta_user_id: null
+            }).then(function(data) {
+                u._saving = false;
+                if (data.success !== false) {
+                    ToastService.success('Unmapped', u.bs_first_name + ' ' + u.bs_last_name + ' has been unmapped.');
+                    vm.loadUsers();
+                } else {
+                    ToastService.error('Error', data.message || 'Failed to unmap user.');
                 }
             }, function() {
                 u._saving = false;

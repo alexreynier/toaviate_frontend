@@ -1,105 +1,127 @@
-<div class="centre_align_boxes2 courses">
+<div class="snazzy-page">
 
-    <div class="home_upper">
-          <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
-              <i class="fa fa-arrow-circle-left"></i> BACK
-            </div>
-          <div class="welcome_title">
-            <h2>DEBRIEFINGS </h2> 
-            <h4 class="capitalise">
-              Debriefs you have not yet completed.
-            </h4>
-          </div>
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-comments"></i> Debriefings</h2>
+        <p>Debriefs you have not yet completed</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ── Empty state ── -->
+    <div class="snazzy-page__empty" ng-if="vm.briefings.length == 0">
+      <div class="snazzy-page__empty-icon"><i class="fa fa-check-double"></i></div>
+      <p>It looks like you don't have any debriefings remaining to do!</p>
     </div>
 
-   <div class="club_docs">
+    <!-- ── Toolbar ── -->
+    <div class="snazzy-page__toolbar" ng-if="vm.briefings.length > 0">
+      <div class="snazzy-page__meta">
+        <span class="snazzy-page__count-badge">{{ vm.briefings.length }}</span> debrief<span ng-if="vm.briefings.length !== 1">s</span> pending
+      </div>
+    </div>
 
-            <div class="card" ng-if="vm.briefings.length == 0">
-              It looks like you don't have any debriefings remaining to do!
-            </div>
+    <!-- ── Desktop table ── -->
+    <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="vm.briefings.length > 0">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Flight</th>
+              <th>Student</th>
+              <th>Aircraft</th>
+              <th class="snazzy-table__hide-mobile">Course</th>
+              <th class="snazzy-table__hide-mobile">Past Lesson</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="brief in vm.briefings">
+              <td class="snazzy-table__date">
+                <div ng-if="brief.brakes_off_rounded && brief.brakes_off_rounded !== ''">
+                  {{ brief.flight_date | asDate | date:"dd MMM yyyy" }}<br>
+                  <span class="snazzy-table__muted">{{ brief.brakes_off_rounded | brakesTime }} – {{ brief.brakes_on_rounded | brakesTime }}</span>
+                </div>
+                <div ng-if="!brief.brakes_off_rounded || brief.brakes_off_rounded == ''">
+                  {{ brief.start | asDate | date:"dd MMM yyyy HH:mm" }}<br>
+                  <span class="snazzy-table__muted">to {{ brief.end | asDate | date:"HH:mm" }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="snazzy-table__name" uib-tooltip="e: {{ brief.email }} m: {{ brief.phone_number }}">{{ brief.first_name }} {{ brief.last_name }}</span>
+              </td>
+              <td>
+                <span class="snazzy-table__badge" uib-tooltip="{{ brief.plane_type }}">{{ brief.registration }}</span>
+              </td>
+              <td class="snazzy-table__hide-mobile">
+                <span ng-if="brief.course_name">{{ brief.course_name }}</span>
+                <span ng-if="!brief.course_name" class="snazzy-table__muted">—</span>
+              </td>
+              <td class="snazzy-table__hide-mobile">
+                <span ng-if="brief.next_lesson" uib-tooltip="Lesson {{ (brief.next_lesson.organise + 1) }}">{{ brief.next_lesson.title }}</span>
+                <span ng-if="!brief.next_lesson" class="snazzy-table__muted">—</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <a class="snazzy-table__action-btn"
+                   ui-sref="dashboard.manage_user.debriefing({booking_id: brief.id, plane_log_sheet_id: brief.plane_log_sheet_id, action: 'debrief'})"
+                   uib-tooltip="Complete The Debrief">
+                  <i class="fa fa-angle-double-right"></i>
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-            <div class="card" ng-if="vm.briefings.length > 0">
-
-                <table>
-                    <tr>
-                        <th>Flight</th>
-                        <th>Student</th>
-                        <th>Aircraft</th>
-                        <th>Course</th>
-                        <th>Past Lesson</th>
-                        <th>Functions</th>
-                    </tr>
-
-                    <tr ng-repeat="brief in vm.briefings">
-                        <td>
-                            <div ng-if="brief.brakes_off_rounded && brief.brakes_off_rounded !== ''" uib-tooltip="Flight Details">
-                                {{ brief.flight_date | asDate | date:"dd MMM yyyy" }} <br /> 
-                                {{ brief.brakes_off_rounded | brakesTime }} - {{ brief.brakes_on_rounded | brakesTime }}
-                            </div>
-
-                            <div ng-if="!brief.brakes_off_rounded || brief.brakes_off_rounded == ''" uib-tooltip="Booking Details">
-                                {{ brief.start | asDate | date:"dd MMM yyyy HH:mm"}} to {{ brief.end | asDate | date:"dd MMM yyyy HH:mm" }}
-                            </div>
-
-                        </td>
-                        <td><span uib-tooltip="e: {{ brief.email }} m: {{ brief.phone_number }}">{{ brief.first_name }} {{ brief.last_name }}</span></td>
-                        <td><span uib-tooltip="{{ brief.plane_type }}">{{ brief.registration }}</span></td>
-                        <td><span>{{ brief.course_name }}</span></td>
-                        <td><span uib-tooltip="Lesson {{ (brief.next_lesson.organise + 1) }}">{{ brief.next_lesson.title }}</span></td>
-                        <td>
-                            <a ui-sref="dashboard.manage_user.debriefing({booking_id: brief.id, plane_log_sheet_id: brief.plane_log_sheet_id, action: 'debrief'})" uib-tooltip="Complete The Debrief">
-                                <i class="fa fa-angle-double-right list_icons"></i>
-                            </a> &nbsp;
-                        </td>
-                    </tr>
-
-                </table>
-
-            </div>
-
-
+    <!-- ── Mobile cards ── -->
+    <div class="snazzy-mobile-cards" ng-if="vm.briefings.length > 0">
+      <div class="snazzy-mobile-card" ng-repeat="brief in vm.briefings">
+        <div class="snazzy-mobile-card__header">
+          <i class="fa fa-user-graduate"></i>
+          {{ brief.first_name }} {{ brief.last_name }}
         </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Flight</span>
+            <span class="snazzy-mobile-card__value">
+              <span ng-if="brief.brakes_off_rounded && brief.brakes_off_rounded !== ''">
+                {{ brief.flight_date | asDate | date:"dd MMM yyyy" }} &middot; {{ brief.brakes_off_rounded | brakesTime }} – {{ brief.brakes_on_rounded | brakesTime }}
+              </span>
+              <span ng-if="!brief.brakes_off_rounded || brief.brakes_off_rounded == ''">
+                {{ brief.start | asDate | date:"dd MMM HH:mm" }} – {{ brief.end | asDate | date:"HH:mm" }}
+              </span>
+            </span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Aircraft</span>
+            <span class="snazzy-mobile-card__value">{{ brief.registration }} <span class="snazzy-table__muted">{{ brief.plane_type }}</span></span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-if="brief.course_name">
+            <span class="snazzy-mobile-card__label">Course</span>
+            <span class="snazzy-mobile-card__value">{{ brief.course_name }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-if="brief.next_lesson">
+            <span class="snazzy-mobile-card__label">Past Lesson</span>
+            <span class="snazzy-mobile-card__value">{{ brief.next_lesson.title }}</span>
+          </div>
+        </div>
+        <div class="snazzy-mobile-card__actions">
+          <a class="snazzy-page__btn snazzy-page__btn--primary"
+             ui-sref="dashboard.manage_user.debriefing({booking_id: brief.id, plane_log_sheet_id: brief.plane_log_sheet_id, action: 'debrief'})">
+            <i class="fa fa-angle-double-right"></i> Debrief Now
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 </div>
-
-
-
-<!-- BELOW IS THE APPROVAL OF BOOKINGS - DOES NOT BELOW HERE -->
-
-
-
-
-<!-- 
-<div ng-if="vm.bookings.length == 0">
-    <h5>You have no new bookings to approve...</h5>
-</div>
-       
-
-<div ng-if="vm.bookings.length > 0">
-    <h5>Bookings To Approve</h5>
-    <table>
-        <tr>
-            <td>
-                BOOKING DETAILS
-            </td>
-            <td>
-                OPTIONS
-            </td>
-        </tr>
-        <tr ng-repeat="booking in vm.bookings">
-            <td>
-                {{ booking.registration }} - {{ booking.plane_type }}
-                <br />
-                {{ booking.start | asDate | date:"dd/MM/yyyy HH:mm"}} to {{ booking.end | asDate | date:"dd/MM/yyyy HH:mm" : "UTC" }}
-                <br />
-                With {{ booking.first_name }} {{ booking.last_name }}
-                <br />
-                Contact: {{ booking.phone_number }} | {{ booking.email }}
-            </td>
-            <td>
-                <input type="button" class="btn btn-primary" ng-click="approve_booking(booking.id)" value="APPROVE" />
-                <input type="button" class="btn btn-danger" ng-click="decline_booking(booking.id)" value="DECLINE" />
-                <input type="button" class="btn btn-warning" ng-click="view_booking(booking.id, booking.start)" value="VIEW" />
-            </td>
-        </tr>
-    </table>
-</div> -->

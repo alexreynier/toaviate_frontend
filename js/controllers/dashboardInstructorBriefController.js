@@ -47,31 +47,58 @@
 
                 // If no lesson_id provided (no course on booking), show course picker
                 if (!vm.selected_lesson || vm.selected_lesson == '0' || vm.selected_lesson == 'undefined') {
-                    vm.no_course_selected = true;
                     vm.course_picker_loading = true;
                     vm.course_picker_courses = [];
                     vm.course_picker_lessons = [];
                     vm.course_picker_selected_course = null;
 
-                    // Use club_id from URL if available; otherwise look it up
-                    // from the booking's aircraft so courses match the correct
-                    // club (not the instructor's default club).
-                    if ($stateParams.club_id) {
-                        vm.briefing_club_id = $stateParams.club_id;
-                        loadCoursesForBriefing();
-                    } else {
-                        BookingService.GetForBookout(vm.user_id, $stateParams.booking_id)
-                            .then(function(data) {
-                                vm.briefing_club_id = (data.success && data.booking && data.booking.club_id)
-                                    ? data.booking.club_id
-                                    : vm.club_id;
+                    // First, check the booking to see if it already has a course_id
+                    BookingService.GetForBookout(vm.user_id, $stateParams.booking_id)
+                        .then(function(data) {
+                            var booking = (data.success && data.booking) ? data.booking : null;
+                            vm.briefing_club_id = (booking && booking.club_id)
+                                ? booking.club_id
+                                : ($stateParams.club_id || vm.club_id);
+
+                            // If booking already has a course, skip the course picker
+                            // and go straight to lesson selection for that course
+                            if (booking && booking.course_id && booking.course_id > 0) {
+                                vm.no_course_selected = true;
+                                vm.course_picker_loading = false;
+
+                                // Auto-select the booking's course and show its lessons
+                                CourseService.GetCoursesByClubId(vm.briefing_club_id)
+                                    .then(function(courseData) {
+                                        vm.course_picker_courses = courseData.items || [];
+                                        // Find the matching course
+                                        var matchedCourse = null;
+                                        for (var i = 0; i < vm.course_picker_courses.length; i++) {
+                                            if (vm.course_picker_courses[i].id == booking.course_id) {
+                                                matchedCourse = vm.course_picker_courses[i];
+                                                break;
+                                            }
+                                        }
+                                        if (matchedCourse) {
+                                            vm.select_briefing_course(matchedCourse);
+                                        } else {
+                                            // Course not found in club list — fall back to course picker
+                                            loadCoursesForBriefing();
+                                        }
+                                    })
+                                    .catch(function() {
+                                        loadCoursesForBriefing();
+                                    });
+                            } else {
+                                // No course on booking — show the full course picker
+                                vm.no_course_selected = true;
                                 loadCoursesForBriefing();
-                            })
-                            .catch(function() {
-                                vm.briefing_club_id = vm.club_id;
-                                loadCoursesForBriefing();
-                            });
-                    }
+                            }
+                        })
+                        .catch(function() {
+                            vm.briefing_club_id = $stateParams.club_id || vm.club_id;
+                            vm.no_course_selected = true;
+                            loadCoursesForBriefing();
+                        });
                 } else {
                     vm.no_course_selected = false;
                     vm.briefing_club_id = $stateParams.club_id || vm.club_id;

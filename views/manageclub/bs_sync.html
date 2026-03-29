@@ -109,7 +109,21 @@
             <span class="bs-form-hint">Full URL to the BookedScheduler Web Services endpoint</span>
           </div>
         </div>
+
+        <!-- Auth Method Selector -->
         <div class="bs-form-row">
+          <div class="bs-form-group bs-form-group--full">
+            <label>Authentication Method</label>
+            <select class="bs-select" ng-model="vm.setupConfigForm.auth_method">
+              <option value="session">Session (Username/Password)</option>
+              <option value="api_key">API Key (Recommended)</option>
+            </select>
+            <span class="bs-form-hint">API Key authentication is more reliable and doesn't require session management.</span>
+          </div>
+        </div>
+
+        <!-- Session Auth Fields -->
+        <div class="bs-form-row" ng-if="vm.setupConfigForm.auth_method !== 'api_key'">
           <div class="bs-form-group">
             <label>Username <span class="bs-required">*</span></label>
             <input type="text" class="bs-input" ng-model="vm.setupConfigForm.api_username" placeholder="admin" />
@@ -117,6 +131,20 @@
           <div class="bs-form-group">
             <label>Password <span class="bs-required">*</span></label>
             <input type="password" class="bs-input" ng-model="vm.setupConfigForm.api_password" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <!-- API Key Auth Fields -->
+        <div class="bs-form-row" ng-if="vm.setupConfigForm.auth_method === 'api_key'">
+          <div class="bs-form-group">
+            <label>API ID <span class="bs-required">*</span></label>
+            <input type="text" class="bs-input" ng-model="vm.setupConfigForm.api_id" placeholder="436d70f3e2b36f450e535cfb5ff1a3ff..." />
+            <span class="bs-form-hint">Found in BookedScheduler: My Account &rarr; Profile &rarr; Generate API Key</span>
+          </div>
+          <div class="bs-form-group">
+            <label>API Key <span class="bs-required">*</span></label>
+            <input type="password" class="bs-input" ng-model="vm.setupConfigForm.api_key" placeholder="bec10ced0b68ed85da621c10cf9107571c..." />
+            <span class="bs-form-hint">Keep this secret. Generate from your BS profile.</span>
           </div>
         </div>
         <div class="bs-form-row">
@@ -543,6 +571,13 @@
               <span class="bs-config-item__value">{{ vm.config.api_url }}</span>
             </div>
             <div class="bs-config-item">
+              <span class="bs-config-item__label">Auth Method</span>
+              <span class="bs-config-item__value">
+                <span class="bs-badge bs-badge--blue" ng-if="vm.config.auth_method === 'api_key'">API Key</span>
+                <span class="bs-badge bs-badge--grey" ng-if="vm.config.auth_method !== 'api_key'">Session</span>
+              </span>
+            </div>
+            <div class="bs-config-item">
               <span class="bs-config-item__label">Sync Interval</span>
               <span class="bs-config-item__value">{{ vm.config.sync_interval_minutes }} minutes</span>
             </div>
@@ -561,6 +596,41 @@
 
           <!-- Edit mode -->
           <div ng-if="vm.configEditing">
+            <!-- Auth Method -->
+            <div class="bs-form-row">
+              <div class="bs-form-group bs-form-group--full">
+                <label>Authentication Method</label>
+                <select class="bs-select" ng-model="vm.configForm.auth_method">
+                  <option value="session">Session (Username/Password)</option>
+                  <option value="api_key">API Key (Recommended)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Session Auth Fields -->
+            <div class="bs-form-row" ng-if="vm.configForm.auth_method !== 'api_key'">
+              <div class="bs-form-group">
+                <label>Username</label>
+                <input type="text" class="bs-input" ng-model="vm.configForm.api_username" placeholder="admin" />
+              </div>
+              <div class="bs-form-group">
+                <label>Password</label>
+                <input type="password" class="bs-input" ng-model="vm.configForm.api_password" placeholder="••••••••" />
+              </div>
+            </div>
+
+            <!-- API Key Auth Fields -->
+            <div class="bs-form-row" ng-if="vm.configForm.auth_method === 'api_key'">
+              <div class="bs-form-group">
+                <label>API ID</label>
+                <input type="text" class="bs-input" ng-model="vm.configForm.api_id" placeholder="436d70f3e2b36f450e535cfb5ff1a3ff..." />
+              </div>
+              <div class="bs-form-group">
+                <label>API Key</label>
+                <input type="password" class="bs-input" ng-model="vm.configForm.api_key" placeholder="bec10ced0b68ed85da621c10cf9107571c..." />
+              </div>
+            </div>
+
             <div class="bs-form-row">
               <div class="bs-form-group">
                 <label>Sync Interval (minutes)</label>
@@ -636,17 +706,22 @@
                   <span class="bs-sub">ID: {{ res.bs_resource_id }}</span>
                 </td>
                 <td data-label="TA Match">
-                  <!-- Mapped to aircraft -->
-                  <span ng-if="res._isMapped && !res._isMappedToUser">
+                  <!-- Mapped to aircraft (view mode) -->
+                  <span ng-if="res._isMapped && !res._isMappedToUser && !res._remapping">
                     <i class="fa fa-plane bs-text--green" style="margin-right:4px;"></i>
                     {{ res.registration }} <span class="bs-sub" ng-if="res.plane_type">({{ res.plane_type }})</span>
                   </span>
-                  <!-- Mapped to user/instructor -->
-                  <span ng-if="res._isMapped && res._isMappedToUser">
+                  <!-- Mapped to user/instructor (view mode) -->
+                  <span ng-if="res._isMapped && res._isMappedToUser && !res._remapping">
                     <i class="fa fa-user-tie bs-text--green" style="margin-right:4px;"></i>
                     {{ res.ta_first_name }} {{ res.ta_last_name }}
                     <span class="bs-sub" ng-if="res.ta_email">({{ res.ta_email }})</span>
                   </span>
+                  <!-- Mapped (remap mode) — dropdown to pick new match -->
+                  <select class="bs-select" ng-if="res._isMapped && res._remapping" ng-model="res._selected_resource"
+                          ng-options="opt.value as opt.label group by opt.group for opt in vm.resourceMapOptions">
+                    <option value="">— Select aircraft or user —</option>
+                  </select>
                   <!-- Unmapped — single dropdown with grouped ng-options -->
                   <select class="bs-select" ng-if="!res._isMapped" ng-model="res._selected_resource"
                           ng-options="opt.value as opt.label group by opt.group for opt in vm.resourceMapOptions">
@@ -658,9 +733,28 @@
                   <span class="bs-badge bs-badge--orange" ng-if="res.match_type === 'manual' || !res.match_type">Manual</span>
                 </td>
                 <td data-label="Action" class="bs-table__actions-col">
+                  <!-- Unmapped: save button -->
                   <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!res._isMapped" ng-click="vm.saveResourceMap(res)" ng-disabled="res._saving">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': res._saving, 'fa-save': !res._saving}"></i> Save
                   </button>
+                  <!-- Mapped (view mode): change / unmap -->
+                  <div class="bs-action-btns" ng-if="res._isMapped && !res._remapping">
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.startRemapResource(res)" title="Change mapping">
+                      <i class="fa fa-pencil"></i> Change
+                    </button>
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost bs-btn--ghost-danger" ng-click="vm.unmapResource(res)" ng-disabled="res._saving" title="Remove mapping">
+                      <i class="fa fa-unlink"></i>
+                    </button>
+                  </div>
+                  <!-- Mapped (remap mode): save / cancel -->
+                  <div class="bs-action-btns" ng-if="res._isMapped && res._remapping">
+                    <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.saveResourceMap(res)" ng-disabled="res._saving">
+                      <i class="fa" ng-class="{'fa-spinner fa-spin': res._saving, 'fa-save': !res._saving}"></i> Save
+                    </button>
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.cancelRemapResource(res)">
+                      <i class="fa fa-times"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -734,26 +828,70 @@
                   <span class="bs-sub">{{ u.bs_email }}</span>
                 </td>
                 <td data-label="TA User">
-                  <!-- Mapped -->
-                  <span ng-if="u._isMapped">
+                  <!-- Mapped (view mode) -->
+                  <span ng-if="u._isMapped && !u._remapping">
                     <i class="fa fa-check-circle bs-text--green"></i>
                     {{ u.ta_first_name }} {{ u.ta_last_name }}
                     <span class="bs-sub">{{ u.ta_email }}</span>
                   </span>
-                  <!-- Unmapped — ng-options dropdown -->
-                  <select class="bs-select" ng-if="!u._isMapped" ng-model="u._selected_member"
-                          ng-options="opt.value as opt.label for opt in vm.userMapOptions">
-                    <option value="">— Select member —</option>
-                  </select>
+                  <!-- Mapped (remap mode) — searchable ui-select -->
+                  <ui-select ng-if="u._isMapped && u._remapping" ng-model="u._selected_member_obj"
+                             theme="bootstrap" reset-search-input="true" class="bs-ui-select">
+                    <ui-select-match placeholder="Search member…">
+                      {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+                      <span class="bs-imported-tag" ng-if="$select.selected._isImported">BS Import</span>
+                    </ui-select-match>
+                    <ui-select-choices repeat="m in vm.clubMembers | propsFilterA: { first_name: $select.search, last_name: $select.search, email: $select.search }">
+                      <div>
+                        <span ng-bind-html="m.first_name + ' ' + m.last_name | highlight: $select.search"></span>
+                        <span class="bs-imported-tag" ng-if="m._isImported">BS Import</span>
+                      </div>
+                      <small ng-if="m.email" ng-bind-html="m.email | highlight: $select.search"></small>
+                    </ui-select-choices>
+                  </ui-select>
+                  <!-- Unmapped — searchable ui-select -->
+                  <ui-select ng-if="!u._isMapped" ng-model="u._selected_member_obj"
+                             theme="bootstrap" reset-search-input="true" class="bs-ui-select">
+                    <ui-select-match placeholder="Search member…">
+                      {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+                      <span class="bs-imported-tag" ng-if="$select.selected._isImported">BS Import</span>
+                    </ui-select-match>
+                    <ui-select-choices repeat="m in vm.clubMembers | propsFilterA: { first_name: $select.search, last_name: $select.search, email: $select.search }">
+                      <div>
+                        <span ng-bind-html="m.first_name + ' ' + m.last_name | highlight: $select.search"></span>
+                        <span class="bs-imported-tag" ng-if="m._isImported">BS Import</span>
+                      </div>
+                      <small ng-if="m.email" ng-bind-html="m.email | highlight: $select.search"></small>
+                    </ui-select-choices>
+                  </ui-select>
                 </td>
                 <td data-label="Match">
                   <span class="bs-badge bs-badge--green" ng-if="u.match_type && u.match_type.indexOf('auto') !== -1">Auto</span>
                   <span class="bs-badge bs-badge--orange" ng-if="!u.match_type || u.match_type === 'manual'">Manual</span>
                 </td>
                 <td data-label="Action" class="bs-table__actions-col">
+                  <!-- Unmapped: save button -->
                   <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!u._isMapped" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': u._saving, 'fa-save': !u._saving}"></i> Save
                   </button>
+                  <!-- Mapped (view mode): change / unmap buttons -->
+                  <div class="bs-action-btns" ng-if="u._isMapped && !u._remapping">
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.startRemapUser(u)" title="Change mapping">
+                      <i class="fa fa-pencil"></i> Change
+                    </button>
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost bs-btn--ghost-danger" ng-click="vm.unmapUser(u)" ng-disabled="u._saving" title="Remove mapping">
+                      <i class="fa fa-unlink"></i>
+                    </button>
+                  </div>
+                  <!-- Mapped (remap mode): save / cancel buttons -->
+                  <div class="bs-action-btns" ng-if="u._isMapped && u._remapping">
+                    <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
+                      <i class="fa" ng-class="{'fa-spinner fa-spin': u._saving, 'fa-save': !u._saving}"></i> Save
+                    </button>
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.cancelRemapUser(u)">
+                      <i class="fa fa-times"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>

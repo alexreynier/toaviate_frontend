@@ -1,0 +1,654 @@
+<div class="fm-modal">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="fm-modal__header">
+    <div class="fm-modal__header-left">
+      <i class="fa fa-compress fm-modal__header-icon"></i>
+      <div>
+        <h4 class="fm-modal__title">
+          Flight Merge — Duplicate Reconciliation
+        </h4>
+        <span class="fm-modal__subtitle">
+          Detect &amp; merge overlapping manual + tracker flight records
+        </span>
+      </div>
+    </div>
+    <button class="fm-modal__close" ng-click="dismiss()">
+      <i class="fa fa-times"></i>
+    </button>
+  </div>
+
+
+  <!-- ═══ TABS ═══ -->
+  <div class="fm-tabs">
+    <button class="fm-tabs__tab" ng-class="{'fm-tabs__tab--active': step === 'candidates' || step === 'preview' || step === 'result'}" ng-click="goToStep('candidates')">
+      <i class="fa fa-search"></i> Candidates
+      <span class="fm-tabs__badge" ng-if="totalCandidates > 0">{{ totalCandidates }}</span>
+    </button>
+    <button class="fm-tabs__tab" ng-class="{'fm-tabs__tab--active': step === 'history'}" ng-click="goToStep('history')">
+      <i class="fa fa-history"></i> Merge History
+    </button>
+  </div>
+
+
+  <div class="modal-body fm-modal__body">
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 1 — CANDIDATES LIST                                      -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div ng-if="step === 'candidates'">
+
+      <!-- Loading -->
+      <div class="fm-loading" ng-if="candidatesLoading">
+        <i class="fa fa-spinner fa-spin"></i> Scanning for duplicate flights…
+      </div>
+
+      <!-- Empty state -->
+      <div class="fm-empty" ng-if="!candidatesLoading && totalCandidates === 0">
+        <i class="fa fa-check-circle fm-empty__icon"></i>
+        <h4>No duplicate flights detected</h4>
+        <p>All flights for this club are unique. The system checks for overlapping manual and tracker entries within the last 90 days.</p>
+      </div>
+
+      <!-- Candidate planes -->
+      <div ng-if="!candidatesLoading && candidatesData && candidatesData.planes.length > 0">
+        <div class="fm-plane-group" ng-repeat="planeGroup in candidatesData.planes" ng-if="planeGroup.count > 0">
+
+          <!-- Plane header -->
+          <div class="fm-plane-group__header">
+            <i class="fa fa-plane"></i>
+            <strong>{{ planeGroup.plane.registration }}</strong>
+            — {{ planeGroup.count }} potential merge<span ng-if="planeGroup.count !== 1">s</span>
+          </div>
+
+          <!-- Candidate cards -->
+          <div class="fm-candidate" ng-repeat="candidate in planeGroup.candidates">
+            <div class="fm-candidate__header">
+              <span class="fm-badge" ng-class="getConfidenceClass(candidate.confidence)">
+                {{ getConfidenceIcon(candidate.confidence) }}
+                {{ candidate.confidence | uppercase }} confidence
+              </span>
+              <span class="fm-candidate__time-diff">{{ candidate.time_difference_display }} apart</span>
+            </div>
+
+            <div class="fm-candidate__body">
+              <div class="fm-candidate__side">
+                <div class="fm-candidate__side-label">MANUAL (PLS #{{ candidate.manual_pls.id }})</div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Date:</span>
+                  {{ candidate.manual_pls.flight_date }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Brakes Off:</span>
+                  {{ candidate.manual_pls.brakes_off || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Brakes On:</span>
+                  {{ candidate.manual_pls.brakes_on || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Landings:</span>
+                  {{ candidate.manual_pls.landings || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Pilot:</span>
+                  {{ candidate.manual_user || '—' }}
+                </div>
+                <div class="fm-candidate__field" ng-if="candidate.manual_pls.booking_id">
+                  <span class="fm-candidate__field-label">Booking:</span>
+                  #{{ candidate.manual_pls.booking_id }}
+                </div>
+              </div>
+
+              <div class="fm-candidate__divider"></div>
+
+              <div class="fm-candidate__side">
+                <div class="fm-candidate__side-label fm-candidate__side-label--tracker">TRACKER (PLS #{{ candidate.tracker_pls.id }})</div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Date:</span>
+                  {{ candidate.tracker_pls.flight_date }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Brakes Off:</span>
+                  {{ candidate.tracker_pls.brakes_off || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Brakes On:</span>
+                  {{ candidate.tracker_pls.brakes_on || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Landings:</span>
+                  {{ candidate.tracker_pls.landings || '—' }}
+                </div>
+                <div class="fm-candidate__field">
+                  <span class="fm-candidate__field-label">Pilot:</span>
+                  {{ candidate.tracker_user || '—' }}
+                </div>
+                <div class="fm-candidate__field" ng-if="candidate.has_flight_data_file">
+                  <span class="fm-candidate__field-label">Flight Data:</span>
+                  <i class="fa fa-wifi" style="color:#2d5a8e;"></i> Available
+                </div>
+              </div>
+            </div>
+
+            <div class="fm-candidate__footer">
+              <button class="fm-btn fm-btn--primary" ng-click="reviewCandidate(candidate)">
+                <i class="fa fa-eye"></i> Review &amp; Merge
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 2 — PREVIEW                                              -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div ng-if="step === 'preview'">
+
+      <!-- Back button -->
+      <button class="fm-btn fm-btn--link" ng-click="goToStep('candidates')" style="margin-bottom: 12px;">
+        <i class="fa fa-arrow-left"></i> Back to Candidates
+      </button>
+
+      <!-- Loading -->
+      <div class="fm-loading" ng-if="previewLoading">
+        <i class="fa fa-spinner fa-spin"></i> Loading merge preview…
+      </div>
+
+      <div ng-if="!previewLoading && previewData">
+
+        <!-- Source Toggle -->
+        <div class="fm-source-toggle">
+          <div class="fm-source-toggle__title">Which data source should be retained?</div>
+          <div class="fm-source-toggle__options">
+            <button class="fm-source-toggle__option" ng-class="{'fm-source-toggle__option--active': retainedSource === 'manual'}" ng-click="toggleSource('manual')">
+              <i class="fa" ng-class="retainedSource === 'manual' ? 'fa-dot-circle-o' : 'fa-circle-o'"></i>
+              <div>
+                <strong>Manual Entry</strong>
+                <span>Pilot-input values</span>
+              </div>
+            </button>
+            <button class="fm-source-toggle__option" ng-class="{'fm-source-toggle__option--active': retainedSource === 'tracker'}" ng-click="toggleSource('tracker')">
+              <i class="fa" ng-class="retainedSource === 'tracker' ? 'fa-dot-circle-o' : 'fa-circle-o'"></i>
+              <div>
+                <strong>Tracker Entry</strong>
+                <span>FoxAvionix GPS data</span>
+              </div>
+            </button>
+          </div>
+          <div class="fm-source-toggle__hint">
+            <i class="fa fa-info-circle"></i>
+            The selected source's values take priority. Empty fields are filled from the other record.
+            User &amp; booking info always comes from the manual entry.
+          </div>
+        </div>
+
+
+        <!-- Comparison Table -->
+        <div class="fm-section">
+          <div class="fm-section__header">
+            <i class="fa fa-list-alt"></i> Field Comparison
+          </div>
+          <div class="fm-comparison-scroll">
+            <table class="fm-comparison-table">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Manual</th>
+                  <th>Tracker</th>
+                  <th class="fm-comparison-table__match-col">Match</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="row in previewData.comparison" ng-class="{'fm-comparison-table__row--diff': !row.match}">
+                  <td class="fm-comparison-table__field-name">{{ row.label }}</td>
+                  <td ng-class="{'fm-comparison-table__winning': isWinningValue(row, 'manual')}">
+                    <span ng-if="isWinningValue(row, 'manual')" class="fm-comparison-table__bullet">●</span>
+                    {{ getFieldDisplay(row, 'manual') }}
+                  </td>
+                  <td ng-class="{'fm-comparison-table__winning': isWinningValue(row, 'tracker')}">
+                    <span ng-if="isWinningValue(row, 'tracker')" class="fm-comparison-table__bullet">●</span>
+                    {{ getFieldDisplay(row, 'tracker') }}
+                  </td>
+                  <td class="fm-comparison-table__match-col">
+                    <span ng-if="row.match" class="fm-match-icon fm-match-icon--yes"><i class="fa fa-check"></i></span>
+                    <span ng-if="!row.match" class="fm-match-icon fm-match-icon--no"><i class="fa fa-times"></i></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+
+        <!-- Merged Result Preview -->
+        <div class="fm-section" ng-if="previewData.merged_pls_preview">
+          <div class="fm-section__header">
+            <i class="fa fa-file-text-o"></i> Merged Result (what will be saved)
+          </div>
+          <div class="fm-merged-preview">
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.flight_date">
+              <span class="fm-merged-preview__label">Flight Date:</span>
+              <span>{{ previewData.merged_pls_preview.flight_date }}</span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.brakes_off">
+              <span class="fm-merged-preview__label">Brakes Off:</span>
+              <span>{{ previewData.merged_pls_preview.brakes_off }}</span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.brakes_on">
+              <span class="fm-merged-preview__label">Brakes On:</span>
+              <span>{{ previewData.merged_pls_preview.brakes_on }}</span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.tacho_start || previewData.merged_pls_preview.tacho_end">
+              <span class="fm-merged-preview__label">Tacho:</span>
+              <span>{{ previewData.merged_pls_preview.tacho_start || '—' }} → {{ previewData.merged_pls_preview.tacho_end || '—' }}</span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.landings !== null">
+              <span class="fm-merged-preview__label">Landings:</span>
+              <span>{{ previewData.merged_pls_preview.landings }}</span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.user_id">
+              <span class="fm-merged-preview__label">Pilot:</span>
+              <span>{{ previewData.manual_pls.user_name || 'User #' + previewData.merged_pls_preview.user_id }} <em style="color:#94a3b8;">(always from manual)</em></span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.booking_id">
+              <span class="fm-merged-preview__label">Booking:</span>
+              <span>#{{ previewData.merged_pls_preview.booking_id }} <em style="color:#94a3b8;">(always from manual)</em></span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.fox_log_id">
+              <span class="fm-merged-preview__label">Fox Entry:</span>
+              <span>#{{ previewData.merged_pls_preview.fox_log_id }} <em style="color:#94a3b8;">(tracker link preserved)</em></span>
+            </div>
+            <div class="fm-merged-preview__row" ng-if="previewData.merged_pls_preview.remarks">
+              <span class="fm-merged-preview__label">Remarks:</span>
+              <span>{{ previewData.merged_pls_preview.remarks }}</span>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Fox Entry Info -->
+        <div class="fm-section fm-section--compact" ng-if="previewData.fox_entry || selectedCandidate.has_flight_data_file">
+          <div class="fm-section__header">
+            <i class="fa fa-wifi"></i> FoxAvionix Data
+          </div>
+          <div class="fm-fox-info">
+            <div ng-if="previewData.fox_entry">
+              <span class="fm-fox-info__label">IMEI:</span> {{ previewData.fox_entry.imei || '—' }}
+            </div>
+            <div ng-if="selectedCandidate.has_flight_data_file">
+              <span class="fm-fox-info__label">Flight Data File:</span>
+              <span style="color:#16a34a;"><i class="fa fa-check-circle"></i> Available</span>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Financial Impact -->
+        <div class="fm-section" ng-if="previewData.financial_impact && previewData.financial_impact.has_impact">
+          <div class="fm-section__header fm-section__header--financial">
+            <i class="fa fa-money"></i> Financial Impact
+          </div>
+          <div class="fm-financial">
+            <div class="fm-financial__row">
+              <span>Flight cost with current data:</span>
+              <strong>{{ formatCurrency(previewData.financial_impact.original_total, previewData.financial_impact.currency) }}</strong>
+            </div>
+            <div class="fm-financial__row">
+              <span>Flight cost after merge:</span>
+              <strong>{{ formatCurrency(previewData.financial_impact.new_total, previewData.financial_impact.currency) }}</strong>
+            </div>
+            <div class="fm-financial__row fm-financial__row--diff">
+              <span>Difference:</span>
+              <strong>{{ formatDifference(previewData.financial_impact) }}</strong>
+            </div>
+            <div class="fm-financial__note" ng-if="previewData.financial_impact.action === 'charge'">
+              <i class="fa fa-exclamation-triangle"></i>
+              The member will owe an additional {{ formatCurrency(previewData.financial_impact.abs_difference, previewData.financial_impact.currency) }}
+            </div>
+            <div class="fm-financial__note fm-financial__note--credit" ng-if="previewData.financial_impact.action === 'credit'">
+              <i class="fa fa-info-circle"></i>
+              The member was overcharged by {{ formatCurrency(previewData.financial_impact.abs_difference, previewData.financial_impact.currency) }}
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Warnings -->
+        <div ng-if="previewData.warnings && previewData.warnings.length > 0">
+          <div class="fm-warning" ng-repeat="warning in previewData.warnings">
+            <i class="fa fa-exclamation-triangle"></i> {{ warning }}
+          </div>
+        </div>
+
+
+        <!-- ═══ APPLY FORM ═══ -->
+        <div class="fm-section">
+          <div class="fm-section__header">
+            <i class="fa fa-check-circle"></i> Confirm &amp; Apply Merge
+          </div>
+          <div class="fm-apply-form">
+
+            <div class="fm-apply-form__group">
+              <label class="fm-apply-form__label">Merge Reason (optional)</label>
+              <textarea class="fm-apply-form__textarea" ng-model="mergeReason" placeholder="e.g. Pilot logged the correct circuit count" rows="2"></textarea>
+            </div>
+
+            <div class="fm-apply-form__group">
+              <label class="fm-apply-form__checkbox-label">
+                <input type="checkbox" ng-model="updateInvoice" />
+                Update unpaid invoices to match new flight cost
+              </label>
+            </div>
+
+            <div class="fm-apply-form__group" ng-if="previewData.financial_impact && previewData.financial_impact.has_impact">
+              <label class="fm-apply-form__label">Financial action (if paid invoice exists):</label>
+              <div class="fm-apply-form__radios">
+                <label class="fm-apply-form__radio">
+                  <input type="radio" ng-model="financialAction" value="none" /> No action
+                </label>
+                <label class="fm-apply-form__radio">
+                  <input type="radio" ng-model="financialAction" value="credit_account" /> Credit to member's account
+                </label>
+                <label class="fm-apply-form__radio">
+                  <input type="radio" ng-model="financialAction" value="stripe_refund" /> Refund via Stripe
+                </label>
+                <label class="fm-apply-form__radio">
+                  <input type="radio" ng-model="financialAction" value="new_invoice" /> Create new invoice
+                </label>
+                <label class="fm-apply-form__radio">
+                  <input type="radio" ng-model="financialAction" value="waive" /> Waive the difference
+                </label>
+              </div>
+            </div>
+
+            <div class="fm-apply-form__actions">
+              <button class="fm-btn fm-btn--secondary" ng-click="goToStep('candidates')">
+                <i class="fa fa-arrow-left"></i> Back
+              </button>
+              <button class="fm-btn fm-btn--danger" ng-click="showConfirm()" ng-disabled="applyLoading">
+                <i class="fa fa-compress"></i> Apply Merge
+              </button>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Confirmation Dialog -->
+        <div class="fm-confirm-overlay" ng-if="showConfirmDialog">
+          <div class="fm-confirm-dialog">
+            <div class="fm-confirm-dialog__icon">
+              <i class="fa fa-exclamation-triangle"></i>
+            </div>
+            <h4>Confirm Merge</h4>
+            <p>
+              This will merge PLS #{{ selectedCandidate.manual_pls.id }} and PLS #{{ selectedCandidate.tracker_pls.id }}
+              into a single record. The superseded entry will be retired and hidden from flight logs.
+            </p>
+            <p class="fm-confirm-dialog__warning">This action cannot be easily undone.</p>
+            <div class="fm-confirm-dialog__actions">
+              <button class="fm-btn fm-btn--secondary" ng-click="cancelConfirm()">Cancel</button>
+              <button class="fm-btn fm-btn--danger" ng-click="applyMerge()" ng-disabled="applyLoading">
+                <i class="fa fa-spinner fa-spin" ng-if="applyLoading"></i>
+                <span ng-if="!applyLoading">Confirm Merge</span>
+                <span ng-if="applyLoading">Merging…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 4 — RESULT                                                -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div ng-if="step === 'result' && applyResult">
+
+      <div class="fm-result">
+        <div class="fm-result__icon">
+          <i class="fa fa-check-circle"></i>
+        </div>
+        <h3 class="fm-result__title">Flight Records Merged Successfully</h3>
+
+        <div class="fm-result__summary">
+          <div class="fm-result__row">
+            <span class="fm-result__label">Merge ID:</span>
+            <span>#{{ applyResult.merge_id }}</span>
+          </div>
+          <div class="fm-result__row">
+            <span class="fm-result__label">Source:</span>
+            <span>{{ applyResult.retained_source === 'manual' ? 'Manual entry retained' : 'Tracker entry retained' }}</span>
+          </div>
+          <div class="fm-result__row">
+            <span class="fm-result__label">Surviving PLS:</span>
+            <span>#{{ applyResult.surviving_pls_id }}</span>
+          </div>
+          <div class="fm-result__row">
+            <span class="fm-result__label">Superseded PLS:</span>
+            <span>#{{ applyResult.superseded_pls_id }} (retired)</span>
+          </div>
+        </div>
+
+        <div class="fm-result__entities" ng-if="applyResult.affected_entities.length > 0">
+          <h4>What happened:</h4>
+          <div class="fm-result__entity" ng-repeat="entity in applyResult.affected_entities">
+            <i class="fa" ng-class="getEntityIcon(entity.type)"></i>
+            <span>
+              <span ng-if="entity.type === 'plane_log_sheet'">Flight Log</span>
+              <span ng-if="entity.type === 'booking'">Booking</span>
+              <span ng-if="entity.type === 'fox_entry'">Fox Entry</span>
+              <span ng-if="entity.type === 'invoice'">Invoice</span>
+              <span ng-if="entity.type === 'logbook'">Aircraft Logbook</span>
+              #{{ entity.id }} — {{ getActionLabel(entity.action) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="fm-result__actions">
+          <button class="fm-btn fm-btn--secondary" ng-click="goToStep('history')">
+            <i class="fa fa-history"></i> View Merge History
+          </button>
+          <button class="fm-btn fm-btn--primary" ng-click="close()">
+            <i class="fa fa-check"></i> Close
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- MERGE HISTORY                                                  -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div ng-if="step === 'history'">
+
+      <!-- Back to candidates -->
+      <button class="fm-btn fm-btn--link" ng-click="goToStep('candidates')" style="margin-bottom: 12px;">
+        <i class="fa fa-arrow-left"></i> Back to Candidates
+      </button>
+
+      <!-- Loading -->
+      <div class="fm-loading" ng-if="historyLoading">
+        <i class="fa fa-spinner fa-spin"></i> Loading merge history…
+      </div>
+
+      <!-- Empty -->
+      <div class="fm-empty" ng-if="!historyLoading && historyData && historyData.history.length === 0">
+        <i class="fa fa-check-circle fm-empty__icon"></i>
+        <h4>No merges yet</h4>
+        <p>No flight merges have been performed for this club.</p>
+      </div>
+
+      <!-- History table -->
+      <div ng-if="!historyLoading && historyData && historyData.history.length > 0">
+        <div class="fm-history-scroll">
+          <table class="fm-history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Aircraft</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th>Merged By</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="entry in historyData.history">
+                <td>{{ entry.applied_at }}</td>
+                <td>{{ entry.plane_registration }}</td>
+                <td>
+                  <span class="fm-history-badge" ng-class="entry.retained_source === 'manual' ? 'fm-history-badge--manual' : 'fm-history-badge--tracker'">
+                    {{ entry.retained_source | uppercase }}
+                  </span>
+                </td>
+                <td>
+                  <span class="fm-history-badge" ng-class="entry.status === 'applied' ? 'fm-history-badge--applied' : 'fm-history-badge--rolled-back'">
+                    {{ entry.status | uppercase }}
+                  </span>
+                </td>
+                <td>{{ entry.merged_by_name }}</td>
+                <td style="text-align:right;">
+                  <button class="fm-btn fm-btn--small" ng-click="viewMergeDetail(entry)">
+                    <i class="fa fa-eye"></i> View
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="fm-pagination" ng-if="historyData.pagination && historyData.pagination.pages > 1">
+          <button class="fm-btn fm-btn--small" ng-click="loadHistory(historyPage - 1)" ng-disabled="historyPage <= 1">
+            <i class="fa fa-chevron-left"></i> Prev
+          </button>
+          <span class="fm-pagination__text">Page {{ historyPage }} of {{ historyData.pagination.pages }}</span>
+          <button class="fm-btn fm-btn--small" ng-click="loadHistory(historyPage + 1)" ng-disabled="historyPage >= historyData.pagination.pages">
+            Next <i class="fa fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+
+
+      <!-- ═══ MERGE DETAIL PANEL ═══ -->
+      <div class="fm-detail-overlay" ng-if="selectedMergeDetail || mergeDetailLoading">
+        <div class="fm-detail-panel">
+
+          <div class="fm-detail-panel__header">
+            <h4><i class="fa fa-search"></i> Merge Detail — #{{ selectedMergeDetail.merge.id }}</h4>
+            <button class="fm-modal__close" ng-click="closeMergeDetail()"><i class="fa fa-times"></i></button>
+          </div>
+
+          <div class="fm-loading" ng-if="mergeDetailLoading" style="padding:40px;">
+            <i class="fa fa-spinner fa-spin"></i> Loading detail…
+          </div>
+
+          <div class="fm-detail-panel__body" ng-if="selectedMergeDetail && !mergeDetailLoading">
+
+            <!-- Info -->
+            <div class="fm-detail-info">
+              <div class="fm-detail-info__row">
+                <span class="fm-detail-info__label">Applied:</span>
+                {{ selectedMergeDetail.merge.applied_at }}
+              </div>
+              <div class="fm-detail-info__row">
+                <span class="fm-detail-info__label">By:</span>
+                {{ selectedMergeDetail.merge.merged_by_name }}
+              </div>
+              <div class="fm-detail-info__row" ng-if="selectedMergeDetail.merge.merge_reason">
+                <span class="fm-detail-info__label">Reason:</span>
+                {{ selectedMergeDetail.merge.merge_reason }}
+              </div>
+              <div class="fm-detail-info__row">
+                <span class="fm-detail-info__label">Source:</span>
+                {{ selectedMergeDetail.merge.retained_source === 'manual' ? 'Manual entry retained' : 'Tracker entry retained' }}
+              </div>
+              <div class="fm-detail-info__row">
+                <span class="fm-detail-info__label">Aircraft:</span>
+                {{ selectedMergeDetail.merge.plane_registration }}
+              </div>
+            </div>
+
+            <!-- Before -->
+            <div class="fm-detail-section">
+              <h5 class="fm-detail-section__title">Before Merge</h5>
+              <div class="fm-detail-snapshot" ng-if="selectedMergeDetail.merge.manual_snapshot">
+                <div class="fm-detail-snapshot__label">Manual PLS #{{ selectedMergeDetail.merge.manual_pls_id }}:</div>
+                <div class="fm-detail-snapshot__text">
+                  Flight: {{ selectedMergeDetail.merge.manual_snapshot.flight_date }},
+                  {{ selectedMergeDetail.merge.manual_snapshot.brakes_off || '?' }}–{{ selectedMergeDetail.merge.manual_snapshot.brakes_on || '?' }},
+                  {{ selectedMergeDetail.merge.manual_snapshot.landings || 0 }} ldgs
+                </div>
+              </div>
+              <div class="fm-detail-snapshot" ng-if="selectedMergeDetail.merge.tracker_snapshot">
+                <div class="fm-detail-snapshot__label">Tracker PLS #{{ selectedMergeDetail.merge.tracker_pls_id }}:</div>
+                <div class="fm-detail-snapshot__text">
+                  Flight: {{ selectedMergeDetail.merge.tracker_snapshot.flight_date }},
+                  {{ selectedMergeDetail.merge.tracker_snapshot.brakes_off || '?' }}–{{ selectedMergeDetail.merge.tracker_snapshot.brakes_on || '?' }},
+                  {{ selectedMergeDetail.merge.tracker_snapshot.landings || 0 }} ldgs
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="fm-detail-section">
+              <h5 class="fm-detail-section__title">After Merge</h5>
+              <div class="fm-detail-snapshot" ng-if="selectedMergeDetail.merge.surviving_snapshot">
+                <div class="fm-detail-snapshot__label">Surviving PLS #{{ selectedMergeDetail.merge.surviving_pls_id }}:</div>
+                <div class="fm-detail-snapshot__text">
+                  Flight: {{ selectedMergeDetail.merge.surviving_snapshot.flight_date }},
+                  {{ selectedMergeDetail.merge.surviving_snapshot.brakes_off || '?' }}–{{ selectedMergeDetail.merge.surviving_snapshot.brakes_on || '?' }},
+                  {{ selectedMergeDetail.merge.surviving_snapshot.landings || 0 }} ldgs
+                </div>
+              </div>
+              <div class="fm-detail-snapshot fm-detail-snapshot--superseded">
+                <div class="fm-detail-snapshot__label">Superseded PLS #{{ selectedMergeDetail.merge.superseded_pls_id }}:</div>
+                <div class="fm-detail-snapshot__text">→ merged into #{{ selectedMergeDetail.merge.surviving_pls_id }}</div>
+              </div>
+            </div>
+
+            <!-- Audit Trail -->
+            <div class="fm-detail-section" ng-if="selectedMergeDetail.audit_entries.length > 0">
+              <h5 class="fm-detail-section__title">Audit Trail</h5>
+              <div class="fm-detail-audit">
+                <div class="fm-detail-audit__entry" ng-repeat="audit in selectedMergeDetail.audit_entries">
+                  <span class="fm-detail-audit__time">{{ audit.created_at }}</span>
+                  <span class="fm-detail-audit__action">{{ audit.action }}</span>
+                  <span class="fm-detail-audit__detail" ng-if="audit.field"> → {{ audit.field }}<span ng-if="audit.old_value"> changed from {{ audit.old_value }}</span> to {{ audit.new_value }}</span>
+                  <span class="fm-detail-audit__detail" ng-if="!audit.field"> → {{ audit.details }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Financial -->
+            <div class="fm-detail-section" ng-if="selectedMergeDetail.merge.financial_impact">
+              <h5 class="fm-detail-section__title">Financial Impact</h5>
+              <div ng-if="!selectedMergeDetail.merge.financial_impact.has_impact" class="fm-detail-info__row" style="color:#94a3b8;">
+                No financial impact
+              </div>
+              <div ng-if="selectedMergeDetail.merge.financial_impact.has_impact">
+                <div class="fm-detail-info__row">
+                  Original cost: {{ formatCurrency(selectedMergeDetail.merge.financial_impact.original_total, selectedMergeDetail.merge.financial_impact.currency) }}
+                  → New cost: {{ formatCurrency(selectedMergeDetail.merge.financial_impact.new_total, selectedMergeDetail.merge.financial_impact.currency) }}
+                  ({{ formatDifference(selectedMergeDetail.merge.financial_impact) }})
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+
+  </div>
+
+</div>

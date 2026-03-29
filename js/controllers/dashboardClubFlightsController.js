@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlightsController', DashboardClubFlightsController);
 
-    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService'];
-    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService) {
+    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService'];
+    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -1484,6 +1484,49 @@
                         vm.editHistoryPagination = data.pagination || null;
                     }
                 });
+        };
+
+
+        // ═══════════════════════════════════════════════
+        // FLIGHT MERGE — Duplicate Reconciliation
+        // ═══════════════════════════════════════════════
+        vm.mergeCandidateCount = 0;
+
+        vm.loadMergeCandidateCount = function() {
+            FlightMergeService.GetCandidatesByClub(vm.club_id).then(function(data) {
+                if (data && data.success) {
+                    vm.mergeCandidateCount = data.total_candidates || 0;
+                }
+            });
+        };
+
+        // Load merge candidate count on init
+        vm.loadMergeCandidateCount();
+
+        vm.openFlightMerge = function() {
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/flightMergeModal.html',
+                controller: 'FlightMergeModalController',
+                size: 'lg',
+                backdrop: 'static',
+                keyboard: false,
+                resolve: {
+                    clubId: function() { return vm.club_id; }
+                }
+            });
+
+            modalInstance.result.then(function(result) {
+                if (result && result.merged) {
+                    ToastService.success('Merge Complete', 'Flight records have been merged successfully.', { duration: 4000 });
+                    vm.search_for_flights();
+                    vm.loadMergeCandidateCount();
+                }
+            }, function() {
+                $log.info('Flight merge modal dismissed');
+                // Refresh count in case user viewed but didn't merge
+                vm.loadMergeCandidateCount();
+            });
         };
 
 

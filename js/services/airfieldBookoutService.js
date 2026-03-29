@@ -17,7 +17,7 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
             'Api-Key': EnvConfig.getApiKey(),
             'Authorization': 'Basic aGVyZWJlOmRyYWdvbnM=',
             'X-Origin': siteOrigin,
-            'X-Referer': siteOrigin + window.location.pathname
+            'X-Referer': siteOrigin + '/'
         };
 
         var service = {};
@@ -27,6 +27,7 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         service.GenerateToken       = GenerateToken;
         service.ListTokens          = ListTokens;
         service.RevokeToken         = RevokeToken;
+        service.UpdateSettings      = UpdateSettings;
 
         // ── Public: Pilot Bookout Form ──
         service.LoadFormData        = LoadFormData;
@@ -37,6 +38,7 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         service.DeleteBookout       = DeleteBookout;
         service.SearchAirfields     = SearchAirfields;
         service.SearchAirfieldsByCode = SearchAirfieldsByCode;
+        service.GetTodayBookouts    = GetTodayBookouts;
 
         // ── Controller Display (token-based) ──
         service.GetDisplayInfo      = GetDisplayInfo;
@@ -44,6 +46,11 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         service.GetDelta            = GetDelta;
         service.UpdateStatus        = UpdateStatus;
         service.CloseBookout        = CloseBookout;
+        service.GetDisplayToday     = GetDisplayToday;
+        service.GetDisplayDate      = GetDisplayDate;
+        service.CreateDisplayBookout = CreateDisplayBookout;
+        service.EditDisplayBookout  = EditDisplayBookout;
+        service.DeleteDisplayBookout = DeleteDisplayBookout;
 
         return service;
 
@@ -71,6 +78,11 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
 
         function RevokeToken(club_id, token) {
             return $http.delete('/api/v1/airfield_bookout_tokens/' + club_id + '/' + token)
+                .then(handleSuccess, handleError);
+        }
+
+        function UpdateSettings(club_id, settings) {
+            return $http.post('/api/v1/airfield_bookout_tokens/' + club_id + '/settings', settings)
                 .then(handleSuccess, handleError);
         }
 
@@ -105,10 +117,14 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         }
 
         function DeleteBookout(icao, bookoutId, editCode) {
-            return $http.delete('/api/v1/airfield_bookout/' + icao + '/' + bookoutId, {
-                data: { edit_code: editCode },
-                headers: { 'Content-Type': 'application/json' }
-            }).then(handleSuccess, handleError);
+            var opts = { headers: { 'Content-Type': 'application/json' } };
+            if (editCode) {
+                opts.data = { edit_code: editCode };
+            } else {
+                opts.data = {};
+            }
+            return $http.delete('/api/v1/airfield_bookout/' + icao + '/' + bookoutId, opts)
+                .then(handleSuccess, handleError);
         }
 
 
@@ -139,6 +155,36 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
 
         function CloseBookout(token, bookoutId) {
             return $http.post('/api/v1/airfield_bookout_display/' + token + '/close/' + bookoutId)
+                .then(handleSuccess, handleError);
+        }
+
+        function GetDisplayToday(token) {
+            return $http.get('/api/v1/airfield_bookout_display/' + token + '/today')
+                .then(handleSuccess, handleError);
+        }
+
+        function GetDisplayDate(token, dateStr) {
+            return $http.get('/api/v1/airfield_bookout_display/' + token + '/date/' + encodeURIComponent(dateStr))
+                .then(handleSuccess, handleError);
+        }
+
+        function CreateDisplayBookout(token, data) {
+            return $http.post('/api/v1/airfield_bookout_display/' + token + '/create', data)
+                .then(handleSuccess, handleError);
+        }
+
+        function EditDisplayBookout(token, bookoutId, data) {
+            return $http.post('/api/v1/airfield_bookout_display/' + token + '/edit/' + bookoutId, data)
+                .then(handleSuccess, handleError);
+        }
+
+        function DeleteDisplayBookout(token, bookoutId) {
+            return $http.post('/api/v1/airfield_bookout_display/' + token + '/delete/' + bookoutId, {})
+                .then(handleSuccess, handleError);
+        }
+
+        function GetTodayBookouts(icao) {
+            return $http.get('/api/v1/airfield_bookout/' + icao + '/today')
                 .then(handleSuccess, handleError);
         }
 

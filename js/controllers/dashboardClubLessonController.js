@@ -72,6 +72,26 @@
         };
 
 
+        // ── Pending marking items for create mode ──
+        vm.pendingItems = [];
+        vm.new_pending_item = { title: '', description: '' };
+
+        vm.add_pending_item = function() {
+            if (!vm.new_pending_item.title) {
+                ToastService.error('Missing: Marking Item Title', 'Please enter a title for the marking item.');
+                return;
+            }
+            vm.pendingItems.push({
+                title: vm.new_pending_item.title,
+                description: vm.new_pending_item.description || ''
+            });
+            vm.new_pending_item = { title: '', description: '' };
+        };
+
+        vm.remove_pending_item = function(index) {
+            vm.pendingItems.splice(index, 1);
+        };
+
         vm.new_tem = {
             threat: "",
             consequence: "",
@@ -517,6 +537,13 @@
             ];
             if (!ToastService.validateForm(checks)) return;
 
+            if (!vm.items || vm.items.length === 0) {
+                ToastService.error('Missing: Marking Items', 'Please add at least one marking item before saving the lesson.');
+                var el = document.getElementById('pending-items-section');
+                if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                return;
+            }
+
             $scope.update();
         }
 
@@ -527,13 +554,36 @@
             ];
             if (!ToastService.validateForm(checks)) return;
 
+            if (!vm.pendingItems || vm.pendingItems.length === 0) {
+                ToastService.error('Missing: Marking Items', 'Please add at least one marking item before creating the lesson.');
+                var el = document.getElementById('pending-items-section');
+                if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                return;
+            }
+
             vm.club.lesson.course_id = $stateParams.course_id;
 
             CourseService.CreateLesson(vm.club.lesson)
                 .then(function(data){
-                    ////console.log(data);
-                    $state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    var lessonId = data.id;
+                    var promises = [];
+                    for (var i = 0; i < vm.pendingItems.length; i++) {
+                        var item = {
+                            title: vm.pendingItems[i].title,
+                            description: vm.pendingItems[i].description,
+                            lesson_id: lessonId,
+                            organise: i
+                        };
+                        promises.push(CourseService.CreateItem(item));
+                    }
+                    // Wait for all items to be created, then redirect
+                    if (promises.length > 0) {
+                        promises[promises.length - 1].then(function() {
+                            $state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: lessonId, reload: true});
+                        });
+                    } else {
+                        $state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: lessonId, reload: true});
+                    }
                 });
 
 

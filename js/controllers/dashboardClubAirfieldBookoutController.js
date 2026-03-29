@@ -32,6 +32,12 @@ app.controller('DashboardClubAirfieldBookoutController', DashboardClubAirfieldBo
         vm.new_label      = '';
         vm.generating     = false;
 
+        // Bookout Settings
+        vm.pilot_form_mode     = 'form';
+        vm.display_allow_create = false;
+        vm.allow_public_edit   = false;
+        vm.saving_settings     = false;
+
         // Pilot form URL
         vm.pilot_form_url = '';
 
@@ -44,6 +50,7 @@ app.controller('DashboardClubAirfieldBookoutController', DashboardClubAirfieldBo
         vm.copyUrl          = copyUrl;
         vm.getDisplayUrl    = getDisplayUrl;
         vm.getPilotFormUrl  = getPilotFormUrl;
+        vm.saveSettings     = saveSettings;
 
         // ── Init ──
         init();
@@ -57,6 +64,11 @@ app.controller('DashboardClubAirfieldBookoutController', DashboardClubAirfieldBo
                     if (data.success) {
                         vm.airfield = data.airfield || null;
                         vm.tokens   = data.tokens || [];
+                        if (data.settings) {
+                            vm.pilot_form_mode      = data.settings.pilot_form_mode || 'form';
+                            vm.display_allow_create  = !!data.settings.display_allow_create;
+                            vm.allow_public_edit     = !!data.settings.allow_public_edit;
+                        }
                         if (vm.airfield && vm.airfield.code) {
                             vm.pilot_form_url = getPilotFormUrl();
                         }
@@ -159,6 +171,33 @@ app.controller('DashboardClubAirfieldBookoutController', DashboardClubAirfieldBo
                     } else {
                         ToastService.error('Error', data.message || 'Could not revoke token');
                     }
+                });
+        }
+
+
+        // ── Save Bookout Settings ──
+        function saveSettings() {
+            vm.saving_settings = true;
+            var payload = {
+                pilot_form_mode:     vm.pilot_form_mode,
+                display_allow_create: vm.display_allow_create,
+                allow_public_edit:   vm.allow_public_edit
+            };
+
+            AirfieldBookoutService.UpdateSettings(vm.club_id, payload)
+                .then(function(data) {
+                    vm.saving_settings = false;
+                    if (data.success) {
+                        vm.pilot_form_mode      = data.pilot_form_mode || vm.pilot_form_mode;
+                        vm.display_allow_create  = data.display_allow_create !== undefined ? !!data.display_allow_create : vm.display_allow_create;
+                        vm.allow_public_edit     = data.allow_public_edit !== undefined ? !!data.allow_public_edit : vm.allow_public_edit;
+                        ToastService.success('Settings Saved', 'Bookout settings updated successfully');
+                    } else {
+                        ToastService.error('Error', data.message || 'Could not save settings');
+                    }
+                }, function() {
+                    vm.saving_settings = false;
+                    ToastService.error('Error', 'Connection error — could not save settings');
                 });
         }
 

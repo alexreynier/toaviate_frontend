@@ -50,6 +50,252 @@
         </div>
     </div>
 
+    <!-- ── Date Navigation Bar ── -->
+    <div class="abd-date-nav">
+        <div class="abd-date-nav__left">
+            <button class="abd-date-nav__btn" ng-click="vm.prevDay()" title="Previous day">
+                <i class="fa fa-chevron-left"></i>
+            </button>
+            <button class="abd-date-nav__btn abd-date-nav__btn--today"
+                    ng-click="vm.viewToday()"
+                    ng-class="{'abd-date-nav__btn--active': !vm.selected_date}">
+                <i class="fa fa-calendar-day"></i> Today
+            </button>
+            <button class="abd-date-nav__btn" ng-click="vm.nextDay()" title="Next day">
+                <i class="fa fa-chevron-right"></i>
+            </button>
+            <div class="abd-date-nav__picker">
+                <input type="date" class="abd-date-nav__input"
+                       ng-model="vm.date_picker_value"
+                       ng-change="vm.onDatePicked()" />
+            </div>
+            <span class="abd-date-nav__label">{{ vm.display_date_label }}</span>
+            <span class="abd-date-nav__past-badge" ng-if="vm.is_past_date">
+                <i class="fa fa-history"></i> Historical
+            </span>
+        </div>
+        <div class="abd-date-nav__right">
+            <button class="abd-action-btn abd-action-btn--copy-all"
+                    ng-click="vm.copyAllBookouts()"
+                    ng-if="vm.bookouts.length > 0"
+                    title="Copy all bookouts as CSV">
+                <i class="fa fa-clipboard-list"></i> Copy All
+            </button>
+            <button class="abd-action-btn abd-action-btn--create"
+                    ng-if="vm.display_allow_create && !vm.selected_date"
+                    ng-click="vm.toggleCreateForm()"
+                    title="Add a new bookout">
+                <i class="fa fa-plus"></i> Add Bookout
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Tower Create Form (Modal overlay) ── -->
+    <div class="abd-create-overlay" ng-if="vm.show_create_form">
+        <div class="abd-create-modal">
+            <div class="abd-create-modal__header">
+                <h3><i class="fa fa-plus-circle"></i> New Bookout</h3>
+                <button class="abd-create-modal__close" ng-click="vm.cancelCreateForm()">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="abd-create-modal__body">
+                <!-- Registration with autocomplete -->
+                <div class="abd-create-field">
+                    <label>Registration <span class="abd-create-req">*</span></label>
+                    <div class="abd-create-autocomplete">
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.create_form.registration"
+                               ng-change="vm.filterCreateAircraft()"
+                               ng-blur="vm.onCreateRegBlur()"
+                               placeholder="e.g. G-BXSE"
+                               autocomplete="off" maxlength="10" />
+                        <div class="abd-create-dropdown" ng-if="vm.create_show_dropdown">
+                            <div class="abd-create-dropdown__item"
+                                 ng-repeat="ac in vm.create_filtered_aircraft"
+                                 ng-mousedown="vm.selectCreateAircraft(ac)">
+                                <span class="abd-create-dropdown__reg">{{ ac.registration }}</span>
+                                <span class="abd-create-dropdown__type">{{ ac.plane_type }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aircraft Type -->
+                <div class="abd-create-field">
+                    <label>Aircraft Type</label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.create_form.aircraft_type"
+                           placeholder="e.g. PA-28 Warrior" />
+                </div>
+
+                <!-- PIC Name -->
+                <div class="abd-create-field">
+                    <label>PIC Surname <span class="abd-create-req">*</span></label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.create_form.pic_name"
+                           placeholder="Surname" />
+                </div>
+
+                <!-- Quick picks + Outbound To / Inbound From -->
+                <div class="abd-create-quick-bar">
+                    <button class="abd-create-quick" ng-click="vm.setCreateQuick('LOCAL')"
+                            ng-class="{'abd-create-quick--active': vm.create_form.from === 'LOCAL'}">
+                        <i class="fa fa-home"></i> Local
+                    </button>
+                    <button class="abd-create-quick" ng-click="vm.setCreateQuick('CCTS')"
+                            ng-class="{'abd-create-quick--active': vm.create_form.from === 'CCTS'}">
+                        <i class="fa fa-sync-alt"></i> Circuits
+                    </button>
+                </div>
+
+                <div class="abd-create-row">
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>Outbound To</label>
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.create_form.from"
+                               placeholder="ICAO / LOCAL" />
+                    </div>
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>Inbound From</label>
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.create_form.to"
+                               placeholder="ICAO / LOCAL" />
+                    </div>
+                </div>
+
+                <!-- POB -->
+                <div class="abd-create-row">
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>POB Out</label>
+                        <input type="number" class="abd-create-input"
+                               ng-model="vm.create_form.pob_outbound"
+                               min="1" max="50" />
+                    </div>
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>POB In</label>
+                        <input type="number" class="abd-create-input"
+                               ng-model="vm.create_form.pob_inbound"
+                               min="1" max="50"
+                               placeholder="—" />
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="abd-create-field">
+                    <label>Notes</label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.create_form.notes"
+                           placeholder="e.g. Called on radio" />
+                </div>
+            </div>
+            <div class="abd-create-modal__footer">
+                <button class="abd-action-btn abd-action-btn--cancel"
+                        ng-click="vm.cancelCreateForm()">
+                    Cancel
+                </button>
+                <button class="abd-action-btn abd-action-btn--submit"
+                        ng-click="vm.submitCreateBookout()"
+                        ng-disabled="vm.creating || !vm.create_form.registration || !vm.create_form.pic_name">
+                    <i class="fa" ng-class="vm.creating ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                    {{ vm.creating ? 'Creating…' : 'Create Bookout' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ── Tower Edit Form (Modal overlay) ── -->
+    <div class="abd-create-overlay" ng-if="vm.show_edit_form">
+        <div class="abd-create-modal">
+            <div class="abd-create-modal__header">
+                <h3><i class="fa fa-pencil-alt"></i> Edit Bookout</h3>
+                <button class="abd-create-modal__close" ng-click="vm.cancelEditForm()">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="abd-create-modal__body">
+                <!-- Registration -->
+                <div class="abd-create-field">
+                    <label>Registration <span class="abd-create-req">*</span></label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.edit_form.registration"
+                           placeholder="e.g. G-BXSE"
+                           autocomplete="off" maxlength="10" />
+                </div>
+
+                <!-- Aircraft Type -->
+                <div class="abd-create-field">
+                    <label>Aircraft Type</label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.edit_form.aircraft_type"
+                           placeholder="e.g. PA-28 Warrior" />
+                </div>
+
+                <!-- PIC Name -->
+                <div class="abd-create-field">
+                    <label>PIC Surname <span class="abd-create-req">*</span></label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.edit_form.pic_name"
+                           placeholder="Surname" />
+                </div>
+
+                <!-- Outbound To / Inbound From -->
+                <div class="abd-create-row">
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>Outbound To</label>
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.edit_form.from"
+                               placeholder="ICAO / LOCAL" />
+                    </div>
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>Inbound From</label>
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.edit_form.to"
+                               placeholder="ICAO / LOCAL" />
+                    </div>
+                </div>
+
+                <!-- POB -->
+                <div class="abd-create-row">
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>POB Out</label>
+                        <input type="number" class="abd-create-input"
+                               ng-model="vm.edit_form.pob_outbound"
+                               min="1" max="50" />
+                    </div>
+                    <div class="abd-create-field abd-create-field--half">
+                        <label>POB In</label>
+                        <input type="number" class="abd-create-input"
+                               ng-model="vm.edit_form.pob_inbound"
+                               min="1" max="50"
+                               placeholder="—" />
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="abd-create-field">
+                    <label>Notes</label>
+                    <input type="text" class="abd-create-input"
+                           ng-model="vm.edit_form.notes"
+                           placeholder="e.g. Amended by tower" />
+                </div>
+            </div>
+            <div class="abd-create-modal__footer">
+                <button class="abd-action-btn abd-action-btn--cancel"
+                        ng-click="vm.cancelEditForm()">
+                    Cancel
+                </button>
+                <button class="abd-action-btn abd-action-btn--submit"
+                        ng-click="vm.submitEditBookout()"
+                        ng-disabled="vm.edit_saving || !vm.edit_form.registration || !vm.edit_form.pic_name">
+                    <i class="fa" ng-class="vm.edit_saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    {{ vm.edit_saving ? 'Saving…' : 'Save Changes' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- ── Stats Bar ── -->
     <div class="abd-stats">
@@ -81,8 +327,8 @@
                     <th class="abd-th--reg">Reg</th>
                     <th class="abd-th--type">Type</th>
                     <th class="abd-th--pic">PIC</th>
-                    <th class="abd-th--loc">From</th>
-                    <th class="abd-th--loc">To</th>
+                    <th class="abd-th--loc">Outbound To</th>
+                    <th class="abd-th--loc">Inbound From</th>
                     <th class="abd-th--pob">POB Out</th>
                     <th class="abd-th--pob">POB In</th>
                     <th>Notes</th>
@@ -109,26 +355,45 @@
                     <td class="abd-td--notes">{{ b.notes || '' }}</td>
                     <td class="abd-td--time">{{ vm.formatTime(b.created_at) }}</td>
                     <td class="abd-td--actions">
-                        <!-- Active → Copy -->
+                        <!-- Past date: read-only -->
+                        <span class="abd-badge abd-badge--{{ b.status }}" ng-if="vm.is_past_date">
+                            {{ vm.getStatusLabel(b.status) }}
+                        </span>
+                        <!-- Copy — always available -->
                         <button class="abd-action-btn abd-action-btn--copy"
-                                ng-if="b.status === 'active'"
+                                ng-if="!vm.is_past_date"
                                 ng-click="vm.copyRow(b)"
-                                title="Copy to clipboard &amp; mark as copied">
+                                title="Copy to clipboard">
                             <i class="fa fa-copy"></i> Copy
                         </button>
                         <!-- Copied → Confirm -->
                         <button class="abd-action-btn abd-action-btn--confirm"
-                                ng-if="b.status === 'copied'"
+                                ng-if="b.status === 'copied' && !vm.is_past_date"
                                 ng-click="vm.confirmRow(b)"
                                 title="Mark as confirmed">
                             <i class="fa fa-check"></i> Confirm
                         </button>
-                        <!-- Confirmed → Close -->
+                        <!-- Confirmed → Close (disabled — keep records visible)
                         <button class="abd-action-btn abd-action-btn--close"
-                                ng-if="b.status === 'confirmed'"
+                                ng-if="b.status === 'confirmed' && !vm.is_past_date"
                                 ng-click="vm.closeRow(b)"
                                 title="Close &amp; archive">
                             <i class="fa fa-times"></i> Close
+                        </button>
+                        -->
+                        <!-- Public edit: Edit + Delete -->
+                        <button class="abd-action-btn abd-action-btn--edit"
+                                ng-if="vm.allow_public_edit && !vm.is_past_date"
+                                ng-click="vm.editRow(b)"
+                                title="Edit this bookout">
+                            <i class="fa fa-pencil-alt"></i>
+                        </button>
+                        <button class="abd-action-btn abd-action-btn--delete"
+                                ng-if="vm.allow_public_edit && !vm.is_past_date"
+                                ng-click="vm.deleteRow(b)"
+                                ng-disabled="b._deleting"
+                                title="Delete this bookout">
+                            <i class="fa" ng-class="b._deleting ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
                         </button>
                     </td>
                 </tr>

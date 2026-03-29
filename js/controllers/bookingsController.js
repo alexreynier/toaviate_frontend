@@ -35,6 +35,36 @@
         vm.return_to = $state.current.data.return_to;
         vm.club_id = 0;
 
+        // ── Edit window helper: mirrors backend is_within_edit_window logic ──
+        function isWithinEditWindow(bookingEnd) {
+            var endMoment = moment(Date.parse(bookingEnd));
+            // Future bookings are always editable
+            if (endMoment.isAfter(moment())) { return true; }
+
+            var club = vm.user.current_club_admin;
+            if (!club) { return false; }
+
+            // Super-admins are always exempt
+            if (vm.user.access.super_admin && vm.user.access.super_admin.indexOf(parseInt(club.id)) > -1) {
+                return true;
+            }
+
+            var windowMinutes;
+            if (vm.user.access.manager.indexOf(parseInt(club.id)) > -1) {
+                windowMinutes = parseInt(club.edit_window_admin_minutes) || 0;
+            } else if (vm.user.access.instructor.indexOf(parseInt(club.id)) > -1) {
+                windowMinutes = parseInt(club.edit_window_instructor_minutes) || 0;
+            } else {
+                windowMinutes = parseInt(club.edit_window_member_minutes);
+                if (isNaN(windowMinutes)) { windowMinutes = 60; }
+            }
+
+            // 0 means unlimited
+            if (windowMinutes === 0) { return true; }
+
+            return moment().isSameOrBefore(endMoment.clone().add(windowMinutes, 'minutes'));
+        }
+
         //just in case i missed a changed value...
         vm.user_id = vm.user.id;
 
@@ -212,7 +242,7 @@
                                 vm.new_booking.end_date = new Date(vm.new_booking.end);
                                 vm.new_booking.end_time = {time: moment(vm.new_booking.end).format("HH:mm")};
 
-                                vm.new_booking.after_booking_end = moment().isAfter(moment(vm.new_booking.end));
+                                vm.new_booking.after_booking_end = !isWithinEditWindow(vm.new_booking.end);
                                 
                                 //vm.default_date = new Date(vm.new_booking.start);
                                 
@@ -453,7 +483,7 @@
             vm.see_booking.end_datetime = new Date(vm.see_booking.end);
             vm.see_booking.visible = 1;
 
-            vm.see_booking.after_booking_end = moment().isAfter(moment(vm.see_booking.end));
+            vm.see_booking.after_booking_end = !isWithinEditWindow(vm.see_booking.end);
 
             $scope.$apply();
     };
@@ -985,8 +1015,8 @@
 
 // Date.parse(vm.new_booking.start_datetime)
 
-                if(moment(Date.parse(vm.new_booking.end_datetime)).add(1, "hour").isBefore()){
-                    ToastService.warning('Past Booking', 'This booking ends in the past by more than an hour - you cannot amend a booking that finished in the past.');
+                if(!isWithinEditWindow(vm.new_booking.end_datetime)){
+                    ToastService.warning('Past Booking', 'The edit window for this booking has passed — you can no longer amend it.');
                     return false;
                 }
                 //30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1195,8 +1225,8 @@
 
         // //console.log("all_events", $scope.all_events);
 
-        if(moment(Date.parse(evnt.end)) < moment()){
-            ToastService.warning('Past Booking', 'This booking ends in the past - you cannot amend a booking in the past.');
+        if(!isWithinEditWindow(evnt.end)){
+            ToastService.warning('Past Booking', 'The edit window for this booking has passed — you can no longer amend it.');
             return false;
         }
         // 30 mintues leeway in case of booking starting within the 15 minute period or similar
@@ -1279,7 +1309,8 @@
                         override: "instructor_override",
                         button: "" 
                     });
-                } else if(data.check_user !== true){
+                }
+                if(data.check_user !== true){
 
                     if(data.check_user.indexOf("self-certify") > -1){
 
@@ -1316,7 +1347,10 @@
 
                 //show the errors:::
 
-                // alert("ERROR FOUND IN ALTERING THE BOOKING");
+                // If the backend returned a simple message (e.g. edit window expired), show it directly
+                if (errors.length === 0 && data.message) {
+                    ToastService.error('Cannot Edit Booking', data.message);
+                }
 
                 vm.booking_errors = errors;
                 //console.log("ERRORS ARE : ", vm.booking_errors);
@@ -1800,9 +1834,9 @@
             BookingService.DeleteBooking(vm.user.id, booking_id)
             .then(function(data){
                 //console.log(data);
-                ToastService.success('Booking Cancelled', 'The booking has been cancelled');
 
                 if(data.success){
+                    ToastService.success('Booking Cancelled', 'The booking has been cancelled');
                     $state.go('dashboard.bookings.add');
                     
                      $scope.all_events = $.grep($scope.all_events, function(e){ 
@@ -1814,7 +1848,7 @@
                     $('#calendar').fullCalendar('addEventSource', $scope.all_events);
 
                 } else {
-                    ToastService.error('Error', 'An error occurred');
+                    ToastService.error('Error', data.message || 'An error occurred');
                     //console.log("ERROR", data);
                 }
 

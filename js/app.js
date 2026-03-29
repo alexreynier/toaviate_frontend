@@ -1164,6 +1164,22 @@ var app = angular
                 }
             })
 
+            .state('dashboard.edit_from_bookout', {
+                url: '/edit_from_bookout/:booking_id',
+                controller: 'Bookings2Controller',
+                templateUrl: 'views/bookings/new_edit_booking.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'edit',
+                    return_to: 'bookout'
+                },
+                params: {
+                    plane_id: null,
+                    start: null,
+                    duration: null
+                }
+            })
+
 
 
 
@@ -1180,16 +1196,8 @@ var app = angular
                 }
             })
 
-            .state('dashboard.bookings.edit_from_bookout', {
-                url: '/edit_from_bookout/:booking_id',
-                controller: 'BookingsController',
-                templateUrl: 'views/bookings/edit_booking.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'edit',
-                    return_to: 'bookout'
-                }
-            })
+            // Old route kept as redirect - now handled by dashboard.edit_from_bookout
+            // .state('dashboard.bookings.edit_from_bookout', { ... })
 
             //instructor_holidays
 

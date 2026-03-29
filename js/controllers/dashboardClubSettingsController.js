@@ -261,6 +261,40 @@
                 });
         };
 
+        // ── Booking Edit Time Limits helpers ──
+        var standardPresets = ['0','30','60','120','240','720','1440','2880','10080'];
+
+        vm.editWindowAdminPreset = '0';
+        vm.editWindowInstructorPreset = '0';
+        vm.editWindowMemberPreset = '60';
+
+        vm.initEditWindowPresets = function() {
+            vm.editWindowAdminPreset = standardPresets.indexOf(String(vm.club.settings.edit_window_admin_minutes)) !== -1
+                ? String(vm.club.settings.edit_window_admin_minutes) : 'custom';
+            vm.editWindowInstructorPreset = standardPresets.indexOf(String(vm.club.settings.edit_window_instructor_minutes)) !== -1
+                ? String(vm.club.settings.edit_window_instructor_minutes) : 'custom';
+            vm.editWindowMemberPreset = standardPresets.indexOf(String(vm.club.settings.edit_window_member_minutes)) !== -1
+                ? String(vm.club.settings.edit_window_member_minutes) : 'custom';
+        };
+
+        vm.applyEditWindowPreset = function(role) {
+            var presetMap = { admin: 'editWindowAdminPreset', instructor: 'editWindowInstructorPreset', member: 'editWindowMemberPreset' };
+            var fieldMap  = { admin: 'edit_window_admin_minutes', instructor: 'edit_window_instructor_minutes', member: 'edit_window_member_minutes' };
+            var val = vm[presetMap[role]];
+            if (val !== 'custom') {
+                vm.club.settings[fieldMap[role]] = parseInt(val);
+            }
+        };
+
+        vm.formatEditWindow = function(mins) {
+            if (!mins || mins == 0) return 'Unlimited';
+            mins = parseInt(mins);
+            if (mins < 60) return mins + ' min' + (mins !== 1 ? 's' : '');
+            if (mins < 1440) { var h = Math.floor(mins / 60); var m = mins % 60; return h + ' hr' + (h !== 1 ? 's' : '') + (m > 0 ? ' ' + m + 'm' : ''); }
+            var d = Math.floor(mins / 1440); var rem = mins % 1440; var rh = Math.floor(rem / 60);
+            return d + ' day' + (d !== 1 ? 's' : '') + (rh > 0 ? ' ' + rh + 'h' : '');
+        };
+
         vm.action = $state.current.data.action;
 
 
@@ -276,6 +310,13 @@
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
+
+                        // ── Booking Edit Time Limits ──
+                        vm.club.settings.edit_window_admin_minutes = parseInt(vm.club.settings.edit_window_admin_minutes) || 0;
+                        vm.club.settings.edit_window_instructor_minutes = parseInt(vm.club.settings.edit_window_instructor_minutes) || 0;
+                        vm.club.settings.edit_window_member_minutes = parseInt(vm.club.settings.edit_window_member_minutes) || 0;
+                        vm.initEditWindowPresets();
+
                         vm.club.settings.vat_rate = parseFloat(vm.club.settings.vat_rate);
                         //console.log(vm.club);
                     });
@@ -395,7 +436,11 @@
             vm.club.settings.vat_registered = (vm.club.settings.vat_registered)? 1 : 0;
             vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages)? 1 : 0;
             vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation)? 1 : 0;
-            
+
+            // ── Booking Edit Time Limits ──
+            vm.club.settings.edit_window_admin_minutes = parseInt(vm.club.settings.edit_window_admin_minutes) || 0;
+            vm.club.settings.edit_window_instructor_minutes = parseInt(vm.club.settings.edit_window_instructor_minutes) || 0;
+            vm.club.settings.edit_window_member_minutes = parseInt(vm.club.settings.edit_window_member_minutes) || 0;
 
             ClubService.Update(vm.club.settings)
                 .then(function(data){

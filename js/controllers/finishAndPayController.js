@@ -207,8 +207,9 @@
                 user_id: vm.bookout.user_id};
 
                 // //console.log("PASSING", getShort);
-            //let's fetch some information about the user
-            MemberService.GetMandate(vm.bookout.user_id, vm.bookout.club_id)
+            //let's fetch some information about the payer
+            var mandate_user_id = vm.bookout.payer_id || vm.bookout.user_id;
+            MemberService.GetMandate(mandate_user_id, vm.bookout.club_id)
                     .then(function (data) {
                             ////console.log("data is : ", data);
                            
@@ -362,12 +363,6 @@
                     ////console.log("data is : ", data);
                     if(data.success){
                         //console.log("success");
-                        
-
-                        if(data.booking.complete == 1){
-                            ToastService.warning('Already Complete', 'It appears that you have already completed this booking...');
-                            $state.go('dashboard.my_account', {}, { reload: true });
-                        }
 
                         vm.bookout = data.booking;
 
@@ -572,7 +567,7 @@
         vm.book_in_flight = function(method='', paymentIntent=null){
 
             var obj = {
-                //payer_id: vm.bookout.payer_id, // >>>? is this required here?
+                payer_id: vm.bookout.payer_id || vm.bookout.user_id,
                 user_id: vm.bookout.user_id,
                 club_id: vm.bookout.club_id,
                 plane_id: vm.bookout.plane_id,
@@ -648,20 +643,28 @@
             vm.previous_total = 0;
             InvoicesService.GetAllByBooking(booking.id)
             .then(function (data) {
-                    //console.log("invoice data is : ", data);
-                   
+                    console.log("invoice data is : ", data);
+                    console.log("number of invoices returned: ", data.invoices ? Object.keys(data.invoices).length : 0);
                     if(data.success){
-                        //console.log("we already have invoices for this booking");
+                        console.log("we already have invoices for this booking");
                         vm.previous_invoice = data.invoice;
 
                         for(var me in data.invoices){
+
+                            console.log("Invoice [" + me + "] status:", data.invoices[me].status, "flights:", Object.keys(data.invoices[me].flights));
 
                             for (var key in data.invoices[me].flights) {
                                 //console.log("KEY ", key);
 
                                 if(data.invoices[me] && data.invoices[me].status && data.invoices[me].status.toLowerCase() !== "paid"){
-                                   vm.invoices.push(data.invoices[me].flights[key]);
-                                    vm.previous_total = (Number.parseFloat(vm.previous_total) + Number.parseFloat(data.invoices[me].flights[key]["total"]));
+                                   var flightEntry = data.invoices[me].flights[key];
+                                   // Attach parent invoice data so the template can display aircraft and currency
+                                   flightEntry.plane_registration = data.invoices[me].plane_registration;
+                                   flightEntry.plane_type = data.invoices[me].plane_type;
+                                   flightEntry.currency = data.invoices[me].currency || '£';
+                                   flightEntry.invoice_number = data.invoices[me].invoice_number;
+                                   vm.invoices.push(flightEntry);
+                                    vm.previous_total = (Number.parseFloat(vm.previous_total) + Number.parseFloat(flightEntry["total"]));
                                 }
                                   
 
@@ -688,6 +691,22 @@
                         //     // }
                         // }
                         
+                        // Check if the logged-in user is the payer on any of these invoices
+                        vm.is_payer = false;
+                        for(var inv in data.invoices){
+                            if(data.invoices[inv].user_id == vm.user.id){
+                                vm.is_payer = true;
+                            }
+                            // Store the payer user_id from the invoice so GetMandate loads the right payment methods
+                            if(data.invoices[inv].user_id){
+                                vm.bookout.payer_id = data.invoices[inv].user_id;
+                            }
+                        }
+                        // If the user is the payer, they should pay, not authorise
+                        if(vm.is_payer){
+                            vm.can_authorise = false;
+                        }
+
                         vm.complete_this_flight();
                         vm.invoice_totals = vm.previous_total;
 
@@ -714,7 +733,8 @@
                         if(vm.previous_total == 0 || vm.invoices.length == 0){
 
                             ToastService.warning('Already Complete', 'It appears that you have already completed this flight!');
-                            $state.go('dashboard.my_account', {}, { reload: true });                    
+                            $state.go('dashboard.my_account', {}, { reload: true });
+                            return;
 
                         }
 

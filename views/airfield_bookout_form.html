@@ -50,6 +50,102 @@
 
 
     <!-- ═══════════════════════════════════ -->
+    <!--  LIST MODE — Today's Bookouts      -->
+    <!-- ═══════════════════════════════════ -->
+    <div class="abf-list-view" ng-if="vm.view_mode === 'list' && !vm.submitted">
+
+        <div class="abf-list-header">
+            <h2><i class="fa fa-clipboard-list"></i> Today's Bookouts at {{ vm.airfield.code }} — {{ vm.airfield.title }}</h2>
+        </div>
+
+        <!-- Loading list -->
+        <div class="abf-list-loading" ng-if="vm.list_loading">
+            <i class="fa fa-spinner fa-spin"></i> Loading bookouts…
+        </div>
+
+        <!-- Bookout table -->
+        <div class="abf-list-table-wrap" ng-if="!vm.list_loading && vm.today_bookouts.length > 0">
+            <table class="abf-list-table">
+                <thead>
+                    <tr>
+                        <th>Reg</th>
+                        <th>Type</th>
+                        <th>PIC</th>
+                        <th>Outbound To</th>
+                        <th>Inbound From</th>
+                        <th>POB</th>
+                        <th>Time</th>
+                        <th ng-if="vm.allow_public_edit" class="abf-list-th--actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="b in vm.today_bookouts">
+                        <td class="abf-list-td--reg">{{ b.registration }}</td>
+                        <td>{{ b.aircraft_type || '—' }}</td>
+                        <td>{{ b.pic_name }}</td>
+                        <td>{{ b.from_location || '—' }}</td>
+                        <td>{{ b.to_location || '—' }}</td>
+                        <td>{{ b.pob_outbound || '—' }}</td>
+                        <td>{{ vm.formatListTime(b.created_at) }}</td>
+                        <td ng-if="vm.allow_public_edit" class="abf-list-td--actions">
+                            <button class="abf-list-action abf-list-action--edit"
+                                    ng-click="vm.editBookoutPublic(b)"
+                                    title="Edit this bookout">
+                                <i class="fa fa-pencil-alt"></i>
+                            </button>
+                            <button class="abf-list-action abf-list-action--delete"
+                                    ng-click="vm.deleteBookoutPublic(b)"
+                                    ng-disabled="b._deleting"
+                                    title="Delete this bookout">
+                                <i class="fa" ng-class="b._deleting ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty state -->
+        <div class="abf-list-empty" ng-if="!vm.list_loading && vm.today_bookouts.length === 0">
+            <i class="fa fa-plane"></i>
+            <p>No bookouts today yet. Be the first!</p>
+        </div>
+
+        <!-- Add New Bookout button -->
+        <div class="abf-list-actions">
+            <button class="abf-btn abf-btn--primary abf-btn--lg abf-btn--block"
+                    ng-click="vm.showAddForm()">
+                <i class="fa fa-plus"></i> Add New Bookout
+            </button>
+        </div>
+
+        <!-- Edit existing -->
+        <div class="abf-edit-section" ng-if="!vm.allow_public_edit">
+            <button class="abf-link-btn" ng-click="vm.showEditLookup()" ng-if="!vm.show_edit_lookup">
+                <i class="fa fa-pencil-alt"></i> Edit or cancel an existing bookout
+            </button>
+            <div class="abf-edit-lookup" ng-if="vm.show_edit_lookup">
+                <label class="abf-label">Enter your edit code</label>
+                <div class="abf-edit-lookup__row">
+                    <input type="text" class="abf-input"
+                           ng-model="vm.edit_lookup_code"
+                           placeholder="8-character edit code"
+                           maxlength="16"
+                           ng-keypress="$event.keyCode === 13 && vm.lookupEditCode()"
+                           style="text-transform: uppercase; letter-spacing: 2px; font-weight: 600;" />
+                    <button class="abf-btn abf-btn--primary"
+                            ng-click="vm.lookupEditCode()"
+                            ng-disabled="vm.submitting || !vm.edit_lookup_code">
+                        <i class="fa" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                        Look Up
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════ -->
     <!--  SUCCESS STATE — After submission  -->
     <!-- ═══════════════════════════════════ -->
     <div class="abf-success" ng-if="vm.submitted">
@@ -61,20 +157,25 @@
             <h2 ng-if="vm.editing">Bookout Updated!</h2>
             <p>Your flight bookout for <strong>{{ vm.form.registration }}</strong> has been {{ vm.editing ? 'updated' : 'recorded' }}.</p>
 
-            <div class="abf-success__code-box">
-                <label>Your Edit Code</label>
+            <div class="abf-success__code-box" ng-if="vm.result_code">
+                <label ng-if="!vm.allow_public_edit">Your Edit Code</label>
+                <label ng-if="vm.allow_public_edit">Edit Code (optional — public editing is enabled)</label>
                 <div class="abf-success__code">{{ vm.result_code }}</div>
                 <button class="abf-btn abf-btn--outline" ng-click="vm.copyEditCode()">
                     <i class="fa fa-copy"></i> Copy Code
                 </button>
-                <p class="abf-success__code-hint">
+                <p class="abf-success__code-hint" ng-if="!vm.allow_public_edit">
                     <i class="fa fa-info-circle"></i>
                     Save this code — you'll need it to edit or cancel your bookout.
+                </p>
+                <p class="abf-success__code-hint" ng-if="vm.allow_public_edit">
+                    <i class="fa fa-info-circle"></i>
+                    Public editing is enabled — you can edit or delete from the bookout list without a code.
                 </p>
             </div>
 
             <button class="abf-btn abf-btn--primary abf-btn--lg" ng-click="vm.startNewBookout()">
-                <i class="fa fa-plus"></i> New Bookout
+                <i class="fa fa-plus"></i> {{ vm.pilot_form_mode === 'list' ? 'Back to Bookout List' : 'New Bookout' }}
             </button>
         </div>
     </div>
@@ -83,7 +184,14 @@
     <!-- ═══════════════════════════════════ -->
     <!--  FORM — Create / Edit              -->
     <!-- ═══════════════════════════════════ -->
-    <div class="abf-body" ng-if="!vm.submitted">
+    <div class="abf-body" ng-if="!vm.submitted && vm.view_mode === 'form'">
+
+        <!-- Back to list link (only in list mode) -->
+        <div class="abf-back-to-list" ng-if="vm.pilot_form_mode === 'list' && !vm.editing">
+            <button class="abf-link-btn" ng-click="vm.backToList()">
+                <i class="fa fa-arrow-left"></i> Back to today's bookouts
+            </button>
+        </div>
 
         <div class="abf-form-card">
 
@@ -148,7 +256,7 @@
                 </div>
             </div>
 
-            <!-- ── From / To ── -->
+            <!-- ── Outbound To / Inbound From ── -->
             <div class="abf-quick-route-bar">
                 <button class="abf-quick-pick abf-quick-pick--route"
                         ng-click="vm.setQuickRoute('LOCAL')"
@@ -164,13 +272,13 @@
 
             <div class="abf-field-row">
                 <div class="abf-field abf-field--half">
-                    <label class="abf-label">From</label>
+                    <label class="abf-label">Outbound To</label>
                     <ui-select ng-model="vm.selected_from"
                                theme="bootstrap"
                                on-select="vm.onFromSelected($item)"
                                on-remove="vm.onFromRemoved()"
                                allow-clear="true"
-                               title="Departure airfield"
+                               title="Outbound destination"
                                class="abf-ui-select">
                         <ui-select-match placeholder="ICAO code or search…">
                             <span ng-if="vm.selected_from.title !== vm.selected_from.code">
@@ -195,13 +303,13 @@
                     </ui-select>
                 </div>
                 <div class="abf-field abf-field--half">
-                    <label class="abf-label">To</label>
+                    <label class="abf-label">Inbound From</label>
                     <ui-select ng-model="vm.selected_to"
                                theme="bootstrap"
                                on-select="vm.onToSelected($item)"
                                on-remove="vm.onToRemoved()"
                                allow-clear="true"
-                               title="Destination airfield"
+                               title="Inbound origin"
                                class="abf-ui-select">
                         <ui-select-match placeholder="ICAO code or search…">
                             <span ng-if="vm.selected_to.title !== vm.selected_to.code">
@@ -299,9 +407,16 @@
 
         <!-- ── Edit Existing Bookout ── -->
         <div class="abf-edit-section" ng-if="!vm.editing">
-            <button class="abf-link-btn" ng-click="vm.showEditLookup()" ng-if="!vm.show_edit_lookup">
+            <button class="abf-link-btn" ng-click="vm.showEditLookup()" ng-if="!vm.show_edit_lookup && !vm.allow_public_edit">
                 <i class="fa fa-pencil-alt"></i> Edit or cancel an existing bookout
             </button>
+
+            <!-- Public edit: show list view link -->
+            <div class="abf-public-edit-hint" ng-if="vm.allow_public_edit && vm.pilot_form_mode === 'form'">
+                <button class="abf-link-btn" ng-click="vm.view_mode = 'list'; vm.loadTodayBookouts()">
+                    <i class="fa fa-list"></i> View today's bookouts to edit or delete
+                </button>
+            </div>
 
             <div class="abf-edit-lookup" ng-if="vm.show_edit_lookup">
                 <label class="abf-label">Enter your edit code</label>

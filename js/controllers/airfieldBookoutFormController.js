@@ -27,6 +27,13 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         vm.deleting      = false;
         vm.show_edit_lookup = false;
 
+        // ── List mode ──
+        vm.pilot_form_mode = 'form';   // 'form' or 'list'
+        vm.view_mode       = 'form';   // current view: 'list' or 'form'
+        vm.today_bookouts  = [];
+        vm.list_loading    = false;
+        vm.allow_public_edit = false;
+
         // ── Airfield info ──
         vm.airfield      = null;
         vm.aircraft_list = [];
@@ -90,6 +97,12 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         vm.deleteBookout        = deleteBookout;
         vm.hideDropdown         = hideDropdown;
         vm.copyEditCode         = copyEditCode;
+        vm.showAddForm          = showAddForm;
+        vm.backToList           = backToList;
+        vm.loadTodayBookouts    = loadTodayBookouts;
+        vm.formatListTime       = formatListTime;
+        vm.editBookoutPublic    = editBookoutPublic;
+        vm.deleteBookoutPublic  = deleteBookoutPublic;
 
         // ── Init ──
         init();
@@ -110,6 +123,14 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                         vm.airfield      = data.airfield;
                         vm.aircraft_list = data.aircraft || [];
 
+                        // Check pilot form mode from settings
+                        if (data.settings && data.settings.pilot_form_mode) {
+                            vm.pilot_form_mode = data.settings.pilot_form_mode;
+                        }
+                        if (data.settings) {
+                            vm.allow_public_edit = !!data.settings.allow_public_edit;
+                        }
+
                         // Build preset airfield options for From / To ui-select
                         vm.preset_airfields = [
                             { code: 'LOCAL', title: 'Local Flight' },
@@ -123,6 +144,12 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                         }
                         vm.from_airfield_options = angular.copy(vm.preset_airfields);
                         vm.to_airfield_options   = angular.copy(vm.preset_airfields);
+
+                        // If list mode, load today's bookouts and show list first
+                        if (vm.pilot_form_mode === 'list') {
+                            vm.view_mode = 'list';
+                            loadTodayBookouts();
+                        }
                     } else {
                         vm.error = true;
                         vm.error_message = data.message || 'Airfield not found. Please check the ICAO code.';
@@ -253,8 +280,9 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                        af.title.toUpperCase().indexOf(q) > -1;
             });
 
-            // Server search — service adds Api-Key header automatically
-            if (q.length >= 2 && q.length <= 4) {
+            // Server search — use both code and name search APIs
+            // Short input (1-4 chars) → ICAO code search
+            if (q.length >= 1 && q.length <= 4) {
                 AirfieldBookoutService.SearchAirfieldsByCode(q)
                     .then(function(data) {
                         var results = (data && data.airfields) ? data.airfields : [];
@@ -262,16 +290,33 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                     }, function() {
                         _mergeAndSet(field, presetMatches, []);
                     });
-            } else if (q.length > 4) {
-                AirfieldBookoutService.SearchAirfields(q)
+            }
+
+            // Longer input (2+ chars) → also search by name
+            if (q.length >= 2) {
+                var nameQuery = search.replace(/\s/g, '_');
+                AirfieldBookoutService.SearchAirfields(nameQuery)
                     .then(function(data) {
                         var results = (data && data.airfields) ? data.airfields : [];
-                        _mergeAndSet(field, presetMatches, results);
+                        // For 2-4 char queries this supplements the code results;
+                        // for 5+ this is the primary results
+                        if (q.length > 4) {
+                            _mergeAndSet(field, presetMatches, results);
+                        } else {
+                            // Merge name results into whatever is already showing
+                            var current = (field === 'from') ? vm.from_airfield_options : vm.to_airfield_options;
+                            var codes = {};
+                            current.forEach(function(af) { codes[af.code] = true; });
+                            var extra = results.filter(function(af) { return !codes[af.code]; });
+                            if (extra.length > 0) {
+                                var updated = current.concat(extra);
+                                if (field === 'from') vm.from_airfield_options = updated;
+                                else                  vm.to_airfield_options = updated;
+                            }
+                        }
                     }, function() {
-                        _mergeAndSet(field, presetMatches, []);
+                        // Name search failed — code search results still stand
                     });
-            } else {
-                _mergeAndSet(field, presetMatches, []);
             }
         }
 
@@ -411,11 +456,10 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         }
 
         function updateBookout() {
-            if (!vm.bookout_id || !vm.edit_code) return;
+            if (!vm.bookout_id) return;
 
             vm.submitting = true;
             var payload = {
-                edit_code:     vm.edit_code,
                 registration:  vm.form.registration.toUpperCase(),
                 aircraft_type: vm.form.aircraft_type || null,
                 pic_name:      vm.form.pic_name,
@@ -425,6 +469,9 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                 pob_inbound:   vm.form.pob_inbound || vm.form.pob_outbound || 1,
                 notes:         vm.form.notes || null
             };
+            if (vm.edit_code) {
+                payload.edit_code = vm.edit_code;
+            }
 
             AirfieldBookoutService.UpdateBookout(vm.icao, vm.bookout_id, payload)
                 .then(function(data) {
@@ -446,11 +493,11 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         }
 
         function deleteBookout() {
-            if (!vm.bookout_id || !vm.edit_code) return;
+            if (!vm.bookout_id) return;
             if (!confirm('Delete this bookout? This cannot be undone.')) return;
 
             vm.deleting = true;
-            AirfieldBookoutService.DeleteBookout(vm.icao, vm.bookout_id, vm.edit_code)
+            AirfieldBookoutService.DeleteBookout(vm.icao, vm.bookout_id, vm.edit_code || null)
                 .then(function(data) {
                     vm.deleting = false;
                     if (data.success) {
@@ -471,6 +518,18 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
         // ═══════════════════════════════════════════
 
         function startNewBookout() {
+            if (vm.pilot_form_mode === 'list') {
+                vm.submitted   = false;
+                vm.editing     = false;
+                vm.bookout_id  = null;
+                vm.edit_code   = '';
+                vm.result_code = '';
+                vm.show_edit_lookup = false;
+                vm.view_mode   = 'list';
+                resetForm();
+                loadTodayBookouts();
+                return;
+            }
             vm.submitted   = false;
             vm.editing     = false;
             vm.bookout_id  = null;
@@ -510,6 +569,100 @@ app.controller('AirfieldBookoutFormController', AirfieldBookoutFormController);
                 el.select();
                 document.execCommand('copy');
                 document.body.removeChild(el);
+            }
+        }
+
+
+        // ═══════════════════════════════════════════
+        //  List Mode (Pilot)
+        // ═══════════════════════════════════════════
+
+        function editBookoutPublic(bookout) {
+            vm.editing    = true;
+            vm.bookout_id = bookout.id;
+            vm.edit_code  = '';  // no code needed
+            vm.show_edit_lookup = false;
+            vm.view_mode  = 'form';
+
+            // Populate form
+            vm.form.registration   = bookout.registration || '';
+            vm.form.aircraft_type  = bookout.aircraft_type || '';
+            vm.form.pic_name       = bookout.pic_name || '';
+            vm.form.from           = bookout.from_location || '';
+            vm.form.to             = bookout.to_location || '';
+            vm.form.pob_outbound   = bookout.pob_outbound || 1;
+            vm.form.pob_inbound    = bookout.pob_inbound || null;
+            vm.form.notes          = bookout.notes || '';
+            vm.form.plane_id       = bookout.plane_id || null;
+            vm.lookup_done         = true;
+
+            // Sync ui-select models
+            if (vm.form.from) {
+                vm.selected_from = _findPresetByCode(vm.form.from) ||
+                                   { code: vm.form.from, title: vm.form.from };
+            }
+            if (vm.form.to) {
+                vm.selected_to = _findPresetByCode(vm.form.to) ||
+                                 { code: vm.form.to, title: vm.form.to };
+            }
+        }
+
+        function deleteBookoutPublic(bookout) {
+            if (!confirm('Delete this bookout for ' + (bookout.registration || 'unknown') + '? This cannot be undone.')) return;
+
+            bookout._deleting = true;
+            AirfieldBookoutService.DeleteBookout(vm.icao, bookout.id, null)
+                .then(function(data) {
+                    bookout._deleting = false;
+                    if (data.success) {
+                        var idx = vm.today_bookouts.indexOf(bookout);
+                        if (idx > -1) vm.today_bookouts.splice(idx, 1);
+                    } else {
+                        alert(data.message || 'Could not delete bookout.');
+                    }
+                }, function() {
+                    bookout._deleting = false;
+                    alert('Connection error. Please try again.');
+                });
+        }
+
+        function loadTodayBookouts() {
+            vm.list_loading = true;
+            AirfieldBookoutService.GetTodayBookouts(vm.icao)
+                .then(function(data) {
+                    vm.list_loading = false;
+                    if (data.success) {
+                        vm.today_bookouts = (data.bookouts || []).reverse();
+                    }
+                }, function() {
+                    vm.list_loading = false;
+                });
+        }
+
+        function showAddForm() {
+            vm.view_mode = 'form';
+            resetForm();
+        }
+
+        function backToList() {
+            vm.view_mode = 'list';
+            vm.submitted = false;
+            vm.editing = false;
+            loadTodayBookouts();
+        }
+
+        function formatListTime(dateStr) {
+            if (!dateStr) return '';
+            try {
+                var d = new Date(dateStr);
+                var tz = (vm.airfield && vm.airfield.timezone) ? vm.airfield.timezone : undefined;
+                return d.toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: tz
+                });
+            } catch (e) {
+                return dateStr;
             }
         }
     }

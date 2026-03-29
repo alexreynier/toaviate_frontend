@@ -24,6 +24,33 @@
 
         vm.clubs = [];
 
+        // ── Edit window helper: mirrors backend is_within_edit_window logic ──
+        function isWithinEditWindow(bookingEnd) {
+            var endMoment = moment(Date.parse(bookingEnd));
+            if (endMoment.isAfter(moment())) { return true; }
+
+            var club = vm.user.current_club_admin;
+            if (!club) { return false; }
+
+            if (vm.user.access.super_admin && vm.user.access.super_admin.indexOf(parseInt(club.id)) > -1) {
+                return true;
+            }
+
+            var windowMinutes;
+            if (vm.user.access.manager.indexOf(parseInt(club.id)) > -1) {
+                windowMinutes = parseInt(club.edit_window_admin_minutes) || 0;
+            } else if (vm.user.access.instructor.indexOf(parseInt(club.id)) > -1) {
+                windowMinutes = parseInt(club.edit_window_instructor_minutes) || 0;
+            } else {
+                windowMinutes = parseInt(club.edit_window_member_minutes);
+                if (isNaN(windowMinutes)) { windowMinutes = 60; }
+            }
+
+            if (windowMinutes === 0) { return true; }
+
+            return moment().isSameOrBefore(endMoment.clone().add(windowMinutes, 'minutes'));
+        }
+
         var defaultStartTime = 480;
         var defaultEndTime = 1080;
         //calendar dates setup
@@ -240,7 +267,7 @@
             vm.see_booking.start_datetime = new Date(new Date(vm.see_booking.start).toUTCString());
             vm.see_booking.end_datetime = new Date(vm.see_booking.end);
             vm.see_booking.visible = 1;
-            vm.see_booking.can_be_edited = moment().isAfter(moment(vm.see_booking.end));
+            vm.see_booking.can_be_edited = !isWithinEditWindow(vm.see_booking.end);
 
             $scope.$apply();
     };
@@ -620,7 +647,8 @@
                         api: data.instructor,
                         override: "instructor_override" 
                     });
-                } else if(data.check_user !== true){
+                }
+                if(data.check_user !== true){
                     errors.push({
                         type: "check_user",
                         message: "It looks like your user account does not allow this booking to happen",

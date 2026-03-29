@@ -282,6 +282,7 @@
             var returned;
             switch(status){
                 case 'issued':
+                case 'created':
             
                   returned = "Created";
 

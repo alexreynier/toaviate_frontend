@@ -426,7 +426,7 @@
                             if(vm.bookout.pic_id > 0){
                                 vm.bookout.payer_id = vm.bookout.pic_id;
                             } else if(vm.bookout.user_id > 0) {
-                                vm.bookout.payer_id = vm.bookout.pic_id;
+                                vm.bookout.payer_id = vm.bookout.user_id;
                             } else {
                                 //alert("It appears that no payer ID has been set yet.");
                             }
@@ -453,7 +453,7 @@
                     if(vm.bookout.pic_id > 0){
                         vm.bookout.payer_id = vm.bookout.pic_id;
                     } else if(vm.bookout.user_id > 0) {
-                        vm.bookout.payer_id = vm.bookout.pic_id;
+                        vm.bookout.payer_id = vm.bookout.user_id;
                     } else {
                         //alert("It appears that no payer ID has been set yet.");
                     }

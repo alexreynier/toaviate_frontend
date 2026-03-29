@@ -151,6 +151,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 return true;
             } else if(status == "issued"){
                 return true;
+            } else if(status == "created"){
+                return true;
             } else {
                 return false;
             }
@@ -213,6 +215,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             var returned;
             switch(status){
                 case 'issued':
+                case 'created':
             
                   returned = "Created";
 
