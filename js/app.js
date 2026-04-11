@@ -852,6 +852,81 @@ var app = angular
 
 
 
+            // ACCOUNTING EXPORT
+
+            .state('dashboard.manage_club.accounting_export', {
+                url: '/accounting_export',
+                controller: 'DashboardAccountingExportController',
+                templateUrl: 'views/manageclub/accounting_export.html',
+                controllerAs: 'vm'
+            })
+
+            // CLUB STATISTICS
+
+            .state('dashboard.manage_club.club_stats', {
+                url: '/club_stats',
+                controller: 'DashboardClubStatsController',
+                templateUrl: 'views/manageclub/club_stats.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            // FOX TRACKER MANAGEMENT (ToAviate admin only)
+
+            .state('dashboard.manage_club.fox_trackers', {
+                url: '/fox_trackers',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_trackers.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            .state('dashboard.manage_club.fox_tracker_detail', {
+                url: '/fox_trackers/:tracker_id',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_tracker_detail.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'detail'
+                }
+            })
+
+            .state('dashboard.manage_club.fox_tracker_add', {
+                url: '/fox_trackers_add',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_tracker_form.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'add'
+                }
+            })
+
+            // TRACKER ↔ PLANE ASSIGNMENT
+
+            .state('dashboard.manage_club.tracker_planes', {
+                url: '/tracker_planes',
+                controller: 'DashboardTrackerPlaneController',
+                templateUrl: 'views/manageclub/tracker_planes.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            .state('dashboard.manage_club.tracker_plane_detail', {
+                url: '/tracker_planes/:plane_id',
+                controller: 'DashboardTrackerPlaneController',
+                templateUrl: 'views/manageclub/tracker_plane_detail.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'detail'
+                }
+            })
+
             // CLUB SETTINGS
 
             .state('dashboard.manage_club.settings', {
@@ -1225,6 +1300,13 @@ var app = angular
             templateUrl: 'views/my_account/upcoming_bookings.html',
             controllerAs: 'vm',
             controller: 'UpcomingBookingsController'
+        })
+
+        .state('dashboard.my_account.booking_audit_trail', {
+            url: '/booking_history/:booking_id',
+            templateUrl: 'views/my_account/booking_audit_trail.html',
+            controllerAs: 'vm',
+            controller: 'BookingAuditTrailController'
         })
 
         .state('dashboard.my_account.manage', {

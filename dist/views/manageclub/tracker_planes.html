@@ -1,0 +1,113 @@
+<!-- ══════════════════════════════════════════════════════════
+     TRACKER ↔ PLANE ASSIGNMENT — Fleet Summary
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page">
+
+  <!-- Unauthorised state -->
+  <div ng-if="!vm.is_manager" class="tp__unauthorised">
+    <div class="tp__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is available to club managers only.</p>
+  </div>
+
+  <div ng-if="vm.is_manager">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ng-click="vm.goBack()">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-satellite"></i> Aircraft Trackers</h2>
+          <p>Tracker assignment across your fleet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading ── -->
+    <div ng-if="vm.loading" class="snazzy-page__loading">
+      <div class="snazzy-page__spinner"></div> Loading fleet data…
+    </div>
+
+    <div ng-if="!vm.loading" class="snazzy-page__body">
+
+      <!-- ── Stats ── -->
+      <div class="tp__stats">
+        <div class="tp__stat">
+          <div class="tp__stat-number tp__stat-number--total">{{ vm.planes.length }}</div>
+          <div class="tp__stat-label">Aircraft</div>
+        </div>
+        <div class="tp__stat">
+          <div class="tp__stat-number tp__stat-number--tracked">{{ vm.countWithTracker() }}</div>
+          <div class="tp__stat-label">Tracked</div>
+        </div>
+        <div class="tp__stat">
+          <div class="tp__stat-number tp__stat-number--untracked">{{ vm.planes.length - vm.countWithTracker() }}</div>
+          <div class="tp__stat-label">Untracked</div>
+        </div>
+      </div>
+
+      <!-- ── Search ── -->
+      <div class="snazzy-page__filter-bar" style="margin-bottom: 20px;">
+        <div class="snazzy-page__search-wrap" style="flex:1; min-width:200px;">
+          <i class="fas fa-search snazzy-page__search-icon"></i>
+          <input type="text" class="snazzy-page__search-input"
+                 placeholder="Search registration, type, tracker…"
+                 ng-model="vm.search_text" />
+        </div>
+      </div>
+
+      <!-- ── Empty state ── -->
+      <div ng-if="vm.planes.length === 0" class="tp__empty-state">
+        <div class="tp__empty-icon"><i class="fas fa-plane"></i></div>
+        <h3 class="tp__empty-title">No Aircraft Found</h3>
+        <p class="tp__empty-text">There are no planes registered for this club yet.</p>
+      </div>
+
+      <!-- ── Fleet grid ── -->
+      <div class="tp__fleet-grid" ng-if="vm.planes.length > 0">
+        <div class="tp__plane-card"
+             ng-repeat="plane in vm.filteredPlanes() track by plane.plane_id"
+             ng-click="vm.openPlaneDetail(plane)">
+
+          <div class="tp__plane-card-top">
+            <div class="tp__plane-icon"
+                 ng-class="vm.getTrackerForPlane(plane) ? 'tp__plane-icon--tracked' : 'tp__plane-icon--untracked'">
+              <i ng-class="vm.getTrackerForPlane(plane) ? 'fas fa-satellite' : 'fas fa-plane'"></i>
+            </div>
+            <div class="tp__plane-info">
+              <div class="tp__plane-reg">{{ plane.registration }}</div>
+              <div class="tp__plane-type">{{ plane.plane_type || 'Unknown type' }}</div>
+            </div>
+            <div class="tp__plane-card-arrow">
+              <i class="fas fa-chevron-right"></i>
+            </div>
+          </div>
+
+          <div class="tp__plane-card-bottom">
+            <div ng-if="vm.getTrackerForPlane(plane)">
+              <div class="tp__tracker-label">{{ vm.getTrackerForPlane(plane).label || 'Tracker' }}</div>
+              <div class="tp__tracker-imei">{{ vm.getTrackerForPlane(plane).imei }}</div>
+            </div>
+            <div ng-if="!vm.getTrackerForPlane(plane)">
+              <div class="tp__no-tracker">No tracker assigned</div>
+            </div>
+            <div ng-if="vm.getTrackerForPlane(plane)" class="tp__tracker-since">
+              Since {{ vm.getTrackerForPlane(plane).current_assigned_from | date:'dd MMM yyyy' }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── No results ── -->
+      <div ng-if="vm.planes.length > 0 && vm.filteredPlanes().length === 0" class="tp__empty-state">
+        <div class="tp__empty-icon"><i class="fas fa-search"></i></div>
+        <h3 class="tp__empty-title">No Matches</h3>
+        <p class="tp__empty-text">Try adjusting your search term.</p>
+      </div>
+
+    </div>
+  </div>
+</div>

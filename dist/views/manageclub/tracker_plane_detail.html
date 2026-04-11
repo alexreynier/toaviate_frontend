@@ -1,0 +1,526 @@
+<!-- ══════════════════════════════════════════════════════════
+     TRACKER ↔ PLANE ASSIGNMENT — Plane Detail
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page">
+
+  <!-- Unauthorised state -->
+  <div ng-if="!vm.is_manager" class="tp__unauthorised">
+    <div class="tp__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is available to club managers only.</p>
+  </div>
+
+  <div ng-if="vm.is_manager">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ng-click="vm.goBack()">
+          <i class="fa fa-arrow-circle-left"></i> BACK TO FLEET
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-plane"></i> {{ vm.plane.registration || 'Loading…' }}</h2>
+          <p>{{ vm.plane.plane_type || '' }} — Tracker Management</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading ── -->
+    <div ng-if="vm.loading" class="snazzy-page__loading">
+      <div class="snazzy-page__spinner"></div> Loading tracker details…
+    </div>
+
+    <div ng-if="!vm.loading" class="snazzy-page__body">
+
+      <!-- ═══════════════════════════════════════
+           CURRENT TRACKER — Assigned
+           ═══════════════════════════════════════ -->
+      <div ng-if="vm.current_tracker" class="tp__current-card">
+        <div class="tp__current-header">
+          <span class="tp__current-header-title">
+            <i class="fas fa-satellite"></i> Current Tracker
+          </span>
+        </div>
+        <div class="tp__current-body">
+          <div class="tp__current-main">
+            <div class="tp__current-icon-big">
+              <i class="fas fa-satellite"></i>
+            </div>
+            <div class="tp__current-fields">
+              <div class="tp__current-name">{{ vm.current_tracker.label || 'FoxAvionix Tracker' }}</div>
+              <div class="tp__current-imei">IMEI: {{ vm.current_tracker.imei }}</div>
+              <div class="tp__current-meta-grid">
+                <div class="tp__current-meta-item" ng-if="vm.current_tracker.fox_id">
+                  <div class="tp__current-meta-label">Fox ID</div>
+                  <div class="tp__current-meta-value">{{ vm.current_tracker.fox_id }}</div>
+                </div>
+                <div class="tp__current-meta-item">
+                  <div class="tp__current-meta-label">Installed</div>
+                  <div class="tp__current-meta-value">{{ vm.current_tracker.current_assigned_from | date:'dd MMM yyyy HH:mm' }}</div>
+                </div>
+                <div class="tp__current-meta-item" ng-if="vm.current_tracker.notes">
+                  <div class="tp__current-meta-label">Notes</div>
+                  <div class="tp__current-meta-value">{{ vm.current_tracker.notes }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="tp__current-actions">
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.openSwap()">
+              <i class="fas fa-exchange-alt"></i> Swap Tracker
+            </button>
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.openUnassign()">
+              <i class="fas fa-unlink"></i> Remove Tracker
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════
+           CURRENT TRACKER — None assigned
+           ═══════════════════════════════════════ -->
+      <div ng-if="!vm.current_tracker" class="tp__current-card">
+        <div class="tp__current-header">
+          <span class="tp__current-header-title">
+            <i class="fas fa-satellite"></i> Current Tracker
+          </span>
+        </div>
+        <div class="tp__current-body">
+          <div class="tp__empty-state">
+            <div class="tp__empty-icon"><i class="fas fa-satellite"></i></div>
+            <h3 class="tp__empty-title">No Tracker Assigned</h3>
+            <p class="tp__empty-text">This aircraft does not currently have a FoxAvionix tracker installed.</p>
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.openAssign()">
+              <i class="fas fa-link"></i> Assign Tracker
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════
+           ASSIGNMENT HISTORY
+           ═══════════════════════════════════════ -->
+      <div class="tp__section" ng-if="vm.assignment_history.length > 0">
+        <div class="tp__section-header">
+          <span class="tp__section-title"><i class="fas fa-history"></i> Assignment History</span>
+        </div>
+        <div class="tp__section-body">
+
+          <!-- Desktop table -->
+          <div class="hidden-xs">
+            <table class="snazzy-table" style="width:100%">
+              <thead>
+                <tr>
+                  <th>Tracker</th>
+                  <th>IMEI</th>
+                  <th>Assigned</th>
+                  <th>Removed</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="a in vm.assignment_history">
+                  <td>{{ a.label || '—' }}</td>
+                  <td style="font-family:monospace; font-size:12px;">{{ a.imei }}</td>
+                  <td>{{ a.assigned_from | date:'dd MMM yyyy HH:mm' }}</td>
+                  <td>{{ a.unassigned_at ? (a.unassigned_at | date:'dd MMM yyyy HH:mm') : 'Current' }}</td>
+                  <td>{{ a.notes || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile cards -->
+          <div class="visible-xs">
+            <div ng-repeat="a in vm.assignment_history"
+                 style="background:#f8fafc; border-radius:10px; padding:14px; margin-bottom:10px;">
+              <div style="font-weight:700; color:#1e293b; font-size:14px; margin-bottom:6px;">
+                {{ a.label || 'Tracker' }} <span style="color:#64748b; font-weight:400; font-size:12px;">{{ a.imei }}</span>
+              </div>
+              <div style="font-size:12px; color:#64748b;">
+                <i class="fas fa-calendar-plus" style="width:16px;"></i>
+                {{ a.assigned_from | date:'dd MMM yyyy HH:mm' }}
+              </div>
+              <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                <i class="fas fa-calendar-minus" style="width:16px;"></i>
+                {{ a.unassigned_at ? (a.unassigned_at | date:'dd MMM yyyy HH:mm') : 'Current' }}
+              </div>
+              <div ng-if="a.notes" style="font-size:12px; color:#94a3b8; margin-top:4px; font-style:italic;">
+                {{ a.notes }}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════
+           CHANGE LOG
+           ═══════════════════════════════════════ -->
+      <div class="tp__section" ng-if="vm.change_log.length > 0">
+        <div class="tp__section-header">
+          <span class="tp__section-title"><i class="fas fa-clipboard-list"></i> Change Log</span>
+        </div>
+        <div class="tp__section-body">
+
+          <div class="tp__timeline">
+            <div class="tp__timeline-item" ng-repeat="entry in vm.change_log">
+              <div class="tp__timeline-dot"
+                   ng-style="{'background': entry.action === 'assign' ? '#3b82f6' : entry.action === 'unassign' ? '#f59e0b' : entry.action === 'swap' ? '#7c3aed' : '#94a3b8'}"></div>
+              <div class="tp__timeline-head">
+                <span class="tp__timeline-action"
+                      ng-style="{'color': entry.action === 'assign' ? '#2563eb' : entry.action === 'unassign' ? '#d97706' : entry.action === 'swap' ? '#7c3aed' : '#475569'}">
+                  <i ng-class="{'fas fa-link': entry.action === 'assign', 'fas fa-unlink': entry.action === 'unassign', 'fas fa-exchange-alt': entry.action === 'swap', 'fas fa-cog': !entry.action}"></i>
+                  {{ entry.action }}
+                </span>
+              </div>
+              <div class="tp__timeline-detail" ng-if="entry.parsed_details">
+                <span ng-if="entry.parsed_details.tracker_label">
+                  {{ entry.parsed_details.tracker_label }}
+                </span>
+                <span ng-if="entry.parsed_details.old_tracker_label && entry.parsed_details.new_tracker_label">
+                  {{ entry.parsed_details.old_tracker_label }} → {{ entry.parsed_details.new_tracker_label }}
+                </span>
+                <span ng-if="entry.parsed_details.notes">
+                  — {{ entry.parsed_details.notes }}
+                </span>
+              </div>
+              <div class="tp__timeline-detail" ng-if="entry.notes && !entry.parsed_details">
+                {{ entry.notes }}
+              </div>
+              <div class="tp__timeline-when">
+                {{ entry.performed_by_name || 'System' }} · {{ entry.created_at | date:'dd MMM yyyy HH:mm' }}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /.snazzy-page__body -->
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Assign Tracker
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'assign'" ng-click="vm.closeDialog()">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--assign">
+            <i class="fas fa-link"></i>
+          </div>
+          <h3 class="tp__dialog-title">Assign Tracker to {{ vm.plane.registration }}</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <!-- Tracker select -->
+          <div class="tp__dialog-field" id="assign_tracker_select">
+            <label class="tp__dialog-label">
+              Select Tracker <span class="tp__dialog-required">*</span>
+            </label>
+            <div ng-if="vm.available_loading" style="color:#64748b; font-size:13px; padding:8px 0;">
+              <i class="fas fa-circle-notch fa-spin"></i> Loading available trackers…
+            </div>
+            <ui-select ng-if="!vm.available_loading" ng-model="vm.assign_data.tracker"
+                       theme="bootstrap" append-to-body="true"
+                       ng-change="vm.clearFieldError($event)">
+              <ui-select-match placeholder="Choose an available tracker…">
+                {{ $select.selected.label || $select.selected.imei }}
+              </ui-select-match>
+              <ui-select-choices repeat="t in vm.available_trackers | propsFilterA:{imei: $select.search, label: $select.search, fox_id: $select.search}">
+                <div class="tp__tracker-option">
+                  <span class="tp__tracker-option-dot"></span>
+                  <span>
+                    <span class="tp__tracker-option-name">{{ t.label || 'Unnamed' }}</span>
+                    <span class="tp__tracker-option-imei">{{ t.imei }}</span>
+                  </span>
+                </div>
+              </ui-select-choices>
+            </ui-select>
+            <div ng-if="!vm.available_loading && vm.available_trackers.length === 0"
+                 style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px; font-size:13px; color:#92400e;">
+              <i class="fas fa-exclamation-triangle"></i> No unassigned trackers available. Add a new tracker via IoT Tracker Management first.
+            </div>
+          </div>
+
+          <!-- Date & Time -->
+          <div class="tp__dialog-row">
+            <div class="tp__dialog-field" id="assign_date">
+              <label class="tp__dialog-label">
+                Installation Date <span class="tp__dialog-required">*</span>
+              </label>
+              <input type="date" class="tp__dialog-input"
+                     ng-model="vm.assign_data.assigned_from_date"
+                     ng-change="vm.clearFieldError($event)" />
+            </div>
+            <div class="tp__dialog-field">
+              <label class="tp__dialog-label">Time</label>
+              <input type="time" class="tp__dialog-input"
+                     ng-model="vm.assign_data.assigned_from_time" />
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="tp__dialog-field">
+            <label class="tp__dialog-label">Notes</label>
+            <textarea class="tp__dialog-textarea" rows="2"
+                      ng-model="vm.assign_data.notes"
+                      placeholder="Optional installation notes…"></textarea>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeDialog()"
+                  ng-disabled="vm.dialog_busy">
+            Cancel
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.submitAssign()"
+                  ng-disabled="vm.dialog_busy || vm.available_trackers.length === 0">
+            <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
+            <i class="fas fa-check" ng-if="!vm.dialog_busy"></i>
+            {{ vm.dialog_busy ? 'Assigning…' : 'Assign Tracker' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Swap Tracker (Step 1 — Select)
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'swap'" ng-click="vm.closeDialog()">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--swap">
+            <i class="fas fa-exchange-alt"></i>
+          </div>
+          <h3 class="tp__dialog-title">Swap Tracker on {{ vm.plane.registration }}</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <!-- New tracker select -->
+          <div class="tp__dialog-field" id="swap_tracker_select">
+            <label class="tp__dialog-label">
+              New Tracker <span class="tp__dialog-required">*</span>
+            </label>
+            <div ng-if="vm.available_loading" style="color:#64748b; font-size:13px; padding:8px 0;">
+              <i class="fas fa-circle-notch fa-spin"></i> Loading available trackers…
+            </div>
+            <ui-select ng-if="!vm.available_loading" ng-model="vm.swap_data.new_tracker"
+                       theme="bootstrap" append-to-body="true"
+                       ng-change="vm.clearFieldError($event)">
+              <ui-select-match placeholder="Choose a replacement tracker…">
+                {{ $select.selected.label || $select.selected.imei }}
+              </ui-select-match>
+              <ui-select-choices repeat="t in vm.available_trackers | propsFilterA:{imei: $select.search, label: $select.search, fox_id: $select.search}">
+                <div class="tp__tracker-option">
+                  <span class="tp__tracker-option-dot"></span>
+                  <span>
+                    <span class="tp__tracker-option-name">{{ t.label || 'Unnamed' }}</span>
+                    <span class="tp__tracker-option-imei">{{ t.imei }}</span>
+                  </span>
+                </div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+
+          <!-- Date & Time -->
+          <div class="tp__dialog-row">
+            <div class="tp__dialog-field" id="swap_date">
+              <label class="tp__dialog-label">
+                Effective Date <span class="tp__dialog-required">*</span>
+              </label>
+              <input type="date" class="tp__dialog-input"
+                     ng-model="vm.swap_data.effective_at_date"
+                     ng-change="vm.clearFieldError($event)" />
+            </div>
+            <div class="tp__dialog-field">
+              <label class="tp__dialog-label">Time</label>
+              <input type="time" class="tp__dialog-input"
+                     ng-model="vm.swap_data.effective_at_time" />
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="tp__dialog-field">
+            <label class="tp__dialog-label">Notes</label>
+            <textarea class="tp__dialog-textarea" rows="2"
+                      ng-model="vm.swap_data.notes"
+                      placeholder="Why is the tracker being swapped?"></textarea>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeDialog()"
+                  ng-disabled="vm.dialog_busy">
+            Cancel
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.submitSwap()"
+                  ng-disabled="vm.dialog_busy || vm.available_trackers.length === 0">
+            <i class="fas fa-arrow-right"></i> Review Swap
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Swap Confirm (Step 2)
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'swap_confirm'" ng-click="vm.closeDialog()">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--warn">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <h3 class="tp__dialog-title">Confirm Tracker Swap</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <div class="tp__dialog-warning">
+            <strong>This action will:</strong>
+            <ul>
+              <li>Remove <strong>{{ vm.current_tracker.label || vm.current_tracker.imei }}</strong> from {{ vm.plane.registration }}</li>
+              <li>Install <strong>{{ vm.swap_data.new_tracker.label || vm.swap_data.new_tracker.imei }}</strong> in its place</li>
+              <li>Re-assign fox entries from the effective date onward</li>
+            </ul>
+          </div>
+
+          <div class="tp__swap-summary">
+            <div class="tp__swap-card tp__swap-card--old">
+              <div class="tp__swap-card-label">Removing</div>
+              <div class="tp__swap-card-name">{{ vm.current_tracker.label || 'Tracker' }}</div>
+              <div class="tp__swap-card-imei">{{ vm.current_tracker.imei }}</div>
+            </div>
+            <div class="tp__swap-arrow">
+              <i class="fas fa-arrow-right"></i>
+            </div>
+            <div class="tp__swap-card tp__swap-card--new">
+              <div class="tp__swap-card-label">Installing</div>
+              <div class="tp__swap-card-name">{{ vm.swap_data.new_tracker.label || 'Tracker' }}</div>
+              <div class="tp__swap-card-imei">{{ vm.swap_data.new_tracker.imei }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.dialog = 'swap'"
+                  ng-disabled="vm.dialog_busy">
+            <i class="fas fa-arrow-left"></i> Go Back
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.executeSwap()"
+                  ng-disabled="vm.dialog_busy">
+            <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
+            <i class="fas fa-exchange-alt" ng-if="!vm.dialog_busy"></i>
+            {{ vm.dialog_busy ? 'Swapping…' : 'Confirm Swap' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Swap Result (Step 3)
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'swap_result' && vm.swap_result">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--success">
+            <i class="fas fa-check"></i>
+          </div>
+          <h3 class="tp__dialog-title">Swap Complete!</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <p style="text-align:center; color:#64748b; font-size:14px; margin: 0 0 16px;">
+            {{ vm.swap_result.message }}
+          </p>
+
+          <div class="tp__result-metrics">
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.swap_result.fox_entries_moved || 0 }}</div>
+              <div class="tp__result-metric-label">Entries Moved</div>
+            </div>
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.swap_result.fox_entries_floated || 0 }}</div>
+              <div class="tp__result-metric-label">Entries Floated</div>
+            </div>
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.swap_result.plane_log_sheets_affected || 0 }}</div>
+              <div class="tp__result-metric-label">Log Sheets</div>
+            </div>
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.swap_result.flights_affected || 0 }}</div>
+              <div class="tp__result-metric-label">Flights</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.closeSwapResult()"
+                  style="flex:1; justify-content:center;">
+            <i class="fas fa-check"></i> Done
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Unassign / Remove Tracker
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'unassign'" ng-click="vm.closeDialog()">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--unassign">
+            <i class="fas fa-unlink"></i>
+          </div>
+          <h3 class="tp__dialog-title">Remove Tracker from {{ vm.plane.registration }}</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <div class="tp__dialog-warning">
+            <strong>Warning:</strong> Removing the tracker will float all fox entries after the removal date.
+            The tracker <strong>{{ vm.current_tracker.label || vm.current_tracker.imei }}</strong> will become unassigned and available for other aircraft.
+          </div>
+
+          <!-- Date & Time -->
+          <div class="tp__dialog-row">
+            <div class="tp__dialog-field" id="unassign_date">
+              <label class="tp__dialog-label">
+                Removal Date <span class="tp__dialog-required">*</span>
+              </label>
+              <input type="date" class="tp__dialog-input"
+                     ng-model="vm.unassign_data.unassigned_at_date"
+                     ng-change="vm.clearFieldError($event)" />
+            </div>
+            <div class="tp__dialog-field">
+              <label class="tp__dialog-label">Time</label>
+              <input type="time" class="tp__dialog-input"
+                     ng-model="vm.unassign_data.unassigned_at_time" />
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="tp__dialog-field">
+            <label class="tp__dialog-label">Notes</label>
+            <textarea class="tp__dialog-textarea" rows="2"
+                      ng-model="vm.unassign_data.notes"
+                      placeholder="Reason for removal…"></textarea>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeDialog()"
+                  ng-disabled="vm.dialog_busy">
+            Cancel
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.submitUnassign()"
+                  ng-disabled="vm.dialog_busy">
+            <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
+            <i class="fas fa-unlink" ng-if="!vm.dialog_busy"></i>
+            {{ vm.dialog_busy ? 'Removing…' : 'Remove Tracker' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /vm.is_manager -->
+</div>

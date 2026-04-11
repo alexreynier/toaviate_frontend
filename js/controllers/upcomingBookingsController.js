@@ -34,6 +34,7 @@
         vm.filterBookings = filterBookings;
         vm.viewBooking = viewBooking;
         vm.viewOnScheduler = viewOnScheduler;
+        vm.viewHistory = viewHistory;
         vm.closeDetail = closeDetail;
 
         // ── Init ──
@@ -171,6 +172,10 @@
         function viewOnScheduler(booking) {
             // Navigate to the scheduler/edit booking route
             $state.go('dashboard.edit_booking', { booking_id: booking.id });
+        }
+
+        function viewHistory(booking) {
+            $state.go('dashboard.my_account.booking_audit_trail', { booking_id: booking.id });
         }
 
         function formatDateNice(dateStr) {

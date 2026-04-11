@@ -1,0 +1,834 @@
+<div class="club-stats" ng-controller="DashboardClubStatsController as vm">
+
+    <!-- ═══════════════════════════════════════════════════
+         HEADER + DATE RANGE
+         ═══════════════════════════════════════════════════ -->
+    <div class="club-stats__header">
+        <div class="club-stats__header-inner">
+            <div>
+                <div class="back-box" ui-sref="dashboard.manage_club">
+                    <i class="fa fa-arrow-circle-left"></i> BACK
+                </div>
+                <div class="club-stats__title">
+                    <h2><i class="fas fa-chart-bar"></i> Club Statistics</h2>
+                    <p>Comprehensive analytics for your club</p>
+                </div>
+            </div>
+            <div class="club-stats__date-picker">
+                <select ng-model="vm.preset" ng-change="applyPreset()">
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="this_quarter">This Quarter</option>
+                    <option value="last_quarter">Last Quarter</option>
+                    <option value="this_year">This Year</option>
+                    <option value="last_30">Last 30 Days</option>
+                    <option value="last_90">Last 90 Days</option>
+                    <option value="custom">Custom Range…</option>
+                </select>
+                <span ng-if="vm.show_custom_dates" class="club-stats__date-sep">
+                    <input type="date" ng-model="vm.start_date" />
+                </span>
+                <span ng-if="vm.show_custom_dates" class="club-stats__date-sep">to</span>
+                <span ng-if="vm.show_custom_dates">
+                    <input type="date" ng-model="vm.end_date" />
+                </span>
+                <button ng-if="vm.show_custom_dates" class="club-stats__date-apply-btn" ng-click="applyCustomRange()">
+                    <i class="fa fa-check"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         OVERVIEW CARDS
+         ═══════════════════════════════════════════════════ -->
+    <div class="club-stats__overview">
+
+        <!-- Flights -->
+        <div class="club-stats__card" ng-class="{'club-stats__card--loading': vm.overview_loading}">
+            <div class="club-stats__card-icon club-stats__card-icon--flights">
+                <i class="fas fa-plane-departure"></i>
+            </div>
+            <div class="club-stats__card-value">{{ vm.overview.flights.total_flights || 0 }}</div>
+            <div class="club-stats__card-label">Total Flights</div>
+            <div class="club-stats__card-sub" ng-if="vm.overview">
+                {{ vm.overview.flights.unique_pilots || 0 }} pilots · {{ vm.overview.flights.unique_aircraft || 0 }} aircraft
+            </div>
+        </div>
+
+        <!-- Hours -->
+        <div class="club-stats__card" ng-class="{'club-stats__card--loading': vm.overview_loading}">
+            <div class="club-stats__card-icon club-stats__card-icon--hours">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="club-stats__card-value">{{ formatHours(vm.overview.hours.airborne) }}</div>
+            <div class="club-stats__card-label">Airborne Hours</div>
+            <div class="club-stats__card-sub" ng-if="vm.overview">
+                Chock: {{ formatHours(vm.overview.hours.chock_to_chock) }}h
+                <span ng-if="vm.overview.hours.tpc"> · TPC: {{ formatHours(vm.overview.hours.tpc) }}h</span>
+            </div>
+        </div>
+
+        <!-- Revenue -->
+        <div class="club-stats__card" ng-class="{'club-stats__card--loading': vm.overview_loading}">
+            <div class="club-stats__card-icon club-stats__card-icon--revenue">
+                <i class="fas fa-coins"></i>
+            </div>
+            <div class="club-stats__card-value">{{ formatCurrency(vm.overview.financial.total_revenue) }}</div>
+            <div class="club-stats__card-label">Total Revenue</div>
+            <div class="club-stats__card-sub" ng-if="vm.overview">
+                {{ vm.overview.financial.total_invoices || 0 }} invoices
+            </div>
+        </div>
+
+        <!-- Members -->
+        <div class="club-stats__card" ng-class="{'club-stats__card--loading': vm.overview_loading}">
+            <div class="club-stats__card-icon club-stats__card-icon--members">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="club-stats__card-value">{{ vm.overview.totals.active_members || 0 }}</div>
+            <div class="club-stats__card-label">Active Members</div>
+            <div class="club-stats__card-sub" ng-if="vm.overview">
+                {{ vm.overview.totals.active_instructors || 0 }} instructors
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         TAB NAVIGATION + CONTENT
+         ═══════════════════════════════════════════════════ -->
+    <div class="club-stats__tabs">
+
+        <div class="club-stats__tab-nav">
+            <button class="club-stats__tab-btn" ng-class="{'club-stats__tab-btn--active': vm.active_tab === 'instructors'}" ng-click="setTab('instructors')">
+                <i class="fas fa-user-tie"></i> Instructors
+            </button>
+            <button class="club-stats__tab-btn" ng-class="{'club-stats__tab-btn--active': vm.active_tab === 'aircraft'}" ng-click="setTab('aircraft')">
+                <i class="fas fa-plane"></i> Aircraft
+            </button>
+            <button class="club-stats__tab-btn" ng-class="{'club-stats__tab-btn--active': vm.active_tab === 'members'}" ng-click="setTab('members')">
+                <i class="fas fa-users"></i> Members
+            </button>
+            <button class="club-stats__tab-btn" ng-class="{'club-stats__tab-btn--active': vm.active_tab === 'financial'}" ng-click="setTab('financial')">
+                <i class="fas fa-chart-pie"></i> Financial
+            </button>
+        </div>
+
+        <div class="club-stats__tab-content">
+
+
+            <!-- ═══════════════════════════════════════════════
+                 INSTRUCTORS TAB
+                 ═══════════════════════════════════════════════ -->
+            <div ng-if="vm.active_tab === 'instructors'">
+
+                <div class="club-stats__controls">
+                    <div class="club-stats__controls-left">
+                        <span style="font-size:13px; color:#64748b;">Ranked by airborne hours</span>
+                    </div>
+                    <div class="club-stats__controls-right">
+                        <button class="club-stats__export-btn" ng-click="exportCsv('instructors')">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading Skeleton -->
+                <div ng-if="vm.instructors_loading">
+                    <div class="club-stats__skeleton-row" ng-repeat="n in [1,2,3,4,5]">
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--sm"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--lg"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="club-stats__empty" ng-if="!vm.instructors_loading && vm.instructors.length === 0">
+                    <div class="club-stats__empty-icon"><i class="fas fa-user-tie"></i></div>
+                    <p class="club-stats__empty-text">No instructor data</p>
+                    <p class="club-stats__empty-sub">No instructor flights found for the selected date range.</p>
+                </div>
+
+                <!-- Desktop Table -->
+                <div class="club-stats__table-wrap" ng-if="!vm.instructors_loading && vm.instructors.length > 0">
+                    <table class="club-stats__table" aria-label="Instructors ranked by hours flown">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center; width:50px;">Rank</th>
+                                <th>Name</th>
+                                <th style="text-align:right;">Flights</th>
+                                <th style="text-align:right;">Hours</th>
+                                <th style="text-align:right;">Students</th>
+                                <th style="text-align:right;">Landings</th>
+                                <th style="text-align:center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="instr in vm.instructors">
+                                <td class="rank-cell">
+                                    <span class="rank-badge" ng-class="rankBadgeClass(instr.rank)">{{ instr.rank }}</span>
+                                </td>
+                                <td class="name-cell">{{ instr.name }}</td>
+                                <td class="number-cell">{{ instr.total_flights }}</td>
+                                <td class="number-cell">{{ formatHours(instr.hours.airborne) }}</td>
+                                <td class="number-cell">{{ instr.unique_students }}</td>
+                                <td class="number-cell">{{ instr.total_landings }}</td>
+                                <td class="club-stats__actions-cell">
+                                    <button class="club-stats__view-btn" ng-click="openDrillDown('instructor', instr)">
+                                        <i class="fas fa-chart-bar"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div class="club-stats__mobile-cards" ng-if="!vm.instructors_loading && vm.instructors.length > 0">
+                    <div class="club-stats__mobile-card" ng-repeat="instr in vm.instructors">
+                        <div class="club-stats__mobile-card-header">
+                            <span class="club-stats__mobile-card-rank">#{{ instr.rank }}</span>
+                            <span class="club-stats__mobile-card-name">{{ instr.name }}</span>
+                        </div>
+                        <div class="club-stats__mobile-card-stats">
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ instr.total_flights }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Flights</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ formatHours(instr.hours.airborne) }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Hours</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ instr.unique_students }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Students</div>
+                            </div>
+                        </div>
+                        <div class="club-stats__mobile-card-actions">
+                            <button class="club-stats__view-btn" ng-click="openDrillDown('instructor', instr)">
+                                <i class="fas fa-chart-bar"></i> View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="club-stats__pagination" ng-if="vm.instructors.length > 0">
+                    <button class="club-stats__page-btn" ng-click="prevPage('instructors')" ng-disabled="vm.instructors_pagination.offset === 0">
+                        <i class="fa fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="club-stats__page-info">
+                        Showing {{ vm.instructors_pagination.offset + 1 }}–{{ vm.instructors_pagination.offset + vm.instructors.length }}
+                        of {{ vm.instructors_pagination.total }}
+                    </span>
+                    <button class="club-stats__page-btn" ng-click="nextPage('instructors')" ng-disabled="!vm.instructors_pagination.has_more">
+                        Next <i class="fa fa-chevron-right"></i>
+                    </button>
+                </div>
+
+            </div>
+
+
+            <!-- ═══════════════════════════════════════════════
+                 AIRCRAFT TAB
+                 ═══════════════════════════════════════════════ -->
+            <div ng-if="vm.active_tab === 'aircraft'">
+
+                <div class="club-stats__controls">
+                    <div class="club-stats__controls-left">
+                        <select class="club-stats__select" ng-model="vm.aircraft_time_type" ng-change="reloadAircraft(true)">
+                            <option value="airborne">Airborne Time</option>
+                            <option value="chock">Chock to Chock</option>
+                            <option value="first_last">First Takeoff to Last Landing</option>
+                            <option value="tpc" ng-if="vm.is_tpc">TPC Time</option>
+                        </select>
+                    </div>
+                    <div class="club-stats__controls-right">
+                        <button class="club-stats__export-btn" ng-click="exportCsv('aircraft')">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div ng-if="vm.aircraft_loading">
+                    <div class="club-stats__skeleton-row" ng-repeat="n in [1,2,3,4,5]">
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--sm"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--lg"></div>
+                    </div>
+                </div>
+
+                <!-- Empty -->
+                <div class="club-stats__empty" ng-if="!vm.aircraft_loading && vm.aircraft.length === 0">
+                    <div class="club-stats__empty-icon"><i class="fas fa-plane"></i></div>
+                    <p class="club-stats__empty-text">No aircraft data</p>
+                    <p class="club-stats__empty-sub">No aircraft flights found for the selected date range.</p>
+                </div>
+
+                <!-- Desktop Table -->
+                <div class="club-stats__table-wrap" ng-if="!vm.aircraft_loading && vm.aircraft.length > 0">
+                    <table class="club-stats__table" aria-label="Aircraft ranked by hours">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center; width:50px;">Rank</th>
+                                <th>Registration</th>
+                                <th>Type</th>
+                                <th style="text-align:right;">Flights</th>
+                                <th style="text-align:right;">Hours</th>
+                                <th style="text-align:right;">Landings</th>
+                                <th style="text-align:right;">Revenue</th>
+                                <th style="text-align:center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="ac in vm.aircraft">
+                                <td class="rank-cell">
+                                    <span class="rank-badge" ng-class="rankBadgeClass(ac.rank)">{{ ac.rank }}</span>
+                                </td>
+                                <td class="name-cell">{{ ac.registration }}</td>
+                                <td>{{ ac.plane_type }}</td>
+                                <td class="number-cell">{{ ac.total_flights }}</td>
+                                <td class="number-cell">{{ formatHours(ac.hours[vm.aircraft_time_type]) }}</td>
+                                <td class="number-cell">{{ ac.total_landings }}</td>
+                                <td class="currency-cell">{{ formatCurrency(ac.revenue) }}</td>
+                                <td class="club-stats__actions-cell">
+                                    <button class="club-stats__view-btn" ng-click="openDrillDown('aircraft', ac)">
+                                        <i class="fas fa-chart-bar"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div class="club-stats__mobile-cards" ng-if="!vm.aircraft_loading && vm.aircraft.length > 0">
+                    <div class="club-stats__mobile-card" ng-repeat="ac in vm.aircraft">
+                        <div class="club-stats__mobile-card-header">
+                            <span class="club-stats__mobile-card-rank">#{{ ac.rank }}</span>
+                            <span class="club-stats__mobile-card-name">{{ ac.registration }} <small style="color:#64748b; font-weight:400;">{{ ac.plane_type }}</small></span>
+                        </div>
+                        <div class="club-stats__mobile-card-stats">
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ ac.total_flights }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Flights</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ formatHours(ac.hours[vm.aircraft_time_type]) }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Hours</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ formatCurrency(ac.revenue) }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Revenue</div>
+                            </div>
+                        </div>
+                        <div class="club-stats__mobile-card-actions">
+                            <button class="club-stats__view-btn" ng-click="openDrillDown('aircraft', ac)">
+                                <i class="fas fa-chart-bar"></i> View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="club-stats__pagination" ng-if="vm.aircraft.length > 0">
+                    <button class="club-stats__page-btn" ng-click="prevPage('aircraft')" ng-disabled="vm.aircraft_pagination.offset === 0">
+                        <i class="fa fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="club-stats__page-info">
+                        Showing {{ vm.aircraft_pagination.offset + 1 }}–{{ vm.aircraft_pagination.offset + vm.aircraft.length }}
+                        of {{ vm.aircraft_pagination.total }}
+                    </span>
+                    <button class="club-stats__page-btn" ng-click="nextPage('aircraft')" ng-disabled="!vm.aircraft_pagination.has_more">
+                        Next <i class="fa fa-chevron-right"></i>
+                    </button>
+                </div>
+
+            </div>
+
+
+            <!-- ═══════════════════════════════════════════════
+                 MEMBERS TAB
+                 ═══════════════════════════════════════════════ -->
+            <div ng-if="vm.active_tab === 'members'">
+
+                <div class="club-stats__controls">
+                    <div class="club-stats__controls-left">
+                        <select class="club-stats__select" ng-model="vm.members_sort_by" ng-change="reloadMembers(true)">
+                            <option value="hours">Most Hours</option>
+                            <option value="flights">Most Flights</option>
+                            <option value="spend">Highest Spend</option>
+                        </select>
+                    </div>
+                    <div class="club-stats__controls-right">
+                        <button class="club-stats__export-btn" ng-click="exportCsv('members')">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div ng-if="vm.members_loading">
+                    <div class="club-stats__skeleton-row" ng-repeat="n in [1,2,3,4,5]">
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--sm"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--lg"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                    </div>
+                </div>
+
+                <!-- Empty -->
+                <div class="club-stats__empty" ng-if="!vm.members_loading && vm.members.length === 0">
+                    <div class="club-stats__empty-icon"><i class="fas fa-users"></i></div>
+                    <p class="club-stats__empty-text">No member data</p>
+                    <p class="club-stats__empty-sub">No member flights found for the selected date range.</p>
+                </div>
+
+                <!-- Desktop Table -->
+                <div class="club-stats__table-wrap" ng-if="!vm.members_loading && vm.members.length > 0">
+                    <table class="club-stats__table" aria-label="Members ranked by activity">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center; width:50px;">Rank</th>
+                                <th>Name</th>
+                                <th style="text-align:right;">Flights</th>
+                                <th style="text-align:right;">Hours</th>
+                                <th style="text-align:right;">Landings</th>
+                                <th style="text-align:right;">Spend</th>
+                                <th style="text-align:center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="mbr in vm.members">
+                                <td class="rank-cell">
+                                    <span class="rank-badge" ng-class="rankBadgeClass(mbr.rank)">{{ mbr.rank }}</span>
+                                </td>
+                                <td class="name-cell">{{ mbr.name }}</td>
+                                <td class="number-cell">{{ mbr.total_flights }}</td>
+                                <td class="number-cell">{{ formatHours(mbr.hours.airborne) }}</td>
+                                <td class="number-cell">{{ mbr.total_landings }}</td>
+                                <td class="currency-cell">{{ formatCurrency(mbr.total_spend) }}</td>
+                                <td class="club-stats__actions-cell">
+                                    <button class="club-stats__view-btn" ng-click="openDrillDown('member', mbr)">
+                                        <i class="fas fa-chart-bar"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div class="club-stats__mobile-cards" ng-if="!vm.members_loading && vm.members.length > 0">
+                    <div class="club-stats__mobile-card" ng-repeat="mbr in vm.members">
+                        <div class="club-stats__mobile-card-header">
+                            <span class="club-stats__mobile-card-rank">#{{ mbr.rank }}</span>
+                            <span class="club-stats__mobile-card-name">{{ mbr.name }}</span>
+                        </div>
+                        <div class="club-stats__mobile-card-stats">
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ mbr.total_flights }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Flights</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ formatHours(mbr.hours.airborne) }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Hours</div>
+                            </div>
+                            <div class="club-stats__mobile-card-stat">
+                                <div class="club-stats__mobile-card-stat-val">{{ formatCurrency(mbr.total_spend) }}</div>
+                                <div class="club-stats__mobile-card-stat-label">Spend</div>
+                            </div>
+                        </div>
+                        <div class="club-stats__mobile-card-actions">
+                            <button class="club-stats__view-btn" ng-click="openDrillDown('member', mbr)">
+                                <i class="fas fa-chart-bar"></i> View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="club-stats__pagination" ng-if="vm.members.length > 0">
+                    <button class="club-stats__page-btn" ng-click="prevPage('members')" ng-disabled="vm.members_pagination.offset === 0">
+                        <i class="fa fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="club-stats__page-info">
+                        Showing {{ vm.members_pagination.offset + 1 }}–{{ vm.members_pagination.offset + vm.members.length }}
+                        of {{ vm.members_pagination.total }}
+                    </span>
+                    <button class="club-stats__page-btn" ng-click="nextPage('members')" ng-disabled="!vm.members_pagination.has_more">
+                        Next <i class="fa fa-chevron-right"></i>
+                    </button>
+                </div>
+
+            </div>
+
+
+            <!-- ═══════════════════════════════════════════════
+                 FINANCIAL TAB
+                 ═══════════════════════════════════════════════ -->
+            <div ng-if="vm.active_tab === 'financial'">
+
+                <div class="club-stats__controls">
+                    <div class="club-stats__controls-left">
+                        <span style="font-size:13px; color:#64748b;">Financial breakdown for selected period</span>
+                    </div>
+                    <div class="club-stats__controls-right">
+                        <button class="club-stats__export-btn" ng-click="exportCsv('financial')">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div ng-if="vm.financial_loading">
+                    <div class="club-stats__skeleton-row" ng-repeat="n in [1,2,3,4,5,6]">
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--lg"></div>
+                        <div class="club-stats__skeleton-cell club-stats__skeleton-cell--md"></div>
+                    </div>
+                </div>
+
+                <div ng-if="!vm.financial_loading && vm.financial">
+
+                    <!-- Summary Cards -->
+                    <div class="club-stats__financial-summary">
+                        <div class="club-stats__fin-card">
+                            <div class="club-stats__fin-card-value club-stats__fin-card-value--green">
+                                {{ formatCurrency(vm.financial.summary.total_revenue) }}
+                            </div>
+                            <div class="club-stats__fin-card-label">Total Revenue</div>
+                        </div>
+                        <div class="club-stats__fin-card">
+                            <div class="club-stats__fin-card-value club-stats__fin-card-value--amber">
+                                {{ formatCurrency(vm.financial.summary.outstanding.total) }}
+                            </div>
+                            <div class="club-stats__fin-card-label">Outstanding ({{ vm.financial.summary.outstanding.count }})</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="club-stats__charts">
+
+                        <!-- Revenue by Source Pie -->
+                        <div class="club-stats__chart-card">
+                            <h4 class="club-stats__chart-title">Revenue by Source</h4>
+                            <p class="club-stats__chart-subtitle">Breakdown of where your revenue comes from</p>
+                            <div class="club-stats__chart-container club-stats__chart-container--pie">
+                                <canvas id="clubStatsRevenuePie"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Payment Methods Bar -->
+                        <div class="club-stats__chart-card">
+                            <h4 class="club-stats__chart-title">Payment Methods</h4>
+                            <p class="club-stats__chart-subtitle">Revenue received by payment type</p>
+                            <div class="club-stats__chart-container club-stats__chart-container--line">
+                                <canvas id="clubStatsPaymentBar"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Daily Revenue Trend -->
+                        <div class="club-stats__chart-card club-stats__chart-card--full">
+                            <h4 class="club-stats__chart-title">Daily Revenue Trend</h4>
+                            <p class="club-stats__chart-subtitle">Revenue over time for the selected period</p>
+                            <div class="club-stats__chart-container club-stats__chart-container--line">
+                                <canvas id="clubStatsDailyLine"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Top Spenders & Top Aircraft -->
+                    <div class="club-stats__charts" style="margin-top:20px;">
+
+                        <!-- Top Spenders -->
+                        <div class="club-stats__chart-card">
+                            <h4 class="club-stats__chart-title">Top Spenders</h4>
+                            <p class="club-stats__chart-subtitle">Members with the highest spend</p>
+                            <div class="club-stats__table-wrap" ng-if="vm.financial.top_spenders.length > 0">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Name</th>
+                                            <th style="text-align:right;">Spend</th>
+                                            <th style="text-align:right;">Invoices</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="sp in vm.financial.top_spenders">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(sp.rank)">{{ sp.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ sp.name }}</td>
+                                            <td class="currency-cell">{{ formatCurrency(sp.total_spend) }}</td>
+                                            <td class="number-cell">{{ sp.invoice_count }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Top Aircraft by Revenue -->
+                        <div class="club-stats__chart-card">
+                            <h4 class="club-stats__chart-title">Top Aircraft by Revenue</h4>
+                            <p class="club-stats__chart-subtitle">Highest earning aircraft</p>
+                            <div class="club-stats__table-wrap" ng-if="vm.financial.top_aircraft.length > 0">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Registration</th>
+                                            <th>Type</th>
+                                            <th style="text-align:right;">Revenue</th>
+                                            <th style="text-align:right;">Flights</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="tac in vm.financial.top_aircraft">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(tac.rank)">{{ tac.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ tac.registration }}</td>
+                                            <td>{{ tac.plane_type }}</td>
+                                            <td class="currency-cell">{{ formatCurrency(tac.revenue) }}</td>
+                                            <td class="number-cell">{{ tac.flight_count }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Shop Items -->
+                    <div class="club-stats__charts" style="margin-top:20px;" ng-if="vm.financial.shop_items && vm.financial.shop_items.length > 0">
+                        <div class="club-stats__chart-card club-stats__chart-card--full">
+                            <h4 class="club-stats__chart-title">Shop Items</h4>
+                            <p class="club-stats__chart-subtitle">Revenue from shop sales</p>
+                            <ul class="club-stats__shop-list">
+                                <li class="club-stats__shop-item" ng-repeat="si in vm.financial.shop_items">
+                                    <span class="club-stats__shop-item-name">{{ si.title }}</span>
+                                    <span class="club-stats__shop-item-stats">
+                                        <span>{{ formatCurrency(si.revenue) }}</span>
+                                        ·
+                                        {{ si.quantity }} sold
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Financial Empty -->
+                <div class="club-stats__empty" ng-if="!vm.financial_loading && !vm.financial">
+                    <div class="club-stats__empty-icon"><i class="fas fa-chart-pie"></i></div>
+                    <p class="club-stats__empty-text">No financial data</p>
+                    <p class="club-stats__empty-sub">No financial records found for the selected date range.</p>
+                </div>
+
+            </div>
+
+
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         DRILL-DOWN MODAL
+         ═══════════════════════════════════════════════════ -->
+    <div class="club-stats__modal-backdrop" ng-if="vm.drill.open" ng-click="closeDrillDown()">
+        <div class="club-stats__modal" ng-click="$event.stopPropagation()">
+
+            <!-- Header -->
+            <div class="club-stats__modal-header">
+                <div>
+                    <h3>{{ vm.drill.entity_name }}</h3>
+                    <p>
+                        <span ng-if="vm.drill.type === 'instructor'">Instructor Breakdown</span>
+                        <span ng-if="vm.drill.type === 'member'">Member Breakdown</span>
+                        <span ng-if="vm.drill.type === 'aircraft'">Aircraft Breakdown</span>
+                        · {{ vm.start_date }} to {{ vm.end_date }}
+                    </p>
+                </div>
+                <button class="club-stats__modal-close" ng-click="closeDrillDown()">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="club-stats__modal-body">
+
+                <!-- Loading -->
+                <div ng-if="vm.drill.loading" style="text-align:center; padding:40px;">
+                    <i class="fa fa-spinner fa-spin fa-2x" style="color:#64748b;"></i>
+                    <p style="color:#64748b; margin-top:12px;">Loading detailed statistics…</p>
+                </div>
+
+                <div ng-if="!vm.drill.loading && vm.drill.data">
+
+                    <!-- ─── Instructor / Member Drill-Down ─── -->
+                    <div ng-if="vm.drill.type === 'instructor' || vm.drill.type === 'member'">
+
+                        <!-- By Aircraft Table -->
+                        <div class="club-stats__modal-section">
+                            <h4><i class="fas fa-plane" style="margin-right:6px;"></i> Aircraft Breakdown</h4>
+                            <div class="club-stats__table-wrap" ng-if="vm.drill.data.by_aircraft.length > 0">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Registration</th>
+                                            <th>Type</th>
+                                            <th style="text-align:right;">Flights</th>
+                                            <th style="text-align:right;">Hours</th>
+                                            <th style="text-align:right;">Landings</th>
+                                            <th ng-if="vm.drill.type === 'member'" style="text-align:right;">Spend</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="ba in vm.drill.data.by_aircraft">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(ba.rank)">{{ ba.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ ba.registration }}</td>
+                                            <td>{{ ba.plane_type }}</td>
+                                            <td class="number-cell">{{ ba.flights }}</td>
+                                            <td class="number-cell">{{ formatHours(ba.hours.airborne) }}</td>
+                                            <td class="number-cell">{{ ba.landings }}</td>
+                                            <td ng-if="vm.drill.type === 'member'" class="currency-cell">{{ formatCurrency(ba.spend) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- By Aircraft Type Pie Chart -->
+                        <div class="club-stats__modal-section" ng-if="vm.drill.data.by_aircraft_type && vm.drill.data.by_aircraft_type.length > 0">
+                            <h4><i class="fas fa-chart-pie" style="margin-right:6px;"></i> By Aircraft Type</h4>
+                            <div class="club-stats__chart-container club-stats__chart-container--pie" style="margin:0 auto;">
+                                <canvas id="clubStatsDrillDownPie"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ─── Aircraft Drill-Down ─── -->
+                    <div ng-if="vm.drill.type === 'aircraft'">
+
+                        <!-- Top Pilots -->
+                        <div class="club-stats__modal-section" ng-if="vm.drill.data.top_pilots && vm.drill.data.top_pilots.length > 0">
+                            <h4><i class="fas fa-user" style="margin-right:6px;"></i> Top Pilots</h4>
+                            <div class="club-stats__table-wrap">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Name</th>
+                                            <th style="text-align:right;">Flights</th>
+                                            <th style="text-align:right;">Hours</th>
+                                            <th style="text-align:right;">Landings</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="tp in vm.drill.data.top_pilots">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(tp.rank)">{{ tp.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ tp.name }}</td>
+                                            <td class="number-cell">{{ tp.flights }}</td>
+                                            <td class="number-cell">{{ formatHours(tp.airborne_hours) }}</td>
+                                            <td class="number-cell">{{ tp.landings }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Top Instructors -->
+                        <div class="club-stats__modal-section" ng-if="vm.drill.data.top_instructors && vm.drill.data.top_instructors.length > 0">
+                            <h4><i class="fas fa-user-tie" style="margin-right:6px;"></i> Top Instructors</h4>
+                            <div class="club-stats__table-wrap">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Name</th>
+                                            <th style="text-align:right;">Flights</th>
+                                            <th style="text-align:right;">Hours</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="ti in vm.drill.data.top_instructors">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(ti.rank)">{{ ti.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ ti.name }}</td>
+                                            <td class="number-cell">{{ ti.flights }}</td>
+                                            <td class="number-cell">{{ formatHours(ti.airborne_hours) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Revenue by Member -->
+                        <div class="club-stats__modal-section" ng-if="vm.drill.data.revenue_by_member && vm.drill.data.revenue_by_member.length > 0">
+                            <h4><i class="fas fa-coins" style="margin-right:6px;"></i> Revenue by Member</h4>
+                            <div class="club-stats__table-wrap">
+                                <table class="club-stats__table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center; width:40px;">#</th>
+                                            <th>Name</th>
+                                            <th style="text-align:right;">Spend</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr ng-repeat="rm in vm.drill.data.revenue_by_member">
+                                            <td class="rank-cell">
+                                                <span class="rank-badge" ng-class="rankBadgeClass(rm.rank)">{{ rm.rank }}</span>
+                                            </td>
+                                            <td class="name-cell">{{ rm.name }}</td>
+                                            <td class="currency-cell">{{ formatCurrency(rm.spend) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Pilots Pie Chart -->
+                        <div class="club-stats__modal-section" ng-if="vm.drill.data.top_pilots && vm.drill.data.top_pilots.length > 1">
+                            <h4><i class="fas fa-chart-pie" style="margin-right:6px;"></i> Flights by Pilot</h4>
+                            <div class="club-stats__chart-container club-stats__chart-container--pie" style="margin:0 auto;">
+                                <canvas id="clubStatsDrillDownPie"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="club-stats__modal-footer">
+                <button class="club-stats__export-btn" ng-click="exportDrillDown()">
+                    <i class="fas fa-download"></i> Export CSV
+                </button>
+                <button class="club-stats__page-btn" ng-click="closeDrillDown()">Close</button>
+            </div>
+
+        </div>
+    </div>
+
+</div>

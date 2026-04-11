@@ -2107,14 +2107,14 @@
 
                         MemberService.GetAllByPicsBookinout(vm.bookout.booking_id, vm.bookout.club_id, vm.user.id, 1)
                             .then(function (pics) {
-                                    vm.pics = pics;
+                                    vm.pics = tagMemberSource(pics);
                                     console.log("PICS: ", vm.pics);
                                     process_bookout_to_bookin(data.bookout);
                             });
 
                        MemberService.GetAllByClubInstructor(vm.bookout.club_id, vm.user.id)
                             .then(function (instructors) {
-                                    vm.instructors = instructors.instructors;
+                                    vm.instructors = tagMemberSource(instructors.instructors);
                                     //process_bookout_to_bookin(data.bookout);
                             });
 
@@ -3682,6 +3682,15 @@
         vm.this_was_supervised_solo = false;
         vm.start_tacho_orig;
         vm.send = {};
+
+        function tagMemberSource(members) {
+            if (!members || !members.length) return members || [];
+            var bsPattern = /^bs\d+@toaviate\.com$/i;
+            for (var i = 0; i < members.length; i++) {
+                members[i]._isBsMember = !!(members[i].email && bsPattern.test(members[i].email));
+            }
+            return members;
+        }
 
         function process_bookout_to_bookin(booking){
 

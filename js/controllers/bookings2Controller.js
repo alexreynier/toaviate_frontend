@@ -110,8 +110,8 @@
             $scope.update_dateTime("edit2");
 
             // Fetch all available planes, then filter to ones this instructor teaches on
-            var start_iso = startDate.toISOString();
-            var end_iso = endDate.toISOString();
+            var start_iso = moment(startDate).format("YYYY-MM-DDTHH:mm:ss");
+            var end_iso = moment(endDate).format("YYYY-MM-DDTHH:mm:ss");
 
             BookingService.GetAllPlanes(vm.user.id, start_iso, end_iso, 0, 0)
             .then(function(data){
@@ -755,7 +755,7 @@
             vm.see_booking.start_time = moment(vm.see_booking.start).format("HH:mm");
             vm.see_booking.end_time = moment(vm.see_booking.end).format("HH:mm");
 
-            vm.see_booking.start_datetime = new Date(new Date(vm.see_booking.start).toUTCString());
+            vm.see_booking.start_datetime = new Date(vm.see_booking.start);
             vm.see_booking.end_datetime = new Date(vm.see_booking.end);
             vm.see_booking.visible = 1;
 
@@ -804,10 +804,10 @@
         console.log(vm.new_booking.start_datetime);
         console.log(vm.new_booking.end_datetime);
 
-        console.log("START BOOKINGS 2", new Date(vm.new_booking.start_datetime).toISOString());
+        console.log("START BOOKINGS 2", vm.new_booking.start_datetime);
 
-        var start_dt = new Date(vm.new_booking.start_datetime).toISOString();
-        var end_dt = new Date(vm.new_booking.end_datetime).toISOString();
+        var start_dt = vm.new_booking.start_datetime;
+        var end_dt = vm.new_booking.end_datetime;
         var show_all = (vm.is_edit_show_all) ? 1 : 0;
         BookingService.GetAllPlanes(vm.user.id, start_dt, end_dt, show_all, plane_id)
         .then(function(data){
@@ -935,8 +935,8 @@
             // var start_datetime = luxon.DateTime.fromISO( new Date(vm.new_booking.start_datetime) ).toISO();
             // var end_datetime = luxon.DateTime.fromISO( new Date(vm.new_booking.end_datetime) ).toISO();
 
-            var start_datetime = new Date(vm.new_booking.start_datetime).toISOString();
-            var end_datetime = new Date(vm.new_booking.end_datetime).toISOString();
+            var start_datetime = vm.new_booking.start_datetime;
+            var end_datetime = vm.new_booking.end_datetime;
 
             BookingService.GetRentalItems(club_id, start_datetime, end_datetime, 0)
             .then(function(data){
@@ -2049,8 +2049,8 @@
         // console.log("FROM : ", from);
         // console.log("TO : ", to);
 
-        var from = new Date(vm.new_booking.start_datetime).toISOString();//moment.utc( vm.new_booking.start_datetime ).toISOString();//luxon.DateTime.fromISO(moment(vm.new_booking.start_datetime).toISOString()).setZone("Europe/London").toFormat("YYYY-MM-DDThh:mm:ssZ");
-        var to = new Date(vm.new_booking.end_datetime).toISOString();// moment.utc( vm.new_booking.end_datetime ).toISOString();//luxon.DateTime.fromISO(moment(vm.new_booking.start_datetime).toISOString()).setZone("Europe/London").toFormat("YYYY-MM-DDThh:mm:ssZ");
+        var from = vm.new_booking.start_datetime;//moment.utc( vm.new_booking.start_datetime ).toISOString();//luxon.DateTime.fromISO(moment(vm.new_booking.start_datetime).toISOString()).setZone("Europe/London").toFormat("YYYY-MM-DDThh:mm:ssZ");
+        var to = vm.new_booking.end_datetime;// moment.utc( vm.new_booking.end_datetime ).toISOString();//luxon.DateTime.fromISO(moment(vm.new_booking.start_datetime).toISOString()).setZone("Europe/London").toFormat("YYYY-MM-DDThh:mm:ssZ");
         
 
         if(vm.action == "add" || vm.action == "list"){
@@ -2164,7 +2164,7 @@
         
 
         //if is_current getPlaneInstructors
-        BookingService.GetIfCurrent(vm.user_id, vm.new_booking.plane.id, end_dt.toISOString())
+        BookingService.GetIfCurrent(vm.user_id, vm.new_booking.plane.id, moment(end_dt).format("YYYY-MM-DDTHH:mm:ss"))
         .then(function (data) {
             ////console.log(data);
             if(data.success){
@@ -2803,7 +2803,7 @@
 
             if(cid > 0 && bed){
 
-                    var bed2 = new Date(bed).toISOString();
+                    var bed2 = moment(new Date(bed)).format("YYYY-MM-DDTHH:mm:ss");
 
                  MemberService.GetAllActiveByClub(cid, bed2)
                     .then(function (data) {
@@ -3311,12 +3311,12 @@
             // Generate datetimes for the API calls
             generate_datetimes();
 
-            var from = new Date(vm.new_booking.start_datetime).toISOString();
-            var to = new Date(vm.new_booking.end_datetime).toISOString();
+            var from = vm.new_booking.start_datetime;
+            var to = vm.new_booking.end_datetime;
             var savedInstructor = vm.new_booking.instructor;
 
             // Load members for this club
-            var bed = new Date(vm.new_booking.end_datetime).toISOString();
+            var bed = vm.new_booking.end_datetime;
             MemberService.GetAllActiveByClub(booking_club_id, bed)
             .then(function(data){
                 vm.members = data.members || data;
@@ -3382,8 +3382,8 @@
             end.setMinutes(end_split[1]);
             end.setSeconds(0);
 
-            vm.new_booking.start_datetime = start.toISOString();//moment(start).format("Y-MM-DD HH:mm");
-            vm.new_booking.end_datetime = end.toISOString();//moment(end).format("Y-MM-DD HH:mm");
+            vm.new_booking.start_datetime = moment(start).format("YYYY-MM-DDTHH:mm:ss");
+            vm.new_booking.end_datetime = moment(end).format("YYYY-MM-DDTHH:mm:ss");
             // console.log("GENERATE DATETIME ==> ", vm.new_booking.start_datetime);
             // console.log("GENERATE DATETIME ==> ", vm.new_booking.end_datetime);
         }
@@ -3866,7 +3866,7 @@
          // in the results even if it's near another booking's time window
          var clicked_plane_id = (obj.plane_id && String(obj.plane_id).indexOf("fi_") !== 0) ? parseInt(obj.plane_id) : 0;
 
-         BookingService.GetAllPlanes(vm.user.id, vm.new_booking.start_date.toISOString(), vm.new_booking.end_date.toISOString(), 0, clicked_plane_id)
+         BookingService.GetAllPlanes(vm.user.id, moment(vm.new_booking.start_date).format("YYYY-MM-DDTHH:mm:ss"), moment(vm.new_booking.end_date).format("YYYY-MM-DDTHH:mm:ss"), 0, clicked_plane_id)
             .then(function(data){
                
                 //this gets the events and bookings for the period checked here...
@@ -3895,8 +3895,8 @@
                     vm.booking_admin = true;
                     vm.show_self_option = true;
 
-                    var start_iso = vm.new_booking.start_date.toISOString();
-                    var end_iso = vm.new_booking.end_date.toISOString();
+                    var start_iso = moment(vm.new_booking.start_date).format("YYYY-MM-DDTHH:mm:ss");
+                    var end_iso = moment(vm.new_booking.end_date).format("YYYY-MM-DDTHH:mm:ss");
 
                     // Fetch the full instructor object via new endpoint
                     BookingService.GetInstructorByUser(instructorUserId)

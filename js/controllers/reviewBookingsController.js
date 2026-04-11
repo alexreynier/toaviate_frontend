@@ -264,7 +264,7 @@
             vm.see_booking.start_time = moment(vm.see_booking.start).format("HH:mm");
             vm.see_booking.end_time = moment(vm.see_booking.end).format("HH:mm");
 
-            vm.see_booking.start_datetime = new Date(new Date(vm.see_booking.start).toUTCString());
+            vm.see_booking.start_datetime = new Date(vm.see_booking.start);
             vm.see_booking.end_datetime = new Date(vm.see_booking.end);
             vm.see_booking.visible = 1;
             vm.see_booking.can_be_edited = !isWithinEditWindow(vm.see_booking.end);
@@ -388,7 +388,7 @@
 
             var club_id = (vm.new_booking.edit_booking == 1) ? vm.new_booking.club_id : vm.new_booking.plane.club_id;
 
-            BookingService.GetRentalItems(club_id, new Date(vm.new_booking.start_datetime).toISOString(), new Date(vm.new_booking.end_datetime).toISOString(), 0)
+            BookingService.GetRentalItems(club_id, vm.new_booking.start_datetime, vm.new_booking.end_datetime, 0)
             .then(function(data){
            
                 vm.rental_items = data;

@@ -1,0 +1,370 @@
+<!-- ══════════════════════════════════════════════════════════
+     FOX TRACKER MANAGEMENT — Detail View
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page">
+
+  <!-- Unauthorised state -->
+  <div ng-if="!vm.authorised" class="fox-tracker__unauthorised">
+    <div class="fox-tracker__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is restricted to ToAviate management users.</p>
+  </div>
+
+  <div ng-if="vm.authorised">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ng-click="vm.goBack()">
+          <i class="fa fa-arrow-circle-left"></i> BACK TO LIST
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-satellite-dish"></i> {{ vm.tracker.label || 'Tracker Detail' }}</h2>
+          <p>{{ vm.tracker.imei }}</p>
+        </div>
+        <div class="snazzy-page__header-actions" ng-if="vm.tracker && vm.tracker.status !== 'retired'">
+          <button class="snazzy-page__action-btn-header" ng-click="vm.startEdit()" ng-if="!vm.editing">
+            <i class="fas fa-pencil-alt"></i> Edit
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading ── -->
+    <div ng-if="vm.loading" class="snazzy-page__loading">
+      <div class="snazzy-page__spinner"></div> Loading tracker details…
+    </div>
+
+    <div ng-if="!vm.loading && vm.tracker" class="snazzy-page__body">
+
+      <!-- ── Detail Grid ── -->
+      <div class="fox-tracker__detail-grid">
+
+        <!-- ── Device Info Card ── -->
+        <div class="fox-tracker__detail-card">
+          <div class="fox-tracker__detail-card-header">
+            <span class="fox-tracker__detail-card-title">
+              <i class="fas fa-microchip"></i> Device Information
+            </span>
+            <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.tracker.status)">
+              <span class="fox-tracker__status-dot"
+                    ng-class="'fox-tracker__status-dot--' + vm.tracker.status"></span>
+              {{ vm.tracker.status }}
+            </span>
+          </div>
+          <div class="fox-tracker__detail-card-body">
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">IMEI</div>
+              <div class="fox-tracker__field-value fox-tracker__field-value--mono">{{ vm.tracker.imei }}</div>
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">CCID</div>
+              <div class="fox-tracker__field-value fox-tracker__field-value--mono">{{ vm.tracker.ccid }}</div>
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Fox ID</div>
+              <div class="fox-tracker__field-value" ng-if="!vm.editing">{{ vm.tracker.fox_id || '—' }}</div>
+              <input ng-if="vm.editing" class="fox-tracker__edit-input"
+                     ng-model="vm.edit_data.fox_id" placeholder="e.g. FOX-005" />
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Label</div>
+              <div class="fox-tracker__field-value" ng-if="!vm.editing">{{ vm.tracker.label || '—' }}</div>
+              <input ng-if="vm.editing" class="fox-tracker__edit-input"
+                     ng-model="vm.edit_data.label" placeholder="Human-friendly label" />
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Device Type</div>
+              <div class="fox-tracker__field-value" ng-if="!vm.editing">{{ vm.tracker.device_type || '—' }}</div>
+              <input ng-if="vm.editing" class="fox-tracker__edit-input"
+                     ng-model="vm.edit_data.device_type" placeholder="e.g. foxAvionix11" />
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Notes</div>
+              <div class="fox-tracker__field-value" ng-if="!vm.editing">{{ vm.tracker.notes || '—' }}</div>
+              <textarea ng-if="vm.editing" class="fox-tracker__edit-textarea"
+                        ng-model="vm.edit_data.notes" placeholder="Free text notes"></textarea>
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Created</div>
+              <div class="fox-tracker__field-value snazzy-table__date">{{ vm.tracker.created_at }}</div>
+            </div>
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Last Updated</div>
+              <div class="fox-tracker__field-value snazzy-table__date">{{ vm.tracker.updated_at }}</div>
+            </div>
+
+            <!-- Edit actions -->
+            <div ng-if="vm.editing" style="padding-top: 16px; display: flex; gap: 10px; justify-content: flex-end;">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelEdit()"
+                      ng-disabled="vm.saving">
+                <i class="fas fa-times"></i> Cancel
+              </button>
+              <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.saveEdit()"
+                      ng-disabled="vm.saving">
+                <i class="fas fa-save"></i> {{ vm.saving ? 'Saving…' : 'Save Changes' }}
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Status Actions Card ── -->
+        <div class="fox-tracker__detail-card">
+          <div class="fox-tracker__detail-card-header">
+            <span class="fox-tracker__detail-card-title">
+              <i class="fas fa-sliders-h"></i> Status &amp; Actions
+            </span>
+          </div>
+          <div class="fox-tracker__detail-card-body">
+
+            <div class="fox-tracker__field-row">
+              <div class="fox-tracker__field-label">Current Status</div>
+              <div class="fox-tracker__field-value">
+                <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.tracker.status)"
+                      style="font-size: 13px; padding: 6px 14px;">
+                  <span class="fox-tracker__status-dot"
+                        ng-class="'fox-tracker__status-dot--' + vm.tracker.status"></span>
+                  {{ vm.tracker.status }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Action buttons based on status -->
+            <div style="padding-top: 20px; display: flex; flex-direction: column; gap: 10px;"
+                 ng-if="vm.tracker.status !== 'retired'">
+
+              <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--block"
+                      ng-if="vm.tracker.status === 'active'"
+                      ng-click="vm.showConfirm('deactivate')">
+                <i class="fas fa-pause-circle"></i> Deactivate Tracker
+              </button>
+
+              <button class="snazzy-page__btn snazzy-page__btn--success snazzy-page__btn--block"
+                      ng-if="vm.tracker.status === 'inactive'"
+                      ng-click="vm.showConfirm('reactivate')">
+                <i class="fas fa-play-circle"></i> Reactivate Tracker
+              </button>
+
+              <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--block"
+                      ng-click="vm.showConfirm('retire')"
+                      style="color: #dc2626; border-color: #fecaca;">
+                <i class="fas fa-ban"></i> Permanently Retire
+              </button>
+            </div>
+
+            <div ng-if="vm.tracker.status === 'retired'" style="padding-top: 20px; text-align: center;">
+              <div style="color: #dc2626; font-size: 32px; margin-bottom: 8px;">
+                <i class="fas fa-ban"></i>
+              </div>
+              <p style="color: #64748b; font-size: 13px; margin: 0;">
+                This tracker has been permanently retired.<br>
+                No further actions are available.
+              </p>
+            </div>
+
+            <!-- Current Assignment -->
+            <div style="margin-top: 24px;" ng-if="vm.assignments.length > 0">
+              <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.3px; margin-bottom: 10px;">
+                Current Assignment
+              </div>
+              <div ng-repeat="a in vm.assignments | limitTo:1"
+                   class="fox-tracker__assignment"
+                   ng-class="{'fox-tracker__assignment--ended': a.assigned_until}">
+                <div class="fox-tracker__assignment-icon">
+                  <i class="fas fa-plane"></i>
+                </div>
+                <div class="fox-tracker__assignment-info">
+                  <div class="fox-tracker__assignment-plane">{{ a.plane_registration }}</div>
+                  <div class="fox-tracker__assignment-meta">
+                    {{ a.club_name }} · Since {{ a.assigned_from }}
+                    <span ng-if="a.assigned_until"> · Ended {{ a.assigned_until }}</span>
+                  </div>
+                  <div class="fox-tracker__assignment-meta" ng-if="a.assigned_by_name">
+                    Assigned by {{ a.assigned_by_name }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Assignment History Card ── -->
+        <div class="fox-tracker__detail-card fox-tracker__detail-card--full"
+             ng-if="vm.assignments.length > 0">
+          <div class="fox-tracker__detail-card-header">
+            <span class="fox-tracker__detail-card-title">
+              <i class="fas fa-history"></i> Assignment History
+            </span>
+          </div>
+          <div class="fox-tracker__detail-card-body" style="padding: 0;">
+            <div class="snazzy-page__table-scroll">
+              <table class="snazzy-table">
+                <thead>
+                  <tr>
+                    <th>Period</th>
+                    <th>Aircraft</th>
+                    <th>Club</th>
+                    <th>Assigned By</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr ng-repeat="a in vm.assignments">
+                    <td>
+                      <span class="snazzy-table__date">{{ a.assigned_from }}</span>
+                      <span class="snazzy-table__muted"> → </span>
+                      <span class="snazzy-table__date">{{ a.assigned_until || 'present' }}</span>
+                    </td>
+                    <td><span class="snazzy-table__name">{{ a.plane_registration }}</span></td>
+                    <td><span class="snazzy-table__muted">{{ a.club_name }}</span></td>
+                    <td><span class="snazzy-table__muted">{{ a.assigned_by_name }}</span></td>
+                    <td><span class="snazzy-table__muted">{{ a.notes || '—' }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Change Log Card ── -->
+        <div class="fox-tracker__detail-card fox-tracker__detail-card--full"
+             ng-if="vm.change_log.length > 0">
+          <div class="fox-tracker__detail-card-header">
+            <span class="fox-tracker__detail-card-title">
+              <i class="fas fa-clipboard-list"></i> Change Log
+            </span>
+          </div>
+          <div class="fox-tracker__detail-card-body">
+            <div class="fox-tracker__timeline">
+              <div class="fox-tracker__timeline-item" ng-repeat="entry in vm.change_log">
+                <div class="fox-tracker__timeline-dot"
+                     ng-style="{'background': vm.actionColor(entry.action)}"></div>
+                <div class="fox-tracker__timeline-action"
+                     ng-style="{'color': vm.actionColor(entry.action)}">
+                  <i class="fas" ng-class="vm.actionIcon(entry.action)"></i>
+                  {{ entry.action }}
+                </div>
+                <div class="fox-tracker__timeline-detail">
+                  {{ vm.formatDetails(entry) }}
+                  <span ng-if="entry.plane_registration"> · {{ entry.plane_registration }}</span>
+                </div>
+                <div class="fox-tracker__timeline-when">
+                  {{ entry.effective_at || entry.created_at }}
+                  <span ng-if="entry.performed_by_name">
+                    · by {{ entry.performed_by_name }} {{ entry.performed_by_surname }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- detail-grid -->
+    </div><!-- body -->
+
+    <!-- ══ Confirm Dialog Overlay ══ -->
+    <div class="fox-tracker__overlay" ng-if="vm.confirm_action" ng-click="vm.cancelConfirm()">
+      <div class="fox-tracker__confirm-dialog" ng-click="$event.stopPropagation()">
+
+        <!-- Deactivate -->
+        <div ng-if="vm.confirm_action === 'deactivate'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn">
+              <i class="fas fa-pause-circle"></i>
+            </div>
+            <div class="fox-tracker__confirm-title">Deactivate Tracker?</div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <strong>{{ vm.tracker.label || vm.tracker.imei }}</strong>
+            <div ng-if="vm.assignments[0] && !vm.assignments[0].assigned_until" style="margin-top: 8px;">
+              This tracker is currently assigned to
+              <strong>{{ vm.assignments[0].plane_registration }}</strong>.
+              <ul>
+                <li>The current assignment will be ended</li>
+                <li>IoT data will stop being received</li>
+                <li>The tracker can be reactivated later</li>
+              </ul>
+            </div>
+            <div ng-if="!vm.assignments[0] || vm.assignments[0].assigned_until" style="margin-top: 8px;">
+              This tracker will be temporarily disabled.
+              It can be reactivated later.
+            </div>
+          </div>
+          <div class="fox-tracker__confirm-footer">
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelConfirm()"
+                    ng-disabled="vm.confirm_busy">Cancel</button>
+            <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.executeConfirm()"
+                    ng-disabled="vm.confirm_busy">
+              <i class="fas fa-pause"></i> {{ vm.confirm_busy ? 'Deactivating…' : 'Deactivate' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Reactivate -->
+        <div ng-if="vm.confirm_action === 'reactivate'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn">
+              <i class="fas fa-play-circle"></i>
+            </div>
+            <div class="fox-tracker__confirm-title">Reactivate Tracker?</div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <strong>{{ vm.tracker.label || vm.tracker.imei }}</strong>
+            <p style="margin-top: 8px;">
+              This tracker will be re-enabled. You will need to manually assign it to a plane.
+            </p>
+          </div>
+          <div class="fox-tracker__confirm-footer">
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelConfirm()"
+                    ng-disabled="vm.confirm_busy">Cancel</button>
+            <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.executeConfirm()"
+                    ng-disabled="vm.confirm_busy">
+              <i class="fas fa-play"></i> {{ vm.confirm_busy ? 'Reactivating…' : 'Reactivate' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Retire -->
+        <div ng-if="vm.confirm_action === 'retire'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--danger">
+              <i class="fas fa-ban"></i>
+            </div>
+            <div class="fox-tracker__confirm-title">Permanently Retire Tracker?</div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <strong>{{ vm.tracker.label || vm.tracker.imei }}</strong>
+            <p style="margin-top: 8px; color: #dc2626; font-weight: 600;">
+              This action CANNOT be undone.
+            </p>
+            <ul>
+              <li>The tracker will be permanently removed from service</li>
+              <li>It will no longer appear in assignment dropdowns</li>
+              <li>Historical data and assignments will be preserved</li>
+            </ul>
+          </div>
+          <div class="fox-tracker__confirm-footer">
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelConfirm()"
+                    ng-disabled="vm.confirm_busy">Cancel</button>
+            <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.executeConfirm()"
+                    ng-disabled="vm.confirm_busy">
+              <i class="fas fa-ban"></i> {{ vm.confirm_busy ? 'Retiring…' : 'Permanently Retire' }}
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- authorised -->
+</div>

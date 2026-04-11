@@ -132,24 +132,30 @@
                            
                     if(data.success){
                         vm.info = data.info;
-
-                        vm.savedCards = data.cards;
-
-                        if(vm.savedCards.length > 0){
-                            vm.methods[1].visible = true;
-                        } else {
-                            vm.methods[1].visible = false;
-                        }
-
-                        vm.machine = data.machine;
-                        if(vm.machine.success){
-                            vm.methods[3].visible = true;
-                        } else {
-                            vm.methods[3].visible = false;
-                        }
-
-                        vm.show_pay_now = true;
+                        vm.methods[0].visible = true;
+                    } else {
+                        vm.info = {};
+                        vm.methods[0].visible = false;
                     }
+
+                    vm.savedCards = data.cards || [];
+
+                    if(vm.savedCards.length > 0){
+                        vm.methods[1].visible = true;
+                    } else {
+                        vm.methods[1].visible = false;
+                    }
+
+                    vm.methods[2].visible = true;
+
+                    vm.machine = data.machine || {};
+                    if(vm.machine.success){
+                        vm.methods[3].visible = true;
+                    } else {
+                        vm.methods[3].visible = false;
+                    }
+
+                    vm.show_pay_now = true;
 
                 });
 

@@ -27,14 +27,58 @@
           <div class="repeat_invoices" ng-repeat="invoice in vm.invoices">
 
                 <div class="card">
-                
+
+                  <div class="fap-flight-header">
+                      <h5>
+                        <span ng-if="vm.invoices.length > 1">Flight {{$index + 1}} - </span>From {{ invoice.from }} To {{ invoice.to }}
+                      </h5>
+                      <div class="fap-flight-details" ng-if="invoice.flight_details">
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.flight_date">
+                          <i class="fa fa-calendar"></i> {{ invoice.flight_details.flight_date | asDate | date:'dd MMM yyyy' }}
+                        </div>
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.tpc_brakes_off">
+                          <i class="fa fa-clock-o"></i>
+                          Charged Time: {{ invoice.flight_details.tpc_brakes_off | brakesTime }} - {{ invoice.flight_details.tpc_brakes_on | brakesTime }}
+                        </div>
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.brakes_off_rounded">
+                          <i class="fa fa-clock-o" ng-if="!invoice.flight_details.tpc_brakes_off"></i>
+                          <span ng-if="invoice.flight_details.tpc_brakes_off">Logbook Time:</span>
+                          <span ng-if="!invoice.flight_details.tpc_brakes_off"><i class="fa fa-clock-o"></i></span>
+                          {{ invoice.flight_details.brakes_off_rounded | brakesTime }} - {{ invoice.flight_details.brakes_on_rounded | brakesTime }}
+                        </div>
+                        <div class="fap-detail-row" ng-if="invoice.plane_registration">
+                          <i class="fa fa-plane"></i> {{ invoice.plane_registration }}<span ng-if="invoice.plane_type"> - {{ invoice.plane_type }}</span>
+                        </div>
+
+                        <!-- PIC solo (no instructor) -->
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.holder_capacity == 'PIC' && invoice.flight_details.authorised_solo == 0">
+                          <i class="fa fa-user"></i> PIC: {{ invoice.flight_details.pic_name }}
+                        </div>
+
+                        <!-- PIC authorised solo (supervised) -->
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.holder_capacity == 'PIC' && invoice.flight_details.authorised_solo > 0">
+                          <i class="fa fa-user"></i> PIC: {{ invoice.flight_details.pic_name }}<br />
+                          <i class="fa fa-graduation-cap"></i> Supervised by: {{ invoice.flight_details.instructor_name }}
+                        </div>
+
+                        <!-- PICUS -->
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.holder_capacity == 'PICUS'">
+                          <i class="fa fa-user"></i> PIC: {{ invoice.flight_details.pic_name }}<br />
+                          <i class="fa fa-graduation-cap"></i> Supervised by: {{ invoice.flight_details.instructor_name }}
+                        </div>
+
+                        <!-- PUT (dual) -->
+                        <div class="fap-detail-row" ng-if="invoice.flight_details.holder_capacity == 'PUT'">
+                          <i class="fa fa-user"></i> PUT: {{ invoice.flight_details.put_name }}<br />
+                          <i class="fa fa-graduation-cap"></i> Instructor: {{ invoice.flight_details.pic_name }}
+                        </div>
+
+                      </div>
+                  </div>
+
+                  <hr class="fap-divider" />
 
                    <table>
-                    <tr>
-                      <td colspan="4">
-                          <h5><span ng-if="vm.invoices.length > 1"> Part {{$index + 1}} <!-- {{ invoice.flight }} --> - </span>From {{ invoice.from }} To {{ invoice.to }}</h5>
-                      </td>
-                    </tr>
                     <tr>
                       <th>
                         Item
@@ -49,7 +93,7 @@
                         Total
                       </th>
                     </tr>
-                    <tr ng-repeat="items in invoice.items">
+                    <tr ng-repeat="items in invoice.items" ng-if="!items.ui_hidden">
                       <td>
                         {{ items.title }}
                       </td>
@@ -57,10 +101,11 @@
                         {{ items.unit | number:2 }}
                       </td>
                       <td>
-                        @ £{{ items.unit_price | number:2 }}
+                        <span ng-if="!items.member_package_id || items.member_package_id == 0" uib-tooltip="{{ (items.vat_rate > 0) ? 'Includes VAT at '+items.vat_rate+'%' : 'No VAT charged' }}">@ {{ invoice.currency }}{{ (items.vat_rate > 0) ? (items.unit_price * (1+(items.vat_rate/100))) : items.unit_price | number:2 }}</span>
+                        <span ng-if="items.member_package_id > 0">from package</span>
                       </td>
                       <td>
-                        £{{ items.total | number:2 }}
+                        <span ng-if="!items.member_package_id || items.member_package_id == 0">{{ invoice.currency }}{{ items.total | number:2 }}</span>
                       </td>
                     </tr>
                     <tr class="total_line">
@@ -68,7 +113,7 @@
                         FLIGHT TOTAL
                       </td>
                       <td>
-                        <b>£{{ invoice.total | number:2 }}</b>
+                        <b>{{ invoice.currency }}{{ invoice.total | number:2 }}</b>
                       </td>
                     </tr>
                   </table>
@@ -83,8 +128,7 @@
               <table ng-if="vm.plane_charges.total !== 0 && vm.invoices.length > 1">
                 <tr>
                   <td colspan="4">
-                    <h5>Total<span ng-if="vm.invoices.length > 1"> for all flights</span></h5>
-
+                    <h5>Total for all flights</h5>
                   </td>
                 </tr>
               <tr>
@@ -104,10 +148,11 @@
 
                <tr ng-repeat="invoice in vm.invoices">
                   <td colspan="3">
-                    FLIGHT {{ invoice.flight }}
+                    Flight {{$index + 1}}: {{ invoice.from }} &rarr; {{ invoice.to }}
+                    <span ng-if="invoice.flight_details.flight_date" class="fap-summary-date">({{ invoice.flight_details.flight_date | asDate | date:'dd MMM yyyy' }})</span>
                   </td>
                   <td>
-                    <b>£{{ invoice.total | number:2 }}</b>
+                    <b>{{ invoice.currency }}{{ invoice.total | number:2 }}</b>
                   </td>
                 </tr>
 
@@ -118,7 +163,7 @@
                   ALL FLIGHTS
                 </td>
                 <td>
-                  <b>£{{ vm.invoice_totals | number:2 }}</b>
+                  <b>{{ vm.invoices[0].currency }}{{ vm.invoice_totals | number:2 }}</b>
                 </td>
               </tr>
 

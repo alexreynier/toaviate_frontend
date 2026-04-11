@@ -1,0 +1,289 @@
+<div class="snazzy-page">
+
+  <!-- ═══ Header ═══ -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ng-click="vm.goBack()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fa fa-history"></i> Booking History</h2>
+        <p>Audit trail for booking #{{ vm.bookingId }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ═══ Loading State ═══ -->
+    <div class="snazzy-page__empty" ng-if="vm.loading">
+      <div class="snazzy-page__spinner"></div>
+      <p>Loading booking history…</p>
+    </div>
+
+    <!-- ═══ Access Denied ═══ -->
+    <div class="bat-access-denied" ng-if="!vm.loading && vm.accessDenied">
+      <div class="bat-access-denied__icon">
+        <i class="fa fa-lock"></i>
+      </div>
+      <h3 class="bat-access-denied__title">Access Restricted</h3>
+      <p class="bat-access-denied__text">You do not have permission to view this booking's history. Only booking participants, instructors, and administrators can view audit trails.</p>
+      <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.goBack()">
+        <i class="fa fa-arrow-left"></i> Go Back
+      </button>
+    </div>
+
+    <!-- ═══ Error State ═══ -->
+    <div class="snazzy-page__empty" ng-if="!vm.loading && vm.error">
+      <i class="fa fa-exclamation-triangle snazzy-page__empty-icon"></i>
+      <p>Failed to load booking history</p>
+      <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.loadAuditTrail()" style="margin-top:12px;">
+        <i class="fa fa-redo"></i> Retry
+      </button>
+    </div>
+
+    <!-- ═══ Empty State ═══ -->
+    <div class="snazzy-page__empty" ng-if="!vm.loading && !vm.error && !vm.accessDenied && vm.auditTrail.length === 0">
+      <i class="fa fa-clipboard-list snazzy-page__empty-icon"></i>
+      <p>No history recorded for this booking</p>
+    </div>
+
+    <!-- ═══ Audit Trail Content ═══ -->
+    <div ng-if="!vm.loading && !vm.error && !vm.accessDenied && vm.auditTrail.length > 0">
+
+      <!-- ── Summary Card ── -->
+      <div class="snazzy-page__summary-card bat-summary">
+        <div class="snazzy-page__summary-grid">
+          <div class="snazzy-page__stat">
+            <span class="snazzy-page__stat-label">Total Events</span>
+            <span class="snazzy-page__stat-value">{{ vm.auditTrail.length }}</span>
+          </div>
+          <div class="snazzy-page__stat">
+            <span class="snazzy-page__stat-label">Booking ID</span>
+            <span class="snazzy-page__stat-value">#{{ vm.bookingId }}</span>
+          </div>
+          <div class="snazzy-page__stat" ng-if="vm.auditTrail[vm.auditTrail.length - 1]">
+            <span class="snazzy-page__stat-label">Created</span>
+            <span class="snazzy-page__stat-value">{{ vm.formatDate(vm.auditTrail[vm.auditTrail.length - 1].created_at) }}</span>
+          </div>
+          <div class="snazzy-page__stat" ng-if="vm.auditTrail[0]">
+            <span class="snazzy-page__stat-label">Last Activity</span>
+            <span class="snazzy-page__stat-value">{{ vm.formatDate(vm.auditTrail[0].created_at) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Timeline (Desktop) ── -->
+      <div class="snazzy-desktop-table">
+        <div class="bat-timeline">
+
+          <div class="bat-timeline__entry" ng-repeat="entry in vm.auditTrail track by entry.id"
+               ng-class="{'bat-timeline__entry--expanded': vm.expandedEntryId === entry.id}">
+
+            <!-- Timeline dot + connector -->
+            <div class="bat-timeline__rail">
+              <div class="bat-timeline__dot" ng-class="vm.getActionBadgeClass(entry.action)">
+                <i class="fa" ng-class="vm.getActionIcon(entry.action)"></i>
+              </div>
+              <div class="bat-timeline__connector" ng-if="!$last"></div>
+            </div>
+
+            <!-- Entry card -->
+            <div class="bat-timeline__card" ng-click="vm.toggleExpand(entry.id)">
+              <div class="bat-timeline__card-header">
+                <div class="bat-timeline__card-meta">
+                  <span class="bat-badge" ng-class="vm.getActionBadgeClass(entry.action)">
+                    <i class="fa" ng-class="vm.getActionIcon(entry.action)"></i>
+                    {{ vm.getActionLabel(entry.action) }}
+                  </span>
+                  <span class="bat-timeline__datetime">
+                    <i class="fa fa-clock"></i>
+                    {{ vm.formatDate(entry.created_at) }} at {{ vm.formatTime(entry.created_at) }}
+                  </span>
+                </div>
+                <div class="bat-timeline__actor">
+                  <span class="bat-timeline__actor-name">
+                    <i class="fa fa-user"></i>
+                    {{ entry.actor_first_name }} {{ entry.actor_last_name }}
+                  </span>
+                </div>
+                <i class="fa bat-timeline__chevron" ng-class="vm.expandedEntryId === entry.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              </div>
+
+              <!-- Changes summary (always visible) -->
+              <div class="bat-timeline__summary" ng-if="entry.changes_summary">
+                <span class="bat-timeline__summary-text">{{ entry.changes_summary }}</span>
+              </div>
+
+              <!-- Reason (for declined) -->
+              <div class="bat-timeline__reason" ng-if="entry.reason">
+                <i class="fa fa-quote-left"></i>
+                <span>{{ entry.reason }}</span>
+              </div>
+
+              <!-- Expanded detail -->
+              <div class="bat-timeline__detail" ng-if="vm.expandedEntryId === entry.id">
+
+                <!-- Change diff for updated actions -->
+                <div class="bat-diff" ng-if="entry.action === 'updated' && entry.snapshot_before && entry.snapshot_after">
+                  <h4 class="bat-diff__title"><i class="fa fa-exchange-alt"></i> Changes</h4>
+                  <div class="bat-diff__table">
+                    <div class="bat-diff__row bat-diff__row--header">
+                      <span class="bat-diff__cell bat-diff__cell--field">Field</span>
+                      <span class="bat-diff__cell bat-diff__cell--before">Before</span>
+                      <span class="bat-diff__cell bat-diff__cell--after">After</span>
+                    </div>
+                    <div class="bat-diff__row" ng-repeat="change in vm.getChanges(entry.snapshot_before, entry.snapshot_after) track by change.field">
+                      <span class="bat-diff__cell bat-diff__cell--field">{{ vm.friendlyFieldName(change.field) }}</span>
+                      <span class="bat-diff__cell bat-diff__cell--before bat-diff__cell--removed">{{ change.from }}</span>
+                      <span class="bat-diff__cell bat-diff__cell--after bat-diff__cell--added">{{ change.to }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Snapshot for created actions -->
+                <div class="bat-snapshot" ng-if="entry.action === 'created' && entry.snapshot_after">
+                  <h4 class="bat-snapshot__title"><i class="fa fa-file-alt"></i> Booking Details</h4>
+                  <div class="bat-snapshot__grid">
+                    <div class="bat-snapshot__item" ng-repeat="(key, value) in entry.snapshot_after"
+                         ng-if="value !== null && value !== ''">
+                      <span class="bat-snapshot__label">{{ vm.friendlyFieldName(key) }}</span>
+                      <span class="bat-snapshot__value">{{ value }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Snapshot for deleted actions -->
+                <div class="bat-snapshot" ng-if="entry.action === 'deleted' && entry.snapshot_before">
+                  <h4 class="bat-snapshot__title"><i class="fa fa-file-alt"></i> Deleted Booking Details</h4>
+                  <div class="bat-snapshot__grid">
+                    <div class="bat-snapshot__item" ng-repeat="(key, value) in entry.snapshot_before"
+                         ng-if="value !== null && value !== ''">
+                      <span class="bat-snapshot__label">{{ vm.friendlyFieldName(key) }}</span>
+                      <span class="bat-snapshot__value">{{ value }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Extended info -->
+                <div class="bat-diff" ng-if="entry.action === 'extended' && entry.snapshot_before && entry.snapshot_after">
+                  <h4 class="bat-diff__title"><i class="fa fa-arrows-alt-h"></i> Extension Details</h4>
+                  <div class="bat-diff__table">
+                    <div class="bat-diff__row bat-diff__row--header">
+                      <span class="bat-diff__cell bat-diff__cell--field">Field</span>
+                      <span class="bat-diff__cell bat-diff__cell--before">Before</span>
+                      <span class="bat-diff__cell bat-diff__cell--after">After</span>
+                    </div>
+                    <div class="bat-diff__row" ng-repeat="change in vm.getChanges(entry.snapshot_before, entry.snapshot_after) track by change.field">
+                      <span class="bat-diff__cell bat-diff__cell--field">{{ vm.friendlyFieldName(change.field) }}</span>
+                      <span class="bat-diff__cell bat-diff__cell--before bat-diff__cell--removed">{{ change.from }}</span>
+                      <span class="bat-diff__cell bat-diff__cell--after bat-diff__cell--added">{{ change.to }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Meta info -->
+                <div class="bat-meta">
+                  <span class="bat-meta__item" ng-if="entry.ip_address">
+                    <i class="fa fa-globe"></i> {{ entry.ip_address }}
+                  </span>
+                  <span class="bat-meta__item" ng-if="entry.user_agent" uib-tooltip="{{ entry.user_agent }}" tooltip-placement="top">
+                    <i class="fa fa-desktop"></i> {{ entry.user_agent | limitTo:50 }}{{ entry.user_agent.length > 50 ? '…' : '' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Mobile Cards ── -->
+      <div class="snazzy-mobile-cards">
+        <div class="snazzy-mobile-card bat-mobile-entry" ng-repeat="entry in vm.auditTrail track by entry.id"
+             ng-click="vm.toggleExpand(entry.id)">
+
+          <div class="snazzy-mobile-card__header">
+            <span class="bat-badge" ng-class="vm.getActionBadgeClass(entry.action)">
+              <i class="fa" ng-class="vm.getActionIcon(entry.action)"></i>
+              {{ vm.getActionLabel(entry.action) }}
+            </span>
+            <span style="margin-left:auto; font-size:11px; opacity:0.7;">
+              {{ vm.formatDate(entry.created_at) }}
+            </span>
+          </div>
+
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">By</span>
+              <span class="snazzy-mobile-card__value">{{ entry.actor_first_name }} {{ entry.actor_last_name }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Time</span>
+              <span class="snazzy-mobile-card__value">{{ vm.formatTime(entry.created_at) }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="entry.changes_summary">
+              <span class="snazzy-mobile-card__label">Changes</span>
+              <span class="snazzy-mobile-card__value" style="font-size:12px; text-align:right; max-width:60%;">{{ entry.changes_summary }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="entry.reason">
+              <span class="snazzy-mobile-card__label">Reason</span>
+              <span class="snazzy-mobile-card__value" style="font-size:12px; color:#dc2626;">{{ entry.reason }}</span>
+            </div>
+
+            <!-- Expanded detail on mobile -->
+            <div ng-if="vm.expandedEntryId === entry.id" class="bat-mobile-detail">
+
+              <!-- Diff for updated -->
+              <div ng-if="entry.action === 'updated' && entry.snapshot_before && entry.snapshot_after" class="bat-mobile-detail__section">
+                <div class="bat-mobile-detail__heading"><i class="fa fa-exchange-alt"></i> Changes</div>
+                <div class="bat-mobile-detail__change" ng-repeat="change in vm.getChanges(entry.snapshot_before, entry.snapshot_after) track by change.field">
+                  <span class="bat-mobile-detail__field">{{ vm.friendlyFieldName(change.field) }}</span>
+                  <span class="bat-mobile-detail__from">{{ change.from }}</span>
+                  <span class="bat-mobile-detail__arrow"><i class="fa fa-long-arrow-alt-right"></i></span>
+                  <span class="bat-mobile-detail__to">{{ change.to }}</span>
+                </div>
+              </div>
+
+              <!-- Snapshot for created -->
+              <div ng-if="entry.action === 'created' && entry.snapshot_after" class="bat-mobile-detail__section">
+                <div class="bat-mobile-detail__heading"><i class="fa fa-file-alt"></i> Booking Details</div>
+                <div class="snazzy-mobile-card__row" ng-repeat="(key, value) in entry.snapshot_after"
+                     ng-if="value !== null && value !== ''">
+                  <span class="snazzy-mobile-card__label">{{ vm.friendlyFieldName(key) }}</span>
+                  <span class="snazzy-mobile-card__value">{{ value }}</span>
+                </div>
+              </div>
+
+              <!-- Snapshot for deleted -->
+              <div ng-if="entry.action === 'deleted' && entry.snapshot_before" class="bat-mobile-detail__section">
+                <div class="bat-mobile-detail__heading"><i class="fa fa-file-alt"></i> Deleted Details</div>
+                <div class="snazzy-mobile-card__row" ng-repeat="(key, value) in entry.snapshot_before"
+                     ng-if="value !== null && value !== ''">
+                  <span class="snazzy-mobile-card__label">{{ vm.friendlyFieldName(key) }}</span>
+                  <span class="snazzy-mobile-card__value">{{ value }}</span>
+                </div>
+              </div>
+
+              <!-- Extended -->
+              <div ng-if="entry.action === 'extended' && entry.snapshot_before && entry.snapshot_after" class="bat-mobile-detail__section">
+                <div class="bat-mobile-detail__heading"><i class="fa fa-arrows-alt-h"></i> Extension</div>
+                <div class="bat-mobile-detail__change" ng-repeat="change in vm.getChanges(entry.snapshot_before, entry.snapshot_after) track by change.field">
+                  <span class="bat-mobile-detail__field">{{ vm.friendlyFieldName(change.field) }}</span>
+                  <span class="bat-mobile-detail__from">{{ change.from }}</span>
+                  <span class="bat-mobile-detail__arrow"><i class="fa fa-long-arrow-alt-right"></i></span>
+                  <span class="bat-mobile-detail__to">{{ change.to }}</span>
+                </div>
+              </div>
+
+              <div class="bat-mobile-detail__meta" ng-if="entry.ip_address">
+                <i class="fa fa-globe"></i> {{ entry.ip_address }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,712 @@
+<!-- ═══════════════════════════════════════════════════════════════════
+     ACCOUNTING EXPORT — Sage50 Integration
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="acct-export">
+
+    <!-- ─── Header ─── -->
+    <div class="acct-export__header">
+        <div class="acct-export__header-inner">
+            <div class="back-box" ui-sref="dashboard.manage_club">
+                <i class="fa fa-arrow-circle-left"></i> BACK
+            </div>
+            <div class="acct-export__title">
+                <h2><i class="fas fa-file-export"></i> Accounting Export</h2>
+                <p>Export financial data to Sage50 &amp; manage accounting codes</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Message Banner ─── -->
+    <div class="acct-export__message" ng-if="vm.message"
+         ng-class="{'acct-export__message--success': vm.message.type === 'success',
+                     'acct-export__message--error': vm.message.type === 'error',
+                     'acct-export__message--warning': vm.message.type === 'warning'}">
+        <i class="fas" ng-class="{'fa-check-circle': vm.message.type === 'success',
+                                    'fa-exclamation-circle': vm.message.type === 'error',
+                                    'fa-exclamation-triangle': vm.message.type === 'warning'}"></i>
+        <span>{{ vm.message.text }}</span>
+        <button class="acct-export__message-close" ng-click="vm.message = null">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- ─── Loading State ─── -->
+    <div class="acct-export__loading" ng-if="vm.loading">
+        <div class="snazzy-page__spinner"></div>
+        <p>Loading accounting settings…</p>
+    </div>
+
+    <!-- ─── Main Content ─── -->
+    <div ng-if="!vm.loading">
+
+        <!-- ─── Tab Navigation ─── -->
+        <div class="acct-export__tab-bar">
+            <button class="acct-export__tab-btn"
+                    ng-class="{'acct-export__tab-btn--active': vm.active_tab === 'settings'}"
+                    ng-click="setTab('settings')">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+            <button class="acct-export__tab-btn"
+                    ng-class="{'acct-export__tab-btn--active': vm.active_tab === 'codes'}"
+                    ng-click="setTab('codes')">
+                <i class="fas fa-tags"></i> Accounting Codes
+            </button>
+            <button class="acct-export__tab-btn"
+                    ng-class="{'acct-export__tab-btn--active': vm.active_tab === 'export'}"
+                    ng-click="setTab('export')">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             TAB 1: SETTINGS
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="acct-export__content" ng-if="vm.active_tab === 'settings'">
+
+            <!-- Enable Toggle -->
+            <div class="acct-export__card">
+                <div class="acct-export__card-header">
+                    <i class="fas fa-power-off"></i> Enable Accounting Export
+                </div>
+                <div class="acct-export__card-body">
+                    <div class="acct-export__toggle-row">
+                        <label class="acct-export__toggle">
+                            <input type="checkbox" ng-model="vm.accounting_enabled" />
+                            <span class="acct-export__toggle-slider"></span>
+                        </label>
+                        <div class="acct-export__toggle-label">
+                            <strong ng-if="vm.accounting_enabled">Accounting export is enabled</strong>
+                            <strong ng-if="!vm.accounting_enabled">Accounting export is disabled</strong>
+                            <p>Enable to configure nominal codes and export financial data to Sage50</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div ng-if="vm.accounting_enabled">
+
+                <!-- General Settings -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-sliders-h"></i> General
+                    </div>
+                    <div class="acct-export__card-body">
+                        <div class="acct-export__form-grid">
+                            <div class="acct-export__form-group">
+                                <label>Export Format</label>
+                                <select ng-model="vm.settings.export_format">
+                                    <option value="sage50">Sage50 CSV</option>
+                                    <option value="csv">Generic CSV</option>
+                                    <option value="excel">Excel</option>
+                                </select>
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Customer Code Prefix</label>
+                                <input type="text" ng-model="vm.settings.customer_prefix"
+                                       placeholder="e.g. TPC" maxlength="10" />
+                            </div>
+                        </div>
+                        <div class="acct-export__form-grid acct-export__form-grid--3">
+                            <div class="acct-export__form-group">
+                                <label class="acct-export__checkbox-label">
+                                    <input type="checkbox" ng-model="vm.settings.include_vat_breakdown" />
+                                    <span>Include VAT breakdown</span>
+                                </label>
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label class="acct-export__checkbox-label">
+                                    <input type="checkbox" ng-model="vm.settings.include_fee_breakdown" />
+                                    <span>Include fee breakdown</span>
+                                </label>
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label class="acct-export__checkbox-label">
+                                    <input type="checkbox" ng-model="vm.settings.export_paid_only" />
+                                    <span>Export paid invoices only</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Revenue Nominal Codes -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-coins"></i> Revenue Nominal Codes
+                    </div>
+                    <div class="acct-export__card-body">
+                        <div class="acct-export__form-grid acct-export__form-grid--4">
+                            <div class="acct-export__form-group">
+                                <label>Aircraft Hire</label>
+                                <input type="text" ng-model="vm.settings.default_aircraft_code" placeholder="4000" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Instruction</label>
+                                <input type="text" ng-model="vm.settings.default_tuition_code" placeholder="4010" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Landing Fees</label>
+                                <input type="text" ng-model="vm.settings.default_landing_code" placeholder="4001" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Touch &amp; Go</label>
+                                <input type="text" ng-model="vm.settings.default_touch_go_code" placeholder="4002" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Shop / Equipment</label>
+                                <input type="text" ng-model="vm.settings.default_rental_code" placeholder="4020" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Memberships</label>
+                                <input type="text" ng-model="vm.settings.default_membership_code" placeholder="4030" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Vouchers</label>
+                                <input type="text" ng-model="vm.settings.default_voucher_code" placeholder="4040" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Other Income</label>
+                                <input type="text" ng-model="vm.settings.default_other_code" placeholder="4099" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fee Expense Codes -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-hand-holding-usd"></i> Fee Expense Codes
+                    </div>
+                    <div class="acct-export__card-body">
+                        <div class="acct-export__form-grid acct-export__form-grid--3">
+                            <div class="acct-export__form-group">
+                                <label>Stripe Fees</label>
+                                <input type="text" ng-model="vm.settings.stripe_fee_code" placeholder="7901" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>GoCardless Fees</label>
+                                <input type="text" ng-model="vm.settings.gocardless_fee_code" placeholder="7902" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>ToAviate Fees</label>
+                                <input type="text" ng-model="vm.settings.platform_fee_code" placeholder="7903" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bank Codes -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-university"></i> Bank &amp; Cash Codes
+                    </div>
+                    <div class="acct-export__card-body">
+                        <div class="acct-export__form-grid acct-export__form-grid--3">
+                            <div class="acct-export__form-group">
+                                <label>Bank Account</label>
+                                <input type="text" ng-model="vm.settings.bank_account_code" placeholder="1200" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Cash in Hand</label>
+                                <input type="text" ng-model="vm.settings.cash_account_code" placeholder="1230" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Card Machine</label>
+                                <input type="text" ng-model="vm.settings.card_account_code" placeholder="Optional" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VAT Codes -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-percentage"></i> VAT Codes
+                    </div>
+                    <div class="acct-export__card-body">
+                        <div class="acct-export__form-grid acct-export__form-grid--3">
+                            <div class="acct-export__form-group">
+                                <label>Standard Rate</label>
+                                <input type="text" ng-model="vm.settings.vat_code_standard" placeholder="T1" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Exempt</label>
+                                <input type="text" ng-model="vm.settings.vat_code_exempt" placeholder="T0" />
+                            </div>
+                            <div class="acct-export__form-group">
+                                <label>Zero Rate</label>
+                                <input type="text" ng-model="vm.settings.vat_code_zero" placeholder="T0" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /accounting_enabled -->
+
+            <!-- Save Button -->
+            <div class="acct-export__actions">
+                <button class="acct-export__btn acct-export__btn--primary"
+                        ng-click="vm.saveSettings()"
+                        ng-disabled="vm.saving">
+                    <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                    {{ vm.saving ? 'Saving…' : 'Save Settings' }}
+                </button>
+            </div>
+
+        </div><!-- /settings tab -->
+
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             TAB 2: ACCOUNTING CODES
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="acct-export__content" ng-if="vm.active_tab === 'codes'">
+
+            <!-- Codes Sub-Tab Navigation -->
+            <div class="acct-export__subtab-bar">
+                <button class="acct-export__subtab-btn"
+                        ng-class="{'acct-export__subtab-btn--active': vm.codes_tab === 'members'}"
+                        ng-click="setCodesTab('members')">
+                    <i class="fas fa-users"></i> Members
+                    <span class="acct-export__subtab-count" ng-if="vm.codes.members.length">{{ vm.codes.members.length }}</span>
+                </button>
+                <button class="acct-export__subtab-btn"
+                        ng-class="{'acct-export__subtab-btn--active': vm.codes_tab === 'aircraft'}"
+                        ng-click="setCodesTab('aircraft')">
+                    <i class="fas fa-plane"></i> Aircraft
+                    <span class="acct-export__subtab-count" ng-if="vm.codes.aircraft.length">{{ vm.codes.aircraft.length }}</span>
+                </button>
+                <button class="acct-export__subtab-btn"
+                        ng-class="{'acct-export__subtab-btn--active': vm.codes_tab === 'items'}"
+                        ng-click="setCodesTab('items')">
+                    <i class="fas fa-box-open"></i> Items
+                    <span class="acct-export__subtab-count" ng-if="vm.codes.items.length">{{ vm.codes.items.length }}</span>
+                </button>
+                <button class="acct-export__subtab-btn"
+                        ng-class="{'acct-export__subtab-btn--active': vm.codes_tab === 'memberships'}"
+                        ng-click="setCodesTab('memberships')">
+                    <i class="fas fa-id-card"></i> Memberships
+                    <span class="acct-export__subtab-count" ng-if="vm.codes.memberships.length">{{ vm.codes.memberships.length }}</span>
+                </button>
+            </div>
+
+            <!-- Loading codes -->
+            <div class="acct-export__loading" ng-if="vm.codes_loading">
+                <div class="snazzy-page__spinner"></div>
+                <p>Loading accounting codes…</p>
+            </div>
+
+            <div ng-if="!vm.codes_loading">
+
+                <!-- ── MEMBERS TAB ── -->
+                <div ng-if="vm.codes_tab === 'members'">
+
+                    <!-- Auto Generate Controls -->
+                    <div class="acct-export__card acct-export__card--highlight">
+                        <div class="acct-export__card-header">
+                            <i class="fas fa-magic"></i> Auto-Generate Member Codes
+                        </div>
+                        <div class="acct-export__card-body">
+                            <div class="acct-export__auto-gen">
+                                <div class="acct-export__form-group">
+                                    <label>Prefix</label>
+                                    <input type="text" ng-model="vm.auto_gen_prefix"
+                                           placeholder="TPC" maxlength="10" />
+                                </div>
+                                <div class="acct-export__form-group">
+                                    <label>Start Number</label>
+                                    <input type="number" ng-model="vm.auto_gen_start"
+                                           min="1" placeholder="1" />
+                                </div>
+                                <div class="acct-export__form-group">
+                                    <label class="acct-export__checkbox-label">
+                                        <input type="checkbox" ng-model="vm.auto_gen_overwrite" />
+                                        <span>Overwrite existing</span>
+                                    </label>
+                                </div>
+                                <button class="acct-export__btn acct-export__btn--info"
+                                        ng-click="vm.autoGenerateCodes()"
+                                        ng-disabled="vm.saving">
+                                    <i class="fas fa-magic"></i> Generate
+                                </button>
+                            </div>
+                            <div class="acct-export__auto-gen-note" ng-if="vm.getMembersWithoutCodes() > 0">
+                                <i class="fas fa-info-circle"></i>
+                                {{ vm.getMembersWithoutCodes() }} member(s) have no accounting code assigned
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="acct-export__toolbar">
+                        <div class="acct-export__search-wrap">
+                            <i class="fas fa-search"></i>
+                            <input type="text" ng-model="vm.codes_search"
+                                   placeholder="Search members by name, email or code…"
+                                   class="acct-export__search-input" />
+                        </div>
+                    </div>
+
+                    <!-- Members Table -->
+                    <div class="acct-export__table-wrap">
+                        <table class="acct-export__table">
+                            <thead>
+                                <tr>
+                                    <th>Member ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Accounting Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="member in vm.codes.members | filter:searchCodes"
+                                    ng-class="{'acct-export__row--no-code': !member.accounting_code}">
+                                    <td class="acct-export__cell--muted">{{ member.id }}</td>
+                                    <td class="acct-export__cell--name">{{ member.first_name }} {{ member.last_name }}</td>
+                                    <td class="acct-export__cell--muted">{{ member.email }}</td>
+                                    <td>
+                                        <input type="text" class="acct-export__inline-input"
+                                               ng-model="member.accounting_code"
+                                               placeholder="No code" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="acct-export__empty" ng-if="!vm.codes.members.length">
+                        <i class="fas fa-users"></i>
+                        <p>No members found</p>
+                    </div>
+
+                    <div class="acct-export__actions" ng-if="vm.codes.members.length">
+                        <button class="acct-export__btn acct-export__btn--primary"
+                                ng-click="vm.saveMemberCodes()"
+                                ng-disabled="vm.saving">
+                            <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                            {{ vm.saving ? 'Saving…' : 'Save Member Codes' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── AIRCRAFT TAB ── -->
+                <div ng-if="vm.codes_tab === 'aircraft'">
+                    <div class="acct-export__table-wrap">
+                        <table class="acct-export__table">
+                            <thead>
+                                <tr>
+                                    <th>Registration</th>
+                                    <th>Type</th>
+                                    <th>Nominal Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="ac in vm.codes.aircraft">
+                                    <td class="acct-export__cell--name">{{ ac.registration }}</td>
+                                    <td class="acct-export__cell--muted">{{ ac.plane_type }}</td>
+                                    <td>
+                                        <input type="text" class="acct-export__inline-input"
+                                               ng-model="ac.club_override"
+                                               placeholder="{{ ac.plane_code || '4000' }}" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="acct-export__empty" ng-if="!vm.codes.aircraft.length">
+                        <i class="fas fa-plane"></i>
+                        <p>No aircraft found</p>
+                    </div>
+
+                    <div class="acct-export__actions" ng-if="vm.codes.aircraft.length">
+                        <button class="acct-export__btn acct-export__btn--primary"
+                                ng-click="vm.saveAircraftCodes()"
+                                ng-disabled="vm.saving">
+                            <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                            {{ vm.saving ? 'Saving…' : 'Save Aircraft Codes' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── ITEMS TAB ── -->
+                <div ng-if="vm.codes_tab === 'items'">
+                    <div class="acct-export__table-wrap">
+                        <table class="acct-export__table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Cost</th>
+                                    <th>Nominal Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="item in vm.codes.items">
+                                    <td class="acct-export__cell--name">{{ item.title }}</td>
+                                    <td class="acct-export__cell--muted">{{ vm.formatCurrency(item.cost) }}</td>
+                                    <td>
+                                        <input type="text" class="acct-export__inline-input"
+                                               ng-model="item.accounting_code"
+                                               placeholder="4020" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="acct-export__empty" ng-if="!vm.codes.items.length">
+                        <i class="fas fa-box-open"></i>
+                        <p>No rental items found</p>
+                    </div>
+
+                    <div class="acct-export__actions" ng-if="vm.codes.items.length">
+                        <button class="acct-export__btn acct-export__btn--primary"
+                                ng-click="vm.saveItemCodes()"
+                                ng-disabled="vm.saving">
+                            <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                            {{ vm.saving ? 'Saving…' : 'Save Item Codes' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── MEMBERSHIPS TAB ── -->
+                <div ng-if="vm.codes_tab === 'memberships'">
+                    <div class="acct-export__table-wrap">
+                        <table class="acct-export__table">
+                            <thead>
+                                <tr>
+                                    <th>Membership Type</th>
+                                    <th>Nominal Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="ms in vm.codes.memberships">
+                                    <td class="acct-export__cell--name">{{ ms.membership_name }}</td>
+                                    <td>
+                                        <input type="text" class="acct-export__inline-input"
+                                               ng-model="ms.accounting_code"
+                                               placeholder="4030" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="acct-export__empty" ng-if="!vm.codes.memberships.length">
+                        <i class="fas fa-id-card"></i>
+                        <p>No membership types found</p>
+                    </div>
+
+                    <div class="acct-export__actions" ng-if="vm.codes.memberships.length">
+                        <button class="acct-export__btn acct-export__btn--primary"
+                                ng-click="vm.saveMembershipCodes()"
+                                ng-disabled="vm.saving">
+                            <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                            {{ vm.saving ? 'Saving…' : 'Save Membership Codes' }}
+                        </button>
+                    </div>
+                </div>
+
+            </div><!-- /codes loaded -->
+        </div><!-- /codes tab -->
+
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             TAB 3: EXPORT
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="acct-export__content" ng-if="vm.active_tab === 'export'">
+
+            <!-- Export Controls -->
+            <div class="acct-export__card">
+                <div class="acct-export__card-header">
+                    <i class="fas fa-calendar-alt"></i> Export Transactions
+                </div>
+                <div class="acct-export__card-body">
+
+                    <!-- Quick Date Presets -->
+                    <div class="acct-export__presets">
+                        <span class="acct-export__presets-label">Quick select:</span>
+                        <button class="acct-export__preset-btn" ng-click="vm.setDatePreset('this_month')">This Month</button>
+                        <button class="acct-export__preset-btn" ng-click="vm.setDatePreset('last_month')">Last Month</button>
+                        <button class="acct-export__preset-btn" ng-click="vm.setDatePreset('this_quarter')">This Quarter</button>
+                        <button class="acct-export__preset-btn" ng-click="vm.setDatePreset('last_quarter')">Last Quarter</button>
+                        <button class="acct-export__preset-btn" ng-click="vm.setDatePreset('this_year')">This Year</button>
+                    </div>
+
+                    <div class="acct-export__export-controls">
+                        <div class="acct-export__form-group">
+                            <label>Start Date</label>
+                            <input type="date" ng-model="vm.export_start_date" />
+                        </div>
+                        <div class="acct-export__form-group">
+                            <label>End Date</label>
+                            <input type="date" ng-model="vm.export_end_date" />
+                        </div>
+                        <div class="acct-export__form-group">
+                            <label>Export Type</label>
+                            <select ng-model="vm.export_type">
+                                <option value="daybook">Daybook (SI, SR, PP)</option>
+                                <option value="invoices">Invoices Only</option>
+                                <option value="payments">Payments Only</option>
+                                <option value="customers">Customer Records</option>
+                            </select>
+                        </div>
+                        <div class="acct-export__form-group">
+                            <label class="acct-export__checkbox-label">
+                                <input type="checkbox" ng-model="vm.include_fees" />
+                                <span>Include fees as expenses</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="acct-export__export-btns">
+                        <button class="acct-export__btn acct-export__btn--outline"
+                                ng-click="vm.loadPreview()"
+                                ng-disabled="vm.previewing">
+                            <i class="fas" ng-class="vm.previewing ? 'fa-spinner fa-spin' : 'fa-eye'"></i>
+                            {{ vm.previewing ? 'Loading…' : 'Preview' }}
+                        </button>
+                        <button class="acct-export__btn acct-export__btn--success"
+                                ng-click="vm.downloadExport()"
+                                ng-disabled="vm.downloading">
+                            <i class="fas" ng-class="vm.downloading ? 'fa-spinner fa-spin' : 'fa-file-csv'"></i>
+                            {{ vm.downloading ? 'Downloading…' : 'Download CSV' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Results -->
+            <div ng-if="vm.preview">
+
+                <!-- Summary Cards -->
+                <div class="acct-export__summary-grid">
+                    <div class="acct-export__summary-card acct-export__summary-card--invoices">
+                        <div class="acct-export__summary-icon"><i class="fas fa-file-invoice"></i></div>
+                        <div class="acct-export__summary-value">{{ vm.preview.summary.invoice_count }}</div>
+                        <div class="acct-export__summary-label">Invoices</div>
+                    </div>
+                    <div class="acct-export__summary-card acct-export__summary-card--payments">
+                        <div class="acct-export__summary-icon"><i class="fas fa-credit-card"></i></div>
+                        <div class="acct-export__summary-value">{{ vm.preview.summary.payment_count }}</div>
+                        <div class="acct-export__summary-label">Payments</div>
+                    </div>
+                    <div class="acct-export__summary-card acct-export__summary-card--gross">
+                        <div class="acct-export__summary-icon"><i class="fas fa-pound-sign"></i></div>
+                        <div class="acct-export__summary-value">{{ vm.formatCurrency(vm.preview.summary.total_gross) }}</div>
+                        <div class="acct-export__summary-label">Total Gross</div>
+                    </div>
+                    <div class="acct-export__summary-card acct-export__summary-card--fees">
+                        <div class="acct-export__summary-icon"><i class="fas fa-receipt"></i></div>
+                        <div class="acct-export__summary-value">{{ vm.formatCurrency(vm.preview.summary.total_fees) }}</div>
+                        <div class="acct-export__summary-label">Total Fees</div>
+                    </div>
+                    <div class="acct-export__summary-card acct-export__summary-card--net">
+                        <div class="acct-export__summary-icon"><i class="fas fa-wallet"></i></div>
+                        <div class="acct-export__summary-value">{{ vm.formatCurrency(vm.preview.summary.total_net) }}</div>
+                        <div class="acct-export__summary-label">Net Amount</div>
+                    </div>
+                </div>
+
+                <!-- Warnings -->
+                <div class="acct-export__warnings" ng-if="vm.preview.warnings.length">
+                    <div class="acct-export__warning" ng-repeat="w in vm.preview.warnings">
+                        <i class="fas fa-exclamation-triangle"></i> {{ w }}
+                    </div>
+                </div>
+
+                <!-- Transaction Preview Table -->
+                <div class="acct-export__card">
+                    <div class="acct-export__card-header">
+                        <i class="fas fa-table"></i> Transaction Preview
+                        <span class="acct-export__card-header-count">{{ vm.preview.transactions.length }} records</span>
+                    </div>
+                    <div class="acct-export__table-wrap">
+                        <table class="acct-export__table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Account Ref</th>
+                                    <th>Nominal Code</th>
+                                    <th>Date</th>
+                                    <th>Reference</th>
+                                    <th>Details</th>
+                                    <th class="acct-export__th--right">Net Amount</th>
+                                    <th>Tax Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="txn in vm.preview.transactions | limitTo:100">
+                                    <td>
+                                        <span class="acct-export__badge" ng-class="vm.getTypeBadgeClass(txn.type)">
+                                            {{ txn.type }}
+                                        </span>
+                                    </td>
+                                    <td class="acct-export__cell--mono">{{ txn.account_ref }}</td>
+                                    <td class="acct-export__cell--mono">{{ txn.nominal_code }}</td>
+                                    <td class="acct-export__cell--muted">{{ txn.date }}</td>
+                                    <td class="acct-export__cell--mono">{{ txn.reference }}</td>
+                                    <td>{{ txn.details }}</td>
+                                    <td class="acct-export__th--right acct-export__cell--amount">{{ vm.formatCurrency(txn.net_amount) }}</td>
+                                    <td class="acct-export__cell--mono">{{ txn.tax_code }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="acct-export__preview-note" ng-if="vm.preview.transactions.length > 100">
+                        <i class="fas fa-info-circle"></i> Showing first 100 of {{ vm.preview.transactions.length }} records. Download CSV for full data.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export History -->
+            <div class="acct-export__card">
+                <div class="acct-export__card-header">
+                    <i class="fas fa-history"></i> Export History
+                </div>
+
+                <div class="acct-export__loading" ng-if="vm.history_loading">
+                    <div class="snazzy-page__spinner"></div>
+                    <p>Loading export history…</p>
+                </div>
+
+                <div class="acct-export__table-wrap" ng-if="!vm.history_loading && vm.history.length">
+                    <table class="acct-export__table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Period</th>
+                                <th>Records</th>
+                                <th class="acct-export__th--right">Gross</th>
+                                <th class="acct-export__th--right">Fees</th>
+                                <th>Exported By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="h in vm.history">
+                                <td class="acct-export__cell--muted">{{ vm.formatDate(h.created_at) }}</td>
+                                <td>
+                                    <span class="acct-export__badge acct-export__badge--neutral">{{ h.export_type }}</span>
+                                </td>
+                                <td class="acct-export__cell--muted">{{ vm.formatDate(h.date_from) }} — {{ vm.formatDate(h.date_to) }}</td>
+                                <td>{{ h.record_count }}</td>
+                                <td class="acct-export__th--right">{{ vm.formatCurrency(h.total_gross) }}</td>
+                                <td class="acct-export__th--right">{{ vm.formatCurrency(h.total_fees) }}</td>
+                                <td>{{ h.first_name }} {{ h.last_name }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="acct-export__empty" ng-if="!vm.history_loading && !vm.history.length">
+                    <i class="fas fa-history"></i>
+                    <p>No exports yet</p>
+                </div>
+            </div>
+
+        </div><!-- /export tab -->
+
+    </div><!-- /main content -->
+
+</div>
