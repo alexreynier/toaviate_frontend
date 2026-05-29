@@ -1,0 +1,401 @@
+<div class="cron-status" ng-controller="CronStatusController as vm">
+
+    <!-- ════════════════════════════════════════════════════════════
+         ACCESS DENIED (non super-admins who navigate here directly)
+         ════════════════════════════════════════════════════════════ -->
+    <div class="cron-status__denied" ng-if="!vm.is_super_admin">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>This page is only available to system super-admins.</p>
+    </div>
+
+    <div ng-if="vm.is_super_admin">
+
+        <!-- ════════════════════════════════════════════════════════
+             HEADER
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-status__header">
+            <div class="cron-status__header-inner">
+                <!-- Left: title -->
+                <div>
+                    <div class="back-box" ui-sref="dashboard.manage_club">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="cron-status__title">
+                        <h2><i class="fas fa-robot"></i> Cron Status</h2>
+                        <p>System-wide scheduled task health monitor</p>
+                    </div>
+                </div>
+
+                <!-- Right: controls -->
+                <div class="cron-status__header-controls">
+                    <span class="cron-status__last-refresh">
+                        Last refreshed: <strong>{{ formatLastRefreshed(vm.last_refreshed) }}</strong>
+                    </span>
+                    <label class="cron-status__auto-toggle">
+                        <input type="checkbox" ng-model="vm.auto_refresh" ng-change="onAutoRefreshToggle()" />
+                        Auto (60 s)
+                    </label>
+                    <button class="cron-status__refresh-btn"
+                            ng-class="{'spinning': vm.refreshing}"
+                            ng-click="manualRefresh()"
+                            ng-disabled="vm.refreshing">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             ERROR BANNER
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-status__banner cron-status__banner--error" ng-if="vm.error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ vm.error }}</span>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             NO CRON RUN YET BANNER
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-status__banner cron-status__banner--warning"
+             ng-if="!vm.loading && !vm.error && vm.endpoints.length > 0 && vm.endpoints | filter:{last_run_at: null} | jsonLength == vm.endpoints.length">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>No cron has run yet. Configure cPanel cron jobs per the backend setup guide.</span>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             STAT STRIP
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-status__stat-strip" ng-if="!vm.loading || vm.endpoints.length > 0">
+
+            <div class="cron-status__stat-card">
+                <div class="cron-status__stat-icon cron-status__stat-icon--total">
+                    <i class="fas fa-server"></i>
+                </div>
+                <div class="cron-status__stat-value">{{ vm.stats.total }}</div>
+                <div class="cron-status__stat-label">Total Crons</div>
+            </div>
+
+            <div class="cron-status__stat-card">
+                <div class="cron-status__stat-icon cron-status__stat-icon--healthy">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="cron-status__stat-value">{{ vm.stats.healthy }}</div>
+                <div class="cron-status__stat-label">Healthy</div>
+            </div>
+
+            <div class="cron-status__stat-card">
+                <div class="cron-status__stat-icon cron-status__stat-icon--degraded">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <div class="cron-status__stat-value">{{ vm.stats.degraded }}</div>
+                <div class="cron-status__stat-label">Degraded</div>
+            </div>
+
+            <div class="cron-status__stat-card">
+                <div class="cron-status__stat-icon cron-status__stat-icon--overdue">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="cron-status__stat-value">{{ vm.stats.overdue_or_error }}</div>
+                <div class="cron-status__stat-label">Overdue / Error</div>
+            </div>
+
+            <div class="cron-status__stat-card">
+                <div class="cron-status__stat-icon cron-status__stat-icon--overdue">
+                    <i class="fas fa-bug"></i>
+                </div>
+                <div class="cron-status__stat-value"
+                     ng-class="{'cron-metric--error': vm.stats.errors_24h > 0}">
+                    {{ vm.stats.errors_24h }}
+                </div>
+                <div class="cron-status__stat-label">24h Errors</div>
+            </div>
+
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             MAIN TABLE
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-status__table-card">
+
+            <div class="cron-status__table-header">
+                <span class="cron-status__table-title">
+                    <i class="fas fa-list-alt" style="margin-right:8px;opacity:0.6;"></i>
+                    All Scheduled Tasks
+                </span>
+                <span class="cron-status__error-count" ng-if="!vm.loading">
+                    24h errors:
+                    <span ng-if="vm.stats.errors_24h > 0" class="cron-status__err-badge">{{ vm.stats.errors_24h }}</span>
+                    <span ng-if="vm.stats.errors_24h == 0" class="cron-status__ok-badge">0 — all clear</span>
+                </span>
+            </div>
+
+            <!-- Loading skeleton -->
+            <div ng-if="vm.loading">
+                <table class="cron-status__table">
+                    <thead>
+                        <tr>
+                            <th>Endpoint</th>
+                            <th class="cron-col--hide-mobile">Cadence</th>
+                            <th>Last Run</th>
+                            <th class="cron-col--hide-mobile">Last OK</th>
+                            <th class="cron-col--hide-mobile">24h Runs</th>
+                            <th class="cron-col--hide-mobile">24h Errors</th>
+                            <th class="cron-col--hide-mobile">Avg</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="n in [1,2,3,4,5,6,7,8,9]">
+                            <td><span class="cron-skeleton" style="width:180px;"></span></td>
+                            <td class="cron-col--hide-mobile"><span class="cron-skeleton" style="width:60px;"></span></td>
+                            <td><span class="cron-skeleton" style="width:90px;"></span></td>
+                            <td class="cron-col--hide-mobile"><span class="cron-skeleton" style="width:90px;"></span></td>
+                            <td class="cron-col--hide-mobile"><span class="cron-skeleton" style="width:30px;"></span></td>
+                            <td class="cron-col--hide-mobile"><span class="cron-skeleton" style="width:30px;"></span></td>
+                            <td class="cron-col--hide-mobile"><span class="cron-skeleton" style="width:50px;"></span></td>
+                            <td><span class="cron-skeleton" style="width:80px;height:24px;border-radius:12px;"></span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty state -->
+            <div class="cron-status__empty" ng-if="!vm.loading && !vm.error && vm.endpoints.length === 0">
+                <i class="fas fa-robot"></i>
+                <p>No cron endpoints found. The backend may not have any scheduled tasks configured yet.</p>
+            </div>
+
+            <!-- Main data table -->
+            <div class="cron-status__table-scroll" ng-if="!vm.loading && vm.endpoints.length > 0">
+                <table class="cron-status__table">
+                    <thead>
+                        <tr>
+                            <th>Endpoint</th>
+                            <th class="cron-col--hide-mobile">Cadence</th>
+                            <th>Last Run</th>
+                            <th class="cron-col--hide-mobile">Last OK</th>
+                            <th class="cron-col--hide-mobile">24h Runs</th>
+                            <th class="cron-col--hide-mobile">24h Errors</th>
+                            <th class="cron-col--hide-mobile">Avg</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="ep in vm.endpoints"
+                            ng-class="vm.getRowClass(ep)"
+                            ng-click="openDrill(ep)"
+                            title="Click to view recent runs">
+
+                            <!-- Endpoint name -->
+                            <td>
+                                <div class="cron-endpoint-name">{{ ep.endpoint }}</div>
+                                <div class="cron-endpoint-cadence cron-col--hide-mobile">
+                                    {{ formatCadence(ep.cadence_minutes) }}
+                                </div>
+                            </td>
+
+                            <!-- Cadence (desktop separate col) -->
+                            <td class="cron-col--hide-mobile">
+                                <span class="cron-metric">{{ formatCadence(ep.cadence_minutes) }}</span>
+                            </td>
+
+                            <!-- Last Run -->
+                            <td>
+                                <div ng-if="ep.last_run_at">
+                                    <div class="cron-date-relative cron-tooltip-wrap">
+                                        {{ relativeTime(ep.last_run_at) }}
+                                        <span class="cron-tooltip-text">{{ localDateTime(ep.last_run_at) }}</span>
+                                    </div>
+                                    <div class="cron-date-absolute cron-col--hide-mobile">{{ localDateTime(ep.last_run_at) }}</div>
+                                </div>
+                                <div ng-if="!ep.last_run_at" class="cron-date--never">never</div>
+                            </td>
+
+                            <!-- Last OK -->
+                            <td class="cron-col--hide-mobile">
+                                <div ng-if="ep.last_ok_at">
+                                    <div class="cron-date-relative cron-tooltip-wrap">
+                                        {{ relativeTime(ep.last_ok_at) }}
+                                        <span class="cron-tooltip-text">{{ localDateTime(ep.last_ok_at) }}</span>
+                                    </div>
+                                </div>
+                                <div ng-if="!ep.last_ok_at" class="cron-date--never">—</div>
+                            </td>
+
+                            <!-- 24h Runs -->
+                            <td class="cron-col--hide-mobile">
+                                <span class="cron-metric">{{ ep.runs_24h }}</span>
+                            </td>
+
+                            <!-- 24h Errors -->
+                            <td class="cron-col--hide-mobile">
+                                <span class="cron-metric"
+                                      ng-class="ep.errors_24h > 0 ? 'cron-metric--error' : 'cron-metric--ok'">
+                                    {{ ep.errors_24h }}
+                                </span>
+                            </td>
+
+                            <!-- Avg ms -->
+                            <td class="cron-col--hide-mobile">
+                                <span class="cron-metric" ng-class="{'cron-metric--muted': ep.avg_ms_24h === null}">
+                                    {{ formatMs(ep.avg_ms_24h) }}
+                                </span>
+                            </td>
+
+                            <!-- Status pill -->
+                            <td>
+                                <div class="cron-tooltip-wrap"
+                                     ng-class="(vm.getPillClass(ep) === 'overdue' || vm.getPillClass(ep) === 'not-run') ? '' : ''">
+                                    <span class="cron-pill cron-pill--{{ vm.getPillClass(ep) }}">
+                                        <span class="cron-pill__dot"></span>
+                                        {{ vm.getPillLabel(ep) }}
+                                    </span>
+                                    <span class="cron-tooltip-text"
+                                          ng-if="ep.overdue || vm.getPillClass(ep) === 'not-run'">
+                                        {{ vm.overdueTooltip(ep) }}
+                                    </span>
+                                </div>
+                            </td>
+
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+        <!-- /table card -->
+
+
+        <!-- ════════════════════════════════════════════════════════
+             DRILL-DOWN SLIDE-OVER PANEL
+             ════════════════════════════════════════════════════════ -->
+        <div class="cron-drill-overlay"
+             ng-if="vm.drill.open"
+             ng-click="onOverlayClick($event)">
+
+            <div class="cron-drill-panel">
+
+                <!-- Panel header -->
+                <div class="cron-drill-panel__header">
+                    <div class="cron-drill-panel__title">
+                        <h3>{{ vm.drill.endpoint }}</h3>
+                        <p>Last 50 runs &mdash; most recent first</p>
+                    </div>
+                    <button class="cron-drill-panel__close" ng-click="closeDrill()" aria-label="Close panel">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Panel body -->
+                <div class="cron-drill-panel__body">
+
+                    <!-- Loading -->
+                    <div class="cron-drill-loading" ng-if="vm.drill.loading">
+                        <i class="fas fa-circle-notch"></i>
+                        <p style="margin:12px 0 0; font-size:13px;">Loading runs&hellip;</p>
+                    </div>
+
+                    <!-- Error -->
+                    <div class="cron-status__banner cron-status__banner--error"
+                         style="margin:20px;"
+                         ng-if="!vm.drill.loading && vm.drill.error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>{{ vm.drill.error }}</span>
+                    </div>
+
+                    <!-- Empty -->
+                    <div class="cron-drill-empty"
+                         ng-if="!vm.drill.loading && !vm.drill.error && vm.drill.rows.length === 0">
+                        <i class="fas fa-inbox"></i>
+                        <p>No runs recorded for this endpoint yet.</p>
+                    </div>
+
+                    <!-- Runs table -->
+                    <div class="cron-drill-table-wrap"
+                         ng-if="!vm.drill.loading && !vm.drill.error && vm.drill.rows.length > 0">
+                        <table class="cron-drill-table">
+                            <thead>
+                                <tr>
+                                    <th>Started</th>
+                                    <th>Finished</th>
+                                    <th>Duration</th>
+                                    <th>HTTP</th>
+                                    <th>Outcome</th>
+                                    <th>Source IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="row in vm.drill.rows"
+                                    ng-class="vm.getDrillRowClass(row)">
+
+                                    <!-- Started -->
+                                    <td>
+                                        <div class="cron-tooltip-wrap">
+                                            {{ relativeTime(row.started_at) }}
+                                            <span class="cron-tooltip-text">{{ localDateTime(row.started_at) }}</span>
+                                        </div>
+                                        <div class="cron-date-absolute">{{ localDateTime(row.started_at) }}</div>
+                                    </td>
+
+                                    <!-- Finished -->
+                                    <td>
+                                        <span ng-if="row.finished_at">{{ localDateTime(row.finished_at) }}</span>
+                                        <span ng-if="!row.finished_at" class="cron-date--never">—</span>
+                                    </td>
+
+                                    <!-- Duration -->
+                                    <td>
+                                        <span class="cron-metric">{{ formatMs(row.duration_ms) }}</span>
+                                    </td>
+
+                                    <!-- HTTP status -->
+                                    <td>
+                                        <span ng-if="row.http_status"
+                                              ng-class="vm.getHttpClass(row)">
+                                            {{ row.http_status }}
+                                        </span>
+                                        <span ng-if="!row.http_status" class="cron-http--grey">—</span>
+                                    </td>
+
+                                    <!-- Outcome badge -->
+                                    <td>
+                                        <span class="cron-outcome-badge"
+                                              ng-class="vm.getDrillOutcomeBadge(row)">
+                                            <i class="fas"
+                                               ng-class="{
+                                                   'fa-check':        row.outcome === 'ok',
+                                                   'fa-times':        row.outcome === 'error',
+                                                   'fa-hourglass-half': row.outcome === 'started'
+                                               }"></i>
+                                            {{ row.outcome }}
+                                        </span>
+                                        <span ng-if="row.outcome === 'started' && row.started_at"
+                                              class="cron-date-absolute"
+                                              title="Rows with 'started' outcome and no finish time may indicate a crashed PHP process (OOM, timeout, segfault).">
+                                            <i class="fas fa-info-circle" style="color:#94a3b8;"></i> possibly crashed
+                                        </span>
+                                    </td>
+
+                                    <!-- Source IP -->
+                                    <td>
+                                        <span class="cron-metric cron-metric--muted">{{ row.source_ip || '—' }}</span>
+                                    </td>
+
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+                <!-- /panel body -->
+            </div>
+            <!-- /panel -->
+        </div>
+        <!-- /drill-down overlay -->
+
+    </div>
+    <!-- /super admin guard -->
+
+</div>

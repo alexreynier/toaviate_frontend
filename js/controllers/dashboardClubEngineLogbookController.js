@@ -1,7 +1,7 @@
  app.controller('DashboardClubEngineLogbookController', DashboardClubEngineLogbookController);
 
-    DashboardClubEngineLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http', 'ToastService', 'LogbookLinkService', 'WorkpackService'];
-    function DashboardClubEngineLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http, ToastService, LogbookLinkService, WorkpackService) {
+    DashboardClubEngineLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http', 'ToastService', 'LogbookLinkService', 'WorkpackService', 'LogbookHoursCorrectionService'];
+    function DashboardClubEngineLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http, ToastService, LogbookLinkService, WorkpackService, LogbookHoursCorrectionService) {
         var vm = this;
 
        
@@ -1140,6 +1140,173 @@
             }
             return total;
         }
+
+
+        // ══════════════════════════════════════════════════════════
+        // LOGBOOK HOURS CORRECTION (ENGINE)
+        // ══════════════════════════════════════════════════════════
+
+        vm.lhc_show_modal = false;
+        vm.lhc_step = 'form';
+        vm.lhc_form = {
+            correction_datetime: '',
+            corrected_hours: null,
+            reason: ''
+        };
+        vm.lhc_result = null;
+        vm.lhc_submitting = false;
+
+        vm.lhc_show_history = false;
+        vm.lhc_history = [];
+        vm.lhc_history_loading = false;
+        vm.lhc_history_filter = 'engine';
+
+        vm.openHoursCorrection = function() {
+            vm.lhc_form = {
+                correction_datetime: '',
+                corrected_hours: null,
+                reason: ''
+            };
+            vm.lhc_step = 'form';
+            vm.lhc_result = null;
+            vm.lhc_submitting = false;
+            vm.lhc_show_modal = true;
+        };
+
+        vm.closeHoursCorrection = function() {
+            vm.lhc_show_modal = false;
+        };
+
+        vm.lhcGoToConfirm = function() {
+            if (!vm.lhc_form.correction_datetime || vm.lhc_form.corrected_hours === null || vm.lhc_form.corrected_hours === '') {
+                ToastService.error('Missing Fields', 'Please enter both the reference date/time and the known-correct hours.');
+                return;
+            }
+            if (parseFloat(vm.lhc_form.corrected_hours) < 0) {
+                ToastService.error('Invalid Hours', 'Corrected hours must be zero or greater.');
+                return;
+            }
+            vm.lhc_step = 'confirm';
+        };
+
+        vm.lhcBackToForm = function() {
+            vm.lhc_step = 'form';
+        };
+
+        vm.lhcFormatDatetime = function(dt) {
+            if (!dt) return '';
+            var d = new Date(dt);
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            var day = d.getDate();
+            var month = months[d.getMonth()];
+            var year = d.getFullYear();
+            var hours = ('0' + d.getHours()).slice(-2);
+            var mins = ('0' + d.getMinutes()).slice(-2);
+            return day + ' ' + month + ' ' + year + ' ' + hours + ':' + mins;
+        };
+
+        vm.lhcFormatDatetimeForApi = function(dt) {
+            if (!dt) return '';
+            var d = new Date(dt);
+            var year = d.getFullYear();
+            var month = ('0' + (d.getMonth() + 1)).slice(-2);
+            var day = ('0' + d.getDate()).slice(-2);
+            var hours = ('0' + d.getHours()).slice(-2);
+            var mins = ('0' + d.getMinutes()).slice(-2);
+            var secs = ('0' + d.getSeconds()).slice(-2);
+            return year + '-' + month + '-' + day + ' ' + hours + ':' + mins + ':' + secs;
+        };
+
+        vm.lhcSubmit = function() {
+            vm.lhc_submitting = true;
+            vm.lhc_step = 'submitting';
+
+            var payload = {
+                plane_id: parseInt($stateParams.plane_id),
+                engine_id: parseInt($stateParams.engine_id),
+                correction_datetime: vm.lhcFormatDatetimeForApi(vm.lhc_form.correction_datetime),
+                corrected_hours: parseFloat(vm.lhc_form.corrected_hours),
+                reason: vm.lhc_form.reason || ''
+            };
+
+            LogbookHoursCorrectionService.CorrectEngineHours(payload)
+                .then(function(data) {
+                    vm.lhc_submitting = false;
+                    if (data.success) {
+                        vm.lhc_result = data.correction;
+                        vm.lhc_step = 'result';
+                        ToastService.success('Hours Corrected', 'Engine hours have been corrected successfully. ' + data.correction.entries_recalculated + ' entries recalculated.');
+                        PlaneService.GetEngineLogs($stateParams.engine_id, $stateParams.plane_id, 0, 25)
+                            .then(function(logData) {
+                                vm.logs = logData.logs;
+                                vm.engine = logData.engine;
+                                vm.current_offset = 0;
+                                vm.all_loaded = false;
+                            });
+                    } else {
+                        vm.lhc_step = 'form';
+                        ToastService.error('Correction Failed', data.message || 'An error occurred while correcting hours.');
+                    }
+                });
+        };
+
+        vm.lhcGetDelta = function() {
+            if (vm.lhc_result && vm.lhc_result.delta !== undefined) {
+                var d = parseFloat(vm.lhc_result.delta);
+                return (d >= 0 ? '+' : '') + d.toFixed(2);
+            }
+            return '';
+        };
+
+        vm.openCorrectionHistory = function() {
+            vm.lhc_show_history = true;
+            vm.lhc_history_filter = 'engine';
+            vm.loadCorrectionHistory();
+        };
+
+        vm.closeCorrectionHistory = function() {
+            vm.lhc_show_history = false;
+        };
+
+        vm.loadCorrectionHistory = function() {
+            vm.lhc_history_loading = true;
+            vm.lhc_history = [];
+
+            var promise;
+            if (vm.lhc_history_filter === 'all') {
+                promise = LogbookHoursCorrectionService.GetCorrectionHistory($stateParams.plane_id);
+            } else {
+                promise = LogbookHoursCorrectionService.GetCorrectionsByType($stateParams.plane_id, vm.lhc_history_filter);
+            }
+
+            promise.then(function(data) {
+                vm.lhc_history_loading = false;
+                if (data.success) {
+                    vm.lhc_history = data.corrections || [];
+                } else {
+                    vm.lhc_history = [];
+                    ToastService.error('Error', data.message || 'Could not load correction history.');
+                }
+            });
+        };
+
+        vm.setHistoryFilter = function(filter) {
+            vm.lhc_history_filter = filter;
+            vm.loadCorrectionHistory();
+        };
+
+        vm.lhcGetDeltaClass = function(correction) {
+            var prev = parseFloat(correction.previous_hours) || 0;
+            var curr = parseFloat(correction.corrected_hours) || 0;
+            return curr >= prev ? 'lhc-history-card__delta--positive' : 'lhc-history-card__delta--negative';
+        };
+
+        vm.lhcGetDeltaDisplay = function(correction) {
+            var prev = parseFloat(correction.previous_hours) || 0;
+            var curr = parseFloat(correction.corrected_hours) || 0;
+            var delta = curr - prev;
+            return (delta >= 0 ? '+' : '') + delta.toFixed(2);
+        };
 
 
     }

@@ -103,6 +103,16 @@ module.exports = function (grunt) {
                     'css/booking-preferences.css',
                     'css/bs-sync.css',
                     'css/airfield-bookout.css',
+                    'css/accordion.css',
+                    'css/accounting-export.css',
+                    'css/booking-audit-trail.css',
+                    'css/club-stats.css',
+                    'css/cron-status.css',
+                    'css/flight-merge.css',
+                    'css/fox-tracker.css',
+                    'css/tracker-plane.css',
+                    'css/logbook-hours-correction.css',
+                    'css/daily-aircraft-status.css',
                     'libs/css/scheduler.css'
                 ],
                 dest: 'dist/css/compiled.css'

@@ -264,7 +264,7 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         }).then(function(data) {
             vm.dialog_busy = false;
             if (data.success) {
-                vm.swap_result = data;
+                vm.swap_result = normalizeSwapResult(data);
                 vm.dialog = 'swap_result';
             } else {
                 ToastService.error('Swap Failed', data.message);
@@ -379,6 +379,29 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
             timePart = timeVal || '12:00';
         }
         return datePart + ' ' + timePart + ':00';
+    }
+
+    function normalizeSwapResult(data) {
+        var payload = angular.copy(data || {});
+        var details = payload.results || {};
+
+        payload.metrics = {
+            entries_moved: details.new_entries_claimed !== undefined
+                ? details.new_entries_claimed
+                : (payload.fox_entries_moved || 0),
+            entries_floated: details.old_entries_floated !== undefined
+                ? details.old_entries_floated
+                : (payload.fox_entries_floated || 0),
+            log_sheets: details.old_pls_removed !== undefined
+                ? details.old_pls_removed
+                : (payload.plane_log_sheets_affected || 0),
+            flights: details.pls_regenerated !== undefined
+                ? details.pls_regenerated
+                : (payload.flights_affected || 0),
+            logbooks_recalculated: !!details.logbooks_recalculated
+        };
+
+        return payload;
     }
 
     vm.actionIcon = function(action) {

@@ -1,12 +1,31 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService) {
         var vm = this;
 
         vm.user = null;
         vm.allUsers = [];
         vm.club = {};
+
+        // ── Manager flag (used to gate the daily aircraft status section) ──
+        vm.is_manager = !!($rootScope.globals.currentUser &&
+            $rootScope.globals.currentUser.access &&
+            $rootScope.globals.currentUser.access.manager &&
+            $rootScope.globals.currentUser.access.manager.indexOf(
+                $rootScope.globals.currentUser.current_club_admin
+                    ? $rootScope.globals.currentUser.current_club_admin.id
+                    : null
+            ) > -1);
+
+        vm.is_super_admin = !!($rootScope.globals.currentUser &&
+            $rootScope.globals.currentUser.access &&
+            $rootScope.globals.currentUser.access.super_admin &&
+            $rootScope.globals.currentUser.access.super_admin.indexOf(
+                $rootScope.globals.currentUser.current_club_admin
+                    ? $rootScope.globals.currentUser.current_club_admin.id
+                    : null
+            ) > -1);
 
         // ── Voucher Widget status ──
         vm.voucher_widget_active = false;
@@ -295,6 +314,277 @@
             return d + ' day' + (d !== 1 ? 's' : '') + (rh > 0 ? ' ' + rh + 'h' : '');
         };
 
+        // ─────────────────────────────────────────────────────────────
+        // Daily Aircraft Status Report
+        // ─────────────────────────────────────────────────────────────
+        vm.das = {
+            loading: false,
+            saving: false,
+            sending: false,
+            settings: null,
+            // local form-bound copies (so toggling/typing doesn't mutate the
+            // server-loaded object until Save is pressed)
+            form: {
+                enabled: false,
+                include_aircraft_status: true,
+                include_offline_forms: true,
+                include_student_summary: true
+            },
+            recipients: [],          // array of {email, error?}
+            new_email: '',
+            new_email_error: '',
+            recipient_field_error: '',
+            enable_error: '',
+            runs: [],
+            runs_loading: false,
+            history_open: false,
+            confirm_send: false,
+            dirty: false
+        };
+
+        vm.dasLoadSettings = function() {
+            vm.das.loading = true;
+            DailyAircraftStatusService.GetSettings(vm.club_id)
+                .then(function(data) {
+                    vm.das.loading = false;
+                    if (data && data.success && data.settings) {
+                        vm.dasApplySettings(data.settings);
+                    } else if (data && data.message) {
+                        // 403 → not a manager → leave section hidden
+                        if (/manager/i.test(data.message)) {
+                            vm.das.settings = null;
+                            return;
+                        }
+                        ToastService.error('Daily Report', data.message);
+                    }
+                });
+        };
+
+        vm.dasApplySettings = function(s) {
+            vm.das.settings = s;
+            vm.das.form = {
+                enabled: !!parseInt(s.enabled),
+                include_aircraft_status: parseInt(s.include_aircraft_status) !== 0,
+                include_offline_forms: parseInt(s.include_offline_forms) !== 0,
+                include_student_summary: parseInt(s.include_student_summary) !== 0
+            };
+            var arr = s.recipient_emails_array;
+            if (!arr && s.recipient_emails) {
+                arr = String(s.recipient_emails).split(/[,\n;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+            }
+            vm.das.recipients = (arr || []).map(function(e) { return { email: e }; });
+            vm.das.dirty = false;
+            vm.das.enable_error = '';
+            vm.das.recipient_field_error = '';
+        };
+
+        vm.dasMarkDirty = function() { vm.das.dirty = true; };
+
+        vm.dasIsValidEmail = function(e) {
+            if (!e) return false;
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+        };
+
+        vm.dasAddRecipient = function() {
+            var e = (vm.das.new_email || '').trim();
+            if (!e) return;
+            if (!vm.dasIsValidEmail(e)) {
+                vm.das.new_email_error = 'Please enter a valid email address.';
+                return;
+            }
+            // de-dupe (case-insensitive)
+            var lower = e.toLowerCase();
+            var exists = vm.das.recipients.some(function(r) { return r.email.toLowerCase() === lower; });
+            if (exists) {
+                vm.das.new_email_error = 'That address is already in the list.';
+                return;
+            }
+            vm.das.recipients.push({ email: e });
+            vm.das.new_email = '';
+            vm.das.new_email_error = '';
+            vm.das.recipient_field_error = '';
+            vm.das.dirty = true;
+        };
+
+        vm.dasRecipientKey = function($event) {
+            // Enter or comma adds; Backspace on empty removes last
+            if ($event.keyCode === 13 || $event.keyCode === 188 /* , */ ) {
+                $event.preventDefault();
+                vm.dasAddRecipient();
+            } else if ($event.keyCode === 8 && !vm.das.new_email && vm.das.recipients.length) {
+                vm.das.recipients.pop();
+                vm.das.dirty = true;
+            }
+        };
+
+        vm.dasRemoveRecipient = function(idx) {
+            vm.das.recipients.splice(idx, 1);
+            vm.das.dirty = true;
+        };
+
+        vm.dasOnEnableToggle = function() {
+            // server rejects enabled=1 with no recipients — guard locally too
+            if (vm.das.form.enabled && !vm.das.recipients.length) {
+                vm.das.form.enabled = false;
+                vm.das.enable_error = 'Add at least one recipient before enabling the daily report.';
+                return;
+            }
+            vm.das.enable_error = '';
+            vm.das.dirty = true;
+        };
+
+        vm.dasCanEnable = function() {
+            return vm.das.recipients.length > 0;
+        };
+
+        vm.dasSave = function() {
+            // pre-flight checks
+            if (vm.das.form.enabled && !vm.das.recipients.length) {
+                vm.das.enable_error = 'Add at least one recipient before enabling the daily report.';
+                vm.das.form.enabled = false;
+                return;
+            }
+            // clear per-tag errors
+            vm.das.recipients.forEach(function(r) { r.error = false; });
+
+            var bad = vm.das.recipients.find(function(r) { return !vm.dasIsValidEmail(r.email); });
+            if (bad) {
+                bad.error = true;
+                vm.das.recipient_field_error = 'One or more email addresses look invalid.';
+                return;
+            }
+
+            var payload = {
+                enabled: vm.das.form.enabled ? 1 : 0,
+                recipient_emails: vm.das.recipients.map(function(r) { return r.email; }),
+                include_aircraft_status: vm.das.form.include_aircraft_status ? 1 : 0,
+                include_offline_forms: vm.das.form.include_offline_forms ? 1 : 0,
+                include_student_summary: vm.das.form.include_student_summary ? 1 : 0
+            };
+
+            vm.das.saving = true;
+            DailyAircraftStatusService.UpdateSettings(vm.club_id, payload)
+                .then(function(data) {
+                    vm.das.saving = false;
+                    if (data && data.success) {
+                        if (data.settings) vm.dasApplySettings(data.settings);
+                        vm.das.dirty = false;
+                        ToastService.success('Saved', 'Daily report settings updated.');
+                    } else {
+                        var msg = (data && data.message) || 'Could not save settings.';
+                        // Highlight bad email if backend told us which one
+                        var m = msg.match(/Invalid email address:\s*(.+)$/i);
+                        if (m) {
+                            var addr = m[1].trim().toLowerCase();
+                            var hit = vm.das.recipients.find(function(r) { return r.email.toLowerCase() === addr; });
+                            if (hit) hit.error = true;
+                            vm.das.recipient_field_error = msg;
+                        } else if (/at least one recipient/i.test(msg)) {
+                            vm.das.enable_error = msg;
+                        } else {
+                            ToastService.error('Daily Report', msg);
+                        }
+                    }
+                });
+        };
+
+        vm.dasAskSendNow = function() {
+            if (!vm.das.recipients.length) {
+                ToastService.warning('No Recipients', 'Add at least one recipient before sending.');
+                return;
+            }
+            if (vm.das.dirty) {
+                ToastService.warning('Unsaved Changes', 'Please save your changes before sending.');
+                return;
+            }
+            vm.das.confirm_send = true;
+        };
+
+        vm.dasCancelSendNow = function() { vm.das.confirm_send = false; };
+
+        vm.dasSendNow = function() {
+            vm.das.confirm_send = false;
+            vm.das.sending = true;
+            DailyAircraftStatusService.RunNow(vm.club_id)
+                .then(function(data) {
+                    vm.das.sending = false;
+                    if (data && data.success) {
+                        var failed = parseInt(data.emails_failed) || 0;
+                        if (failed > 0) {
+                            ToastService.warning('Partial Send',
+                                'Sent to ' + (data.emails_sent || 0) + ' recipient(s); ' + failed + ' failed.');
+                        } else {
+                            ToastService.success('Sent',
+                                'Daily report sent to ' + (data.emails_sent || 0) + ' recipient(s).');
+                        }
+                        // Refresh settings (last_run_*) and history
+                        vm.dasLoadSettings();
+                        if (vm.das.history_open) vm.dasLoadRuns();
+                    } else {
+                        ToastService.error('Send Failed', (data && data.message) || 'Could not send the daily report.');
+                    }
+                });
+        };
+
+        vm.dasLoadRuns = function() {
+            vm.das.runs_loading = true;
+            DailyAircraftStatusService.GetRuns(vm.club_id, 30)
+                .then(function(data) {
+                    vm.das.runs_loading = false;
+                    if (data && data.success) {
+                        vm.das.runs = data.runs || [];
+                    } else {
+                        vm.das.runs = [];
+                    }
+                });
+        };
+
+        vm.dasToggleHistory = function() {
+            vm.das.history_open = !vm.das.history_open;
+            if (vm.das.history_open && !vm.das.runs.length) {
+                vm.dasLoadRuns();
+            }
+        };
+
+        vm.dasDownload = function(type, available) {
+            if (!available) return;
+            DailyAircraftStatusService.DownloadPdf(vm.club_id, type)
+                .then(function(res) {
+                    if (!res.success) {
+                        ToastService.error('Download Failed',
+                            res.message || 'The PDF could not be retrieved.');
+                    }
+                });
+        };
+
+        vm.dasStatusLabel = function(status) {
+            if (!status) return '—';
+            return status.charAt(0).toUpperCase() + status.slice(1);
+        };
+
+        vm.dasStatusTooltip = function(s) {
+            if (!s) return '';
+            switch (s.last_run_status) {
+                case 'partial': return 'Some recipients failed — check addresses.';
+                case 'skipped': return 'Within 24h cron lock — use Send now to retry.';
+                case 'failure': return s.last_run_message || 'The last run failed.';
+                default: return s.last_run_message || '';
+            }
+        };
+
+        vm.dasFormatRunDate = function(ts) {
+            if (!ts) return '';
+            // Backend returns "YYYY-MM-DD HH:MM:SS" (server local time).
+            // Parse as local — converting to UTC tends to mis-shift by hours
+            // when the server is in the same TZ as the user.
+            var d = new Date(ts.replace(' ', 'T'));
+            if (isNaN(d.getTime())) return ts;
+            return d.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+        };
+
         vm.action = $state.current.data.action;
 
 
@@ -332,6 +622,11 @@
                     .then(function(data) {
                         vm.voucher_widget_active = !!(data.success && data.token && data.token.active);
                     });
+
+                // Load daily aircraft status report settings (manager-gated)
+                if (vm.is_manager) {
+                    vm.dasLoadSettings();
+                }
 
             break;
             case "stripe_return":

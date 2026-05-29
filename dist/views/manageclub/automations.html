@@ -1,0 +1,196 @@
+<div class="club-automations" ng-controller="DashboardClubAutomationsController as vm">
+
+    <div class="club-automations__denied" ng-if="!vm.is_super_admin">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>This page is only available to club super admins.</p>
+    </div>
+
+    <div ng-if="vm.is_super_admin">
+        <div class="club-automations__hero">
+            <div class="club-automations__hero-inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.manage_club.settings">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+                    </div>
+                    <div class="club-automations__title">
+                        <h2><i class="fas fa-calendar-check"></i> Scheduled Jobs</h2>
+                        <p>Control when each automated club task fires, with per-club timezone handling.</p>
+                    </div>
+                </div>
+
+                <div class="club-automations__hero-controls">
+                    <span class="club-automations__meta">
+                        Last refreshed: <strong>{{ vm.last_refreshed ? (vm.last_refreshed | date:'mediumTime') : '—' }}</strong>
+                    </span>
+                    <button class="club-automations__refresh-btn"
+                            ng-class="{'is-spinning': vm.refreshing}"
+                            ng-click="vm.refreshSchedules()"
+                            ng-disabled="vm.refreshing || vm.loading">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="club-automations__banner club-automations__banner--error" ng-if="vm.error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ vm.error }}</span>
+        </div>
+
+        <div class="club-automations__banner club-automations__banner--warning" ng-if="vm.timezones_error && !vm.error">
+            <i class="fas fa-info-circle"></i>
+            <span>{{ vm.timezones_error }}</span>
+        </div>
+
+        <div class="club-automations__stats">
+            <div class="club-automations__stat-card">
+                <div class="club-automations__stat-icon club-automations__stat-icon--blue"><i class="fas fa-robot"></i></div>
+                <div class="club-automations__stat-value">{{ vm.stats.total }}</div>
+                <div class="club-automations__stat-label">Automations</div>
+            </div>
+            <div class="club-automations__stat-card">
+                <div class="club-automations__stat-icon club-automations__stat-icon--green"><i class="fas fa-toggle-on"></i></div>
+                <div class="club-automations__stat-value">{{ vm.stats.enabled }}</div>
+                <div class="club-automations__stat-label">Enabled</div>
+            </div>
+            <div class="club-automations__stat-card">
+                <div class="club-automations__stat-icon club-automations__stat-icon--amber"><i class="fas fa-edit"></i></div>
+                <div class="club-automations__stat-value">{{ vm.stats.dirty }}</div>
+                <div class="club-automations__stat-label">Unsaved Changes</div>
+            </div>
+            <div class="club-automations__stat-card">
+                <div class="club-automations__stat-icon club-automations__stat-icon--slate"><i class="fas fa-cogs"></i></div>
+                <div class="club-automations__stat-value">{{ vm.stats.system }}</div>
+                <div class="club-automations__stat-label">Managed by ToAviate</div>
+            </div>
+        </div>
+
+        <div class="club-automations__loading" ng-if="vm.loading">
+            <div class="club-automations__loading-card" ng-repeat="n in [1,2,3,4,5,6]">
+                <div class="club-automations__skeleton club-automations__skeleton--title"></div>
+                <div class="club-automations__skeleton club-automations__skeleton--line"></div>
+                <div class="club-automations__skeleton club-automations__skeleton--line short"></div>
+                <div class="club-automations__skeleton club-automations__skeleton--control"></div>
+            </div>
+        </div>
+
+        <div class="club-automations__empty" ng-if="!vm.loading && !vm.error && vm.schedules.length === 0">
+            <i class="fas fa-inbox"></i>
+            <h3>No schedulable jobs found</h3>
+            <p>The backend has not returned any club-owned automation rows yet.</p>
+        </div>
+
+        <div class="club-automations__grid" ng-if="!vm.loading && vm.schedules.length > 0">
+            <article class="club-automations__card"
+                     ng-repeat="schedule in vm.schedules"
+                     ng-class="{'club-automations__card--dirty': vm.isDirty(schedule), 'club-automations__card--saving': schedule._saving}">
+                <div class="club-automations__card-head">
+                    <div>
+                        <div class="club-automations__card-title-row">
+                            <h3>{{ schedule.label }}</h3>
+                            <span class="automation-status-badge"
+                                  ng-class="vm.getOutcomeClass(schedule.last_outcome)">
+                                {{ vm.formatOutcome(schedule.last_outcome) }}</span>
+                        </div>
+                        <p>{{ schedule.description }}</p>
+                    </div>
+                    <label class="club-automations__toggle">
+                        <input type="checkbox" ng-model="schedule.enabled" ng-change="vm.onScheduleEdit(schedule)" />
+                        <span class="club-automations__toggle-track"></span>
+                        <span class="club-automations__toggle-label" ng-if="schedule.enabled">Enabled</span>
+                        <span class="club-automations__toggle-label club-automations__toggle-label--off" ng-if="!schedule.enabled">Disabled</span>
+                    </label>
+                </div>
+
+                <div class="club-automations__card-body">
+                    <div class="club-automations__fields">
+                        <div class="club-automations__field">
+                            <label>Run at hour</label>
+                            <select class="form-control inputtext"
+                                    ng-model="schedule.run_at_hour"
+                                    ng-options="hour.value as hour.label for hour in vm.hourOptions track by hour.value"
+                                    ng-change="vm.onScheduleEdit(schedule)"></select>
+                            <div class="club-automations__field-error" ng-if="schedule._fieldErrors.run_at_hour">{{ schedule._fieldErrors.run_at_hour }}</div>
+                        </div>
+
+                        <div class="club-automations__field">
+                            <label>Run at minute</label>
+                            <select class="form-control inputtext"
+                                    ng-model="schedule.run_at_minute"
+                                    ng-options="minute.value as minute.label for minute in vm.minuteOptions track by minute.value"
+                                    ng-change="vm.onScheduleEdit(schedule)"></select>
+                            <div class="club-automations__field-error" ng-if="schedule._fieldErrors.run_at_minute">{{ schedule._fieldErrors.run_at_minute }}</div>
+                        </div>
+
+                        <div class="club-automations__field club-automations__field--timezone">
+                            <label>Timezone</label>
+                            <ui-select ng-model="schedule.timezone"
+                                       theme="bootstrap"
+                                       search-enabled="true"
+                                       append-to-body="true"
+                                       ng-change="vm.onScheduleEdit(schedule)">
+                                <ui-select-match placeholder="Select timezone">
+                                    {{ $select.selected }}
+                                </ui-select-match>
+                                <ui-select-choices repeat="timezone in vm.timezones | filter:$select.search">
+                                    <div class="club-automations__timezone-option">{{ timezone }}</div>
+                                </ui-select-choices>
+                            </ui-select>
+                            <div class="club-automations__field-error" ng-if="schedule._fieldErrors.timezone">{{ schedule._fieldErrors.timezone }}</div>
+                        </div>
+                    </div>
+
+                    <div class="club-automations__preview">
+                        <div class="club-automations__preview-item">
+                            <span class="club-automations__preview-label">Last run</span>
+                            <span class="club-automations__preview-value">{{ vm.formatLastRun(schedule) }}</span>
+                        </div>
+                        <div class="club-automations__preview-item">
+                            <span class="club-automations__preview-label">Next run</span>
+                            <span class="club-automations__preview-value">
+                                {{ schedule._next_run_preview ? schedule._next_run_preview.label : vm.formatNextRun(schedule) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="club-automations__save-error" ng-if="schedule._saveError">
+                        <i class="fas fa-exclamation-circle"></i> {{ schedule._saveError }}
+                    </div>
+
+                    <div class="club-automations__card-actions">
+                        <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm"
+                                ng-click="vm.saveSchedule(schedule)"
+                                ng-disabled="!vm.isDirty(schedule) || schedule._saving || vm.loading">
+                            <i class="fas" ng-class="{'fa-spinner fa-spin': schedule._saving, 'fa-save': !schedule._saving}"></i>
+                            {{ schedule._saving ? 'Saving...' : 'Save changes' }}
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div class="club-automations__system-block" ng-if="!vm.loading && vm.system_endpoints.length > 0">
+            <div class="club-automations__system-head">
+                <div>
+                    <h3>Managed by ToAviate</h3>
+                    <p>These jobs run on a fixed cadence and are not editable per club.</p>
+                </div>
+            </div>
+
+            <div class="club-automations__system-list">
+                <details class="club-automations__system-item" ng-repeat="system in vm.system_endpoints">
+                    <summary>
+                        <div>
+                            <strong>{{ system.label }}</strong>
+                            <span>{{ system.endpoint }}</span>
+                        </div>
+                        <span class="club-automations__system-cadence">{{ system.cadence }}</span>
+                    </summary>
+                    <p>{{ system.description }}</p>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>

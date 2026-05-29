@@ -696,6 +696,50 @@
             vm.plane_noise.file = vm.files.noise[0];
             vm.plane_insurance.file = vm.files.insurance[0];
 
+            // ── Date-only normalisation ──
+            // The pickers below bind to JS Date objects; JSON.stringify
+            // would otherwise serialise them via toISOString() (UTC) and
+            // shift the stored day for users in non-UTC timezones. Send
+            // these certificate / maintenance / insurance / noise / radio
+            // date-only fields as plain YYYY-MM-DD strings derived from
+            // the LOCAL calendar value the user actually selected.
+            function _dateOnly(value) {
+                if (value === null || value === undefined || value === '') return value;
+                if (typeof value === 'string') {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+                    var m = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+                    if (m) return m[1];
+                }
+                var mom = moment(value);
+                return mom.isValid() ? mom.format('YYYY-MM-DD') : value;
+            }
+            // certificate / CofA / ARC
+            if (vm.plane_maintenance) {
+                if (vm.plane_maintenance.certificate_expiry) {
+                    vm.plane_maintenance.certificate_expiry = _dateOnly(vm.plane_maintenance.certificate_expiry);
+                }
+                if (vm.plane_maintenance.certificate_issue) {
+                    vm.plane_maintenance.certificate_issue = _dateOnly(vm.plane_maintenance.certificate_issue);
+                }
+                if (vm.plane_maintenance.next_maintenance) {
+                    vm.plane_maintenance.next_maintenance = _dateOnly(vm.plane_maintenance.next_maintenance);
+                }
+            }
+            if (vm.plane_radio && vm.plane_radio.expiry) {
+                vm.plane_radio.expiry = _dateOnly(vm.plane_radio.expiry);
+            }
+            if (vm.plane_insurance && vm.plane_insurance.expiry) {
+                vm.plane_insurance.expiry = _dateOnly(vm.plane_insurance.expiry);
+            }
+            if (vm.plane_noise) {
+                if (vm.plane_noise.noise_cert_issue) {
+                    vm.plane_noise.noise_cert_issue = _dateOnly(vm.plane_noise.noise_cert_issue);
+                }
+                if (vm.plane_noise.expiry) {
+                    vm.plane_noise.expiry = _dateOnly(vm.plane_noise.expiry);
+                }
+            }
+
             vm.club.plane.maintenance = vm.plane_maintenance;
             vm.club.plane.insurance = vm.plane_insurance;
             vm.club.plane.noise_cert = vm.plane_noise;

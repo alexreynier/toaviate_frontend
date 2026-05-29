@@ -1,0 +1,568 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     CANCEL CLAIM MODAL — 3-Step: Preview → Confirm → Result
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="cc-modal">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="cc-modal__header">
+    <div class="cc-modal__header-left">
+      <div class="cc-modal__header-icon">
+        <i class="fa fa-times-circle"></i>
+      </div>
+      <div class="cc-modal__header-text">
+        <h4 class="cc-modal__title">
+          <span ng-if="step === 0">Loading…</span>
+          <span ng-if="step === -1">Error</span>
+          <span ng-if="step === 1">Cancel Flight Claim</span>
+          <span ng-if="step === 2">Confirm Cancellation</span>
+          <span ng-if="step === 3">Claim Cancelled</span>
+        </h4>
+        <span class="cc-modal__subtitle" ng-if="preview && step > 0">
+          {{ preview.plane ? preview.plane.registration : '' }}
+          <span ng-if="preview.plane_log_sheet.flight_date"> · {{ preview.plane_log_sheet.flight_date }}</span>
+        </span>
+      </div>
+    </div>
+    <button class="cc-modal__close" ng-click="step === 3 ? close() : dismiss()" aria-label="Close">
+      <i class="fa fa-times"></i>
+    </button>
+  </div>
+
+  <!-- ═══ TABS (only on preview step) ═══ -->
+  <div class="cc-tabs" ng-if="step === 1">
+    <button class="cc-tabs__tab" ng-class="{'cc-tabs__tab--active': activeTab === 'cancel'}" ng-click="setTab('cancel')">
+      <i class="fa fa-times-circle"></i> Cancel Claim
+    </button>
+    <button class="cc-tabs__tab" ng-class="{'cc-tabs__tab--active': activeTab === 'history'}" ng-click="setTab('history')">
+      <i class="fa fa-history"></i> Cancellation History
+    </button>
+  </div>
+
+  <!-- ═══ STEP INDICATOR ═══ -->
+  <div class="cc-steps" ng-if="step >= 1 && step <= 3 && activeTab === 'cancel'">
+    <div class="cc-steps__item" ng-class="{'cc-steps__item--active': step === 1, 'cc-steps__item--done': step > 1}">
+      <span class="cc-steps__num"><span ng-if="step <= 1">1</span><i ng-if="step > 1" class="fa fa-check"></i></span>
+      <span class="cc-steps__label">Preview</span>
+    </div>
+    <div class="cc-steps__connector" ng-class="{'cc-steps__connector--done': step > 1}"></div>
+    <div class="cc-steps__item" ng-class="{'cc-steps__item--active': step === 2, 'cc-steps__item--done': step > 2}">
+      <span class="cc-steps__num"><span ng-if="step <= 2">2</span><i ng-if="step > 2" class="fa fa-check"></i></span>
+      <span class="cc-steps__label">Confirm</span>
+    </div>
+    <div class="cc-steps__connector" ng-class="{'cc-steps__connector--done': step > 2}"></div>
+    <div class="cc-steps__item" ng-class="{'cc-steps__item--active': step === 3}">
+      <span class="cc-steps__num">3</span>
+      <span class="cc-steps__label">Done</span>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 0 — LOADING
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === 0">
+    <div class="cc-loading">
+      <div class="cc-loading__spinner"></div>
+      <p class="cc-loading__text">Analysing flight claim…</p>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       ERROR STATE
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === -1">
+    <div class="cc-error">
+      <div class="cc-error__icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <p class="cc-error__text">{{ errorMessage }}</p>
+    </div>
+  </div>
+  <div class="cc-footer" ng-if="step === -1">
+    <div></div>
+    <div class="cc-footer__right">
+      <button class="cc-btn cc-btn--ghost" ng-click="dismiss()">
+        <i class="fa fa-times"></i> Close
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 1 — PREVIEW (Cancel tab)
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === 1 && activeTab === 'cancel' && preview">
+
+    <!-- ── Flight Details Card ── -->
+    <div class="cc-card">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--flight">
+          <i class="fa fa-plane"></i>
+        </div>
+        <span class="cc-card__title">Flight Details</span>
+      </div>
+      <div class="cc-card__body">
+        <div class="cc-grid">
+          <div class="cc-grid__item">
+            <span class="cc-grid__label">Aircraft</span>
+            <span class="cc-grid__value">
+              {{ preview.plane.registration }}
+              <span style="font-size:12px; color:#64748b; font-weight:400;" ng-if="preview.plane.type_name">
+                ({{ preview.plane.type_name }})
+              </span>
+            </span>
+          </div>
+          <div class="cc-grid__item">
+            <span class="cc-grid__label">Date</span>
+            <span class="cc-grid__value">{{ preview.plane_log_sheet.flight_date }}</span>
+          </div>
+          <div class="cc-grid__item">
+            <span class="cc-grid__label">Departure</span>
+            <span class="cc-grid__value cc-grid__value--mono">{{ preview.plane_log_sheet.brakes_off || '—' }}</span>
+          </div>
+          <div class="cc-grid__item">
+            <span class="cc-grid__label">Landing</span>
+            <span class="cc-grid__value cc-grid__value--mono">{{ preview.plane_log_sheet.brakes_on || '—' }}</span>
+          </div>
+          <div class="cc-grid__item" ng-if="preview.plane_log_sheet.from_airport || preview.plane_log_sheet.to_airport">
+            <span class="cc-grid__label">Route</span>
+            <span class="cc-grid__value cc-grid__value--small">
+              {{ preview.plane_log_sheet.from_airport || '—' }} → {{ preview.plane_log_sheet.to_airport || '—' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Currently Claimed By Card ── -->
+    <div class="cc-card" ng-if="preview.claiming_user">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--member">
+          <i class="fa fa-user"></i>
+        </div>
+        <span class="cc-card__title">Currently Claimed By</span>
+      </div>
+      <div class="cc-card__body">
+        <div class="cc-grid">
+          <div class="cc-grid__item">
+            <span class="cc-grid__label">Member</span>
+            <span class="cc-grid__value">{{ preview.claiming_user.first_name }} {{ preview.claiming_user.last_name }}</span>
+          </div>
+          <div class="cc-grid__item" ng-if="preview.claiming_user.email">
+            <span class="cc-grid__label">Email</span>
+            <span class="cc-grid__value cc-grid__value--small">{{ preview.claiming_user.email }}</span>
+          </div>
+          <div class="cc-grid__item" ng-if="preview.instructor">
+            <span class="cc-grid__label">Instructor</span>
+            <span class="cc-grid__value">{{ preview.instructor.first_name }} {{ preview.instructor.last_name }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Financial Status Card ── -->
+    <div class="cc-card" ng-if="preview.financial">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--financial">
+          <i class="fa fa-gbp"></i>
+        </div>
+        <span class="cc-card__title">Financial Status</span>
+        <span class="cc-card__badge"
+              ng-class="{'cc-card__badge--paid': getPaymentStatusBadge() === 'paid',
+                         'cc-card__badge--unpaid': getPaymentStatusBadge() === 'unpaid',
+                         'cc-card__badge--partial': getPaymentStatusBadge() === 'partial'}">
+          {{ getPaymentStatusLabel() }}
+        </span>
+      </div>
+      <div class="cc-card__body">
+        <div class="cc-finance-row">
+          <span class="cc-finance-row__label">Total Invoiced</span>
+          <span class="cc-finance-row__amount">{{ formatCurrency(preview.financial.total_invoiced) }}</span>
+        </div>
+        <div class="cc-finance-row">
+          <span class="cc-finance-row__label">Total Paid</span>
+          <span class="cc-finance-row__amount cc-finance-row__amount--green">{{ formatCurrency(preview.financial.total_paid) }}</span>
+        </div>
+        <div class="cc-finance-row" ng-if="preview.financial.total_unpaid > 0">
+          <span class="cc-finance-row__label">Unpaid</span>
+          <span class="cc-finance-row__amount cc-finance-row__amount--red">{{ formatCurrency(preview.financial.total_unpaid) }}</span>
+        </div>
+        <div class="cc-finance-row" ng-if="preview.financial.has_stripe_payment">
+          <span class="cc-finance-row__label">
+            <i class="fa fa-credit-card" style="color:#6d28d9;"></i>
+            Stripe Refundable
+          </span>
+          <span class="cc-finance-row__amount">{{ formatCurrency(preview.financial.stripe_refundable_amount) }}</span>
+        </div>
+
+        <!-- Payment method badge -->
+        <div ng-if="getFinanceMethodLabel()" style="margin-top:6px;">
+          <span class="cc-finance-method" ng-class="getFinanceMethodClass()">
+            <i class="fa fa-credit-card"></i> {{ getFinanceMethodLabel() }}
+            <span ng-if="preview.financial.stripe_transaction_id" style="font-weight:400; opacity:0.8;">
+              ({{ preview.financial.stripe_transaction_id | limitTo:12 }}…)
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Warnings Card ── -->
+    <div class="cc-card" ng-if="preview.warnings && preview.warnings.length > 0">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--warning">
+          <i class="fa fa-exclamation-triangle"></i>
+        </div>
+        <span class="cc-card__title">Warnings</span>
+      </div>
+      <div class="cc-card__body">
+        <div class="cc-warnings">
+          <div class="cc-warning cc-warning--{{ warning.level }}" ng-repeat="warning in preview.warnings">
+            <div class="cc-warning__icon">
+              <i class="fa" ng-class="getWarningIcon(warning.level)"></i>
+            </div>
+            <span>{{ warning.message }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Training Records Card ── -->
+    <div class="cc-card" ng-if="preview.training_records && preview.training_records.length > 0">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--training">
+          <i class="fa fa-graduation-cap"></i>
+        </div>
+        <span class="cc-card__title">Training Records ({{ preview.training_records.length }})</span>
+      </div>
+      <div class="cc-card__body">
+        <div class="cc-training-item" ng-repeat="record in preview.training_records">
+          <div class="cc-training-item__icon">
+            <i class="fa fa-file-text-o"></i>
+          </div>
+          <div class="cc-training-item__content">
+            <div class="cc-training-item__notes">{{ record.notes || 'No notes' }}</div>
+            <div class="cc-training-item__meta" ng-if="record.instructor_first_name">
+              By {{ record.instructor_first_name }} {{ record.instructor_last_name }}
+            </div>
+          </div>
+        </div>
+        <div class="cc-training-notice">
+          <i class="fa fa-archive"></i>
+          These training records will be archived when the claim is cancelled
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Voucher Card ── -->
+    <div class="cc-card" ng-if="preview.voucher">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--voucher">
+          <i class="fa fa-ticket"></i>
+        </div>
+        <span class="cc-card__title">Linked Voucher</span>
+      </div>
+      <div class="cc-card__body">
+        <p style="font-size:13px; color:#475569; margin:0;">
+          Voucher #{{ preview.voucher.id }}
+          <span ng-if="preview.voucher_restorable"> — will be restored to unused status</span>
+          <span ng-if="!preview.voucher_restorable"> — cannot be automatically restored</span>
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Preview Footer ── -->
+  <div class="cc-footer" ng-if="step === 1 && activeTab === 'cancel'">
+    <div class="cc-footer__left">
+      <button class="cc-btn cc-btn--ghost" ng-click="dismiss()">
+        <i class="fa fa-times"></i> Cancel
+      </button>
+    </div>
+    <div class="cc-footer__right">
+      <button class="cc-btn cc-btn--danger" ng-click="goToConfirm()">
+        Continue <i class="fa fa-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       HISTORY TAB
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === 1 && activeTab === 'history'">
+
+    <!-- Loading -->
+    <div class="cc-loading" ng-if="historyLoading">
+      <div class="cc-loading__spinner"></div>
+      <p class="cc-loading__text">Loading cancellation history…</p>
+    </div>
+
+    <!-- Empty -->
+    <div ng-if="!historyLoading && historyData && historyData.length === 0" style="text-align:center; padding:40px 20px; color:#94a3b8;">
+      <i class="fa fa-check-circle" style="font-size:36px; color:#22c55e; display:block; margin-bottom:12px;"></i>
+      <p style="font-size:14px; color:#64748b;">No claim cancellations have been made yet.</p>
+    </div>
+
+    <!-- History Table -->
+    <div class="cc-history-scroll" ng-if="!historyLoading && historyData && historyData.length > 0">
+      <table class="cc-history-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Aircraft</th>
+            <th>Member</th>
+            <th>Action</th>
+            <th>Amount</th>
+            <th>By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat="item in historyData">
+            <td>{{ item.created_at }}</td>
+            <td>{{ item.plane_registration }}</td>
+            <td>{{ item.original_user_first_name }} {{ item.original_user_last_name }}</td>
+            <td>
+              <span class="cc-history-badge" ng-class="getFinancialActionClass(item.financial_action)">
+                {{ getFinancialActionLabel(item.financial_action) }}
+              </span>
+            </td>
+            <td>{{ formatCurrency(item.refund_amount) }}</td>
+            <td>{{ item.cancelled_by_first_name }} {{ item.cancelled_by_last_name }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="cc-pagination" ng-if="historyPagination && historyPagination.pages > 1">
+        <button class="cc-btn cc-btn--ghost" style="padding:6px 12px; font-size:12px;"
+                ng-click="loadHistory(historyPage - 1)" ng-disabled="historyPage <= 1">
+          <i class="fa fa-chevron-left"></i> Prev
+        </button>
+        <span class="cc-pagination__text">Page {{ historyPage }} of {{ historyPagination.pages }}</span>
+        <button class="cc-btn cc-btn--ghost" style="padding:6px 12px; font-size:12px;"
+                ng-click="loadHistory(historyPage + 1)" ng-disabled="historyPage >= historyPagination.pages">
+          Next <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- History Footer -->
+  <div class="cc-footer" ng-if="step === 1 && activeTab === 'history'">
+    <div></div>
+    <div class="cc-footer__right">
+      <button class="cc-btn cc-btn--ghost" ng-click="setTab('cancel')">
+        <i class="fa fa-arrow-left"></i> Back to Cancel
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 2 — CONFIRM
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === 2" style="position:relative;">
+
+    <!-- ── Reason ── -->
+    <div class="cc-form-group">
+      <label class="cc-form-label">
+        Reason for cancellation <span class="cc-required">*</span>
+      </label>
+      <textarea class="cc-form-textarea"
+                ng-model="form.reason"
+                placeholder="e.g. Flight was incorrectly claimed by the wrong member…"
+                rows="3"></textarea>
+      <div class="cc-form-error" ng-if="formErrors.reason">
+        <i class="fa fa-exclamation-circle"></i> {{ formErrors.reason }}
+      </div>
+    </div>
+
+    <!-- ── Financial Action (only if payment was made) ── -->
+    <div class="cc-form-group" ng-if="!hasOnlyNoRefund()">
+      <label class="cc-form-label">
+        Financial Action <span class="cc-required">*</span>
+      </label>
+
+      <div class="cc-action-selector">
+
+        <!-- Credit Account -->
+        <label class="cc-action-option" ng-if="isActionAvailable('credit_account')"
+               ng-class="{'cc-action-option--selected': form.financialAction === 'credit_account'}"
+               ng-click="setFinancialAction('credit_account')">
+          <input type="radio" name="financialAction" value="credit_account"
+                 ng-checked="form.financialAction === 'credit_account'" />
+          <div class="cc-action-option__icon cc-action-option__icon--credit">
+            <i class="fa fa-university"></i>
+          </div>
+          <div class="cc-action-option__content">
+            <div class="cc-action-option__title">Credit member's account</div>
+            <div class="cc-action-option__desc">Add credit to the member's club account balance</div>
+          </div>
+          <div class="cc-action-option__amount">{{ formatCurrency(preview.financial.total_paid) }}</div>
+        </label>
+
+        <!-- Stripe Refund -->
+        <label class="cc-action-option" ng-if="isActionAvailable('stripe_refund')"
+               ng-class="{'cc-action-option--selected': form.financialAction === 'stripe_refund'}"
+               ng-click="setFinancialAction('stripe_refund')">
+          <input type="radio" name="financialAction" value="stripe_refund"
+                 ng-checked="form.financialAction === 'stripe_refund'" />
+          <div class="cc-action-option__icon cc-action-option__icon--stripe">
+            <i class="fa fa-credit-card"></i>
+          </div>
+          <div class="cc-action-option__content">
+            <div class="cc-action-option__title">Refund to Stripe card</div>
+            <div class="cc-action-option__desc">Refund to the member's original payment card</div>
+          </div>
+          <div class="cc-action-option__amount">{{ formatCurrency(preview.financial.stripe_refundable_amount) }}</div>
+        </label>
+
+        <!-- No Refund -->
+        <label class="cc-action-option"
+               ng-class="{'cc-action-option--selected': form.financialAction === 'no_refund'}"
+               ng-click="setFinancialAction('no_refund')">
+          <input type="radio" name="financialAction" value="no_refund"
+                 ng-checked="form.financialAction === 'no_refund'" />
+          <div class="cc-action-option__icon cc-action-option__icon--none">
+            <i class="fa fa-ban"></i>
+          </div>
+          <div class="cc-action-option__content">
+            <div class="cc-action-option__title">No refund / waive</div>
+            <div class="cc-action-option__desc">Void the invoice without issuing a refund</div>
+          </div>
+        </label>
+
+      </div>
+    </div>
+
+    <!-- No payment notice -->
+    <div class="cc-form-group" ng-if="hasOnlyNoRefund()">
+      <div class="cc-no-payment">
+        <i class="fa fa-check-circle"></i>
+        No payment has been made — no refund is required.
+      </div>
+    </div>
+
+    <!-- ── Partial Refund Amount ── -->
+    <div class="cc-refund-amount" ng-if="!hasOnlyNoRefund() && form.financialAction !== 'no_refund' && preview.financial.total_paid > 0">
+      <span class="cc-refund-amount__label">Refund Amount</span>
+      <input type="number" class="cc-refund-amount__input"
+             ng-model="form.refundAmount"
+             min="0"
+             max="{{ preview.financial.total_paid }}"
+             step="0.01" />
+      <span class="cc-refund-amount__max">Max: {{ formatCurrency(preview.financial.total_paid) }}</span>
+      <div class="cc-form-error" ng-if="formErrors.refundAmount" style="width:100%; margin-top:6px;">
+        <i class="fa fa-exclamation-circle"></i> {{ formErrors.refundAmount }}
+      </div>
+    </div>
+
+    <!-- ═══ CONFIRM DIALOG OVERLAY ═══ -->
+    <div class="cc-confirm-overlay" ng-if="showConfirmDialog">
+      <div class="cc-confirm-dialog">
+        <div class="cc-confirm-dialog__icon">
+          <i class="fa fa-exclamation-triangle"></i>
+        </div>
+        <h4>Are you sure?</h4>
+        <p>This will cancel the flight claim and remove the member assignment. This action cannot be undone.</p>
+        <p ng-if="form.financialAction === 'stripe_refund'" style="color:#dc2626; font-weight:600;">
+          A Stripe refund of {{ formatCurrency(form.refundAmount || preview.financial.total_paid) }} will be issued.
+        </p>
+        <p ng-if="form.financialAction === 'credit_account'" style="color:#2563eb; font-weight:600;">
+          {{ formatCurrency(form.refundAmount || preview.financial.total_paid) }} will be credited to the member's account.
+        </p>
+        <div class="cc-confirm-dialog__actions">
+          <button class="cc-btn cc-btn--ghost" ng-click="cancelConfirmDialog()" ng-disabled="submitting">
+            Go Back
+          </button>
+          <button class="cc-btn cc-btn--danger" ng-click="executeCancellation()" ng-disabled="submitting">
+            <i class="fa" ng-class="submitting ? 'fa-spinner fa-spin' : 'fa-times-circle'"></i>
+            {{ submitting ? 'Cancelling…' : 'Cancel Claim' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Confirm Footer -->
+  <div class="cc-footer" ng-if="step === 2">
+    <div class="cc-footer__left">
+      <button class="cc-btn cc-btn--ghost" ng-click="goBackToPreview()" ng-disabled="submitting">
+        <i class="fa fa-arrow-left"></i> Back
+      </button>
+    </div>
+    <div class="cc-footer__right">
+      <button class="cc-btn cc-btn--danger" ng-click="confirmCancellation()" ng-disabled="submitting">
+        <i class="fa" ng-class="submitting ? 'fa-spinner fa-spin' : 'fa-times-circle'"></i>
+        {{ submitting ? 'Processing…' : 'Cancel Claim' }}
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       STEP 3 — RESULT
+       ════════════════════════════════════════════════════════ -->
+  <div class="modal-body cc-modal__body" ng-if="step === 3">
+    <div class="cc-result">
+
+      <!-- Success Icon -->
+      <div class="cc-result__icon cc-result__icon--success">
+        <i class="fa fa-check"></i>
+      </div>
+
+      <h3 class="cc-result__title">Claim Cancelled Successfully</h3>
+      <p class="cc-result__message">{{ result.message }}</p>
+
+      <!-- Summary Info -->
+      <div class="cc-result-info">
+        <div class="cc-result-info__item" ng-if="result.cancellation_id">
+          <span class="cc-result-info__label">Reference</span>
+          <span class="cc-result-info__value">#{{ result.cancellation_id }}</span>
+        </div>
+        <div class="cc-result-info__item" ng-if="result.financial_action && result.financial_action !== 'no_refund'">
+          <span class="cc-result-info__label">Action</span>
+          <span class="cc-result-info__value">{{ getFinancialActionLabel(result.financial_action) }}</span>
+        </div>
+        <div class="cc-result-info__item" ng-if="result.refund_amount > 0">
+          <span class="cc-result-info__label">Refund</span>
+          <span class="cc-result-info__value">{{ formatCurrency(result.refund_amount) }}</span>
+        </div>
+      </div>
+
+      <!-- Affected Entities -->
+      <div class="cc-entities" ng-if="result.affected_entities && result.affected_entities.length > 0">
+        <div class="cc-entities__header">
+          <i class="fa fa-list"></i> What happened
+        </div>
+        <div class="cc-entity" ng-repeat="entity in result.affected_entities">
+          <div class="cc-entity__icon cc-entity__icon--{{ entity.action }}">
+            <i class="fa" ng-class="getEntityIcon(entity.type)"></i>
+          </div>
+          <span class="cc-entity__text">
+            <span class="cc-entity__type">{{ entity.type | limitTo:30 }}</span>
+            <span ng-if="entity.id">#{{ entity.id }}</span>
+          </span>
+          <span class="cc-entity__action cc-entity__action--{{ entity.action }}">
+            {{ getEntityActionLabel(entity.action) }}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Result Footer -->
+  <div class="cc-footer" ng-if="step === 3">
+    <div></div>
+    <div class="cc-footer__right">
+      <button class="cc-btn cc-btn--success" ng-click="close()">
+        <i class="fa fa-check"></i> Done
+      </button>
+    </div>
+  </div>
+
+</div>

@@ -95,9 +95,13 @@
 
     <div class="logbook-hero-actions">
         <button class="btn btn-danger view_journey_logs" ng-click="vm.update_logbooks()">FORCE RECHECK LOGBOOK</button>
+        <button class="lhc-action-btn" ng-click="vm.openHoursCorrection()">
+            <i class="fa fa-pencil-square-o"></i> Correct Hours
+        </button>
+        <button class="lhc-history-btn" ng-click="vm.openCorrectionHistory()">
+            <i class="fa fa-history"></i> Correction History
+        </button>
     </div>
-
-
     <div class="search_bar2">
 
         <input type="search" placeholder="Search Airframe Logs" ng-model="my_search2" class="form-control fifty_wide centre_me searching_logs" />
@@ -409,6 +413,179 @@
 
         </div>
 
+      </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         LOGBOOK HOURS CORRECTION MODAL
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="lhc-modal-backdrop" ng-if="vm.lhc_show_modal" ng-click="vm.closeHoursCorrection()"></div>
+    <div class="lhc-modal" ng-if="vm.lhc_show_modal" ng-click="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="lhc-modal__header">
+        <h3><i class="fa fa-pencil-square-o"></i> Correct Airframe Hours</h3>
+        <button class="lhc-modal__close" ng-click="vm.closeHoursCorrection()"><i class="fa fa-times"></i></button>
+      </div>
+
+      <!-- Step 1: Form -->
+      <div class="lhc-modal__body" ng-if="vm.lhc_step === 'form'">
+        <p class="lhc-modal__intro">
+          Set the known-correct <strong>total airframe hours</strong> at a specific date and time. All logbook entries from that point onwards will be recalculated.
+        </p>
+
+        <div class="lhc-form-group">
+          <label>Reference Date &amp; Time</label>
+          <input type="datetime-local" ng-model="vm.lhc_form.correction_datetime" />
+          <div class="lhc-form-hint"><i class="fa fa-info-circle"></i> When were the hours known to be correct?</div>
+        </div>
+
+        <div class="lhc-form-group">
+          <label>Known-Correct Total Hours</label>
+          <input type="number" step="0.01" min="0" ng-model="vm.lhc_form.corrected_hours" placeholder="e.g. 1234.56" />
+          <div class="lhc-current-reference" ng-if="vm.plane.total_hours">
+            <i class="fa fa-tachometer"></i> Current logbook shows: {{ vm.plane.total_hours | number:2 }} hrs
+          </div>
+        </div>
+
+        <div class="lhc-form-group">
+          <label>Reason (Recommended)</label>
+          <textarea ng-model="vm.lhc_form.reason" placeholder="e.g. Hours verified against paper logbook at annual inspection"></textarea>
+        </div>
+      </div>
+
+      <!-- Step 2: Confirmation -->
+      <div class="lhc-modal__body" ng-if="vm.lhc_step === 'confirm'">
+        <div class="lhc-confirm">
+          <div class="lhc-confirm__title"><i class="fa fa-exclamation-triangle"></i> Are you sure?</div>
+          <div class="lhc-confirm__detail">
+            <span class="lhc-confirm__detail-label">Logbook Type</span>
+            <span class="lhc-confirm__detail-value">Airframe</span>
+          </div>
+          <div class="lhc-confirm__detail">
+            <span class="lhc-confirm__detail-label">Reference Date</span>
+            <span class="lhc-confirm__detail-value">{{ vm.lhcFormatDatetime(vm.lhc_form.correction_datetime) }}</span>
+          </div>
+          <div class="lhc-confirm__detail">
+            <span class="lhc-confirm__detail-label">Set Hours To</span>
+            <span class="lhc-confirm__detail-value">{{ vm.lhc_form.corrected_hours | number:2 }} hrs</span>
+          </div>
+          <div class="lhc-confirm__detail" ng-if="vm.lhc_form.reason">
+            <span class="lhc-confirm__detail-label">Reason</span>
+            <span class="lhc-confirm__detail-value">{{ vm.lhc_form.reason }}</span>
+          </div>
+          <div class="lhc-confirm__warning">
+            <i class="fa fa-info-circle"></i>
+            All logbook entries from this date onwards will be recalculated. This action is recorded in the audit trail and cannot be undone (but can be corrected again).
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Submitting -->
+      <div class="lhc-modal__body" ng-if="vm.lhc_step === 'submitting'">
+        <div class="lhc-loading">
+          <div class="lhc-spinner"></div>
+          Recalculating logbook entries...
+        </div>
+      </div>
+
+      <!-- Step 4: Result -->
+      <div class="lhc-modal__body" ng-if="vm.lhc_step === 'result'">
+        <div class="lhc-result">
+          <div class="lhc-result__icon"><i class="fa fa-check"></i></div>
+          <h4 class="lhc-result__title">Hours Corrected Successfully</h4>
+          <p class="lhc-result__subtitle">The airframe logbook has been recalculated.</p>
+          <div class="lhc-result__stats">
+            <div class="lhc-result__stat">
+              <div class="lhc-result__stat-label">Previous Hours</div>
+              <div class="lhc-result__stat-value">{{ vm.lhc_result.previous_hours | number:2 }}</div>
+            </div>
+            <div class="lhc-result__stat">
+              <div class="lhc-result__stat-label">Corrected Hours</div>
+              <div class="lhc-result__stat-value">{{ vm.lhc_result.corrected_hours | number:2 }}</div>
+            </div>
+            <div class="lhc-result__stat">
+              <div class="lhc-result__stat-label">Delta</div>
+              <div class="lhc-result__stat-value" ng-class="{'lhc-result__stat-value--positive': vm.lhc_result.delta >= 0, 'lhc-result__stat-value--negative': vm.lhc_result.delta < 0}">{{ vm.lhcGetDelta() }}</div>
+            </div>
+            <div class="lhc-result__stat">
+              <div class="lhc-result__stat-label">Entries Recalculated</div>
+              <div class="lhc-result__stat-value">{{ vm.lhc_result.entries_recalculated }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="lhc-modal__footer" ng-if="vm.lhc_step === 'form'">
+        <button class="lhc-btn lhc-btn--cancel" ng-click="vm.closeHoursCorrection()">Cancel</button>
+        <button class="lhc-btn lhc-btn--next" ng-click="vm.lhcGoToConfirm()"><i class="fa fa-arrow-right"></i> Review &amp; Confirm</button>
+      </div>
+      <div class="lhc-modal__footer" ng-if="vm.lhc_step === 'confirm'">
+        <button class="lhc-btn lhc-btn--back" ng-click="vm.lhcBackToForm()"><i class="fa fa-arrow-left"></i> Back</button>
+        <button class="lhc-btn lhc-btn--submit" ng-click="vm.lhcSubmit()"><i class="fa fa-check"></i> Confirm Correction</button>
+      </div>
+      <div class="lhc-modal__footer" ng-if="vm.lhc_step === 'result'">
+        <button class="lhc-btn lhc-btn--next" ng-click="vm.closeHoursCorrection()"><i class="fa fa-check"></i> Done</button>
+      </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         CORRECTION HISTORY PANEL (slide-in from right)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="lhc-history-backdrop" ng-if="vm.lhc_show_history" ng-click="vm.closeCorrectionHistory()"></div>
+    <div class="lhc-history-panel" ng-class="{'open': vm.lhc_show_history}">
+      <div class="lhc-history-panel__header">
+        <h3><i class="fa fa-history"></i> Correction History</h3>
+        <button class="lhc-history-panel__close" ng-click="vm.closeCorrectionHistory()"><i class="fa fa-times"></i></button>
+      </div>
+
+      <div class="lhc-history-tabs">
+        <button class="lhc-history-tab" ng-class="{'active': vm.lhc_history_filter === 'all'}" ng-click="vm.setHistoryFilter('all')">All</button>
+        <button class="lhc-history-tab" ng-class="{'active': vm.lhc_history_filter === 'airframe'}" ng-click="vm.setHistoryFilter('airframe')">Airframe</button>
+        <button class="lhc-history-tab" ng-class="{'active': vm.lhc_history_filter === 'engine'}" ng-click="vm.setHistoryFilter('engine')">Engine</button>
+        <button class="lhc-history-tab" ng-class="{'active': vm.lhc_history_filter === 'propeller'}" ng-click="vm.setHistoryFilter('propeller')">Propeller</button>
+      </div>
+
+      <div class="lhc-history-list">
+        <div class="lhc-loading" ng-if="vm.lhc_history_loading">
+          <div class="lhc-spinner"></div>
+          Loading correction history...
+        </div>
+
+        <div class="lhc-history-empty" ng-if="!vm.lhc_history_loading && vm.lhc_history.length === 0">
+          <i class="fa fa-check-circle"></i>
+          <p>No corrections have been made yet.</p>
+        </div>
+
+        <div class="lhc-history-card" ng-repeat="correction in vm.lhc_history">
+          <div class="lhc-history-card__top">
+            <span class="lhc-history-card__type" ng-class="{
+              'lhc-history-card__type--airframe': correction.logbook_type === 'airframe',
+              'lhc-history-card__type--engine': correction.logbook_type === 'engine',
+              'lhc-history-card__type--propeller': correction.logbook_type === 'propeller'
+            }">{{ correction.logbook_type }}</span>
+            <span class="lhc-history-card__date">{{ correction.created_at | myDateTime }}</span>
+          </div>
+          <div class="lhc-history-card__body">
+            <div class="lhc-history-card__hours">
+              <span class="lhc-history-card__hours-from">{{ correction.previous_hours | number:2 }}</span>
+              <i class="fa fa-long-arrow-right lhc-history-card__hours-arrow"></i>
+              <span class="lhc-history-card__hours-to">{{ correction.corrected_hours | number:2 }}</span>
+              <span class="lhc-history-card__delta" ng-class="vm.lhcGetDeltaClass(correction)">{{ vm.lhcGetDeltaDisplay(correction) }}</span>
+            </div>
+            <div class="lhc-history-card__meta">
+              <span><i class="fa fa-calendar"></i> Ref: {{ correction.correction_datetime | myDateTime }}</span>
+              <span><i class="fa fa-user"></i> {{ correction.first_name }} {{ correction.last_name }}</span>
+              <span><i class="fa fa-refresh"></i> {{ correction.entries_recalculated }} entries</span>
+            </div>
+            <div class="lhc-history-card__reason" ng-if="correction.reason">
+              "{{ correction.reason }}"
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

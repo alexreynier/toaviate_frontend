@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlightsController', DashboardClubFlightsController);
 
-    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService'];
-    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService) {
+    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService', 'CancelClaimService'];
+    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -1526,6 +1526,51 @@
                 $log.info('Flight merge modal dismissed');
                 // Refresh count in case user viewed but didn't merge
                 vm.loadMergeCandidateCount();
+            });
+        };
+
+
+        // ═══════════════════════════════════════════════
+        // CANCEL CLAIM — Claimed flight cancellation
+        // ═══════════════════════════════════════════════
+        vm.is_manager = (vm.user.access && vm.user.access.manager &&
+            vm.user.access.manager.indexOf(vm.club_id) > -1);
+
+        vm.isFlightClaimed = function(flight) {
+            // A flight is claimed if it has fox_claimed == 1 and a user assigned
+            return flight && flight.fox_claimed == 1 && flight.user && flight.user.id;
+        };
+
+        vm.cancelClaim = function(flight) {
+            var flightPlsId = flight.pls_id || flight.id;
+
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/cancelClaimModal.html',
+                controller: 'CancelClaimModalController',
+                size: 'lg',
+                backdrop: 'static',
+                keyboard: false,
+                resolve: {
+                    plsId: function() { return flightPlsId; },
+                    clubId: function() { return vm.club_id; },
+                    flightInfo: function() {
+                        return {
+                            registration: flight.aircraft ? flight.aircraft.registration : '',
+                            date: flight.flight_date,
+                            student: flight.user ? (flight.user.first_name + ' ' + flight.user.last_name) : ''
+                        };
+                    }
+                }
+            });
+
+            modalInstance.result.then(function(result) {
+                if (result && result.cancelled) {
+                    ToastService.success('Claim Cancelled', 'The flight claim has been cancelled. The flight is now available for re-claiming.', { duration: 5000 });
+                    vm.search_for_flights();
+                }
+            }, function() {
+                $log.info('Cancel claim modal dismissed');
             });
         };
 

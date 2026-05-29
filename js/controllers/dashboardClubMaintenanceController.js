@@ -390,6 +390,33 @@
 
 
 
+        // ─────────────────────────────────────────────────────────────
+        // Format a Date / date-string as a plain YYYY-MM-DD using LOCAL
+        // calendar values. This avoids the timezone drift that occurs
+        // when a JS Date is JSON-serialized via toISOString() (UTC) — e.g.
+        // a picker showing 2026-08-10 in UTC+10 would otherwise be sent
+        // to the backend as 2026-08-09T14:00:00.000Z and stored as the
+        // wrong day. Use this for every date-only field
+        // (maintenance.expiry_date, extension.expiry_date,
+        //  certificate expiry / date_issued, ARC date_expiry / date_issued,
+        //  radio / insurance / noise expiry, offline_until, etc.).
+        // ─────────────────────────────────────────────────────────────
+        function toDateOnly(value) {
+            if (value === null || value === undefined || value === '') return value;
+            // Already a YYYY-MM-DD string — leave it alone.
+            if (typeof value === 'string') {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+                // Strip any trailing time / timezone from a longer string.
+                var m = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+                if (m) return m[1];
+                // Fall through and let moment parse it.
+            }
+            var mom = moment(value);
+            if (!mom.isValid()) return value;
+            return mom.format('YYYY-MM-DD');
+        }
+        vm.toDateOnly = toDateOnly;
+
         $scope.save_overlay = function(){
 
             //first we save stuff   
@@ -433,7 +460,9 @@
             } else if(vm.files.radio[0] && vm.obj.radio_expiry){
                 send_obj.radio = {
                     file: (vm.files.radio[0]) ? vm.files.radio[0].file : {},
-                    expiry: vm.obj.radio_expiry
+                    // Date-only field — format from picker value in LOCAL
+                    // time to avoid UTC drift via Date.toISOString().
+                    expiry: toDateOnly(vm.obj.radio_expiry)
                 };
                 send_update = true;
             }
@@ -447,8 +476,11 @@
             } else if(vm.files.cert[0] && vm.obj.certificate_expiry) {
                 send_obj.cert = {
                     file: (vm.files.cert[0]) ? vm.files.cert[0].file : {},
-                    expiry: vm.obj.certificate_expiry,
-                    date_issued: vm.obj.certificate_issue
+                    // Date-only fields — format from picker value in LOCAL
+                    // time so that ARC / CofA expiry + issue dates are
+                    // stored as the calendar day the user selected.
+                    expiry: toDateOnly(vm.obj.certificate_expiry),
+                    date_issued: toDateOnly(vm.obj.certificate_issue)
                 }
                 send_update = true;
             }
@@ -461,7 +493,8 @@
             } else if(vm.files.insurance[0] && vm.obj.insurance_expiry) {
                 send_obj.insurance = {
                     file: (vm.files.insurance[0]) ? vm.files.insurance[0].file : {},
-                    expiry: vm.obj.insurance_expiry
+                    // Date-only field — format from picker value in LOCAL time.
+                    expiry: toDateOnly(vm.obj.insurance_expiry)
                 }
                 send_update = true;
             }
@@ -475,7 +508,8 @@
                 send_obj.noise_cert = {
                     file: (vm.files.noise_cert[0]) ? vm.files.noise_cert[0].file : {},
                     noise_level: vm.obj.noise_level,
-                    date_issued: vm.obj.noise_date
+                    // Date-only field — format from picker value in LOCAL time.
+                    date_issued: toDateOnly(vm.obj.noise_date)
                 }
                 send_update = true;
             }
@@ -560,8 +594,13 @@
                       send_obj.maintenance = {
                           maintenance_type: vm.obj.maintenance_type,
                           hours_remaining: vm.obj.hours_remaining,
+                          // check_date carries a time component (datetime).
                           check_date: check_date,
-                          expiry_date: vm.obj.next_check,
+                          // expiry_date (incl. ARC date_expiry when
+                          // maintenance_type === 'arc') is a calendar date —
+                          // format from picker value in LOCAL time so the
+                          // backend stores the day the user actually chose.
+                          expiry_date: toDateOnly(vm.obj.next_check),
                           checked_by: vm.obj.checked_by,
                           description: vm.obj.notes
                       } 
@@ -604,7 +643,8 @@
             if(vm.show_offline){
               if((vm.obj.offline_until !== "" || vm.obj.offline_notes !== "")){
                     send_obj.offline = {
-                        offline_until: vm.obj.offline_until,
+                        // Date-only field — format from picker value in LOCAL time.
+                        offline_until: toDateOnly(vm.obj.offline_until),
                         offline_notes: vm.obj.offline_notes,
                         club_id: vm.club_id
                     } 

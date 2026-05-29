@@ -153,8 +153,8 @@ app.controller('LoginController', LoginController);
                                  } else if(response) {
                                      $location.path('/dashboard/my_account');
                                  } else {
-                                     vm.error = 'Login succeeded but we could not load your access level. Please try again.';
-                                     vm.dataLoading = false;
+                                     // Access level fetch failed but user is authenticated — redirect to dashboard as fallback
+                                     $location.path('/dashboard');
                                  }
 
                                 

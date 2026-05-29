@@ -815,6 +815,313 @@
         <!-- End Airfield Bookout -->
 
 
+        <!-- ── Club Automations / Cron Schedules ── -->
+        <div class="club_docs_all" ng-if="vm.is_super_admin">
+          <h2><i class="fas fa-calendar-check" style="margin-right:8px;color:#0f766e;"></i> Scheduled Jobs</h2>
+          <p class="help-block">Set the time of day, timezone, and enabled state for each club-owned automation. System-managed cron jobs remain visible below for clarity.</p>
+
+          <div class="center_if_large sd-settings-section">
+            <button class="btn btn-primary btn_bigger" ui-sref="dashboard.manage_club.automations">
+              <i class="fas fa-calendar-check"></i> Manage Scheduled Jobs
+            </button>
+          </div>
+        </div>
+        <!-- End Club Automations -->
+
+
+        <!-- ── Daily Aircraft Status Report ── -->
+        <div class="club_docs_all" ng-if="vm.is_manager">
+          <h2><i class="fas fa-paper-plane" style="margin-right:8px;color:#1e3a5f;"></i> Daily Aircraft Status Report
+            <span class="das-badge das-badge--on"  ng-if="vm.das.form.enabled">On</span>
+            <span class="das-badge das-badge--off" ng-if="!vm.das.form.enabled && !vm.das.loading">Off</span>
+          </h2>
+          <p class="help-block">Email a nightly status report to your operations team — includes the aircraft status table, printable offline log forms, and a 24-hour student briefing. Sends every night at midnight, or manually whenever you need.</p>
+
+          <div class="center_if_large das-section">
+
+            <!-- Loading -->
+            <div ng-if="vm.das.loading" class="das-loading">
+              <i class="fa fa-spinner fa-spin"></i> Loading...
+            </div>
+
+            <!-- Main panel -->
+            <div ng-if="!vm.das.loading && vm.das.settings" class="das-panel">
+
+              <!-- Enable toggle -->
+              <div class="das-toggle-row">
+                <div class="das-toggle-info">
+                  <span class="das-toggle-label">Email this report every night at midnight</span>
+                  <span class="das-toggle-desc">When enabled, the report runs automatically once per day and emails the recipients below.</span>
+                </div>
+                <label class="das-switch" ng-class="{'das-switch--disabled': !vm.dasCanEnable() && !vm.das.form.enabled}">
+                  <input type="checkbox"
+                         ng-model="vm.das.form.enabled"
+                         ng-change="vm.dasOnEnableToggle()"
+                         ng-disabled="!vm.dasCanEnable() && !vm.das.form.enabled" />
+                  <span class="das-switch-slider"></span>
+                </label>
+              </div>
+              <div class="das-inline-error" ng-if="vm.das.enable_error">
+                <i class="fa fa-exclamation-circle"></i> {{ vm.das.enable_error }}
+              </div>
+
+              <!-- Recipients -->
+              <div class="das-field">
+                <label class="das-field-label">Recipients</label>
+                <div class="das-tag-input"
+                     ng-class="{'das-tag-input--error': vm.das.recipient_field_error}">
+                  <span class="das-tag" ng-class="{'das-tag--error': r.error}" ng-repeat="r in vm.das.recipients track by $index">
+                    <span class="das-tag-text">{{ r.email }}</span>
+                    <button type="button" class="das-tag-remove" ng-click="vm.dasRemoveRecipient($index)" aria-label="Remove">
+                      <i class="fa fa-times"></i>
+                    </button>
+                  </span>
+                  <input type="email"
+                         id="das_new_email"
+                         class="das-tag-entry"
+                         placeholder="{{ vm.das.recipients.length ? 'Add another…' : 'name@yourclub.com' }}"
+                         ng-model="vm.das.new_email"
+                         ng-keydown="vm.dasRecipientKey($event)"
+                         ng-blur="vm.das.new_email && vm.dasAddRecipient()" />
+                </div>
+                <div class="das-field-help" ng-if="!vm.das.new_email_error && !vm.das.recipient_field_error">
+                  Press <kbd>Enter</kbd> or <kbd>,</kbd> to add. Click the × on a chip to remove.
+                </div>
+                <div class="das-inline-error" ng-if="vm.das.new_email_error">
+                  <i class="fa fa-exclamation-circle"></i> {{ vm.das.new_email_error }}
+                </div>
+                <div class="das-inline-error" ng-if="vm.das.recipient_field_error">
+                  <i class="fa fa-exclamation-circle"></i> {{ vm.das.recipient_field_error }}
+                </div>
+              </div>
+
+              <!-- Include in email -->
+              <div class="das-field">
+                <label class="das-field-label">Include in the email</label>
+                <div class="das-checks">
+                  <label class="das-check">
+                    <input type="checkbox" ng-model="vm.das.form.include_aircraft_status" ng-change="vm.dasMarkDirty()" />
+                    <span class="das-check-box"><i class="fa fa-check"></i></span>
+                    <span class="das-check-text">
+                      <strong>Aircraft status table</strong>
+                      <span class="das-check-sub">Tach/Hobbs, hours to next check, defects.</span>
+                    </span>
+                  </label>
+                  <label class="das-check">
+                    <input type="checkbox" ng-model="vm.das.form.include_offline_forms" ng-change="vm.dasMarkDirty()" />
+                    <span class="das-check-box"><i class="fa fa-check"></i></span>
+                    <span class="das-check-text">
+                      <strong>Printable offline log forms</strong>
+                      <span class="das-check-sub">One sheet per aircraft for paper backup.</span>
+                    </span>
+                  </label>
+                  <label class="das-check">
+                    <input type="checkbox" ng-model="vm.das.form.include_student_summary" ng-change="vm.dasMarkDirty()" />
+                    <span class="das-check-box"><i class="fa fa-check"></i></span>
+                    <span class="das-check-text">
+                      <strong>Next 24h student briefing</strong>
+                      <span class="das-check-sub">Upcoming lessons grouped by instructor.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Last run -->
+              <div class="das-lastrun" ng-if="vm.das.settings.last_run_at">
+                <div class="das-lastrun-summary">
+                  <span class="das-pill"
+                        ng-class="{
+                          'das-pill--success': vm.das.settings.last_run_status === 'success',
+                          'das-pill--partial': vm.das.settings.last_run_status === 'partial',
+                          'das-pill--skipped': vm.das.settings.last_run_status === 'skipped',
+                          'das-pill--failure': vm.das.settings.last_run_status === 'failure'
+                        }"
+                        uib-tooltip="{{ vm.dasStatusTooltip(vm.das.settings) }}">
+                    <i class="fa"
+                       ng-class="{
+                         'fa-check-circle':       vm.das.settings.last_run_status === 'success',
+                         'fa-exclamation-circle': vm.das.settings.last_run_status === 'partial',
+                         'fa-clock-o':            vm.das.settings.last_run_status === 'skipped',
+                         'fa-times-circle':       vm.das.settings.last_run_status === 'failure'
+                       }"></i>
+                    {{ vm.dasStatusLabel(vm.das.settings.last_run_status) }}
+                  </span>
+                  <span class="das-lastrun-when">
+                    {{ vm.dasFormatRunDate(vm.das.settings.last_run_at) }}
+                    <span class="das-lastrun-type" ng-if="vm.das.settings.last_run_type">· {{ vm.das.settings.last_run_type }}</span>
+                  </span>
+                  <span class="das-lastrun-msg" ng-if="vm.das.settings.last_run_message">{{ vm.das.settings.last_run_message }}</span>
+                </div>
+                <div class="das-download-row">
+                  <button type="button" class="das-download-btn"
+                          ng-disabled="!vm.das.settings.last_aircraft_pdf"
+                          ng-click="vm.dasDownload('aircraft', vm.das.settings.last_aircraft_pdf)">
+                    <i class="fa fa-file-pdf-o"></i> Aircraft
+                  </button>
+                  <button type="button" class="das-download-btn"
+                          ng-disabled="!vm.das.settings.last_offline_pdf"
+                          ng-click="vm.dasDownload('offline', vm.das.settings.last_offline_pdf)">
+                    <i class="fa fa-file-pdf-o"></i> Offline forms
+                  </button>
+                  <button type="button" class="das-download-btn"
+                          ng-disabled="!vm.das.settings.last_students_pdf"
+                          ng-click="vm.dasDownload('students', vm.das.settings.last_students_pdf)">
+                    <i class="fa fa-file-pdf-o"></i> Students
+                  </button>
+                </div>
+              </div>
+              <div class="das-lastrun das-lastrun--empty" ng-if="!vm.das.settings.last_run_at">
+                <i class="fa fa-info-circle"></i>
+                The report has not run yet. Save your settings, then either wait for the midnight cron or use <strong>Send now</strong>.
+              </div>
+
+              <!-- Action buttons -->
+              <div class="das-actions">
+                <button type="button" class="das-btn das-btn--primary"
+                        ng-click="vm.dasSave()"
+                        ng-disabled="vm.das.saving || !vm.das.dirty">
+                  <i class="fa" ng-class="{'fa-spinner fa-spin': vm.das.saving, 'fa-save': !vm.das.saving}"></i>
+                  {{ vm.das.saving ? 'Saving…' : 'Save changes' }}
+                </button>
+                <button type="button" class="das-btn das-btn--ghost"
+                        ng-click="vm.dasAskSendNow()"
+                        ng-disabled="vm.das.sending || !vm.das.recipients.length || vm.das.dirty"
+                        uib-tooltip="{{ vm.das.dirty ? 'Save your changes first' : '' }}">
+                  <i class="fa" ng-class="{'fa-spinner fa-spin': vm.das.sending, 'fa-paper-plane': !vm.das.sending}"></i>
+                  {{ vm.das.sending ? 'Sending…' : 'Send now' }}
+                </button>
+              </div>
+
+              <!-- Send now confirmation -->
+              <div class="das-confirm" ng-if="vm.das.confirm_send">
+                <div class="das-confirm-inner">
+                  <div class="das-confirm-icon"><i class="fa fa-paper-plane"></i></div>
+                  <div class="das-confirm-body">
+                    <h4>Send the daily report now?</h4>
+                    <p>This will immediately email <strong>{{ vm.das.recipients.length }}</strong> recipient<span ng-if="vm.das.recipients.length !== 1">s</span> with today's PDFs.</p>
+                  </div>
+                  <div class="das-confirm-actions">
+                    <button type="button" class="das-btn das-btn--ghost" ng-click="vm.dasCancelSendNow()">Cancel</button>
+                    <button type="button" class="das-btn das-btn--primary" ng-click="vm.dasSendNow()">
+                      <i class="fa fa-paper-plane"></i> Send now
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Run history -->
+              <div class="das-history">
+                <button type="button" class="das-history-toggle" ng-click="vm.dasToggleHistory()">
+                  <i class="fa" ng-class="{'fa-chevron-down': !vm.das.history_open, 'fa-chevron-up': vm.das.history_open}"></i>
+                  Run history
+                </button>
+
+                <div class="das-history-body" ng-if="vm.das.history_open">
+                  <div class="das-loading" ng-if="vm.das.runs_loading">
+                    <i class="fa fa-spinner fa-spin"></i> Loading history…
+                  </div>
+
+                  <div class="das-history-empty" ng-if="!vm.das.runs_loading && !vm.das.runs.length">
+                    No runs recorded yet.
+                  </div>
+
+                  <!-- Table (desktop) -->
+                  <table class="das-history-table" ng-if="!vm.das.runs_loading && vm.das.runs.length">
+                    <thead>
+                      <tr>
+                        <th>Date / time</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th class="das-num">Sent</th>
+                        <th class="das-num">Failed</th>
+                        <th>Files</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr ng-repeat="r in vm.das.runs track by r.id">
+                        <td>{{ vm.dasFormatRunDate(r.started_at) }}</td>
+                        <td><span class="das-type">{{ r.run_type }}</span></td>
+                        <td>
+                          <span class="das-pill"
+                                ng-class="{
+                                  'das-pill--success': r.status === 'success',
+                                  'das-pill--partial': r.status === 'partial',
+                                  'das-pill--skipped': r.status === 'skipped',
+                                  'das-pill--failure': r.status === 'failure'
+                                }"
+                                uib-tooltip="{{ r.message }}">
+                            {{ vm.dasStatusLabel(r.status) }}
+                          </span>
+                        </td>
+                        <td class="das-num">{{ r.emails_sent || 0 }}</td>
+                        <td class="das-num">{{ r.emails_failed || 0 }}</td>
+                        <td>
+                          <span class="das-file-link"
+                                ng-class="{'das-file-link--disabled': !r.aircraft_pdf || !$first}"
+                                ng-click="$first && r.aircraft_pdf && vm.dasDownload('aircraft', r.aircraft_pdf)"
+                                uib-tooltip="{{ (!$first && r.aircraft_pdf) ? 'Older PDFs are cleaned up after the next run.' : '' }}">A</span>
+                          <span class="das-file-link"
+                                ng-class="{'das-file-link--disabled': !r.offline_pdf || !$first}"
+                                ng-click="$first && r.offline_pdf && vm.dasDownload('offline', r.offline_pdf)"
+                                uib-tooltip="{{ (!$first && r.offline_pdf) ? 'Older PDFs are cleaned up after the next run.' : '' }}">O</span>
+                          <span class="das-file-link"
+                                ng-class="{'das-file-link--disabled': !r.students_pdf || !$first}"
+                                ng-click="$first && r.students_pdf && vm.dasDownload('students', r.students_pdf)"
+                                uib-tooltip="{{ (!$first && r.students_pdf) ? 'Older PDFs are cleaned up after the next run.' : '' }}">S</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <!-- Cards (mobile) -->
+                  <div class="das-history-cards" ng-if="!vm.das.runs_loading && vm.das.runs.length">
+                    <div class="das-history-card" ng-repeat="r in vm.das.runs track by r.id">
+                      <div class="das-history-card-top">
+                        <span class="das-pill"
+                              ng-class="{
+                                'das-pill--success': r.status === 'success',
+                                'das-pill--partial': r.status === 'partial',
+                                'das-pill--skipped': r.status === 'skipped',
+                                'das-pill--failure': r.status === 'failure'
+                              }">
+                          {{ vm.dasStatusLabel(r.status) }}
+                        </span>
+                        <span class="das-history-when">{{ vm.dasFormatRunDate(r.started_at) }}</span>
+                      </div>
+                      <div class="das-history-card-meta">
+                        <span><strong>Type:</strong> {{ r.run_type }}</span>
+                        <span><strong>Sent:</strong> {{ r.emails_sent || 0 }}</span>
+                        <span><strong>Failed:</strong> {{ r.emails_failed || 0 }}</span>
+                      </div>
+                      <div class="das-history-card-msg" ng-if="r.message">{{ r.message }}</div>
+                      <div class="das-history-card-files">
+                        <span class="das-file-link"
+                              ng-class="{'das-file-link--disabled': !r.aircraft_pdf || !$first}"
+                              ng-click="$first && r.aircraft_pdf && vm.dasDownload('aircraft', r.aircraft_pdf)">
+                          <i class="fa fa-file-pdf-o"></i> Aircraft
+                        </span>
+                        <span class="das-file-link"
+                              ng-class="{'das-file-link--disabled': !r.offline_pdf || !$first}"
+                              ng-click="$first && r.offline_pdf && vm.dasDownload('offline', r.offline_pdf)">
+                          <i class="fa fa-file-pdf-o"></i> Offline
+                        </span>
+                        <span class="das-file-link"
+                              ng-class="{'das-file-link--disabled': !r.students_pdf || !$first}"
+                              ng-click="$first && r.students_pdf && vm.dasDownload('students', r.students_pdf)">
+                          <i class="fa fa-file-pdf-o"></i> Students
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        <!-- End Daily Aircraft Status Report -->
+
+
              <div class="club_docs_all">
               <h2>Payment Integrations</h2>
 

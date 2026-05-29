@@ -939,11 +939,26 @@ var app = angular
                 }
             })
 
+            .state('dashboard.manage_club.automations', {
+                url: '/settings/automations',
+                controller: 'DashboardClubAutomationsController',
+                templateUrl: 'views/manageclub/automations.html',
+                controllerAs: 'vm'
+            })
+
             // VOUCHER WIDGET
             .state('dashboard.manage_club.voucher_widget', {
                 url: '/voucher_widget',
                 controller: 'DashboardClubVoucherWidgetController',
                 templateUrl: 'views/manageclub/voucher_widget.html',
+                controllerAs: 'vm'
+            })
+
+            // CRON STATUS (super-admin only)
+            .state('dashboard.manage_club.cron_status', {
+                url: '/cron_status',
+                controller: 'CronStatusController',
+                templateUrl: 'views/manageclub/cron_status.html',
                 controllerAs: 'vm'
             })
 
