@@ -1,0 +1,145 @@
+<!-- ── Header ── -->
+<div class="mxo-page__header">
+  <div class="mxo-page__header-inner">
+    <div class="back-box" ui-sref="dashboard.maintenance"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <div class="mxo-page__title">
+      <h2><i class="fas fa-users"></i> Members</h2>
+      <p>Engineers and admins in your organisation</p>
+    </div>
+    <div class="mxo-page__header-actions" ng-if="vm.is_admin">
+      <button class="mxo-page__action-btn-header" ng-click="vm.openAdd()">
+        <i class="fas fa-user-plus"></i> Add member
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Loading ── -->
+<div ng-if="vm.loading" class="mxo-loading">
+  <span class="mxo-spinner"></span> Loading members…
+</div>
+
+<!-- ── Empty ── -->
+<div ng-if="!vm.loading && !vm.members.length" class="mxo-empty">
+  <div class="mxo-empty__icon"><i class="fas fa-users"></i></div>
+  <p>No members yet</p>
+  <p ng-if="vm.is_admin" style="font-size:13px;">Click <strong>Add member</strong> above to invite your first engineer.</p>
+</div>
+
+<!-- ── Search ── -->
+<div class="mxo-search" ng-if="!vm.loading && vm.members.length">
+  <i class="fa fa-search mxo-search__icon"></i>
+  <input class="mxo-search__input" type="search" placeholder="Search by name or email…" ng-model="vm.search" />
+</div>
+
+<!-- ── Desktop table ── -->
+<div class="mxo-table-card mxo-desktop-table" ng-if="!vm.loading && vm.members.length">
+  <div class="mxo-table-scroll">
+    <table class="mxo-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="m in vm.members | filter: vm.search">
+          <td class="mxo-table__primary">{{ m.first_name }} {{ m.last_name }}</td>
+          <td>{{ m.email }}</td>
+          <td class="mxo-table__muted">{{ m.phone_number || m.phone || '—' }}</td>
+          <td><span class="mxo-badge" ng-class="vm.roleBadge(m)">{{ vm.roleLabel(m) }}</span></td>
+          <td>
+            <span class="mxo-badge" ng-class="m.approved ? 'mxo-badge--ok' : 'mxo-badge--warn'">
+              {{ m.approved ? 'Active' : 'Pending' }}
+            </span>
+          </td>
+          <td class="mxo-table__actions">
+            <button class="mxo-table__action-btn" ng-click="vm.openEdit(m)" ng-if="vm.is_admin" title="Edit roles">
+              <i class="fas fa-pen"></i>
+            </button>
+            <button class="mxo-table__action-btn mxo-table__action-btn--danger"
+                    ng-click="vm.removeMember(m)" ng-if="vm.is_admin" title="Remove">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Mobile cards ── -->
+<div class="mxo-mobile-cards" ng-if="!vm.loading && vm.members.length">
+  <div class="mxo-mcard" ng-repeat="m in vm.members | filter: vm.search">
+    <div class="mxo-mcard__header">
+      <span>{{ m.first_name }} {{ m.last_name }}</span>
+      <span class="mxo-badge" ng-class="vm.roleBadge(m)">{{ vm.roleLabel(m) }}</span>
+    </div>
+    <div class="mxo-mcard__body">
+      <div class="mxo-mcard__row"><span class="mxo-mcard__label">Email</span> <span class="mxo-mcard__value">{{ m.email }}</span></div>
+      <div class="mxo-mcard__row"><span class="mxo-mcard__label">Phone</span> <span class="mxo-mcard__value">{{ m.phone_number || m.phone || '—' }}</span></div>
+      <div class="mxo-mcard__row">
+        <span class="mxo-mcard__label">Status</span>
+        <span class="mxo-mcard__value">
+          <span class="mxo-badge" ng-class="m.approved ? 'mxo-badge--ok' : 'mxo-badge--warn'">{{ m.approved ? 'Active' : 'Pending' }}</span>
+        </span>
+      </div>
+    </div>
+    <div class="mxo-mcard__actions" ng-if="vm.is_admin">
+      <button class="mxo-btn mxo-btn--ghost mxo-btn--sm" ng-click="vm.openEdit(m)"><i class="fas fa-pen"></i> Roles</button>
+      <button class="mxo-btn mxo-btn--danger mxo-btn--sm" ng-click="vm.removeMember(m)"><i class="fas fa-trash"></i> Remove</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / edit modal-card ── -->
+<div ng-if="vm.show_form" style="position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:1050; display:flex; align-items:center; justify-content:center; padding:20px;">
+  <div class="mxo-card" style="max-width:560px; width:100%; margin:0; max-height:90vh; overflow:auto;">
+    <h3 class="mxo-card__title">
+      <i class="fas" ng-class="vm.editing ? 'fa-user-edit' : 'fa-user-plus'"></i>
+      {{ vm.editing ? 'Edit roles for ' + vm.editing.first_name : 'Add member' }}
+    </h3>
+
+    <div ng-if="!vm.editing" class="mxo-form-grid">
+      <div class="mxo-field">
+        <label>First name</label>
+        <input id="mxm_first" type="text" ng-model="vm.form.first_name" />
+      </div>
+      <div class="mxo-field">
+        <label>Last name</label>
+        <input id="mxm_last" type="text" ng-model="vm.form.last_name" />
+      </div>
+      <div class="mxo-field mxo-field--full">
+        <label>Email</label>
+        <input id="mxm_email" type="email" ng-model="vm.form.email" />
+        <span class="mxo-field__hint">If they already have an account they're linked immediately; otherwise an invite is created.</span>
+      </div>
+      <div class="mxo-field mxo-field--full">
+        <label>Phone</label>
+        <input type="tel" ng-model="vm.form.phone" />
+      </div>
+    </div>
+
+    <div style="margin-top:14px; display:flex; flex-direction:column; gap:10px;">
+      <label class="mxo-checkbox">
+        <input type="checkbox" ng-model="vm.form.is_senior" ng-true-value="1" ng-false-value="0" />
+        <span><strong>Senior engineer</strong> — can manage maintenance occurrences and engineering licences.</span>
+      </label>
+      <label class="mxo-checkbox">
+        <input type="checkbox" ng-model="vm.form.is_manager" ng-true-value="1" ng-false-value="0" />
+        <span><strong>Organisation admin</strong> — full access including managing members.</span>
+      </label>
+    </div>
+
+    <div style="margin-top:22px; display:flex; gap:8px; justify-content:flex-end;">
+      <button class="mxo-btn mxo-btn--ghost" ng-click="vm.closeForm()">Cancel</button>
+      <button class="mxo-btn mxo-btn--primary" ng-click="vm.saveMember()">
+        <i class="fas fa-check"></i> {{ vm.editing ? 'Save' : 'Add' }}
+      </button>
+    </div>
+  </div>
+</div>

@@ -189,6 +189,50 @@ var app = angular
             })
 
 
+            // ── MAINTENANCE ORGANISATION WORKSPACE ──
+            .state('dashboard.maintenance', {
+                url: '/maintenance',
+                controller: 'DashboardMaintenanceController',
+                templateUrl: 'views/maintenance/home.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.maintenance.fleet', {
+                url: '/fleet',
+                controller: 'MaintenanceFleetController',
+                templateUrl: 'views/maintenance/fleet.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.maintenance.fleet.aircraft', {
+                url: '/aircraft/:plane_id',
+                controller: 'MaintenanceFleetController',
+                templateUrl: 'views/maintenance/fleet.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.maintenance.members', {
+                url: '/members',
+                controller: 'MaintenanceMembersController',
+                templateUrl: 'views/maintenance/members.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.maintenance.licences', {
+                url: '/licences',
+                controller: 'MaintenanceLicencesController',
+                templateUrl: 'views/maintenance/licences.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.maintenance.settings', {
+                url: '/settings',
+                controller: 'MaintenanceSettingsController',
+                templateUrl: 'views/maintenance/settings.html',
+                controllerAs: 'vm'
+            })
+
+
 
 
 
@@ -1710,6 +1754,13 @@ var app = angular
         
 
         //CLUB SIGNUP FORM
+
+        .state('signup_maintenance', {
+            url: '/signup/maintenance',
+            templateUrl: 'views/forms/maintenance_signup/form.html',
+            controller: 'MaintenanceSignupController',
+            controllerAs: 'vm'
+        })
 
         .state('club_signup', {
             url: '/club_signup',

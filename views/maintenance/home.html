@@ -1,0 +1,48 @@
+<div class="mxo-page" ng-class="{'mxo-page--loading': vm.loading}">
+
+  <!-- Loading -->
+  <div ng-if="vm.loading" class="mxo-loading">
+    <span class="mxo-spinner"></span> Loading your maintenance organisations…
+  </div>
+
+  <!-- No-access state -->
+  <div ng-if="!vm.loading && vm.error" class="mxo-card" style="text-align:center;">
+    <div style="font-size:42px; color:#cbd5e1; margin-bottom:10px;"><i class="fas fa-wrench"></i></div>
+    <h3 style="margin:0 0 6px;">No maintenance organisations</h3>
+    <p style="color:#64748b;">{{ vm.error }}</p>
+    <div style="margin-top:14px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+      <a class="mxo-btn mxo-btn--primary" ui-sref="signup_maintenance"><i class="fas fa-plus"></i> Create one</a>
+      <a class="mxo-btn mxo-btn--ghost" ui-sref="dashboard"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
+    </div>
+  </div>
+
+  <!-- Org switcher (always visible when there are orgs) -->
+  <div class="mxo-org-switcher" ng-if="!vm.loading && vm.org">
+    <span class="mxo-org-switcher__icon"><i class="fas fa-wrench"></i></span>
+    <div ng-if="vm.orgs.length <= 1" style="flex:1;">
+      <div class="mxo-org-switcher__label">Maintenance organisation</div>
+      <div class="mxo-org-switcher__name">{{ vm.org.title }}</div>
+    </div>
+    <div ng-if="vm.orgs.length > 1" class="mxo-org-switcher__select">
+      <div class="mxo-org-switcher__label">Maintenance organisation</div>
+      <ui-select ng-model="vm.org" on-select="vm.onOrgSelected($item)" theme="bootstrap" append-to-body="true" title="Switch organisation">
+        <ui-select-match placeholder="Select organisation…">{{ vm.org.title }}</ui-select-match>
+        <ui-select-choices repeat="o in vm.orgs | filter: $select.search">
+          <div ng-bind-html="o.title | highlight: $select.search"></div>
+        </ui-select-choices>
+      </ui-select>
+    </div>
+    <span class="mxo-badge" ng-class="vm.is_admin ? 'mxo-badge--info' : (vm.is_senior ? 'mxo-badge--teal' : 'mxo-badge--slate')">
+      {{ vm.is_admin ? 'Admin' : (vm.is_senior ? 'Senior' : 'Member') }}
+    </span>
+  </div>
+
+  <!-- Child view (when navigated into fleet/members/licences/settings) -->
+  <div ng-if="!vm.loading && vm.org && vm.$state.current.name !== 'dashboard.maintenance'">
+    <ui-view></ui-view>
+  </div>
+
+  <!-- Landing tiles (shown only on /dashboard/maintenance with no child active) -->
+  <div ng-if="!vm.loading && vm.org && vm.$state.current.name === 'dashboard.maintenance'" ng-include="'views/maintenance/dashboard.html'"></div>
+
+</div>

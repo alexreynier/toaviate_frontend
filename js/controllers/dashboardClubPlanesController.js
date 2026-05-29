@@ -1,7 +1,7 @@
  app.controller('DashboardClubPlanesController', DashboardClubPlanesController);
 
-    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'AircraftChecksService', '$filter'];
-    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, AircraftChecksService, $filter) {
+    DashboardClubPlanesController.$inject = ['UserService', 'PlaneService', 'FoxService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'AircraftChecksService', '$filter', 'MaintenanceOrganisationService', 'PlaneMaintenanceOrgService'];
+    function DashboardClubPlanesController(UserService, PlaneService, FoxService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, AircraftChecksService, $filter, MaintenanceOrganisationService, PlaneMaintenanceOrgService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -181,6 +181,7 @@
                     .then(function(data){
                         vm.club.planes = data;   
                         vm.updateFleetStats();
+                        vm.loadMaintainers();
                     });
 
 
@@ -315,6 +316,135 @@
             }
             vm.fleet_stats = { total: total, visible: total - hidden, hidden: hidden };
         };
+
+        // ── Maintenance organisation assignment per aircraft ──
+        // (used by the "Maintenance partners" section on the planes list)
+        vm.maintenance_orgs = [];           // available orgs (dropdown options)
+        vm.maintainers_by_plane = {};       // plane_id → { maintenance_org_id, maintenance_org_title }
+        vm.maintainer_edit = {};            // plane_id → bool (inline edit state)
+        vm.maintainer_pick = {};            // plane_id → ui-select model
+        vm.maintainers_loading = false;
+
+        vm.loadMaintainers = function() {
+            if (!vm.club_id || !vm.club.planes) return;
+            vm.maintainers_loading = true;
+
+            MaintenanceOrganisationService.ListAll().then(function(res) {
+                var list = (res && (res.organisations || res.data || res)) || [];
+                vm.maintenance_orgs = angular.isArray(list) ? list : [];
+            });
+
+            PlaneMaintenanceOrgService.ListForClub(vm.club_id).then(function(res) {
+                vm.maintainers_loading = false;
+                var rows = (res && (res.assignments || res.data || res)) || [];
+                if (!angular.isArray(rows)) rows = [];
+                vm.maintainers_by_plane = {};
+                rows.forEach(function(r) {
+                    vm.maintainers_by_plane[r.plane_id] = {
+                        maintenance_org_id: r.maintenance_org_id,
+                        maintenance_org_title: r.maintenance_org_title,
+                        registration: r.registration
+                    };
+                });
+            });
+        };
+
+        vm.toggleMaintainerEdit = function(plane) {
+            vm.maintainer_edit[plane.plane_id] = !vm.maintainer_edit[plane.plane_id];
+            if (vm.maintainer_edit[plane.plane_id]) {
+                var current = vm.maintainers_by_plane[plane.plane_id];
+                vm.maintainer_pick[plane.plane_id] = current
+                    ? findOrg(current.maintenance_org_id) : null;
+            }
+        };
+
+        vm.saveMaintainer = function(plane) {
+            var picked = vm.maintainer_pick[plane.plane_id];
+            if (!picked) {
+                ToastService.warning('Pick an organisation', 'Or use "Clear" to remove the current one.');
+                return;
+            }
+            PlaneMaintenanceOrgService.Save(plane.plane_id, vm.club_id, picked.id).then(function(res) {
+                if (res && res.success !== false) {
+                    vm.maintainers_by_plane[plane.plane_id] = {
+                        maintenance_org_id: picked.id,
+                        maintenance_org_title: picked.title,
+                        registration: plane.registration
+                    };
+                    vm.maintainer_edit[plane.plane_id] = false;
+                    ToastService.success('Maintainer set', plane.registration + ' → ' + picked.title, { confetti: false });
+                } else {
+                    ToastService.error('Could not assign', res && res.message);
+                }
+            });
+        };
+
+        vm.clearMaintainer = function(plane) {
+            if (!confirm('Remove ' + (vm.maintainers_by_plane[plane.plane_id] && vm.maintainers_by_plane[plane.plane_id].maintenance_org_title) + ' as maintainer for ' + plane.registration + '?')) return;
+            PlaneMaintenanceOrgService.Clear(plane.plane_id, vm.club_id).then(function(res) {
+                if (res && res.success !== false) {
+                    delete vm.maintainers_by_plane[plane.plane_id];
+                    vm.maintainer_edit[plane.plane_id] = false;
+                    ToastService.success('Maintainer cleared', null, { confetti: false });
+                } else {
+                    ToastService.error('Could not clear', res && res.message);
+                }
+            });
+        };
+
+        // ── Invite an unregistered maintenance organisation by email ──
+        vm.maintainer_invite_open    = {};   // plane_id → bool
+        vm.maintainer_invite_form    = {};   // plane_id → { email, organisation_name, message }
+        vm.maintainer_invite_sending = {};   // plane_id → bool
+        vm.maintainer_invite_sent    = {};   // plane_id → bool
+
+        vm.toggleInviteForm = function(plane) {
+            var pid = plane.plane_id;
+            vm.maintainer_invite_open[pid] = !vm.maintainer_invite_open[pid];
+            if (vm.maintainer_invite_open[pid] && !vm.maintainer_invite_form[pid]) {
+                vm.maintainer_invite_form[pid] = { email: '', organisation_name: '', message: '' };
+            }
+            vm.maintainer_invite_sent[pid] = false;
+        };
+
+        vm.sendMaintainerInvite = function(plane, $event) {
+            var pid = plane.plane_id;
+            var f   = vm.maintainer_invite_form[pid] || {};
+
+            var errors = ToastService.validateForm([
+                { ok: !!(f.email && /.+@.+\..+/.test(f.email)), field: '#mxo_invite_email_' + pid, label: 'Email address' }
+            ]);
+            if (errors && errors.length) return;
+
+            vm.maintainer_invite_sending[pid] = true;
+            MaintenanceOrganisationService.Invite({
+                email:             f.email,
+                organisation_name: f.organisation_name || null,
+                club_id:           vm.club_id,
+                plane_id:          plane.plane_id,
+                message:           f.message || null
+            }).then(function(res) {
+                vm.maintainer_invite_sending[pid] = false;
+                if (res && res.success !== false) {
+                    vm.maintainer_invite_sent[pid] = true;
+                    ToastService.success(
+                        'Invitation sent',
+                        'We\'ve emailed ' + f.email + ' a link to register. We\'ll auto-link them to ' + plane.registration + ' once they sign up.',
+                        { confetti: true }
+                    );
+                } else {
+                    ToastService.error('Could not send invite', (res && res.message) || 'Please try again.');
+                }
+            });
+        };
+
+        function findOrg(id) {
+            for (var i = 0; i < vm.maintenance_orgs.length; i++) {
+                if (vm.maintenance_orgs[i].id === id) return vm.maintenance_orgs[i];
+            }
+            return null;
+        }
+
 
         // ── Toggle Hidden from Booking ──
         vm.toggleHiddenFromBooking = function(plane) {

@@ -46,6 +46,129 @@
       <input type="search" placeholder="Search aircraft by registration or type…" ng-model="vm.fleet_search" class="snazzy-page__search-input" />
     </div>
 
+    <!-- ═══ Maintenance partners (assign each aircraft to a maintenance organisation) ═══ -->
+    <div class="mxo-card" ng-if="vm.club.planes.length > 0" style="border-color:#99f6e4;">
+      <h3 class="mxo-card__title"><i class="fas fa-wrench"></i> Maintenance partners</h3>
+      <p class="mxo-card__subtitle">Choose which maintenance organisation looks after each aircraft. They'll see exactly the planes you assign to them.</p>
+
+      <div ng-repeat="plane in vm.club.planes | filter: vm.fleet_search" class="mxo-assign-row-wrap">
+       <div class="mxo-assign-row">
+        <span class="mxo-assign-row__icon"><i class="fas fa-plane"></i></span>
+        <div style="min-width:120px;">
+          <div class="mxo-assign-row__label">Aircraft</div>
+          <div class="mxo-assign-row__value">{{ plane.registration }}</div>
+        </div>
+
+        <!-- Display mode -->
+        <div ng-if="!vm.maintainer_edit[plane.plane_id]" style="flex:1; min-width:160px;">
+          <div class="mxo-assign-row__label">Maintained by</div>
+          <div class="mxo-assign-row__value" ng-if="vm.maintainers_by_plane[plane.plane_id]">
+            {{ vm.maintainers_by_plane[plane.plane_id].maintenance_org_title }}
+          </div>
+          <div class="mxo-assign-row__value" ng-if="!vm.maintainers_by_plane[plane.plane_id]" style="color:#94a3b8; font-weight:500;">
+            <em>Not yet assigned</em>
+          </div>
+        </div>
+
+        <!-- Edit mode -->
+        <div ng-if="vm.maintainer_edit[plane.plane_id]" class="mxo-assign-row__select">
+          <ui-select ng-model="vm.maintainer_pick[plane.plane_id]" theme="bootstrap" append-to-body="true" title="Choose maintenance organisation">
+            <ui-select-match placeholder="Choose organisation…">{{ $select.selected.title }}</ui-select-match>
+            <ui-select-choices repeat="o in vm.maintenance_orgs | filter: $select.search">
+              <div ng-bind-html="o.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+          <a href="" class="mxo-assign-row__invite-link" ng-click="vm.toggleInviteForm(plane)">
+            <i class="fas fa-paper-plane"></i>
+            Can't find them? Invite by email
+          </a>
+        </div>
+
+        <div class="mxo-assign-row__actions">
+          <button class="mxo-btn mxo-btn--ghost mxo-btn--sm"
+                  ng-if="!vm.maintainer_edit[plane.plane_id]"
+                  ng-click="vm.toggleMaintainerEdit(plane)">
+            <i class="fas fa-pen"></i> {{ vm.maintainers_by_plane[plane.plane_id] ? 'Change' : 'Assign' }}
+          </button>
+          <button class="mxo-btn mxo-btn--danger mxo-btn--sm"
+                  ng-if="!vm.maintainer_edit[plane.plane_id] && vm.maintainers_by_plane[plane.plane_id]"
+                  ng-click="vm.clearMaintainer(plane)" title="Remove maintainer">
+            <i class="fas fa-times"></i>
+          </button>
+          <button class="mxo-btn mxo-btn--primary mxo-btn--sm"
+                  ng-if="vm.maintainer_edit[plane.plane_id]"
+                  ng-click="vm.saveMaintainer(plane)">
+            <i class="fas fa-check"></i> Save
+          </button>
+          <button class="mxo-btn mxo-btn--ghost mxo-btn--sm"
+                  ng-if="vm.maintainer_edit[plane.plane_id]"
+                  ng-click="vm.toggleMaintainerEdit(plane)">
+            Cancel
+          </button>
+        </div>
+       </div>
+
+       <!-- Invite panel (slides out under the row) -->
+       <div class="mxo-invite-panel" ng-if="vm.maintainer_invite_open[plane.plane_id]">
+        <div class="mxo-invite-panel__header">
+          <div>
+            <h4 class="mxo-invite-panel__title"><i class="fas fa-paper-plane"></i> Invite a maintenance organisation</h4>
+            <p class="mxo-invite-panel__subtitle">
+              We'll email them a registration link. Once they sign up, {{ plane.registration }} will be automatically linked to them.
+            </p>
+          </div>
+          <button class="mxo-invite-panel__close" ng-click="vm.toggleInviteForm(plane)" title="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <!-- Success state -->
+        <div ng-if="vm.maintainer_invite_sent[plane.plane_id]" class="mxo-invite-panel__success">
+          <i class="fas fa-check-circle"></i>
+          <div>
+            <strong>Invitation sent to {{ vm.maintainer_invite_form[plane.plane_id].email }}</strong>
+            <div>You'll be notified the moment they accept and register.</div>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <div ng-if="!vm.maintainer_invite_sent[plane.plane_id]" class="mxo-form-grid">
+          <div class="mxo-field mxo-field--wide">
+            <label for="mxo_invite_email_{{ plane.plane_id }}">Their email address <span style="color:#ef4444;">*</span></label>
+            <input type="email"
+                   id="mxo_invite_email_{{ plane.plane_id }}"
+                   ng-model="vm.maintainer_invite_form[plane.plane_id].email"
+                   ng-focus="vm.clearFieldError && vm.clearFieldError($event)"
+                   placeholder="engineer@example.com" />
+          </div>
+          <div class="mxo-field mxo-field--wide">
+            <label for="mxo_invite_org_{{ plane.plane_id }}">Organisation name <span style="color:#94a3b8; font-weight:400;">(optional)</span></label>
+            <input type="text"
+                   id="mxo_invite_org_{{ plane.plane_id }}"
+                   ng-model="vm.maintainer_invite_form[plane.plane_id].organisation_name"
+                   placeholder="e.g. Skyline Aviation Engineering Ltd" />
+          </div>
+          <div class="mxo-field mxo-field--full">
+            <label for="mxo_invite_msg_{{ plane.plane_id }}">Personal message <span style="color:#94a3b8; font-weight:400;">(optional)</span></label>
+            <textarea id="mxo_invite_msg_{{ plane.plane_id }}"
+                      ng-model="vm.maintainer_invite_form[plane.plane_id].message"
+                      rows="2"
+                      placeholder="Hi! We'd love to set up our maintenance records with you on ToAviate…"></textarea>
+          </div>
+          <div class="mxo-field mxo-field--full" style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="mxo-btn mxo-btn--ghost" ng-click="vm.toggleInviteForm(plane)">Cancel</button>
+            <button class="mxo-btn mxo-btn--primary"
+                    ng-click="vm.sendMaintainerInvite(plane, $event)"
+                    ng-disabled="vm.maintainer_invite_sending[plane.plane_id]">
+              <i class="fas" ng-class="vm.maintainer_invite_sending[plane.plane_id] ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+              {{ vm.maintainer_invite_sending[plane.plane_id] ? 'Sending…' : 'Send invitation' }}
+            </button>
+          </div>
+        </div>
+       </div>
+      </div>
+    </div>
+
     <!-- ═══ Empty state ═══ -->
     <div class="snazzy-page__empty" ng-if="!vm.club.planes || vm.club.planes.length == 0">
       <i class="fas fa-plane snazzy-page__empty-icon"></i>
