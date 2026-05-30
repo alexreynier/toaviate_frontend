@@ -2348,13 +2348,35 @@ var app = angular
             }
 
             console.log(restrictedPage);
-            var loggedIn = $rootScope.globals.currentUser;
-            if(restrictedPage && !loggedIn){
-                //$location.path('/login');
-                //UNCOMMENT ABOVE
+
+            // ── Auth redirect for logged-out users ──
+            // Decide using the FULL public-pages list (the same one used above for
+            // the return-url logic) rather than the narrower `restrictedPage` list,
+            // so genuinely public pages (/password_reset, /display, /registration_*,
+            // etc.) are never bounced to login.
+            var currentPath = $location.path();
+            var isPublicPage = false;
+            for (var pp = 0; pp < publicPages.length; pp++) {
+                if (currentPath === publicPages[pp] || currentPath.indexOf(publicPages[pp] + '/') === 0) {
+                    isPublicPage = true;
+                    break;
+                }
+            }
+
+            var loggedIn = $rootScope.globals.currentUser && $rootScope.globals.currentUser.id;
+
+            if (!isPublicPage && !loggedIn && !navigatingToLogin) {
+                // Cancel the disallowed navigation and send the user to login.
+                // - navigatingToLogin guard above means we never redirect /login -> /login.
+                // - preventDefault() stops the URL from ever resolving the protected
+                //   page, so this handler won't re-fire for it (no double redirect).
+                // - 401s from services also send users to /login, which is public, so
+                //   this guard won't bounce again from there — no redirect loop.
+                event.preventDefault();
+                $location.path('/login');
             } else {
                 // need to expand on this with regards to access control
-                // $rootScope.globals.currentUser.access_level; 
+                // $rootScope.globals.currentUser.access_level;
             }
 
         });

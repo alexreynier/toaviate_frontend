@@ -109,10 +109,13 @@ module.exports = function (grunt) {
                     'css/club-stats.css',
                     'css/cron-status.css',
                     'css/flight-merge.css',
+                    'css/cancel-claim.css',
                     'css/fox-tracker.css',
                     'css/tracker-plane.css',
                     'css/logbook-hours-correction.css',
                     'css/daily-aircraft-status.css',
+                    'css/club-automations.css',
+                    'css/maintenance-org.css',
                     'libs/css/scheduler.css'
                 ],
                 dest: 'dist/css/compiled.css'
