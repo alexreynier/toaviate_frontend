@@ -21,6 +21,7 @@ app.factory('BsSyncService', BsSyncService);
 
         // ── Users ──
         service.GetUsers           = GetUsers;
+        service.GetImported        = GetImported;
         service.DiscoverUsers      = DiscoverUsers;
         service.DiscoverUsersFromReservations = DiscoverUsersFromReservations;
         service.SaveUserMap        = SaveUserMap;
@@ -88,6 +89,15 @@ app.factory('BsSyncService', BsSyncService);
                 .then(handleSuccess, handleError);
         }
 
+        // Imported users awaiting conversion. Uses the dedicated endpoint that
+        // keys on users.imported_user = 1 (authoritative), rather than guessing
+        // from the fake bsNNNN@ login-email prefix — which missed every imported
+        // user numbered >= 1000 (e.g. bs1796@).
+        function GetImported(club_id) {
+            return $http.get('/api/v1/bs_sync/imported/' + club_id)
+                .then(handleSuccess, handleError);
+        }
+
         function DiscoverUsers(club_id) {
             return $http.post('/api/v1/bs_sync/users/' + club_id)
                 .then(handleSuccess, handleError);
@@ -134,8 +144,17 @@ app.factory('BsSyncService', BsSyncService);
 
         // ── Sync ─────────────────────────────────────
 
-        function RunSync(club_id, data) {
-            return $http.post('/api/v1/bs_sync/run/' + club_id, data)
+        // Triggers a sync. The backend now runs the sync in a DETACHED background
+        // process and returns immediately ({ success, started:true, async:true }) —
+        // there are NO stats on this response. Callers must poll GetStatus / GetLogs
+        // to observe progress and completion (see the controller's _pollSync helper).
+        // Pass wait=true to use the documented `?wait=1` synchronous fallback, which
+        // blocks until the sync finishes and returns the full result (debug / short
+        // syncs only — risks the request timeout the async path was built to avoid).
+        function RunSync(club_id, data, wait) {
+            var url = '/api/v1/bs_sync/run/' + club_id;
+            if (wait) url += '?wait=1';
+            return $http.post(url, data)
                 .then(handleSuccess, handleError);
         }
 

@@ -75,6 +75,12 @@ module.exports = function (grunt) {
                 dest: 'dist/js/libs.js'
             },
             css: {
+                // IMPORTANT: this list must stay in the SAME ORDER as the <link>
+                // tags inside the build:css block in index.html. CSS cascade is
+                // order-dependent — a different order here makes the compiled build
+                // look different from local. Local is the source of truth for order.
+                // (accordion.css is intentionally last: it's bundled but not linked
+                // in index.html, so keep it out of the ordered set above it.)
                 src: [
                     'libs/css/bootstrap.datetime.css',
                     'libs/css/jquery-ui.min.css',
@@ -96,6 +102,8 @@ module.exports = function (grunt) {
                     'css/display-pairing.css',
                     'css/voucher-widget.css',
                     'css/flight-edit.css',
+                    'css/flight-merge.css',
+                    'css/cancel-claim.css',
                     'css/defect-media.css',
                     'css/defect-report.css',
                     'css/experience-form.css',
@@ -103,20 +111,20 @@ module.exports = function (grunt) {
                     'css/booking-preferences.css',
                     'css/bs-sync.css',
                     'css/airfield-bookout.css',
-                    'css/accordion.css',
-                    'css/accounting-export.css',
-                    'css/booking-audit-trail.css',
                     'css/club-stats.css',
                     'css/cron-status.css',
-                    'css/flight-merge.css',
-                    'css/cancel-claim.css',
+                    'css/accounting-export.css',
                     'css/fox-tracker.css',
                     'css/tracker-plane.css',
+                    'css/booking-audit-trail.css',
                     'css/logbook-hours-correction.css',
                     'css/daily-aircraft-status.css',
                     'css/club-automations.css',
                     'css/maintenance-org.css',
-                    'libs/css/scheduler.css'
+                    'css/sms.css',
+                    'css/logbook.css',
+                    'libs/css/scheduler.css',
+                    'css/accordion.css'
                 ],
                 dest: 'dist/css/compiled.css'
             }

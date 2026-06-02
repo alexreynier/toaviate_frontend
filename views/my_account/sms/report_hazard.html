@@ -1,0 +1,97 @@
+<div class="sms-page">
+
+  <div class="sms-page__header">
+    <div class="sms-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.sms">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="sms-page__title">
+        <h2><i class="fa fa-triangle-exclamation"></i> Report a Hazard</h2>
+        <p>A hazard is anything that <em>could</em> cause harm. Spotted one? Let us know.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sms-page__body">
+
+    <!-- Which club this report is for (switchable when in multiple clubs) -->
+    <div class="sms-card sms-club-picker" ng-if="vm.multiClub">
+      <div class="sms-club-picker__label">
+        <i class="fa fa-building"></i> Reporting to:
+      </div>
+      <div class="sms-chips">
+        <div class="sms-chip"
+             ng-repeat="c in vm.clubs"
+             ng-class="{'sms-chip--active': vm.club_id === c.id}"
+             ng-click="vm.selectClub(c.id)">
+          {{ c.name }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. Category picker -->
+    <div class="sms-card sms-pop">
+      <div class="sms-card__title"><i class="fa fa-list"></i> 1. What area does it relate to?</div>
+      <div class="sms-pick-grid">
+        <div class="sms-pick"
+             ng-repeat="cat in vm.enums.hazardCategory"
+             ng-class="{'sms-pick--active': vm.hazard.category === cat}"
+             ng-click="vm.pickCategory(cat)">
+          <i class="fa" ng-class="vm.categoryIcon(cat)"></i>
+          {{ cat }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. The details -->
+    <div class="sms-card">
+      <div class="sms-card__title"><i class="fa fa-pen"></i> 2. Tell us about it</div>
+      <div class="sms-form-grid">
+        <div class="sms-field sms-field--full">
+          <label>Short title <span class="sms-req">*</span></label>
+          <input class="sms-input" ng-model="vm.hazard.title" maxlength="120"
+                 placeholder="e.g. Loose tie-down rope on stand 4">
+        </div>
+        <div class="sms-field sms-field--full">
+          <label>What did you see? <span class="sms-req">*</span></label>
+          <textarea class="sms-textarea" ng-model="vm.hazard.description"
+                    placeholder="A sentence or two is plenty. What, where, and why it concerned you."></textarea>
+        </div>
+        <div class="sms-field">
+          <label>Aircraft (optional)</label>
+          <select class="sms-select" ng-model="vm.hazard.plane_id">
+            <option value="">— none / not applicable —</option>
+            <option ng-repeat="p in vm.planes" value="{{ p.id }}">{{ p.registration || p.name }}</option>
+          </select>
+        </div>
+        <div class="sms-field">
+          <label>Aerodrome (optional)</label>
+          <input class="sms-input" ng-model="vm.hazard.aerodrome" placeholder="e.g. EGTB">
+        </div>
+        <div class="sms-field sms-field--full">
+          <label>Immediate actions taken (optional)</label>
+          <input class="sms-input" ng-model="vm.hazard.immediate_actions"
+                 placeholder="Anything you did at the time, e.g. cordoned off the area">
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Anonymous + submit -->
+    <div class="sms-card">
+      <div class="sms-toggle-row" style="margin-bottom:18px;">
+        <div class="sms-toggle-row__text">
+          <strong><i class="fa fa-user-secret"></i> Submit anonymously</strong>
+          <span>Your name won’t be recorded or shown to anyone.</span>
+        </div>
+        <toggle-switch ng-model="vm.hazard.is_anonymous" on-label="Yes" off-label="No"></toggle-switch>
+      </div>
+
+      <button class="sms-btn sms-btn--primary sms-btn--lg sms-btn--block"
+              ng-click="vm.submitHazard()" ng-disabled="vm.saving">
+        <i class="fa" ng-class="{'fa-spinner fa-spin': vm.saving, 'fa-paper-plane': !vm.saving}"></i>
+        {{ vm.saving ? 'Submitting…' : 'Submit Hazard Report' }}
+      </button>
+    </div>
+
+  </div>
+</div>

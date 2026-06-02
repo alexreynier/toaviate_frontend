@@ -1022,6 +1022,117 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+
+            // ════════════════════════════════════════════════════
+            // SAFETY MANAGEMENT SYSTEM (SMS) — admin / SMS staff
+            // All share SmsController; the screen is chosen by data.screen.
+            // ════════════════════════════════════════════════════
+            .state('dashboard.manage_club.sms', {
+                url: '/sms',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/dashboard.html',
+                controllerAs: 'vm',
+                data: { screen: 'dashboard' }
+            })
+            .state('dashboard.manage_club.sms_hazards', {
+                url: '/sms/hazards',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/hazards.html',
+                controllerAs: 'vm',
+                data: { screen: 'hazards' }
+            })
+            .state('dashboard.manage_club.sms_occurrences', {
+                url: '/sms/occurrences',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/occurrences.html',
+                controllerAs: 'vm',
+                data: { screen: 'occurrences' }
+            })
+            .state('dashboard.manage_club.sms_risks', {
+                url: '/sms/risks',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/risks.html',
+                controllerAs: 'vm',
+                data: { screen: 'risks' }
+            })
+            .state('dashboard.manage_club.sms_actions', {
+                url: '/sms/actions',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/actions.html',
+                controllerAs: 'vm',
+                data: { screen: 'actions' }
+            })
+            .state('dashboard.manage_club.sms_audits', {
+                url: '/sms/audits',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/audits.html',
+                controllerAs: 'vm',
+                data: { screen: 'audits' }
+            })
+            .state('dashboard.manage_club.sms_documents', {
+                url: '/sms/documents',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/documents.html',
+                controllerAs: 'vm',
+                data: { screen: 'documents' }
+            })
+            .state('dashboard.manage_club.sms_meetings', {
+                url: '/sms/meetings',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/meetings.html',
+                controllerAs: 'vm',
+                data: { screen: 'meetings' }
+            })
+            .state('dashboard.manage_club.sms_change', {
+                url: '/sms/change',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/change.html',
+                controllerAs: 'vm',
+                data: { screen: 'change' }
+            })
+            .state('dashboard.manage_club.sms_instructors', {
+                url: '/sms/instructors',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/instructors.html',
+                controllerAs: 'vm',
+                data: { screen: 'instructors' }
+            })
+            .state('dashboard.manage_club.sms_students', {
+                url: '/sms/students',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/students.html',
+                controllerAs: 'vm',
+                data: { screen: 'students' }
+            })
+            .state('dashboard.manage_club.sms_erp', {
+                url: '/sms/erp',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/erp.html',
+                controllerAs: 'vm',
+                data: { screen: 'erp' }
+            })
+            .state('dashboard.manage_club.sms_bulletins', {
+                url: '/sms/bulletins',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/bulletins.html',
+                controllerAs: 'vm',
+                data: { screen: 'bulletins' }
+            })
+            .state('dashboard.manage_club.sms_settings', {
+                url: '/sms/settings',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/settings.html',
+                controllerAs: 'vm',
+                data: { screen: 'settings' }
+            })
+            .state('dashboard.manage_club.sms_audit_view', {
+                url: '/sms/audit_view',
+                controller: 'SmsController',
+                templateUrl: 'views/manageclub/sms/audit_view.html',
+                controllerAs: 'vm',
+                data: { screen: 'audit_view' }
+            })
+
             // CLUB PAYMENTS TO:::
             .state('dashboard.manage_club.payments_to', {
                 url: '/bank_settings',
@@ -1554,6 +1665,47 @@ var app = angular
             controllerAs: 'vm'
         })
 
+
+        // ════════════════════════════════════════════════════
+        // PERSONAL LOGBOOK (verified club hours + manual entries)
+        // One controller; the screen is chosen by data.screen.
+        // ════════════════════════════════════════════════════
+        .state('dashboard.my_account.logbook', {
+            url: '/logbook',
+            templateUrl: 'views/my_account/logbook/logbook.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'list' }
+        })
+        .state('dashboard.my_account.logbook_add', {
+            url: '/logbook/add',
+            templateUrl: 'views/my_account/logbook/manual_form.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'add' }
+        })
+        .state('dashboard.my_account.logbook_edit', {
+            url: '/logbook/edit/:entry_id',
+            templateUrl: 'views/my_account/logbook/manual_form.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'edit' }
+        })
+        .state('dashboard.my_account.logbook_stats', {
+            url: '/logbook/stats',
+            templateUrl: 'views/my_account/logbook/stats.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'stats' }
+        })
+        .state('dashboard.my_account.logbook_import', {
+            url: '/logbook/import',
+            templateUrl: 'views/my_account/logbook/import.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'import' }
+        })
+
         //ALL CLUB / PLANE DOCUMENTS
         .state('dashboard.my_account.all_documents', {
             url: '/all_documents',
@@ -1717,6 +1869,47 @@ var app = angular
             templateUrl: 'views/my_account/my_vouchers.html',
             controller: 'MyVouchersController',
             controllerAs: 'vm'
+        })
+
+
+        // ════════════════════════════════════════════════════
+        // SAFETY (SMS) — member-facing
+        // SmsMemberController; the screen is chosen by data.screen.
+        // ════════════════════════════════════════════════════
+        .state('dashboard.my_account.sms', {
+            url: '/safety',
+            templateUrl: 'views/my_account/sms/home.html',
+            controller: 'SmsMemberController',
+            controllerAs: 'vm',
+            data: { screen: 'home' }
+        })
+        .state('dashboard.my_account.sms_report_hazard', {
+            url: '/safety/report_hazard',
+            templateUrl: 'views/my_account/sms/report_hazard.html',
+            controller: 'SmsMemberController',
+            controllerAs: 'vm',
+            data: { screen: 'report_hazard' }
+        })
+        .state('dashboard.my_account.sms_report_occurrence', {
+            url: '/safety/report_occurrence',
+            templateUrl: 'views/my_account/sms/report_occurrence.html',
+            controller: 'SmsMemberController',
+            controllerAs: 'vm',
+            data: { screen: 'report_occurrence' }
+        })
+        .state('dashboard.my_account.sms_acknowledgements', {
+            url: '/safety/acknowledgements',
+            templateUrl: 'views/my_account/sms/acknowledgements.html',
+            controller: 'SmsMemberController',
+            controllerAs: 'vm',
+            data: { screen: 'acknowledgements' }
+        })
+        .state('dashboard.my_account.sms_bulletins', {
+            url: '/safety/bulletins',
+            templateUrl: 'views/my_account/sms/bulletins.html',
+            controller: 'SmsMemberController',
+            controllerAs: 'vm',
+            data: { screen: 'bulletins' }
         })
 
 

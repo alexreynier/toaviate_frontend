@@ -1,0 +1,68 @@
+<div class="sms-page">
+
+  <div class="sms-page__header">
+    <div class="sms-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.sms">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="sms-page__title">
+        <h2><i class="fa fa-file-signature"></i> To Acknowledge</h2>
+        <p>Documents and bulletins that need your read &amp; sign.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="sms-page__body">
+
+    <div class="sms-card sms-club-picker" ng-if="vm.multiClub">
+      <div class="sms-club-picker__label"><i class="fa fa-building"></i> Club:</div>
+      <div class="sms-chips">
+        <div class="sms-chip" ng-repeat="c in vm.clubs"
+             ng-class="{'sms-chip--active': vm.club_id === c.id}"
+             ng-click="vm.selectClub(c.id)">{{ c.name }}</div>
+      </div>
+    </div>
+
+    <div class="sms-loading" ng-if="vm.loading">
+      <div class="sms-spinner"></div> Loading…
+    </div>
+
+    <div class="sms-empty" ng-if="!vm.loading && vm.pending.length === 0">
+      <i class="fa fa-circle-check"></i>
+      <p>You’re all caught up — nothing to acknowledge right now.</p>
+    </div>
+
+    <div ng-if="!vm.loading && vm.pending.length > 0">
+
+      <div class="sms-card" style="margin-bottom:18px;">
+        <div class="sms-field">
+          <label>Your signature (typed name) <span class="sms-req">*</span></label>
+          <input class="sms-input" ng-model="vm.signatureName" placeholder="Type your full name">
+          <div class="sms-field__hint">Your typed name and IP address form your e-signature.</div>
+        </div>
+      </div>
+
+      <div class="sms-ack" ng-class="{'sms-ack--signed': item._signed}"
+           ng-repeat="item in vm.pending">
+        <div class="sms-ack__body">
+          <div class="sms-ack__title">{{ item.title || item.entity_title || 'Safety item' }}</div>
+          <div class="sms-ack__meta">
+            <span class="sms-badge sms-badge--grey">{{ item.entity_type === 'sms_document_version' ? 'Document' : 'Bulletin' }}</span>
+            <span ng-if="item.reference"> · {{ item.reference }}</span>
+            <span ng-if="item.requested_at"> · requested {{ item.requested_at }}</span>
+          </div>
+        </div>
+        <div ng-if="item._signed" class="sms-ack__signed-tick sms-pop">
+          <i class="fa fa-circle-check"></i> Signed
+        </div>
+        <button ng-if="!item._signed" class="sms-btn sms-btn--success"
+                ng-click="vm.sign(item)" ng-disabled="item._signing">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': item._signing, 'fa-check': !item._signing}"></i>
+          I have read &amp; understood
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

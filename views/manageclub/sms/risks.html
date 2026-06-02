@@ -1,0 +1,91 @@
+<div class="sms-page">
+
+  <div class="sms-page__header">
+    <div class="sms-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.sms">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="sms-page__title">
+        <h2><i class="fa fa-table-cells"></i> Risk Register</h2>
+        <p>Identified risks, scored and tracked.</p>
+      </div>
+      <div class="sms-page__header-actions">
+        <button class="sms-btn sms-btn--white" ng-if="vm.access.isAdmin" ng-click="vm.newRisk()">
+          <i class="fa fa-plus"></i> New Risk
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sms-page__body">
+
+    <div ng-include="'views/manageclub/sms/_nav.html'"></div>
+
+    <div class="sms-loading" ng-if="vm.loading">
+      <div class="sms-spinner"></div> Loading risks…
+    </div>
+
+    <div ng-if="!vm.loading">
+
+      <div class="sms-table-card">
+
+        <div class="sms-toolbar">
+          <div class="sms-search">
+            <i class="fa fa-magnifying-glass"></i>
+            <input type="text" ng-model="vm.search" placeholder="Search risks…" />
+          </div>
+          <span class="sms-count-badge">{{ (vm.risks | filter:vm.search).length }} of {{ vm.risks.length }}</span>
+        </div>
+
+        <div class="sms-empty" ng-if="!vm.risks.length">
+          <i class="fa fa-table-cells"></i>
+          <p>No risks in the register yet.</p>
+        </div>
+
+        <div class="sms-table-scroll" ng-if="vm.risks.length">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Risk</th>
+                <th>Score</th>
+                <th>Band</th>
+                <th>Residual</th>
+                <th>Owner</th>
+                <th>Review</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="r in vm.risks | filter:vm.search">
+                <td data-label="Ref"><span class="sms-table__ref">{{ r.reference }}</span></td>
+                <td data-label="Risk">{{ r.title }}</td>
+                <td data-label="Score"><strong>{{ r.risk_score }}</strong></td>
+                <td data-label="Band">
+                  <span class="sms-badge" ng-class="vm.bandClass(r.risk_band)">{{ r.risk_band }}</span>
+                </td>
+                <td data-label="Residual">
+                  <span class="sms-badge" ng-class="vm.bandClass(r.residual_band)" ng-if="r.residual_band">{{ r.residual_band }}</span>
+                  <span class="sms-table__muted" ng-if="!r.residual_band">—</span>
+                </td>
+                <td data-label="Owner">{{ (r.owner_first || r.owner_last) ? (r.owner_first + ' ' + r.owner_last) : (r.owner || '—') }}</td>
+                <td data-label="Review"><span class="sms-table__muted">{{ r.review_date || '—' }}</span></td>
+                <td data-label="Actions">
+                  <div class="sms-table__actions">
+                    <button class="sms-table__action-btn" ng-if="vm.access.isAdmin"
+                            ng-click="vm.editRisk(r)" uib-tooltip="Edit risk">
+                      <i class="fa fa-pen"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>

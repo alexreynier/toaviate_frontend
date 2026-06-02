@@ -1,0 +1,122 @@
+<div class="modal-header">
+  <div class="sms-page__title" style="margin:0;">
+    <h2 style="margin:0;"><i class="fa fa-triangle-exclamation"></i> {{ m.record.title || 'Hazard' }}</h2>
+    <p style="margin:4px 0 0;"><span class="sms-table__ref">{{ m.record.reference }}</span></p>
+  </div>
+</div>
+
+<div class="modal-body">
+
+  <div class="sms-loading" ng-if="m.loading">
+    <div class="sms-spinner"></div> Loading hazard…
+  </div>
+
+  <div ng-if="!m.loading">
+
+    <!-- Details -->
+    <div class="sms-detail__section">
+      <div class="sms-detail__section-title"><i class="fa fa-circle-info"></i> Details</div>
+      <dl class="sms-detail__row">
+        <dt>Category</dt>
+        <dd><span class="sms-table__muted">{{ m.pretty(m.record.category) || '—' }}</span></dd>
+      </dl>
+      <dl class="sms-detail__row">
+        <dt>Status</dt>
+        <dd><span class="sms-badge" ng-class="m.statusBadge(m.record.status)">{{ m.pretty(m.record.status) }}</span></dd>
+      </dl>
+      <dl class="sms-detail__row">
+        <dt>Aerodrome</dt>
+        <dd>{{ m.record.aerodrome || '—' }}</dd>
+      </dl>
+      <dl class="sms-detail__row">
+        <dt>Immediate actions</dt>
+        <dd>{{ m.record.immediate_actions || '—' }}</dd>
+      </dl>
+      <dl class="sms-detail__row">
+        <dt>Reporter</dt>
+        <dd ng-if="m.record.is_anonymous"><span class="sms-table__muted"><i class="fa fa-user-secret"></i> Anonymous</span></dd>
+        <dd ng-if="!m.record.is_anonymous">{{ (m.record.reporter_first || m.record.reporter_last) ? (m.record.reporter_first + ' ' + m.record.reporter_last) : 'Recorded' }}</dd>
+      </dl>
+      <dl class="sms-detail__row" ng-if="m.record.linked_risk_id">
+        <dt>Linked risk</dt>
+        <dd><span class="sms-table__muted">Risk #{{ m.record.linked_risk_id }}</span></dd>
+      </dl>
+      <dl class="sms-detail__row">
+        <dt>Reported</dt>
+        <dd><span class="sms-table__muted">{{ m.record.reported_at || m.record.created_at || '—' }}</span></dd>
+      </dl>
+    </div>
+
+    <!-- Description -->
+    <div class="sms-detail__section">
+      <div class="sms-detail__section-title"><i class="fa fa-align-left"></i> Description</div>
+      <p ng-if="m.record.description">{{ m.record.description }}</p>
+      <div class="sms-empty" ng-if="!m.record.description">
+        <i class="fa fa-align-left"></i>
+        <p>No description provided.</p>
+      </div>
+    </div>
+
+    <!-- Admin: change status -->
+    <div class="sms-detail__section" ng-if="m.access.isAdmin">
+      <div class="sms-detail__section-title"><i class="fa fa-pen"></i> Update status</div>
+      <div class="sms-form-grid">
+        <div class="sms-field">
+          <label>Status</label>
+          <select class="sms-select" ng-model="m.newStatus"
+                  ng-options="s as m.pretty(s) for s in m.statusOptions()"></select>
+        </div>
+        <div class="sms-field" style="display:flex;align-items:flex-end;">
+          <button class="sms-btn sms-btn--primary" ng-click="m.saveStatus()">
+            <i class="fa fa-check"></i> Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: add comment -->
+    <div class="sms-detail__section" ng-if="m.access.isAdmin">
+      <div class="sms-detail__section-title"><i class="fa fa-comment"></i> Add comment</div>
+      <div class="sms-field sms-field--full">
+        <textarea class="sms-textarea" rows="3" ng-model="m.newComment"
+                  placeholder="Add a note to the record…"></textarea>
+      </div>
+      <button class="sms-btn sms-btn--success" ng-click="m.addComment()" ng-disabled="!m.newComment">
+        <i class="fa fa-plus"></i> Add
+      </button>
+    </div>
+
+    <!-- Comments -->
+    <div class="sms-detail__section" ng-if="m.record.comments.length">
+      <div class="sms-detail__section-title"><i class="fa fa-comments"></i> Comments</div>
+      <ul class="sms-timeline">
+        <li ng-repeat="c in m.record.comments">
+          <strong>{{ c.comment }}</strong>
+          <div class="sms-table__muted">{{ c.created_at }}<span ng-if="c.first_name"> · {{ c.first_name }} {{ c.last_name }}</span></div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- History -->
+    <div class="sms-detail__section">
+      <div class="sms-detail__section-title"><i class="fa fa-clock"></i> History</div>
+      <ul class="sms-timeline" ng-if="m.history.length">
+        <li ng-repeat="h in m.history">
+          <strong>{{ m.pretty(h.action) }}<span ng-if="h.details">: {{ h.details }}</span></strong>
+          <div class="sms-table__muted">{{ h.created_at }}<span ng-if="h.first_name"> · {{ h.first_name }} {{ h.last_name }}</span></div>
+        </li>
+      </ul>
+      <div class="sms-empty" ng-if="!m.history.length">
+        <i class="fa fa-clock"></i>
+        <p>No history yet.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button class="sms-btn sms-btn--ghost" ng-click="m.close()">
+    <i class="fa fa-xmark"></i> Close
+  </button>
+</div>

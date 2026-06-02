@@ -210,6 +210,135 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         }
 
         // ════════════════════════════════════════════
+        // BACKGROUND SYNC POLLING
+        // The sync endpoint now runs detached on the server and returns immediately
+        // (async). We poll GetStatus until last_sync flips to completed/failed (or a
+        // newer log row appears) and then report the outcome — instead of reading
+        // stats off the trigger response (which no longer carries any).
+        // ════════════════════════════════════════════
+        var POLL_INTERVAL_MS = 4000;   // how often to check status
+        var POLL_MAX_ATTEMPTS = 150;   // safety cap (~10 min) so we never poll forever
+        var _pollPromise = null;
+
+        // Live progress shown in the UI while a background sync is running.
+        // Populated from the in-progress bs_sync_log row on each status poll.
+        vm.syncProgress = null;
+
+        // Cancel any in-flight polling (e.g. when leaving the page or re-triggering).
+        function _stopPolling() {
+            if (_pollPromise) { $timeout.cancel(_pollPromise); _pollPromise = null; }
+        }
+        $scope.$on('$destroy', _stopPolling);
+
+        // Update vm.syncProgress from a (possibly in-progress) bs_sync_log row.
+        function _updateProgress(ls) {
+            if (!vm.syncProgress) return;
+            vm.syncProgress.status   = (ls && ls.status) || vm.syncProgress.status || 'started';
+            vm.syncProgress.fetched  = (ls && ls.reservations_fetched) || 0;
+            vm.syncProgress.created  = (ls && ls.bookings_created) || 0;
+            vm.syncProgress.updated  = (ls && ls.bookings_updated) || 0;
+            vm.syncProgress.skipped  = (ls && ls.bookings_skipped) || 0;
+            vm.syncProgress.errors   = (ls && ls.errors) || 0;
+            vm.syncProgress.elapsed  = Math.max(0, Math.round((new Date().getTime() - vm.syncProgress.startedAt) / 1000));
+        }
+
+        // Was this sync log already finished when we started? Used as a baseline so
+        // we don't mistake the PREVIOUS run's completed/failed row for this run.
+        function _syncFingerprint() {
+            var ls = vm.status && vm.status.last_sync;
+            if (!ls) return null;
+            return (ls.id || '') + '|' + (ls.started_at || '') + '|' + (ls.status || '');
+        }
+
+        // Begin polling after an async sync was started.
+        //   onDone(lastSync)  — called once when the run reaches completed/failed
+        //   baseline          — fingerprint captured BEFORE the run started
+        function _pollSync(baseline, onDone) {
+            var attempts = 0;
+            _stopPolling();
+
+            function tick() {
+                attempts++;
+                BsSyncService.GetStatus(vm.club_id).then(function(data) {
+                    if (data && data.config) {
+                        vm.status = data;
+                        vm.config = data.config;
+                    }
+                    var ls = data && data.last_sync;
+                    var finished = ls && (ls.status === 'completed' || ls.status === 'failed');
+                    var isNewRun = _syncFingerprint() !== baseline;   // a fresh log row/started_at
+
+                    // Reflect live counters in the UI once this run's row appears.
+                    if (isNewRun) { _updateProgress(ls); }
+
+                    if (finished && isNewRun) {
+                        _pollPromise = null;
+                        onDone(ls);
+                        return;
+                    }
+                    if (attempts >= POLL_MAX_ATTEMPTS) {
+                        // Give up watching — the sync may still finish server-side.
+                        _pollPromise = null;
+                        vm.syncRunning = false;
+                        vm.syncProgress = null;
+                        ToastService.warning('Still Running', 'Sync is taking a while. Check the logs tab for the result.');
+                        vm.loadLogs();
+                        return;
+                    }
+                    _pollPromise = $timeout(tick, POLL_INTERVAL_MS);
+                }, function() {
+                    // Transient status error — keep trying until the cap.
+                    if (attempts >= POLL_MAX_ATTEMPTS) {
+                        _pollPromise = null;
+                        vm.syncRunning = false;
+                        vm.syncProgress = null;
+                        ToastService.warning('Status Unavailable', 'Could not confirm sync completion. Check the logs tab.');
+                        return;
+                    }
+                    _pollPromise = $timeout(tick, POLL_INTERVAL_MS);
+                });
+            }
+
+            _pollPromise = $timeout(tick, POLL_INTERVAL_MS);
+        }
+
+        // Shared handler for a RunSync response. Returns true if it kicked off async
+        // polling (so callers shouldn't also treat the response as a final result).
+        //   data      — the RunSync response
+        //   onComplete(lastSync) — called when the background run finishes
+        //   onError(message)     — called if the trigger itself failed
+        function _handleSyncTrigger(data, onComplete, onError) {
+            if (data && data.async) {
+                // Background run started — poll for completion and show live progress.
+                var baseline = _syncFingerprint();
+                vm.syncProgress = {
+                    startedAt: new Date().getTime(),
+                    status: 'started',
+                    fetched: 0, created: 0, updated: 0, skipped: 0, errors: 0,
+                    elapsed: 0,
+                    sync_type: (data.sync_type || (data && data.sync_type)) || null
+                };
+                ToastService.success('Sync Started', 'Running in the background — this may take a few minutes.');
+                _pollSync(baseline, function(ls) {
+                    vm.syncRunning = false;
+                    _updateProgress(ls);                 // final tally
+                    vm.syncProgress = null;              // hide the live panel; result panel takes over
+                    onComplete(ls);
+                });
+                return true;
+            }
+            // Synchronous / legacy response (e.g. ?wait=1, or exec() unavailable).
+            vm.syncRunning = false;
+            vm.syncProgress = null;
+            if (data && data.success) {
+                onComplete(data.last_sync || data.stats || data);
+            } else {
+                onError(data && data.message);
+            }
+            return false;
+        }
+
+        // ════════════════════════════════════════════
         // INIT
         // ════════════════════════════════════════════
         vm.init = function() {
@@ -246,6 +375,13 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             });
         };
 
+        // "1m 23s" / "12s" — used by the live sync-progress panel.
+        vm.formatElapsed = function(secs) {
+            secs = secs || 0;
+            if (secs < 60) return secs + 's';
+            return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+        };
+
         vm.timeAgo = function(dateStr) {
             if (!dateStr) return '—';
             var then = new Date(dateStr.replace(' ', 'T') + 'Z');
@@ -272,13 +408,21 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.quickSync = function() {
             vm.syncRunning = true;
             BsSyncService.RunSync(vm.club_id, { sync_type: 'manual' }).then(function(data) {
-                vm.syncRunning = false;
-                if (data.success) {
-                    vm.syncResult = data.stats;
-                    ToastService.success('Sync Complete', 'Created: ' + data.stats.bookings_created + ', Updated: ' + data.stats.bookings_updated);
-                    vm.loadStatus();
+                if (data && data.success) {
+                    _handleSyncTrigger(data, function(ls) {
+                        if (ls && ls.status === 'failed') {
+                            ToastService.error('Sync Failed', 'The background sync reported errors. Check the logs.');
+                        } else {
+                            ToastService.success('Sync Complete',
+                                'Created: ' + ((ls && ls.bookings_created) || 0) + ', Updated: ' + ((ls && ls.bookings_updated) || 0));
+                        }
+                        vm.loadStatus();
+                    }, function(msg) {
+                        ToastService.error('Sync Failed', msg || 'The sync encountered an error.');
+                    });
                 } else {
-                    ToastService.error('Sync Failed', data.message || 'The sync encountered an error.');
+                    vm.syncRunning = false;
+                    ToastService.error('Sync Failed', (data && data.message) || 'The sync encountered an error.');
                 }
             }, function() {
                 vm.syncRunning = false;
@@ -482,12 +626,21 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.stepRunSync = function() {
             vm.syncRunning = true;
             BsSyncService.RunSync(vm.club_id, { sync_type: 'full' }).then(function(data) {
-                vm.syncRunning = false;
-                vm.stepByStep.sync = data.stats || data;
-                if (data.success) {
-                    ToastService.success('Sync Complete', 'Bookings synced successfully.');
+                if (data && data.success) {
+                    _handleSyncTrigger(data, function(ls) {
+                        vm.stepByStep.sync = ls || {};
+                        if (ls && ls.status === 'failed') {
+                            ToastService.error('Sync Issue', 'Sync completed with issues. Check the logs.');
+                        } else {
+                            ToastService.success('Sync Complete', 'Bookings synced successfully.');
+                        }
+                    }, function(msg) {
+                        ToastService.error('Sync Issue', msg || 'Sync completed with issues.');
+                    });
                 } else {
-                    ToastService.error('Sync Issue', data.message || 'Sync completed with issues.');
+                    vm.syncRunning = false;
+                    vm.stepByStep.sync = data || {};
+                    ToastService.error('Sync Issue', (data && data.message) || 'Sync completed with issues.');
                 }
             }, function() {
                 vm.syncRunning = false;
@@ -882,14 +1035,22 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             if (vm.syncForm.end_date) payload.end_date = formatDate(vm.syncForm.end_date);
 
             BsSyncService.RunSync(vm.club_id, payload).then(function(data) {
-                vm.syncRunning = false;
-                if (data.success) {
-                    vm.syncResult = data.stats;
-                    ToastService.success('Sync Complete', 'Reservations synced successfully.');
-                    vm.loadLogs();
-                    vm.loadStatus();
+                if (data && data.success) {
+                    _handleSyncTrigger(data, function(ls) {
+                        vm.syncResult = ls || {};
+                        if (ls && ls.status === 'failed') {
+                            ToastService.error('Sync Failed', 'The background sync reported errors. Check the logs.');
+                        } else {
+                            ToastService.success('Sync Complete', 'Reservations synced successfully.');
+                        }
+                        vm.loadLogs();
+                        vm.loadStatus();
+                    }, function(msg) {
+                        ToastService.error('Sync Failed', msg || 'An error occurred during sync.');
+                    });
                 } else {
-                    ToastService.error('Sync Failed', data.message || 'An error occurred during sync.');
+                    vm.syncRunning = false;
+                    ToastService.error('Sync Failed', (data && data.message) || 'An error occurred during sync.');
                 }
             }, function() {
                 vm.syncRunning = false;
@@ -938,12 +1099,25 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         // ════════════════════════════════════════════
         vm.loadImportedUsers = function() {
             vm.loading.imported = true;
-            // Re-use the users endpoint — imported users have fake emails
-            BsSyncService.GetUsers(vm.club_id, 0).then(function(data) {
+            // Use the dedicated endpoint that returns users.imported_user = 1
+            // (authoritative). The previous approach re-filtered the mappings list
+            // by a 'bs0' login-email prefix, which silently excluded every
+            // imported user numbered >= 1000 (e.g. bs1796@) — so most of the
+            // roster never appeared and couldn't be converted.
+            BsSyncService.GetImported(vm.club_id).then(function(data) {
                 vm.loading.imported = false;
                 var all = angular.isArray(data) ? data : (data.users || []);
-                vm.importedUsers = all.filter(function(u) {
-                    return u.ta_email && u.ta_email.indexOf('bs0') === 0 && u.ta_email.indexOf('@toaviate.com') !== -1;
+                // Normalise to the field names the template + convertUser expect.
+                vm.importedUsers = all.map(function(u) {
+                    return {
+                        ta_user_id:    u.user_id,
+                        bs_user_id:    u.bs_user_id,
+                        bs_first_name: u.first_name,
+                        bs_last_name:  u.last_name,
+                        ta_email:      u.login_email,     // fake bsNNNN@ login (temp)
+                        bs_email:      u.original_email,  // real email to invite
+                        booking_count: u.booking_count
+                    };
                 });
             }, function() {
                 vm.loading.imported = false;

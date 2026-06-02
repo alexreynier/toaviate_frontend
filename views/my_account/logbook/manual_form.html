@@ -1,0 +1,219 @@
+<div class="lb-page">
+
+  <div class="lb-page__header">
+    <div class="lb-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.logbook">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO LOGBOOK
+      </div>
+      <div class="lb-page__title">
+        <h2><i class="fa fa-plane-up"></i> {{ vm.isEdit ? 'Edit Flight' : 'Add a Flight' }}</h2>
+        <p>Log a flight you flew outside ToAviate. It’s recorded as tentative (unverified) hours.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lb-page__body">
+
+    <div class="lb-loading" ng-if="vm.loading">
+      <div class="lb-spinner"></div> Loading…
+    </div>
+
+    <div ng-if="!vm.loading">
+
+      <div class="lb-note">
+        <i class="fa fa-circle-info"></i>
+        Manual entries are for flying done elsewhere. ToAviate club tuition can’t be logged here —
+        for external instruction, just type the instructor’s name and dual time.
+      </div>
+
+      <!-- Flight -->
+      <div class="lb-card">
+        <div class="lb-card__title"><i class="fa fa-route"></i> Flight</div>
+        <div class="lb-form-grid">
+          <div class="lb-field">
+            <label>Date <span class="lb-req">*</span></label>
+            <input type="date" class="lb-input" ng-model="vm.entry.flight_date">
+          </div>
+          <div class="lb-field">
+            <label>Departure airfield</label>
+            <ui-select class="lb-airfield-select" ng-model="vm.departureAirfield" theme="bootstrap" title="Search departure airfield" append-to-body="true">
+              <ui-select-match placeholder="Search by ICAO code or name…">{{ $select.selected.code }} — {{ $select.selected.title }}</ui-select-match>
+              <ui-select-choices repeat="af in vm.airfields | propsFilterA: {title: $select.search, code: $select.search}" refresh="vm.searchAirfields($select.search)" refresh-delay="250">
+                <span ng-bind-html="af.code | highlight: $select.search"></span> <small class="lb-airfield-name" ng-bind-html="af.title | highlight: $select.search"></small>
+              </ui-select-choices>
+              <ui-select-no-choice>Type at least 2 characters to search…</ui-select-no-choice>
+            </ui-select>
+          </div>
+          <div class="lb-field">
+            <label>Departure time (UTC)</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.departure_time" placeholder="HH:MM">
+          </div>
+          <div class="lb-field">
+            <label>Arrival airfield</label>
+            <ui-select class="lb-airfield-select" ng-model="vm.arrivalAirfield" theme="bootstrap" title="Search arrival airfield" append-to-body="true">
+              <ui-select-match placeholder="Search by ICAO code or name…">{{ $select.selected.code }} — {{ $select.selected.title }}</ui-select-match>
+              <ui-select-choices repeat="af in vm.airfields | propsFilterA: {title: $select.search, code: $select.search}" refresh="vm.searchAirfields($select.search)" refresh-delay="250">
+                <span ng-bind-html="af.code | highlight: $select.search"></span> <small class="lb-airfield-name" ng-bind-html="af.title | highlight: $select.search"></small>
+              </ui-select-choices>
+              <ui-select-no-choice>Type at least 2 characters to search…</ui-select-no-choice>
+            </ui-select>
+          </div>
+          <div class="lb-field">
+            <label>Arrival time (UTC)</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.arrival_time" placeholder="HH:MM">
+          </div>
+        </div>
+      </div>
+
+      <!-- Aircraft -->
+      <div class="lb-card">
+        <div class="lb-card__title"><i class="fa fa-plane"></i> Aircraft</div>
+        <div class="lb-form-grid">
+          <div class="lb-field">
+            <label>Registration</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.registration"
+                   ng-change="vm.lookupAircraft()" placeholder="e.g. G-ABCD">
+            <div class="lb-found" ng-if="vm.aircraftFound"><i class="fa fa-circle-check"></i> Details auto-filled</div>
+            <div class="lb-field__hint" ng-if="vm.lookingUp">Looking up…</div>
+          </div>
+          <div class="lb-field">
+            <label>Make</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.aircraft_make">
+          </div>
+          <div class="lb-field">
+            <label>Model</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.aircraft_model">
+          </div>
+          <div class="lb-field">
+            <label>Type</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.aircraft_type" placeholder="e.g. C152">
+          </div>
+          <div class="lb-field">
+            <label>Class</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.aircraft_class" placeholder="e.g. SEP (land)">
+          </div>
+          <div class="lb-field">
+            <label>Engine</label>
+            <select class="lb-select" ng-model="vm.entry.engine_type">
+              <option value="single">Single-engine (SE)</option>
+              <option value="multi">Multi-engine (ME)</option>
+            </select>
+          </div>
+        </div>
+        <div class="lb-form-grid" style="margin-top:14px;">
+          <div class="lb-toggle-row">
+            <div class="lb-toggle-row__text"><strong>Multi-pilot</strong><span>Operated as a multi-pilot aircraft</span></div>
+            <toggle-switch ng-model="vm.entry.multi_pilot" on-label="Yes" off-label="No"></toggle-switch>
+          </div>
+          <div class="lb-toggle-row">
+            <div class="lb-toggle-row__text"><strong>Simulator</strong><span>FSTD / sim session</span></div>
+            <toggle-switch ng-model="vm.entry.is_simulator" on-label="Yes" off-label="No" ng-change="vm.onSimToggle()"></toggle-switch>
+          </div>
+          <div class="lb-field" ng-if="vm.entry.is_simulator">
+            <label>Simulator type</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.sim_type" placeholder="e.g. FNPT II">
+          </div>
+        </div>
+      </div>
+
+      <!-- Times -->
+      <div class="lb-card">
+        <div class="lb-card__title"><i class="fa fa-clock"></i> Time &amp; capacity</div>
+
+        <div class="lb-form-grid">
+          <!-- Capacity for the whole flight -->
+          <div class="lb-field">
+            <label>Your capacity (whole flight) <span class="lb-req">*</span></label>
+            <select class="lb-select" ng-model="vm.entry.capacity">
+              <option ng-repeat="c in vm.capacities" value="{{ c }}">{{ c }}</option>
+            </select>
+            <div class="lb-field__hint">SEP/MEP are single-pilot — the whole flight logs as your chosen capacity.</div>
+          </div>
+
+          <!-- Total: computed from dep/arr times -->
+          <div class="lb-field" ng-if="!vm.manualTotal">
+            <label>Total time</label>
+            <div class="lb-total-display">
+              <span class="lb-total-display__value">{{ vm.fmtTotal(vm.computeTotal()) }}</span>
+              <span class="lb-total-display__unit">{{ vm.timeFormat === 'decimal' ? 'hrs' : '' }}</span>
+            </div>
+            <div class="lb-field__hint">
+              Calculated from your departure &amp; arrival times.
+              <a href="" ng-click="vm.toggleManualTotal(); $event.preventDefault();">Enter manually instead</a>
+            </div>
+          </div>
+          <!-- Total: manual override (no times / sim) -->
+          <div class="lb-field" ng-if="vm.manualTotal">
+            <label>Total time (hours) <span class="lb-req" ng-if="!vm.entry.is_simulator">*</span></label>
+            <input type="number" step="0.1" min="0" class="lb-input" ng-model="vm.entry.total_time" placeholder="e.g. 1.5">
+            <div class="lb-field__hint">
+              <a href="" ng-click="vm.toggleManualTotal(); $event.preventDefault();">Calculate from times instead</a>
+            </div>
+          </div>
+
+          <div class="lb-field">
+            <label>This counts as</label>
+            <div class="lb-total-display">
+              <span class="lb-total-display__value" style="font-size:16px;">{{ vm.fmtTotal(vm.effectiveTotal()) }} {{ vm.capacityFieldLabel() }}</span>
+            </div>
+            <div class="lb-field__hint">The total above is logged as your {{ vm.capacityFieldLabel() }} time.</div>
+          </div>
+        </div>
+
+        <!-- Conditions (independent of capacity) -->
+        <div class="lb-card__title" style="font-size:13px; margin-top:18px;"><i class="fa fa-cloud-moon"></i> Conditions &amp; landings <small style="font-weight:600; text-transform:none; color:#94a3b8;">(optional)</small></div>
+        <div class="lb-form-grid">
+          <div class="lb-field">
+            <label>Night</label>
+            <input type="number" step="0.1" min="0" class="lb-input" ng-model="vm.entry.night_time">
+          </div>
+          <div class="lb-field">
+            <label>Instrument (IFR/IMC)</label>
+            <input type="number" step="0.1" min="0" class="lb-input" ng-model="vm.entry.ifr_time">
+          </div>
+          <div class="lb-field">
+            <label>Nav (cross-country)</label>
+            <input type="number" step="0.1" min="0" class="lb-input" ng-model="vm.entry.cross_country_time">
+          </div>
+          <div class="lb-field">
+            <label>Day landings</label>
+            <input type="number" min="0" class="lb-input" ng-model="vm.entry.day_landings">
+          </div>
+          <div class="lb-field">
+            <label>Night landings</label>
+            <input type="number" min="0" class="lb-input" ng-model="vm.entry.night_landings">
+          </div>
+        </div>
+      </div>
+
+      <!-- Instruction & notes -->
+      <div class="lb-card">
+        <div class="lb-card__title"><i class="fa fa-note-sticky"></i> Instruction &amp; notes</div>
+        <div class="lb-form-grid">
+          <div class="lb-field">
+            <label>Instructor name</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.instructor_name" placeholder="External instructor (free text)">
+            <div class="lb-field__hint">For external instruction only — not a ToAviate instructor.</div>
+          </div>
+          <div class="lb-field">
+            <label>Club / group</label>
+            <input type="text" class="lb-input" ng-model="vm.entry.external_club_name" placeholder="Source label — blank = “Manual entry”">
+          </div>
+          <div class="lb-field lb-field--full">
+            <label>Remarks</label>
+            <textarea class="lb-textarea" ng-model="vm.entry.remarks" placeholder="PICUS / dual countersignatures, notes…"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="lb-card">
+        <button class="lb-btn lb-btn--primary lb-btn--lg lb-btn--block" ng-click="vm.save()" ng-disabled="vm.saving">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.saving, 'fa-save': !vm.saving}"></i>
+          {{ vm.saving ? 'Saving…' : (vm.isEdit ? 'Save Changes' : 'Add Flight to Logbook') }}
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

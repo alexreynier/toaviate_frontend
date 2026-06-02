@@ -281,6 +281,33 @@ addresses this; until then, no new Angular-1 dependencies.
 
 ---
 
+## Safety Management System (SMS)
+
+A self-contained module (added 2026-05) for hazard/occurrence reporting, risk
+register, audits/findings, actions, management-of-change, meetings, documents,
+instructor oversight, students, ERP, bulletins, acknowledgements and a CAA audit
+view. Per-club and role-gated. Backend contract: `FRONTEND_SMS_GUIDE.md` /
+`BACKEND_SMS_GUIDE.md`.
+
+- **Service:** [js/services/smsService.js](js/services/smsService.js) — every endpoint;
+  also exposes `.enums` (shared dropdown values). [js/services/smsAccessService.js](js/services/smsAccessService.js)
+  resolves the user's SMS role (`isAdmin` / `isSafetyManager`) from club role + `/sms/settings`.
+- **Controllers:** [js/controllers/smsController.js](js/controllers/smsController.js) (admin — one
+  controller for all admin screens, dispatched by `$state.current.data.screen`),
+  [js/controllers/smsMemberController.js](js/controllers/smsMemberController.js) (member screens),
+  [js/controllers/smsModalControllers.js](js/controllers/smsModalControllers.js) (detail / risk / action / bulletin modals).
+- **Views:** `views/manageclub/sms/` (admin; shared sub-nav in `_nav.html`, modals in `sms/modals/`)
+  and `views/my_account/sms/` (member). **Design system:** [css/sms.css](css/sms.css) — `.sms-*` BEM,
+  snazzy + mobile + animations. Reuse these classes; don't invent new ones.
+- **Entry points:** admin tile in `views/manage_club.html` → `dashboard.manage_club.sms`;
+  member tile in `views/my_account/home.html` → `dashboard.my_account.sms`.
+- **Role gating:** the backend is authoritative — an `error:'FORBIDDEN'` response means
+  hide/disable the control. The service normalises that onto `data.error`; controllers
+  gate admin-only buttons with `vm.access.isAdmin` / `vm.access.isSafetyManager`.
+- **Conventions:** references (`HAZ-2026-0001`…) are backend-generated — display, never send.
+  Risk scores are computed server-side — submit only `likelihood`/`severity`. Hazards can be
+  anonymous (`is_anonymous:1` → no reporter returned).
+
 ## Style reminders for edits
 
 - Match existing formatting (this codebase uses 4-space indent, `var`, and plain
