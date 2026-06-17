@@ -1,7 +1,7 @@
  app.controller('DashboardClubEngineLogbookController', DashboardClubEngineLogbookController);
 
-    DashboardClubEngineLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http', 'ToastService', 'LogbookLinkService', 'WorkpackService', 'LogbookHoursCorrectionService'];
-    function DashboardClubEngineLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http, ToastService, LogbookLinkService, WorkpackService, LogbookHoursCorrectionService) {
+    DashboardClubEngineLogbookController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', '$http', 'ToastService', 'LogbookLinkService', 'WorkpackService', 'LogbookHoursCorrectionService', 'LogbookExportService'];
+    function DashboardClubEngineLogbookController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, $http, ToastService, LogbookLinkService, WorkpackService, LogbookHoursCorrectionService, LogbookExportService) {
         var vm = this;
 
        
@@ -130,6 +130,17 @@
                     });
 
             }
+
+            // ── Export (server-generated CSV / Excel / PDF, UK CAA format) ──
+            LogbookExportService.attach(vm, {
+                baseName: function(){
+                    var reg = (vm.plane && vm.plane.registration) ? vm.plane.registration : 'Aircraft';
+                    return reg + '_Engine_Logbook';
+                },
+                download: function(format, filename, filters){
+                    return PlaneService.DownloadEngineLog($stateParams.plane_id, $stateParams.engine_id, format, filename, filters);
+                }
+            });
 
             vm.get_initial = function(text){
                 return text.charAt(0);

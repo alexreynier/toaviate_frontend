@@ -101,6 +101,59 @@
         <button class="lhc-history-btn" ng-click="vm.openCorrectionHistory()">
             <i class="fa fa-history"></i> Correction History
         </button>
+
+        <!-- Export: dropdown panel with date range + CSV / Excel / PDF (UK CAA format) -->
+        <div class="lbx" ng-class="{'lbx--open': vm.exportPanelOpen}">
+            <button class="lbx__trigger" ng-click="vm.toggleExportPanel()" ng-disabled="vm.exporting" aria-haspopup="true" aria-expanded="{{ vm.exportPanelOpen }}">
+                <i class="fa" ng-class="vm.exporting ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                <span>Export</span>
+                <i class="fa fa-chevron-down lbx__caret"></i>
+            </button>
+            <div class="lbx__backdrop" ng-if="vm.exportPanelOpen" ng-click="vm.closeExportPanel()"></div>
+            <div class="lbx__panel" ng-if="vm.exportPanelOpen" ng-click="$event.stopPropagation()">
+                <div class="lbx__panel-head">
+                    <h4><i class="fa fa-download"></i> Export Logbook</h4>
+                    <button class="lbx__close" ng-click="vm.closeExportPanel()" title="Close"><i class="fa fa-times"></i></button>
+                </div>
+
+                <div class="lbx__section">
+                    <span class="lbx__label">Date range</span>
+                    <div class="lbx__presets">
+                        <button class="lbx__chip" ng-class="{'lbx__chip--active': vm.exportPreset === 'all'}" ng-click="vm.setExportPreset('all')">All time</button>
+                        <button class="lbx__chip" ng-class="{'lbx__chip--active': vm.exportPreset === '30d'}" ng-click="vm.setExportPreset('30d')">Last 30 days</button>
+                        <button class="lbx__chip" ng-class="{'lbx__chip--active': vm.exportPreset === '90d'}" ng-click="vm.setExportPreset('90d')">Last 90 days</button>
+                        <button class="lbx__chip" ng-class="{'lbx__chip--active': vm.exportPreset === 'year'}" ng-click="vm.setExportPreset('year')">This year</button>
+                    </div>
+                    <div class="lbx__dates">
+                        <div class="lbx__field">
+                            <label>From</label>
+                            <input type="date" class="lbx__input" ng-model="vm.exportFilters.from" ng-change="vm.onExportDateChange()">
+                        </div>
+                        <div class="lbx__field">
+                            <label>To</label>
+                            <input type="date" class="lbx__input" ng-model="vm.exportFilters.to" ng-change="vm.onExportDateChange()">
+                        </div>
+                    </div>
+                    <div class="lbx__range-note"><i class="fa fa-calendar-o"></i> {{ vm.exportRangeLabel() }}</div>
+                </div>
+
+                <div class="lbx__section lbx__section--formats">
+                    <span class="lbx__label">Download as</span>
+                    <div class="lbx__formats">
+                        <button class="lbx__fmt" ng-click="vm.runExport('csv')" ng-disabled="vm.exporting">
+                            <i class="fa fa-file-text-o"></i><span>CSV</span>
+                        </button>
+                        <button class="lbx__fmt" ng-click="vm.runExport('excel')" ng-disabled="vm.exporting">
+                            <i class="fa fa-file-excel-o"></i><span>Excel</span>
+                        </button>
+                        <button class="lbx__fmt lbx__fmt--pdf" ng-click="vm.runExport('pdf')" ng-disabled="vm.exporting" uib-tooltip="UK CAA logbook format">
+                            <i class="fa fa-file-pdf-o"></i><span>PDF</span>
+                        </button>
+                    </div>
+                    <div class="lbx__busy" ng-if="vm.exporting"><i class="fa fa-spinner fa-spin"></i> Preparing your file…</div>
+                </div>
+            </div>
+        </div>
     </div>
     <div class="search_bar2">
 

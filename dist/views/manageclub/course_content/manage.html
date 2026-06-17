@@ -1,0 +1,277 @@
+<div class="cc-page cc-page--wide">
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-folder-open"></i> {{ vm.contextTitle }}</h2>
+    <p>Questionnaires &amp; material shared <strong>before</strong> and <strong>after</strong> this {{ vm.attachType === 'lesson' ? 'lesson' : 'course' }}</p>
+    <div class="cc-header__meta">
+      <span class="cc-badge cc-badge--violet"><i class="fa fa-layer-group"></i> {{ vm.pretty(vm.attachType) }}</span>
+    </div>
+  </div>
+
+  <div class="cc-body">
+    <div class="cc-loading" ng-if="vm.loading"><div class="cc-spinner"></div> Loading…</div>
+
+    <div ng-if="!vm.loading">
+      <div class="cc-tabs">
+        <div class="cc-tab" ng-class="{'cc-tab--active': vm.tab === 'questionnaires'}" ng-click="vm.setTab('questionnaires')">
+          <i class="fa fa-clipboard-question"></i> Questionnaires
+          <span class="cc-badge cc-badge--grey">{{ vm.qPre.length + vm.qPost.length }}</span>
+        </div>
+        <div class="cc-tab" ng-class="{'cc-tab--active': vm.tab === 'materials'}" ng-click="vm.setTab('materials')">
+          <i class="fa fa-photo-film"></i> Material
+          <span class="cc-badge cc-badge--grey">{{ vm.matPre.length + vm.matPost.length }}</span>
+        </div>
+        <div class="cc-tab" ng-if="vm.isCourse" ng-class="{'cc-tab--active': vm.tab === 'sittings'}" ng-click="vm.setTab('sittings')">
+          <i class="fa fa-repeat"></i> Recurring runs
+        </div>
+      </div>
+
+      <!-- ══════════════ RECURRING RUNS (SITTINGS) ══════════════ -->
+      <div ng-if="vm.tab === 'sittings' && vm.isCourse">
+
+        <div class="cc-note">
+          <i class="fa fa-circle-info"></i>
+          For courses taken repeatedly (e.g. a 6- or 12-monthly Dual Check). Each <strong>run</strong> gives the
+          student a fresh set of the course's questionnaires while keeping previous runs as history.
+        </div>
+
+        <!-- Start a run -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-circle-play"></i> Start a new run</div>
+          <div class="cc-form-grid">
+            <div class="cc-field">
+              <label>Student <span class="cc-req">*</span></label>
+              <ui-select ng-model="vm.newSitting.user" theme="bootstrap" title="Choose a student">
+                <ui-select-match placeholder="Search students…">{{ $select.selected.name }}</ui-select-match>
+                <ui-select-choices repeat="m in vm.sittingMembers | filter: $select.search">
+                  <span ng-bind-html="m.name | highlight: $select.search"></span>
+                </ui-select-choices>
+              </ui-select>
+            </div>
+            <div class="cc-field">
+              <label>Next due in</label>
+              <select class="cc-select" ng-model="vm.newSitting.due_in_months">
+                <option ng-value="null">No due date</option>
+                <option ng-value="6">6 months</option>
+                <option ng-value="12">12 months</option>
+                <option ng-value="24">24 months</option>
+              </select>
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>Notes</label>
+              <input class="cc-input" type="text" ng-model="vm.newSitting.notes" placeholder="Optional note for this run">
+            </div>
+            <div class="cc-field cc-field--full" ng-if="vm.selectedHasOpenRun()">
+              <div class="cc-note" style="background:#fffbeb; border-color:#fde68a; color:#92400e;">
+                <i class="fa fa-circle-exclamation"></i>
+                {{ vm.newSitting.user.name }} already has run #{{ vm.openRunFor(vm.newSitting.user.id).sitting_number }} open.
+                Complete or cancel it below before starting a new one.
+              </div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <button class="cc-btn cc-btn--primary cc-btn--lg cc-btn--block" ng-click="vm.startSitting()"
+                      ng-disabled="vm.savingSitting || !vm.newSitting.user || vm.selectedHasOpenRun()">
+                <i class="fa" ng-class="vm.savingSitting ? 'fa-spinner fa-spin' : 'fa-circle-play'"></i>
+                {{ vm.savingSitting ? 'Starting…' : 'Start run' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Roster: runs per student -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-users"></i> Runs by student</div>
+          <div class="cc-empty" ng-if="!vm.sittingGroups.length" style="padding:28px;">
+            <i class="fa fa-repeat"></i><p>No runs started yet.</p>
+          </div>
+          <div ng-repeat="g in vm.sittingGroups" style="margin-bottom:18px;">
+            <div style="font-weight:700; color:#1e293b; margin-bottom:8px;"><i class="fa fa-user" style="color:#94a3b8;"></i> {{ g.name }}</div>
+            <div class="cc-item" ng-repeat="s in g.runs" style="padding:12px 16px;">
+              <div class="cc-item__icon"><i class="fa fa-flag-checkered"></i></div>
+              <div class="cc-item__body">
+                <div class="cc-item__title">
+                  Run #{{ s.sitting_number }}
+                  <span class="cc-badge" ng-class="vm.sittingBadge(s.status)">{{ vm.pretty(s.status) }}</span>
+                </div>
+                <div class="cc-item__sub">
+                  <span class="cc-chip"><i class="fa fa-play"></i> {{ s.started_at }}</span>
+                  <span class="cc-chip" ng-if="s.due_date"><i class="fa fa-calendar"></i> due {{ s.due_date }}</span>
+                  <span class="cc-chip" ng-if="s.completed_at"><i class="fa fa-circle-check"></i> done {{ s.completed_at }}</span>
+                </div>
+                <div class="cc-item__sub" ng-if="s.notes">{{ s.notes }}</div>
+              </div>
+              <div class="cc-item__actions" ng-if="s.status === 'open'">
+                <button class="cc-btn cc-btn--success" ng-click="vm.completeSitting(s)"><i class="fa fa-check"></i> Complete</button>
+                <button class="cc-btn cc-btn--ghost" ng-click="vm.cancelSitting(s)"><i class="fa fa-ban"></i> Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ QUESTIONNAIRES ══════════════ -->
+      <div ng-if="vm.tab === 'questionnaires'">
+
+        <!-- BEFORE -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-hourglass-start"></i> Before this {{ vm.attachType }}</div>
+          <div class="cc-empty" ng-if="!vm.qPre.length" style="padding:28px;">
+            <i class="fa fa-clipboard-question"></i><p>Nothing assigned before. Add one below.</p>
+          </div>
+          <div class="cc-item" ng-repeat="q in vm.qPre track by q.link_id">
+            <div class="cc-item__icon"><i class="fa fa-clipboard-question"></i></div>
+            <div class="cc-item__body">
+              <div class="cc-item__title">
+                {{ q.title }}
+                <span class="cc-badge" ng-class="q.is_published ? 'cc-badge--green' : 'cc-badge--draft'">{{ q.is_published ? 'Published' : 'Draft' }}</span>
+              </div>
+              <div class="cc-item__sub" ng-if="q.description">{{ q.description }}</div>
+              <div class="cc-item__sub">
+                <span class="cc-chip"><i class="fa fa-question"></i> {{ q.question_count || 0 }} questions</span>
+              </div>
+            </div>
+            <div class="cc-item__actions">
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.editQuestionnaire(q)" uib-tooltip="Edit questions"><i class="fa fa-pen"></i></button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.viewAttempts(q)" uib-tooltip="View submissions"><i class="fa fa-inbox"></i></button>
+              <button class="cc-btn" ng-class="q.is_published ? 'cc-btn--ghost' : 'cc-btn--success'" ng-click="vm.togglePublish(q)">
+                <i class="fa" ng-class="q.is_published ? 'fa-eye-slash' : 'fa-cloud-arrow-up'"></i> {{ q.is_published ? 'Unpublish' : 'Publish' }}
+              </button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.shareQuestionnaire(q)" uib-tooltip="Share with a student"><i class="fa fa-share-nodes"></i></button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.viewQuestionnaireShares(q)" uib-tooltip="Who it's shared with"><i class="fa fa-user-group"></i></button>
+              <button class="cc-btn cc-btn--danger" ng-click="vm.detachQuestionnaire(q)" uib-tooltip="Detach"><i class="fa fa-link-slash"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTER -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-hourglass-end"></i> After this {{ vm.attachType }}</div>
+          <div class="cc-empty" ng-if="!vm.qPost.length" style="padding:28px;">
+            <i class="fa fa-clipboard-question"></i><p>Nothing assigned after. Add one below.</p>
+          </div>
+          <div class="cc-item" ng-repeat="q in vm.qPost track by q.link_id">
+            <div class="cc-item__icon"><i class="fa fa-clipboard-question"></i></div>
+            <div class="cc-item__body">
+              <div class="cc-item__title">
+                {{ q.title }}
+                <span class="cc-badge" ng-class="q.is_published ? 'cc-badge--green' : 'cc-badge--draft'">{{ q.is_published ? 'Published' : 'Draft' }}</span>
+              </div>
+              <div class="cc-item__sub" ng-if="q.description">{{ q.description }}</div>
+              <div class="cc-item__sub"><span class="cc-chip"><i class="fa fa-question"></i> {{ q.question_count || 0 }} questions</span></div>
+            </div>
+            <div class="cc-item__actions">
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.editQuestionnaire(q)" uib-tooltip="Edit questions"><i class="fa fa-pen"></i></button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.viewAttempts(q)" uib-tooltip="View submissions"><i class="fa fa-inbox"></i></button>
+              <button class="cc-btn" ng-class="q.is_published ? 'cc-btn--ghost' : 'cc-btn--success'" ng-click="vm.togglePublish(q)">
+                <i class="fa" ng-class="q.is_published ? 'fa-eye-slash' : 'fa-cloud-arrow-up'"></i> {{ q.is_published ? 'Unpublish' : 'Publish' }}
+              </button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.shareQuestionnaire(q)" uib-tooltip="Share with a student"><i class="fa fa-share-nodes"></i></button>
+              <button class="cc-btn cc-btn--ghost" ng-click="vm.viewQuestionnaireShares(q)" uib-tooltip="Who it's shared with"><i class="fa fa-user-group"></i></button>
+              <button class="cc-btn cc-btn--danger" ng-click="vm.detachQuestionnaire(q)" uib-tooltip="Detach"><i class="fa fa-link-slash"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CREATE -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-circle-plus"></i> Create a questionnaire</div>
+          <div class="cc-form-grid">
+            <div class="cc-field cc-field--full">
+              <label>When does the student do this?</label>
+              <div class="cc-seg">
+                <button ng-class="{'cc-seg--active': vm.newQTiming === 'pre'}" ng-click="vm.newQTiming = 'pre'">Before</button>
+                <button ng-class="{'cc-seg--active': vm.newQTiming === 'post'}" ng-click="vm.newQTiming = 'post'">After</button>
+              </div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>Title <span class="cc-req">*</span></label>
+              <input class="cc-input" type="text" ng-model="vm.newQ.title" placeholder="e.g. Pre-flight knowledge check">
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>Description</label>
+              <textarea class="cc-textarea" ng-model="vm.newQ.description" rows="3" placeholder="Optional short description shown to students."></textarea>
+            </div>
+            <div class="cc-field cc-field--full">
+              <div class="cc-toggle-row">
+                <div class="cc-toggle-row__text">
+                  Show students their MC score instantly
+                  <span>Multiple-choice is auto-graded and shown right after submission.</span>
+                </div>
+                <toggle-switch ng-model="vm.newQ.instant_mc_score" on-label="Yes" off-label="No"></toggle-switch>
+              </div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <button class="cc-btn cc-btn--primary cc-btn--lg cc-btn--block" ng-click="vm.newQuestionnaire()" ng-disabled="vm.saving || !vm.newQ.title">
+                <i class="fa" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+                {{ vm.saving ? 'Creating…' : 'Create &amp; build (' + vm.timingLabel(vm.newQTiming) + ')' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ MATERIAL ══════════════ -->
+      <div ng-if="vm.tab === 'materials'">
+
+        <!-- BEFORE -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-hourglass-start"></i> Before this {{ vm.attachType }}</div>
+          <div class="cc-empty" ng-if="!vm.matPre.length" style="padding:28px;"><i class="fa fa-photo-film"></i><p>No pre-material yet.</p></div>
+          <div class="cc-item" ng-repeat="m in vm.matPre track by m.id" ng-include="'views/manageclub/course_content/_material_row.html'"></div>
+        </div>
+
+        <!-- AFTER -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-hourglass-end"></i> After this {{ vm.attachType }}</div>
+          <div class="cc-empty" ng-if="!vm.matPost.length" style="padding:28px;"><i class="fa fa-photo-film"></i><p>No post-material yet.</p></div>
+          <div class="cc-item" ng-repeat="m in vm.matPost track by m.id" ng-include="'views/manageclub/course_content/_material_row.html'"></div>
+        </div>
+
+        <!-- UPLOAD -->
+        <div class="cc-card">
+          <div class="cc-card__title"><i class="fa fa-upload"></i> Upload material</div>
+          <div class="cc-form-grid">
+            <div class="cc-field cc-field--full">
+              <label>When is this shared?</label>
+              <div class="cc-seg">
+                <button ng-class="{'cc-seg--active': vm.newMatTiming === 'pre'}" ng-click="vm.newMatTiming = 'pre'">Before</button>
+                <button ng-class="{'cc-seg--active': vm.newMatTiming === 'post'}" ng-click="vm.newMatTiming = 'post'">After</button>
+              </div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>PDF or video file <span class="cc-req">*</span></label>
+              <label class="cc-note" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                <i class="fa fa-file-arrow-up"></i>
+                <span ng-if="!vm.materialFileName">Choose a PDF or video to upload…</span>
+                <span ng-if="vm.materialFileName"><strong>{{ vm.materialFileName }}</strong></span>
+                <input type="file" accept=".pdf,.mp4,.mov,.mkv,.webm,.avi,.m4v,video/*,application/pdf" style="display:none;"
+                       onchange="angular.element(this).scope().vm.onMaterialFile(this.files)">
+              </label>
+              <div class="cc-field__hint" ng-if="vm._isVideo"><i class="fa fa-circle-info"></i> Videos are processed in the background after upload — they’ll be playable shortly.</div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>Title <span class="cc-req">*</span></label>
+              <input class="cc-input" type="text" ng-model="vm.newMat.title" placeholder="e.g. Aircraft systems summary">
+            </div>
+            <div class="cc-field cc-field--full">
+              <label>Description</label>
+              <textarea class="cc-textarea" ng-model="vm.newMat.description" rows="3" placeholder="Optional notes shown to students."></textarea>
+            </div>
+            <div class="cc-field cc-field--full">
+              <div class="cc-toggle-row">
+                <div class="cc-toggle-row__text">Publish immediately<span>Students can access it as soon as it’s uploaded (videos: once processed).</span></div>
+                <toggle-switch ng-model="vm.newMat.is_published" on-label="Yes" off-label="No"></toggle-switch>
+              </div>
+            </div>
+            <div class="cc-field cc-field--full">
+              <button class="cc-btn cc-btn--primary cc-btn--lg cc-btn--block" ng-click="vm.uploadMaterial()" ng-disabled="vm.uploading || !vm.materialFileName || !vm.newMat.title">
+                <i class="fa" ng-class="vm.uploading ? 'fa-spinner fa-spin' : 'fa-upload'"></i>
+                {{ vm.uploading ? 'Uploading…' : 'Upload (' + vm.timingLabel(vm.newMatTiming) + ')' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

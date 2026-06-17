@@ -1,12 +1,18 @@
  app.controller('MyAccountController', MyAccountController);
 
-    MyAccountController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'VoucherService', 'BookoutService', 'ToastService'];
-    function MyAccountController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, VoucherService, BookoutService, ToastService) {
-        
+    MyAccountController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'VoucherService', 'BookoutService', 'ToastService', 'CourseAssignmentService'];
+    function MyAccountController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, VoucherService, BookoutService, ToastService, CourseAssignmentService) {
+
         var vm = this;
-       
+
 
         vm.user = $rootScope.globals.currentUser;
+
+        // Outstanding "assigned to me" count for the dashboard tile badge.
+        vm.assignedCount = 0;
+        CourseAssignmentService.MineCount().then(function(data) {
+            vm.assignedCount = (data && typeof data.count === 'number') ? data.count : 0;
+        });
         //console.log("USER HERE IS : ", vm.user);
 
         // Bookings / bookouts / to-pay data for the dashboard home view

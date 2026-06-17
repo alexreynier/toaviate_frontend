@@ -1,0 +1,189 @@
+<div class="lb-page">
+
+  <div class="lb-page__header">
+    <div class="lb-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="lb-page__title">
+        <h2><i class="fa fa-book"></i> My Logbook</h2>
+        <p>Your verified club hours and your own manually-added flights, together.</p>
+      </div>
+      <div class="lb-page__header-actions">
+        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_add">
+          <i class="fa fa-plus"></i> Add Flight
+        </a>
+        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_stats">
+          <i class="fa fa-chart-pie"></i> Stats
+        </a>
+        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_import">
+          <i class="fa fa-file-import"></i> Import
+        </a>
+        <button class="lb-btn lb-btn--white" ng-click="vm.exportLogbook('csv')" ng-disabled="vm.exporting">
+          <i class="fa fa-file-csv"></i> CSV
+        </button>
+        <button class="lb-btn lb-btn--white" ng-click="vm.exportLogbook('excel')" ng-disabled="vm.exporting">
+          <i class="fa fa-file-excel"></i> Excel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lb-page__body">
+
+    <div class="lb-loading" ng-if="vm.loading">
+      <div class="lb-spinner"></div> Loading your logbook…
+    </div>
+
+    <div ng-if="!vm.loading">
+
+      <!-- Headline totals -->
+      <div class="lb-card lb-summary" ng-if="vm.totals">
+        <div class="lb-summary__grid">
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Total</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.total_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">PIC</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.pic_time) }}</span>
+          </div>
+          <div class="lb-summary__stat" ng-if="vm.totals.grand.picus_time > 0">
+            <span class="lb-summary__label">PICUS</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.picus_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Dual</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.dual_time) }}</span>
+          </div>
+          <div class="lb-summary__stat" ng-if="vm.totals.grand.instructor_time > 0">
+            <span class="lb-summary__label">Instructor</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.instructor_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Instrument <small>(IFR/IMC)</small></span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.ifr_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Nav <small>(XC)</small></span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.cross_country_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Night</span>
+            <span class="lb-summary__value">{{ vm.fmtTotal(vm.totals.grand.night_time) }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Landings <small>(day / night)</small></span>
+            <span class="lb-summary__value">{{ vm.totals.grand.day_landings || 0 }} / {{ vm.totals.grand.night_landings || 0 }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Flights</span>
+            <span class="lb-summary__value">{{ vm.totals.flights || 0 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar: filter + display toggles -->
+      <div class="lb-toolbar">
+        <div class="lb-field">
+          <label>From</label>
+          <input type="date" class="lb-input" ng-model="vm.filters.from">
+        </div>
+        <div class="lb-field">
+          <label>To</label>
+          <input type="date" class="lb-input" ng-model="vm.filters.to">
+        </div>
+        <button class="lb-btn lb-btn--primary" ng-click="vm.applyFilter()"><i class="fa fa-filter"></i> Apply</button>
+        <button class="lb-btn lb-btn--ghost" ng-click="vm.clearFilter()" ng-if="vm.filters.from || vm.filters.to">Clear</button>
+
+        <div class="lb-toolbar__spacer"></div>
+
+        <button class="lb-btn lb-btn--ghost lb-toggle-btn" ng-click="vm.toggleTimeFormat()"
+                uib-tooltip="Switch time display">
+          <i class="fa fa-clock"></i> {{ vm.timeFormat === 'hms' ? 'HH:mm' : 'Decimal' }}
+        </button>
+        <button class="lb-btn lb-btn--ghost lb-toggle-btn" ng-click="vm.togglePlaceFormat()"
+                uib-tooltip="Switch airfield display">
+          <i class="fa fa-tower-observation"></i> {{ vm.placeFormat === 'name' ? 'Airfield name' : 'ICAO code' }}
+        </button>
+      </div>
+
+      <!-- Empty -->
+      <div class="lb-empty" ng-if="!vm.entries.length">
+        <i class="fa fa-book-open"></i>
+        <p>No flights in your logbook yet for this range.</p>
+        <a class="lb-btn lb-btn--primary" ui-sref="dashboard.my_account.logbook_add"><i class="fa fa-plus"></i> Add your first flight</a>
+      </div>
+
+      <!-- Logbook table -->
+      <div class="lb-table-card" ng-if="vm.entries.length">
+        <div class="lb-table-scroll">
+          <table class="lb-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Dep</th>
+                <th>Arr</th>
+                <th>Reg</th>
+                <th>Type</th>
+                <th>Cap</th>
+                <th class="lb-table__num">Total</th>
+                <th class="lb-table__num">PIC</th>
+                <th class="lb-table__num">PICUS</th>
+                <th class="lb-table__num">P2</th>
+                <th class="lb-table__num">Dual</th>
+                <th>Instructor</th>
+                <th class="lb-table__num">Night</th>
+                <th class="lb-table__num">IFR</th>
+                <th class="lb-table__num">XC</th>
+                <th class="lb-table__num">Day L</th>
+                <th class="lb-table__num">Nt L</th>
+                <th>Source</th>
+                <th class="lb-table__actions"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="e in vm.entries" ng-class="{'lb-row--tentative': !e.verified}">
+                <td>{{ e.flight_date }}</td>
+                <td><span uib-tooltip="{{ vm.depPlaceAlt(e) }}">{{ vm.depPlace(e) }}</span><span ng-if="e.departure_time"> {{ e.departure_time }}</span></td>
+                <td><span uib-tooltip="{{ vm.arrPlaceAlt(e) }}">{{ vm.arrPlace(e) }}</span><span ng-if="e.arrival_time"> {{ e.arrival_time }}</span></td>
+                <td class="lb-table__reg">{{ e.registration }}</td>
+                <td><span uib-tooltip="{{ e.aircraft_make }} {{ e.aircraft_model !== '-' ? e.aircraft_model : '' }}">{{ e.aircraft_type || '—' }}</span></td>
+                <td>{{ e.capacity }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.total_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.pic_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.picus_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.copilot_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.dual_time) }}</td>
+                <td>{{ e.instructor_name || '' }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.night_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.ifr_time) }}</td>
+                <td class="lb-table__num">{{ vm.fmtTime(e.cross_country_time) }}</td>
+                <td class="lb-table__num">{{ e.day_landings || '' }}</td>
+                <td class="lb-table__num">{{ e.night_landings || '' }}</td>
+                <td>
+                  <img ng-if="e.verified" src="favicon/favicon-32x32.png" class="lb-source-mark" alt="ToAviate" uib-tooltip="ToAviate-verified flight" />
+                  {{ e.source }}
+                </td>
+                <td class="lb-table__actions">
+                  <!-- Only manual rows are editable/deletable -->
+                  <span ng-if="e.kind === 'manual' && !e._confirmDelete">
+                    <button class="lb-table__action-btn" ng-click="vm.editEntry(e)" uib-tooltip="Edit"><i class="fa fa-pen"></i></button>
+                    <button class="lb-table__action-btn lb-table__action-btn--danger" ng-click="vm.deleteEntry(e)" uib-tooltip="Delete"><i class="fa fa-trash"></i></button>
+                  </span>
+                  <span class="lb-confirm" ng-if="e._confirmDelete">
+                    <span class="lb-confirm__q">Delete?</span>
+                    <button class="lb-table__action-btn lb-table__action-btn--danger" ng-click="vm.confirmDelete(e)" ng-disabled="e._deleting"><i class="fa" ng-class="{'fa-spinner fa-spin': e._deleting, 'fa-check': !e._deleting}"></i></button>
+                    <button class="lb-table__action-btn" ng-click="vm.cancelDelete(e)"><i class="fa fa-xmark"></i></button>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

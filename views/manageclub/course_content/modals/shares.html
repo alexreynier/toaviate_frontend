@@ -1,0 +1,53 @@
+<div class="modal-header">
+  <h3 class="modal-title">
+    <i class="fa" ng-class="m.item.type === 'material' ? 'fa-photo-film' : 'fa-clipboard-question'"></i>
+    Shared with
+  </h3>
+</div>
+
+<div class="modal-body">
+  <div class="cc-note">
+    <i class="fa fa-share-nodes"></i>
+    Everyone <strong>{{ m.item.title }}</strong> has been assigned to, and where they’re up to.
+  </div>
+
+  <div class="cc-loading" ng-if="m.loading"><div class="cc-spinner"></div> Loading…</div>
+
+  <div ng-if="!m.loading">
+
+    <!-- Nobody yet -->
+    <div class="cc-empty" ng-if="!m.rows.length">
+      <i class="fa fa-user-plus"></i>
+      <p>Not shared with anyone yet — use the Share button to assign it to students.</p>
+    </div>
+
+    <!-- Roster -->
+    <div class="cc-share-row" ng-repeat="a in m.rows" ng-class="{'cc-share-row--over': m.overdue(a)}">
+      <div class="cc-share-row__main">
+        <div class="cc-share-row__name">{{ a._name }}</div>
+        <div class="cc-share-row__sub">
+          <span class="cc-badge" ng-class="m.badge(a.status)">{{ m.statusText(a.status) }}</span>
+          <span class="cc-share-row__due" ng-if="a.due_date" ng-class="{'cc-share-row__due--over': m.overdue(a)}">
+            <i class="fa fa-calendar"></i> Due {{ a.due_date }}<span ng-if="m.overdue(a)"> · overdue</span>
+          </span>
+          <span class="cc-share-row__date" ng-if="a.completed_at"><i class="fa fa-circle-check"></i> {{ a.completed_at }}</span>
+        </div>
+      </div>
+      <div class="cc-share-row__actions">
+        <button class="cc-btn cc-btn--danger cc-btn--sm" ng-click="m.revoke(a)" ng-disabled="a._revoking"
+                uib-tooltip="Unassign from this student">
+          <i class="fa" ng-class="a._revoking ? 'fa-spinner fa-spin' : 'fa-user-minus'"></i> Remove
+        </button>
+      </div>
+    </div>
+
+    <div class="cc-share-summary" ng-if="m.rows.length">
+      {{ m.rows.length }} student{{ m.rows.length === 1 ? '' : 's' }} ·
+      {{ m.outstanding }} still to complete
+    </div>
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="cc-btn cc-btn--primary" ng-click="m.close()">Done</button>
+</div>

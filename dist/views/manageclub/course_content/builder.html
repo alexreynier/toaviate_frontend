@@ -1,0 +1,239 @@
+<div class="cc-page cc-page--wide">
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-pencil-square-o"></i> {{ vm.q.title || 'Questionnaire Builder' }}</h2>
+    <p>Author the questions students will answer.</p>
+    <div class="cc-header__meta" ng-if="!vm.loading && vm.q">
+      <span class="cc-badge" ng-class="vm.q.is_published ? 'cc-badge--green' : 'cc-badge--draft'">
+        {{ vm.q.is_published ? 'Published' : 'Draft' }}
+      </span>
+      &nbsp; {{ (vm.q.questions.length || 0) }} question{{ vm.q.questions.length === 1 ? '' : 's' }}
+    </div>
+  </div>
+
+  <div class="cc-body">
+    <div class="cc-loading" ng-if="vm.loading"><div class="cc-spinner"></div> Loading…</div>
+
+    <div ng-if="!vm.loading">
+
+      <!-- ───────── Meta editor ───────── -->
+      <div class="cc-card">
+        <div class="cc-card__title"><i class="fa fa-sliders"></i> Questionnaire Settings</div>
+
+        <div class="cc-form-grid">
+          <div class="cc-field cc-field--full">
+            <label>Title <span class="cc-req">*</span></label>
+            <input type="text" class="cc-input" ng-model="vm.q.title" placeholder="e.g. Pre-solo knowledge check">
+          </div>
+
+          <div class="cc-field cc-field--full">
+            <label>Description</label>
+            <textarea class="cc-textarea" ng-model="vm.q.description"
+                      placeholder="Short summary shown to students before they start."></textarea>
+          </div>
+
+          <div class="cc-field">
+            <label>Time limit (minutes)</label>
+            <input type="number" min="0" class="cc-input" ng-model="vm.q.time_limit_minutes" placeholder="0 = no limit">
+            <span class="cc-field__hint">Leave blank or 0 for no time limit.</span>
+          </div>
+
+          <div class="cc-field" style="justify-content:flex-end;">
+            <label>&nbsp;</label>
+            <div class="cc-toggle-row">
+              <div class="cc-toggle-row__text">
+                <strong>Instant MC scoring</strong>
+                <span>Auto-grade multiple-choice answers on submit.</span>
+              </div>
+              <toggle-switch ng-model="vm.q.instant_mc_score" on-label="Yes" off-label="No"></toggle-switch>
+            </div>
+          </div>
+
+          <div class="cc-field cc-field--full">
+            <div class="cc-toggle-row">
+              <div class="cc-toggle-row__text">
+                <strong>Published</strong>
+                <span>When on, students can see and complete this questionnaire.</span>
+              </div>
+              <toggle-switch ng-model="vm.q.is_published" on-label="Live" off-label="Draft"></toggle-switch>
+            </div>
+          </div>
+
+          <div class="cc-field cc-field--full">
+            <button class="cc-btn cc-btn--primary" ng-click="vm.saveMeta()" ng-disabled="vm.saving || !vm.q.title">
+              <i class="fa fa-save"></i> Save settings
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────── Question list ───────── -->
+      <div class="cc-card__title" style="margin:24px 0 14px;">
+        <i class="fa fa-list-ol"></i> Questions
+      </div>
+
+      <div class="cc-empty" ng-if="!vm.q.questions.length">
+        <i class="fa fa-question-circle-o"></i>
+        <p>No questions yet. Add your first question to get started.</p>
+      </div>
+
+      <div class="cc-card" ng-repeat="qq in vm.q.questions track by qq.id">
+        <div style="display:flex; align-items:flex-start; gap:14px;">
+          <div class="cc-question__num" style="flex:0 0 auto; padding-top:2px;">Q{{ $index + 1 }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="cc-question__prompt" style="font-size:16px;">{{ qq.prompt }}</div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <span class="cc-badge cc-badge--blue">{{ vm.pretty(qq.type) }}</span>
+              <span class="cc-badge cc-badge--violet">{{ qq.points || 0 }} pt{{ qq.points === 1 ? '' : 's' }}</span>
+              <span class="cc-badge cc-badge--amber" ng-if="qq.required">Required</span>
+              <span class="cc-badge cc-badge--grey" ng-if="!qq.required">Optional</span>
+              <span class="cc-badge cc-badge--grey" ng-if="qq.type === 'multiple_choice' && qq.multi_select">Multi-select</span>
+            </div>
+
+            <div class="cc-question__help" ng-if="qq.help_text">{{ qq.help_text }}</div>
+
+            <div ng-if="qq.external_url" style="margin-top:8px;">
+              <a class="cc-chip" ng-href="{{ qq.external_url }}" target="_blank" rel="noopener">
+                <i class="fa fa-external-link"></i> {{ qq.external_url }}
+              </a>
+            </div>
+
+            <!-- MC options preview -->
+            <div ng-if="qq.type === 'multiple_choice'" style="margin-top:10px;">
+              <div class="cc-empty" ng-if="!qq.options.length" style="padding:18px;">
+                <i class="fa fa-exclamation-triangle"></i>
+                <p>This question has no options yet.</p>
+              </div>
+              <div class="cc-opt-row" ng-repeat="opt in qq.options track by opt.id">
+                <span class="cc-option__marker" ng-class="{'cc-option--square': qq.multi_select}"
+                      style="border-color:#cbd5e1;"></span>
+                <span class="cc-option__label" style="flex:1;">{{ opt.label }}</span>
+                <span class="cc-badge cc-badge--green" ng-if="opt.is_correct">Correct</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cc-item__actions" style="flex:0 0 auto;">
+            <button class="cc-btn cc-btn--danger" ng-click="vm.deleteQuestion(qq)"
+                    uib-tooltip="Delete question" tooltip-placement="left">
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────── Add question ───────── -->
+      <button class="cc-btn cc-btn--success cc-btn--lg cc-btn--block" ng-if="!vm.addingQuestion"
+              ng-click="vm.startAddQuestion()" style="margin-top:6px;">
+        <i class="fa fa-plus-circle"></i> Add question
+      </button>
+
+      <div class="cc-q-editor cc-pop" ng-if="vm.addingQuestion">
+        <div class="cc-card__title" style="margin-bottom:14px;">
+          <i class="fa fa-plus"></i> New question
+        </div>
+
+        <!-- type switch -->
+        <div class="cc-field" style="margin-bottom:14px;">
+          <label>Question type</label>
+          <div class="cc-seg">
+            <button type="button" ng-class="{'cc-seg--active': vm.draft.type === 'multiple_choice'}"
+                    ng-click="vm.draft.type = 'multiple_choice'">
+              <i class="fa fa-check-square-o"></i> Multiple choice
+            </button>
+            <button type="button" ng-class="{'cc-seg--active': vm.draft.type === 'free_text'}"
+                    ng-click="vm.draft.type = 'free_text'">
+              <i class="fa fa-align-left"></i> Free text
+            </button>
+          </div>
+        </div>
+
+        <div class="cc-form-grid">
+          <div class="cc-field cc-field--full">
+            <label>Prompt <span class="cc-req">*</span></label>
+            <textarea class="cc-textarea" ng-model="vm.draft.prompt"
+                      placeholder="What do you want to ask?"></textarea>
+          </div>
+
+          <div class="cc-field cc-field--full">
+            <label>Help text</label>
+            <input type="text" class="cc-input" ng-model="vm.draft.help_text"
+                   placeholder="Optional guidance shown under the prompt.">
+          </div>
+
+          <div class="cc-field">
+            <label>Reference link</label>
+            <input type="url" class="cc-input" ng-model="vm.draft.external_url"
+                   placeholder="https://…">
+            <span class="cc-field__hint">Optional external resource.</span>
+          </div>
+
+          <div class="cc-field">
+            <label>Points</label>
+            <input type="number" min="0" class="cc-input" ng-model="vm.draft.points" placeholder="0">
+          </div>
+
+          <div class="cc-field cc-field--full">
+            <div class="cc-toggle-row">
+              <div class="cc-toggle-row__text">
+                <strong>Required</strong>
+                <span>Students must answer before submitting.</span>
+              </div>
+              <toggle-switch ng-model="vm.draft.required" on-label="Yes" off-label="No"></toggle-switch>
+            </div>
+          </div>
+        </div>
+
+        <!-- MC option builder -->
+        <div ng-if="vm.draft.type === 'multiple_choice'" style="margin-top:16px;">
+          <div class="cc-toggle-row" style="margin-bottom:14px;">
+            <div class="cc-toggle-row__text">
+              <strong>Allow multiple correct</strong>
+              <span>Students can pick more than one option.</span>
+            </div>
+            <toggle-switch ng-model="vm.draft.multi_select" on-label="Yes" off-label="No"></toggle-switch>
+          </div>
+
+          <label class="cc-field" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#64748b; margin-bottom:8px; display:block;">
+            Options
+          </label>
+
+          <div class="cc-empty" ng-if="!vm.draft.options.length" style="padding:20px;">
+            <i class="fa fa-list"></i>
+            <p>No options yet. Add at least two.</p>
+          </div>
+
+          <div class="cc-opt-row" ng-repeat="opt in vm.draft.options">
+            <input type="text" class="cc-input" ng-model="opt.label"
+                   placeholder="Option {{ $index + 1 }}">
+            <label class="cc-opt-correct" ng-click="vm.pickCorrect(opt)"
+                   uib-tooltip="Mark as correct">
+              <i class="fa" ng-class="opt.is_correct ? 'fa-check-circle' : 'fa-circle-o'"></i>
+              Correct
+            </label>
+            <button type="button" class="cc-btn cc-btn--ghost" ng-click="vm.removeDraftOption($index)"
+                    uib-tooltip="Remove option">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+
+          <button type="button" class="cc-btn cc-btn--ghost" ng-click="vm.addDraftOption()" style="margin-top:6px;">
+            <i class="fa fa-plus"></i> Add option
+          </button>
+        </div>
+
+        <!-- editor actions -->
+        <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
+          <button class="cc-btn cc-btn--success" ng-click="vm.saveQuestion()" ng-disabled="vm.saving">
+            <i class="fa fa-check"></i> Save question
+          </button>
+          <button class="cc-btn cc-btn--ghost" ng-click="vm.cancelAddQuestion()" ng-disabled="vm.saving">
+            <i class="fa fa-times"></i> Cancel
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

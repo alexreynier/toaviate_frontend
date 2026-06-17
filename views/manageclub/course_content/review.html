@@ -1,0 +1,112 @@
+<div class="cc-page">
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-clipboard-check"></i> Review — {{ vm.student.first_name }} {{ vm.student.last_name }}</h2>
+    <p>{{ vm.q.title }}</p>
+    <div class="cc-header__meta">
+      <span class="cc-badge cc-badge--blue"><i class="fa fa-star"></i> {{ vm.attempt.auto_score }} / {{ vm.attempt.max_score }}</span>
+      <span class="cc-badge cc-badge--grey"><i class="fa fa-clock"></i> {{ vm.attempt.time_spent_seconds }}s</span>
+      <span class="cc-badge cc-badge--violet">{{ vm.pretty(vm.attempt.status) }}</span>
+      <span class="cc-badge cc-badge--green" ng-if="vm.attempt.score_released"><i class="fa fa-paper-plane"></i> Released</span>
+    </div>
+  </div>
+
+  <div class="cc-body">
+    <div class="cc-loading" ng-if="vm.loading"><div class="cc-spinner"></div> Loading…</div>
+
+    <div ng-if="!vm.loading">
+      <div class="cc-empty" ng-if="!vm.questions || !vm.questions.length">
+        <i class="fa fa-inbox"></i>
+        <p>This attempt has no questions to review.</p>
+      </div>
+
+      <div ng-repeat="q in vm.questions" class="cc-question" ng-if="vm.questions.length">
+        <div class="cc-question__num">Q{{ $index + 1 }}</div>
+        <div class="cc-question__prompt">{{ q.prompt }}</div>
+        <div class="cc-question__help" ng-if="q.help_text">{{ q.help_text }}</div>
+        <img class="cc-question__image" ng-if="q.image_data_uri" ng-src="{{ q.image_data_uri }}" alt="" />
+
+        <!-- Multiple choice -->
+        <div ng-if="q.type !== 'free_text'">
+          <div ng-repeat="opt in q.options"
+               class="cc-option"
+               ng-class="{ 'cc-option--correct': opt.is_correct,
+                           'cc-option--chosen-wrong': vm.optionChosen(q, opt) && !opt.is_correct }">
+            <span class="cc-option__marker">
+              <i class="fa fa-check" ng-if="vm.optionChosen(q, opt)"></i>
+            </span>
+            <span class="cc-option__label">{{ opt.label }}</span>
+          </div>
+        </div>
+
+        <!-- Free text -->
+        <div ng-if="q.type === 'free_text'">
+          <div class="cc-answer-box">
+            <span ng-if="vm.answerFor(q).free_text_answer">{{ vm.answerFor(q).free_text_answer }}</span>
+            <span class="cc-note" ng-if="!vm.answerFor(q).free_text_answer">No answer provided.</span>
+          </div>
+          <div class="cc-mark-row">
+            <div class="cc-score" ng-class="{ 'cc-score--pending': vm.answerFor(q).is_correct === null }">
+              <span class="cc-score__value">{{ vm.answerFor(q).awarded_points }}</span>
+              <span class="cc-score__label">/ {{ q.points }} pts</span>
+            </div>
+            <button class="cc-btn cc-btn--success"
+                    ng-class="{ 'cc-btn--ghost': !vm.answerFor(q).is_correct }"
+                    ng-click="vm.markAnswer(q, true)">
+              <i class="fa fa-check"></i> Award correct
+            </button>
+            <button class="cc-btn cc-btn--danger"
+                    ng-class="{ 'cc-btn--ghost': vm.answerFor(q).is_correct !== false }"
+                    ng-click="vm.markAnswer(q, false)">
+              <i class="fa fa-xmark"></i> Mark incorrect
+            </button>
+          </div>
+        </div>
+
+        <!-- Per-answer coaching comment (optional; great for explaining a wrong answer) -->
+        <div class="cc-comment" ng-class="{'cc-comment--wrong': vm.answerIsWrong(q)}">
+          <label class="cc-comment__label">
+            <i class="fa fa-comment-dots"></i>
+            Coaching comment
+            <span class="cc-comment__hint" ng-if="vm.answerIsWrong(q)">— explain what to revise</span>
+            <span class="cc-comment__hint" ng-if="!vm.answerIsWrong(q)">(optional)</span>
+          </label>
+          <textarea class="cc-textarea" rows="2"
+                    ng-model="vm.answerFor(q).instructor_comment"
+                    placeholder="e.g. Best glide is 65kt — see the POH white arc."></textarea>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+            <button class="cc-btn cc-btn--ghost cc-btn--sm" ng-click="vm.saveComment(q)" ng-disabled="vm.answerFor(q)._savingComment">
+              <i class="fa" ng-class="vm.answerFor(q)._savingComment ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save comment
+            </button>
+            <span class="cc-comment__note">Shared with the student when you release the score.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instructor notes -->
+      <div class="cc-card cc-notes">
+        <div class="cc-notes__title cc-card__title"><i class="fa fa-pen"></i> Instructor notes</div>
+        <div class="cc-notes__body">
+          <div class="cc-field cc-field--full">
+            <textarea class="cc-textarea"
+                      ng-model="vm.reviewNotes"
+                      rows="4"
+                      placeholder="Feedback for the student…"></textarea>
+            <div class="cc-field__hint">Notes are shared with the student when you release the score.</div>
+          </div>
+          <div class="cc-header__actions">
+            <button class="cc-btn cc-btn--white" ng-click="vm.saveReview(false)">
+              <i class="fa fa-floppy-disk"></i> Save notes
+            </button>
+            <button class="cc-btn cc-btn--success" ng-click="vm.saveReview(true)">
+              <i class="fa fa-paper-plane"></i> Release to student
+            </button>
+            <span class="cc-badge cc-badge--green" ng-if="vm.attempt.score_released">
+              <i class="fa fa-circle-check"></i> Released
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

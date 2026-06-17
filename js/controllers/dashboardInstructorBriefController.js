@@ -1,8 +1,36 @@
  app.controller('DashboardInstructorBriefController', DashboardInstructorBriefController);
 
-    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService'];
-    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService) {
+    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService'];
+    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService) {
         var vm = this;
+
+        // ── Pre-lesson questionnaire flag (shown on the briefing screen) ──
+        // When the student + lesson are known, fetch the student's attempts for
+        // this lesson so we can show a "completed" chip + a Review link.
+        vm.preLessonQuestionnaires = [];
+        var _preQLoaded = '';
+        $scope.$watch(function() {
+            return (vm.student && vm.student.id ? vm.student.id : '') + ':' +
+                   (vm.lesson && vm.lesson.id ? vm.lesson.id : '');
+        }, function(key) {
+            if (!vm.student || !vm.student.id || !vm.lesson || !vm.lesson.id) return;
+            if (key === _preQLoaded) return;
+            _preQLoaded = key;
+            var club = vm.briefing_club_id || vm.club_id;
+            QuestionnaireService.StudentAttemptsForTarget(club, vm.student.id, 'lesson', vm.lesson.id, 'pre')
+                .then(function(data) {
+                    vm.preLessonQuestionnaires = (data && data.items) ? data.items : [];
+                });
+        });
+        vm.reviewPreLesson = function(a) {
+            $state.go('dashboard.manage_club.questionnaire_review', { attempt_id: a.id });
+        };
+        vm.preLessonDone = function(a) { return a.status === 'submitted' || a.status === 'reviewed'; };
+        vm.fmtPreLessonTime = function(seconds) {
+            seconds = parseInt(seconds, 10) || 0;
+            var m = Math.floor(seconds / 60), s = seconds % 60;
+            return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+        };
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
 

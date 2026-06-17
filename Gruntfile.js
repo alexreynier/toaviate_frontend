@@ -118,11 +118,13 @@ module.exports = function (grunt) {
                     'css/tracker-plane.css',
                     'css/booking-audit-trail.css',
                     'css/logbook-hours-correction.css',
+                    'css/logbook-export.css',
                     'css/daily-aircraft-status.css',
                     'css/club-automations.css',
                     'css/maintenance-org.css',
                     'css/sms.css',
                     'css/logbook.css',
+                    'css/course-content.css',
                     'libs/css/scheduler.css',
                     'css/accordion.css'
                 ],

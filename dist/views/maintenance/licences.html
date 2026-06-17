@@ -1,0 +1,177 @@
+<!-- ── Header ── -->
+<div class="mxo-page__header">
+  <div class="mxo-page__header-inner">
+    <div class="back-box" ui-sref="dashboard.maintenance"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <div class="mxo-page__title">
+      <h2><i class="fas fa-id-card"></i> Engineering Licences</h2>
+      <p>Encrypted vault — numbers and documents revealed only on click</p>
+    </div>
+  </div>
+</div>
+
+<div ng-if="vm.loading" class="mxo-loading">
+  <span class="mxo-spinner"></span> Loading licences…
+</div>
+
+<div ng-if="!vm.loading && !vm.members.length" class="mxo-empty">
+  <div class="mxo-empty__icon"><i class="fas fa-users"></i></div>
+  <p>No members yet — add one before recording licences.</p>
+</div>
+
+<div class="mxo-search" ng-if="!vm.loading && vm.members.length">
+  <i class="fa fa-search mxo-search__icon"></i>
+  <input class="mxo-search__input" type="search" placeholder="Search by member name…" ng-model="vm.search" />
+</div>
+
+<!-- ── Members grouped, each with their licences ── -->
+<div ng-if="!vm.loading">
+  <div class="mxo-card" ng-repeat="m in vm.members | filter: { first_name: vm.search } : false">
+
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:15px;">{{ m.first_name }} {{ m.last_name }}</div>
+        <div style="color:#64748b; font-size:12.5px;">{{ m.email }}</div>
+      </div>
+      <span class="mxo-badge mxo-badge--slate">{{ m.licences.length || 0 }} licence{{ m.licences.length === 1 ? '' : 's' }}</span>
+      <button class="mxo-btn mxo-btn--ghost mxo-btn--sm" ng-if="vm.can_edit" ng-click="vm.openAdd(m)">
+        <i class="fas fa-plus"></i> Add licence
+      </button>
+    </div>
+
+    <div ng-if="!m.licences.length" style="color:#94a3b8; font-size:13px; padding:6px 2px;">
+      No licences on file.
+    </div>
+
+    <div ng-if="m.licences.length">
+      <!-- Desktop table -->
+      <div class="mxo-desktop-table">
+        <table class="mxo-table" style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Number</th>
+              <th>Issued</th>
+              <th>Expiry</th>
+              <th>Document</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="l in m.licences">
+              <td class="mxo-table__primary">{{ l.licence_type || '—' }}</td>
+              <td>
+                <span class="mxo-secret" ng-if="!l._revealed && l.has_number">
+                  ••••••••
+                  <button class="mxo-secret__reveal" ng-click="vm.reveal(m, l)"><i class="fas fa-eye"></i> Reveal</button>
+                </span>
+                <span class="mxo-secret" ng-if="l._revealed">{{ l._revealed }}</span>
+                <span class="mxo-table__muted" ng-if="!l.has_number && !l._revealed">—</span>
+              </td>
+              <td class="mxo-table__muted">{{ (l.issued_date || '').substring(0,10) || '—' }}</td>
+              <td><span class="mxo-badge" ng-class="vm.expiryClass(l)">{{ vm.expiryLabel(l) }}</span></td>
+              <td>
+                <button class="mxo-btn mxo-btn--ghost mxo-btn--sm" ng-if="l.has_document" ng-click="vm.downloadDoc(l)">
+                  <i class="fas fa-file-pdf"></i> View
+                </button>
+                <span ng-if="!l.has_document" class="mxo-table__muted">—</span>
+              </td>
+              <td class="mxo-table__actions">
+                <button class="mxo-table__action-btn" ng-if="vm.can_edit" ng-click="vm.openEdit(m, l)" title="Edit"><i class="fas fa-pen"></i></button>
+                <button class="mxo-table__action-btn mxo-table__action-btn--danger" ng-if="vm.can_edit" ng-click="vm.removeLicence(l)" title="Delete"><i class="fas fa-trash"></i></button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Mobile cards -->
+      <div class="mxo-mobile-cards">
+        <div class="mxo-mcard" ng-repeat="l in m.licences">
+          <div class="mxo-mcard__header">
+            <span>{{ l.licence_type || 'Licence' }}</span>
+            <span class="mxo-badge" ng-class="vm.expiryClass(l)">{{ vm.expiryLabel(l) }}</span>
+          </div>
+          <div class="mxo-mcard__body">
+            <div class="mxo-mcard__row">
+              <span class="mxo-mcard__label">Number</span>
+              <span class="mxo-mcard__value">
+                <span ng-if="!l._revealed && l.has_number">
+                  ••••••••
+                  <button class="mxo-secret__reveal" ng-click="vm.reveal(m, l)" style="margin-left:6px;"><i class="fas fa-eye"></i></button>
+                </span>
+                <span ng-if="l._revealed">{{ l._revealed }}</span>
+                <span ng-if="!l.has_number && !l._revealed">—</span>
+              </span>
+            </div>
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Issued</span> <span class="mxo-mcard__value">{{ (l.issued_date||'').substring(0,10) || '—' }}</span></div>
+          </div>
+          <div class="mxo-mcard__actions">
+            <button class="mxo-btn mxo-btn--ghost mxo-btn--sm" ng-if="l.has_document" ng-click="vm.downloadDoc(l)"><i class="fas fa-file-pdf"></i> View</button>
+            <button class="mxo-btn mxo-btn--ghost mxo-btn--sm" ng-if="vm.can_edit" ng-click="vm.openEdit(m, l)"><i class="fas fa-pen"></i> Edit</button>
+            <button class="mxo-btn mxo-btn--danger mxo-btn--sm" ng-if="vm.can_edit" ng-click="vm.removeLicence(l)"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Add / edit modal-card ── -->
+<div ng-if="vm.show_form" style="position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:1050; display:flex; align-items:center; justify-content:center; padding:20px;">
+  <div class="mxo-card" style="max-width:620px; width:100%; margin:0; max-height:90vh; overflow:auto;">
+    <h3 class="mxo-card__title">
+      <i class="fas" ng-class="vm.editing ? 'fa-edit' : 'fa-plus-circle'"></i>
+      {{ vm.editing ? 'Edit licence' : 'Add licence' }} — {{ vm.form._member_label }}
+    </h3>
+
+    <div class="mxo-form-grid">
+      <div class="mxo-field mxo-field--full">
+        <label>Licence type</label>
+        <input id="mxl_type" type="text" ng-model="vm.form.licence_type" placeholder="e.g. EASA Part-66 B1.1" />
+      </div>
+      <div class="mxo-field mxo-field--full">
+        <label>Licence number</label>
+        <input id="mxl_num" type="text" ng-model="vm.form.licence_number" autocomplete="off" />
+        <span class="mxo-field__hint">Stored encrypted; never shown again unless explicitly revealed.</span>
+      </div>
+      <div class="mxo-field">
+        <label>Issued date</label>
+        <input type="date" ng-model="vm.form.issued_date" />
+      </div>
+      <div class="mxo-field">
+        <label>Expiry date</label>
+        <input id="mxl_exp" type="date" ng-model="vm.form.expiry_date" />
+      </div>
+    </div>
+
+    <!-- Upload (ng-flow) -->
+    <div style="margin-top:16px;"
+         flow-init="{target: $root.uploadDocumentsUrl || '/upload_documents.php'}"
+         flow-files-submitted="$flow.upload()"
+         flow-file-success="$file.file_return = $message"
+         flow-complete="processLicenceFile($flow.files)"
+         flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1}[$file.getExtension().toLowerCase()]">
+      <div class="mxo-upload" flow-btn flow-drop ng-class="dropClass">
+        <div class="mxo-upload__icon"><i class="fas fa-cloud-upload-alt"></i></div>
+        <div class="mxo-upload__label">{{ vm.form.document ? 'Replace document' : (vm.form._has_document ? 'Replace existing document' : 'Upload licence document') }}</div>
+        <div class="mxo-upload__hint">Click or drag a PDF / image (optional)</div>
+      </div>
+      <div class="mxo-upload__file" ng-if="vm.form.document">
+        <i class="fas fa-paperclip"></i>
+        <span class="mxo-upload__file__name">{{ vm.form.document.name }}</span>
+        <span class="mxo-badge mxo-badge--ok">Ready</span>
+      </div>
+      <div class="mxo-upload__file" ng-if="!vm.form.document && vm.form._has_document">
+        <i class="fas fa-check-circle" style="color:#16a34a;"></i>
+        <span class="mxo-upload__file__name">Existing document on file</span>
+      </div>
+    </div>
+
+    <div style="margin-top:22px; display:flex; gap:8px; justify-content:flex-end;">
+      <button class="mxo-btn mxo-btn--ghost" ng-click="vm.closeForm()">Cancel</button>
+      <button class="mxo-btn mxo-btn--primary" ng-click="vm.saveLicence()">
+        <i class="fas fa-check"></i> {{ vm.editing ? 'Save' : 'Add licence' }}
+      </button>
+    </div>
+  </div>
+</div>

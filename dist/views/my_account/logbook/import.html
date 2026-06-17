@@ -1,0 +1,115 @@
+<div class="lb-page">
+
+  <div class="lb-page__header">
+    <div class="lb-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.logbook">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO LOGBOOK
+      </div>
+      <div class="lb-page__title">
+        <h2><i class="fa fa-file-import"></i> Import Logbook (CSV)</h2>
+        <p>Bring in flights from a spreadsheet. We’ll match aircraft and airfields, then you confirm.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lb-page__body">
+
+    <!-- STEP 1: pick a file -->
+    <div ng-if="vm.importStep === 'pick'">
+      <div class="lb-card">
+        <div class="lb-note">
+          <i class="fa fa-circle-info"></i>
+          Export your existing logbook as a <strong>.csv</strong> file. We’ll read the columns, match each
+          flight against the aircraft &amp; airfield registries, and show you a preview before anything is saved.
+          Imported flights become tentative (unverified) entries you can edit afterwards.
+        </div>
+        <label class="lb-dropzone">
+          <input type="file" accept=".csv" class="lb-dropzone__input"
+                 onchange="angular.element(this).scope().vm.onImportFile(this.files)" />
+          <i class="fa fa-cloud-arrow-up"></i>
+          <span class="lb-dropzone__title" ng-if="!vm.importing">Choose a CSV file</span>
+          <span class="lb-dropzone__title" ng-if="vm.importing"><i class="fa fa-spinner fa-spin"></i> Reading…</span>
+          <span class="lb-dropzone__hint">{{ vm.importFileName || 'or drag a file onto the button' }}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- STEP 2: review -->
+    <div ng-if="vm.importStep === 'review'">
+
+      <div class="lb-card" ng-if="vm.importSummary">
+        <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
+          <div><strong style="font-size:22px;">{{ vm.importSummary.total }}</strong> <span class="lb-table__muted">rows</span></div>
+          <span class="lb-badge lb-badge--verified">{{ vm.importSummary.ready }} ready</span>
+          <span class="lb-badge lb-badge--tentative">{{ vm.importSummary.review }} need review</span>
+          <span class="lb-badge lb-badge--error" ng-if="vm.importSummary.error > 0">{{ vm.importSummary.error }} error</span>
+          <div style="margin-left:auto; display:flex; gap:10px;">
+            <button class="lb-btn lb-btn--ghost" ng-click="vm.restartImport()"><i class="fa fa-arrow-rotate-left"></i> Start over</button>
+            <button class="lb-btn lb-btn--primary" ng-click="vm.confirmImport()" ng-disabled="vm.importing || vm.importIncludedCount() === 0">
+              <i class="fa" ng-class="{'fa-spinner fa-spin': vm.importing, 'fa-check': !vm.importing}"></i>
+              Import {{ vm.importIncludedCount() }} flight(s)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="lb-card">
+        <div class="lb-table-scroll">
+          <table class="lb-table lb-import-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>#</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Dep</th>
+                <th>Arr</th>
+                <th>Reg</th>
+                <th>Type</th>
+                <th class="lb-table__num">Total</th>
+                <th>What we matched</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="r in vm.importRows" ng-class="vm.importStatusClass(r.status)">
+                <td>
+                  <input type="checkbox" ng-model="r._include" ng-disabled="r.status === 'error'">
+                </td>
+                <td class="lb-table__muted">{{ r.line }}</td>
+                <td>
+                  <span class="lb-badge" ng-class="{'lb-badge--verified': r.status==='ready', 'lb-badge--tentative': r.status==='review', 'lb-badge--error': r.status==='error'}">{{ r.status }}</span>
+                </td>
+                <td><input type="date" class="lb-input lb-input--mini" ng-model="r.entry.flight_date" ng-disabled="r.status==='error'"></td>
+                <td>{{ r.entry.departure_airfield_id ? '✓ ' : '' }}{{ r.entry.departure_place || '—' }}</td>
+                <td>{{ r.entry.arrival_airfield_id ? '✓ ' : '' }}{{ r.entry.arrival_place || '—' }}</td>
+                <td><input type="text" class="lb-input lb-input--mini" ng-model="r.entry.registration" ng-disabled="r.status==='error'"></td>
+                <td>{{ r.entry.aircraft_type || '—' }}</td>
+                <td class="lb-table__num"><input type="number" step="0.1" class="lb-input lb-input--mini lb-input--num" ng-model="r.entry.total_time" ng-disabled="r.status==='error'"></td>
+                <td class="lb-import-notes">
+                  <div ng-repeat="n in r.notes">{{ n }}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- STEP 3: done -->
+    <div ng-if="vm.importStep === 'done'">
+      <div class="lb-card" style="text-align:center; padding:40px 24px;">
+        <i class="fa fa-circle-check" style="font-size:48px; color:#16a34a;"></i>
+        <h3 style="margin:16px 0 6px; color:#1e293b;">Import complete</h3>
+        <p class="lb-table__muted">
+          {{ vm.importResult.imported }} flight(s) added to your logbook<span ng-if="vm.importResult.failed > 0">, {{ vm.importResult.failed }} failed</span>.
+        </p>
+        <div style="margin-top:18px; display:flex; gap:10px; justify-content:center;">
+          <a class="lb-btn lb-btn--primary" ui-sref="dashboard.my_account.logbook"><i class="fa fa-book"></i> View My Logbook</a>
+          <button class="lb-btn lb-btn--ghost" ng-click="vm.restartImport()"><i class="fa fa-file-import"></i> Import another</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

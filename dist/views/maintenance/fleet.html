@@ -1,0 +1,276 @@
+<!-- ── Fleet LIST view (vm.action === 'list') ── -->
+<div ng-if="vm.action === 'list'">
+
+  <div class="mxo-page__header">
+    <div class="mxo-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.maintenance"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+      <div class="mxo-page__title">
+        <h2><i class="fas fa-plane"></i> Fleet</h2>
+        <p>Aircraft nominated to your organisation</p>
+      </div>
+    </div>
+  </div>
+
+  <div ng-if="vm.loading" class="mxo-loading"><span class="mxo-spinner"></span> Loading fleet…</div>
+
+  <div ng-if="!vm.loading && !vm.fleet.length" class="mxo-empty">
+    <div class="mxo-empty__icon"><i class="fas fa-plane"></i></div>
+    <p>No aircraft assigned to this organisation yet.</p>
+    <p style="font-size:13px;">Clubs assign their aircraft from the club's aircraft settings page.</p>
+  </div>
+
+  <div class="mxo-search" ng-if="!vm.loading && vm.fleet.length">
+    <i class="fa fa-search mxo-search__icon"></i>
+    <input class="mxo-search__input" type="search" placeholder="Search by registration or type…" ng-model="vm.search" />
+  </div>
+
+  <!-- Desktop table -->
+  <div class="mxo-table-card mxo-desktop-table" ng-if="!vm.loading && vm.fleet.length">
+    <div class="mxo-table-scroll">
+      <table class="mxo-table">
+        <thead>
+          <tr>
+            <th>Registration</th>
+            <th>Type</th>
+            <th>Airframe hours</th>
+            <th>Engines</th>
+            <th>Propellers</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat="p in vm.fleet | filter: vm.search">
+            <td class="mxo-table__primary">
+              <i class="fas fa-plane" style="color:#0f766e; margin-right:6px;"></i>
+              {{ p.registration }}
+            </td>
+            <td><span class="mxo-badge mxo-badge--info">{{ p.plane_type }}</span></td>
+            <td class="mxo-table__muted">{{ p.airframe_hours || '—' }}</td>
+            <td class="mxo-table__muted">{{ (p.engines || []).length }}</td>
+            <td class="mxo-table__muted">{{ (p.propellers || []).length }}</td>
+            <td class="mxo-table__actions">
+              <a class="mxo-btn mxo-btn--primary mxo-btn--sm" ui-sref="dashboard.maintenance.fleet.aircraft({plane_id: p.plane_id || p.id})">
+                <i class="fas fa-toolbox"></i> Open
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="mxo-mobile-cards" ng-if="!vm.loading && vm.fleet.length">
+    <div class="mxo-mcard" ng-repeat="p in vm.fleet | filter: vm.search">
+      <div class="mxo-mcard__header">
+        <span><i class="fas fa-plane"></i> {{ p.registration }}</span>
+        <span class="mxo-badge mxo-badge--teal">{{ p.plane_type }}</span>
+      </div>
+      <div class="mxo-mcard__body">
+        <div class="mxo-mcard__row"><span class="mxo-mcard__label">Airframe hrs</span> <span class="mxo-mcard__value">{{ p.airframe_hours || '—' }}</span></div>
+        <div class="mxo-mcard__row"><span class="mxo-mcard__label">Engines</span> <span class="mxo-mcard__value">{{ (p.engines || []).length }}</span></div>
+        <div class="mxo-mcard__row"><span class="mxo-mcard__label">Propellers</span> <span class="mxo-mcard__value">{{ (p.propellers || []).length }}</span></div>
+      </div>
+      <div class="mxo-mcard__actions">
+        <a class="mxo-btn mxo-btn--primary mxo-btn--sm" ui-sref="dashboard.maintenance.fleet.aircraft({plane_id: p.plane_id || p.id})">
+          <i class="fas fa-toolbox"></i> Open workspace
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Aircraft DETAIL view ── -->
+<div ng-if="vm.action === 'detail'">
+
+  <div ng-if="vm.loading" class="mxo-loading"><span class="mxo-spinner"></span> Loading aircraft…</div>
+
+  <div ng-if="!vm.loading && vm.plane">
+
+    <div class="mxo-page__header">
+      <div class="mxo-page__header-inner">
+        <div class="back-box" ui-sref="dashboard.maintenance.fleet"><i class="fa fa-arrow-circle-left"></i> FLEET</div>
+        <div class="mxo-page__title">
+          <h2><i class="fas fa-plane"></i> {{ vm.plane.registration }}</h2>
+          <p>{{ vm.plane.plane_type }} · Airframe hrs {{ vm.plane.airframe_hours || '—' }}</p>
+        </div>
+        <div class="mxo-page__header-actions" ng-if="vm.can_edit">
+          <button class="mxo-page__action-btn-header" ng-click="vm.openAddCheck()">
+            <i class="fas fa-plus"></i> Add maintenance check
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mxo-tabs">
+      <button class="mxo-tab" ng-class="{'is-active': vm.tab === 'checks'}" ng-click="vm.setTab('checks')">
+        <i class="fas fa-clipboard-check"></i> Checks <span class="mxo-tab__count">{{ vm.tab_counts.checks }}</span>
+      </button>
+      <button class="mxo-tab" ng-class="{'is-active': vm.tab === 'flights'}" ng-click="vm.setTab('flights')">
+        <i class="fas fa-route"></i> Journey log <span class="mxo-tab__count">{{ vm.tab_counts.flights }}</span>
+      </button>
+      <button class="mxo-tab" ng-class="{'is-active': vm.tab === 'issues'}" ng-click="vm.setTab('issues')">
+        <i class="fas fa-exclamation-triangle"></i> Issues <span class="mxo-tab__count">{{ vm.tab_counts.issues }}</span>
+      </button>
+      <button class="mxo-tab" ng-class="{'is-active': vm.tab === 'airframe'}" ng-click="vm.setTab('airframe')">
+        <i class="fas fa-plane"></i> Airframe log <span class="mxo-tab__count">{{ vm.tab_counts.airframe }}</span>
+      </button>
+      <button class="mxo-tab" ng-repeat="e in vm.plane.engines"
+              ng-class="{'is-active': vm.tab === 'engine:' + e.id}"
+              ng-click="vm.setTab('engine:' + e.id)">
+        <i class="fas fa-cogs"></i> Engine {{ $index + 1 }}
+      </button>
+      <button class="mxo-tab" ng-repeat="p in vm.plane.propellers"
+              ng-class="{'is-active': vm.tab === 'prop:' + p.id}"
+              ng-click="vm.setTab('prop:' + p.id)">
+        <i class="fas fa-fan"></i> Prop {{ $index + 1 }}
+      </button>
+    </div>
+
+    <div ng-if="vm.tab_loading" class="mxo-loading"><span class="mxo-spinner"></span> Loading…</div>
+
+    <!-- CHECKS -->
+    <div ng-if="!vm.tab_loading && vm.tab === 'checks'">
+      <div ng-if="!vm.checks.length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-clipboard"></i></div><p>No scheduled checks recorded.</p></div>
+      <div class="mxo-table-card mxo-desktop-table" ng-if="vm.checks.length">
+        <table class="mxo-table">
+          <thead><tr><th>Type</th><th>Checked</th><th>Expiry</th><th>Hours remaining</th><th>By</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr ng-repeat="c in vm.checks">
+              <td class="mxo-table__primary">{{ c.maintenance_type }}</td>
+              <td class="mxo-table__muted">{{ vm.formatDate(c.check_date) }}</td>
+              <td class="mxo-table__muted">{{ vm.formatDate(c.expiry_date) }}</td>
+              <td class="mxo-table__muted">{{ c.hours_remaining || '—' }}</td>
+              <td class="mxo-table__muted">{{ c.checked_by || '—' }}</td>
+              <td><span class="mxo-badge" ng-class="vm.checkStatus(c).cls">{{ vm.checkStatus(c).label }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mxo-mobile-cards" ng-if="vm.checks.length">
+        <div class="mxo-mcard" ng-repeat="c in vm.checks">
+          <div class="mxo-mcard__header"><span>{{ c.maintenance_type }}</span>
+            <span class="mxo-badge" ng-class="vm.checkStatus(c).cls">{{ vm.checkStatus(c).label }}</span>
+          </div>
+          <div class="mxo-mcard__body">
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Checked</span><span class="mxo-mcard__value">{{ vm.formatDate(c.check_date) }}</span></div>
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Expiry</span><span class="mxo-mcard__value">{{ vm.formatDate(c.expiry_date) }}</span></div>
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Hours remaining</span><span class="mxo-mcard__value">{{ c.hours_remaining || '—' }}</span></div>
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">By</span><span class="mxo-mcard__value">{{ c.checked_by || '—' }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLIGHTS -->
+    <div ng-if="!vm.tab_loading && vm.tab === 'flights'">
+      <div ng-if="!vm.flights.length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-route"></i></div><p>No flights recorded yet.</p></div>
+      <div class="mxo-table-card mxo-desktop-table" ng-if="vm.flights.length">
+        <table class="mxo-table">
+          <thead><tr><th>Date</th><th>From → To</th><th>Hours</th><th>Hobbs</th><th>Pilot</th></tr></thead>
+          <tbody>
+            <tr ng-repeat="f in vm.flights">
+              <td class="mxo-table__muted">{{ vm.formatDate(f.flight_date || f.date) }}</td>
+              <td>{{ f.from || f.departure }} → {{ f.to || f.arrival }}</td>
+              <td>{{ f.flight_hours || f.hours || '—' }}</td>
+              <td class="mxo-table__muted">{{ f.hobbs_in || f.hobbs || '—' }}</td>
+              <td>{{ f.pilot_name || f.pilot || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mxo-mobile-cards" ng-if="vm.flights.length">
+        <div class="mxo-mcard" ng-repeat="f in vm.flights">
+          <div class="mxo-mcard__header"><span>{{ vm.formatDate(f.flight_date || f.date) }}</span><span class="mxo-badge mxo-badge--info">{{ f.flight_hours || f.hours || '—' }}h</span></div>
+          <div class="mxo-mcard__body">
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Route</span><span class="mxo-mcard__value">{{ f.from || f.departure }} → {{ f.to || f.arrival }}</span></div>
+            <div class="mxo-mcard__row"><span class="mxo-mcard__label">Pilot</span><span class="mxo-mcard__value">{{ f.pilot_name || f.pilot || '—' }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ISSUES -->
+    <div ng-if="!vm.tab_loading && vm.tab === 'issues'">
+      <div ng-if="!vm.issues.length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-check-circle"></i></div><p>No reported defects 🎉</p></div>
+      <div ng-if="vm.issues.length">
+        <div class="mxo-card" ng-repeat="i in vm.issues">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="mxo-badge" ng-class="vm.issueStatus(i).cls">{{ vm.issueStatus(i).label }}</span>
+            <span style="font-weight:700;">{{ i.title || i.summary || 'Defect' }}</span>
+            <span class="mxo-table__muted" style="margin-left:auto;">{{ vm.formatDate(i.reported_date || i.created_at) }}</span>
+          </div>
+          <p style="margin:10px 0 6px; color:#1e293b;">{{ i.description || i.notes }}</p>
+          <div style="font-size:12.5px; color:#64748b;">Reported by <strong>{{ i.reporter_name || i.reporter || '—' }}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AIRFRAME LOG -->
+    <div ng-if="!vm.tab_loading && vm.tab === 'airframe'">
+      <div ng-if="!vm.airframe_log.length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-book"></i></div><p>No airframe log entries.</p></div>
+      <div class="mxo-table-card" ng-if="vm.airframe_log.length">
+        <table class="mxo-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>By</th></tr></thead>
+          <tbody>
+            <tr ng-repeat="l in vm.airframe_log">
+              <td class="mxo-table__muted">{{ vm.formatDate(l.check_date || l.date) }}</td>
+              <td><span class="mxo-badge mxo-badge--teal">{{ l.maintenance_type || l.type }}</span></td>
+              <td>{{ l.description }}</td>
+              <td class="mxo-table__muted">{{ l.checked_by || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ENGINE LOGS -->
+    <div ng-if="!vm.tab_loading && vm.tab.indexOf('engine:') === 0">
+      <div ng-repeat="e in vm.plane.engines" ng-if="vm.tab === 'engine:' + e.id">
+        <div class="mxo-card">
+          <h4 style="margin:0;"><i class="fas fa-cogs" style="color:#0f766e;"></i> Engine {{ $index + 1 }} <span class="mxo-table__muted" style="font-weight:500;">{{ e.serial_number || e.model }}</span></h4>
+        </div>
+        <div ng-if="!(vm.engine_logs[e.id] || []).length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-book"></i></div><p>No engine log entries.</p></div>
+        <div class="mxo-table-card" ng-if="(vm.engine_logs[e.id] || []).length">
+          <table class="mxo-table">
+            <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>By</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="l in vm.engine_logs[e.id]">
+                <td class="mxo-table__muted">{{ vm.formatDate(l.check_date || l.date) }}</td>
+                <td><span class="mxo-badge mxo-badge--teal">{{ l.maintenance_type || l.type }}</span></td>
+                <td>{{ l.description }}</td>
+                <td class="mxo-table__muted">{{ l.checked_by || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROP LOGS -->
+    <div ng-if="!vm.tab_loading && vm.tab.indexOf('prop:') === 0">
+      <div ng-repeat="p in vm.plane.propellers" ng-if="vm.tab === 'prop:' + p.id">
+        <div class="mxo-card">
+          <h4 style="margin:0;"><i class="fas fa-fan" style="color:#0f766e;"></i> Propeller {{ $index + 1 }} <span class="mxo-table__muted" style="font-weight:500;">{{ p.serial_number || p.model }}</span></h4>
+        </div>
+        <div ng-if="!(vm.prop_logs[p.id] || []).length" class="mxo-empty"><div class="mxo-empty__icon"><i class="fas fa-book"></i></div><p>No propeller log entries.</p></div>
+        <div class="mxo-table-card" ng-if="(vm.prop_logs[p.id] || []).length">
+          <table class="mxo-table">
+            <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>By</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="l in vm.prop_logs[p.id]">
+                <td class="mxo-table__muted">{{ vm.formatDate(l.check_date || l.date) }}</td>
+                <td><span class="mxo-badge mxo-badge--teal">{{ l.maintenance_type || l.type }}</span></td>
+                <td>{{ l.description }}</td>
+                <td class="mxo-table__muted">{{ l.checked_by || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,101 @@
+<div class="modal-header">
+  <h3 class="modal-title"><i class="fa fa-paper-plane"></i> Assign a questionnaire</h3>
+</div>
+
+<div class="modal-body">
+  <div class="cc-note">
+    <i class="fa fa-user"></i>
+    Assigning to <strong>{{ m.student.name }}</strong> — it lands in their “Assigned to me” tab<span ng-if="m.sendEmail"> and emails them a one-tap link</span>.
+  </div>
+
+  <div class="cc-loading" ng-if="m.loadingCourses"><div class="cc-spinner"></div> Loading courses…</div>
+
+  <div ng-if="!m.loadingCourses">
+
+    <!-- Step 1 — narrow down the scope -->
+    <div class="cc-scope">
+      <div>
+        <label>Course <span class="cc-req">*</span></label>
+        <select class="cc-select" ng-model="m.courseId" ng-change="m.onCourseChange()"
+                ng-options="c.id as (c.title || c.name) for c in m.courses">
+          <option value="">Choose a course…</option>
+        </select>
+      </div>
+      <div>
+        <label>Lesson</label>
+        <select class="cc-select" ng-model="m.lessonId" ng-change="m.onScopeChange()" ng-disabled="!m.courseId || m.loadingLessons"
+                ng-options="l.id as (l.title || l.name) for l in m.lessons">
+          <option value="">{{ m.loadingLessons ? 'Loading lessons…' : 'Whole course' }}</option>
+        </select>
+      </div>
+      <div class="cc-scope__full">
+        <label>When in the course</label>
+        <div class="cc-seg">
+          <button ng-class="{'cc-seg--active': m.timing === 'pre'}" ng-click="m.setTiming('pre')">Pre (before)</button>
+          <button ng-class="{'cc-seg--active': m.timing === 'post'}" ng-click="m.setTiming('post')">Post (after)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 — pick the questionnaire for that scope -->
+    <div class="cc-qlist">
+      <label style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#64748b;">
+        Questionnaire <span class="cc-req" style="color:#dc2626;">*</span>
+      </label>
+
+      <div class="cc-loading" ng-if="m.loadingQs"><div class="cc-spinner"></div> Loading…</div>
+
+      <div ng-if="!m.loadingQs">
+        <div class="cc-qlist__empty" ng-if="!m.courseId">
+          <i class="fa fa-arrow-up"></i> Choose a course first to see its questionnaires.
+        </div>
+        <div class="cc-qlist__empty" ng-if="m.courseId && !m.questionnaires.length">
+          <i class="fa fa-clipboard-question"></i>
+          No {{ m.timing === 'post' ? 'post' : 'pre' }}-{{ m.lessonId ? 'lesson' : 'course' }} questionnaires here.
+          Try the other timing, or pick a different lesson.
+        </div>
+
+        <div class="cc-qpick" ng-repeat="q in m.questionnaires"
+             ng-class="{'cc-qpick--chosen': m.pick.id === q.id}" ng-click="m.choose(q)">
+          <div class="cc-qpick__marker"><i class="fa fa-check" ng-if="m.pick.id === q.id"></i></div>
+          <div class="cc-qpick__body">
+            <div class="cc-qpick__title">{{ q.title }}</div>
+            <div class="cc-qpick__meta">
+              <span class="cc-chip" ng-if="q.question_count"><i class="fa fa-list-ol"></i> {{ q.question_count }} question{{ q.question_count === 1 ? '' : 's' }}</span>
+              <span class="cc-chip" ng-if="q.time_limit_minutes"><i class="fa fa-clock"></i> {{ q.time_limit_minutes }} min</span>
+              <span class="cc-chip" ng-if="q.kind">{{ q.kind === 'mc' ? 'Multiple choice' : (q.kind === 'free_text' ? 'Free text' : q.kind) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 — details -->
+    <div class="cc-form-grid" style="margin-top:18px;">
+      <div class="cc-field cc-field--full">
+        <label>Message <span style="font-weight:600;text-transform:none;color:#94a3b8;">(optional)</span></label>
+        <textarea class="cc-textarea" rows="2" ng-model="m.message"
+                  placeholder="e.g. Please complete this before your first solo."></textarea>
+      </div>
+      <div class="cc-field">
+        <label>Due date <span style="font-weight:600;text-transform:none;color:#94a3b8;">(optional)</span></label>
+        <input type="date" class="cc-input" ng-model="m.dueDate">
+      </div>
+      <div class="cc-field" style="display:flex; align-items:flex-end;">
+        <div class="cc-toggle-row" style="width:100%;">
+          <div class="cc-toggle-row__text"><strong>Email the student</strong><span>Send a one-tap link now</span></div>
+          <toggle-switch ng-model="m.sendEmail" on-label="Yes" off-label="No"></toggle-switch>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="cc-btn cc-btn--ghost" ng-click="m.cancel()">Cancel</button>
+  <button type="button" class="cc-btn cc-btn--primary" ng-click="m.assign()" ng-disabled="m.saving || !m.pick">
+    <i class="fa" ng-class="m.saving ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+    {{ m.saving ? 'Assigning…' : 'Assign' }}
+  </button>
+</div>

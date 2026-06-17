@@ -1,0 +1,85 @@
+<div class="cc-page">
+
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-clipboard-question"></i> {{ vm.q.title || 'Questionnaire' }}</h2>
+    <p ng-if="vm.q.description">{{ vm.q.description }}</p>
+  </div>
+
+  <div class="cc-body cc-quiz">
+
+    <div class="cc-loading" ng-if="vm.loading">
+      <div class="cc-spinner"></div> Loading…
+    </div>
+
+    <!-- Submitted confirmation -->
+    <div ng-if="vm.submitted" class="cc-pop">
+      <div class="cc-score" ng-class="{'cc-score--pending': !vm.instantScore}">
+        <div ng-if="vm.instantScore">
+          <div class="cc-score__value">{{ vm.instantScore.auto }} / {{ vm.instantScore.max }}</div>
+          <div class="cc-score__label">Your score</div>
+        </div>
+        <div ng-if="!vm.instantScore">
+          <i class="fa fa-circle-check" style="font-size:42px;"></i>
+          <div class="cc-score__label" style="margin-top:10px;">Submitted — your instructor will review this with you</div>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <a class="cc-btn cc-btn--primary" ng-click="vm.back()"><i class="fa fa-list-check"></i> Back to my questionnaires</a>
+      </div>
+    </div>
+
+    <!-- The quiz -->
+    <div ng-if="!vm.loading && !vm.submitted">
+
+      <!-- Progress + save -->
+      <div class="cc-progress">
+        <div class="cc-progress__bar">
+          <div class="cc-progress__fill"
+               ng-style="{width: (vm.questions.length ? ((vm.questions.length - vm.unansweredRequired().length) / vm.questions.length * 100) : 0) + '%'}"></div>
+        </div>
+        <span class="cc-progress__label">{{ vm.questions.length - vm.unansweredRequired().length }} / {{ vm.questions.length }}</span>
+      </div>
+
+      <!-- Questions -->
+      <div class="cc-question" ng-repeat="qq in vm.questions">
+        <div class="cc-question__num">Question {{ $index + 1 }}<span class="cc-question__req" ng-if="qq.required"> · required</span></div>
+        <div class="cc-question__prompt">{{ qq.prompt }}</div>
+
+        <div class="cc-question__help" ng-if="qq.help_text"><i class="fa fa-lightbulb"></i> {{ qq.help_text }}</div>
+        <img class="cc-question__image" ng-if="qq._imageUri" ng-src="{{ qq._imageUri }}" alt="" />
+        <a class="cc-question__link" ng-if="qq.external_url" ng-href="{{ qq.external_url }}" target="_blank" rel="noopener">
+          <i class="fa fa-up-right-from-square"></i> Reading link
+        </a>
+
+        <!-- Multiple choice -->
+        <div ng-if="qq.type === 'multiple_choice'">
+          <div class="cc-option"
+               ng-class="{'cc-option--chosen': vm.isChosen(qq, opt), 'cc-option--square': qq.multi_select}"
+               ng-repeat="opt in qq.options"
+               ng-click="vm.toggleOption(qq, opt)">
+            <span class="cc-option__marker"><i class="fa fa-check" ng-if="vm.isChosen(qq, opt)"></i></span>
+            <span class="cc-option__label">{{ opt.label }}</span>
+          </div>
+          <div class="cc-field__hint" ng-if="qq.multi_select"><i class="fa fa-circle-info"></i> Select all that apply.</div>
+        </div>
+
+        <!-- Free text -->
+        <div ng-if="qq.type === 'free_text'">
+          <textarea class="cc-textarea" ng-model="vm.answers[qq.id].text" placeholder="Type your answer…"></textarea>
+        </div>
+      </div>
+
+      <!-- Sticky actions -->
+      <div class="cc-quiz-actions">
+        <button class="cc-btn cc-btn--ghost" ng-click="vm.saveNow()"><i class="fa fa-floppy-disk"></i> Save &amp; finish later</button>
+        <button class="cc-btn cc-btn--success cc-btn--lg" ng-click="vm.submit()" ng-disabled="vm.submitting">
+          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.submitting, 'fa-paper-plane': !vm.submitting}"></i>
+          {{ vm.submitting ? 'Submitting…' : 'Submit' }}
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

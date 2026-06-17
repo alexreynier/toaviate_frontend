@@ -639,6 +639,60 @@ var app = angular
             })
 
 
+            // ════════════════════════════════════════════════════
+            // QUESTIONNAIRES & POST-MATERIAL (authoring + review)
+            // attach_type/attach_id identify the course/lesson context.
+            // ════════════════════════════════════════════════════
+            // Manage a course's/lesson's questionnaires + materials (instructor/admin)
+            .state('dashboard.manage_club.course_content', {
+                url: '/course_content/:attach_type/:attach_id?title',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/manage.html',
+                controllerAs: 'vm',
+                data: { screen: 'manage' }
+            })
+            // Questionnaire builder (author questions/options/links)
+            .state('dashboard.manage_club.questionnaire_builder', {
+                url: '/questionnaire/:questionnaire_id/build',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/builder.html',
+                controllerAs: 'vm',
+                data: { screen: 'builder' }
+            })
+            // Review queue for a questionnaire
+            .state('dashboard.manage_club.questionnaire_attempts', {
+                url: '/questionnaire/:questionnaire_id/attempts',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/attempts.html',
+                controllerAs: 'vm',
+                data: { screen: 'attempts' }
+            })
+            // Instructor: search a student → all their questionnaire attempts
+            .state('dashboard.manage_user.student_questionnaires', {
+                url: '/student_questionnaires?student_id',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/student.html',
+                controllerAs: 'vm',
+                data: { screen: 'student' }
+            })
+            // Review a single attempt (mark + notes + release)
+            .state('dashboard.manage_club.questionnaire_review', {
+                url: '/questionnaire/attempt/:attempt_id/review',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/review.html',
+                controllerAs: 'vm',
+                data: { screen: 'review' }
+            })
+            // Material engagement / access report
+            .state('dashboard.manage_club.material_access', {
+                url: '/material/:material_id/access',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/access.html',
+                controllerAs: 'vm',
+                data: { screen: 'access' }
+            })
+
+
             // SYLLABUSES / SYLLABI ? no idea...
 
             .state('dashboard.my_account.syllabus', {
@@ -669,6 +723,54 @@ var app = angular
                 data: {
                     action: 'view_lesson'
                 }
+            })
+
+
+            // ════════════════════════════════════════════════════
+            // STUDENT — questionnaires & post-material
+            // ════════════════════════════════════════════════════
+            // "Assigned to me" merged into the questionnaires hub. The old
+            // /assigned URL still works — it just renders the same merged hub
+            // (deep links / emails may point here).
+            .state('dashboard.my_account.assigned', {
+                url: '/assigned',
+                templateUrl: 'views/my_account/questionnaires/mine.html',
+                controller: 'StudentQuestionnaireController',
+                controllerAs: 'vm',
+                data: { screen: 'mine' }
+            })
+            // The student's questionnaire hub: instructor-assigned tasks on top,
+            // full attempt history below.
+            .state('dashboard.my_account.questionnaires', {
+                url: '/questionnaires',
+                templateUrl: 'views/my_account/questionnaires/mine.html',
+                controller: 'StudentQuestionnaireController',
+                controllerAs: 'vm',
+                data: { screen: 'mine' }
+            })
+            // Complete/continue a questionnaire (optionally in a course/lesson context).
+            .state('dashboard.my_account.questionnaire_take', {
+                url: '/questionnaire/:questionnaire_id/take?attach_type&attach_id&timing&sitting',
+                templateUrl: 'views/my_account/questionnaires/take.html',
+                controller: 'StudentQuestionnaireController',
+                controllerAs: 'vm',
+                data: { screen: 'take' }
+            })
+            // View a completed/reviewed attempt (released score + instructor notes).
+            .state('dashboard.my_account.questionnaire_result', {
+                url: '/questionnaire/attempt/:attempt_id',
+                templateUrl: 'views/my_account/questionnaires/result.html',
+                controller: 'StudentQuestionnaireController',
+                controllerAs: 'vm',
+                data: { screen: 'result' }
+            })
+            // Read a post-lesson/course material (encrypted PDF, engagement tracked).
+            .state('dashboard.my_account.material_view', {
+                url: '/material/:material_id',
+                templateUrl: 'views/my_account/questionnaires/material.html',
+                controller: 'StudentQuestionnaireController',
+                controllerAs: 'vm',
+                data: { screen: 'material' }
             })
 
 

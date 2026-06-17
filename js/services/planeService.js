@@ -42,6 +42,15 @@ app.factory('PlaneService', PlaneService);
         service.GetPropLogs = GetPropLogs;
         service.GetAirframeLogs = GetAirframeLogs;
 
+        // ── Logbook exports (server-generated CSV / Excel / PDF) ──
+        // Mirrors PersonalLogbookService.Download: the backend renders the file
+        // (UK CAA format for PDF) and streams it; we save the blob client-side
+        // so the $http interceptor's auth headers are attached.
+        service.DownloadAirframeLog = DownloadAirframeLog;
+        service.DownloadEngineLog = DownloadEngineLog;
+        service.DownloadPropLog = DownloadPropLog;
+        service.DownloadJourneyLog = DownloadJourneyLog;
+
         service.GetUpdatedCharges = GetUpdatedCharges;
 
         service.UpdateAircraftBit = UpdateAircraftBit;
@@ -114,6 +123,68 @@ app.factory('PlaneService', PlaneService);
 
         function GetMyJourneyLogs(id, offset=0, max=5){
             return $http.get('/api/v1/planes/get_my_journey_log?offset='+offset+'&max='+max).then(handleSuccess, handleError2);
+        }
+
+        // ── Logbook export helpers ──────────────────────────────────────────
+        // Stream a server-generated export as a blob and save it client-side.
+        // format: 'csv' | 'excel' | 'pdf'. The PDF is rendered by the backend in
+        // the UK CAA logbook layout (see LOGBOOK_EXPORT_BACKEND_GUIDE.md). Returns
+        // { success:true } / { success:false, message } — resolves, never rejects,
+        // matching the rest of this service.
+        function exportExtension(format){
+            if(format === 'excel') return 'xls';
+            if(format === 'pdf') return 'pdf';
+            return 'csv';
+        }
+
+        // Build a ?from=&to= query string from a {from,to} filters object,
+        // skipping empty values (same convention as the personal logbook export).
+        function exportQs(filters){
+            if(!filters) return '';
+            var parts = [];
+            ['from', 'to'].forEach(function(k){
+                if(filters[k]) parts.push(k + '=' + encodeURIComponent(filters[k]));
+            });
+            return parts.length ? ('?' + parts.join('&')) : '';
+        }
+
+        function downloadLogbook(url, filename, format){
+            return $http.get(url, { responseType: 'blob' }).then(function(resp){
+                var ct = resp.headers('Content-Type') || (
+                    format === 'excel' ? 'application/vnd.ms-excel' :
+                    format === 'pdf'   ? 'application/pdf' : 'text/csv'
+                );
+                var blob = new Blob([resp.data], { type: ct });
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename + '.' + exportExtension(format);
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                return { success: true };
+            }, function(){
+                return { success: false, message: 'Could not generate the export.' };
+            });
+        }
+
+        function DownloadAirframeLog(plane_id, format, filename, filters){
+            var url = '/api/v1/planes/airframe_logbook/'+plane_id+'/export/'+(format||'csv')+exportQs(filters);
+            return downloadLogbook(url, filename || 'Airframe_Logbook', format);
+        }
+
+        function DownloadEngineLog(plane_id, engine_id, format, filename, filters){
+            var url = '/api/v1/planes/'+plane_id+'/engine_logbook/'+engine_id+'/export/'+(format||'csv')+exportQs(filters);
+            return downloadLogbook(url, filename || 'Engine_Logbook', format);
+        }
+
+        function DownloadPropLog(plane_id, prop_id, format, filename, filters){
+            var url = '/api/v1/planes/'+plane_id+'/propeller_logbook/'+prop_id+'/export/'+(format||'csv')+exportQs(filters);
+            return downloadLogbook(url, filename || 'Propeller_Logbook', format);
+        }
+
+        function DownloadJourneyLog(plane_id, format, filename, filters){
+            var url = '/api/v1/planes/get_journey_log/'+plane_id+'/export/'+(format||'csv')+exportQs(filters);
+            return downloadLogbook(url, filename || 'Journey_Logbook', format);
         }
 
         function GetUserJourneyLogs(user_id, club_id, offset=0, max=5){

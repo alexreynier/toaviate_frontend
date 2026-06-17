@@ -1,7 +1,7 @@
  app.controller('DashboardCourseSyllabusViewController', DashboardCourseSyllabusViewController);
 
-    DashboardCourseSyllabusViewController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService'];
-    function DashboardCourseSyllabusViewController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService) {
+    DashboardCourseSyllabusViewController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'QuestionnaireService', 'CourseMaterialService'];
+    function DashboardCourseSyllabusViewController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, QuestionnaireService, CourseMaterialService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -95,11 +95,14 @@
 
                         CourseService.GetLessonsByCourseId($stateParams.course_id)
                                 .then(function(data){
-                                    vm.course.lessons = data.items;   
+                                    vm.course.lessons = data.items;
                                 });
 
 
                     });
+
+            // Attached questionnaires + post-material for the course (pre/post).
+            loadAttachedContent('course', $stateParams.course_id);
              
           
 
@@ -140,13 +143,96 @@
 
                         // Load content files (images / PDFs)
                         load_content_files($stateParams.lesson_id);
-            
+
                     });
 
-
-            
+            // Attached questionnaires + post-material for the lesson (pre/post).
+            loadAttachedContent('lesson', $stateParams.lesson_id);
 
         }
+
+        // ═══════════════════════════════════════════════
+        // ATTACHED QUESTIONNAIRES + MATERIAL (the student's "to do")
+        // Groups by pre/post; merges the student's attempt status so each
+        // questionnaire shows Start / Continue / View result.
+        // ═══════════════════════════════════════════════
+        vm.qPre = []; vm.qPost = [];
+        vm.matPre = []; vm.matPost = [];
+        vm.pretty = function(s) { return s ? String(s).replace(/_/g, ' ') : ''; };
+
+        function loadAttachedContent(type, id) {
+            vm.contentScope = type;
+            vm.contentAttachId = id;
+
+            // The student's attempts (to derive per-questionnaire status).
+            QuestionnaireService.Mine().then(function(mineData) {
+                var attempts = (mineData && mineData.items) ? mineData.items : [];
+
+                QuestionnaireService.GetForTarget(type, id).then(function(data) {
+                    var items = (data && data.items) ? data.items : [];
+                    // Students only see published questionnaires.
+                    items = items.filter(function(q) { return q.is_published; });
+                    items.forEach(function(q) {
+                        q._qid = q.questionnaire_id || q.id;
+                        // Match an attempt for THIS questionnaire + timing (+ this target).
+                        var a = attempts.filter(function(at) {
+                            return String(at.questionnaire_id) === String(q._qid) &&
+                                   (at.timing || 'pre') === (q.timing || 'pre');
+                        })[0];
+                        q._attempt = a || null;
+                        q._status = a ? a.status : 'not_started';
+                    });
+                    vm.qPre = items.filter(function(q) { return q.timing !== 'post'; });
+                    vm.qPost = items.filter(function(q) { return q.timing === 'post'; });
+                });
+            });
+
+            CourseMaterialService.ListForTarget(type, id).then(function(data) {
+                var mats = (data && data.items) ? data.items : [];
+                // Students: list is already published+ready; split by timing.
+                vm.matPre = mats.filter(function(m) { return m.timing === 'pre'; });
+                vm.matPost = mats.filter(function(m) { return m.timing !== 'pre'; });
+            });
+        }
+
+        vm.qActionLabel = function(q) {
+            switch (q._status) {
+                case 'opened': case 'in_progress': return 'Continue';
+                case 'submitted': case 'reviewed': return 'View result';
+                default: return 'Start';
+            }
+        };
+        vm.qBadge = function(q) {
+            switch (q._status) {
+                case 'reviewed': return 'cc-badge--green';
+                case 'submitted': return 'cc-badge--blue';
+                case 'opened': case 'in_progress': return 'cc-badge--amber';
+                default: return 'cc-badge--grey';
+            }
+        };
+        vm.qStatusText = function(q) {
+            switch (q._status) {
+                case 'opened': case 'in_progress': return 'In progress';
+                case 'submitted': return 'Submitted';
+                case 'reviewed': return 'Reviewed';
+                default: return 'Not started';
+            }
+        };
+        vm.openQuestionnaire = function(q) {
+            if (q._attempt && (q._status === 'submitted' || q._status === 'reviewed')) {
+                $state.go('dashboard.my_account.questionnaire_result', { attempt_id: q._attempt.id });
+            } else {
+                $state.go('dashboard.my_account.questionnaire_take', {
+                    questionnaire_id: q._qid,
+                    attach_type: vm.contentScope,
+                    attach_id: vm.contentAttachId,
+                    timing: q.timing || 'pre'
+                });
+            }
+        };
+        vm.openMaterial = function(m) {
+            $state.go('dashboard.my_account.material_view', { material_id: m.id });
+        };
 
         // ═══════════════════════════════════════════════
         // LESSON CONTENT FILES VIEWER

@@ -1,0 +1,55 @@
+<div class="cc-page">
+
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-list-check"></i> Assigned to me</h2>
+    <p>Questionnaires &amp; material your instructor has shared with you.</p>
+  </div>
+
+  <div class="cc-body cc-quiz">
+
+    <div class="cc-loading" ng-if="vm.loading"><div class="cc-spinner"></div> Loading your tasks…</div>
+
+    <div ng-if="!vm.loading">
+
+      <!-- Nothing assigned -->
+      <div class="cc-empty" ng-if="!vm.assignments.length">
+        <i class="fa fa-circle-check"></i>
+        <p>You’re all caught up — nothing assigned right now.</p>
+      </div>
+
+      <!-- "You're done" celebration when everything's complete -->
+      <div class="cc-allcaught" ng-if="vm.assignments.length && !vm.outstandingCount">
+        <i class="fa fa-circle-check"></i> Nice — everything assigned to you is done!
+      </div>
+
+      <!-- Task cards -->
+      <div class="cc-task" ng-repeat="a in vm.assignments"
+           ng-class="{'cc-task--done': a._done, 'cc-task--overdue': vm.assignOverdue(a)}"
+           ng-click="vm.openAssignment(a)">
+        <div class="cc-task__icon" ng-class="{'cc-task__icon--material': a.item_type === 'material'}">
+          <i class="fa" ng-class="a.item_type === 'material' ? 'fa-photo-film' : 'fa-clipboard-question'"></i>
+        </div>
+        <div class="cc-task__body">
+          <div class="cc-task__title">{{ a.item_title }}</div>
+          <div class="cc-task__msg" ng-if="a.message"><i class="fa fa-quote-left"></i> {{ a.message }}</div>
+          <div class="cc-task__meta">
+            <span class="cc-badge" ng-class="vm.assignBadge(a.status)">{{ vm.assignStatusText(a) }}</span>
+            <span class="cc-task__due" ng-if="a.due_date" ng-class="{'cc-task__due--over': vm.assignOverdue(a)}">
+              <i class="fa fa-calendar"></i> Due {{ a.due_date }}<span ng-if="vm.assignOverdue(a)"> · overdue</span>
+            </span>
+            <span class="cc-task__type">{{ a.item_type === 'material' ? 'Material' : 'Questionnaire' }}</span>
+          </div>
+        </div>
+        <div class="cc-task__action">
+          <button class="cc-btn" ng-class="a._done ? 'cc-btn--ghost' : 'cc-btn--primary'" ng-click="$event.stopPropagation(); vm.openAssignment(a)">
+            <i class="fa" ng-class="a.item_type === 'material' ? 'fa-play' : 'fa-pen'"></i>
+            {{ vm.assignActionLabel(a) }}
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

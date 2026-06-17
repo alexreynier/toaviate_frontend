@@ -1,0 +1,122 @@
+<div class="cc-page">
+
+  <div class="cc-header">
+    <div class="back-box" ng-click="vm.back()"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+    <h2><i class="fa fa-clipboard-check"></i> {{ vm.q.title || 'Questionnaire' }}</h2>
+    <p>Your submitted attempt</p>
+  </div>
+
+  <div class="cc-body cc-quiz">
+
+    <div class="cc-loading" ng-if="vm.loading">
+      <div class="cc-spinner"></div> Loading…
+    </div>
+
+    <div ng-if="!vm.loading">
+
+      <!-- Released WITH an auto-score — percentage ring -->
+      <div class="cc-result-hero" ng-if="vm.released && vm.hasScore"
+           ng-class="{'cc-result-hero--pass': vm.scoreTone==='pass', 'cc-result-hero--ok': vm.scoreTone==='ok', 'cc-result-hero--low': vm.scoreTone==='low'}">
+        <div class="cc-ring" ng-style="{'background': 'conic-gradient(currentColor ' + vm.scorePct + '%, rgba(255,255,255,0.25) 0)'}">
+          <div class="cc-ring__inner">
+            <span class="cc-ring__pct">{{ vm.scorePct }}<small>%</small></span>
+          </div>
+        </div>
+        <div class="cc-result-hero__meta">
+          <div class="cc-result-hero__headline">
+            {{ vm.scoreTone==='pass' ? 'Great work!' : (vm.scoreTone==='ok' ? 'Nice effort' : 'Keep at it') }}
+          </div>
+          <div class="cc-result-hero__score">{{ vm.attempt.auto_score }} / {{ vm.attempt.max_score }} marks</div>
+          <div class="cc-result-hero__sub" ng-if="vm.mcTotal">{{ vm.mcCorrect }} of {{ vm.mcTotal }} questions correct</div>
+        </div>
+      </div>
+
+      <!-- Released but no auto-score (free-text only) — reviewed by instructor -->
+      <div class="cc-score" ng-if="vm.released && !vm.hasScore">
+        <i class="fa fa-circle-check" style="font-size:42px;"></i>
+        <div class="cc-score__label" style="margin-top:10px;">Reviewed by your instructor</div>
+      </div>
+
+      <!-- Not yet released — awaiting review -->
+      <div class="cc-score cc-score--pending" ng-if="!vm.released">
+        <i class="fa fa-hourglass-half" style="font-size:42px;"></i>
+        <div class="cc-score__label" style="margin-top:10px;">Submitted — awaiting your instructor's review</div>
+      </div>
+
+      <!-- Instructor notes -->
+      <div class="cc-notes" ng-if="vm.attempt.instructor_notes && vm.released">
+        <div class="cc-notes__title"><i class="fa fa-comment-dots"></i> Instructor notes</div>
+        <div class="cc-notes__body">{{ vm.attempt.instructor_notes }}</div>
+      </div>
+
+      <!-- Review list -->
+      <div class="cc-empty" ng-if="!vm.rows.length">
+        <i class="fa fa-clipboard-list"></i>
+        <p>There are no answers to review for this attempt.</p>
+      </div>
+
+      <div class="cc-question" ng-repeat="row in vm.rows">
+        <div class="cc-question__num">
+          Question {{ $index + 1 }}
+          <!-- Right/wrong shown only once released, and only for auto-scored MC -->
+          <span ng-if="vm.released && row.isMC && row.isCorrect" class="cc-badge cc-badge--green" style="margin-left:8px;">
+            <i class="fa fa-check"></i> Correct<span ng-if="row.awarded"> · {{ row.awarded }} pt{{ row.awarded == 1 ? '' : 's' }}</span>
+          </span>
+          <span ng-if="vm.released && row.isMC && !row.isCorrect" class="cc-badge" style="margin-left:8px; background:#fee2e2; color:#991b1b;">
+            <i class="fa fa-xmark"></i> Incorrect
+          </span>
+        </div>
+        <div class="cc-question__prompt">{{ row.prompt }}</div>
+
+        <!-- MULTIPLE CHOICE: show every option, highlighting correct + your pick -->
+        <div ng-if="row.isMC && row.options.length">
+          <div class="cc-review-opt" ng-repeat="opt in row.options"
+               ng-class="{
+                 'cc-review-opt--correct': vm.released && row.keyKnown && opt.correct,
+                 'cc-review-opt--wrong': vm.released && opt.chosen && row.keyKnown && !opt.correct,
+                 'cc-review-opt--chosen': opt.chosen && !(vm.released && row.keyKnown)
+               }">
+            <span class="cc-review-opt__icon">
+              <i class="fa fa-circle-check" ng-if="vm.released && row.keyKnown && opt.correct"></i>
+              <i class="fa fa-circle-xmark" ng-if="vm.released && opt.chosen && row.keyKnown && !opt.correct"></i>
+              <i class="fa fa-circle-dot" ng-if="opt.chosen && !(vm.released && row.keyKnown)"></i>
+              <i class="fa fa-circle" style="opacity:.25" ng-if="!opt.chosen && !(vm.released && row.keyKnown && opt.correct)"></i>
+            </span>
+            <span class="cc-review-opt__label">{{ opt.label }}</span>
+            <span class="cc-review-opt__tag" ng-if="opt.chosen">Your answer</span>
+            <span class="cc-review-opt__tag cc-review-opt__tag--correct" ng-if="vm.released && row.keyKnown && opt.correct && !opt.chosen">Correct answer</span>
+          </div>
+          <!-- Fallback: key withheld but we know right/wrong from marking -->
+          <div class="cc-answer-box" ng-if="vm.released && !row.keyKnown" style="margin-top:8px;"
+               ng-class="{'cc-answer-box--right': row.isCorrect, 'cc-answer-box--wrong': !row.isCorrect}">
+            <i class="fa" ng-class="row.isCorrect ? 'fa-check' : 'fa-xmark'"></i>
+            {{ row.isCorrect ? 'You got this right.' : 'Not quite — check with your instructor.' }}
+          </div>
+        </div>
+
+        <!-- FREE TEXT: show the written answer -->
+        <div ng-if="!row.isMC">
+          <div class="cc-question__num" style="margin-top:8px;">Your answer</div>
+          <div class="cc-answer-box">{{ row.yourAnswer || 'No answer given.' }}</div>
+        </div>
+
+        <!-- MC with no labels available at all -->
+        <div class="cc-answer-box" ng-if="row.isMC && !row.options.length" style="color:#94a3b8;">
+          <span ng-if="row.answered">Answer recorded.</span>
+          <span ng-if="!row.answered">No answer given.</span>
+        </div>
+
+        <!-- Instructor's coaching comment for this question (when released) -->
+        <div class="cc-coach" ng-if="vm.released && row.comment">
+          <div class="cc-coach__icon"><i class="fa fa-comment-dots"></i></div>
+          <div class="cc-coach__body">
+            <div class="cc-coach__label">Instructor feedback</div>
+            <div class="cc-coach__text">{{ row.comment }}</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

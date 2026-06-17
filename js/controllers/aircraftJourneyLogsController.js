@@ -1,7 +1,7 @@
  app.controller('AircraftJourneyLogsController', AircraftJourneyLogsController);
 
-    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService'];
-    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService) {
+    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService', 'LogbookExportService'];
+    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService, LogbookExportService) {
         
         var vm = this;
 
@@ -62,6 +62,17 @@
             }
 
 
+
+            // ── Export (server-generated CSV / Excel / PDF, UK CAA format) ──
+            LogbookExportService.attach(vm, {
+                baseName: function(){
+                    var reg = (vm.aircraft && vm.aircraft.registration) ? vm.aircraft.registration : 'Aircraft';
+                    return reg + '_Journey_Logbook';
+                },
+                download: function(format, filename, filters){
+                    return PlaneService.DownloadJourneyLog($stateParams.plane_id, format, filename, filters);
+                }
+            });
 
             vm.get_initial = function(text){
                 return (!!text) ? text.charAt(0) : '';

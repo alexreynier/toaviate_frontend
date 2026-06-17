@@ -1,0 +1,172 @@
+<div class="mxo-signup-shell">
+
+  <div class="mxo-signup-card">
+
+    <!-- ── Header ── -->
+    <div class="mxo-signup-header">
+      <h1><i class="fas fa-wrench"></i> Join as a Maintenance Organisation</h1>
+      <p>Create your engineering organisation account. Once approved, clubs can nominate you to maintain their fleet — you'll see exactly the aircraft assigned to you, and can manage checks, logbooks, defects and engineering licences in one place.</p>
+    </div>
+
+    <!-- ── Success state ── -->
+    <div class="mxo-signup-body" ng-if="vm.submitted">
+      <div class="mxo-card" style="text-align:center; padding:36px 24px;">
+        <div style="font-size:48px; color:#16a34a; margin-bottom:10px;"><i class="fas fa-check-circle"></i></div>
+        <h2 style="margin:0 0 6px; font-size:22px;">You're in!</h2>
+        <p style="color:#64748b; max-width:480px; margin:0 auto 18px;">
+          We've created your maintenance organisation and sent a verification email to
+          <strong>{{ vm.user.email }}</strong>. Verify your address, then sign in to start setting things up.
+        </p>
+        <a class="mxo-btn mxo-btn--primary" ui-sref="login">
+          <i class="fas fa-sign-in-alt"></i> Go to login
+        </a>
+      </div>
+    </div>
+
+    <!-- ── Form ── -->
+    <form class="mxo-signup-body" ng-if="!vm.submitted" ng-submit="vm.submit()" novalidate autocomplete="off">
+
+      <!-- Invite banner (when arriving via ?invite=<token>) -->
+      <div class="mxo-invite-banner" ng-if="vm.invite">
+        <div class="mxo-invite-banner__icon"><i class="fas fa-envelope-open-text"></i></div>
+        <div class="mxo-invite-banner__body">
+          <h4>
+            You've been invited by
+            <strong>{{ vm.invite.club_title || vm.invite.inviter_name || 'a club' }}</strong>
+          </h4>
+          <p ng-if="vm.invite.plane_registration">
+            They'd like you to look after <strong>{{ vm.invite.plane_registration }}</strong>.
+            We'll link it to your organisation automatically as soon as you finish signing up.
+          </p>
+          <blockquote ng-if="vm.invite.message" class="mxo-invite-banner__msg">
+            &ldquo;{{ vm.invite.message }}&rdquo;
+          </blockquote>
+        </div>
+      </div>
+      <div class="mxo-invite-banner mxo-invite-banner--loading" ng-if="vm.invite_loading">
+        <i class="fas fa-spinner fa-spin"></i> Checking your invitation…
+      </div>
+
+      <!-- About you -->
+      <h3 class="mxo-signup-section-title"><i class="fas fa-user"></i> About you (founder admin)</h3>
+      <div class="mxo-form-grid">
+        <div class="mxo-field">
+          <label>First name</label>
+          <input id="mxo_first" type="text" ng-model="vm.user.first_name" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Last name</label>
+          <input id="mxo_last" type="text" ng-model="vm.user.last_name" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Email</label>
+          <input id="mxo_email" type="email" ng-model="vm.user.email" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Phone</label>
+          <input type="tel" ng-model="vm.user.phone" placeholder="+44…" />
+        </div>
+        <div class="mxo-field">
+          <label>Date of birth</label>
+          <div style="display:flex; gap:8px;">
+            <select id="mxo_dob_day" ng-model="vm.user.dob_day" style="flex:0 0 90px;" ng-focus="vm.clearFieldError($event)">
+              <option value="">Day</option>
+              <option ng-repeat="d in vm.days" value="{{d}}">{{d}}</option>
+            </select>
+            <select ng-model="vm.user.dob_month" style="flex:1;">
+              <option value="">Month</option>
+              <option ng-repeat="m in vm.months" value="{{m.v}}">{{m.n}}</option>
+            </select>
+            <select ng-model="vm.user.dob_year" style="flex:0 0 110px;">
+              <option value="">Year</option>
+              <option ng-repeat="y in vm.years" value="{{y}}">{{y}}</option>
+            </select>
+          </div>
+        </div>
+        <div class="mxo-field">
+          <label>Password</label>
+          <input id="mxo_password" type="password" ng-model="vm.user.password" ng-focus="vm.clearFieldError($event)" autocomplete="new-password" />
+          <span class="mxo-field__hint">Minimum 8 characters.</span>
+        </div>
+        <div class="mxo-field">
+          <label>Confirm password</label>
+          <input id="mxo_password2" type="password" ng-model="vm.user.password2" ng-focus="vm.clearFieldError($event)" autocomplete="new-password" />
+        </div>
+      </div>
+
+      <!-- Organisation -->
+      <h3 class="mxo-signup-section-title"><i class="fas fa-building"></i> Your organisation</h3>
+      <div class="mxo-form-grid">
+        <div class="mxo-field">
+          <label>Trading name</label>
+          <input id="mxo_org_title" type="text" ng-model="vm.org.title" placeholder="e.g. LDA" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Registered company name</label>
+          <input id="mxo_company" type="text" ng-model="vm.org.company_name" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Company number</label>
+          <input type="text" ng-model="vm.org.company_number" />
+        </div>
+        <div class="mxo-field">
+          <label>Approval ref (Part-145 / CAMO)</label>
+          <input type="text" ng-model="vm.org.approval_ref" placeholder="Optional" />
+        </div>
+        <div class="mxo-field mxo-field--full">
+          <label>Address line 1</label>
+          <input id="mxo_addr1" type="text" ng-model="vm.org.address_line_1" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field mxo-field--full">
+          <label>Address line 2</label>
+          <input type="text" ng-model="vm.org.address_line_2" />
+        </div>
+        <div class="mxo-field">
+          <label>City</label>
+          <input id="mxo_city" type="text" ng-model="vm.org.city" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Postcode</label>
+          <input id="mxo_post" type="text" ng-model="vm.org.post_code" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Country</label>
+          <input type="text" ng-model="vm.org.country" />
+        </div>
+        <div class="mxo-field">
+          <label>Organisation email</label>
+          <input id="mxo_org_email" type="email" ng-model="vm.org.email" ng-focus="vm.clearFieldError($event)" />
+        </div>
+        <div class="mxo-field">
+          <label>Organisation phone</label>
+          <input type="tel" ng-model="vm.org.phone_number" />
+        </div>
+        <div class="mxo-field">
+          <label>Website</label>
+          <input type="url" ng-model="vm.org.website" placeholder="https://" />
+        </div>
+      </div>
+
+      <!-- T&Cs -->
+      <div class="mxo-card" style="margin-top:22px; background:#f0fdfa; border-color:#99f6e4;">
+        <label class="mxo-checkbox" for="mxo_tnc">
+          <input id="mxo_tnc" type="checkbox" ng-model="vm.tnc" />
+          <span>I have read and agree to the <a href="/terms" target="_blank">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+      </div>
+
+      <div class="mxo-signup-footer">
+        <span class="mxo-signup-footer__hint">
+          Already have an account? <a ui-sref="login">Sign in</a>
+        </span>
+        <button type="submit" class="mxo-btn mxo-btn--primary" ng-disabled="vm.submitting">
+          <i class="fas" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+          {{ vm.submitting ? 'Creating…' : 'Create organisation' }}
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+
+</div>

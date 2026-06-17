@@ -1,0 +1,297 @@
+<div class="sms-page">
+
+  <div class="sms-page__header">
+    <div class="sms-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.sms">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="sms-page__title">
+        <h2><i class="fa fa-magnifying-glass-chart"></i> CAA Audit View</h2>
+        <p>One read-only page an inspector can review.</p>
+      </div>
+      <div class="sms-page__header-actions">
+        <button class="sms-btn sms-btn--white" ng-click="vm.printAuditView()">
+          <i class="fa fa-print"></i> Print
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sms-page__body">
+
+    <div ng-include="'views/manageclub/sms/_nav.html'"></div>
+
+    <div class="sms-loading" ng-if="vm.loading">
+      <div class="sms-spinner"></div> Loading audit view…
+    </div>
+
+    <div ng-if="!vm.loading">
+
+      <!-- Open Hazards -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-triangle-exclamation"></i> Open Hazards</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Hazard</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Identified</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="h in vm.audit.open_hazards">
+                <td data-label="Ref"><span class="sms-table__ref">{{ h.reference }}</span></td>
+                <td data-label="Hazard">{{ h.title }}</td>
+                <td data-label="Category"><span class="sms-table__muted">{{ vm.pretty(h.category) || '—' }}</span></td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(h.status)">{{ vm.pretty(h.status) }}</span></td>
+                <td data-label="Identified"><span class="sms-table__muted">{{ h.identified_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.open_hazards.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Risk Register -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-table-cells"></i> Risk Register</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Risk</th>
+                <th>Score</th>
+                <th>Band</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="r in vm.audit.risk_register">
+                <td data-label="Ref"><span class="sms-table__ref">{{ r.reference }}</span></td>
+                <td data-label="Risk">{{ r.title }}</td>
+                <td data-label="Score"><strong>{{ r.risk_score }}</strong></td>
+                <td data-label="Band"><span class="sms-badge" ng-class="vm.bandClass(r.risk_band)">{{ r.risk_band }}</span></td>
+                <td data-label="Owner">{{ r.owner || '—' }}</td>
+              </tr>
+              <tr ng-if="!vm.audit.risk_register.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Open Occurrences -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-bolt"></i> Open Occurrences</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="o in vm.audit.open_occurrences">
+                <td data-label="Ref"><span class="sms-table__ref">{{ o.reference }}</span></td>
+                <td data-label="Title">{{ o.title }}</td>
+                <td data-label="Type"><span class="sms-table__muted">{{ vm.pretty(o.type) || '—' }}</span></td>
+                <td data-label="Severity"><span class="sms-badge" ng-class="vm.severityBadge(o.severity)">{{ vm.pretty(o.severity) }}</span></td>
+                <td data-label="Date"><span class="sms-table__muted">{{ o.occurrence_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.open_occurrences.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Open Findings -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-clipboard-check"></i> Open Findings</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Finding</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="f in vm.audit.open_findings">
+                <td data-label="Ref"><span class="sms-table__ref">{{ f.reference }}</span></td>
+                <td data-label="Finding">{{ f.title }}</td>
+                <td data-label="Type"><span class="sms-table__muted">{{ vm.pretty(f.type) || '—' }}</span></td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(f.status)">{{ vm.pretty(f.status) }}</span></td>
+                <td data-label="Due"><span class="sms-table__muted">{{ f.due_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.open_findings.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Overdue Actions -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-clock"></i> Overdue Actions</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Action</th>
+                <th>Assignee</th>
+                <th>Status</th>
+                <th>Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="a in vm.audit.overdue_actions">
+                <td data-label="Ref"><span class="sms-table__ref">{{ a.reference }}</span></td>
+                <td data-label="Action">{{ a.title }}</td>
+                <td data-label="Assignee">{{ a.assignee || '—' }}</td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(a.status)">{{ vm.pretty(a.status) }}</span></td>
+                <td data-label="Due"><span class="sms-table__muted">{{ a.due_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.overdue_actions.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Instructor Currency -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-user-check"></i> Instructor Currency</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Instructor</th>
+                <th>Check</th>
+                <th>Status</th>
+                <th>Expires</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="i in vm.audit.instructor_currency">
+                <td data-label="Instructor">{{ i.name }}</td>
+                <td data-label="Check"><span class="sms-table__muted">{{ vm.pretty(i.check_type) || '—' }}</span></td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(i.status)">{{ vm.pretty(i.status) }}</span></td>
+                <td data-label="Expires"><span class="sms-table__muted">{{ i.expiry_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.instructor_currency.length">
+                <td data-label="Instructor" colspan="4"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent Meetings -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-people-group"></i> Recent Safety Meetings</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Title</th>
+                <th>Date</th>
+                <th>Chair</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="m in vm.audit.recent_meetings">
+                <td data-label="Ref"><span class="sms-table__ref">{{ m.reference }}</span></td>
+                <td data-label="Title">{{ m.title }}</td>
+                <td data-label="Date"><span class="sms-table__muted">{{ m.meeting_date || '—' }}</span></td>
+                <td data-label="Chair">{{ m.chair || m.owner || '—' }}</td>
+              </tr>
+              <tr ng-if="!vm.audit.recent_meetings.length">
+                <td data-label="Ref" colspan="4"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Document Revisions -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-file-lines"></i> Document Revisions</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Document</th>
+                <th>Status</th>
+                <th>Revised</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="d in vm.audit.document_revisions">
+                <td data-label="Ref"><span class="sms-table__ref">{{ d.reference }}</span></td>
+                <td data-label="Document">{{ d.title }}</td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(d.status)">{{ vm.pretty(d.status) }}</span></td>
+                <td data-label="Revised"><span class="sms-table__muted">{{ d.revision_date || d.effective_date || '—' }}</span></td>
+              </tr>
+              <tr ng-if="!vm.audit.document_revisions.length">
+                <td data-label="Ref" colspan="4"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Management of Change -->
+      <div class="sms-card">
+        <div class="sms-card__title"><i class="fa fa-arrows-rotate"></i> Management of Change</div>
+        <div class="sms-table-scroll">
+          <table class="sms-table sms-table--stack">
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Change</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="c in vm.audit.management_of_change">
+                <td data-label="Ref"><span class="sms-table__ref">{{ c.reference }}</span></td>
+                <td data-label="Change">{{ c.title }}</td>
+                <td data-label="Type"><span class="sms-table__muted">{{ vm.pretty(c.type) || '—' }}</span></td>
+                <td data-label="Status"><span class="sms-badge" ng-class="vm.statusBadge(c.status)">{{ vm.pretty(c.status) }}</span></td>
+                <td data-label="Owner">{{ c.owner || '—' }}</td>
+              </tr>
+              <tr ng-if="!vm.audit.management_of_change.length">
+                <td data-label="Ref" colspan="5"><span class="sms-table__muted">None</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

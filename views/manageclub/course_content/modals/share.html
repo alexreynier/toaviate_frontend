@@ -1,0 +1,58 @@
+<div class="modal-header">
+  <h3 class="modal-title">
+    <i class="fa" ng-class="m.item.type === 'material' ? 'fa-photo-film' : 'fa-clipboard-question'"></i>
+    Share with student
+  </h3>
+</div>
+
+<div class="modal-body">
+  <div class="cc-note">
+    <i class="fa fa-paper-plane"></i>
+    Sharing <strong>{{ m.item.title }}</strong> puts it straight in the student’s “Assigned to me” tab
+    <span ng-if="m.sendEmail">and emails them a one-tap link</span>.
+  </div>
+
+  <div class="cc-loading" ng-if="m.loadingStudents"><div class="cc-spinner"></div> Loading members…</div>
+
+  <div ng-if="!m.loadingStudents">
+    <div class="cc-form-grid">
+      <div class="cc-field cc-field--full">
+        <label>Students <span class="cc-req">*</span></label>
+        <ui-select multiple ng-model="m.selected" theme="bootstrap" close-on-select="false" title="Choose students" append-to-body="true">
+          <ui-select-match placeholder="Search and add students…">{{ $item.name }}</ui-select-match>
+          <ui-select-choices repeat="s in m.students | filter: $select.search | limitTo: 40">
+            <span ng-bind-html="s.name | highlight: $select.search"></span>
+            <small class="cc-item__sub" ng-if="s.email" ng-bind-html="s.email | highlight: $select.search"></small>
+          </ui-select-choices>
+        </ui-select>
+        <div class="cc-field__hint" ng-if="m.selected.length">{{ m.selected.length }} student{{ m.selected.length === 1 ? '' : 's' }} selected</div>
+      </div>
+
+      <div class="cc-field cc-field--full">
+        <label>Message <span style="font-weight:600;text-transform:none;color:#94a3b8;">(optional)</span></label>
+        <textarea class="cc-textarea" rows="3" ng-model="m.message"
+                  placeholder="e.g. Please complete this before your first solo."></textarea>
+      </div>
+
+      <div class="cc-field">
+        <label>Due date <span style="font-weight:600;text-transform:none;color:#94a3b8;">(optional)</span></label>
+        <input type="date" class="cc-input" ng-model="m.dueDate">
+      </div>
+
+      <div class="cc-field" style="display:flex; align-items:flex-end;">
+        <div class="cc-toggle-row" style="width:100%;">
+          <div class="cc-toggle-row__text"><strong>Email the student</strong><span>Send a one-tap link now</span></div>
+          <toggle-switch ng-model="m.sendEmail" on-label="Yes" off-label="No"></toggle-switch>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="cc-btn cc-btn--ghost" ng-click="m.cancel()">Cancel</button>
+  <button type="button" class="cc-btn cc-btn--primary" ng-click="m.share()" ng-disabled="m.sharing || !m.selected.length">
+    <i class="fa" ng-class="m.sharing ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+    {{ m.sharing ? 'Sharing…' : 'Share' + (m.selected.length ? ' with ' + m.selected.length : '') }}
+  </button>
+</div>

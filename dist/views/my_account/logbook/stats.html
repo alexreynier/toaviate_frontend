@@ -1,0 +1,181 @@
+<div class="lb-page">
+
+  <div class="lb-page__header">
+    <div class="lb-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.logbook">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO LOGBOOK
+      </div>
+      <div class="lb-page__title">
+        <h2><i class="fa fa-chart-pie"></i> Logbook Statistics</h2>
+        <p>Your flying broken down by period, capacity, conditions and aircraft.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lb-page__body">
+
+    <div class="lb-loading" ng-if="vm.loading">
+      <div class="lb-spinner"></div> Crunching your numbers…
+    </div>
+
+    <div ng-if="!vm.loading && vm.stats">
+
+      <!-- Period selector -->
+      <div class="lb-period-tabs">
+        <button class="lb-period-tab" ng-repeat="p in vm.periodKeys"
+                ng-class="{'lb-period-tab--active': vm.activePeriod === p.key}"
+                ng-click="vm.setPeriod(p.key)">{{ p.label }}</button>
+      </div>
+
+      <div ng-if="vm.period()">
+
+        <!-- Headline -->
+        <div class="lb-card lb-summary">
+          <div class="lb-summary__grid">
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Total</span>
+              <span class="lb-summary__value">{{ vm.fmtTotal(vm.period().totals.total_time) }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Flights</span>
+              <span class="lb-summary__value">{{ vm.period().flights || 0 }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">PIC</span>
+              <span class="lb-summary__value">{{ vm.fmtTotal(vm.period().totals.pic_time) }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Dual</span>
+              <span class="lb-summary__value">{{ vm.fmtTotal(vm.period().totals.dual_time) }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Instrument <small>(IFR/IMC)</small></span>
+              <span class="lb-summary__value">{{ vm.fmtTotal(vm.period().totals.ifr_time) }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Nav <small>(XC)</small></span>
+              <span class="lb-summary__value">{{ vm.fmtTotal(vm.period().totals.cross_country_time) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lb-stats-grid">
+
+          <!-- Day vs night -->
+          <div class="lb-card">
+            <div class="lb-card__title"><i class="fa fa-circle-half-stroke"></i> Day vs Night</div>
+            <div class="lb-bar">
+              <div class="lb-bar__seg lb-bar__seg--day" ng-style="{width: vm.pct(vm.period().day_night.day, vm.period().day_night.total) + '%'}"></div>
+              <div class="lb-bar__seg lb-bar__seg--night" ng-style="{width: vm.pct(vm.period().day_night.night, vm.period().day_night.total) + '%'}"></div>
+            </div>
+            <div class="lb-legend">
+              <span><i class="lb-dot lb-dot--day"></i> Day {{ vm.fmtTotal(vm.period().day_night.day) }}</span>
+              <span><i class="lb-dot lb-dot--night"></i> Night {{ vm.fmtTotal(vm.period().day_night.night) }}</span>
+            </div>
+          </div>
+
+          <!-- SEP vs MEP -->
+          <div class="lb-card">
+            <div class="lb-card__title"><i class="fa fa-plane"></i> Class</div>
+            <div class="lb-bar">
+              <div class="lb-bar__seg lb-bar__seg--sep" ng-style="{width: vm.pct(vm.period().by_class.SEP, vm.period().totals.total_time) + '%'}"></div>
+              <div class="lb-bar__seg lb-bar__seg--mep" ng-style="{width: vm.pct(vm.period().by_class.MEP, vm.period().totals.total_time) + '%'}"></div>
+              <div class="lb-bar__seg lb-bar__seg--other" ng-style="{width: vm.pct(vm.period().by_class.other, vm.period().totals.total_time) + '%'}"></div>
+            </div>
+            <div class="lb-legend">
+              <span><i class="lb-dot lb-dot--sep"></i> SEP {{ vm.fmtTotal(vm.period().by_class.SEP) }}</span>
+              <span><i class="lb-dot lb-dot--mep"></i> MEP {{ vm.fmtTotal(vm.period().by_class.MEP) }}</span>
+              <span ng-if="vm.period().by_class.other > 0"><i class="lb-dot lb-dot--other"></i> Other {{ vm.fmtTotal(vm.period().by_class.other) }}</span>
+            </div>
+          </div>
+
+          <!-- Verified vs tentative -->
+          <div class="lb-card">
+            <div class="lb-card__title"><i class="fa fa-circle-check"></i> Verified vs Tentative</div>
+            <div class="lb-bar">
+              <div class="lb-bar__seg lb-bar__seg--verified" ng-style="{width: vm.pct(vm.period().verified.total_time, vm.period().totals.total_time) + '%'}"></div>
+              <div class="lb-bar__seg lb-bar__seg--tentative" ng-style="{width: vm.pct(vm.period().tentative.total_time, vm.period().totals.total_time) + '%'}"></div>
+            </div>
+            <div class="lb-legend">
+              <span><i class="lb-dot lb-dot--verified"></i> Verified {{ vm.fmtTotal(vm.period().verified.total_time) }}</span>
+              <span><i class="lb-dot lb-dot--tentative"></i> Tentative {{ vm.fmtTotal(vm.period().tentative.total_time) }}</span>
+            </div>
+          </div>
+
+          <!-- By capacity -->
+          <div class="lb-card">
+            <div class="lb-card__title"><i class="fa fa-user-gear"></i> By Capacity</div>
+            <div class="lb-caprow" ng-repeat="cap in ['P1','PUT','PICUS','P2','INSTRUCTOR','other']" ng-if="vm.period().by_capacity[cap] > 0">
+              <span class="lb-caprow__label">{{ cap }}</span>
+              <div class="lb-caprow__bar"><div class="lb-caprow__fill" ng-style="{width: vm.pct(vm.period().by_capacity[cap], vm.period().totals.total_time) + '%'}"></div></div>
+              <span class="lb-caprow__val">{{ vm.fmtTotal(vm.period().by_capacity[cap]) }}</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- By aircraft type -->
+        <div class="lb-card" ng-if="vm.period().by_aircraft_type.length">
+          <div class="lb-card__title"><i class="fa fa-jet-fighter"></i> By Aircraft Type</div>
+          <div class="lb-caprow" ng-repeat="t in vm.period().by_aircraft_type">
+            <span class="lb-caprow__label">{{ t.type }}</span>
+            <div class="lb-caprow__bar"><div class="lb-caprow__fill" ng-style="{width: vm.pct(t.hours, vm.period().by_aircraft_type[0].hours) + '%'}"></div></div>
+            <span class="lb-caprow__val">{{ vm.fmtTotal(t.hours) }} · {{ t.flights }} flt</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SEP currency -->
+      <div class="lb-card lb-sep" ng-if="vm.sep.has_sep">
+        <div class="lb-card__title"><i class="fa fa-id-card-clip"></i> SEP Currency</div>
+        <div class="lb-form-grid">
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Rating</span>
+            <span class="lb-summary__value" style="font-size:16px;">{{ vm.sep.rating }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Expiry</span>
+            <span class="lb-summary__value" style="font-size:16px;">{{ vm.sep.expiry_date }}</span>
+          </div>
+          <div class="lb-summary__stat">
+            <span class="lb-summary__label">Days to expiry</span>
+            <span class="lb-summary__value" style="font-size:16px;"
+                  ng-class="{'lb-text--red': vm.sep.days_to_expiry < 90}">{{ vm.sep.days_to_expiry }}</span>
+          </div>
+        </div>
+
+        <div class="lb-sep__revwindow" ng-if="vm.sep.revalidation_window">
+          <div class="lb-card__title" style="font-size:13px; margin-top:14px;"><i class="fa fa-clipboard-check"></i> Revalidation window (experience)</div>
+          <div class="lb-form-grid">
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">PIC + PUT hours</span>
+              <span class="lb-summary__value" style="font-size:18px;">{{ vm.sep.revalidation_window.pic_put_hours }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">PIC hours</span>
+              <span class="lb-summary__value" style="font-size:18px;">{{ vm.sep.revalidation_window.pic_hours }}</span>
+            </div>
+            <div class="lb-summary__stat">
+              <span class="lb-summary__label">Landings</span>
+              <span class="lb-summary__value" style="font-size:18px;">{{ vm.sep.revalidation_window.landings }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <span class="lb-badge" ng-class="vm.sep.experience_hours_landings_met ? 'lb-badge--verified' : 'lb-badge--tentative'">
+            <i class="fa" ng-class="vm.sep.experience_hours_landings_met ? 'fa-circle-check' : 'fa-circle-exclamation'"></i>
+            Experience hours/landings {{ vm.sep.experience_hours_landings_met ? 'met' : 'not yet met' }}
+          </span>
+        </div>
+
+        <div class="lb-note" style="margin-top:14px;" ng-if="vm.sep.note">
+          <i class="fa fa-circle-info"></i> {{ vm.sep.note }}
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
