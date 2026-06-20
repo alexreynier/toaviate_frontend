@@ -74,6 +74,17 @@
                 }
             });
 
+            // Open the flight replay/debrief. Shown only when the journey row
+            // carries has_track (a recorded device track). log.id is the
+            // plane_log_sheets.id the replay endpoints key on.
+            vm.canReplay = function(log){
+                return !!(log && log.has_track && log.id);
+            };
+            vm.viewReplay = function(log){
+                if(!vm.canReplay(log)) return;
+                $state.go('dashboard.flight_replay', { flight_id: log.id });
+            };
+
             vm.get_initial = function(text){
                 return (!!text) ? text.charAt(0) : '';
             }

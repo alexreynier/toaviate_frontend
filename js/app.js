@@ -189,6 +189,17 @@ var app = angular
             })
 
 
+            // ── FLIGHT REPLAY / DEBRIEF ──
+            // Shared detail page reachable from My Logbook, the aircraft journey
+            // log and student records. :flight_id is a plane_log_sheets.id.
+            .state('dashboard.flight_replay', {
+                url: '/flight_replay/:flight_id',
+                controller: 'FlightReplayController',
+                templateUrl: 'views/flight_replay.html',
+                controllerAs: 'vm'
+            })
+
+
             // ── MAINTENANCE ORGANISATION WORKSPACE ──
             .state('dashboard.maintenance', {
                 url: '/maintenance',

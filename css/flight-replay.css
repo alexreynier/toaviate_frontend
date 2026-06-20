@@ -1,0 +1,577 @@
+/* ═══════════════════════════════════════════════════════════
+   FLIGHT REPLAY (.fr-*) — per-flight debrief: map + six-pack + height
+   profile + photos + notes. Snazzy design tokens, heavily animated, fully
+   responsive (stacks on mobile).
+   ═══════════════════════════════════════════════════════════ */
+
+/* This page renders inside the dashboard's `.centre_align_boxes2` ui-view, which
+   (a) caps width (~1150px) and centres text, and (b) has a global rule turning
+   every direct child <div> into a centred flex-wrap row. Both squash this page
+   into a narrow column, so we reset them here and let the replay use the full
+   width as a normal top-to-bottom block. */
+.centre_align_boxes2 > .fr-page {
+  display: block !important;
+  text-align: left;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+  box-sizing: border-box;
+}
+.fr-page { max-width: 1600px; margin: 0 auto; padding: 0 16px 48px; box-sizing: border-box; text-align: left; }
+
+/* Lift the dashboard ui-view's width cap while the replay page is hosted in it
+   (the controller adds .fr-wide-host on enter, removes on leave). Overrides the
+   responsive max-width media queries on .centre_align_boxes2. */
+.centre_align_boxes2.fr-wide-host { max-width: 100% !important; }
+
+/* ── Header ── */
+.fr-page__header {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  border-radius: 16px;
+  margin: 16px 0 22px;
+  box-shadow: 0 10px 30px rgba(30, 58, 95, 0.22);
+  animation: frFadeDown 0.35s ease;
+}
+/* Header is a full-width bar: back+title on the left, crew chips on the right. */
+.fr-page__header-inner {
+  padding: 16px 26px; position: relative;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.fr-page__header .back-box {
+  color: rgba(255, 255, 255, 0.78); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: color 0.2s ease; flex: 0 0 auto; white-space: nowrap;
+}
+.fr-page__header .back-box:hover { color: #fff; }
+.fr-page__title { flex: 1 1 auto; min-width: 0; }
+.fr-page__title h2 { margin: 0; font-size: 21px; font-weight: 700; color: #fff; letter-spacing: 0.4px; }
+.fr-page__title h2 i { margin-right: 8px; opacity: 0.9; }
+.fr-page__title p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.82); font-size: 13.5px; }
+.fr-page__title p i { margin: 0 5px; }
+.fr-page__crew { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
+.fr-crew-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+  color: #fff; background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 5px 11px; border-radius: 999px;
+}
+.fr-crew-chip--instructor { background: rgba(34, 197, 94, 0.28); border-color: rgba(34, 197, 94, 0.5); }
+
+@keyframes frFadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes frFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Loading / empty / error ── */
+.fr-loading { text-align: center; color: #64748b; padding: 60px 20px; font-size: 15px; }
+.fr-spinner {
+  width: 38px; height: 38px; border: 4px solid #e2e8f0; border-top-color: #2d5a8e;
+  border-radius: 50%; animation: frSpin 0.8s linear infinite; margin: 0 auto 16px;
+}
+@keyframes frSpin { to { transform: rotate(360deg); } }
+.fr-empty {
+  text-align: center; padding: 48px 24px; color: #64748b;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 22px;
+  animation: frFadeUp 0.3s ease;
+}
+.fr-empty i { font-size: 42px; color: #94a3b8; margin-bottom: 14px; }
+.fr-empty h3 { margin: 0 0 6px; color: #1e293b; font-size: 18px; }
+.fr-empty p { margin: 0 0 16px; font-size: 14px; }
+.fr-empty--error i { color: #dc2626; }
+
+/* ── Summary strip ── */
+.fr-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;
+  margin-bottom: 18px; animation: frFadeUp 0.3s ease;
+}
+.fr-summary__stat {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.fr-summary__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; }
+.fr-summary__value { font-size: 22px; font-weight: 700; color: #1e293b; }
+.fr-summary__value small { font-size: 12px; font-weight: 600; color: #94a3b8; margin-left: 3px; }
+.fr-summary__stat--alt { justify-content: center; }
+
+/* Clickable "max" stats jump to the moment they occurred. */
+.fr-summary__stat--clickable { cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
+.fr-summary__stat--clickable:hover {
+  transform: translateY(-2px); border-color: #2d5a8e;
+  box-shadow: 0 6px 16px rgba(30, 58, 95, 0.16);
+}
+.fr-summary__stat--clickable:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.fr-summary__stat--clickable .fr-summary__label { display: inline-flex; align-items: center; gap: 6px; }
+.fr-summary__jump { color: #cbd5e1; font-size: 10px; transition: color 0.12s ease; }
+.fr-summary__stat--clickable:hover .fr-summary__jump { color: #2d5a8e; }
+.fr-summary__stat--clickable:hover .fr-summary__value { color: #1e3a5f; }
+.fr-alt-badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+  padding: 6px 10px; border-radius: 8px; width: fit-content;
+}
+.fr-alt-badge--baro { background: #dcfce7; color: #166534; }
+.fr-alt-badge--gps { background: #dbeafe; color: #1e40af; }
+
+/* ── Stage: wide map on top, instruments below ── */
+.fr-stage {
+  display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px;
+  animation: frFadeUp 0.35s ease;
+}
+.fr-stage__map-card {
+  position: relative;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  height: 560px;                 /* tall, wide map by default */
+}
+.fr-map { width: 100%; height: 100%; }
+/* Nudge MapLibre's top-right zoom control down so it isn't tucked under the top
+   edge / app nav bar in the normal (page) layout. */
+.fr-stage__map-card .maplibregl-ctrl-top-right { top: 10px; right: 10px; }
+/* In fullscreen the right side holds the instruments panel + exit pill, so move
+   the zoom control to the LEFT, just below the airspace control. */
+.fr-stage--fullwidth .maplibregl-ctrl-top-right {
+  top: 64px; right: auto; left: 14px;
+}
+.fr-map--fallback {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; color: #94a3b8; background: #f8fafc; text-align: center; padding: 20px; height: 100%;
+}
+.fr-map--fallback i { font-size: 40px; }
+
+/* Fullscreen: pin the map card over the whole viewport. Using position:fixed
+   (rather than a 100vw breakout) avoids scrollbar/centering glitches and gives a
+   true fullscreen. The body gets .fr-no-scroll to lock background scrolling. */
+/* The app's top nav (#main_header2) is position:fixed with z-index 9999999999,
+   which browsers clamp to the 32-bit max (2147483647). The fullscreen overlay +
+   its controls all use that same max; the replay view renders AFTER the nav in
+   the DOM, so at an equal z-index it paints on top — covering the nav for a true
+   fullscreen and keeping the exit button visible. */
+.fr-stage--fullwidth .fr-stage__map-card {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  height: auto; width: auto;
+  border-radius: 0; border: none;
+}
+
+/* Fit / fullscreen toggle button. Bottom-left, clear of every provider's zoom
+   control (MapLibre zoom = top-right, Google zoom = bottom-right, airspace
+   control = top-left). In fullscreen it rises above the map overlay. */
+.fr-map__width-btn {
+  position: absolute; bottom: 12px; left: 12px; z-index: 6;
+  width: 38px; height: 38px; border: none; border-radius: 9px; cursor: pointer;
+  background: #fff; color: #1e3a5f; font-size: 15px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2); transition: all 0.14s ease;
+}
+.fr-map__width-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(15, 23, 42, 0.28); color: #2d5a8e; }
+
+/* Exit-fullscreen pill — top-right, clearly labelled, above everything so it's
+   always an obvious way out. */
+.fr-map__exit-btn {
+  position: fixed; top: 14px; right: 14px; z-index: 2147483647;
+  display: inline-flex; align-items: center; gap: 8px;
+  border: none; cursor: pointer; padding: 9px 15px; border-radius: 10px;
+  background: rgba(12, 22, 38, 0.92); color: #fff; font-size: 13px; font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); transition: background 0.14s ease, transform 0.12s ease;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.fr-map__exit-btn:hover { background: rgba(30, 58, 95, 0.96); transform: translateY(-1px); }
+
+/* In fullscreen, stack the airspace control + MapLibre zoom on the top-left. */
+.fr-stage--fullwidth .fr-airspace { z-index: 2147483647; top: 14px; left: 14px; }
+.fr-stage--fullwidth .fr-airspace-tip { z-index: 2147483647; }
+/* Lock page scroll while the map is fullscreen */
+body.fr-no-scroll { overflow: hidden; }
+/* Hide the app's fixed top nav while the map is fullscreen — deterministic (no
+   z-index race) and gives the map the whole screen. Restored on exit. */
+body.fr-no-scroll #main_header2 { display: none !important; }
+
+/* ════════════════════════════════════════════════════════════
+   FULLSCREEN COCKPIT: transport+profile pinned bottom, instruments
+   slide-out panel on the right. Both float over the fixed map.
+   ════════════════════════════════════════════════════════════ */
+.fr-profile-card--fs {
+  position: fixed; z-index: 2147483647;
+  left: 0; right: 0; bottom: 0;
+  margin: 0; border-radius: 16px 16px 0 0;
+  border: none; border-top: 1px solid rgba(255,255,255,0.12);
+  background: rgba(12, 22, 38, 0.92);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 -8px 28px rgba(0,0,0,0.4);
+  padding: 12px 18px 14px;
+}
+/* Dark-theme the transport text/profile on the glass bar */
+.fr-profile-card--fs .fr-transport__meta { color: #cbd5e1; }
+.fr-profile-card--fs .fr-phase-mini { color: #7dd3fc; }
+.fr-profile-card--fs .fr-rate__btn { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); color: #cbd5e1; }
+.fr-profile-card--fs .fr-rate__btn--active { background: linear-gradient(135deg,#1e3a5f,#2d5a8e); border-color:#2d5a8e; color:#fff; }
+.fr-profile-card--fs .fr-scrub { background: rgba(255,255,255,0.22); }
+.fr-profile-card--fs .fr-profile { height: 130px; }       /* shorter profile in the bar (Chart.js fills it) */
+
+/* Instruments → right-hand slide-out panel in fullscreen */
+.fr-stage__instruments--fs {
+  position: fixed; z-index: 2147483647;
+  top: 56px; right: 0; bottom: 220px;   /* below the zoom control; clear the bottom bar */
+  width: 300px; max-width: 86vw;
+  margin: 0; border-radius: 14px 0 0 14px; border: none;
+  border-left: 1px solid rgba(30,58,95,0.6);
+  overflow-y: auto; padding: 18px 16px;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.4);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+.fr-stage__instruments--collapsed { transform: translateX(100%); }
+/* Two gauges across in the narrow right panel */
+.fr-stage__instruments--fs .fr-sixpack { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+/* The slide handle is pinned to the viewport's right edge (position:fixed) so it
+   stays reachable whether the panel is open OR collapsed off-screen. It sits just
+   above the bottom bar. */
+.fr-instruments__handle {
+  position: fixed; z-index: 2147483647;
+  right: 0; bottom: 240px;
+  width: 40px; min-height: 64px; border: none; cursor: pointer;
+  background: rgba(12, 22, 38, 0.92); color: #fff;
+  border-radius: 10px 0 0 10px; box-shadow: -4px 0 14px rgba(0,0,0,0.3);
+  font-size: 17px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 0;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  transition: right 0.28s cubic-bezier(0.4,0,0.2,1), background 0.14s ease, color 0.14s ease;
+}
+/* The "Instruments" hint reads vertically on the collapsed tab so users notice
+   the gauges are tucked away. */
+.fr-instruments__handle-label {
+  writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
+  font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #cbd5e1;
+}
+/* When the panel is open it occupies 300px on the right, so the handle rides on
+   its left edge; collapsed → handle sits at the screen edge. (Matches the panel's
+   max-width: 86vw cap on very narrow screens.) */
+.fr-instruments__handle--open { right: min(300px, 86vw); }
+.fr-instruments__handle:hover { background: rgba(30,58,95,0.95); }
+.fr-instruments__handle:hover .fr-instruments__handle-label { color: #fff; }
+
+/* Instruments sit in a full-width bar below the map */
+.fr-stage__instruments {
+  background: #0f1b2d; border: 1px solid #1e3a5f; border-radius: 14px; padding: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+}
+
+/* ── Six-pack: 6 gauges across below the map (wraps on small screens) ── */
+.fr-sixpack { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; align-items: start; }
+.fr-gauge { display: flex; flex-direction: column; align-items: center; }
+.fr-gauge__svg { width: 100%; max-width: 130px; aspect-ratio: 1; }
+.fr-gauge__bezel { fill: #1a2942; stroke: #2d3f5c; stroke-width: 1.5; }
+.fr-gauge__face { fill: #0c1626; }
+.fr-gauge__ring { fill: none; stroke: #2d3f5c; stroke-width: 2; }
+.fr-gauge__ticks line { stroke: #6b85a8; stroke-width: 1.4; }
+.fr-gauge__hub { fill: #cbd5e1; }
+/* Needles rotate via the SVG `transform="rotate(a 50 50)"` attribute (origin at
+   the gauge centre). Do NOT set transform-box/transform-origin or a CSS
+   `transition: transform` here — they reinterpret the rotation origin and fight
+   the attribute, throwing the needle off-centre. Smoothness comes from the
+   controller's per-frame interpolation of `point`. */
+.fr-gauge__needle { stroke: #f8fafc; stroke-width: 2.4; stroke-linecap: round; }
+.fr-gauge__needle--asi { stroke: #38bdf8; }
+.fr-gauge__needle--hundreds { stroke: #f8fafc; stroke-width: 2.6; }
+.fr-gauge__needle--thousands { stroke: #94a3b8; stroke-width: 3.4; }
+.fr-gauge__needle--vsi { stroke: #facc15; }
+.fr-gauge__label { margin-top: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: #8aa0bd; text-transform: uppercase; }
+.fr-gauge__est { color: #facc15; font-size: 9px; }
+.fr-gauge__value { font-size: 14px; font-weight: 700; color: #f8fafc; }
+.fr-gauge__value small { font-size: 9px; color: #8aa0bd; margin-left: 3px; font-weight: 600; }
+
+/* Attitude/heading/turn groups rotate via the SVG transform attribute too —
+   no CSS transition (it breaks attribute-driven SVG transforms in some browsers,
+   making the group appear not to move). The controller interpolates per frame. */
+.fr-ai__sky { fill: #2b6fb3; }
+.fr-ai__ground { fill: #6b4423; }
+.fr-ai__horizon { stroke: #fff; stroke-width: 1.5; }
+.fr-ai__ladder { stroke: rgba(255,255,255,0.7); stroke-width: 1; }
+.fr-ai__bankptr { fill: #facc15; }
+.fr-ai__bankscale line { stroke: #cbd5e1; stroke-width: 1.4; }
+.fr-ai__index { fill: #f8fafc; }
+.fr-ai__wing { stroke: #facc15; stroke-width: 2.6; stroke-linecap: round; }
+.fr-ai__dot { fill: #facc15; }
+.fr-di__cardinal { fill: #f8fafc; font-size: 11px; font-weight: 700; text-anchor: middle; }
+.fr-di__lubber { fill: #facc15; }
+.fr-di__plane { fill: #e2e8f0; }
+.fr-tc__wing { stroke: #f8fafc; stroke-width: 2.6; stroke-linecap: round; }
+.fr-tc__body { fill: #f8fafc; }
+.fr-tc__tail { stroke: #f8fafc; stroke-width: 2.2; }
+.fr-tc__index { stroke: #facc15; stroke-width: 2; }
+.fr-tc__label { fill: #6b85a8; font-size: 7px; text-anchor: middle; letter-spacing: 1px; }
+.fr-vsi__mark { fill: #6b85a8; font-size: 8px; }
+
+/* Readouts row */
+.fr-readouts { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.fr-readout {
+  flex: 1 1 auto; display: flex; flex-direction: column; align-items: center;
+  background: #0c1626; border: 1px solid #1e3a5f; border-radius: 8px; padding: 7px 4px;
+}
+.fr-readout__label { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; color: #6b85a8; text-transform: uppercase; }
+.fr-readout__value { font-size: 15px; font-weight: 700; color: #f8fafc; transition: color 0.2s ease; }
+.fr-readout__value--hot { color: #f87171; }
+.fr-readout--phase { justify-content: center; }
+.fr-phase { font-size: 11px; font-weight: 700; text-transform: capitalize; padding: 4px 10px; border-radius: 999px; color: #fff; }
+.fr-phase--parked { background: #64748b; }
+.fr-phase--taxi { background: #0ea5e9; }
+.fr-phase--climb { background: #16a34a; }
+.fr-phase--cruise { background: #2563eb; }
+.fr-phase--descent { background: #f59e0b; }
+
+/* ── Transport + profile ── */
+.fr-profile-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px;
+  margin-bottom: 18px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06); animation: frFadeUp 0.4s ease;
+}
+.fr-transport { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.fr-play {
+  flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; font-size: 17px;
+  box-shadow: 0 4px 12px rgba(30, 58, 95, 0.3); transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.fr-play:hover { transform: scale(1.06); box-shadow: 0 6px 18px rgba(30, 58, 95, 0.4); }
+.fr-play:active { transform: scale(0.97); }
+.fr-transport__scrub { flex: 1 1 auto; }
+.fr-scrub { width: 100%; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px;
+  background: #e2e8f0; outline: none; cursor: pointer; }
+.fr-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+  border-radius: 50%; background: #1e3a5f; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer; }
+.fr-scrub::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #1e3a5f; border: 3px solid #fff; cursor: pointer; }
+.fr-transport__meta { display: flex; gap: 14px; margin-top: 6px; font-size: 12px; color: #64748b; }
+.fr-transport__meta i { margin-right: 3px; }
+.fr-phase-mini { text-transform: capitalize; font-weight: 600; color: #2d5a8e; }
+.fr-rate { display: flex; gap: 4px; }
+.fr-rate__btn { border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-size: 12px; font-weight: 700;
+  padding: 6px 9px; border-radius: 7px; cursor: pointer; transition: all 0.12s ease; }
+.fr-rate__btn--active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
+/* Chart.js (responsive + maintainAspectRatio:false) sizes the canvas itself to
+   fill this container — DON'T force width/height on the canvas with !important or
+   the drawing buffer desyncs from the CSS box and the chart/labels stretch. Set
+   the size on the container only. */
+.fr-profile { position: relative; height: 220px; }
+.fr-profile__canvas { display: block; }
+
+/* ── Debrief: photos + notes ── */
+.fr-debrief { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; animation: frFadeUp 0.45s ease; }
+.fr-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06); }
+.fr-panel__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.fr-panel__head h3 { margin: 0; font-size: 15px; font-weight: 700; color: #1e293b; }
+.fr-panel__head h3 i { color: #2d5a8e; margin-right: 6px; }
+.fr-panel__count { background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.fr-panel__empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 18px 0; }
+
+.fr-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 13px; color: #1e293b; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.fr-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.fr-textarea { resize: vertical; min-height: 64px; font-family: inherit; }
+
+.fr-uploader { margin-bottom: 14px; }
+.fr-drop { margin-top: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border: 2px dashed #cbd5e1; border-radius: 10px; padding: 18px; color: #64748b; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease; text-align: center; }
+.fr-drop:hover { border-color: #2d5a8e; background: #f8fafc; color: #1e3a5f; }
+.fr-drop i { font-size: 22px; color: #2d5a8e; }
+.fr-drop small { display: block; font-weight: 500; color: #94a3b8; }
+.fr-drop--busy { pointer-events: none; opacity: 0.7; }
+
+.fr-filmstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.fr-thumb { position: relative; aspect-ratio: 4/3; border-radius: 9px; overflow: hidden; cursor: pointer;
+  border: 1px solid #e2e8f0; background: #f1f5f9; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.fr-thumb:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(15,23,42,0.18); }
+.fr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fr-thumb__src { position: absolute; top: 4px; right: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 6px; color: #fff; background: rgba(15,23,42,0.7); }
+.fr-thumb__src--gps { background: rgba(22,163,74,0.85); }
+.fr-thumb__src--time { background: rgba(37,99,235,0.85); }
+.fr-thumb__src--none { background: rgba(100,116,139,0.85); }
+.fr-thumb__cap { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10px; color: #fff;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 10px 5px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Notes */
+.fr-note-compose { margin-bottom: 14px; }
+.fr-note-compose__row { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.fr-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #475569; cursor: pointer; margin: 0; }
+.fr-toggle input { margin: 0; }
+.fr-notes-group { margin-top: 12px; }
+.fr-notes-group__title { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; margin-bottom: 8px; }
+.fr-note { position: relative; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #cbd5e1;
+  border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: background 0.12s ease, transform 0.12s ease; }
+.fr-note:hover { background: #f1f5f9; transform: translateX(2px); }
+.fr-note--coaching { border-left-color: #16a34a; background: #f0fdf4; }
+.fr-note__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.fr-note__author { font-size: 12.5px; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 6px; }
+.fr-note__author i { color: #64748b; }
+.fr-note--coaching .fr-note__author i { color: #16a34a; }
+.fr-note__badge { background: #16a34a; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; }
+.fr-note__time { font-size: 11px; color: #64748b; }
+.fr-note__body { font-size: 13.5px; color: #334155; line-height: 1.5; }
+.fr-note__del { position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: #cbd5e1;
+  cursor: pointer; font-size: 12px; padding: 4px; opacity: 0; transition: opacity 0.12s ease, color 0.12s ease; }
+.fr-note:hover .fr-note__del { opacity: 1; }
+.fr-note__del:hover { color: #dc2626; }
+
+/* Buttons */
+.fr-btn { display: inline-flex; align-items: center; gap: 7px; border: none; border-radius: 8px; padding: 9px 16px;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease; }
+.fr-btn--sm { padding: 7px 12px; font-size: 12.5px; }
+.fr-btn--primary { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; box-shadow: 0 2px 8px rgba(30,58,95,0.25); }
+.fr-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.fr-btn--danger { background: #dc2626; color: #fff; }
+.fr-btn[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+/* ── Lightbox ── */
+.fr-lightbox { position: fixed; inset: 0; z-index: 1200; background: rgba(15,23,42,0.85);
+  display: flex; align-items: center; justify-content: center; padding: 24px; animation: frFade 0.18s ease; }
+@keyframes frFade { from { opacity: 0; } to { opacity: 1; } }
+.fr-lightbox__inner { position: relative; max-width: 920px; max-height: 90vh; background: #0c1626;
+  border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+.fr-lightbox__inner img { display: block; max-width: 100%; max-height: 76vh; object-fit: contain; }
+.fr-lightbox__close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 8px;
+  border: none; background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; font-size: 16px; }
+.fr-lightbox__close:hover { background: rgba(0,0,0,0.75); }
+.fr-lightbox__bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; }
+.fr-lightbox__cap { color: #f8fafc; font-size: 14px; font-weight: 700; }
+.fr-lightbox__meta { color: #94a3b8; font-size: 12px; margin-top: 2px; }
+
+/* ── Airspace overlay control (sits over the map) ── */
+.fr-stage__map-card { position: relative; }   /* anchor for the overlay */
+.fr-airspace { position: absolute; top: 12px; left: 12px; z-index: 5; max-width: 240px; }
+.fr-airspace__toggle {
+  display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer;
+  background: #fff; color: #1e3a5f; font-size: 12.5px; font-weight: 700; padding: 8px 13px;
+  border-radius: 9px; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2); transition: all 0.14s ease;
+}
+.fr-airspace__toggle:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(15, 23, 42, 0.28); }
+.fr-airspace__toggle i { color: #2d5a8e; }
+.fr-airspace--on .fr-airspace__toggle { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; }
+.fr-airspace--on .fr-airspace__toggle i { color: #fff; }
+.fr-airspace__caret { font-size: 10px; opacity: 0.8; transition: transform 0.18s ease; margin-left: 1px; }
+.fr-airspace--open .fr-airspace__caret { transform: rotate(180deg); }
+
+.fr-airspace__panel {
+  margin-top: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 11px;
+  padding: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2); animation: frFadeDown 0.16s ease;
+}
+.fr-airspace__panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.fr-airspace__layer-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2d5a8e; cursor: pointer;
+  background: #eef4fb; color: #1e3a5f; font-size: 11.5px; font-weight: 700; padding: 5px 10px;
+  border-radius: 7px; transition: all 0.12s ease;
+}
+.fr-airspace__layer-btn:hover { background: #2d5a8e; color: #fff; }
+.fr-airspace__layer-btn--off { border-color: #cbd5e1; background: #f1f5f9; color: #94a3b8; }
+.fr-airspace__layer-btn--off:hover { background: #e2e8f0; color: #475569; }
+.fr-airspace__collapse {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; color: #64748b;
+  cursor: pointer; font-size: 13px; transition: all 0.12s ease;
+}
+.fr-airspace__collapse:hover { background: #e2e8f0; color: #1e293b; }
+.fr-airspace__legend--dim { opacity: 0.45; }
+.fr-airspace__loading { color: #2d5a8e; font-size: 12.5px; font-weight: 600; }
+.fr-airspace__loading i { margin-right: 5px; }
+.fr-airspace__err { color: #dc2626; font-size: 12.5px; font-weight: 600; }
+.fr-airspace__err a { margin-left: 6px; color: #2d5a8e; text-decoration: underline; cursor: pointer; }
+.fr-airspace__legend { display: flex; flex-direction: column; gap: 7px; }
+.fr-airspace__cat { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #334155; cursor: pointer; margin: 0; }
+.fr-airspace__cat input { margin: 0; }
+.fr-airspace__swatch { width: 13px; height: 13px; border-radius: 4px; flex: 0 0 auto; opacity: 0.85; border: 1px solid rgba(0,0,0,0.15); }
+.fr-airspace__cat-label { white-space: nowrap; }
+.fr-airspace__meta { margin-top: 9px; padding-top: 8px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #64748b; display: flex; flex-wrap: wrap; gap: 4px; }
+.fr-airspace__approx { color: #b45309; font-weight: 700; }
+.fr-airspace__disclaimer { margin-top: 8px; font-size: 10.5px; line-height: 1.4; color: #92400e; background: #fef3c7; border-radius: 6px; padding: 6px 8px; }
+.fr-airspace__disclaimer i { margin-right: 4px; }
+.fr-airspace__attr { margin-top: 6px; font-size: 10px; color: #94a3b8; }
+.fr-airspace__attr a { color: #64748b; text-decoration: underline; }
+.fr-airspace__attr a:hover { color: #2d5a8e; }
+
+.fr-airspace-tip {
+  position: absolute; bottom: 12px; left: 12px; z-index: 7; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 11px; padding: 14px 44px 14px 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);
+  max-width: 280px; animation: frFadeUp 0.16s ease;
+}
+.fr-airspace-tip__close {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; color: #475569;
+  cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.12s ease;
+}
+.fr-airspace-tip__close:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+.fr-airspace-tip__name { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; color: #1e293b; }
+.fr-airspace-tip__row { margin-top: 4px; font-size: 12px; color: #64748b; }
+
+/* ── Debrief note card over the map (shown when a note/pin is clicked) ── */
+.fr-note-card {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 8;
+  width: 360px; max-width: calc(100% - 32px);
+  background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b;
+  border-radius: 12px; padding: 14px 44px 14px 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.26); animation: frFadeUp 0.18s ease;
+}
+.fr-note-card--coaching { border-left-color: #16a34a; background: #f0fdf4; }
+.fr-note-card__close {
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; color: #475569;
+  cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.12s ease;
+}
+.fr-note-card__close:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+.fr-note-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.fr-note-card__author { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: #1e293b; }
+.fr-note-card__author i { color: #64748b; }
+.fr-note-card--coaching .fr-note-card__author i { color: #16a34a; }
+.fr-note-card__badge { background: #16a34a; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; }
+.fr-note-card__time { font-size: 11.5px; color: #64748b; white-space: nowrap; }
+.fr-note-card__body { font-size: 14px; color: #334155; line-height: 1.55; }
+/* Above the fullscreen map overlay too */
+.fr-stage--fullwidth .fr-note-card { z-index: 2147483647; }
+
+/* ── MapLibre DOM markers (Google uses SVG icons instead) ── */
+.fr-ml-plane { width: 34px; height: 34px; cursor: grab; will-change: transform; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
+.fr-ml-plane:active { cursor: grabbing; }
+.fr-ml-plane svg { display: block; }
+.fr-ml-pin {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4); cursor: pointer; transition: transform 0.12s ease;
+}
+.fr-ml-pin:hover { transform: scale(1.25); }
+
+/* ── Launch affordance: replay buttons in list views ── */
+.lb-table__action-btn--replay { color: #2d5a8e; }
+.lb-table__action-btn--replay:hover { background: #2d5a8e; color: #fff; border-color: #2d5a8e; }
+
+/* Replay action in the journey log (table) + mobile card, and student records */
+.fr-replay-link { color: #2d5a8e; cursor: pointer; transition: color 0.12s ease; }
+.fr-replay-link:hover { color: #1e3a5f; }
+.fr-replay-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2d5a8e; background: #fff;
+  color: #1e3a5f; font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 8px;
+  cursor: pointer; transition: all 0.14s ease;
+}
+.fr-replay-btn:hover { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; transform: translateY(-1px); }
+.fr-replay-btn i { font-size: 14px; }
+.mc-card-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+/* ════ Responsive ════ */
+@media (max-width: 1024px) {
+  .fr-stage__map-card { height: 460px; }
+  .fr-sixpack { grid-template-columns: repeat(3, 1fr); }   /* 3 across on tablet */
+}
+@media (max-width: 768px) {
+  .fr-debrief { grid-template-columns: 1fr; }
+  /* Stack the header bar on narrow screens. */
+  .fr-page__header-inner { padding: 16px 18px; gap: 8px; }
+  .fr-page__header .back-box { flex-basis: 100%; }
+  .fr-page__crew { flex-basis: 100%; }
+  .fr-page__title h2 { font-size: 20px; }
+  .fr-stage__map-card { height: 380px; }
+  .fr-stage--fullwidth .fr-stage__map-card { height: 70vh; }
+  .fr-transport { flex-wrap: wrap; }
+  .fr-transport__scrub { order: 3; width: 100%; flex-basis: 100%; }
+  .fr-rate { order: 2; }
+}
+@media (max-width: 480px) {
+  .fr-stage__map-card { height: 320px; }
+  .fr-sixpack { grid-template-columns: repeat(2, 1fr); }
+  .fr-summary { grid-template-columns: repeat(2, 1fr); }
+  .fr-airspace { max-width: calc(100% - 24px); }
+  .fr-airspace__panel { max-height: 46vh; overflow-y: auto; }
+  .fr-airspace-tip { right: 12px; max-width: none; }
+}

@@ -1,0 +1,339 @@
+<div class="fr-page">
+
+  <!-- ═══ Header ═══ -->
+  <div class="fr-page__header">
+    <div class="fr-page__header-inner">
+      <div class="back-box" ng-click="vm.back()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="fr-page__title">
+        <h2><i class="fa fa-video-camera"></i> Flight Replay</h2>
+        <p ng-if="vm.flight">
+          {{ vm.flight.registration }} &middot;
+          {{ vm.flight.departure_airport_code || vm.flight.departure_airport }}
+          <i class="fa fa-long-arrow-right"></i>
+          {{ vm.flight.destination_airport_code || vm.flight.destination_airport }}
+          &middot; {{ vm.flight.flight_date | asDate | date:'dd MMM yyyy' }}
+        </p>
+      </div>
+      <div class="fr-page__crew" ng-if="vm.flight">
+        <span class="fr-crew-chip" ng-if="vm.flight.pic"><i class="fa fa-user"></i> {{ vm.flight.pic }}</span>
+        <span class="fr-crew-chip fr-crew-chip--instructor" ng-if="vm.flight.instructor"><i class="fa fa-graduation-cap"></i> {{ vm.flight.instructor }}</span>
+        <span class="fr-crew-chip" ng-if="vm.flight.put"><i class="fa fa-user-o"></i> {{ vm.flight.put }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Loading ═══ -->
+  <div class="fr-loading" ng-if="vm.loading">
+    <div class="fr-spinner"></div> Loading flight…
+  </div>
+
+  <!-- ═══ Error ═══ -->
+  <div class="fr-empty fr-empty--error" ng-if="!vm.loading && vm.error">
+    <i class="fa" ng-class="vm.error === 'forbidden' ? 'fa-lock' : 'fa-exclamation-triangle'"></i>
+    <h3 ng-if="vm.error === 'forbidden'">This isn't your flight</h3>
+    <h3 ng-if="vm.error !== 'forbidden'">Couldn't load this flight</h3>
+    <p ng-if="vm.error === 'forbidden'">You can only replay flights you flew or instruct/manage.</p>
+    <p ng-if="vm.error !== 'forbidden'">Please try again in a moment.</p>
+    <button class="fr-btn fr-btn--primary" ng-click="vm.back()">Go back</button>
+  </div>
+
+  <div class="fr-page__body" ng-if="!vm.loading && !vm.error">
+
+    <!-- ═══ Summary strip ═══ -->
+    <div class="fr-summary" ng-if="vm.summary">
+      <div class="fr-summary__stat"><span class="fr-summary__label">Duration</span><span class="fr-summary__value">{{ (vm.summary.duration_seconds / 60) | number:0 }}<small>min</small></span></div>
+      <div class="fr-summary__stat"><span class="fr-summary__label">Distance</span><span class="fr-summary__value">{{ vm.summary.distance_nm | number:1 }}<small>nm</small></span></div>
+      <div class="fr-summary__stat fr-summary__stat--clickable" ng-click="vm.seekToExtreme('alt')" uib-tooltip="Jump to this moment" tabindex="0">
+        <span class="fr-summary__label">Max Alt <i class="fa fa-crosshairs fr-summary__jump"></i></span>
+        <span class="fr-summary__value">{{ vm.summary.max_alt_ft | number:0 }}<small>ft</small></span>
+      </div>
+      <div class="fr-summary__stat fr-summary__stat--clickable" ng-click="vm.seekToExtreme('gs')" uib-tooltip="Jump to this moment" tabindex="0">
+        <span class="fr-summary__label">Max GS <i class="fa fa-crosshairs fr-summary__jump"></i></span>
+        <span class="fr-summary__value">{{ vm.summary.max_speed_kt | number:0 }}<small>kt</small></span>
+      </div>
+      <div class="fr-summary__stat fr-summary__stat--clickable" ng-click="vm.seekToExtreme('g')" uib-tooltip="Jump to this moment" tabindex="0">
+        <span class="fr-summary__label">Max G <i class="fa fa-crosshairs fr-summary__jump"></i></span>
+        <span class="fr-summary__value">{{ vm.summary.max_g | number:2 }}</span>
+      </div>
+      <div class="fr-summary__stat fr-summary__stat--alt">
+        <span class="fr-summary__label">Altitude source</span>
+        <span class="fr-alt-badge" ng-class="{'fr-alt-badge--baro': vm.baro.working, 'fr-alt-badge--gps': !vm.baro.working}"
+              uib-tooltip="{{ vm.baro.reason }}">
+          <i class="fa" ng-class="vm.baro.working ? 'fa-thermometer-half' : 'fa-globe'"></i> {{ vm.altSourceLabel() }}
+        </span>
+      </div>
+    </div>
+
+    <!-- ═══ No-track empty state (still allow photos/notes) ═══ -->
+    <div class="fr-empty fr-empty--notrack" ng-if="!vm.hasTrack">
+      <i class="fa fa-map-o"></i>
+      <h3>No flight track recorded</h3>
+      <p>{{ vm.trackNote || 'No flight-data device recorded this flight. You can still add photos and debrief notes below.' }}</p>
+    </div>
+
+    <!-- ═══ Map + instruments (stacked: wide map on top) ═══ -->
+    <div class="fr-stage" ng-if="vm.hasTrack" ng-class="{'fr-stage--fullwidth': vm.mapFullWidth}">
+
+      <div class="fr-stage__map-card">
+        <div id="fr-map" class="fr-map" ng-if="vm.mapAvailable"></div>
+        <div class="fr-map fr-map--fallback" ng-if="!vm.mapAvailable">
+          <i class="fa fa-map-o"></i>
+          <p>Map unavailable — the instruments and height profile below still work.</p>
+        </div>
+
+        <!-- ── Enter fullscreen (compact button, normal layout only) ── -->
+        <button class="fr-map__width-btn" ng-if="vm.mapAvailable && !vm.mapFullWidth" ng-click="vm.toggleMapWidth()"
+                uib-tooltip="Expand map full screen">
+          <i class="fa fa-arrows-alt"></i>
+        </button>
+
+        <!-- ── Exit fullscreen (clear labelled pill, top-right, fullscreen only) ── -->
+        <button class="fr-map__exit-btn" ng-if="vm.mapAvailable && vm.mapFullWidth" ng-click="vm.toggleMapWidth()">
+          <i class="fa fa-compress"></i> <span>Exit fullscreen</span>
+        </button>
+
+        <!-- ── Airspace overlay control ── -->
+        <div class="fr-airspace" ng-if="vm.mapAvailable" ng-class="{'fr-airspace--on': vm.airspaceOn, 'fr-airspace--open': vm.airspacePanelOpen}">
+          <button class="fr-airspace__toggle" ng-click="vm.toggleAirspacePanel()"
+                  uib-tooltip="{{ vm.airspacePanelOpen ? 'Hide airspace menu' : 'Airspace in force on the flight date' }}">
+            <i class="fa" ng-class="vm.airspaceLoading ? 'fa-spinner fa-spin' : (vm.airspaceOn ? 'fa-eye' : 'fa-eye-slash')"></i>
+            <span>Airspace</span>
+            <i class="fa fa-chevron-down fr-airspace__caret"></i>
+          </button>
+
+          <div class="fr-airspace__panel" ng-if="vm.airspacePanelOpen">
+            <!-- Panel header: show/hide the drawn layer, and collapse the menu -->
+            <div class="fr-airspace__panel-head">
+              <button class="fr-airspace__layer-btn" ng-click="vm.toggleAirspaceLayer()"
+                       ng-class="{'fr-airspace__layer-btn--off': !vm.airspaceOn}"
+                       uib-tooltip="{{ vm.airspaceOn ? 'Hide airspace on map' : 'Show airspace on map' }}">
+                <i class="fa" ng-class="vm.airspaceOn ? 'fa-eye' : 'fa-eye-slash'"></i>
+                {{ vm.airspaceOn ? 'Layer on' : 'Layer off' }}
+              </button>
+              <button class="fr-airspace__collapse" ng-click="vm.toggleAirspacePanel()" uib-tooltip="Hide menu">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+
+            <div class="fr-airspace__loading" ng-if="vm.airspaceLoading">
+              <i class="fa fa-spinner fa-spin"></i> Loading airspace…
+            </div>
+
+            <div class="fr-airspace__err" ng-if="vm.airspaceError && !vm.airspaceLoading">
+              <i class="fa fa-exclamation-triangle"></i> Couldn't load airspace.
+              <a href ng-click="vm.retryAirspace()">Retry</a>
+            </div>
+
+            <div ng-if="!vm.airspaceError && !vm.airspaceLoading && vm.airspaceLoaded">
+              <div class="fr-airspace__legend" ng-class="{'fr-airspace__legend--dim': !vm.airspaceOn}">
+                <label class="fr-airspace__cat" ng-repeat="c in vm.airspaceCats">
+                  <input type="checkbox" ng-model="c.on" ng-change="vm.onAirspaceCategoryChange()" />
+                  <span class="fr-airspace__swatch" ng-style="{'background': vm.airspaceColour(c.key)}"></span>
+                  <span class="fr-airspace__cat-label">{{ c.label }}</span>
+                </label>
+              </div>
+              <div class="fr-airspace__meta">
+                <span>{{ vm.airspaceCount }} areas</span>
+                <span ng-if="vm.airspaceMeta.airac">· AIRAC {{ vm.airspaceMeta.airac }}</span>
+                <span ng-if="vm.airspaceMeta.approximate" class="fr-airspace__approx" uib-tooltip="No exact dataset for this date — showing the nearest available.">≈ nearest</span>
+              </div>
+              <div class="fr-airspace__disclaimer">
+                <i class="fa fa-info-circle"></i> Reference / debrief only — not for navigation or flight planning.
+              </div>
+              <div class="fr-airspace__attr">Data used comes from <a href="https://www.openaip.net" target="_blank" rel="noopener">openAIP</a></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Airspace feature popup ── -->
+        <div class="fr-airspace-tip" ng-if="vm.airspaceTip">
+          <button class="fr-airspace-tip__close" ng-click="vm.closeAirspaceTip()"><i class="fa fa-times"></i></button>
+          <div class="fr-airspace-tip__name">
+            <span class="fr-airspace__swatch" ng-style="{'background': vm.airspaceColour(vm.airspaceTip.category)}"></span>
+            {{ vm.airspaceTip.name }}
+          </div>
+          <div class="fr-airspace-tip__row" ng-if="vm.airspaceTip.type">
+            {{ vm.airspaceTip.type }}<span ng-if="vm.airspaceTip.icao_class"> · Class {{ vm.airspaceTip.icao_class }}</span>
+          </div>
+          <div class="fr-airspace-tip__row">{{ vm.airspaceTip.lower_label || '—' }} → {{ vm.airspaceTip.upper_label || '—' }}</div>
+        </div>
+
+        <!-- ── Debrief note card (shown when a note/pin is clicked) ── -->
+        <div class="fr-note-card" ng-if="vm.activeNote"
+             ng-class="{'fr-note-card--coaching': vm.activeNote.is_instructor_note}">
+          <button class="fr-note-card__close" ng-click="vm.closeNote()"><i class="fa fa-times"></i></button>
+          <div class="fr-note-card__head">
+            <span class="fr-note-card__author">
+              <i class="fa" ng-class="vm.activeNote.is_instructor_note ? 'fa-graduation-cap' : 'fa-user'"></i>
+              {{ vm.activeNote.author_name }}
+              <span class="fr-note-card__badge" ng-if="vm.activeNote.is_instructor_note">Instructor</span>
+            </span>
+            <span class="fr-note-card__time" ng-if="vm.activeNote.at_time">
+              <i class="fa fa-map-marker"></i> {{ vm.activeNote.at_time | limitTo: 8 : 11 }}
+            </span>
+          </div>
+          <div class="fr-note-card__body">{{ vm.activeNote.body }}</div>
+        </div>
+      </div>
+
+      <!-- Slide handle (fullscreen only). Kept OUTSIDE the panel so the panel's
+           transform doesn't carry it off-screen when collapsed. -->
+      <button class="fr-instruments__handle" ng-if="vm.mapFullWidth" ng-click="vm.toggleInstruments()"
+              ng-class="{'fr-instruments__handle--open': vm.fsInstrumentsOpen}"
+              uib-tooltip="{{ vm.fsInstrumentsOpen ? 'Hide instruments' : 'Show instruments' }}">
+        <i class="fa" ng-class="vm.fsInstrumentsOpen ? 'fa-chevron-right' : 'fa-tachometer-alt'"></i>
+        <span class="fr-instruments__handle-label" ng-if="!vm.fsInstrumentsOpen">Instruments</span>
+      </button>
+
+      <div class="fr-stage__instruments"
+           ng-class="{'fr-stage__instruments--fs': vm.mapFullWidth, 'fr-stage__instruments--collapsed': vm.mapFullWidth && !vm.fsInstrumentsOpen}">
+        <flight-six-pack point="vm.currentPoint"></flight-six-pack>
+      </div>
+    </div>
+
+    <!-- ═══ Transport + height profile ═══ -->
+    <div class="fr-profile-card" ng-if="vm.hasTrack" ng-class="{'fr-profile-card--fs': vm.mapFullWidth}">
+
+      <div class="fr-transport">
+        <button class="fr-play" ng-click="vm.togglePlay()" title="{{ vm.playing ? 'Pause' : 'Play' }}">
+          <i class="fa" ng-class="vm.playing ? 'fa-pause' : 'fa-play'"></i>
+        </button>
+
+        <div class="fr-transport__scrub">
+          <input type="range" class="fr-scrub" min="0" max="{{ vm.scrubMax }}" step="1"
+                 ng-model="vm.currentIndex" ng-change="vm.onScrub()" />
+          <div class="fr-transport__meta">
+            <span><i class="fa fa-clock-o"></i> {{ vm.fmtElapsed() }}</span>
+            <span ng-if="vm.currentPoint">{{ vm.currentPoint.t | limitTo: 8 : 11 }} UTC</span>
+            <span class="fr-phase-mini" ng-if="vm.currentPoint">{{ vm.currentPoint.phase }}</span>
+          </div>
+        </div>
+
+        <div class="fr-rate">
+          <button ng-repeat="r in [4,8,16,32]" class="fr-rate__btn"
+                  ng-class="{'fr-rate__btn--active': vm.playbackRate === r}" ng-click="vm.setRate(r)">{{ r }}×</button>
+        </div>
+      </div>
+
+      <div class="fr-profile">
+        <flight-height-profile track="vm.track" current-index="vm.currentIndex" on-seek="vm.seekToIndex(i)"></flight-height-profile>
+      </div>
+    </div>
+
+    <!-- ═══ Photos + debrief ═══ -->
+    <div class="fr-debrief">
+
+      <!-- Photos -->
+      <div class="fr-panel fr-panel--photos">
+        <div class="fr-panel__head">
+          <h3><i class="fa fa-camera"></i> Photos</h3>
+          <span class="fr-panel__count">{{ vm.photos.length }}</span>
+        </div>
+
+        <div class="fr-uploader"
+             flow-init="{target: '/upload_documents.php', singleFile: true}"
+             flow-files-submitted="$flow.upload()"
+             flow-file-success="$file.file_return = $message"
+             flow-complete="vm.onPhotoStaged($flow.files)">
+          <input type="text" class="fr-input" ng-model="vm.newPhotoCaption" placeholder="Caption (optional)…" />
+          <div class="fr-drop" flow-btn flow-drop ng-class="{'fr-drop--busy': vm.uploadingPhoto}">
+            <i class="fa" ng-class="vm.uploadingPhoto ? 'fa-spinner fa-spin' : 'fa-cloud-upload'"></i>
+            <span ng-if="!vm.uploadingPhoto">Add a photo<small ng-if="vm.currentPoint"> — pins at {{ vm.fmtElapsed() }}</small></span>
+            <span ng-if="vm.uploadingPhoto">Uploading…</span>
+          </div>
+        </div>
+
+        <div class="fr-filmstrip" ng-if="vm.photos.length">
+          <div class="fr-thumb" ng-repeat="ph in vm.photos" ng-click="vm.openPhoto(ph)">
+            <img ng-src="{{ vm.photoSrc(ph) }}" alt="{{ ph.caption || ph.file_name }}" />
+            <span class="fr-thumb__src" ng-class="'fr-thumb__src--' + ph.position_source"
+                  uib-tooltip="Pinned by {{ ph.position_source }}">{{ ph.position_source }}</span>
+            <span class="fr-thumb__cap" ng-if="ph.caption">{{ ph.caption }}</span>
+          </div>
+        </div>
+        <div class="fr-panel__empty" ng-if="!vm.photos.length">No photos yet.</div>
+      </div>
+
+      <!-- Notes -->
+      <div class="fr-panel fr-panel--notes">
+        <div class="fr-panel__head">
+          <h3><i class="fa fa-comments"></i> Debrief notes</h3>
+        </div>
+
+        <div class="fr-note-compose">
+          <textarea class="fr-input fr-textarea" ng-model="vm.newNote.body" placeholder="Add a comment or coaching note…"></textarea>
+          <div class="fr-note-compose__row">
+            <label class="fr-toggle">
+              <input type="checkbox" ng-model="vm.newNote.pinHere" ng-disabled="!vm.hasTrack" />
+              <span>Pin to {{ vm.fmtElapsed() }}</span>
+            </label>
+            <label class="fr-toggle" ng-if="vm.flight.instructor">
+              <input type="checkbox" ng-checked="vm.newNote.kind === 'coaching'"
+                     ng-click="vm.newNote.kind = (vm.newNote.kind === 'coaching' ? 'comment' : 'coaching')" />
+              <span><i class="fa fa-graduation-cap"></i> Coaching</span>
+            </label>
+            <button class="fr-btn fr-btn--primary fr-btn--sm" ng-click="vm.addNote()" ng-disabled="vm.savingNote">
+              <i class="fa" ng-class="vm.savingNote ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i> Add
+            </button>
+          </div>
+        </div>
+
+        <!-- Timeline notes -->
+        <div class="fr-notes-group" ng-if="vm.timelineNotes.length">
+          <span class="fr-notes-group__title">On the timeline</span>
+          <div class="fr-note" ng-repeat="an in vm.timelineNotes"
+               ng-class="{'fr-note--coaching': an.is_instructor_note}" ng-click="vm.seekToAnnotation(an)">
+            <div class="fr-note__head">
+              <span class="fr-note__author">
+                <i class="fa" ng-class="an.is_instructor_note ? 'fa-graduation-cap' : 'fa-user'"></i>
+                {{ an.author_name }}
+                <span class="fr-note__badge" ng-if="an.is_instructor_note">Instructor</span>
+              </span>
+              <span class="fr-note__time"><i class="fa fa-map-marker"></i> {{ an.at_time | limitTo: 8 : 11 }}</span>
+            </div>
+            <div class="fr-note__body">{{ an.body }}</div>
+            <button class="fr-note__del" ng-if="vm.canDeleteNote(an)" ng-click="$event.stopPropagation(); vm.deleteNote(an)"><i class="fa fa-trash"></i></button>
+          </div>
+        </div>
+
+        <!-- Whole-flight notes -->
+        <div class="fr-notes-group" ng-if="vm.flightNotes.length">
+          <span class="fr-notes-group__title">General</span>
+          <div class="fr-note" ng-repeat="an in vm.flightNotes" ng-class="{'fr-note--coaching': an.is_instructor_note}">
+            <div class="fr-note__head">
+              <span class="fr-note__author">
+                <i class="fa" ng-class="an.is_instructor_note ? 'fa-graduation-cap' : 'fa-user'"></i>
+                {{ an.author_name }}
+                <span class="fr-note__badge" ng-if="an.is_instructor_note">Instructor</span>
+              </span>
+            </div>
+            <div class="fr-note__body">{{ an.body }}</div>
+            <button class="fr-note__del" ng-if="vm.canDeleteNote(an)" ng-click="vm.deleteNote(an)"><i class="fa fa-trash"></i></button>
+          </div>
+        </div>
+
+        <div class="fr-panel__empty" ng-if="!vm.timelineNotes.length && !vm.flightNotes.length">No notes yet — add the first debrief note above.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Photo lightbox ═══ -->
+  <div class="fr-lightbox" ng-if="vm.selectedPhoto" ng-click="vm.closePhoto()">
+    <div class="fr-lightbox__inner" ng-click="$event.stopPropagation()">
+      <button class="fr-lightbox__close" ng-click="vm.closePhoto()"><i class="fa fa-times"></i></button>
+      <img ng-src="{{ vm.photoSrc(vm.selectedPhoto) }}" alt="{{ vm.selectedPhoto.caption }}" />
+      <div class="fr-lightbox__bar">
+        <div>
+          <div class="fr-lightbox__cap">{{ vm.selectedPhoto.caption || vm.selectedPhoto.file_name }}</div>
+          <div class="fr-lightbox__meta">{{ vm.selectedPhoto.uploaded_by_name }} &middot; {{ vm.selectedPhoto.taken_at | limitTo: 16 }} UTC</div>
+        </div>
+        <button class="fr-btn fr-btn--danger fr-btn--sm" ng-if="vm.canDeletePhoto(vm.selectedPhoto)" ng-click="vm.deletePhoto(vm.selectedPhoto)">
+          <i class="fa fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

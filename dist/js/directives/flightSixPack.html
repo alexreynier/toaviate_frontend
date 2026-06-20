@@ -1,0 +1,157 @@
+<div class="fr-sixpack">
+
+  <!-- Row 1: ASI · AI · ALT -->
+  <div class="fr-gauge" title="Airspeed (ground speed)">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <circle cx="50" cy="50" r="44" class="fr-gauge__face"/>
+      <g class="fr-gauge__ticks">
+        <line ng-repeat="t in [0,1,2,3,4,5,6,7,8] track by $index"
+              x1="50" y1="8" x2="50" y2="14"
+              transform="rotate({{ -135 + t*33.75 }} 50 50)"/>
+      </g>
+      <line x1="50" y1="50" x2="50" y2="16" class="fr-gauge__needle fr-gauge__needle--asi"
+            ng-attr-transform="rotate({{ asiAngle() }} 50 50)"/>
+      <circle cx="50" cy="50" r="4" class="fr-gauge__hub"/>
+    </svg>
+    <div class="fr-gauge__label">ASI</div>
+    <div class="fr-gauge__value">{{ num(point.speed_kt) }}<small>kt GS</small></div>
+  </div>
+
+  <div class="fr-gauge" title="Attitude (estimated)">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <defs>
+        <clipPath id="frAiClip"><circle cx="50" cy="50" r="44"/></clipPath>
+      </defs>
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <g clip-path="url(#frAiClip)">
+        <g class="fr-ai__rotor" ng-attr-transform="rotate({{ aiRoll() }} 50 50)">
+          <g ng-attr-transform="translate(0 {{ aiPitchShift() }})">
+            <!-- Sky/ground rects are oversized + centred on x=50 so they always
+                 cover the r=44 clip at any bank/pitch (no corner gaps). Horizon
+                 at y=50; pitch shifts this group, bank rotates the parent. -->
+            <rect x="-60" y="-110" width="220" height="160" class="fr-ai__sky"/>
+            <rect x="-60" y="50" width="220" height="160" class="fr-ai__ground"/>
+            <line x1="-60" y1="50" x2="160" y2="50" class="fr-ai__horizon"/>
+            <!-- Pitch ladder ticks (±10°, ±20°) for visual reference -->
+            <line x1="38" y1="30" x2="62" y2="30" class="fr-ai__ladder"/>
+            <line x1="42" y1="40" x2="58" y2="40" class="fr-ai__ladder"/>
+            <line x1="42" y1="60" x2="58" y2="60" class="fr-ai__ladder"/>
+            <line x1="38" y1="70" x2="62" y2="70" class="fr-ai__ladder"/>
+          </g>
+        </g>
+        <!-- Roll pointer: rides on the sphere (rotates with bank), reads the
+             fixed scale below. Right bank → swings right. -->
+        <g class="fr-ai__rotor" ng-attr-transform="rotate({{ aiRoll() }} 50 50)">
+          <polygon points="50,15 47,21 53,21" class="fr-ai__bankptr"/>
+        </g>
+      </g>
+      <!-- Fixed bank scale + fixed top index (do not rotate) -->
+      <g class="fr-ai__bankscale">
+        <line x1="50" y1="6" x2="50" y2="12" transform="rotate(-30 50 50)"/>
+        <line x1="50" y1="6" x2="50" y2="11" transform="rotate(-20 50 50)"/>
+        <line x1="50" y1="6" x2="50" y2="11" transform="rotate(-10 50 50)"/>
+        <line x1="50" y1="6" x2="50" y2="12" transform="rotate(30 50 50)"/>
+        <line x1="50" y1="6" x2="50" y2="11" transform="rotate(20 50 50)"/>
+        <line x1="50" y1="6" x2="50" y2="11" transform="rotate(10 50 50)"/>
+      </g>
+      <polygon points="50,7 46,1 54,1" class="fr-ai__index"/>
+      <!-- Fixed aircraft reference -->
+      <line x1="30" y1="50" x2="44" y2="50" class="fr-ai__wing"/>
+      <line x1="56" y1="50" x2="70" y2="50" class="fr-ai__wing"/>
+      <circle cx="50" cy="50" r="2.4" class="fr-ai__dot"/>
+      <circle cx="50" cy="50" r="48" class="fr-gauge__ring"/>
+    </svg>
+    <div class="fr-gauge__label">ATTITUDE <span class="fr-gauge__est">est.</span></div>
+    <div class="fr-gauge__value">{{ num(point.pitch_est_deg) }}°<small>/ {{ num(point.bank_est_deg) }}° bank</small></div>
+  </div>
+
+  <div class="fr-gauge" title="Altimeter">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <circle cx="50" cy="50" r="44" class="fr-gauge__face"/>
+      <g class="fr-gauge__ticks">
+        <line ng-repeat="t in [0,1,2,3,4,5,6,7,8,9] track by $index"
+              x1="50" y1="8" x2="50" y2="13"
+              transform="rotate({{ t*36 }} 50 50)"/>
+      </g>
+      <line x1="50" y1="50" x2="50" y2="26" class="fr-gauge__needle fr-gauge__needle--thousands"
+            ng-attr-transform="rotate({{ altThousandsAngle() }} 50 50)"/>
+      <line x1="50" y1="50" x2="50" y2="14" class="fr-gauge__needle fr-gauge__needle--hundreds"
+            ng-attr-transform="rotate({{ altHundredsAngle() }} 50 50)"/>
+      <circle cx="50" cy="50" r="4" class="fr-gauge__hub"/>
+    </svg>
+    <div class="fr-gauge__label">ALT</div>
+    <div class="fr-gauge__value">{{ num(altFt()) }}<small>ft</small></div>
+  </div>
+
+  <!-- Row 2: DI · TC · VSI -->
+  <div class="fr-gauge" title="Heading indicator">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <circle cx="50" cy="50" r="44" class="fr-gauge__face"/>
+      <g class="fr-di__card" ng-attr-transform="rotate({{ diCardAngle() }} 50 50)">
+        <text x="50" y="20" class="fr-di__cardinal">N</text>
+        <text x="80" y="53" class="fr-di__cardinal">E</text>
+        <text x="50" y="86" class="fr-di__cardinal">S</text>
+        <text x="20" y="53" class="fr-di__cardinal">W</text>
+      </g>
+      <polygon points="50,12 46,22 54,22" class="fr-di__lubber"/>
+      <path d="M50 28 L46 50 L50 72 L54 50 Z" class="fr-di__plane"/>
+      <circle cx="50" cy="50" r="3" class="fr-gauge__hub"/>
+    </svg>
+    <div class="fr-gauge__label">HDG</div>
+    <div class="fr-gauge__value">{{ num(point.heading) }}°</div>
+  </div>
+
+  <div class="fr-gauge" title="Turn coordinator">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <circle cx="50" cy="50" r="44" class="fr-gauge__face"/>
+      <g class="fr-tc__plane" ng-attr-transform="rotate({{ tcAngle() }} 50 50)">
+        <line x1="22" y1="50" x2="78" y2="50" class="fr-tc__wing"/>
+        <circle cx="50" cy="50" r="5" class="fr-tc__body"/>
+        <line x1="50" y1="34" x2="50" y2="45" class="fr-tc__tail"/>
+      </g>
+      <line x1="32" y1="64" x2="32" y2="70" class="fr-tc__index"/>
+      <line x1="68" y1="64" x2="68" y2="70" class="fr-tc__index"/>
+      <text x="50" y="84" class="fr-tc__label">2 MIN</text>
+    </svg>
+    <div class="fr-gauge__label">TURN</div>
+    <div class="fr-gauge__value">{{ num(point.turn_rate_dps, 1) }}<small>°/s</small></div>
+  </div>
+
+  <div class="fr-gauge" title="Vertical speed">
+    <svg viewBox="0 0 100 100" class="fr-gauge__svg">
+      <circle cx="50" cy="50" r="48" class="fr-gauge__bezel"/>
+      <circle cx="50" cy="50" r="44" class="fr-gauge__face"/>
+      <text x="14" y="40" class="fr-vsi__mark">UP</text>
+      <text x="14" y="66" class="fr-vsi__mark">DN</text>
+      <line x1="50" y1="50" x2="16" y2="50" class="fr-gauge__needle fr-gauge__needle--vsi"
+            ng-attr-transform="rotate({{ vsiAngle() }} 50 50)"/>
+      <circle cx="50" cy="50" r="4" class="fr-gauge__hub"/>
+    </svg>
+    <div class="fr-gauge__label">VSI</div>
+    <div class="fr-gauge__value">{{ num(point.vspeed_fpm) }}<small>fpm</small></div>
+  </div>
+
+  <!-- Extra readouts -->
+  <div class="fr-readouts">
+    <div class="fr-readout">
+      <span class="fr-readout__label">G</span>
+      <span class="fr-readout__value" ng-class="{'fr-readout__value--hot': point.g > 2 || point.g < 0}">{{ num(point.g, 2) }}</span>
+    </div>
+    <div class="fr-readout">
+      <span class="fr-readout__label">OAT</span>
+      <span class="fr-readout__value">{{ num(point.temp_c, 1) }}°C</span>
+    </div>
+    <div class="fr-readout">
+      <span class="fr-readout__label">SAT</span>
+      <span class="fr-readout__value">{{ num(point.satellites) }}</span>
+    </div>
+    <div class="fr-readout fr-readout--phase">
+      <span class="fr-phase" ng-class="phaseClass()">{{ point.phase || 'parked' }}</span>
+    </div>
+  </div>
+
+</div>

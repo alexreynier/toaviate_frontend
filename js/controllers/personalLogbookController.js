@@ -132,6 +132,16 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
             $state.go('dashboard.my_account.logbook_edit', { entry_id: e.ref_id });
         };
 
+        // Open the flight replay/debrief for a verified club flight. Only shown
+        // when the backend flags the entry with has_track (a recorded track).
+        vm.canReplay = function(e) {
+            return !!(e && e.has_track && e.ref_id);
+        };
+        vm.viewReplay = function(e) {
+            if (!vm.canReplay(e)) return;
+            $state.go('dashboard.flight_replay', { flight_id: e.ref_id });
+        };
+
         vm.deleteEntry = function(e) {
             if (e.kind !== 'manual') return;
             e._confirmDelete = true;

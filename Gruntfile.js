@@ -119,6 +119,7 @@ module.exports = function (grunt) {
                     'css/booking-audit-trail.css',
                     'css/logbook-hours-correction.css',
                     'css/logbook-export.css',
+                    'css/flight-replay.css',
                     'css/daily-aircraft-status.css',
                     'css/club-automations.css',
                     'css/maintenance-org.css',

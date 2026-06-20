@@ -680,6 +680,17 @@
             return (object) ? object : "";
         }
 
+        // Open the flight replay/debrief for a student's logged flight. Shown
+        // only when the row carries has_track (a recorded device track). log.id
+        // is the plane_log_sheets.id the replay endpoints key on.
+        vm.canReplay = function(log){
+            return !!(log && log.has_track && log.id);
+        };
+        vm.viewReplay = function(log){
+            if(!vm.canReplay(log)) return;
+            $state.go('dashboard.flight_replay', { flight_id: log.id });
+        };
+
         vm.open_training_detail = function(pls_id, plane_log_sheet){
             vm.show_popup = true;
             show_edit_training_record = false;
