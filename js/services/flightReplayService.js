@@ -127,17 +127,26 @@ app.factory('FlightReplayService', FlightReplayService);
             return (ft != null ? ft : '—') + ' ft';
         }
 
-        // Absolute URL for a photo's binary (payload gives a relative `url` like
-        // "flight_replay/photo/7"). Prepend the per-env API base so it works as
-        // an <img src> regardless of the active environment.
-        service.PhotoUrl = function(relativeUrl) {
-            if (!relativeUrl) return '';
-            if (/^https?:\/\//i.test(relativeUrl)) return relativeUrl;
-            var clean = relativeUrl.charAt(0) === '/' ? relativeUrl : '/' + relativeUrl;
-            // The replay payload uses paths like "flight_replay/photo/7" (no
-            // /api/v1 prefix), so add it if it isn't already there.
-            if (clean.indexOf('/api/') !== 0) clean = '/api/v1' + clean;
-            return EnvConfig.getApiBaseUrl() + clean;
+        // Absolute URL for a photo's binary. The payload's `url` is a relative,
+        // SELF-AUTHENTICATING SIGNED URL under /api/v1, e.g.
+        //   "flight_replay/photo/7?e={expiry}&u={uid}&t={token}"
+        // Build the full URL the same way every other API call is built:
+        //   getApiBaseUrl() + "/api/v1/" + url
+        // (getApiBaseUrl() is the host only, e.g. https://local-api.toaviate.com —
+        // the interceptor adds /api/v1 for normal $http calls, but an <img> bypasses
+        // the interceptor so we add it here.) The e/u/t query params must stay
+        // intact — any change invalidates the signature → 403. URLs are per-user and
+        // expire in ~1h, so don't long-cache; re-fetch the replay to refresh them
+        // (see the frImgRetry 403 handling).
+        service.PhotoUrl = function(signedUrl) {
+            if (!signedUrl) return '';
+            if (/^https?:\/\//i.test(signedUrl)) return signedUrl;   // already absolute
+            var host = EnvConfig.getApiBaseUrl().replace(/\/$/, '');
+            // Strip a leading slash, then ensure exactly one /api/v1 prefix
+            // (in case the backend ever sends it already prefixed).
+            var rel = signedUrl.replace(/^\//, '');
+            if (rel.indexOf('api/v1/') !== 0) rel = 'api/v1/' + rel;
+            return host + '/' + rel;
         };
 
         return service;

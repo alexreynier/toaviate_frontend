@@ -539,6 +539,28 @@ app.controller('FlightReplayController', FlightReplayController);
         // ════════════════════════════════════════════════
         vm.photoSrc = function (ph) { return FlightReplayService.PhotoUrl(ph.url); };
 
+        // Photo `url`s are signed + expire after ~1h. When an <img> 403s (stale
+        // signature), re-fetch the replay to mint fresh URLs. De-bounced so a grid
+        // of expired thumbnails triggers a SINGLE refresh, not one per image.
+        var _photoRefreshing = false;
+        vm.onPhotoUrlExpired = function () {
+            if (_photoRefreshing) return;
+            _photoRefreshing = true;
+            FlightReplayService.GetReplay(vm.flight_id).then(function (data) {
+                _photoRefreshing = false;
+                if (!data || data.success === false) return;
+                vm.photos = data.photos || [];
+                vm.annotations = data.annotations || [];
+                groupAnnotations();
+                refreshPins();
+                // If the lightbox is open, swap in the refreshed copy of that photo.
+                if (vm.selectedPhoto) {
+                    var match = vm.photos.filter(function (p) { return p.id === vm.selectedPhoto.id; })[0];
+                    vm.selectedPhoto = match || null;
+                }
+            }, function () { _photoRefreshing = false; });
+        };
+
         vm.selectedPhoto = null;
         vm.openPhoto = function (ph) {
             vm.selectedPhoto = ph;

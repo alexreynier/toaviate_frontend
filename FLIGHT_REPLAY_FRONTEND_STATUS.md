@@ -21,7 +21,14 @@ First pass of the per-flight replay/debrief view (see
   backend-derived series (no recompute). Handles `has_track:false`, `FORBIDDEN`,
   and generic errors gracefully.
 - **Service:** [js/services/flightReplayService.js](js/services/flightReplayService.js)
-  — all endpoints from the guide + `PhotoUrl()` (prepends the per-env API base).
+  — all endpoints from the guide + `PhotoUrl()`. Photo `url`s are **relative,
+  self-authenticating signed URLs under /api/v1** (per-user, ~1h expiry), e.g.
+  `flight_replay/photo/7?e=&u=&t=`. Built like every other API call:
+  `getApiBaseUrl() + "/api/v1/" + url` (an `<img>` bypasses the $http interceptor,
+  so the `/api/v1` prefix is added in `PhotoUrl()`; the e/u/t query params are left
+  untouched). Stale URLs (403 after the hour) are handled by the `frImgRetry`
+  directive → re-fetches the replay for fresh URLs (de-bounced to one refresh for a
+  grid of thumbnails).
 - **Launch affordances** (each shown only when the row has `has_track`):
   - My Logbook — replay icon in the actions cell.
   - Aircraft journey log — action in the table row **and** the mobile card.
