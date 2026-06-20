@@ -41,11 +41,32 @@ app.factory('FlightMapAdapter', FlightMapAdapter);
         };
         function airspaceColour(cat) { return AIRSPACE_COLOURS[cat] || AIRSPACE_COLOURS.other; }
 
+        // ── Aircraft marker shapes ──────────────────────────────────────────
+        // SVG path strings drawn in a -18..18 box, nose pointing UP (so the map
+        // rotation by heading works). Shared by both providers so the marker looks
+        // identical. Default 'ga' = top-down GA aircraft (SkyDemon-ish); 'arrow'
+        // is the original dart, kept as a backup; 'jet' a sleeker swept silhouette.
+        var MARKER_STYLE = 'ga';   // 'ga' | 'arrow' | 'jet'
+        var MARKER_PATHS = {
+            // High-wing GA: nose, straight wing, fuselage, tailplane + fin.
+            ga: 'M0,-17 C1.6,-17 2.2,-14.5 2.2,-11.5 L2.2,-7 L17,-2.5 L17,1 L2.2,-2 ' +
+                'L2.2,7 L6,11 L6,13.5 L0,12 L-6,13.5 L-6,11 L-2.2,7 L-2.2,-2 ' +
+                'L-17,1 L-17,-2.5 L-2.2,-7 L-2.2,-11.5 C-2.2,-14.5 -1.6,-17 0,-17 Z',
+            // Original chunky dart (backup).
+            arrow: 'M0,-18 L5,-4 L16,8 L5,5 L2,16 L0,12 L-2,16 L-5,5 L-16,8 L-5,-4 Z',
+            // Sleek swept-wing jet.
+            jet: 'M0,-17 L2.5,-6 L16,4 L16,7 L2.5,1.5 L2,11 L6,14 L6,16 L0,14 ' +
+                 'L-6,16 L-6,14 L-2,11 L-2.5,1.5 L-16,7 L-16,4 L-2.5,-6 Z'
+        };
+        function markerPath(style) { return MARKER_PATHS[style] || MARKER_PATHS.ga; }
+
         return {
             create: create,
             providerName: function () { return resolveProvider(); },
             AIRSPACE_COLOURS: AIRSPACE_COLOURS,
-            airspaceColour: airspaceColour
+            airspaceColour: airspaceColour,
+            // Read/override the aircraft marker style ('ga' | 'arrow' | 'jet').
+            markerStyle: function (s) { if (s) MARKER_STYLE = s; return MARKER_STYLE; }
         };
 
         // ── Smooth the route with a Catmull-Rom spline ──────────────────────
@@ -268,8 +289,8 @@ app.factory('FlightMapAdapter', FlightMapAdapter);
             function ll(p) { return { lat: p.lat, lng: p.lon }; }
             function planeIcon(heading) {
                 return {
-                    path: 'M0,-18 L5,-4 L16,8 L5,5 L2,16 L0,12 L-2,16 L-5,5 L-16,8 L-5,-4 Z',
-                    fillColor: '#1e3a5f', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 1.5,
+                    path: markerPath(MARKER_STYLE),
+                    fillColor: '#1e3a5f', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 1.4,
                     scale: 1, rotation: heading, anchor: new gmaps.Point(0, 0)
                 };
             }
@@ -529,9 +550,9 @@ app.factory('FlightMapAdapter', FlightMapAdapter);
             }
 
             function planeSvg() {
-                return '<svg viewBox="-18 -18 36 36" width="34" height="34">' +
-                    '<path d="M0,-16 L5,-3 L15,7 L5,4 L2,15 L0,11 L-2,15 L-5,4 L-15,7 L-5,-3 Z" ' +
-                    'fill="#1e3a5f" stroke="#fff" stroke-width="1.4"/></svg>';
+                return '<svg viewBox="-19 -19 38 38" width="36" height="36">' +
+                    '<path d="' + markerPath(MARKER_STYLE) + '" ' +
+                    'fill="#1e3a5f" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>';
             }
         }
     }
