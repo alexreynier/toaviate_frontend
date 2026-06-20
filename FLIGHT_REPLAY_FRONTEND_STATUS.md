@@ -25,7 +25,9 @@ First pass of the per-flight replay/debrief view (see
 - **Launch affordances** (each shown only when the row has `has_track`):
   - My Logbook — replay icon in the actions cell.
   - Aircraft journey log — action in the table row **and** the mobile card.
-  - Student records — replay icon beside the existing training-detail info icon.
+  - Student records (instructor) — replay icon beside the training-detail info icon.
+  - Training records (member, `dashboard.my_account.training_records`) — replay
+    icon in the flights table **and** mobile card.
 
 Fully responsive (instruments stack above the map on tablet; six-pack/summary go
 2-up on phones) and heavily animated (gauge needle tweening, fades, hover lifts).
@@ -84,10 +86,19 @@ unaffected.
 ## Still needed to go live
 
 1. **`has_track` on the list payloads.** The replay payload and `/meta` already
-   return `has_track`, but the three *list* endpoints that feed the launch points
-   don't yet. The replay buttons are wired to `row.has_track` and stay hidden until
-   it's present — so they light up automatically once the backend adds the flag to:
-   - the personal-logbook combined entries (`ref_id` rows),
-   - the aircraft journey-log rows (`id`),
-   - the student-records flight rows (`id`).
+   return `has_track`, but the *list* endpoints that feed the launch points don't
+   yet. Each replay button is gated on `row.has_track` (so it appears **only for
+   flights that actually have a recorded track/log**) and stays hidden until the
+   flag is present — they light up automatically once the backend adds a boolean
+   **`has_track`** to each flight row in:
+
+   | Launch point | Endpoint (list) | Row id field |
+   |---|---|---|
+   | My Logbook | personal-logbook combined entries | `ref_id` |
+   | Aircraft journey log | `GET /api/v1/planes/get_journey_log/{plane_id}` | `id` |
+   | Training records (member) | training-records `log_sheets[]` | `id` |
+   | Student records (instructor) | student-records `log_sheets[]` | `id` |
+
+   `has_track` = true when a recorded device track exists for that
+   `plane_log_sheets.id` (i.e. the same condition the replay payload reports).
    No frontend change needed when that lands.
