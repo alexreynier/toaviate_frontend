@@ -216,9 +216,12 @@ rev (cache-bust) → usemin → clean. Output goes to `dist/`. See [README.md](R
      explicit hand-maintained list** in `concat.css`. Forgetting the CSS list = the file
      works in dev but is **silently missing in production**.
 2. **CSS parity:** every `css/*.css` linked in index.html is now also in the Gruntfile
-   `concat.css` list, so dev and prod match. (`css/accordion.css` is intentionally in the
-   Gruntfile but not linked in index.html — harmless leftover.) When you add a new CSS
-   file, remember to add it to **both** lists or it'll be missing from prod again.
+   `concat.css` list, so dev and prod match. When you add a new CSS file, remember to
+   add it to **both** lists or it'll be missing from prod again. (`css/accordion.css`
+   was previously bundled-but-not-linked; it carries a global `body { padding:24px }`
+   that overrode `styles.css`'s `body { padding:50px 0 }` in the prod bundle only,
+   pushing every page up under the fixed header. It is now removed from the Gruntfile
+   concat list — don't re-add it.)
 3. Environment config (API URLs, Stripe keys) lives in
    [js/services/envConfigService.js](js/services/envConfigService.js); the build swaps the
    `environment` value in the **output only**, never the source.

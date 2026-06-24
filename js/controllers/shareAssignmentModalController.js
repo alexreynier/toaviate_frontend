@@ -40,7 +40,6 @@ app.controller('ShareAssignmentModalController', ShareAssignmentModalController)
 
         m.share = function() {
             if (!m.selected.length) { ToastService.warning('Pick a student', 'Choose at least one student to share with.'); return; }
-            m.sharing = true;
             var payload = {
                 item_type: m.item.type,
                 item_id: m.item.id,
@@ -53,9 +52,35 @@ app.controller('ShareAssignmentModalController', ShareAssignmentModalController)
             ['attach_type', 'attach_id', 'timing', 'course_sitting_id', 'course_id'].forEach(function(k) {
                 if (m.context[k] != null && m.context[k] !== '') payload[k] = m.context[k];
             });
+            submit(payload, false);
+        };
 
+        // ── Re-assign confirmation ──
+        // The backend returns needs_confirm:true (NOT an error) when a student in
+        // results[] has already_completed:true. We surface its message and, on
+        // confirm, re-POST the identical payload with confirm:true — which re-assigns
+        // and grants a fresh blank attempt (the old one is preserved). confirm:true
+        // is idempotent-friendly, so re-sending all students is safe.
+        m.confirmNeeded = false;
+        m.confirmMessage = '';
+        var pendingPayload = null;
+
+        function submit(payload, confirmed) {
+            m.sharing = true;
+            if (confirmed) payload.confirm = true;
             CourseAssignmentService.Share(payload).then(function(data) {
                 m.sharing = false;
+
+                if (data && data.needs_confirm && !confirmed) {
+                    // Not an error — ask the instructor, then retry with confirm:true.
+                    pendingPayload = payload;
+                    m.confirmMessage = data.message ||
+                        'One or more students have already completed this. Re-assign anyway? A fresh retake will be granted.';
+                    m.confirmNeeded = true;
+                    return;
+                }
+
+                m.confirmNeeded = false;
                 if (!data || data.success === false) { ToastService.error('Could not share', (data && data.message) || ''); return; }
                 var shared = data.shared || (data.results ? data.results.length : m.selected.length);
                 var emailed = (data.results || []).filter(function(r) { return r.emailed; }).length;
@@ -63,6 +88,15 @@ app.controller('ShareAssignmentModalController', ShareAssignmentModalController)
                     m.sendEmail ? (emailed + ' notified by email.') : 'Added to their tasks (no email).');
                 $uibModalInstance.close(data);
             });
+        }
+
+        m.confirmReassign = function() {
+            if (!pendingPayload) return;
+            submit(pendingPayload, true);
+        };
+        m.cancelReassign = function() {
+            m.confirmNeeded = false;
+            pendingPayload = null;
         };
 
         m.cancel = function() { $uibModalInstance.dismiss('cancel'); };

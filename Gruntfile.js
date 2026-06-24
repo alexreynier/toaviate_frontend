@@ -79,8 +79,6 @@ module.exports = function (grunt) {
                 // tags inside the build:css block in index.html. CSS cascade is
                 // order-dependent — a different order here makes the compiled build
                 // look different from local. Local is the source of truth for order.
-                // (accordion.css is intentionally last: it's bundled but not linked
-                // in index.html, so keep it out of the ordered set above it.)
                 src: [
                     'libs/css/bootstrap.datetime.css',
                     'libs/css/jquery-ui.min.css',
@@ -126,8 +124,16 @@ module.exports = function (grunt) {
                     'css/sms.css',
                     'css/logbook.css',
                     'css/course-content.css',
-                    'libs/css/scheduler.css',
-                    'css/accordion.css'
+                    'libs/css/scheduler.css'
+                    // NOTE: css/accordion.css is deliberately NOT bundled. It is a
+                    // leftover standalone-page stylesheet that carries a GLOBAL
+                    // `body { padding: 24px }` rule. It isn't linked in index.html
+                    // (so dev never loads it), but when it was concatenated LAST here
+                    // its body rule overrode styles.css's `body { padding: 50px 0 }`
+                    // in the prod bundle only — dropping the 50px top padding that
+                    // clears the fixed #main_header2, so every page sat too high on
+                    // built/v1 while dev looked correct. Nothing uses its
+                    // `.accordionpay` classes. Leave it unbundled so prod matches dev.
                 ],
                 dest: 'dist/css/compiled.css'
             }

@@ -490,17 +490,62 @@
                  CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
                     .then(function(data){
                         vm.show_record = true;
-                        vm.all_items = data.all_items;   
+                        vm.all_items = data.all_items;
                         vm.student = data.student;
-                        vm.training_records = data.training_records;   
+                        vm.training_records = data.training_records;
                         vm.exams = data.exams;
                         vm.exam_records = data.exam_records;
                         vm.course_totals = data.course_hours;
                         vm.log_sheets = data.log_sheets;
+                        // Completed questionnaires for this course (added to the records
+                        // endpoint). Empty/absent until the backend returns it — the
+                        // section then renders without any further frontend change.
+                        vm.questionnaires = data.questionnaires || [];
+                        // Group the flat objective list into lessons for the accordion view.
+                        vm.lessons = group_items_by_lesson(vm.all_items);
                     });
 
             }
         }
+
+        // Group the flat all_items (objectives, already ordered by lesson then item)
+        // into per-lesson buckets for the collapsible lesson view. Each objective
+        // carries lesson_id / lesson_title / lesson_number, so no backend change is
+        // needed for the grouping itself.
+        function group_items_by_lesson(items){
+            var byId = {};
+            var order = [];
+            (items || []).forEach(function(it){
+                var lid = it.lesson_id;
+                if(!byId[lid]){
+                    byId[lid] = {
+                        lesson_id: lid,
+                        lesson_title: it.lesson_title,
+                        lesson_number: it.lesson_number,
+                        items: [],
+                        collapsed: true   // accordions start closed
+                    };
+                    order.push(lid);
+                }
+                byId[lid].items.push(it);
+            });
+            return order.map(function(lid){
+                var lesson = byId[lid];
+                // Progress: how many objectives have been graded by an instructor.
+                lesson.graded_count = lesson.items.filter(function(i){ return !!i.last_entry; }).length;
+                lesson.total_count = lesson.items.length;
+                // "Lesson complete" = the instructor's stored sign-off (training_records.
+                // completed). The backend exposes it on each objective's last_entry once
+                // added; a lesson counts complete when its latest entries are flagged.
+                // Until the flag is present the tick simply doesn't show (no false ticks).
+                var withEntries = lesson.items.filter(function(i){ return !!i.last_entry; });
+                lesson.is_completed = withEntries.length > 0 && withEntries.every(function(i){
+                    return Number(i.last_entry.completed) === 1;
+                });
+                return lesson;
+            });
+        }
+        vm.toggle_lesson = function(lesson){ lesson.collapsed = !lesson.collapsed; };
 
         vm.load_selected_flight = function(flight_id){
 
@@ -679,6 +724,26 @@
             var object = vm.exam_records.find(function(item){ return item.exam_id === exam_id; });
             return (object) ? object : "";
         }
+
+        // ── Course questionnaires (completed by this student, with results) ──
+        // Mirrors the Exams section. Each item is a questionnaire attempt for this
+        // course (latest attempt per questionnaire, scored once released).
+        vm.questionnaire_status_text = function(q){
+            if(q.status === 'reviewed' || q.score_released) return 'Reviewed';
+            if(q.status === 'submitted') return 'Submitted';
+            if(q.status === 'opened' || q.status === 'in_progress') return 'In progress';
+            return 'Not started';
+        };
+        // Show the score only once released (matches the student-facing gating).
+        vm.questionnaire_has_score = function(q){
+            return !!(q && q.score_released && q.max_score);
+        };
+        // Open the released result page for this attempt (same route the logbook /
+        // questionnaire hub use). Only meaningful for a submitted/reviewed attempt.
+        vm.open_questionnaire_result = function(q){
+            if(!q || !q.attempt_id) return;
+            $state.go('dashboard.my_account.questionnaire_result', { attempt_id: q.attempt_id });
+        };
 
         // Open the flight replay/debrief for a student's logged flight. Shown
         // only when the row carries has_track (a recorded device track). log.id

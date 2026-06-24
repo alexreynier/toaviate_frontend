@@ -174,11 +174,18 @@
                     items = items.filter(function(q) { return q.is_published; });
                     items.forEach(function(q) {
                         q._qid = q.questionnaire_id || q.id;
-                        // Match an attempt for THIS questionnaire + timing (+ this target).
-                        var a = attempts.filter(function(at) {
+                        // Match attempts for THIS questionnaire + timing (+ this target),
+                        // then pick the LATEST (highest id). A student may have several
+                        // attempts (retakes); "View result" must open the most recent one,
+                        // not whichever happened to sort first. Don't rely on the API's
+                        // order — choose explicitly.
+                        var matches = attempts.filter(function(at) {
                             return String(at.questionnaire_id) === String(q._qid) &&
                                    (at.timing || 'pre') === (q.timing || 'pre');
-                        })[0];
+                        });
+                        var a = matches.reduce(function(latest, at) {
+                            return (!latest || (Number(at.id) || 0) >= (Number(latest.id) || 0)) ? at : latest;
+                        }, null);
                         q._attempt = a || null;
                         q._status = a ? a.status : 'not_started';
                     });

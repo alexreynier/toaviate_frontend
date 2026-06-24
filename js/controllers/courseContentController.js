@@ -132,7 +132,14 @@ app.controller('CourseContentController', CourseContentController);
         }
         vm.clearStudent = function() { vm.selectedStudent = null; vm.studentAttempts = null; vm.studentAssignments = null; };
 
-        // ── Outstanding/assigned items for the selected student (ForStudent) ──
+        // ── OUTSTANDING assignments for the selected student (ForStudent) ──
+        // This card tracks what the instructor has DELIBERATELY set this student
+        // (course_assignments) and is purely a to-do list: only items they haven't
+        // finished yet. Completed assignments drop off — their result already shows in
+        // the Questionnaires table below, so listing them here (as "Assigned · Completed"
+        // with a Remove button) was both contradictory and offered a pointless un-assign.
+        // Note: most course/lesson-linked questionnaires are taken self-serve and have
+        // NO assignment row at all, so they never appear here — only explicit assignments do.
         function loadStudentAssignments(s) {
             vm.loadingAssignments = true;
             CourseAssignmentService.ForStudent(vm.club_id, s.id).then(function(data) {
@@ -141,7 +148,8 @@ app.controller('CourseContentController', CourseContentController);
                     : (data && data.items) ? data.items
                     : (angular.isArray(data) ? data : []);
                 vm.studentAssignments = list.filter(function(a) {
-                    return a.status !== 'revoked' && !a.revoked && !a.revoked_at;
+                    if (a.status === 'revoked' || a.revoked || a.revoked_at) return false;
+                    return a.status !== 'completed';   // outstanding only
                 });
             });
         }

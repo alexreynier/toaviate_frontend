@@ -14,83 +14,94 @@
 
     <div ng-if="!vm.loading">
 
-      <!-- ── Assigned to me ── -->
-      <div class="cc-section" ng-if="vm.assignments.length">
+      <!-- truly nothing anywhere -->
+      <div class="cc-empty" ng-if="!vm.toDo.length && !vm.awaiting.length && !vm.reviewed.length && !vm.materials.length">
+        <i class="fa fa-clipboard-question"></i>
+        <p>No questionnaires yet — your instructor will assign these for your course or lessons.</p>
+      </div>
+
+      <!-- ── 1) TO DO — assigned, not yet submitted ── -->
+      <div class="cc-section" ng-if="vm.toDo.length || vm.materials.length">
         <div class="cc-section__title">
-          <i class="fa fa-list-check"></i> Assigned to me
-          <span class="cc-badge cc-badge--blue" ng-if="vm.outstandingCount">{{ vm.outstandingCount }} to do</span>
+          <i class="fa fa-list-check"></i> To do
+          <span class="cc-badge cc-badge--amber" ng-if="vm.outstandingCount">{{ vm.outstandingCount }} to do</span>
         </div>
 
-        <!-- everything assigned is done -->
-        <div class="cc-allcaught" ng-if="!vm.outstandingCount">
-          <i class="fa fa-circle-check"></i> Nice — everything assigned to you is done!
-        </div>
-
-        <!-- task cards -->
-        <div class="cc-task" ng-repeat="a in vm.assignments"
-             ng-class="{'cc-task--done': a._done, 'cc-task--overdue': vm.assignOverdue(a)}"
-             ng-click="vm.openAssignment(a)">
-          <div class="cc-task__icon" ng-class="{'cc-task__icon--material': a.item_type === 'material'}">
-            <i class="fa" ng-class="a.item_type === 'material' ? 'fa-photo-film' : 'fa-clipboard-question'"></i>
-          </div>
+        <!-- materials to read/watch -->
+        <div class="cc-task" ng-repeat="a in vm.materials" ng-click="vm.openMaterial(a)">
+          <div class="cc-task__icon cc-task__icon--material"><i class="fa fa-photo-film"></i></div>
           <div class="cc-task__body">
             <div class="cc-task__title">{{ a.item_title }}</div>
             <div class="cc-task__msg" ng-if="a.message"><i class="fa fa-quote-left"></i> {{ a.message }}</div>
-            <div class="cc-task__meta">
-              <span class="cc-badge" ng-class="vm.assignBadge(a.status)">{{ vm.assignStatusText(a) }}</span>
-              <span class="cc-task__due" ng-if="a.due_date" ng-class="{'cc-task__due--over': vm.assignOverdue(a)}">
-                <i class="fa fa-calendar"></i> Due {{ a.due_date }}<span ng-if="vm.assignOverdue(a)"> · overdue</span>
-              </span>
-              <span class="cc-task__type">{{ a.item_type === 'material' ? 'Material' : 'Questionnaire' }}</span>
-            </div>
+            <div class="cc-task__meta"><span class="cc-task__type">Material</span></div>
           </div>
           <div class="cc-task__action">
-            <button class="cc-btn" ng-class="a._done ? 'cc-btn--ghost' : 'cc-btn--primary'" ng-click="$event.stopPropagation(); vm.openAssignment(a)">
-              <i class="fa" ng-class="a.item_type === 'material' ? 'fa-play' : 'fa-pen'"></i>
-              {{ vm.assignActionLabel(a) }}
-            </button>
+            <button class="cc-btn cc-btn--primary" ng-click="$event.stopPropagation(); vm.openMaterial(a)"><i class="fa fa-play"></i> Open</button>
           </div>
+        </div>
+
+        <!-- questionnaires to do -->
+        <div class="cc-task-group" ng-repeat="r in vm.toDo">
+          <div class="cc-task" ng-click="vm.openRow(r)">
+            <div class="cc-task__icon"><i class="fa fa-clipboard-question"></i></div>
+            <div class="cc-task__body">
+              <div class="cc-task__title">{{ r.title }}</div>
+              <div class="cc-task__msg" ng-if="r.message"><i class="fa fa-quote-left"></i> {{ r.message }}</div>
+              <div class="cc-task__meta">
+                <span class="cc-badge" ng-class="vm.rowBadgeClass(r)">{{ vm.rowStatusText(r) }}</span>
+                <span class="cc-task__due" ng-if="r.due_date"><i class="fa fa-calendar"></i> Due {{ r.due_date }}</span>
+                <span class="cc-task__type">Questionnaire</span>
+              </div>
+            </div>
+            <div class="cc-task__action">
+              <button class="cc-btn cc-btn--primary" ng-click="$event.stopPropagation(); vm.openRow(r)"><i class="fa fa-pen"></i> {{ vm.rowActionLabel(r) }}</button>
+            </div>
+          </div>
+          <div ng-include="'cc-row-history'"></div>
         </div>
       </div>
 
-      <!-- ── All my questionnaires ── -->
-      <div class="cc-section">
-        <div class="cc-section__title" ng-if="vm.assignments.length">
-          <i class="fa fa-clock-rotate-left"></i> All my questionnaires
-        </div>
-
-        <!-- truly nothing anywhere -->
-        <div class="cc-empty" ng-if="!vm.attempts.length && !vm.assignments.length">
-          <i class="fa fa-clipboard-question"></i>
-          <p>No questionnaires yet — your instructor will assign these for your course or lessons.</p>
-        </div>
-
-        <!-- have assignments but no attempt history yet -->
-        <div class="cc-empty cc-empty--soft" ng-if="!vm.attempts.length && vm.assignments.length">
-          <i class="fa fa-clipboard-question"></i>
-          <p>Once you start a questionnaire it’ll show here with your progress and results.</p>
-        </div>
-
-        <div class="cc-item" ng-repeat="a in vm.attempts">
-          <div class="cc-item__icon">
-            <i class="fa fa-clipboard-question"></i>
-          </div>
-          <div class="cc-item__body">
-            <div class="cc-item__title">{{ a.questionnaire_title || a.title }}</div>
-            <div class="cc-item__sub">
-              <span ng-if="a.target_title">{{ a.target_title }}</span>
-              <span ng-if="a.course_reference">· {{ a.course_reference }}</span>
-              <span class="cc-badge" ng-class="vm.statusBadge(a.status)">{{ vm.pretty(a.status) }}</span>
-              <span class="cc-chip" ng-if="a.status === 'reviewed' || a.score_released">
-                <i class="fa fa-star"></i> {{ a.auto_score }} / {{ a.max_score }}
-              </span>
+      <!-- ── 2) AWAITING REVIEW — submitted, not yet marked ── -->
+      <div class="cc-section" ng-if="vm.awaiting.length">
+        <div class="cc-section__title"><i class="fa fa-hourglass-half"></i> Awaiting review</div>
+        <div class="cc-task-group" ng-repeat="r in vm.awaiting">
+          <div class="cc-task" ng-click="vm.openRow(r)">
+            <div class="cc-task__icon"><i class="fa fa-clipboard-question"></i></div>
+            <div class="cc-task__body">
+              <div class="cc-task__title">{{ r.title }}</div>
+              <div class="cc-task__msg" ng-if="r.message"><i class="fa fa-quote-left"></i> {{ r.message }}</div>
+              <div class="cc-task__meta">
+                <span class="cc-badge cc-badge--blue">Submitted · awaiting review</span>
+                <span class="cc-task__type">Questionnaire</span>
+              </div>
+            </div>
+            <div class="cc-task__action">
+              <button class="cc-btn cc-btn--ghost" ng-click="$event.stopPropagation(); vm.openRow(r)"><i class="fa fa-eye"></i> View submission</button>
             </div>
           </div>
-          <div class="cc-item__actions">
-            <button class="cc-btn cc-btn--primary" ng-click="vm.openAttempt(a)">
-              {{ vm.statusLabel(a.status) }}
-            </button>
+          <div ng-include="'cc-row-history'"></div>
+        </div>
+      </div>
+
+      <!-- ── 3) REVIEWED — marked & released ── -->
+      <div class="cc-section" ng-if="vm.reviewed.length">
+        <div class="cc-section__title"><i class="fa fa-circle-check"></i> Reviewed</div>
+        <div class="cc-task-group" ng-repeat="r in vm.reviewed">
+          <div class="cc-task" ng-click="vm.openRow(r)">
+            <div class="cc-task__icon"><i class="fa fa-clipboard-question"></i></div>
+            <div class="cc-task__body">
+              <div class="cc-task__title">{{ r.title }}</div>
+              <div class="cc-task__meta">
+                <span class="cc-badge cc-badge--green">Reviewed</span>
+                <span class="cc-chip" ng-if="r.max_score != null"><i class="fa fa-star"></i> {{ r.auto_score }} / {{ r.max_score }}</span>
+                <span class="cc-task__type">Questionnaire</span>
+              </div>
+            </div>
+            <div class="cc-task__action">
+              <button class="cc-btn cc-btn--primary" ng-click="$event.stopPropagation(); vm.openRow(r)"><i class="fa fa-star"></i> View result</button>
+            </div>
           </div>
+          <div ng-include="'cc-row-history'"></div>
         </div>
       </div>
 
@@ -98,3 +109,30 @@
 
   </div>
 </div>
+
+<!-- ──────────────────────────────────────────────────────────────────────
+     Inline "Previous attempts" expander, shared by every questionnaire row.
+     Expects `r` (the unified row) in scope. Renders nothing when the test has
+     no earlier attempts; otherwise a toggle + a compact list of past attempts.
+     A finished past attempt links to its result page; an unsubmitted one is
+     shown for completeness but isn't clickable.
+─────────────────────────────────────────────────────────────────────── -->
+<script type="text/ng-template" id="cc-row-history">
+  <div class="cc-history" ng-if="r.history.length">
+    <button class="cc-history__toggle" ng-click="vm.toggleHistory(r, $event)">
+      <i class="fa" ng-class="r.showHistory ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+      Previous attempts ({{ r.history.length }})
+    </button>
+    <div class="cc-history__list" ng-if="r.showHistory">
+      <div class="cc-history__row" ng-repeat="at in r.history"
+           ng-class="{'cc-history__row--link': vm.pastViewable(at)}"
+           ng-click="vm.openPastAttempt(at)">
+        <span class="cc-badge" ng-class="vm.pastBadgeClass(at)">{{ vm.pastStatusText(at) }}</span>
+        <span class="cc-history__att" ng-if="at.attempt_number">Attempt {{ at.attempt_number }}</span>
+        <span class="cc-chip" ng-if="vm.hasPastScore(at)"><i class="fa fa-star"></i> {{ at.auto_score }} / {{ at.max_score }}</span>
+        <span class="cc-history__date" ng-if="at.submitted_at"><i class="fa fa-calendar"></i> {{ at.submitted_at | date:'d MMM yyyy' }}</span>
+        <span class="cc-history__view" ng-if="vm.pastViewable(at)"><i class="fa fa-eye"></i> View</span>
+      </div>
+    </div>
+  </div>
+</script>

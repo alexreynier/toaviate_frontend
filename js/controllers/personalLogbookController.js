@@ -197,6 +197,11 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
                     }
                     // Coerce date strings → Date objects for input[type=date].
                     if (data.flight_date) data.flight_date = fromYMD(data.flight_date);
+                    // The API may return times as HH:mm:ss; the form (and parseHHMM /
+                    // total calc) only understands HH:mm. Trim the seconds so the value
+                    // displays correctly and the total can recompute.
+                    if (data.departure_time) data.departure_time = toHHMM(data.departure_time);
+                    if (data.arrival_time) data.arrival_time = toHHMM(data.arrival_time);
                     vm.entry = angular.extend(blankEntry(), data);
                     // Pre-populate the airfield pickers from the saved entry so the
                     // selection shows on edit (the entry carries id + name + code).
@@ -257,6 +262,11 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
         // Aircraft registration lookup (debounced, on the registration field).
         var lookupTimer = null;
         vm.lookupAircraft = function() {
+            // Registrations are always upper-case — force it as the pilot types
+            // (this is the registration field's ng-change handler, add & edit).
+            if (vm.entry.registration) {
+                vm.entry.registration = vm.entry.registration.toUpperCase();
+            }
             var reg = (vm.entry.registration || '').trim();
             if (lookupTimer) $timeout.cancel(lookupTimer);
             if (reg.length < 3) return;
@@ -336,6 +346,10 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
 
         vm.save = function() {
             var e = vm.entry;
+
+            // Registrations are stored upper-case (covers an edit where the field was
+            // never re-touched, so ng-change didn't fire).
+            if (e.registration) e.registration = e.registration.toUpperCase();
 
             // ── Client-side validation (mirror backend rules to avoid round-trips) ──
             if (!e.flight_date) { ToastService.warning('Date required', 'When was the flight?'); return; }
@@ -520,6 +534,15 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
         };
 
         vm.restartImport = function() { initImport(); };
+
+        // Normalise a time value to HH:mm (drop any seconds the API tacks on).
+        // "14:30:00" → "14:30"; "9:5" → "09:05"; leaves anything unparseable as-is.
+        function toHHMM(t) {
+            if (!t) return t;
+            var m = String(t).match(/^(\d{1,2}):(\d{2})/);
+            if (!m) return t;
+            return ('0' + m[1]).slice(-2) + ':' + m[2];
+        }
 
         // ── Date helpers (input[type=date] uses Date objects; API uses YYYY-MM-DD) ──
         function toYMD(d) {

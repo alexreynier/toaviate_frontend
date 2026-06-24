@@ -36,14 +36,44 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
         // ASSIGNED TO ME — items an instructor shared with the student.
         // (Rendered as a section at the top of the "mine" hub.)
         // ════════════════════════════════════════════
-        vm.assignBadge = function(status) {
-            switch (status) {
+        // A questionnaire assignment is only truly "done" (result viewable) once the
+        // instructor has REVIEWED/RELEASED it. A submitted-but-unreleased attempt is
+        // "Submitted — awaiting review": the student can't see a marked result yet,
+        // and (e.g. after a re-assign) it must NOT read as Completed. Material has no
+        // review step, so completed = done.
+        function isQuestionnaire(a) { return a.item_type !== 'material'; }
+        function isReleased(a) {
+            return !!(a.score_released || a.attempt_status === 'reviewed' || a.reviewed);
+        }
+        // "Off the student's plate" — they've completed their part (submitted /
+        // viewed material). Drives sorting + the outstanding-to-do count, so an
+        // awaiting-review questionnaire isn't nagged as still-to-do.
+        vm.assignDone = function(a) {
+            return a.status === 'completed';
+        };
+        // Submitted by the student but not yet reviewed/released by the instructor.
+        // It's "done" for the student, but must NOT read as "Completed / View result"
+        // — there's no released, marked result to view yet.
+        function isAwaitingReview(a) {
+            return a.status === 'completed' && isQuestionnaire(a) && !isReleased(a);
+        }
+        // Fully finished AND result available to view.
+        function isReleasedComplete(a) {
+            return a.status === 'completed' && (!isQuestionnaire(a) || isReleased(a));
+        }
+
+        vm.assignBadge = function(a) {
+            // (a may be passed as the object; tolerate a raw status string too)
+            var obj = (a && typeof a === 'object') ? a : { status: a };
+            if (isAwaitingReview(obj)) return 'cc-badge--blue';   // submitted, pending review
+            switch (obj.status) {
                 case 'completed': return 'cc-badge--green';
                 case 'viewed': return 'cc-badge--amber';
                 default: return 'cc-badge--blue';   // assigned
             }
         };
         vm.assignStatusText = function(a) {
+            if (isAwaitingReview(a)) return 'Submitted · awaiting review';
             switch (a.status) {
                 case 'completed': return 'Completed';
                 case 'viewed': return 'In progress';
@@ -51,8 +81,11 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
             }
         };
         vm.assignActionLabel = function(a) {
-            if (a.status === 'completed') return (a.item_type === 'material') ? 'View again' : 'View result';
-            if (a.status === 'viewed') return (a.item_type === 'material') ? 'Continue' : 'Continue';
+            if (a.status === 'completed') {
+                if (a.item_type === 'material') return 'View again';
+                return isReleased(a) ? 'View result' : 'View submission';
+            }
+            if (a.status === 'viewed') return 'Continue';
             return (a.item_type === 'material') ? 'Open' : 'Start';
         };
         // Is the due date today or in the past (and not done)?
@@ -179,42 +212,224 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
         };
 
         // ════════════════════════════════════════════
-        // MINE — one hub: "Assigned to me" tasks on top, full attempt
-        // history below. Loads both sources in parallel.
+        // MINE — ONE unified list, grouped into three NON-OVERLAPPING states:
+        //   to_do          — assigned but not yet submitted (not started / in progress)
+        //   awaiting_review — submitted, instructor hasn't reviewed/released yet
+        //   reviewed       — marked & released by the instructor
+        // Each questionnaire appears in exactly one group. We merge the two sources
+        // (assignments = what the instructor set; attempts = the student's actual
+        // tries) keyed by questionnaire id, always preferring the real attempt for
+        // links so "View"/"Continue" open the right thing.
         // ════════════════════════════════════════════
         function initMine() {
             vm.loading = true;
-            vm.attemptsLoaded = false;
-            vm.assignmentsLoaded = false;
-            loadMyAssignments();
-            QuestionnaireService.Mine().then(function(data) {
-                vm.attemptsLoaded = true;
-                vm.attempts = (data && data.items) ? data.items : [];
-                if (vm.assignmentsLoaded) vm.loading = false;
-            });
-        }
-        function loadMyAssignments() {
+            var gotAssign = false, gotAttempts = false;
+            var assignments = [], attempts = [];
+            var done = function() { if (gotAssign && gotAttempts) { mergeMine(assignments, attempts); vm.loading = false; } };
+
             CourseAssignmentService.Mine().then(function(data) {
-                vm.assignmentsLoaded = true;
-                if (vm.attemptsLoaded) vm.loading = false;
+                gotAssign = true;
                 var items = (data && data.items) ? data.items : (angular.isArray(data) ? data : []);
-                items = items.filter(function(a) { return a.status !== 'revoked' && !a.revoked; });
-                items.forEach(function(a) { a._done = (a.status === 'completed'); });
-                vm.assignments = items.sort(function(x, y) {
-                    if (x._done !== y._done) return x._done ? 1 : -1;
-                    var dx = x.due_date || '9999', dy = y.due_date || '9999';
-                    return dx < dy ? -1 : (dx > dy ? 1 : 0);
-                });
-                vm.outstandingCount = items.filter(function(a) { return !a._done; }).length;
-            });
+                assignments = items.filter(function(a) { return a.status !== 'revoked' && !a.revoked; });
+                done();
+            }, function() { gotAssign = true; done(); });
+
+            QuestionnaireService.Mine().then(function(data) {
+                gotAttempts = true;
+                attempts = (data && data.items) ? data.items : [];
+                done();
+            }, function() { gotAttempts = true; done(); });
         }
-        vm.openAttempt = function(a) {
-            if (a.status === 'reviewed' || (a.status === 'submitted' && a.score_released)) {
-                $state.go('dashboard.my_account.questionnaire_result', { attempt_id: a.id });
-            } else if (a.status === 'submitted') {
-                $state.go('dashboard.my_account.questionnaire_result', { attempt_id: a.id });
+
+        // Normalise an attempt's status into one of the three group keys.
+        // Key off the attempt's OWN status (attempt_status/status) + score_released —
+        // never the assignment's coarse status. A fresh retake's open attempt reads
+        // opened/in_progress (score not released) → to_do, even though the assignment
+        // may still say 'viewed' or 'assigned'.
+        function attemptGroup(at) {
+            var s = at.attempt_status || at.status;
+            if (s === 'reviewed' || at.score_released) return 'reviewed';
+            if (s === 'submitted') return 'awaiting_review';
+            return 'to_do';   // opened / in_progress / not started
+        }
+        // Order attempts so the LATEST one wins (highest id / most-recent start).
+        // For a re-assigned questionnaire there are several attempts; the newest is
+        // the live one — a fresh retake must surface as to_do, NOT stay parked under
+        // the old reviewed attempt. So we pick by recency, not by most-advanced state.
+        function attemptOrder(at) {
+            return Number(at.id) || 0;
+        }
+
+        function mergeMine(assignments, attempts) {
+            var byQ = {};   // questionnaire_id -> unified row
+
+            // ── Split CURRENT vs PAST attempts (per questionnaire) ──
+            // The hub is questionnaire-centric: ONE live row per questionnaire, showing
+            // the current (= LATEST, not best-scoring) attempt. Every OTHER attempt for
+            // that same questionnaire — earlier retakes, a stray unsubmitted duplicate,
+            // anything not the winner — is that test's history. It's kept with its own
+            // row (row.history) and shown via an inline "Previous attempts" expander, so
+            // nothing is ever silently dropped. (We don't rely on supersedes_attempt_id:
+            // orphan/unlinked extras must show too — this matches the instructor view,
+            // which lists every attempt.)
+            attempts = attempts || [];
+            var currentByQ = {};   // questionnaire_id -> winning (latest) attempt
+            attempts.forEach(function(at) {
+                var qid = at.questionnaire_id;
+                var cur = currentByQ[qid];
+                if (!cur || attemptOrder(at) >= attemptOrder(cur)) currentByQ[qid] = at;
+            });
+            var currentIds = {};
+            Object.keys(currentByQ).forEach(function(qid) { currentIds[currentByQ[qid].id] = true; });
+            // Past attempts grouped by questionnaire (newest first), attached to the row below.
+            var historyByQ = {};   // questionnaire_id -> [past attempts]
+            attempts.filter(function(at) { return !currentIds[at.id]; }).forEach(function(at) {
+                (historyByQ[at.questionnaire_id] || (historyByQ[at.questionnaire_id] = [])).push(at);
+            });
+            Object.keys(historyByQ).forEach(function(qid) {
+                historyByQ[qid].sort(function(x, y) { return attemptOrder(y) - attemptOrder(x); });
+            });
+            // Only the current attempt per questionnaire feeds the live 3-state merge.
+            attempts = attempts.filter(function(at) { return currentIds[at.id]; });
+
+            // Seed from assignments (questionnaires only; material handled separately below).
+            assignments.forEach(function(a) {
+                if (a.item_type === 'material') return;   // material isn't part of the 3-state quiz flow
+                var qid = a.item_id;
+                byQ[qid] = {
+                    questionnaire_id: qid,
+                    title: a.item_title,
+                    message: a.message || null,
+                    due_date: a.due_date || null,
+                    attach_type: a.attach_type, attach_id: a.attach_id, timing: a.timing,
+                    course_sitting_id: a.course_sitting_id,
+                    assignment_id: a.id,
+                    attempt: null,
+                    group: 'to_do'
+                };
+            });
+
+            // Overlay attempts — the authoritative state + the real link target.
+            // The newest attempt per questionnaire wins (see attemptOrder).
+            attempts.forEach(function(at) {
+                var qid = at.questionnaire_id;
+                var row = byQ[qid] || (byQ[qid] = {
+                    questionnaire_id: qid,
+                    title: at.questionnaire_title || at.title,
+                    message: null, due_date: null,
+                    attach_type: null, attach_id: null, timing: null,
+                    assignment_id: null, attempt: null, group: 'to_do'
+                });
+                var g = attemptGroup(at);
+                // The LATEST attempt is authoritative — a fresh retake (newer attempt,
+                // not yet submitted) must override an older reviewed/submitted one and
+                // pull the row back to to_do.
+                if (!row.attempt || attemptOrder(at) >= attemptOrder(row.attempt)) {
+                    row.attempt = at;
+                    row.group = g;
+                    row.title = row.title || at.questionnaire_title || at.title;
+                    row.target_title = at.target_title;
+                    row.course_reference = at.course_reference;
+                    row.auto_score = at.auto_score; row.max_score = at.max_score;
+                    row.score_released = at.score_released;
+                }
+            });
+
+            var rows = Object.keys(byQ).map(function(k) { return byQ[k]; });
+            // Attach each questionnaire's earlier attempts to its row (inline expander).
+            rows.forEach(function(r) {
+                r.history = historyByQ[r.questionnaire_id] || [];
+                r.showHistory = false;
+            });
+            vm.toDo = rows.filter(function(r) { return r.group === 'to_do'; });
+            vm.awaiting = rows.filter(function(r) { return r.group === 'awaiting_review'; });
+            vm.reviewed = rows.filter(function(r) { return r.group === 'reviewed'; });
+
+            // Material assignments still surface in their own simple list.
+            vm.materials = assignments.filter(function(a) { return a.item_type === 'material'; });
+
+            // Sort: to-do by due date; reviewed newest first.
+            vm.toDo.sort(function(x, y) { return (x.due_date || '9999') < (y.due_date || '9999') ? -1 : 1; });
+            vm.outstandingCount = vm.toDo.length + vm.materials.filter(function(a){ return a.status !== 'completed'; }).length;
+        }
+
+        // ── Past-attempt (history) helpers ──
+        // A "past" attempt is any attempt that isn't the current one for its
+        // questionnaire — an earlier retake, or a stray unsubmitted duplicate. Most are
+        // finished (submitted/reviewed); an unsubmitted one is shown for completeness
+        // but has no result page to open. They live on each row (r.history) and are
+        // revealed by a per-row "Previous attempts" expander.
+        vm.toggleHistory = function(r, $event) {
+            if ($event) $event.stopPropagation();
+            r.showHistory = !r.showHistory;
+        };
+        function pastSubmitted(at) {
+            return at.status === 'submitted' || at.status === 'reviewed' || !!at.submitted_at;
+        }
+        vm.pastStatusText = function(at) {
+            if (at.status === 'reviewed' || at.score_released) return 'Reviewed';
+            if (at.status === 'submitted') return 'Submitted';
+            if (at.status === 'opened' || at.status === 'in_progress') return 'Not submitted';
+            return vm.pretty(at.status);
+        };
+        vm.pastBadgeClass = function(at) {
+            if (at.status === 'reviewed' || at.score_released) return 'cc-badge--green';
+            if (at.status === 'submitted') return 'cc-badge--blue';
+            return 'cc-badge--grey';
+        };
+        vm.hasPastScore = function(at) {
+            return at.score_released && at.max_score != null;
+        };
+        // Only a submitted/reviewed past attempt has a result page worth opening.
+        vm.pastViewable = function(at) { return pastSubmitted(at); };
+        vm.openPastAttempt = function(at) {
+            if (!pastSubmitted(at)) return;   // nothing to show for an unsubmitted attempt
+            // The result page tolerates a non-current attempt (owner-scoped, not current-gated).
+            $state.go('dashboard.my_account.questionnaire_result', { attempt_id: at.id });
+        };
+
+        // ── Unified row helpers (one questionnaire, one state) ──
+        vm.rowBadgeClass = function(r) {
+            switch (r.group) {
+                case 'reviewed': return 'cc-badge--green';
+                case 'awaiting_review': return 'cc-badge--blue';
+                default: return 'cc-badge--amber';
+            }
+        };
+        vm.rowStatusText = function(r) {
+            if (r.group === 'reviewed') return 'Reviewed';
+            if (r.group === 'awaiting_review') return 'Submitted · awaiting review';
+            // to_do — distinguish not-started from in-progress
+            return (r.attempt && (r.attempt.status === 'opened' || r.attempt.status === 'in_progress')) ? 'In progress' : 'To do';
+        };
+        vm.rowActionLabel = function(r) {
+            if (r.group === 'reviewed') return 'View result';
+            if (r.group === 'awaiting_review') return 'View submission';
+            return (r.attempt && (r.attempt.status === 'opened' || r.attempt.status === 'in_progress')) ? 'Continue' : 'Start';
+        };
+        // Material assignment → open the material viewer.
+        vm.openMaterial = function(a) {
+            if (a.id) CourseAssignmentService.MarkViewed(a.id);
+            $state.go('dashboard.my_account.material_view', { material_id: a.item_id });
+        };
+
+        // Always open via the real attempt when one exists (fixes the empty/blank
+        // "view submission"); only fall back to "take" when nothing's been started.
+        vm.openRow = function(r) {
+            if (r.assignment_id) CourseAssignmentService.MarkViewed(r.assignment_id);
+            if (r.attempt && r.attempt.id) {
+                if (r.group === 'to_do') {
+                    // resume the in-progress attempt
+                    $state.go('dashboard.my_account.questionnaire_take', { questionnaire_id: r.questionnaire_id });
+                } else {
+                    $state.go('dashboard.my_account.questionnaire_result', { attempt_id: r.attempt.id });
+                }
             } else {
-                $state.go('dashboard.my_account.questionnaire_take', { questionnaire_id: a.questionnaire_id });
+                $state.go('dashboard.my_account.questionnaire_take', {
+                    questionnaire_id: r.questionnaire_id,
+                    attach_type: r.attach_type, attach_id: r.attach_id,
+                    timing: r.timing, sitting: r.course_sitting_id
+                });
             }
         };
 

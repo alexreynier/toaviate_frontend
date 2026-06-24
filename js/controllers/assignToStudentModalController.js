@@ -93,7 +93,6 @@ app.controller('AssignToStudentModalController', AssignToStudentModalController)
 
         m.assign = function() {
             if (!m.pick) { ToastService.warning('Pick a questionnaire', 'Choose what to assign.'); return; }
-            m.saving = true;
             var payload = {
                 item_type: 'questionnaire',
                 item_id: m.pick.id,
@@ -107,14 +106,47 @@ app.controller('AssignToStudentModalController', AssignToStudentModalController)
                 timing: m.timing,
                 course_id: m.courseId
             };
+            submit(payload, false);
+        };
+
+        // ── Re-assign confirmation ──
+        // needs_confirm:true (student already_completed) is NOT an error — show the
+        // message, and on confirm re-POST with confirm:true to grant a fresh blank
+        // attempt (the old one is preserved).
+        m.confirmNeeded = false;
+        m.confirmMessage = '';
+        var pendingPayload = null;
+
+        function submit(payload, confirmed) {
+            m.saving = true;
+            if (confirmed) payload.confirm = true;
             CourseAssignmentService.Share(payload).then(function(data) {
                 m.saving = false;
+
+                if (data && data.needs_confirm && !confirmed) {
+                    pendingPayload = payload;
+                    m.confirmMessage = data.message ||
+                        'This student has already completed this questionnaire. Re-assign anyway? A fresh retake will be granted.';
+                    m.confirmNeeded = true;
+                    return;
+                }
+
+                m.confirmNeeded = false;
                 if (!data || data.success === false) { ToastService.error('Could not assign', (data && data.message) || ''); return; }
                 var emailed = (data.results || []).filter(function(r) { return r.emailed; }).length;
                 ToastService.success('Assigned to ' + (m.student.name || 'student'),
                     m.sendEmail && emailed ? 'They’ve been emailed a link.' : 'Added to their tasks.');
                 $uibModalInstance.close(data);
             });
+        }
+
+        m.confirmReassign = function() {
+            if (!pendingPayload) return;
+            submit(pendingPayload, true);
+        };
+        m.cancelReassign = function() {
+            m.confirmNeeded = false;
+            pendingPayload = null;
         };
 
         m.cancel = function() { $uibModalInstance.dismiss('cancel'); };
