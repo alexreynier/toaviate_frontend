@@ -2082,10 +2082,12 @@
             }
         };
 
+        // Download the CRS the same way as the other plane documents (auth'd $http
+        // arraybuffer → blob). A plain window.open on the signed URL bypasses the
+        // $http auth interceptor and fails, so delegate to downloadDocument('crs').
         vm.downloadCrs = function (filename) {
             if (!filename) return;
-            var url = CrsService.DownloadFile(filename);
-            $window.open(url, '_blank');
+            $scope.downloadDocument(filename, 'crs');
         };
 
         // Standalone CRS update (from document table UPDATE button)
@@ -2581,10 +2583,13 @@
                  case "certificate": 
                     controller = "plane_certificate";
                 break;
-                case "noise": 
+                case "noise":
                     controller = "plane_noise_certificate";
                 break;
-                case "docs": 
+                case "crs":
+                    controller = "plane_crs";
+                break;
+                case "docs":
                     controller = "plane_documents";
                 break;
                 default:

@@ -1165,10 +1165,13 @@
                  case "certificate": 
                     controller = "plane_certificate";
                 break;
-                case "noise": 
+                case "noise":
                     controller = "plane_documents";
                 break;
-                case "docs": 
+                case "crs":
+                    controller = "plane_crs";
+                break;
+                case "docs":
                     controller = "plane_documents";
                 break;
                 default:

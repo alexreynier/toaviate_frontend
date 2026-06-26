@@ -216,6 +216,21 @@
 
 
 
+        // Certificate of Release to Service files live under plane_crs (separate from
+        // plane_documents), so they need their own download path.
+        $scope.downloadCrs = function(doc) {
+            var ddd = doc.replace(/^.*[\\\/]/, '');
+
+            $http.get('api/v1/plane_crs/show_file/'+ddd, {
+                    responseType: 'arraybuffer'
+                })
+                .success(function(data, status, headers) {
+                    processArrayBufferToBlob(data, headers);
+                }).error(function(data, status) {
+                    ToastService.error('Download Failed', 'There was an error downloading the CRS.');
+                })
+        };
+
         $scope.downloadClubDocument = function(doc) {
             var data = $.param({
                 id: doc
