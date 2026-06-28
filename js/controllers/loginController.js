@@ -1,7 +1,7 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService'];
-    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope) {
         var vm = this;
  
         vm.login = login;
@@ -10,14 +10,26 @@ app.controller('LoginController', LoginController);
         vm.login_key;
  
         (function initController() {
-            // reset login status
-            //AuthenticationService.ClearCredentials();
-            var check = AuthenticationService.CheckLoggedIn();
-            if(check){
-                $location.path('/dashboard');
-            } else {
-                AuthenticationService.ClearCredentials();
+            // If the user is already logged in (e.g. they pressed Back and landed
+            // on /login), DON'T clear their credentials — just send them on to
+            // where they belong. We check the live session directly via
+            // currentUser.id (the same check used by the route guard in app.js)
+            // because AuthenticationService.CheckLoggedIn() compares objects with
+            // == (reference compare → effectively always false) and would wrongly
+            // log a valid user out here.
+            var loggedInUser = $rootScope.globals && $rootScope.globals.currentUser;
+            if (loggedInUser && loggedInUser.id) {
+                if (loggedInUser.access && ((loggedInUser.access.instructor && loggedInUser.access.instructor.length > 0) ||
+                                            (loggedInUser.access.manager && loggedInUser.access.manager.length > 0))) {
+                    $location.path('/dashboard');
+                } else {
+                    $location.path('/dashboard/my_account');
+                }
+                return;
             }
+
+            // Genuinely logged out — reset any stale login status.
+            AuthenticationService.ClearCredentials();
 
 
             AuthenticationService.Login0( function (response) {

@@ -8,6 +8,7 @@ app.factory('MembershipService', MembershipService);
 
         service.GetAll = GetAll;
         service.GetAllByClub = GetAllByClub;
+        service.GetJoinable = GetJoinable;
         service.GetById = GetById;
         service.Create = Create;
         service.Update = Update;
@@ -36,6 +37,12 @@ app.factory('MembershipService', MembershipService);
         
         function GetAllByClub(club_id) {
             return $http.get('/api/v1/memberships/club/'+club_id).then(handleSuccess, handleError2);
+        }
+
+        // Joinable tiers for a club (membership_id / membership_name / price /
+        // payment_term). Used by the invitation-repair fix form.
+        function GetJoinable(club_id) {
+            return $http.get('/api/v1/memberships/'+club_id).then(handleSuccess, handleError2);
         }
         //http://local.arrow.com/api/v1/memberships/club_available/9
         function GetAllByClubAvailable(club_id) {

@@ -600,6 +600,14 @@
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
+                        vm.club.settings.airworthiness_booking_policy = vm.club.settings.airworthiness_booking_policy || 'allow';
+                        vm.club.settings.airworthiness_bookout_policy = vm.club.settings.airworthiness_bookout_policy || 'allow';
+                        // Reminder policy is effectively two-state (allow vs include
+                        // warnings); the backend treats 'warn' and 'force' the same
+                        // for reminders, so normalise 'force' → 'warn' for the toggle.
+                        vm.club.settings.airworthiness_reminder_policy =
+                            (vm.club.settings.airworthiness_reminder_policy === 'warn' || vm.club.settings.airworthiness_reminder_policy === 'force')
+                            ? 'warn' : 'allow';
 
                         // ── Booking Edit Time Limits ──
                         vm.club.settings.edit_window_admin_minutes = parseInt(vm.club.settings.edit_window_admin_minutes) || 0;

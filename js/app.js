@@ -9,7 +9,21 @@ var app = angular
     // $http call to /api/... or api/... automatically
     // hits the right server per environment.
     // =============================================
-    app.factory('apiUrlInterceptor', ['EnvConfig', function(EnvConfig) {
+    app.factory('apiUrlInterceptor', ['EnvConfig', '$q', function(EnvConfig, $q) {
+        // ── Circuit breaker ──────────────────────────────────────────────
+        // Safety net against request storms: if the SAME GET endpoint fails
+        // repeatedly in a short window (e.g. backend unreachable / cert rejected,
+        // or an external script replaying requests), stop issuing it. Prevents the
+        // browser-crashing flood seen when local-api is down. A success or the
+        // cooldown window resets the counter so normal use is unaffected.
+        var FAIL_LIMIT = 6;          // identical failures before tripping
+        var COOLDOWN_MS = 10000;     // window after which a tripped endpoint is retried
+        var failures = {};           // key -> { count, trippedAt }
+
+        function keyFor(config) {
+            return (config.method || 'GET').toUpperCase() + ' ' + (config.url || '');
+        }
+
         return {
             request: function(config) {
                 var url = config.url;
@@ -25,7 +39,45 @@ var app = angular
                     config.url = EnvConfig.getApiBaseUrl() + url;
                 }
 
+                // Block requests to an endpoint that has tripped the breaker,
+                // until its cooldown elapses.
+                var rec = failures[keyFor(config)];
+                if (rec && rec.count >= FAIL_LIMIT) {
+                    var since = (rec.trippedAt ? (new Date().getTime() - rec.trippedAt) : COOLDOWN_MS + 1);
+                    if (since < COOLDOWN_MS) {
+                        return $q.reject({
+                            data: null,
+                            status: -1,
+                            config: config,
+                            _circuitOpen: true,
+                            statusText: 'Request blocked by client circuit breaker (endpoint failing repeatedly).'
+                        });
+                    }
+                    // Cooldown elapsed — allow one probe through and reset.
+                    delete failures[keyFor(config)];
+                }
+
                 return config;
+            },
+            response: function(response) {
+                // Any success clears that endpoint's failure record.
+                delete failures[keyFor(response.config || {})];
+                return response;
+            },
+            responseError: function(rejection) {
+                var cfg = rejection && rejection.config;
+                // Don't double-count our own breaker rejections.
+                if (cfg && !rejection._circuitOpen) {
+                    var k = keyFor(cfg);
+                    var rec = failures[k] || { count: 0, trippedAt: null };
+                    rec.count++;
+                    if (rec.count >= FAIL_LIMIT && !rec.trippedAt) {
+                        rec.trippedAt = new Date().getTime();
+                        console.warn('Circuit breaker tripped for ' + k + ' after ' + rec.count + ' failures — pausing for ' + (COOLDOWN_MS / 1000) + 's.');
+                    }
+                    failures[k] = rec;
+                }
+                return $q.reject(rejection);
             }
         };
     }]);
@@ -2633,7 +2685,26 @@ var app = angular
 
             // Save the current path as a return destination when being redirected to /login
             // (auto-logout due to session timeout, 401, etc.). Manual logouts clear this separately.
-            var publicPages = ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup', '/display', '/password_reset', '/registration_success', '/registration_verification'];
+            // Pre-auth pages a logged-out user must reach (login, all signup/invite
+            // wizards, password reset, email verification, public displays/boards).
+            // Matched as exact path OR prefix (path === entry || path startsWith entry + '/').
+            // NB: nested authed routes like /dashboard/my_account/bookout are NOT
+            // matched by '/bookout' here because the guard requires the prefix at
+            // index 0 (they start with /dashboard).
+            var publicPages = [
+                '/login', '/register', '/gallery', '/disabled',
+                '/password_reset', '/registration_success', '/registration_verification',
+                '/display',
+                '/club_signup',                 // club signup wizard
+                '/club_signup2',                // club signup, post email-verification (token)
+                '/user_signup',                 // member self-signup wizard
+                '/passenger_signup',            // passenger invitation (token)
+                '/passenger_signup_complete',   // returning passenger post-signup (token)
+                '/invitations',                 // member invitation / BS-import conversion (token)
+                '/signup/maintenance',          // maintenance organisation signup
+                '/bookout',                     // public airfield book-out form (/bookout/:icao)
+                '/bookout-display'              // public airfield board (token)
+            ];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {
                 // Extract the path portion from the full current URL

@@ -204,9 +204,9 @@
         <div class="bs-form-row" style="margin-top: 20px;">
           <div class="bs-form-group">
             <label>Default Membership (optional)</label>
-            <select class="bs-select" ng-model="vm.uploadMembershipId">
+            <select class="bs-select" ng-model="vm.uploadMembershipId"
+                    ng-options="m.id as m.name for m in vm.memberships">
               <option value="0">— No default membership —</option>
-              <option ng-repeat="m in vm.memberships" ng-value="m.id">{{ m.name }}</option>
             </select>
             <span class="bs-form-hint">Newly imported users will be assigned to this membership level</span>
           </div>
@@ -1193,10 +1193,13 @@
     <div class="bs-panel">
       <div class="bs-panel__header">
         <h3><i class="fas fa-user-plus"></i> Imported Users</h3>
-        <button class="bs-btn bs-btn--primary" ng-click="vm.convertAll()" ng-disabled="vm.convertingAll" ng-if="vm.importedUsers.length > 0">
-          <i class="fa" ng-class="{'fa-spinner fa-spin': vm.convertingAll, 'fa-magic': !vm.convertingAll}"></i>
-          {{ vm.convertingAll ? 'Converting...' : 'Convert All' }}
-        </button>
+        <div class="bs-panel__header-actions" ng-if="vm.importedUsers.length > 0">
+          <button class="bs-btn bs-btn--primary" ng-click="vm.convertAll()" ng-disabled="vm.convertingAll"
+                  uib-tooltip="Each user must have a membership tier selected; term start defaults to today.">
+            <i class="fa" ng-class="{'fa-spinner fa-spin': vm.convertingAll, 'fa-magic': !vm.convertingAll}"></i>
+            {{ vm.convertingAll ? 'Converting...' : 'Convert All' }}
+          </button>
+        </div>
       </div>
       <div class="bs-panel__body">
 
@@ -1226,19 +1229,65 @@
           <table class="bs-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Temp Email</th>
-                <th>Real Email</th>
+                <th>Name &amp; real email</th>
+                <th>Temp email</th>
+                <th>Membership <span class="bs-required-star">*</span></th>
+                <th>Term start</th>
+                <th>Expiry</th>
                 <th class="bs-table__actions-col">Action</th>
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="u in vm._filteredImported track by (u.ta_user_id || $index)">
-                <td data-label="Name"><strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong></td>
+              <tr ng-repeat="u in vm._filteredImported track by (u.ta_user_id || $index)"
+                  ng-init="vm.ensureConvertDefaults(u)">
+                <td data-label="Name">
+                  <strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong>
+                  <div class="bs-mono bs-subtle">{{ u.bs_email }}</div>
+                </td>
                 <td data-label="Temp Email"><span class="bs-mono">{{ u.ta_email }}</span></td>
-                <td data-label="Real Email"><span class="bs-mono">{{ u.bs_email }}</span></td>
+
+                <!-- Editable while not yet converted -->
+                <td data-label="Membership" ng-if="!u._converted">
+                  <!-- m.id here is the REAL membership_id (set in normaliseMemberships
+                       from the API's membership_id field, NOT the version row id) so
+                       the selected value sent to convert is the correct tier. The
+                       API's row `id` and `membership_id` differ, and the convert
+                       endpoint keys on membership_id — binding the row id sent the
+                       wrong tier (e.g. Annual → Instructor). -->
+                  <select class="bs-select bs-select--sm" ng-model="u._membershipId"
+                          ng-change="vm.recomputeExpiry(u)" required
+                          ng-options="m.id as m.name for m in vm.memberships">
+                    <option value="" disabled>— Select tier —</option>
+                  </select>
+                </td>
+                <td data-label="Term start" ng-if="!u._converted">
+                  <input type="date" class="bs-input bs-input--sm" ng-model="u._termStart"
+                         ng-change="vm.recomputeExpiry(u)"
+                         uib-tooltip="When the current billing term begins (drives the expiry). Not the same as 'member since'." />
+                </td>
+                <td data-label="Expiry" ng-if="!u._converted">
+                  <input type="date" class="bs-input bs-input--sm" ng-model="u._membershipEnds"
+                         ng-change="vm.onExpiryEdited(u)"
+                         uib-tooltip="Auto-computed from the tier's term; override if needed." />
+                </td>
+
+                <!-- Read-only summary once converted -->
+                <td data-label="Membership" ng-if="u._converted" colspan="3">
+                  <div class="bs-membership-summary" ng-if="u._membership">
+                    <span class="bs-membership-summary__item" ng-if="u._membership.member_since">
+                      <span class="bs-subtle">Member since</span> {{ u._membership.member_since }}
+                    </span>
+                    <span class="bs-membership-summary__item" ng-if="u._membership.term_start">
+                      <span class="bs-subtle">Term</span> {{ u._membership.term_start }} → {{ u._membership.end || '—' }}
+                    </span>
+                    <span class="bs-badge bs-badge--orange" ng-if="u._membership.already_expired">
+                      <i class="fa fa-exclamation-triangle"></i> Due for renewal
+                    </span>
+                  </div>
+                </td>
+
                 <td data-label="Action" class="bs-table__actions-col">
-                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.convertUser(u)" ng-disabled="u._converting || u._converted" ng-if="!u._converted">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.convertUser(u)" ng-disabled="u._converting || !u._membershipId" ng-if="!u._converted">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': u._converting, 'fa-paper-plane': !u._converting}"></i>
                     {{ u._converting ? 'Sending...' : 'Convert' }}
                   </button>

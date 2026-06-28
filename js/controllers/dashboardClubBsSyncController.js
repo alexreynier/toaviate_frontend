@@ -519,9 +519,51 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm.loadMemberships = function() {
             if (vm.memberships.length > 0) return;
             MembershipService.GetAllByClub(vm.club_id).then(function(data) {
-                vm.memberships = angular.isArray(data) ? data : (data.memberships || []);
+                var list = angular.isArray(data) ? data : (data.memberships || []);
+                // Normalise so the convert dropdown + expiry calc work whether the
+                // list comes from here (name/payment_term) or from a
+                // MEMBERSHIP_REQUIRED response (membership_name).
+                vm.memberships = normaliseMemberships(list);
             });
         };
+
+        // Build a clean tier list for the convert dropdown. The dropdown uses
+        // ng-options="m.id as m.name", so whatever we put on `id` is the value SENT
+        // to the convert endpoint as membership_id.
+        //
+        // CRITICAL: GetAllByClub returns TWO distinct ids per tier — a row `id`
+        // (membership_versions row) and the real `membership_id` — and they DON'T
+        // match. The backend's convert endpoint keys on membership_id. Example from
+        // club 3:  Annual = { id:9, membership_id:8 },  Instructor = { id:10,
+        // membership_id:9 }. Binding the row `id` meant picking "Annual" (id 9) sent
+        // 9, which the backend read as membership_id 9 = "Instructor" — exactly the
+        // mis-assignment reported. So we bind `membership_id` (falling back to `id`
+        // only if a response shape lacks it). Blank/duplicate ids are dropped.
+        function normaliseMemberships(list) {
+            var seen = {};
+            var out = [];
+            (list || []).forEach(function(m) {
+                // Prefer the real membership_id; fall back to id for shapes that
+                // only carry one (e.g. a MEMBERSHIP_REQUIRED club_memberships list).
+                var rawId = (m.membership_id != null) ? m.membership_id : m.id;
+                if (rawId == null || rawId === '') {
+                    console.warn('BS convert: dropping membership tier with no membership_id', m);
+                    return;
+                }
+                var id = String(rawId);
+                if (seen[id]) {
+                    console.warn('BS convert: duplicate membership_id ' + id + ' — keeping first, dropping', m);
+                    return;
+                }
+                seen[id] = true;
+                out.push({
+                    id: rawId,                                  // bound + sent as membership_id
+                    name: m.membership_name || m.name,
+                    payment_term: m.payment_term
+                });
+            });
+            return out;
+        }
 
         // Step 2: File input handler
         vm.onCsvFileSelect = function(files) {
@@ -1124,13 +1166,126 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             });
         };
 
+        // ── Convert: membership tier + term dates ──────────────────────────
+        // Each imported user carries (set lazily in _ensureConvertDefaults):
+        //   u._membershipId   — required tier id (must be picked before convert)
+        //   u._termStart      — Date: current billing term start, default today
+        //   u._membershipEnds — Date: computed expiry, editable
+        //   u._endsOverridden — admin manually changed the expiry, so stop auto-computing
+        //   u._membership     — backend `membership` block after a successful convert
+        // NB: dates are Date OBJECTS in the model because <input type="date">
+        // produces a Date; they're formatted to "YYYY-MM-DD" only at send time in
+        // _convertPayload (same pattern as the CRS form). "Convert All" uses each
+        // row's own dates (term start defaults to today).
+
+        // Format a Date (or null) to "YYYY-MM-DD" for the API; null/invalid → null.
+        function toYmd(d) {
+            if (!d) return null;
+            var m = moment(d);
+            return m.isValid() ? m.format('YYYY-MM-DD') : null;
+        }
+
+        // term_start Date + a tier's payment_term → expiry Date (null if no expiry).
+        function computeExpiry(termStart, paymentTerm) {
+            if (!termStart) return null;
+            var m = moment(termStart);
+            if (!m.isValid()) return null;
+            switch (paymentTerm) {
+                case 'daily':    return m.add(1, 'day').toDate();
+                case 'monthly':  return m.add(1, 'month').toDate();
+                case 'annually': return m.add(1, 'year').toDate();
+                // 'free' / 'once' (lifetime) → no expiry; let the backend decide.
+                default: return null;
+            }
+        }
+
+        function findMembership(id) {
+            if (!id) return null;
+            for (var i = 0; i < vm.memberships.length; i++) {
+                if (String(vm.memberships[i].id) === String(id)) return vm.memberships[i];
+            }
+            return null;
+        }
+
+        // Ensure a row has its date defaults before the boxes render.
+        function _ensureConvertDefaults(u) {
+            if (!u._termStart) u._termStart = new Date();
+        }
+        vm.ensureConvertDefaults = _ensureConvertDefaults;
+
+        // Re-derive the expiry from the chosen tier + term start, unless the admin
+        // has manually overridden it. Called on tier or term-start change.
+        vm.recomputeExpiry = function(u) {
+            if (u._endsOverridden) return;
+            var m = findMembership(u._membershipId);
+            u._membershipEnds = m ? computeExpiry(u._termStart, m.payment_term) : null;
+        };
+
+        // Marks the expiry as admin-edited so auto-compute stops fighting them.
+        vm.onExpiryEdited = function(u) { u._endsOverridden = true; };
+
+        // Show the right confirmation toast for the backend's `mode`:
+        //   signup          → brand-new person, complete-signup invite emailed
+        //   invite_existing → already has a ToAviate account, join invite emailed
+        //   merged          → already a member here, data merged immediately
+        function showConvertResult(u, data) {
+            var name = ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '')).trim() || u.bs_email;
+            switch (data.mode) {
+                case 'invite_existing':
+                    ToastService.success('Invitation Sent', name + ' already has an account — invitation to join sent; their data will merge on accept.');
+                    break;
+                case 'merged':
+                    ToastService.success('Data Merged', 'Imported data merged into their existing account.');
+                    break;
+                case 'signup':
+                default:
+                    ToastService.success('Signup Invitation Sent', 'Signup invitation sent to ' + u.bs_email);
+                    break;
+            }
+            if (data.membership && data.membership.already_expired) {
+                ToastService.warning('Membership Expired', name + "'s membership term has already ended — it is due for renewal.");
+            }
+        }
+
+        // MEMBERSHIP_REQUIRED → repopulate the tier dropdown from the response list.
+        function handleMembershipRequired(u, data) {
+            if (data.club_memberships && data.club_memberships.length) {
+                vm.memberships = normaliseMemberships(data.club_memberships);
+            }
+            ToastService.warning('Membership Required', 'Please choose a membership tier for this user, then convert again.');
+        }
+
+        // Build the convert payload from a row's chosen tier + dates. Dates are
+        // formatted to "YYYY-MM-DD" here (the model holds Date objects). The backend
+        // uses exactly the membership_id it receives — so this must be the admin's
+        // selected tier (the dropdown uses ng-options to keep that mapping correct).
+        function _convertPayload(u) {
+            return {
+                membership_id: u._membershipId,
+                term_start: toYmd(u._termStart) || toYmd(new Date()),
+                membership_ends: toYmd(u._membershipEnds)
+            };
+        }
+
         vm.convertUser = function(u) {
+            _ensureConvertDefaults(u);
+            if (!u._membershipId) {
+                ToastService.warning('Membership Required', 'Please choose a membership tier before converting.');
+                return;
+            }
             u._converting = true;
-            BsSyncService.ConvertUser(vm.club_id, u.ta_user_id).then(function(data) {
+            var payload = _convertPayload(u);
+            // Trace what's actually sent (stripped in prod) so a "picked X, got Y"
+            // membership mismatch can be diagnosed against the selected tier.
+            console.log('BS convert payload', { ta_user_id: u.ta_user_id, selected: payload.membership_id, tier: findMembership(u._membershipId) });
+            BsSyncService.ConvertUser(vm.club_id, u.ta_user_id, payload).then(function(data) {
                 u._converting = false;
                 if (data.success) {
                     u._converted = true;
-                    ToastService.success('Converted', 'Invitation sent to ' + u.bs_email);
+                    u._membership = data.membership || null;
+                    showConvertResult(u, data);
+                } else if (data.error === 'MEMBERSHIP_REQUIRED') {
+                    handleMembershipRequired(u, data);
                 } else {
                     ToastService.error('Error', data.message || 'Failed to convert user.');
                 }
@@ -1141,23 +1296,39 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         };
 
         vm.convertAll = function() {
+            // Every row needs a tier — block (and surface) if any are missing.
+            var pending = vm._filteredImported.filter(function(u) { return !u._converted; });
+            var missing = pending.filter(function(u) { return !u._membershipId; });
+            if (missing.length) {
+                ToastService.warning('Membership Required', missing.length + ' user(s) have no membership tier selected. Pick a tier for each before converting all.');
+                return;
+            }
             if (!confirm('This will send invitations to ALL imported users. Continue?')) return;
             vm.convertingAll = true;
-            var toConvert = vm._filteredImported.filter(function(u) { return !u._converted; });
             var idx = 0;
 
             function next() {
-                if (idx >= toConvert.length) {
+                if (idx >= pending.length) {
                     vm.convertingAll = false;
                     ToastService.success('Done', 'All imported users have been sent invitations.');
                     $scope.$apply();
                     return;
                 }
-                var u = toConvert[idx];
+                var u = pending[idx];
+                _ensureConvertDefaults(u);
                 u._converting = true;
-                BsSyncService.ConvertUser(vm.club_id, u.ta_user_id).then(function(data) {
+                BsSyncService.ConvertUser(vm.club_id, u.ta_user_id, _convertPayload(u)).then(function(data) {
                     u._converting = false;
-                    if (data.success) u._converted = true;
+                    if (data.success) {
+                        u._converted = true;
+                        u._membership = data.membership || null;
+                        if (data.membership && data.membership.already_expired) {
+                            var name = ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '')).trim() || u.bs_email;
+                            ToastService.warning('Membership Expired', name + "'s membership is due for renewal.");
+                        }
+                    } else if (data.error === 'MEMBERSHIP_REQUIRED') {
+                        handleMembershipRequired(u, data);
+                    }
                     idx++;
                     next();
                 }, function() {
@@ -1200,7 +1371,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 case 'resources': if (vm.resources.length === 0) vm.loadResources(); break;
                 case 'users':     if (vm.users.length === 0) vm.loadUsers(); break;
                 case 'sync':      if (vm.logs.length === 0) vm.loadLogs(); break;
-                case 'imported':  if (vm.importedUsers.length === 0) vm.loadImportedUsers(); break;
+                case 'imported':  if (vm.importedUsers.length === 0) vm.loadImportedUsers(); vm.loadMemberships(); break;
                 case 'setup':     vm.loadMemberships(); break;
             }
         });

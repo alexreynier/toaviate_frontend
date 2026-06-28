@@ -108,6 +108,7 @@ module.exports = function (grunt) {
                     'css/instructor-qualifications.css',
                     'css/booking-preferences.css',
                     'css/bs-sync.css',
+                    'css/member-requests.css',
                     'css/airfield-bookout.css',
                     'css/club-stats.css',
                     'css/cron-status.css',

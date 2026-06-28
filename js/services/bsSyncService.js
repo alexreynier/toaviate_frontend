@@ -38,6 +38,8 @@ app.factory('BsSyncService', BsSyncService);
 
         // ── Imported Users ──
         service.ConvertUser        = ConvertUser;
+        service.ReconcileInvitations = ReconcileInvitations;
+        service.RepairInvitation   = RepairInvitation;
 
         return service;
 
@@ -172,8 +174,42 @@ app.factory('BsSyncService', BsSyncService);
 
         // ── Imported Users ───────────────────────────
 
-        function ConvertUser(club_id, user_id) {
-            return $http.post('/api/v1/bs_sync/convert/' + club_id + '/' + user_id)
+        // Convert a BS-imported placeholder into a real member.
+        //   opts: { membership_id (required), term_start, membership_ends } — all
+        //   YYYY-MM-DD strings except membership_id. Only set keys are sent; the
+        //   backend computes membership_ends from the tier's term if omitted.
+        //   If membership_id is missing/invalid the backend replies
+        //   { success:false, error:"MEMBERSHIP_REQUIRED", club_memberships:[...] }.
+        function ConvertUser(club_id, user_id, opts) {
+            opts = opts || {};
+            var body = {};
+            if (opts.membership_id) body.membership_id = opts.membership_id;
+            if (opts.term_start)    body.term_start = opts.term_start;
+            if (opts.membership_ends) body.membership_ends = opts.membership_ends;
+            return $http.post('/api/v1/bs_sync/convert/' + club_id + '/' + user_id, body)
+                .then(handleSuccess, handleError);
+        }
+
+        // Repair converted-user invitations that were sent but got stuck (pending,
+        // never accepted, missing their membership-request link) so they show in the
+        // member-requests list. Idempotent; does NOT re-send emails or change tokens.
+        // Returns { success, examined, repaired_count, repaired:[...], needs_membership:[...] }.
+        function ReconcileInvitations(club_id) {
+            return $http.post('/api/v1/bs_sync/reconcile_invitations/' + club_id)
+                .then(handleSuccess, handleError);
+        }
+
+        // Per-row repair for an invitation reconcile couldn't fix (no/invalid tier).
+        //   opts: { membership_id (required), term_start, membership_ends } — dates
+        //   YYYY-MM-DD; backend defaults them if omitted. On invalid tier the backend
+        //   returns { success:false, error:"INVALID_MEMBERSHIP", club_memberships:[...] }.
+        function RepairInvitation(club_id, invitation_id, opts) {
+            opts = opts || {};
+            var body = {};
+            if (opts.membership_id) body.membership_id = opts.membership_id;
+            if (opts.term_start)    body.term_start = opts.term_start;
+            if (opts.membership_ends) body.membership_ends = opts.membership_ends;
+            return $http.post('/api/v1/bs_sync/repair_invitation/' + club_id + '/' + invitation_id, body)
                 .then(handleSuccess, handleError);
         }
 

@@ -1372,6 +1372,17 @@
         $scope.make_booking(true);
     }
 
+    // Force a NEW booking through a hard regulatory/safety block (grounded
+    // aircraft, lapsed insurance, expired ARC/CofA). force_override is honoured
+    // only for managers/super-admins on a hard_block — safe to always send.
+    vm.force_new_booking_errors = function(){
+        vm.new_booking.admin_override = true;
+        vm.new_booking.force_override = true;
+        vm.new_booking.override = 1;
+        vm.new_booking_errors = {};
+        $scope.make_booking(true);
+    }
+
 
 
 
@@ -1629,6 +1640,48 @@
 
     }
 
+    // Force override — pushes through a HARD regulatory/safety block (grounded
+    // aircraft, lapsed insurance, expired ARC/CofA). Sends force_override:true on
+    // top of admin_override. The backend only honours force_override for
+    // managers/super-admins on a hard_block conflict; ignored otherwise, so it's
+    // safe to always include it here.
+    $scope.force_booking_change = function(override){
+
+        vm.error_event.admin_override = true;
+        vm.error_event.force_override = true;
+        vm.error_event.override = 1;
+        if(override){
+            vm.error_event[override] = true;
+        }
+
+        check_before_changing_event(vm.error_event, true);
+
+    }
+
+    // Map an airworthiness_warning reason code to a friendly label.
+    function airworthinessLabel(reason){
+        switch(reason){
+            case 'aircraft_grounded':     return "grounded / out of service";
+            case 'aircraft_unavailable':  return "unavailable for booking";
+            case 'insurance_expired':     return "insurance lapsed";
+            case 'arc_expired':           return "ARC expired";
+            case 'airworthiness_expired': return "certificate of airworthiness expired";
+            default:                      return reason;
+        }
+    }
+
+    // Under the "warn" club policy the booking responses (create/edit, on both
+    // success and conflict) may carry airworthiness_warning:"<reason>". Show a
+    // non-blocking notice — it does NOT prevent the booking proceeding.
+    function showAirworthinessWarning(data){
+        if(!data || !data.airworthiness_warning) return;
+        ToastService.warning(
+            'Airworthiness / Insurance Notice',
+            'This aircraft currently has an issue (' + airworthinessLabel(data.airworthiness_warning) + ') which may be resolved before your booking.'
+        );
+    }
+    vm.showAirworthinessWarning = showAirworthinessWarning;
+
     $scope.decline_booking_change = function(){
 
         vm.booking_errors = {};
@@ -1768,7 +1821,8 @@
                 }
                 
                 ToastService.success("Changes Saved", "Your changes were saved successfully.");
-                
+                showAirworthinessWarning(data);
+
                 if(vm.return_to == "bookout") {
                     // //console.log("WE ARE AT THE BOOKOUT BIT - SO RETURN THERE!!!");
                     $state.go('dashboard.my_account.bookout_with_booking', { "booking_id": event.id });
@@ -1802,49 +1856,128 @@
                 //this can be altered at a later date to be combined, with accept / decline on each error
                 //but this is more work than i can do right now!
 
+                // Build one error per failed check. Each check is INDEPENDENT — a
+                // field is only a failure when the backend actually returned it AND
+                // it isn't `true`. (Previously rental_items was chained as an
+                // `else if` off check_user and wasn't presence-guarded, so a
+                // response like { instructor:"is not available", check_user:true }
+                // — with no rental_items key — wrongly showed "rental items not
+                // available". Each failure now maps to exactly what the API sent.)
                 var errors = [];
-                if(data.instructor !== true){
-                    errors.push({
+                var failed = function(v){ return v !== undefined && v !== null && v !== true; };
+
+                // Three override tiers, driven by the backend's top-level flags
+                // (can_override / hard_block / can_force_override):
+                //   1. Soft conflict  → can_override:true  → normal Override (admin_override).
+                //      Overridable by managers, super-admins and instructors.
+                //   2. Hard block     → can_override:false + can_force_override:true →
+                //      a regulatory/safety block (grounded, lapsed insurance, expired
+                //      ARC/CofA). Hide normal override; show a stronger warning naming
+                //      the reason + a Force button for managers/super-admins only
+                //      (force_override).
+                //   3. No path        → can_override:false, no can_force_override →
+                //      hide both (non-privileged users on a hard block, or
+                //      non-overridable failures like edit-window/permission).
+                // (Currency/account issues keep their own gating further below.)
+                var acc = (vm.user && vm.user.access) || {};
+                // Use the club of the booking being edited (falls back to the current
+                // club context). Access arrays may hold IDs as numbers OR strings (the
+                // codebase is inconsistent) and the club id can be either too, so match
+                // on the string form of both sides — a type mismatch here would hide
+                // the override/force buttons from a genuine admin.
+                var ovClubId = (evnt && evnt.club_id) || (event && event.club_id) || vm.club_id;
+                var inArr = function(a){
+                    if(!a) return false;
+                    var want = String(ovClubId);
+                    for(var i=0;i<a.length;i++){ if(String(a[i]) === want) return true; }
+                    return false;
+                };
+                var isManager    = inArr(acc.manager);
+                var isSuperAdmin = inArr(acc.super_admin);
+                var isInstructor = inArr(acc.instructor);
+
+                // Soft override: backend allowed it and the user is privileged enough.
+                var canOverride = (data.can_override === true) && (isManager || isSuperAdmin || isInstructor);
+                // Force: hard block, backend allows forcing, and the user is a
+                // manager/super-admin (instructors can never force).
+                var canForce = (data.can_override === false) && (data.can_force_override === true) && (isManager || isSuperAdmin);
+
+                var hardBlockMessage = function(){
+                    switch(data.hard_block){
+                        case 'aircraft_grounded':     return "This aircraft is currently grounded and must not be flown.";
+                        case 'aircraft_unavailable':  return "This aircraft is marked unavailable and cannot be booked.";
+                        case 'insurance_expired':     return "This aircraft's insurance has expired.";
+                        case 'arc_expired':           return "This aircraft's Airworthiness Review Certificate (ARC) has expired.";
+                        case 'airworthiness_expired': return "This aircraft's airworthiness / Certificate of Airworthiness has lapsed.";
+                        default:                      return "This aircraft cannot be booked due to a safety or regulatory restriction.";
+                    }
+                };
+
+                // Common override metadata applied to availability conflicts.
+                function overrideMeta(){
+                    return {
+                        can_override: canOverride,
+                        is_hard_block: !!data.hard_block,
+                        hard_block: data.hard_block || null,
+                        can_force: canForce
+                    };
+                }
+
+                if(failed(data.instructor)){
+                    errors.push(angular.extend({
                         type: "instructor",
-                        message: "It looks like your instructor is not available on the updated date and time",
+                        message: data.hard_block ? hardBlockMessage() : "The instructor is not available for the updated date and time.",
                         api: data.instructor,
                         override: "instructor_override",
-                        can_override: data.can_override,
-                        button: "OVERRIDE INSTRUCTOR AVAILABILITY" 
-                    });
+                        button: canOverride ? "OVERRIDE INSTRUCTOR AVAILABILITY" : "",
+                        force_button: "FORCE BOOKING ANYWAY"
+                    }, overrideMeta()));
                 }
-                if(data.check_user !== true){
 
-                    if(data.check_user.indexOf("self-certify") > -1){
+                if(failed(data.plane)){
+                    errors.push(angular.extend({
+                        type: "plane",
+                        message: data.hard_block ? hardBlockMessage() : "The aircraft is not available for the updated date and time.",
+                        api: data.plane,
+                        override: "plane_override",
+                        button: canOverride ? "OVERRIDE AIRCRAFT AVAILABILITY" : "",
+                        force_button: "FORCE BOOKING ANYWAY"
+                    }, overrideMeta()));
+                }
 
+                if(failed(data.check_user)){
+                    // check_user is a message string from the backend; self-certify
+                    // currency issues can be overridden, others cannot.
+                    var checkStr = (typeof data.check_user === 'string') ? data.check_user : '';
+                    if(checkStr.indexOf("self-certify") > -1){
                         errors.push({
                             type: "check_user",
                             message: "It would appear that you are not within the currency requirements to book this aircraft for this flight.",
                             api: data.check_user,
                             override: "currency_override",
-                            button: "I am Current" 
+                            can_override: data.can_override,
+                            button: "I am Current"
                         });
-
-
                     } else {
                         errors.push({
                             type: "check_user",
-                            message: "It looks like your user account does not allow this booking to happen",
+                            message: "Your user account does not allow this booking.",
                             api: data.check_user,
                             override: "currency_override",
                             can_override: data.can_override,
-                            button: "" 
+                            button: ""
                         });
                     }
+                }
 
-                   
-                } else if(data.rental_items !== true){
+                if(failed(data.rental_items)){
                     errors.push({
                         type: "rental_items",
-                        message: "It looks like some of the rental items are not available",
+                        message: "Some of the rental items are not available.",
                         api: data.rental_items,
                         override: "update_rental_items",
-                        button: "Confirm Changes" 
+                        can_override: data.can_override,
+                        button: "Confirm Changes"
                     });
                 }
 
@@ -1855,6 +1988,10 @@
                 if (errors.length === 0 && data.message) {
                     ToastService.error('Cannot Edit Booking', data.message);
                 }
+
+                // Non-blocking airworthiness/insurance notice (warn policy) — shown
+                // alongside any conflict errors.
+                showAirworthinessWarning(data);
 
                 vm.booking_errors = errors;
                 //console.log("ERRORS ARE : ", vm.booking_errors);
@@ -2573,31 +2710,50 @@
         }
 
 
-        $scope.cancel_booking = function(booking_id){
+        // Cancel-confirmation popup state (replaces the old native prompt("type YES")).
+        vm.cancel_confirm = { visible: false, booking: null, working: false };
 
+        // Open the styled confirmation popup for a booking. `booking` is the
+        // vm.see_booking object so we can show its details in the confirm dialog.
+        $scope.confirm_cancel_booking = function(booking){
             // Block cancellation for read-only (restricted) members
             if (vm.is_restricted_member) {
                 ToastService.warning('Read-Only Calendar', 'Your membership does not allow direct booking changes from the calendar.');
                 return;
             }
+            vm.cancel_confirm.booking = booking;
+            vm.cancel_confirm.working = false;
+            vm.cancel_confirm.visible = true;
+        };
+        vm.confirm_cancel_booking = $scope.confirm_cancel_booking;
 
-            //HOW DO WE CANCEL A BOOKING???
-            //at some point we need to define the booking cancellation reasons here (and make a nice popup style cancel)
+        // Dismiss the confirmation without cancelling the booking.
+        $scope.close_cancel_confirm = function(){
+            if (vm.cancel_confirm.working) return; // don't close mid-request
+            vm.cancel_confirm.visible = false;
+            vm.cancel_confirm.booking = null;
+        };
+        vm.close_cancel_confirm = $scope.close_cancel_confirm;
 
-            var a = prompt("Are you sure you wish to cancel this booking? Please type YES in the box below to confirm.");
-            if(a == "YES"){
-                //then we need to delete the booking... 
+        // Actually cancel the booking (the confirm button's action).
+        $scope.do_cancel_booking = function(){
+            var booking = vm.cancel_confirm.booking;
+            if (!booking || !booking.id) { $scope.close_cancel_confirm(); return; }
+            var booking_id = booking.id;
 
+            vm.cancel_confirm.working = true;
             BookingService.DeleteBooking(vm.user.id, booking_id)
             .then(function(data){
-                // //console.log(data);
+                vm.cancel_confirm.working = false;
 
                 if(data.success){
+                    vm.cancel_confirm.visible = false;
+                    vm.cancel_confirm.booking = null;
+                    $scope.close_details && $scope.close_details();
                     ToastService.success("Booking Cancelled", "The booking has been cancelled.");
-                    $state.go('dashboard.add_booking');
-                    
-                     $scope.all_events = $.grep($scope.all_events, function(e){ 
-                        return e.id != booking_id; 
+
+                    $scope.all_events = $.grep($scope.all_events, function(e){
+                        return e.id != booking_id;
                     });
 
                     $('#calendar').fullCalendar('refetchEvents');
@@ -2606,17 +2762,19 @@
 
                 } else {
                     ToastService.error("Error", data.message || "An error occurred while cancelling the booking.");
-                    // //console.log("ERROR", data);
                 }
-
+            }, function(){
+                vm.cancel_confirm.working = false;
+                ToastService.error("Error", "Could not connect to the server.");
             });
+        };
+        vm.do_cancel_booking = $scope.do_cancel_booking;
 
-
-            } else {
-                $state.go('dashboard.add_booking');
-            }
-
-        }
+        // Kept for backwards-compatibility (any other caller) — now routes through
+        // the styled confirm popup instead of the native prompt.
+        $scope.cancel_booking = function(booking_id){
+            $scope.confirm_cancel_booking(vm.see_booking && vm.see_booking.id == booking_id ? vm.see_booking : { id: booking_id });
+        };
 
         var get_all_members = function(){
             console.log("hello", vm.club_id);
@@ -4086,6 +4244,10 @@
 
                     if(data.success == true){
                         // //console.log("WAS SENT HERE! ");
+                        // Non-blocking airworthiness/insurance notice (warn policy).
+                        // Captured from the create response before the nested refetch
+                        // below shadows `data`.
+                        showAirworthinessWarning(data);
                         $scope.clear_booking();
                         vm.bookingPanelOpen = false;
                         
@@ -4160,19 +4322,58 @@
                         
                         //console.log("NO MORE", data);
 
-                        if(data.allow_override){
+                        // Override tiers for a NEW booking (mirrors the edit path):
+                        //  - soft conflict (allow_override / can_override) → normal override
+                        //  - hard block (can_force_override) → Force button (managers/super-admins)
+                        var ncAcc = (vm.user && vm.user.access) || {};
+                        // String-compare both sides (IDs may be numbers or strings).
+                        var ncIn = function(a){
+                            if(!a) return false;
+                            var want = String(vm.club_id);
+                            for(var i=0;i<a.length;i++){ if(String(a[i]) === want) return true; }
+                            return false;
+                        };
+                        var ncIsManager = ncIn(ncAcc.manager) || ncIn(ncAcc.super_admin);
+                        var ncCanForce = (data.can_force_override === true) && ncIsManager;
 
-                            if(vm.user.access.manager.indexOf(vm.club_id) > -1){
+                        if((data.allow_override || data.can_override === true || ncCanForce) && ncIsManager){
+
+                            {
+
+                                var ncHardMsg = function(){
+                                    switch(data.hard_block){
+                                        case 'aircraft_grounded':     return "This aircraft is currently grounded and must not be flown.";
+                                        case 'aircraft_unavailable':  return "This aircraft is marked unavailable and cannot be booked.";
+                                        case 'insurance_expired':     return "This aircraft's insurance has expired.";
+                                        case 'arc_expired':           return "This aircraft's Airworthiness Review Certificate (ARC) has expired.";
+                                        case 'airworthiness_expired': return "This aircraft's airworthiness / Certificate of Airworthiness has lapsed.";
+                                        default:                      return "This aircraft cannot be booked due to a safety or regulatory restriction.";
+                                    }
+                                };
+                                var ncMeta = function(){
+                                    return { is_hard_block: !!data.hard_block, hard_block: data.hard_block || null, can_force: ncCanForce };
+                                };
 
                                 var errors = [];
-                                if(data.reason == "instructor"){
-                                    errors.push({
-                                        type: "instructor",
-                                        message: "It looks like the instructor is not available for this booking",
-                                        api: data.instructor,
-                                        override: "instructor_override",
-                                        button: "OVERRIDE INSTRUCTOR AVAILABILITY" 
-                                    });
+                                if(data.reason == "instructor" || (data.hard_block && data.reason == "plane")){
+                                    errors.push(angular.extend({
+                                        type: data.reason == "plane" ? "plane" : "instructor",
+                                        message: data.hard_block ? ncHardMsg() : "It looks like the instructor is not available for this booking",
+                                        api: data.reason == "plane" ? data.plane : data.instructor,
+                                        override: data.reason == "plane" ? "plane_override" : "instructor_override",
+                                        button: (!data.hard_block) ? (data.reason == "plane" ? "OVERRIDE AIRCRAFT AVAILABILITY" : "OVERRIDE INSTRUCTOR AVAILABILITY") : "",
+                                        force_button: "FORCE BOOKING ANYWAY"
+                                    }, ncMeta()));
+                                } else if(data.hard_block){
+                                    // Hard block reported without a specific instructor/plane reason.
+                                    errors.push(angular.extend({
+                                        type: "plane",
+                                        message: ncHardMsg(),
+                                        api: data.plane,
+                                        override: "plane_override",
+                                        button: "",
+                                        force_button: "FORCE BOOKING ANYWAY"
+                                    }, ncMeta()));
                                 }
                                 if(data.reason == "overbooked"){
                                     errors.push({
@@ -4180,7 +4381,7 @@
                                         message: data.message || "It appears that a booking overlaps this time period.",
                                         api: data.message,
                                         override: "admin_override",
-                                        button: "OVERRIDE OVERBOOKING" 
+                                        button: "OVERRIDE OVERBOOKING"
                                     });
                                 }
                                 if(data.check_user && data.check_user !== true){
@@ -4189,7 +4390,7 @@
                                         message: "It looks like the user account does not allow this booking",
                                         api: data.check_user,
                                         override: "currency_override",
-                                        button: "" 
+                                        button: ""
                                     });
                                 }
                                 if(data.rental_items && data.rental_items !== true){
@@ -4198,7 +4399,7 @@
                                         message: "It looks like some of the rental items are not available",
                                         api: data.rental_items,
                                         override: "update_rental_items",
-                                        button: "Confirm Changes" 
+                                        button: "Confirm Changes"
                                     });
                                 }
 
@@ -4213,8 +4414,12 @@
                         if (!vm.new_booking_errors || !vm.new_booking_errors.length) {
                             ToastService.error("Booking Error", data.message);
                         }
+
+                        // Non-blocking airworthiness/insurance notice (warn policy) —
+                        // shown alongside any conflict on the create response.
+                        showAirworthinessWarning(data);
                     }
-                    
+
                 });
 
 

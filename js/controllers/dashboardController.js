@@ -90,11 +90,21 @@
                 } catch(e) {}
 
             } else {
-                //console.log("ERROR FAIL / LOGOUT", data);
-                $location.path('/login');
+                // The admin-clubs call failed. Only bounce to login on a genuine
+                // auth failure (401). A transient/unreachable-server error (status
+                // -1, 0, 5xx) must NOT redirect: the user is already logged in, so
+                // /login would just send them straight back here (LoginController
+                // redirects logged-in users to the dashboard), re-firing this call
+                // and looping — hammering the API and crashing the browser.
+                console.log("GetAdminClubs failed", data && data.status, data);
+                if (data && data.status === 401) {
+                    $location.path('/login');
+                } else {
+                    ToastService.error('Connection Problem', 'We could not load your clubs. Please check your connection and try again.');
+                }
             }
-           
-                        
+
+
         });
 
 

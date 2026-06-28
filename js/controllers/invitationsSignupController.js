@@ -1229,8 +1229,11 @@ vm.selected_phone;
                 .then(function (data) {
 	    			////console.log("GETTING TOKEN", data);
 
-
-                    if(data){
+                    // A real invitation payload is a truthy object that ISN'T the
+                    // service's error shape ({success:false}). On any error we
+                    // stay on this public page and show a message — we must NOT
+                    // bounce the (usually logged-out) recipient to /login.
+                    if(data && data.success !== false){
 
                     	$scope.total_invite = data;
                     	
@@ -1261,13 +1264,16 @@ vm.selected_phone;
 
                     	////console.log("success");
                     } else {
-                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to find this invitation. Please try clicking the link again.')
-                    	$state.go("login");
+                    	// Stay on the invitation page — do NOT redirect to login.
+                    	$scope.invite_load_failed = true;
+                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to load this invitation. It may have expired, or the link may be incomplete. Please try clicking the link again, or ask your club to re-send it.');
                     }
                 });
 
     		} else {
-    			$state.go("login");
+    			// No token in the URL — this isn't a valid invitation link.
+    			$scope.invite_load_failed = true;
+    			ToastService.error('Invalid Invitation Link', 'This invitation link is missing its access token. Please use the full link from your invitation email.');
     		}
 	    
 		    if($cookies.get("session") !== "" && $location.search().redirect_flow_id){

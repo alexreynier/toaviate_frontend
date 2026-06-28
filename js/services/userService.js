@@ -109,7 +109,10 @@ app.factory('UserService', UserService);
         function GetInvite(token){
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
             if(token){
-                return $http.get('/api/v1/invitations/' + token).then(handleSuccess, handleError2);
+                // Invitation lookup is a PUBLIC page (the recipient is usually
+                // logged out). Use handleErrorNoRedirect so a 401/error here does
+                // NOT bounce them to /login — the controller shows an inline error.
+                return $http.get('/api/v1/invitations/' + token).then(handleSuccess, handleErrorNoRedirect);
             } else {
                 return false;
             }
@@ -187,8 +190,16 @@ app.factory('UserService', UserService);
 
             if(res.status == 401){
                 $location.path('/login');
-            }    
+            }
 
+            return { success: false, message: res.data, status: res.status };
+        }
+
+        // Like handleError2 but never redirects to /login. For PUBLIC endpoints
+        // (e.g. invitation lookup) where a 401/error must not bounce a
+        // logged-out recipient off the page.
+        function handleErrorNoRedirect(res) {
+            console.log("ERROR (no redirect)", res);
             return { success: false, message: res.data, status: res.status };
         }
 

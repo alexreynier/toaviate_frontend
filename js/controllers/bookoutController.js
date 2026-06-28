@@ -38,8 +38,11 @@
         };
 
         vm.reported_defects = [];
-      
+
         vm.can_authorise = false;
+
+        // Airworthiness/insurance book-out block popup state (force policy).
+        vm.bookout_airworthiness = { visible: false };
 
         // ── Aircraft Check A / Transit Check state ──
         vm.aircraft_check = {
@@ -1659,15 +1662,58 @@
                 // return false;
 
                 // ── Submit aircraft check first if required, then bookout ──
-                var doBookout = function() {
-                    BookoutService.SendBookout(vm.user.id, bookout_obj)
+                // Stash the payload so a Force book-out retry can resend it.
+                vm._bookout_obj = bookout_obj;
+
+                var doBookout = function(forceOverride) {
+                    var payload = vm._bookout_obj;
+                    if (forceOverride) payload.force_override = true;
+
+                    BookoutService.SendBookout(vm.user.id, payload)
                     .then(function(data){
                         if(data.success){
+                            // Warn policy: book-out succeeded but the aircraft has
+                            // airworthiness/insurance issues — non-blocking notice(s).
+                            showBookoutAirworthinessWarnings(data);
                             $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
+                        } else if (data.reason === 'airworthiness') {
+                            // Force policy: a blocking airworthiness/insurance issue.
+                            // Managers/super-admins (can_force_override) get a Force button.
+                            vm.bookout_airworthiness = {
+                                visible: true,
+                                message: data.message || 'This aircraft has an airworthiness or insurance issue.',
+                                hard_block: data.hard_block || null,
+                                issues: data.airworthiness_issues || [],
+                                can_force: data.can_force_override === true,
+                                working: false
+                            };
                         } else {
                             ToastService.error('Bookout Failed', 'Something went wrong: ' + (data.message || 'Unknown error'));
                         }
+                    }, function(){
+                        ToastService.error('Bookout Failed', 'Could not connect to the server.');
                     });
+                };
+
+                // Non-blocking airworthiness/insurance notice(s) under the warn policy.
+                // data.airworthiness_warning is an array of ready-to-display messages.
+                function showBookoutAirworthinessWarnings(data){
+                    if(!data || !data.airworthiness_warning) return;
+                    var msgs = angular.isArray(data.airworthiness_warning) ? data.airworthiness_warning : [data.airworthiness_warning];
+                    msgs.forEach(function(m){
+                        ToastService.warning('Airworthiness / Insurance Notice', m);
+                    });
+                }
+
+                // Confirm + resend the book-out with force_override (managers/super-admins).
+                vm.forceBookout = function(){
+                    if (!vm.bookout_airworthiness) return;
+                    vm.bookout_airworthiness.working = true;
+                    vm.bookout_airworthiness.visible = false;
+                    doBookout(true);
+                };
+                vm.cancelBookoutAirworthiness = function(){
+                    vm.bookout_airworthiness = { visible: false };
                 };
 
                 if (vm.aircraft_check.required && !vm.aircraft_check.submitted) {
