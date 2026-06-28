@@ -333,20 +333,22 @@
             }
 
 
-            $scope.decline_request = function(){
-
-
-                MembershipService.ClubDeclineRequest(vm.this_req.id)
+            $scope.decline_request = function(id){
+                // Mirror accept_request: the generic request-update endpoint sets
+                // the status (Accept → "Accepted", Decline → "Declined"). The view
+                // passes request.id, so take it as a parameter (the old version used
+                // an unset vm.this_req and a non-existent ClubDeclineRequest).
+                MembershipService.UpdateRequests(id, { status: "Declined" })
                 .then(function (data) {
-                    //console.log("DECLINE HERE", data);
-                    //vm.memberships = data;
-
+                    if (data && data.success !== false) {
+                        ToastService.success('Request Declined', 'The membership request has been declined.');
+                    } else {
+                        ToastService.error('Error', (data && data.message) || 'Could not decline this request.');
+                    }
                     update_requests();
-
-                    // $state.go('dashboard.my_account.memberships', {}, {reload: true});
-
-                }); 
-
+                }, function () {
+                    ToastService.error('Error', 'Could not connect to the server.');
+                });
             }
 
 

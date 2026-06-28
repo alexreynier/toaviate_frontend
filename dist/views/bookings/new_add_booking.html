@@ -1166,7 +1166,7 @@
                   <!-- Full action buttons for members with booking rights -->
                   <div class="bottom_btn_popup_btns" ng-if="vm.see_booking.editable && !vm.see_booking.can_be_edited && !vm.is_restricted_member">
                     <button class="btn btn-primary" ng-click="close_details()" >Close</button>
-                    <button class="btn btn-danger" ng-click="cancel_booking(vm.see_booking.id)" >Cancel Booking</button>
+                    <button class="btn btn-danger" ng-click="confirm_cancel_booking(vm.see_booking)" >Cancel Booking</button>
                     <a class="btn btn-info" ui-sref="dashboard.my_account.booking_audit_trail({booking_id: vm.see_booking.id})"><i class="fa fa-history"></i> View History</a>
                     <button class="btn btn-primary" ui-sref="dashboard.edit_booking({booking_id: vm.see_booking.id})">Edit Booking</button>
                 </div>
@@ -1186,37 +1186,50 @@
 </div>
 </div>
 
-<!--  ng-if="vm.booking_errors.length > 0" //-->
+<!-- ═══ Cancel-booking confirmation (replaces the native "type YES" prompt) ═══ -->
+<div class="cancel-confirm" ng-if="vm.cancel_confirm.visible" ng-click="close_cancel_confirm()">
+  <div class="cancel-confirm__box" ng-click="$event.stopPropagation()">
 
-<div class="popup_bg" ng-if="vm.booking_errors.length > 0"  ng-click="decline_booking_change()">
-    <div class="popup_box" ng-repeat="error in vm.booking_errors">
-
-        <h3> Booking Error </h3>
-        <br />
-
-        <p>{{ error.message }}</p>
-
-        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px; font-size:13px; color:#666;">{{ error.api }}</p>
-
-        <div ng-if="error.type == 'rental_items'">
-            <span ng-repeat="rental in error.api">
-            {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.</b>
-            </span>
-        </div>
-
-      
-
-      <div class="bottom_btn">
-
-        <button ng-click="decline_booking_change()" class="btn btn-warning">Cancel Change</button>
-        <button ng-if="error.button !== ''" ng-click="override_booking_change(error.override)" class="btn btn-primary" ng-click="">{{error.button}}</button>
-
+    <div class="cancel-confirm__icon">
+      <i class="fa fa-exclamation-triangle"></i>
     </div>
 
+    <h3 class="cancel-confirm__title">Cancel this booking?</h3>
+    <p class="cancel-confirm__sub">This will remove the booking from the schedule. This can't be undone.</p>
+
+    <div class="cancel-confirm__details" ng-if="vm.cancel_confirm.booking">
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.title">
+        <span class="cancel-confirm__label">Booked for</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.title }}</span>
+      </div>
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.plane.registration">
+        <span class="cancel-confirm__label">Aircraft</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.plane.registration }}</span>
+      </div>
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.start_datetime">
+        <span class="cancel-confirm__label">When</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.start_datetime | date:"dd/MM/yyyy HH:mm" }}<span ng-if="vm.cancel_confirm.booking.end_datetime"> – {{ vm.cancel_confirm.booking.end_datetime | date:"HH:mm" }}</span></span>
+      </div>
     </div>
+
+    <div class="cancel-confirm__actions">
+      <button class="cancel-confirm__btn cancel-confirm__btn--keep" ng-click="close_cancel_confirm()" ng-disabled="vm.cancel_confirm.working">
+        Keep Booking
+      </button>
+      <button class="cancel-confirm__btn cancel-confirm__btn--cancel" ng-click="do_cancel_booking()" ng-disabled="vm.cancel_confirm.working">
+        <i class="fa" ng-class="{'fa-spinner fa-spin': vm.cancel_confirm.working, 'fa-trash': !vm.cancel_confirm.working}"></i>
+        {{ vm.cancel_confirm.working ? 'Cancelling…' : 'Cancel Booking' }}
+      </button>
+    </div>
+
+  </div>
 </div>
 
-
+<!-- NOTE: a second, older copy of this booking-errors popup used to live here and
+     rendered at the same time as the one further down (both bound to
+     vm.booking_errors.length > 0), stacking two identical dialogs. Removed — the
+     canonical popup below routes managers through the admin override
+     (override_booking_change2) when error.can_override is set. -->
 
 
 
@@ -1284,14 +1297,19 @@
 </div>
 
 <div class="popup_bg" ng-if="vm.booking_errors.length > 0"  ng-click="decline_booking_change()">
-    <div class="popup_box" ng-repeat="error in vm.booking_errors">
+    <div class="popup_box" ng-class="{'popup_box--hardblock': error.is_hard_block}" ng-repeat="error in vm.booking_errors" ng-click="$event.stopPropagation()">
 
-        <h3> Booking Error </h3>
+        <!-- Hard regulatory/safety block: stronger warning -->
+        <div ng-if="error.is_hard_block">
+            <div class="hardblock-icon"><i class="fa fa-ban"></i></div>
+            <h3 class="hardblock-title">Booking Blocked</h3>
+        </div>
+        <h3 ng-if="!error.is_hard_block"> Booking Error </h3>
         <br />
 
         <p>{{ error.message }}</p>
 
-        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px; font-size:13px; color:#666;">{{ error.api }}</p>
+        <p ng-if="error.api && error.type !== 'rental_items' && !error.is_hard_block" style="margin-top:8px; font-size:13px; color:#666;">{{ error.api }}</p>
 
         <div ng-if="error.type == 'rental_items'">
             <span ng-repeat="rental in error.api">
@@ -1299,34 +1317,53 @@
             </span>
         </div>
 
-      
+        <!-- Force-override note (managers / super-admins on a hard block) -->
+        <p ng-if="error.is_hard_block && error.can_force" class="hardblock-warn">
+            <i class="fa fa-exclamation-triangle"></i>
+            Forcing this booking accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
+        </p>
 
-      <div class="bottom_btn">
+        <div class="bottom_btn">
 
-        <button ng-click="decline_booking_change()" class="btn btn-warning">Cancel Change</button>
-        <button ng-if="error.can_override" ng-click="override_booking_change2(error.override)" class="btn btn-primary">{{error.button || 'OVERRIDE CHANGE'}}</button>
-        <button ng-if="error.button !== '' && !error.can_override" ng-click="override_booking_change(error.override)" class="btn btn-primary">{{error.button}}</button>
+            <button ng-click="decline_booking_change()" class="btn btn-warning">Cancel Change</button>
 
-    </div>
+            <!-- Availability conflicts (instructor / aircraft) — three tiers -->
+            <!-- Tier 1: soft conflict — normal override (admin path) -->
+            <button ng-if="(error.type === 'instructor' || error.type === 'plane') && !error.is_hard_block && error.can_override" ng-click="override_booking_change2(error.override)" class="btn btn-primary">{{ error.button || 'OVERRIDE CHANGE' }}</button>
+
+            <!-- Tier 2: hard block — force override (managers / super-admins only) -->
+            <button ng-if="(error.type === 'instructor' || error.type === 'plane') && error.is_hard_block && error.can_force" ng-click="force_booking_change(error.override)" class="btn btn-danger">
+                <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+            </button>
+
+            <!-- Other conflicts (currency / rental items) — their own override button -->
+            <button ng-if="error.type !== 'instructor' && error.type !== 'plane' && error.button" ng-click="override_booking_change2(error.override)" class="btn btn-primary">{{ error.button }}</button>
+
+        </div>
 
     </div>
 </div>
 
 
 <div class="popup_bg" ng-if="vm.new_booking_errors.length > 0"  ng-click="vm.decline_new_booking_error()">
-    <div class="popup_box" ng-repeat="error in vm.new_booking_errors" ng-click="$event.stopPropagation()">
+    <div class="popup_box" ng-class="{'popup_box--hardblock': error.is_hard_block}" ng-repeat="error in vm.new_booking_errors" ng-click="$event.stopPropagation()">
 
-        <div style="margin-bottom:16px;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#fff3e0;margin-bottom:8px;">
-                <i class="fa fa-exclamation-triangle" style="font-size:22px;color:#f59e0b;"></i>
-            </span>
+        <div ng-if="error.is_hard_block">
+            <div class="hardblock-icon"><i class="fa fa-ban"></i></div>
+            <h3 class="hardblock-title">Booking Blocked</h3>
         </div>
-
-        <h3> Booking Conflict </h3>
+        <div ng-if="!error.is_hard_block">
+            <div style="margin-bottom:16px;">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#fff3e0;margin-bottom:8px;">
+                    <i class="fa fa-exclamation-triangle" style="font-size:22px;color:#f59e0b;"></i>
+                </span>
+            </div>
+            <h3> Booking Conflict </h3>
+        </div>
 
         <p style="color:#475569;font-size:14px;line-height:1.6;">{{ error.message }}</p>
 
-        <p ng-if="error.api && error.type !== 'rental_items'" style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.5;">{{ error.api }}</p>
+        <p ng-if="error.api && error.type !== 'rental_items' && !error.is_hard_block" style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.5;">{{ error.api }}</p>
 
         <div ng-if="error.type == 'rental_items'">
             <span ng-repeat="rental in error.api">
@@ -1334,10 +1371,22 @@
             </span>
         </div>
 
+        <p ng-if="error.is_hard_block && error.can_force" class="hardblock-warn">
+            <i class="fa fa-exclamation-triangle"></i>
+            Forcing this booking accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
+        </p>
+
       <div class="bottom_btn" style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
 
         <button ng-click="vm.decline_new_booking_error()" class="btn btn-warning">Cancel</button>
-        <button ng-if="error.button !== ''" ng-click="vm.override_new_booking_errors(error.override)" class="btn btn-primary">{{error.button}}</button>
+
+        <!-- Soft conflict — normal override -->
+        <button ng-if="!error.is_hard_block && error.button" ng-click="vm.override_new_booking_errors(error.override)" class="btn btn-primary">{{ error.button }}</button>
+
+        <!-- Hard block — force override (managers / super-admins only) -->
+        <button ng-if="error.is_hard_block && error.can_force" ng-click="vm.force_new_booking_errors(error.override)" class="btn btn-danger">
+            <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+        </button>
 
     </div>
 

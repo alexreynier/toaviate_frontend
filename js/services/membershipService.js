@@ -25,6 +25,7 @@ app.factory('MembershipService', MembershipService);
         service.GetRequestsById = GetRequestsById;
         service.AcceptRequest = AcceptRequest;
         service.ClubAcceptRequest = ClubAcceptRequest;
+        service.UpdateRequests = UpdateRequests;
 
         service.ResendRequest = ResendRequest;
 

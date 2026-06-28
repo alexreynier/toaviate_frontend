@@ -16,6 +16,61 @@
 
     <ui-view>
 
+      <!-- ═══ Verify / fix pending invitations (manager/super-admin) ═══ -->
+      <div class="snazzy-page__toolbar" ng-if="vm.canReconcile" style="justify-content:flex-end; margin-bottom:14px;">
+        <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.reconcileInvitations()" ng-disabled="vm.reconciling"
+                uib-tooltip="Repair converted-user invitations that were sent but aren't showing here. Safe to run repeatedly; does not re-send emails.">
+          <i class="fa" ng-class="vm.reconciling ? 'fa-spinner fa-spin' : 'fa-wrench'"></i>
+          {{ vm.reconciling ? 'Verifying…' : 'Verify / fix pending invitations' }}
+        </button>
+      </div>
+
+      <!-- ═══ Invitations needing a membership (from reconcile) ═══ -->
+      <div class="snazzy-page__table-card" ng-if="vm.needs_membership.length > 0" style="border-left:4px solid #f59e0b; margin-bottom:18px;">
+        <div style="padding:14px 18px;">
+          <h3 style="margin:0 0 6px; font-size:15px; color:#92400e;">
+            <i class="fa fa-exclamation-triangle" style="margin-right:6px;"></i>
+            {{ vm.needs_membership.length }} invitation(s) need a membership
+          </h3>
+          <p style="margin:0 0 14px; font-size:13px; color:#64748b;">
+            These converted users couldn't be repaired automatically. Assign a membership (and optional dates) for each and click Fix — this makes the invitation valid and visible below. It does not re-send any email.
+          </p>
+
+          <div class="nm-fix" ng-repeat="nm in vm.needs_membership" ng-init="vm.ensureFixDefaults(nm)"
+               style="border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:10px; background:#fff;">
+            <div style="font-size:13px; margin-bottom:8px;">
+              <strong>{{ nm.email }}</strong>
+              <span style="color:#94a3b8;"> — {{ vm.needsMembershipReason(nm.reason) }}</span>
+            </div>
+            <div class="nm-fix__form" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;">
+              <div style="flex:1 1 200px; min-width:180px;">
+                <label style="display:block; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px;">Membership <span style="color:#dc2626;">*</span></label>
+                <select class="form-control inputtext" ng-model="nm._fix.membership_id"
+                        ng-change="vm.recomputeFixExpiry(nm)" required
+                        ng-options="m.membership_id as m.membership_name for m in vm.joinableMemberships">
+                  <option value="" disabled>— Select membership —</option>
+                </select>
+              </div>
+              <div style="flex:0 1 150px;">
+                <label style="display:block; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px;">Term start</label>
+                <input type="date" class="form-control inputtext" ng-model="nm._fix.term_start" ng-change="vm.recomputeFixExpiry(nm)" />
+              </div>
+              <div style="flex:0 1 150px;">
+                <label style="display:block; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px;">Expiry</label>
+                <input type="date" class="form-control inputtext" ng-model="nm._fix.membership_ends" ng-change="vm.onFixExpiryEdited(nm)" />
+              </div>
+              <div>
+                <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.repairInvitation(nm)"
+                        ng-disabled="nm._fix.working || !nm._fix.membership_id">
+                  <i class="fa" ng-class="nm._fix.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                  {{ nm._fix.working ? 'Fixing…' : 'Fix' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ═══ Empty state ═══ -->
       <div class="snazzy-page__empty" ng-if="vm.requests.length == 0">
         <i class="fa fa-inbox snazzy-page__empty-icon"></i>
@@ -25,27 +80,50 @@
       <!-- ═══ Requests Table (Desktop) ═══ -->
       <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="vm.requests.length > 0">
         <div class="snazzy-page__table-scroll">
-          <table class="snazzy-table">
+          <table class="snazzy-table mr-table">
             <thead>
               <tr>
                 <th>First Name</th>
                 <th>Last Name</th>
                 <th class="snazzy-table__hide-mobile">Email Address</th>
                 <th class="snazzy-table__hide-mobile">Mobile Number</th>
+                <th>Membership</th>
                 <th>Status</th>
                 <th style="text-align:right;">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="request in vm.requests">
+              <!-- Use ng-repeat-start/end so each request owns a main row + an
+                   expandable editor row that animates open beneath it. -->
+              <tr ng-repeat-start="request in vm.requests"
+                  ng-class="{'mr-row--editing': vm.editingRequestId === request.id}">
                 <td class="snazzy-table__name">{{ request.first_name }}</td>
                 <td class="snazzy-table__name">{{ request.last_name }}</td>
                 <td class="snazzy-table__hide-mobile">{{ request.email }}</td>
                 <td class="snazzy-table__hide-mobile">{{ request.phone_number }}</td>
                 <td>
+                  <span class="mr-tier-badge" ng-if="vm.requestTierName(request)">
+                    <i class="fa fa-id-card-alt"></i> {{ vm.requestTierName(request) }}
+                  </span>
+                  <span class="mr-tier-badge mr-tier-badge--empty" ng-if="!vm.requestTierName(request)">
+                    <i class="fa fa-exclamation-circle"></i> No membership
+                  </span>
+                  <div class="mr-tier-dates" ng-if="request.term_start || request.membership_ends">
+                    {{ (request.term_start || request.membership_start) | date:'dd/MM/yy' }}
+                    <span ng-if="request.membership_ends || request.membership_end">→ {{ (request.membership_ends || request.membership_end) | date:'dd/MM/yy' }}</span>
+                  </div>
+                </td>
+                <td>
                   <span class="snazzy-table__badge snazzy-table__badge--info">{{ request.status }}</span>
                 </td>
                 <td class="snazzy-table__td-actions">
+                  <!-- Edit membership (all requests) -->
+                  <button ng-click="vm.toggleEditRequest(request)"
+                    class="snazzy-table__action-btn mr-edit-btn"
+                    ng-class="{'mr-edit-btn--active': vm.editingRequestId === request.id}"
+                    uib-tooltip="View / re-assign membership">
+                    <i class="fa" ng-class="vm.editingRequestId === request.id ? 'fa-chevron-up' : 'fa-id-card'"></i>
+                  </button>
                   <!-- User-initiated requests -->
                   <button ng-if="request.requested_by == 'user'" ng-click="decline_request(request.id)"
                     class="snazzy-table__action-btn snazzy-table__action-btn--danger" uib-tooltip="Decline Request">
@@ -64,6 +142,48 @@
                     class="snazzy-table__action-btn" uib-tooltip="Resend Request">
                     <i class="fa fa-paper-plane"></i>
                   </button>
+                </td>
+              </tr>
+              <!-- Expandable membership editor row -->
+              <tr ng-repeat-end class="mr-editor-row" ng-if="vm.editingRequestId === request.id">
+                <td colspan="7" class="mr-editor-cell">
+                  <div class="mr-editor" ng-if="request._edit">
+                    <div class="mr-editor__title">
+                      <i class="fa fa-id-card-alt"></i>
+                      Membership for <strong>{{ request.first_name }} {{ request.last_name }}</strong>
+                    </div>
+                    <div class="mr-editor__grid">
+                      <div class="mr-editor__field mr-editor__field--tier">
+                        <label>Membership <span class="mr-req">*</span></label>
+                        <select class="mr-input" ng-model="request._edit.membership_id"
+                                ng-change="vm.recomputeRequestExpiry(request)" required
+                                ng-options="m.membership_id as m.membership_name for m in vm.joinableMemberships">
+                          <option value="" disabled>— Select membership —</option>
+                        </select>
+                      </div>
+                      <div class="mr-editor__field">
+                        <label>Term start</label>
+                        <input type="date" class="mr-input" ng-model="request._edit.term_start"
+                               ng-change="vm.recomputeRequestExpiry(request)" />
+                      </div>
+                      <div class="mr-editor__field">
+                        <label>Expiry</label>
+                        <input type="date" class="mr-input" ng-model="request._edit.membership_ends"
+                               ng-change="vm.onRequestExpiryEdited(request)" />
+                      </div>
+                    </div>
+                    <div class="mr-editor__actions">
+                      <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelEditRequest(request)">
+                        Cancel
+                      </button>
+                      <button class="snazzy-page__btn snazzy-page__btn--primary"
+                              ng-click="vm.saveRequestMembership(request)"
+                              ng-disabled="request._edit.working || !request._edit.membership_id">
+                        <i class="fa" ng-class="request._edit.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                        {{ request._edit.working ? 'Saving…' : 'Save Membership' }}
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -87,8 +207,58 @@
               <span class="snazzy-mobile-card__label">Mobile</span>
               <span>{{ request.phone_number }}</span>
             </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Membership</span>
+              <span>
+                <span class="mr-tier-badge" ng-if="vm.requestTierName(request)">
+                  <i class="fa fa-id-card-alt"></i> {{ vm.requestTierName(request) }}
+                </span>
+                <span class="mr-tier-badge mr-tier-badge--empty" ng-if="!vm.requestTierName(request)">
+                  <i class="fa fa-exclamation-circle"></i> No membership
+                </span>
+              </span>
+            </div>
           </div>
+
+          <!-- Inline membership editor (mobile) -->
+          <div class="mr-editor mr-editor--mobile" ng-if="vm.editingRequestId === request.id && request._edit">
+            <div class="mr-editor__grid">
+              <div class="mr-editor__field mr-editor__field--tier">
+                <label>Membership <span class="mr-req">*</span></label>
+                <select class="mr-input" ng-model="request._edit.membership_id"
+                        ng-change="vm.recomputeRequestExpiry(request)" required
+                        ng-options="m.membership_id as m.membership_name for m in vm.joinableMemberships">
+                  <option value="" disabled>— Select membership —</option>
+                </select>
+              </div>
+              <div class="mr-editor__field">
+                <label>Term start</label>
+                <input type="date" class="mr-input" ng-model="request._edit.term_start"
+                       ng-change="vm.recomputeRequestExpiry(request)" />
+              </div>
+              <div class="mr-editor__field">
+                <label>Expiry</label>
+                <input type="date" class="mr-input" ng-model="request._edit.membership_ends"
+                       ng-change="vm.onRequestExpiryEdited(request)" />
+              </div>
+            </div>
+            <div class="mr-editor__actions">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelEditRequest(request)">Cancel</button>
+              <button class="snazzy-page__btn snazzy-page__btn--primary"
+                      ng-click="vm.saveRequestMembership(request)"
+                      ng-disabled="request._edit.working || !request._edit.membership_id">
+                <i class="fa" ng-class="request._edit.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                {{ request._edit.working ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </div>
+
           <div class="snazzy-mobile-card__footer">
+            <button ng-click="vm.toggleEditRequest(request)"
+              class="snazzy-page__btn snazzy-page__btn--outline" style="font-size:12px; padding:6px 14px;">
+              <i class="fa" ng-class="vm.editingRequestId === request.id ? 'fa-chevron-up' : 'fa-id-card'"></i>
+              {{ vm.editingRequestId === request.id ? 'Close' : 'Membership' }}
+            </button>
             <button ng-if="request.requested_by == 'user'" ng-click="decline_request(request.id)"
               class="snazzy-page__btn snazzy-page__btn--outline" style="font-size:12px; padding:6px 14px;">
               <i class="fa fa-times"></i> Decline
