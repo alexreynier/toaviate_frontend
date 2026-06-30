@@ -1,8 +1,13 @@
 app.factory('PaymentService', PaymentService);
 
-    PaymentService.$inject = ['$http', '$location'];
-    function PaymentService($http, $location) {
+    PaymentService.$inject = ['$http', '$location', '$q'];
+    function PaymentService($http, $location, $q) {
         var service = {};
+
+        // Per-club Stripe publishable key cache. The key is club- AND mode-specific
+        // (a club may be sandbox while another is live), so it must be fetched from
+        // payment_mode/{club_id}/config — never hard-coded. Cached per session.
+        var _stripeKeyCache = {};
 
 
         service.GetAddresses = GetAddresses;
@@ -46,7 +51,47 @@ app.factory('PaymentService', PaymentService);
 
         service.DeleteMemberCard = DeleteMemberCard;
 
-        return service; 
+        service.GetClubStripeKey = GetClubStripeKey;
+        service.ClearClubStripeKey = ClearClubStripeKey;
+
+        return service;
+
+        // Resolve a club's Stripe publishable key (per-club, per payment mode).
+        // Returns a promise that resolves to the publishable key string. Cached so
+        // repeated payment flows in a session only hit the network once per club.
+        // Call ClearClubStripeKey after a mode switch so the new mode's key is
+        // fetched fresh.
+        //
+        // REJECTS with { code: 'not_configured' } when the club has no usable
+        // publishable key — e.g. a club flipped to live before that server's live
+        // keys were filled in (stripe_publishable_key_present === false). Card-mount
+        // flows should .catch this and show a "card payments aren't configured yet"
+        // message rather than letting Stripe.js throw on an empty key.
+        function GetClubStripeKey(club_id) {
+            if (_stripeKeyCache[club_id]) {
+                return $q.when(_stripeKeyCache[club_id]);
+            }
+            return $http.get('/api/v1/payment_mode/' + club_id + '/config').then(function(res){
+                var data = res.data || {};
+                var key = data.stripe_publishable_key;
+                // present flag is authoritative; fall back to a truthy key if absent.
+                var present = (typeof data.stripe_publishable_key_present !== 'undefined')
+                    ? data.stripe_publishable_key_present
+                    : !!key;
+                if (!present || !key) {
+                    return $q.reject({ code: 'not_configured', payment_mode: data.payment_mode });
+                }
+                _stripeKeyCache[club_id] = key;
+                return key;
+            }, function(res){
+                if (res && res.status == 401) { $location.path('/login'); }
+                return $q.reject({ code: 'fetch_failed', status: res && res.status });
+            });
+        }
+
+        function ClearClubStripeKey(club_id) {
+            delete _stripeKeyCache[club_id];
+        }
 
         function ProcessPayment(send){
             return $http.post('/api/v1/payments/process_payment', send).then(handleSuccess, handleError2);

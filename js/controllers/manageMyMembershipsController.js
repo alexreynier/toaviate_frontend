@@ -516,8 +516,9 @@
                 PaymentService.CreateNewCustomer(send)
                 .then(function (data) {
                     console.log("DATA HERE", data);
-                    // Initialize Stripe.js
-                    var stripe = Stripe(EnvConfig.getStripeKey());
+                  // Initialize Stripe.js with this club's per-club publishable key
+                  PaymentService.GetClubStripeKey(vm.membership_now.club_id).then(function(stripeKey){
+                    var stripe = Stripe(stripeKey);
 
                     const options = {
                       clientSecret: data.secret,
@@ -560,6 +561,11 @@
                         // site first to authorize the payment, then redirected to the `return_url`.
                       }
                     });
+                  }).catch(function(){
+                    // No usable publishable key for this club — don't mount the card form.
+                    vm.show_add_card = false;
+                    ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club.");
+                  }); // end GetClubStripeKey().then for membership add-card
 
 
 

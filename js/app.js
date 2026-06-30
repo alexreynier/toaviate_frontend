@@ -9,7 +9,7 @@ var app = angular
     // $http call to /api/... or api/... automatically
     // hits the right server per environment.
     // =============================================
-    app.factory('apiUrlInterceptor', ['EnvConfig', '$q', function(EnvConfig, $q) {
+    app.factory('apiUrlInterceptor', ['EnvConfig', '$q', '$injector', function(EnvConfig, $q, $injector) {
         // ── Circuit breaker ──────────────────────────────────────────────
         // Safety net against request storms: if the SAME GET endpoint fails
         // repeatedly in a short window (e.g. backend unreachable / cert rejected,
@@ -20,8 +20,53 @@ var app = angular
         var COOLDOWN_MS = 10000;     // window after which a tripped endpoint is retried
         var failures = {};           // key -> { count, trippedAt }
 
+        // ── Session-expiry gate ──────────────────────────────────────────
+        // The answer to "is this user still authenticated?" is the first
+        // authenticated API call that comes back 401. When that happens we run
+        // a ONE-SHOT logout: clear credentials and redirect to /login exactly
+        // once. While the gate is "expired", every further authenticated /api/
+        // request is short-circuited (rejected before it leaves the browser),
+        // which stops the storm of parallel 401s seen on a stale dashboard.
+        // The gate is reset by AuthenticationService on a successful login
+        // (via the shared 'authGate' service below).
+        var authGate = $injector.get('authGate');
+
         function keyFor(config) {
             return (config.method || 'GET').toUpperCase() + ' ' + (config.url || '');
+        }
+
+        // Is this a protected (authenticated) call to our API? Login/auth
+        // bootstrap endpoints are NOT protected — they must always be allowed
+        // through, and a 401 from them (e.g. wrong password) must NOT be treated
+        // as a session expiry. Works for both the relative '/api/...' form (in
+        // the request stage, before prefixing) and the absolute prefixed form
+        // (in the responseError stage, after prefixing).
+        function isProtectedApiUrl(url) {
+            if (!url || url.indexOf('/api/') === -1) { return false; }
+            var unauthEndpoints = [
+                '/api/v1/users/login',   // covers login, login0..3
+                '/api/v1/users/logout',
+                '/api/v1/users/reset_password'
+            ];
+            for (var i = 0; i < unauthEndpoints.length; i++) {
+                if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
+            }
+            return true;
+        }
+
+        // Run the one-shot logout: clear creds + bounce to /login. Uses
+        // $injector to avoid a circular dependency ($http -> interceptor ->
+        // services that use $http).
+        function handleSessionExpired() {
+            if (authGate.isExpired()) { return; }   // already handled — swallow
+            authGate.markExpired();
+
+            try { $injector.get('AuthenticationService').ClearCredentials(); } catch (e) {}
+
+            var $location = $injector.get('$location');
+            if ($location.path() !== '/login') {
+                $location.path('/login');
+            }
         }
 
         return {
@@ -32,6 +77,19 @@ var app = angular
                 if (url.indexOf('api/') === 0) {
                     url = '/' + url;
                     config.url = url;
+                }
+
+                // Once the session is known-expired, refuse to issue further
+                // authenticated API calls until the user logs back in. This is
+                // what actually stops the 401 storm at the source.
+                if (authGate.isExpired() && isProtectedApiUrl(url)) {
+                    return $q.reject({
+                        data: null,
+                        status: 401,
+                        config: config,
+                        _sessionExpired: true,
+                        statusText: 'Request blocked — session expired, awaiting re-login.'
+                    });
                 }
 
                 // Only prefix requests that start with /api/
@@ -66,8 +124,21 @@ var app = angular
             },
             responseError: function(rejection) {
                 var cfg = rejection && rejection.config;
-                // Don't double-count our own breaker rejections.
-                if (cfg && !rejection._circuitOpen) {
+
+                // ── 401 = session no longer valid ──
+                // The first authenticated 401 triggers the one-shot logout; any
+                // others (in-flight when the session died) are swallowed here so
+                // they don't each redirect. Our own pre-blocked rejections carry
+                // _sessionExpired and skip straight through.
+                if (rejection && rejection.status === 401 && !rejection._sessionExpired) {
+                    var url = cfg && cfg.url ? cfg.url : '';
+                    if (isProtectedApiUrl(url)) {
+                        handleSessionExpired();
+                    }
+                }
+
+                // Don't double-count our own breaker / session rejections.
+                if (cfg && !rejection._circuitOpen && !rejection._sessionExpired) {
                     var k = keyFor(cfg);
                     var rec = failures[k] || { count: 0, trippedAt: null };
                     rec.count++;
@@ -81,6 +152,20 @@ var app = angular
             }
         };
     }]);
+
+    // ── Shared auth gate ─────────────────────────────────────────────────
+    // A tiny, dependency-free flag shared between the HTTP interceptor and
+    // AuthenticationService. It records whether the current session has been
+    // detected as expired (so the interceptor only logs out / redirects once,
+    // and blocks further authed calls until re-login resets it).
+    app.factory('authGate', function() {
+        var expired = false;
+        return {
+            isExpired: function() { return expired; },
+            markExpired: function() { expired = true; },
+            reset: function() { expired = false; }
+        };
+    });
 
     app.config(['$httpProvider', function($httpProvider) {
         $httpProvider.interceptors.push('apiUrlInterceptor');
@@ -317,6 +402,80 @@ var app = angular
                 url: '/manage_club',
                 controller: 'DashboardController',
                 templateUrl: 'views/manage_club.html',
+                controllerAs: 'vm'
+            })
+
+
+            // ── TOAVIATE SUPER-ADMIN HUB (platform staff only) ──
+            // One place for platform-wide tools. The hub controller gates on
+            // @toaviate.com and bounces non-staff to /dashboard. The child tools
+            // reuse their existing controllers + views (moved here from
+            // dashboard.manage_club.*).
+
+            .state('dashboard.super_admin', {
+                url: '/super_admin',
+                controller: 'DashboardSuperAdminController',
+                templateUrl: 'views/super_admin.html',
+                controllerAs: 'vm'
+            })
+
+            // FOX / IOT TRACKER MANAGEMENT
+            .state('dashboard.super_admin.fox_trackers', {
+                url: '/fox_trackers',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_trackers.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            .state('dashboard.super_admin.fox_tracker_detail', {
+                url: '/fox_trackers/:tracker_id',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_tracker_detail.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'detail'
+                }
+            })
+
+            .state('dashboard.super_admin.fox_tracker_add', {
+                url: '/fox_trackers_add',
+                controller: 'DashboardFoxTrackersController',
+                templateUrl: 'views/manageclub/fox_tracker_form.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'add'
+                }
+            })
+
+            // TRACKER ↔ PLANE ASSIGNMENT
+            .state('dashboard.super_admin.tracker_planes', {
+                url: '/tracker_planes',
+                controller: 'DashboardTrackerPlaneController',
+                templateUrl: 'views/manageclub/tracker_planes.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            .state('dashboard.super_admin.tracker_plane_detail', {
+                url: '/tracker_planes/:plane_id',
+                controller: 'DashboardTrackerPlaneController',
+                templateUrl: 'views/manageclub/tracker_plane_detail.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'detail'
+                }
+            })
+
+            // CRON STATUS
+            .state('dashboard.super_admin.cron_status', {
+                url: '/cron_status',
+                controller: 'CronStatusController',
+                templateUrl: 'views/manageclub/cron_status.html',
                 controllerAs: 'vm'
             })
 
@@ -1082,59 +1241,8 @@ var app = angular
                 }
             })
 
-            // FOX TRACKER MANAGEMENT (ToAviate admin only)
-
-            .state('dashboard.manage_club.fox_trackers', {
-                url: '/fox_trackers',
-                controller: 'DashboardFoxTrackersController',
-                templateUrl: 'views/manageclub/fox_trackers.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'list'
-                }
-            })
-
-            .state('dashboard.manage_club.fox_tracker_detail', {
-                url: '/fox_trackers/:tracker_id',
-                controller: 'DashboardFoxTrackersController',
-                templateUrl: 'views/manageclub/fox_tracker_detail.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'detail'
-                }
-            })
-
-            .state('dashboard.manage_club.fox_tracker_add', {
-                url: '/fox_trackers_add',
-                controller: 'DashboardFoxTrackersController',
-                templateUrl: 'views/manageclub/fox_tracker_form.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'add'
-                }
-            })
-
-            // TRACKER ↔ PLANE ASSIGNMENT
-
-            .state('dashboard.manage_club.tracker_planes', {
-                url: '/tracker_planes',
-                controller: 'DashboardTrackerPlaneController',
-                templateUrl: 'views/manageclub/tracker_planes.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'list'
-                }
-            })
-
-            .state('dashboard.manage_club.tracker_plane_detail', {
-                url: '/tracker_planes/:plane_id',
-                controller: 'DashboardTrackerPlaneController',
-                templateUrl: 'views/manageclub/tracker_plane_detail.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'detail'
-                }
-            })
+            // (Fox/IOT trackers + tracker↔plane assignment moved to the
+            //  dashboard.super_admin hub — see the TOAVIATE SUPER-ADMIN block.)
 
             // CLUB SETTINGS
 
@@ -1163,13 +1271,7 @@ var app = angular
                 controllerAs: 'vm'
             })
 
-            // CRON STATUS (super-admin only)
-            .state('dashboard.manage_club.cron_status', {
-                url: '/cron_status',
-                controller: 'CronStatusController',
-                templateUrl: 'views/manageclub/cron_status.html',
-                controllerAs: 'vm'
-            })
+            // (Cron status moved to the dashboard.super_admin hub.)
 
             // BOOKEDSCHEDULER SYNC
             .state('dashboard.manage_club.bs_sync', {
@@ -2615,6 +2717,17 @@ var app = angular
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
+
+        // ── ToAviate platform staff ──
+        // Single source of truth for gating the super-admin hub and its tools.
+        // Platform staff are identified by their @toaviate.com email (matches the
+        // backend PAYMENT_MODE_SUPER_ADMINS allow-list). Exposed on $rootScope so
+        // any template can call isToAviateStaff() via prototype inheritance.
+        // The backend remains authoritative for each tool.
+        $rootScope.isToAviateStaff = function() {
+            var u = $rootScope.globals && $rootScope.globals.currentUser;
+            return !!(u && u.email && /@toaviate\.com$/i.test(u.email));
+        };
 
         // ── Safe back navigation ──
         // Track the previous ui-router state so we can avoid going back to login/public pages.

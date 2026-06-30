@@ -1,14 +1,14 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope'];
-    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope', 'authGate'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope, authGate) {
         var vm = this;
- 
+
         vm.login = login;
 
         vm.login_session;
         vm.login_key;
- 
+
         (function initController() {
             // If the user is already logged in (e.g. they pressed Back and landed
             // on /login), DON'T clear their credentials — just send them on to
@@ -17,8 +17,14 @@ app.controller('LoginController', LoginController);
             // because AuthenticationService.CheckLoggedIn() compares objects with
             // == (reference compare → effectively always false) and would wrongly
             // log a valid user out here.
+            //
+            // BUT only bounce to the dashboard when the session is genuinely
+            // active. If the interceptor has flagged the session as expired
+            // (authGate), the stored currentUser is stale — stay on /login and
+            // let them re-authenticate, otherwise we'd bounce straight back into
+            // the dashboard's 401 storm.
             var loggedInUser = $rootScope.globals && $rootScope.globals.currentUser;
-            if (loggedInUser && loggedInUser.id) {
+            if (loggedInUser && loggedInUser.id && !authGate.isExpired()) {
                 if (loggedInUser.access && ((loggedInUser.access.instructor && loggedInUser.access.instructor.length > 0) ||
                                             (loggedInUser.access.manager && loggedInUser.access.manager.length > 0))) {
                     $location.path('/dashboard');

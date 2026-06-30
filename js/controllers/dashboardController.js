@@ -122,6 +122,19 @@
             $state.reload();
         };
 
+        // Whether to show the header club switcher: a multi-club admin on a page
+        // that actually operates on the selected club. That's every Manage Club
+        // admin page, plus Aircraft Trackers in the ToAviate hub (which lists/
+        // assigns a club's planes). NOT shown on My Account / Instructor / pilot
+        // pages, nor on the platform-wide hub tools (IOT Trackers, Cron Status)
+        // that ignore the selected club.
+        vm.showClubSwitcher = function() {
+            if (!vm.clubs || vm.clubs.length <= 1) { return false; }
+            return $state.includes('dashboard.manage_club') ||
+                   $state.includes('dashboard.super_admin.tracker_planes') ||
+                   $state.includes('dashboard.super_admin.tracker_plane_detail');
+        };
+
 
         initController();
 

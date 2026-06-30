@@ -1,0 +1,85 @@
+<div class="pm-switch-modal" ng-class="{'pm-switch-modal--live': vm.is_live_target, 'pm-switch-modal--sandbox': !vm.is_live_target}">
+
+    <div class="pm-switch-modal__header">
+        <i class="fas fa-exchange-alt pm-switch-modal__header-icon"></i>
+        <h3 class="pm-switch-modal__title">
+            Switch {{ vm.club_name }} to {{ vm.target_label }}?
+        </h3>
+    </div>
+
+    <div class="pm-switch-modal__body">
+
+        <div class="pm-switch-modal__warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>This is a major change.</span>
+        </div>
+
+        <ul class="pm-switch-modal__impact">
+            <li>
+                <strong>{{ vm.members_with_saved_card }}</strong>
+                member<span ng-if="vm.members_with_saved_card !== 1">s</span> have a saved card
+            </li>
+            <li>
+                <strong>{{ vm.members_with_direct_debit }}</strong>
+                member<span ng-if="vm.members_with_direct_debit !== 1">s</span> have an active direct debit
+            </li>
+        </ul>
+
+        <p class="pm-switch-modal__copy" ng-if="!vm.has_archive">
+            Switching will <strong>remove</strong> all of these. Members will need to
+            re-enter card details and re-authorise direct debits in
+            <strong>{{ vm.target_label }}</strong> mode. The club must also reconnect its
+            Stripe and GoCardless accounts.
+        </p>
+
+        <p class="pm-switch-modal__copy" ng-if="vm.has_archive">
+            Previously-saved <strong>{{ vm.target_mode }}</strong> payment details will be
+            restored where available. Members may still need to re-confirm some details, and
+            the club's Stripe and GoCardless connections will switch to {{ vm.target_label }} mode.
+        </p>
+
+        <div class="pm-switch-modal__field">
+            <label for="field-confirm" class="pm-switch-modal__label">
+                Type <code class="pm-switch-modal__phrase">{{ vm.confirm_phrase }}</code> to confirm:
+            </label>
+            <input type="text"
+                   id="field-confirm"
+                   class="pm-switch-modal__input"
+                   ng-model="vm.confirm_text"
+                   autocomplete="off"
+                   autocorrect="off"
+                   autocapitalize="characters"
+                   spellcheck="false"
+                   placeholder="{{ vm.confirm_phrase }}" />
+        </div>
+
+        <div class="pm-switch-modal__field">
+            <label for="field-note" class="pm-switch-modal__label pm-switch-modal__label--optional">
+                Note (optional)
+            </label>
+            <textarea id="field-note"
+                      class="pm-switch-modal__input pm-switch-modal__textarea"
+                      ng-model="vm.note"
+                      rows="2"
+                      placeholder="e.g. Go-live for {{ vm.club_name }}"></textarea>
+        </div>
+
+    </div>
+
+    <div class="pm-switch-modal__footer">
+        <button type="button"
+                class="pm-switch-modal__btn pm-switch-modal__btn--cancel"
+                ng-click="vm.cancel()">
+            Cancel
+        </button>
+        <button type="button"
+                class="pm-switch-modal__btn pm-switch-modal__btn--confirm"
+                ng-class="{'pm-switch-modal__btn--live': vm.is_live_target}"
+                ng-disabled="!vm.canSubmit()"
+                ng-click="vm.confirm()">
+            <span ng-if="!vm.submitting">Switch to {{ vm.target_label }}</span>
+            <span ng-if="vm.submitting">Switching…</span>
+        </button>
+    </div>
+
+</div>

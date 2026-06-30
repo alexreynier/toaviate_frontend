@@ -347,8 +347,10 @@
           //STRIPE STUFF HERE PLEASE!!! :-)
 
 
-        var stripe = Stripe(EnvConfig.getStripeKeyLegacy());
-        var elements = stripe.elements();
+        // Stripe is initialised with this club's per-club publishable key (fetched
+        // from payment_mode/{club_id}/config). Declared in outer scope so setupStripe()
+        // and create_invoice() below can use them once the key resolves.
+        var stripe, elements, card;
 
         var card_options = {
               hidePostalCode: true,
@@ -367,13 +369,28 @@
               }
             };
 
-        var card = elements.create('card', card_options);
+        $scope.stripe_not_configured = false;
+        PaymentService.GetClubStripeKey($scope.club_id).then(function(stripeKey){
+            stripe = Stripe(stripeKey);
+            elements = stripe.elements();
+            card = elements.create('card', card_options);
+        }).catch(function(){
+            // No usable publishable key for this club — don't mount the card element.
+            $scope.stripe_not_configured = true;
+            ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact ToAviate.");
+        });
 
         var run = false;
         var timeout;
 
         function setupStripe(){
             clearTimeout(timeout);
+            if($scope.stripe_not_configured){ return; }
+            // The per-club key may not have resolved yet — retry shortly if so.
+            if(!card){
+                timeout = setTimeout(function(){ setupStripe(); }, 300);
+                return;
+            }
             if(run == false){
                 run = true;
 

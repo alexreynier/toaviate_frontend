@@ -1,17 +1,29 @@
 app.controller('DashboardTrackerPlaneController', DashboardTrackerPlaneController);
 
 DashboardTrackerPlaneController.$inject = [
-    '$rootScope', '$scope', '$state', '$stateParams', 'TrackerPlaneService', 'PlaneService', 'ToastService', '$timeout'
+    '$rootScope', '$scope', '$state', '$stateParams', 'TrackerPlaneService', 'PlaneService', 'ToastService', '$timeout', 'TrackerHealthService'
 ];
 
-function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParams, TrackerPlaneService, PlaneService, ToastService, $timeout) {
+function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParams, TrackerPlaneService, PlaneService, ToastService, $timeout, TrackerHealthService) {
 
     var vm = this;
 
-    // ── Auth ──
+    // ── Device health (keyed off tracker.last_seen) ── shared with the Fox
+    // Trackers list via TrackerHealthService. The by_club endpoint this page uses
+    // returns last_seen on each tracker; helpers accept a tracker object.
+    vm.healthState      = TrackerHealthService.state;
+    vm.healthBadgeClass = TrackerHealthService.badgeClass;
+    vm.healthLabel      = TrackerHealthService.label;
+    vm.lastSeenHuman    = TrackerHealthService.lastSeenHuman;
+    vm.tsLocal          = TrackerHealthService.tsLocal;
+
+    // ── Auth gate — ToAviate platform staff ──
+    // This tool lives in the ToAviate Admin hub, so it uses the same gate as the
+    // tab (shared $rootScope.isToAviateStaff helper) rather than the per-club
+    // manager check. vm.is_manager is kept as the view's allow/deny flag name.
     vm.user = $rootScope.globals.currentUser;
     vm.club_id = vm.user.current_club_admin ? vm.user.current_club_admin.id : null;
-    vm.is_manager = (vm.user.access && vm.user.access.manager && vm.user.access.manager.indexOf(vm.club_id) > -1);
+    vm.is_manager = $rootScope.isToAviateStaff();
     if (!vm.is_manager) return;
 
     // ── Action routing ──
@@ -131,7 +143,7 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     };
 
     vm.openPlaneDetail = function(plane) {
-        $state.go('dashboard.manage_club.tracker_plane_detail', { plane_id: plane.plane_id });
+        $state.go('dashboard.super_admin.tracker_plane_detail', { plane_id: plane.plane_id });
     };
 
     // ═══════════════════════════════════════════
@@ -346,9 +358,9 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
 
     vm.goBack = function() {
         if (vm.action === 'detail') {
-            $state.go('dashboard.manage_club.tracker_planes');
+            $state.go('dashboard.super_admin.tracker_planes');
         } else {
-            $state.go('dashboard.manage_club');
+            $state.go('dashboard.super_admin');
         }
     };
 

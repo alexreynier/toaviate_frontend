@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal) {
         var vm = this;
 
         vm.user = null;
@@ -26,6 +26,18 @@
                     ? $rootScope.globals.currentUser.current_club_admin.id
                     : null
             ) > -1);
+
+        // ── ToAviate platform staff ──
+        // Payment-mode switching is a PLATFORM-staff action, not a per-club
+        // super-admin one (access.super_admin is club-scoped). ToAviate staff are
+        // identified by their @toaviate.com email, matching the backend's
+        // PAYMENT_MODE_SUPER_ADMINS allow-list (see dashboardFoxTrackersController
+        // for the same email-based platform gate). The backend remains
+        // authoritative — a non-permitted user gets a 'forbidden' response — so
+        // this only decides whether to surface the switch control.
+        vm.is_toaviate_staff = !!($rootScope.globals.currentUser &&
+            $rootScope.globals.currentUser.email &&
+            /@toaviate\.com$/i.test($rootScope.globals.currentUser.email));
 
         // ── Voucher Widget status ──
         vm.voucher_widget_active = false;
@@ -782,6 +794,57 @@
 
 
         }
+
+        // ── Payment Mode (Sandbox vs Live) ──
+        vm.payment_mode_status = null;
+        vm.payment_mode_loading = false;
+
+        vm.loadPaymentMode = function() {
+            vm.payment_mode_loading = true;
+            PaymentModeService.GetStatus(vm.club_id).then(function(data) {
+                vm.payment_mode_loading = false;
+                if (data && data.success) {
+                    vm.payment_mode_status = data;
+                }
+            });
+        };
+        vm.loadPaymentMode();
+
+        vm.openPaymentModeSwitch = function() {
+            if (!vm.payment_mode_status) { return; }
+
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/payment_mode_switch.html',
+                controller: 'PaymentModeSwitchModalCtrl',
+                controllerAs: 'vm',
+                size: 'md',
+                backdrop: 'static',
+                resolve: {
+                    status: function() { return vm.payment_mode_status; },
+                    club_name: function() {
+                        return (vm.club && (vm.club.name || (vm.club.item && vm.club.item.name))) ||
+                            'this club';
+                    }
+                }
+            });
+
+            modalInstance.result.then(function(data) {
+                // Switch succeeded. The leaving mode's saved methods were removed and the
+                // club's gateway connections reset, so invalidate the cached Stripe key.
+                PaymentService.ClearClubStripeKey(vm.club_id);
+
+                var sub = (data && data.message) ? data.message :
+                    ('Switched to ' + (data.to_mode || '').toUpperCase() + '. ' +
+                     (data.members_cleared || 0) + ' saved method(s) were removed; ' +
+                     'members must re-add their details.');
+                ToastService.success('Payment Mode Updated', sub);
+
+                vm.loadPaymentMode();
+            }, function() {
+                // dismissed — nothing to do
+            });
+        };
 
         vm.term_documents = [];
 

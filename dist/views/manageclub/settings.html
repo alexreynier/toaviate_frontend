@@ -1194,6 +1194,60 @@
         <!-- End Daily Aircraft Status Report -->
 
 
+             <!-- ── Payment Mode (Sandbox vs Live) ── -->
+             <div class="club_docs_all" ng-if="vm.payment_mode_status">
+              <h2>Payment Mode</h2>
+
+              <div class="pm-card">
+
+                <div class="pm-card__current">
+                  <span class="pm-card__label">Current:</span>
+                  <span class="pm-badge"
+                        ng-class="{'pm-badge--live': vm.payment_mode_status.payment_mode === 'live', 'pm-badge--sandbox': vm.payment_mode_status.payment_mode !== 'live'}">
+                    <span class="pm-badge__dot"></span>
+                    <span ng-if="vm.payment_mode_status.payment_mode === 'live'">LIVE</span>
+                    <span ng-if="vm.payment_mode_status.payment_mode !== 'live'">SANDBOX (test)</span>
+                  </span>
+                </div>
+
+                <p class="pm-card__desc" ng-if="vm.payment_mode_status.payment_mode === 'live'">
+                  This club is in live mode. Real payments are taken via the club's own Stripe
+                  and GoCardless accounts.
+                </p>
+                <p class="pm-card__desc" ng-if="vm.payment_mode_status.payment_mode !== 'live'">
+                  This club is in test mode. No real payments are taken — cards and direct
+                  debits are test data only.
+                </p>
+
+                <p class="pm-card__meta" ng-if="vm.payment_mode_status.payment_mode_switched_at">
+                  Last changed:
+                  {{ vm.payment_mode_status.payment_mode_switched_at | asDate | date:'dd MMM yyyy HH:mm' }}
+                  <span ng-if="vm.payment_mode_status.payment_mode_switched_by_name || vm.payment_mode_status.payment_mode_switched_by_email">
+                    by {{ vm.payment_mode_status.payment_mode_switched_by_name || vm.payment_mode_status.payment_mode_switched_by_email }}
+                  </span>
+                </p>
+
+                <!-- Switch is ToAviate-platform-staff only. Backend is authoritative (forbidden response). -->
+                <div class="pm-card__actions" ng-if="vm.is_toaviate_staff">
+                  <button type="button"
+                          class="pm-card__btn"
+                          ng-class="{'pm-card__btn--live': vm.payment_mode_status.target_mode === 'live'}"
+                          ng-click="vm.openPaymentModeSwitch()">
+                    Switch to
+                    {{ (vm.payment_mode_status.target_mode || (vm.payment_mode_status.payment_mode === 'live' ? 'sandbox' : 'live')) | uppercase }}
+                  </button>
+                </div>
+
+                <p class="pm-card__note" ng-if="!vm.is_toaviate_staff">
+                  <i class="fas fa-lock"></i>
+                  Only ToAviate staff can change a club's payment mode.
+                </p>
+
+              </div>
+             </div>
+             <!-- End Payment Mode -->
+
+
              <div class="club_docs_all">
               <h2>Payment Integrations</h2>
 

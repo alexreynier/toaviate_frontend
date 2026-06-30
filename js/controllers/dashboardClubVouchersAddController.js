@@ -1,7 +1,7 @@
  app.controller('DashboardClubVouchersAddController', DashboardClubVouchersAddController);
 
-    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'EnvConfig', 'ToastService'];
-    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, EnvConfig, ToastService) {
+    DashboardClubVouchersAddController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'EnvConfig', 'ToastService', 'PaymentService'];
+    function DashboardClubVouchersAddController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, EnvConfig, ToastService, PaymentService) {
         var vm = this;
 
         //console.log("HELLOOOO ADD vouchers");
@@ -52,8 +52,10 @@
                     });
 
 
-                var stripe = Stripe(EnvConfig.getStripeKeyLegacy());
-                var elements = stripe.elements();
+                // Stripe is initialised with this club's per-club publishable key
+                // (from payment_mode/{club_id}/config). Declared in outer scope so
+                // setupStripe() below can mount the card element once the key resolves.
+                var stripe, elements, card;
 
                 var card_options = {
                       hidePostalCode: true,
@@ -72,7 +74,16 @@
                       }
                     };
 
-                var card = elements.create('card', card_options);
+                vm.stripe_not_configured = false;
+                PaymentService.GetClubStripeKey(vm.club_id).then(function(stripeKey){
+                    stripe = Stripe(stripeKey);
+                    elements = stripe.elements();
+                    card = elements.create('card', card_options);
+                }).catch(function(){
+                    // No usable publishable key for this club — don't mount the card element.
+                    vm.stripe_not_configured = true;
+                    ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact ToAviate.");
+                });
                 var form;
 
                 var timeout;
@@ -87,6 +98,12 @@
 
                 function setupStripe(){
                     clearTimeout(timeout);
+                    if(vm.stripe_not_configured){ return; }
+                    // The per-club key may not have resolved yet — retry shortly if so.
+                    if(!card){
+                        timeout = setTimeout(function(){ setupStripe(); }, 300);
+                        return;
+                    }
                     if(run == false){
                         run = true;
 

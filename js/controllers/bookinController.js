@@ -3300,7 +3300,9 @@
                         // alert("Your card processor requires authentication");
                         console.log("BEFORE STRIPE = ", data);
 
-                        var stripe = Stripe(EnvConfig.getStripeKey());
+                      // Initialize Stripe.js with this club's per-club publishable key
+                      PaymentService.GetClubStripeKey(vm.club_id).then(function(stripeKey){
+                        var stripe = Stripe(stripeKey);
                         stripe.confirmCardPayment(
                           data.client_secret,
                           {
@@ -3347,6 +3349,11 @@
 
 
                         });
+                      }).catch(function(){
+                        // No usable publishable key for this club — can't complete 3DS.
+                        vm.show_loading = false;
+                        ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club or try another payment method.");
+                      }); // end GetClubStripeKey().then for booking 3DS auth
 
 
                     } else if(data.error){

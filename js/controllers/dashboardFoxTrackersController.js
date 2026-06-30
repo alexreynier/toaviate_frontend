@@ -1,16 +1,19 @@
 app.controller('DashboardFoxTrackersController', DashboardFoxTrackersController);
 
 DashboardFoxTrackersController.$inject = [
-    '$rootScope', '$scope', '$state', '$stateParams', 'FoxTrackerService', 'ToastService', '$timeout'
+    '$rootScope', '$scope', '$state', '$stateParams', 'FoxTrackerService', 'ToastService', '$timeout', 'TrackerHealthService'
 ];
 
-function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams, FoxTrackerService, ToastService, $timeout) {
+function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams, FoxTrackerService, ToastService, $timeout, TrackerHealthService) {
 
     var vm = this;
 
-    // ── Auth gate — only alex@toaviate.com ──
+    // ── Auth gate — ToAviate platform staff ──
+    // Same gate as the ToAviate Admin tab (the shared $rootScope.isToAviateStaff
+    // helper). Currently any @toaviate.com user; per-staff roles can refine this
+    // single block in future without touching every tool.
     vm.user = $rootScope.globals.currentUser;
-    vm.authorised = (vm.user && vm.user.email === 'alex@toaviate.com');
+    vm.authorised = $rootScope.isToAviateStaff();
     if (!vm.authorised) return;
 
     // ── Action routing ──
@@ -102,7 +105,7 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
     };
 
     vm.openDetail = function(tracker) {
-        $state.go('dashboard.manage_club.fox_tracker_detail', { tracker_id: tracker.id });
+        $state.go('dashboard.super_admin.fox_tracker_detail', { tracker_id: tracker.id });
     };
 
     // ═══════════════════════════════════════════
@@ -232,7 +235,7 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
             vm.creating = false;
             if (data.success) {
                 ToastService.success('Tracker Created', 'ID: ' + data.tracker_id);
-                $state.go('dashboard.manage_club.fox_trackers');
+                $state.go('dashboard.super_admin.fox_trackers');
             } else {
                 ToastService.error('Creation Failed', data.message);
             }
@@ -242,9 +245,9 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
     // ── Navigation ──
     vm.goBack = function() {
         if (vm.action === 'detail' || vm.action === 'add') {
-            $state.go('dashboard.manage_club.fox_trackers');
+            $state.go('dashboard.super_admin.fox_trackers');
         } else {
-            $state.go('dashboard.manage_club');
+            $state.go('dashboard.super_admin');
         }
     };
 
@@ -255,6 +258,15 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
         if (status === 'retired') return 'snazzy-table__badge--danger';
         return '';
     };
+
+    // ── Device health (keyed off last_seen) ── delegated to the shared
+    // TrackerHealthService so the Fox Trackers list and the Aircraft Trackers
+    // view stay in sync on thresholds/labels.
+    vm.healthState      = TrackerHealthService.state;
+    vm.healthBadgeClass = TrackerHealthService.badgeClass;
+    vm.healthLabel      = TrackerHealthService.label;
+    vm.lastSeenHuman    = TrackerHealthService.lastSeenHuman;
+    vm.tsLocal          = TrackerHealthService.tsLocal;
 
     vm.actionIcon = function(action) {
         var map = {

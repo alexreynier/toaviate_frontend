@@ -123,6 +123,7 @@ module.exports = function (grunt) {
                     'css/club-automations.css',
                     'css/maintenance-org.css',
                     'css/sms.css',
+                    'css/payment-mode.css',
                     'css/logbook.css',
                     'css/course-content.css',
                     'libs/css/scheduler.css'

@@ -1,7 +1,7 @@
     app.factory('AuthenticationService', AuthenticationService);
  
-    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', 'UserService', 'EnvConfig'];
-    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, UserService, EnvConfig) {
+    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', 'UserService', 'EnvConfig', 'authGate'];
+    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, UserService, EnvConfig, authGate) {
         var service = {};
  
         service.Login = Login;
@@ -273,6 +273,10 @@
 
             ClearCredentials();
 
+            // Fresh, valid session — re-open the auth gate so the interceptor
+            // resumes issuing authenticated calls (it blocks them after a 401).
+            authGate.reset();
+
             var authdata = Base64.encode(user.id + ':' + session);
                 
             $http.defaults.headers.common['Authorization'] = 'Basic ' + authdata; // jshint ignore:line
@@ -335,6 +339,10 @@
             // console.log("SET SET SET ME");
 
             ClearCredentials();
+
+            // Fresh, valid session — re-open the auth gate so the interceptor
+            // resumes issuing authenticated calls (it blocks them after a 401).
+            authGate.reset();
 
             var authdata = Base64.encode(user.id + ':' + session);
                 

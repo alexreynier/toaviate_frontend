@@ -429,8 +429,13 @@ app.directive('collapsible', ['$timeout', function($timeout){
         vm.show_loading = false;
         vm.show_cardmachine = false;
 
+        // This club's Stripe publishable key (per-club, per payment mode) is resolved
+        // lazily via PaymentService.GetClubStripeKey(clubId) at each init site below.
+        // The result is cached in PaymentService, so it only hits the network once.
+        var _clubId = (vm.send && vm.send.club_id) || (vm.bookout && vm.bookout.club_id);
+
         /*
-          Create New Card Intent:::: 
+          Create New Card Intent::::
           1. invoice_id, club_id, user_id
           2. booking_id, club_id, user_id
           3. amount, club_id, user_id(opt)
@@ -442,8 +447,9 @@ app.directive('collapsible', ['$timeout', function($timeout){
         PaymentService.CreatePaymentIntentNewCard(vm.send)
             .then(function (data) {
                 console.log("DATA HERE", data);
-                // Initialize Stripe.js
-                var stripe = Stripe(EnvConfig.getStripeKey());
+              // Initialize Stripe.js with this club's per-club publishable key
+              PaymentService.GetClubStripeKey(_clubId).then(function(stripeKey){
+                var stripe = Stripe(stripeKey);
 
                 const options = {
                   clientSecret: data.client_secret,
@@ -540,6 +546,14 @@ app.directive('collapsible', ['$timeout', function($timeout){
                     }
                   });
                 }
+              }).catch(function(){
+                // No usable publishable key for this club (e.g. switched to live
+                // before live keys were configured). Don't mount Stripe — explain.
+                $scope.$apply(function(){
+                  vm.paymentNo = true;
+                  vm.payment_status_message = "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
+                });
+              }); // end GetClubStripeKey().then for new-card flow
 
 
 
@@ -943,7 +957,8 @@ app.directive('collapsible', ['$timeout', function($timeout){
                                console.log("WOOOPSIES...", data);
                                 //this shows the user the 3DS confirmation
 
-                                var stripe = Stripe(EnvConfig.getStripeKey());
+                              PaymentService.GetClubStripeKey(_clubId).then(function(stripeKey){
+                                var stripe = Stripe(stripeKey);
                                 stripe.confirmCardPayment(
                                   data.client_secret,
                                   {
@@ -1000,6 +1015,13 @@ app.directive('collapsible', ['$timeout', function($timeout){
 
                                   vm.show_loading = false;
                                 });
+                              }).catch(function(){
+                                $scope.$apply(function(){
+                                  vm.paymentNo = true;
+                                  vm.show_loading = false;
+                                  vm.payment_status_message = "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
+                                });
+                              }); // end GetClubStripeKey().then for saved-card 3DS
 
 
                             }

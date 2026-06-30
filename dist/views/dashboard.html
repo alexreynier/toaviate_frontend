@@ -25,6 +25,22 @@
 	    <img src="images/main_logo.png" alt="logo" id="main_logo1" />
 	  </div>
 
+	  <!-- Club switcher — multi-club admins, on Manage Club pages.
+	       Reuses the same ui-select component as the Manage Club landing;
+	       onClubSelected persists the choice and reloads the current page. -->
+	  <div class="header-club-switch" ng-if="vm.showClubSwitcher()">
+	    <i class="fas fa-building header-club-switch__icon"></i>
+	    <ui-select ng-model="vm.club" on-select="vm.onClubSelected($item)" theme="bootstrap"
+	               title="Switch club" append-to-body="true" id="header_club_select">
+	      <ui-select-match placeholder="Select club…">
+	        {{ vm.club.title }}
+	      </ui-select-match>
+	      <ui-select-choices repeat="club in vm.clubs | propsFilterA: {title: $select.search, id: $select.search}">
+	        <div ng-bind-html="club.title | highlight: $select.search"></div>
+	      </ui-select-choices>
+	    </ui-select>
+	  </div>
+
 	  <!-- Hamburger -->
 	  <button
 	    class="menu_toggle"
@@ -55,11 +71,24 @@
 	      <button type="button" class="menu_close" aria-label="Close menu" ng-click="closeMenu()">✕</button>
 	    </li>
 
+	    <!-- Club switcher for mobile (the header bar one is hidden on phones) -->
+	    <li class="menu_club_switch" ng-if="vm.showClubSwitcher()">
+	      <span class="menu_club_switch__label"><i class="fas fa-building"></i> Club</span>
+	      <ui-select ng-model="vm.club" on-select="vm.onClubSelected($item)" theme="bootstrap"
+	                 title="Switch club" append-to-body="false" id="menu_club_select">
+	        <ui-select-match placeholder="Select club…">{{ vm.club.title }}</ui-select-match>
+	        <ui-select-choices repeat="club in vm.clubs | propsFilterA: {title: $select.search, id: $select.search}">
+	          <div ng-bind-html="club.title | highlight: $select.search"></div>
+	        </ui-select-choices>
+	      </ui-select>
+	    </li>
+
 	    <li ng-if="vm.user.access.show_manager"><a ui-sref="dashboard.manage_club" ng-click="closeMenu()">Manage Club</a></li>
 	    <li ng-if="vm.user.access.show_instructor"><a ui-sref="dashboard.manage_user" ng-click="closeMenu()">Instructor Dashboard</a></li>
 	    <li><a ui-sref="dashboard.my_account" ng-click="closeMenu()">My Account</a></li>
 	    <li><a ui-sref="dashboard.add_booking" ng-click="closeMenu()">Scheduler</a></li>
 	    <li><a ui-sref="dashboard.slot_search" ng-click="closeMenu()">Find a Slot</a></li>
+	    <li ng-if="isToAviateStaff()"><a ui-sref="dashboard.super_admin" ng-click="closeMenu()">ToAviate Admin</a></li>
 	    <li><a ng-click="closeMenu(); vm.logout()">Logout</a></li>
 	  </ul>
 
@@ -84,6 +113,10 @@
 
 				<div class="main_select_box piltoscheme" ui-sref="dashboard.my_account" ng-if="!vm.user.access.show_booking">
 				USER DETAILS
+				</div>
+
+				<div class="main_select_box managerscheme" ui-sref="dashboard.super_admin" ng-if="isToAviateStaff()">
+				TOAVIATE ADMIN
 				</div>
 			</div>
 		</div>

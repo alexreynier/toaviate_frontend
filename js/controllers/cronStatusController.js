@@ -5,8 +5,11 @@ function CronStatusController(CronStatusService, $rootScope, $scope, $state, $in
     var vm = this;
 
     // ─── User & access guard ───────────────────────────────────────
+    // Lives in the ToAviate Admin hub — gate on the same shared
+    // $rootScope.isToAviateStaff helper as the tab. vm.is_super_admin is kept as
+    // the view's allow/deny flag name.
     vm.user           = $rootScope.globals.currentUser;
-    vm.is_super_admin = vm.user && vm.user.access && vm.user.access.super_admin && vm.user.access.super_admin.length > 0;
+    vm.is_super_admin = $rootScope.isToAviateStaff();
 
     // ─── Summary state ────────────────────────────────────────────
     vm.loading        = true;

@@ -56,7 +56,7 @@ The default task runs these steps in order:
 
 ### Environment configuration
 
-Environment-specific settings (API URL, Stripe keys, debug flag) live in `js/services/envConfigService.js`. The source file always defaults to `development`; the Grunt build swaps the value in the **output** only — source is never modified.
+Environment-specific settings (API URL, debug flag) live in `js/services/envConfigService.js`. The source file always defaults to `development`; the Grunt build swaps the value in the **output** only — source is never modified.
 
 | Environment | API Base URL | Debug |
 |-------------|-------------|-------|
@@ -69,6 +69,38 @@ To add a new environment:
 1. Add a config block in `js/services/envConfigService.js` inside the `configs` object.
 2. Optionally add a convenience alias task in `Gruntfile.js` following the existing pattern.
 3. Build with `grunt --env=<name>`.
+
+---
+
+## Payment keys (Stripe / GoCardless)
+
+> **The frontend does NOT hold Stripe or GoCardless API keys.** Do not add
+> `pk_test_…` / `pk_live_…` keys to `envConfigService.js` — they are obtained
+> per-club from the backend at runtime.
+
+ToAviate is multi-tenant: each **club** runs in either **sandbox** (test) or
+**live** payment mode, independently, and connects its own Stripe / GoCardless
+account. So the publishable key is **per-club, per-mode**, not per-deployment.
+
+### Where the keys actually live
+
+| What | Where | Edited by |
+|------|-------|-----------|
+| Stripe **secret** + publishable, GoCardless OAuth creds (sandbox **and** live key sets) | Backend, per-server file `api/v1/includes/con.inc.php` (untracked / per-machine) | Platform staff, on each server — see the backend "§3 per-server checklist" |
+| A club's active mode (`sandbox`/`live`) | Backend, `clubs.payment_mode` column | Platform super-admins, via the dashboard (Manage Club → Settings → **Payment Mode**) |
+| Platform staff allowed to switch a club's mode | Backend, `$GLOBALS['PAYMENT_MODE_SUPER_ADMINS']` in `con.inc.php` | Platform staff |
+
+### How the frontend gets a key
+
+The frontend **fetches** the right publishable key for a club at runtime:
+
+- `GET payment_mode/{club_id}/config` → `{ stripe_publishable_key, stripe_publishable_key_present, payment_mode }` (no secrets).
+- `PaymentService.GetClubStripeKey(club_id)` wraps that call and **caches per club for the session** (one network hit per club). It is the single source every `Stripe(...)` init site uses. Call `PaymentService.ClearClubStripeKey(club_id)` after a mode switch so the new mode's key is re-fetched.
+- If `stripe_publishable_key_present` is `false` (e.g. a club was flipped to live before that server's live keys were filled in), card flows refuse to mount the Stripe element and show a "card payments aren't configured yet" message instead of letting Stripe.js throw.
+
+To change a club's keys or go live, **edit the backend `con.inc.php` on that
+server**, then switch the club's mode in the dashboard — nothing in this repo
+needs to change.
 
 ---
 
