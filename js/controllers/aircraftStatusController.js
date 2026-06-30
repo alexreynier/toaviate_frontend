@@ -1,7 +1,7 @@
  app.controller('AircraftStatusController', AircraftStatusController);
 
-    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService', 'AircraftChecksService'];
-    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService, AircraftChecksService) {
+    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter', '$q'];
+    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService, AircraftChecksService, $filter, $q) {
         
         var vm = this;
 
@@ -129,6 +129,139 @@
                     .catch(function() {
                         plane._checks_loading = false;
                     });
+            };
+
+            // ════════════════════════════════════════════════════════════
+            // Standalone fuel/oil uplift + A-check (outside a flight)
+            // ════════════════════════════════════════════════════════════
+
+            vm.currenciesByClub = {};   // club_id -> [currency]
+            vm.checkTypesByClub = {};   // club_id -> [check type]
+
+            // ── Fuel / oil uplift panel ──
+            vm.showFuelPanel = false;
+            vm._fuelPlane = null;
+            vm._fuelClubId = null;
+
+            vm.openFuelPanel = function(plane, club) {
+                vm._fuelPlane = plane;
+                vm._fuelClubId = club.id;
+                if (!vm.currenciesByClub[club.id]) {
+                    PlaneService.GetCurrencies(club.id).then(function(data) {
+                        vm.currenciesByClub[club.id] = (data && data.currencies) ? data.currencies : [];
+                    });
+                }
+                vm.showFuelPanel = true;
+            };
+            vm.closeFuelPanel = function() { vm.showFuelPanel = false; };
+
+            vm.submitFuelUplift = function(receiptData, pendingFile) {
+                var plane = vm._fuelPlane;
+                var clubId = vm._fuelClubId;
+
+                // Upload the receipt image first (if supplied), then save the receipt.
+                uploadReceiptImage(pendingFile).then(function(imagePath) {
+                    var obj = {
+                        plane_id: plane.plane_id,
+                        club_id: clubId,
+                        user_id: vm.user_id,
+                        plane_log_sheet_id: null,      // standalone — not tied to a flight
+                        reimbursement: receiptData.reimbursement,
+                        image: imagePath || '',
+                        currency: receiptData.currency ? receiptData.currency.iso_code : '',
+                        item: receiptData.item,
+                        quantity: receiptData.quantity,
+                        price: receiptData.price
+                    };
+
+                    PlaneService.AddReceipt(obj).then(function(rcpt) {
+                        if (rcpt && rcpt.item) {
+                            if (!plane.receipts) { plane.receipts = []; }
+                            plane.receipts.unshift(rcpt.item);
+                            ToastService.success('Uplift Recorded', receiptData.item + ' uplift saved for ' + plane.registration + '.');
+                            vm.showFuelPanel = false;
+                        } else {
+                            ToastService.error('Save Failed', (rcpt && rcpt.message) || 'The uplift could not be saved.');
+                            // leave panel open so the user can retry
+                            $scope.$broadcast('fuelPanelReset');
+                        }
+                    });
+                }, function() {
+                    ToastService.error('Upload Failed', 'The receipt image could not be uploaded. Please try again.');
+                });
+            };
+
+            // Upload a single image File to the generic upload endpoint and resolve
+            // its saved path (same shape the booking flow's processFiles reads:
+            // response JSON -> saved_url). Resolves '' when there's no file.
+            function uploadReceiptImage(file) {
+                if (!file) { return $q.when(''); }
+                var fd = new FormData();
+                fd.append('file', file);
+                return $http.post($rootScope.uploadUrl, fd, {
+                    transformRequest: angular.identity,
+                    headers: { 'Content-Type': undefined }
+                }).then(function(res) {
+                    var data = res.data;
+                    if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) {} }
+                    return (data && (data.saved_url || data.temp_path)) || '';
+                });
+            }
+
+            // ── Aircraft check (Check A / daily) panel ──
+            vm.showCheckPanel = false;
+            vm._checkPlane = null;
+            vm._checkClubId = null;
+
+            vm.openCheckPanel = function(plane, club) {
+                vm._checkPlane = plane;
+                vm._checkClubId = club.id;
+                if (!vm.checkTypesByClub[club.id]) {
+                    AircraftChecksService.GetActiveCheckTypes(club.id).then(function(data) {
+                        vm.checkTypesByClub[club.id] = (data && data.check_types) ? data.check_types : [];
+                    });
+                }
+                vm.showCheckPanel = true;
+            };
+            vm.closeCheckPanel = function() { vm.showCheckPanel = false; };
+
+            vm.submitAircraftCheck = function(checkData) {
+                var plane = vm._checkPlane;
+                var clubId = vm._checkClubId;
+                var flight_date = $filter('date')(checkData.checked_at, 'yyyy-MM-dd');
+
+                var obj = {
+                    club_id: clubId,
+                    plane_id: plane.plane_id,
+                    booking_id: null,              // standalone — not tied to a flight
+                    check_type: checkData.check_type,
+                    performed_by: vm.user_id,
+                    checked_at: checkData.checked_at,
+                    fuel_us_gallons: checkData.fuel_us_gallons,
+                    oil_quarts: checkData.oil_quarts,
+                    flight_date: flight_date,
+                    notes: checkData.notes || ''
+                };
+
+                AircraftChecksService.CreateCheck(obj).then(function(data) {
+                    if (data && data.success) {
+                        ToastService.success('Check Submitted', (checkData.check_type_label || 'Check') + ' recorded for ' + plane.registration + '.');
+                        vm.showCheckPanel = false;
+                        // Refresh this plane's checks so the new one shows immediately.
+                        var todayStr = new Date().toISOString().slice(0, 10);
+                        plane._checks_loading = true;
+                        var refresh = plane._checks_show_all
+                            ? AircraftChecksService.GetChecksByPlane(plane.plane_id)
+                            : AircraftChecksService.GetChecksByPlaneDate(plane.plane_id, todayStr);
+                        refresh.then(function(checkData2) {
+                            plane._checks_loading = false;
+                            if (checkData2.success) { plane._aircraft_checks = checkData2.checks || []; }
+                        }).catch(function() { plane._checks_loading = false; });
+                    } else {
+                        ToastService.error('Check Failed', (data && data.message) || 'The check could not be submitted.');
+                        $scope.$broadcast('checkPanelReset');
+                    }
+                });
             };
 
             vm.get_initial = function(text){
