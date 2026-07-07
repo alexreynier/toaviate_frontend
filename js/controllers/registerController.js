@@ -1,13 +1,25 @@
 app.controller('RegisterController', RegisterController);
  
-    RegisterController.$inject = ['UserService', '$location', '$rootScope', 'FlashService', '$stateParams', 'ToastService'];
-    function RegisterController(UserService, $location, $rootScope, FlashService, $stateParams, ToastService) {
+    RegisterController.$inject = ['UserService', '$location', '$rootScope', 'FlashService', '$stateParams', 'ToastService', '$scope', 'SignupDraftService', 'PasswordPolicyService'];
+    function RegisterController(UserService, $location, $rootScope, FlashService, $stateParams, ToastService, $scope, SignupDraftService, PasswordPolicyService) {
         var vm = this;
         vm.verify_status = "";
- 
+
         vm.register = register;
- 
+
+        // ── Refresh robustness: auto-save a sanitised draft (never the
+        // password) so an accidental refresh doesn't wipe the form. ──
+        var DRAFT_KEY = 'register';
+        var draft = SignupDraftService.Load(DRAFT_KEY);
+        if (draft && draft.user) {
+            vm.user = angular.extend({}, draft.user, vm.user);
+        }
+        SignupDraftService.Watch($scope, DRAFT_KEY, function () {
+            return { user: vm.user };
+        });
+
         function register() {
+            if (vm.dataLoading) { return; }
             // ── Pre-submit validation with highlight + scroll ──
             if (!vm.user || !vm.user.first_name || vm.user.first_name.trim() === '') {
                 ToastService.highlightField('first_name');
@@ -29,10 +41,10 @@ app.controller('RegisterController', RegisterController);
                 ToastService.warning('Password Required', 'Please enter a password.');
                 return;
             }
-            var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
-            if (!strongPassword.test(vm.user.password)) {
+            var pwMessage = PasswordPolicyService.Message(vm.user.password);
+            if (pwMessage) {
                 ToastService.highlightField('password');
-                ToastService.warning('Weak Password', 'Your password must be at least 8 characters, containing 1 uppercase, 1 lowercase, 1 number, and 1 special character.');
+                ToastService.warning('Password Not Strong Enough', pwMessage);
                 return;
             }
 
@@ -40,6 +52,7 @@ app.controller('RegisterController', RegisterController);
             UserService.Create(vm.user)
                 .then(function (response) {
                     if (response.success) {
+                        SignupDraftService.Clear(DRAFT_KEY);
                         ToastService.success('Registration Successful', 'Please check your email to verify your account.');
                         $location.path('/registration_success');
                     } else {

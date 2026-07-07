@@ -181,97 +181,76 @@
                 //vm.pls_id = $stateParams.plane_log_sheet_id;
 
                 if(vm.plane_log_sheet_id > 0){
-
-                    //if we claim without a bookout....ugh...
-                    //for_debrief_pls
-                    //get progress for course
+                    //if we claim without a bookout....ugh... (for_debrief_pls)
                     BookingService.GetForForDebriefPls(vm.plane_log_sheet_id)
-                        .then(function(data){
-                            if(data.success){
-                                vm.competences = data.competences;   
-                                vm.course_id = data.course_id;   
-                                vm.record_club_id = data.club_id;
-                                vm.lesson = data.lesson;   
-                                vm.all_items = data.all_items;   
-                                vm.my_search = vm.lesson.id;
-                                vm.student = data.student;
-                                vm.instructor = data.instructor;
-                                vm.plane_log_sheet = data.log_sheet;
-
-                                // Load content files for debrief view
-                                if (vm.lesson && vm.lesson.id) {
-                                    load_content_files(vm.lesson.id);
-                                }
-
-                                CourseService.GetLessonsByCourseId(vm.course_id)
-                                .then(function(data){
-                                    vm.all_lessons = data.items;
-                                    // Set selected lesson object for ui-select
-                                    for (var i = 0; i < vm.all_lessons.length; i++) {
-                                        if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
-                                            vm.selected_debrief_lesson_obj = vm.all_lessons[i];
-                                            break;
-                                        }
-                                    }
-                                });
-
-                                CourseService.GetTagsByCourseId(vm.course_id)
-                                .then(function(data){
-                                    vm.all_tags = data.items;   
-                                    vm.selected_flight_tags = [];
-                                });
-
-                            } else {
-                                ToastService.error('Load Failed', 'We could not obtain the debriefing information for you...');
-                            }
-                            
-                        });
-
-
-
+                        .then(function(data){ handleDebriefData(data); });
                 } else {
-                    //get progress for course
                     BookingService.GetForForDebrief(vm.booking_id)
-                        .then(function(data){
-                            if(data.success){
-                                vm.competences = data.competences;   
-                                vm.course_id = data.course_id;   
-                                vm.record_club_id = data.club_id;
-                                vm.lesson = data.lesson;   
-                                vm.all_items = data.all_items;   
-                                vm.my_search = vm.lesson.id;
-                                vm.student = data.student;
-                                vm.instructor = data.instructor;
-                                vm.plane_log_sheet = data.log_sheet;
+                        .then(function(data){ handleDebriefData(data); });
+                }
 
-                                // Load content files for debrief view
-                                if (vm.lesson && vm.lesson.id) {
-                                    load_content_files(vm.lesson.id);
-                                }
+                // Shared handling for both debrief entry points. Crucially, a
+                // CLAIMED flight can arrive with NO lesson (nothing was booked out),
+                // so we must not assume vm.lesson exists — instead we surface a
+                // lesson picker scoped to the course that was chosen on the book-in
+                // form (already returned here as data.course_id).
+                function handleDebriefData(data){
+                    if(!data || !data.success){
+                        ToastService.error('Load Failed', 'We could not obtain the debriefing information for you...');
+                        return;
+                    }
 
-                                CourseService.GetLessonsByCourseId(vm.course_id)
-                                .then(function(data){
-                                    vm.all_lessons = data.items;
-                                    // Set selected lesson object for ui-select
-                                    for (var i = 0; i < vm.all_lessons.length; i++) {
-                                        if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
-                                            vm.selected_debrief_lesson_obj = vm.all_lessons[i];
-                                            break;
-                                        }
+                    vm.competences = data.competences;
+                    vm.course_id = data.course_id;
+                    vm.record_club_id = data.club_id;
+                    vm.lesson = data.lesson;
+                    vm.all_items = data.all_items || [];
+                    vm.student = data.student;
+                    vm.instructor = data.instructor;
+                    vm.plane_log_sheet = data.log_sheet;
+
+                    var haveLesson = !!(vm.lesson && vm.lesson.id);
+                    vm.no_lesson_selected = !haveLesson;   // drives the picker in the view
+
+                    if (haveLesson) {
+                        vm.my_search = vm.lesson.id;
+                        load_content_files(vm.lesson.id);
+                    }
+
+                    // Load the lessons for the (book-in-selected) course so the
+                    // instructor can pick which lesson they taught — this list also
+                    // powers the existing "taught a different lesson?" switcher.
+                    if (vm.course_id) {
+                        CourseService.GetLessonsByCourseId(vm.course_id)
+                        .then(function(lessonData){
+                            vm.all_lessons = lessonData.items || [];
+                            if (haveLesson) {
+                                for (var i = 0; i < vm.all_lessons.length; i++) {
+                                    if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
+                                        vm.selected_debrief_lesson_obj = vm.all_lessons[i];
+                                        break;
                                     }
-                                });
-
-                                CourseService.GetTagsByCourseId(vm.course_id)
-                                .then(function(data){
-                                    vm.all_tags = data.items;   
-                                    vm.selected_flight_tags = [];
-                                });
-
-                            } else {
-                                ToastService.error('Load Failed', 'We could not obtain the debriefing information for you...');
+                                }
                             }
-                            
                         });
+
+                        CourseService.GetTagsByCourseId(vm.course_id)
+                        .then(function(tagData){
+                            vm.all_tags = tagData.items;
+                            vm.selected_flight_tags = [];
+                        });
+                    } else {
+                        // No course on the flight (e.g. an older claimed flight saved
+                        // before course_id was persisted). Let the instructor pick the
+                        // course too — load the club's courses for the picker.
+                        vm.need_course_pick = true;
+                        if (vm.record_club_id) {
+                            CourseService.GetCoursesByClubId(vm.record_club_id)
+                            .then(function(courseData){
+                                vm.debrief_courses = courseData.items || [];
+                            });
+                        }
+                    }
                 }
 
                 vm.show_whole_lesson = true;
@@ -583,6 +562,11 @@
         vm.selected_debrief_lesson_obj = null;
         vm.pending_debrief_lesson_obj = null;
         vm.show_lesson_switcher = false;
+        vm.no_lesson_selected = false;   // true on a claimed flight with no booked lesson
+        vm.pick_lesson_obj = null;       // ui-select model for the no-lesson picker
+        vm.need_course_pick = false;     // true when the flight has no course_id at all
+        vm.debrief_courses = [];         // club courses for the fallback course picker
+        vm.pick_course_obj = null;       // ui-select model for the course picker
         vm.contentFiles = [];
         vm.contentFilesLoading = true;
         vm.activeContentFile = null;
@@ -651,6 +635,41 @@
                     });
             }
         }
+
+        // Fallback: the flight has no course at all (older claimed flights saved
+        // before course_id was persisted). Instructor picks the course, then its
+        // lessons load into all_lessons and the lesson picker takes over.
+        vm.pick_debrief_course = function(){
+            if (!vm.pick_course_obj || !vm.pick_course_obj.id) {
+                ToastService.warning('Select a Course', 'Please choose the course this flight was part of.');
+                return;
+            }
+            vm.course_id = vm.pick_course_obj.id;
+            vm.need_course_pick = false;
+            CourseService.GetLessonsByCourseId(vm.course_id)
+                .then(function(lessonData){
+                    vm.all_lessons = lessonData.items || [];
+                });
+            CourseService.GetTagsByCourseId(vm.course_id)
+                .then(function(tagData){
+                    vm.all_tags = tagData.items;
+                    vm.selected_flight_tags = [];
+                });
+        };
+
+        // Claimed-flight case: no lesson was booked out. The instructor picks the
+        // lesson they taught (from the course already selected on the book-in form,
+        // i.e. vm.all_lessons for vm.course_id). Selecting it loads the full lesson
+        // inline via change_debrief_lesson so the student record can be filled in.
+        vm.pick_debrief_lesson = function(){
+            if (!vm.pick_lesson_obj || !vm.pick_lesson_obj.id) {
+                ToastService.warning('Select a Lesson', 'Please choose the lesson you taught on this flight.');
+                return;
+            }
+            vm.selected_debrief_lesson_obj = vm.pick_lesson_obj;
+            vm.no_lesson_selected = false;
+            vm.change_debrief_lesson();
+        };
 
         // Load courses for the course picker using the resolved briefing_club_id
         function loadCoursesForBriefing() {

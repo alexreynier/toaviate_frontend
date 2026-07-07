@@ -211,6 +211,24 @@
         var iconTerm = '<svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="14" rx="2" fill="none" stroke="#4f46e5" stroke-width="1.6"/><rect x="8" y="5" width="8" height="3" fill="none" stroke="#4f46e5" stroke-width="1.6"/><rect x="9" y="10" width="6" height="3" fill="none" stroke="#4f46e5" stroke-width="1.6"/></svg>';
         
         //direct-debit, saved-card, new-card, card-machine
+        // ── Is this completion an instructor finishing an INSTRUCTIONAL flight? ──
+        // True when the logged-in user is the instructor on a flight that has a
+        // student (PUT). Works for BOTH book-in (instructor_id/pic_id loaded from
+        // the booking) AND claim (where the instructor ticks "instructional" and
+        // selects a student — update_put() then sets instructor_id/pic_id/put_id).
+        // Used by both routing gates (donConfirm + after_success_bookin) so they
+        // always agree and an instructional claim reliably reaches the student
+        // record/debrief screen, matching the book-in flow.
+        vm.is_instructional_completion = function(){
+            var hasStudent = (vm.bookout.put_id > 0) ||
+                             (vm.bookout.put && vm.bookout.put.user_id > 0) ||
+                             vm.this_claim_was_instructional;
+            var userIsInstructor = (vm.bookout.instructor_id > 0 && vm.user.id == vm.bookout.instructor_id) ||
+                                   (vm.bookout.pic_id > 0 && vm.user.id == vm.bookout.pic_id) ||
+                                   (vm.bookout.pic && vm.bookout.pic.user_id > 0 && vm.user.id == vm.bookout.pic.user_id);
+            return !!(hasStudent && userIsInstructor);
+        };
+
         vm.donConfirm = function(methodLabel, paymentIntent){
             console.log("confirmation is called", methodLabel);
             console.log("paymentIntent", paymentIntent);
@@ -222,9 +240,14 @@
             if(vm.user.id !== vm.bookout.payer_id && (vm.user.id == vm.bookout.pic_id || vm.user.id == vm.bookout.instructor_id)){
                 //person booking in is the instructor - lets go to debrief:
                 where_to = "debrief";
+            } else if(vm.is_instructional_completion()){
+                // Instructor completing an instructional flight (e.g. claimed) —
+                // route to the student record/debrief even if the scalar payer/pic
+                // ids didn't line up above.
+                where_to = "debrief";
             } else if(vm.split_flight_confirmation == 1){
                // where_to = "split"; - i dont think we get here
-            } 
+            }
 
             // else if(vm.can_authorise){
             //    card-machine option?
@@ -973,6 +996,16 @@
             vm.update_course = function(){
 
                 console.log("do we need to update tuition to be offered from this?");
+
+                // Keep the scalar course_id in sync with the selected course object.
+                // The flight save (plane_log_sheet.course_id) and the debrief page both
+                // read vm.bookout.course_id, NOT the object — so without this a manually
+                // selected course was never persisted (course_id stayed 0), and the
+                // debrief lesson picker showed "no course available".
+                vm.bookout.course_id = (vm.bookout.course && vm.bookout.course.id > 0)
+                    ? vm.bookout.course.id
+                    : 0;
+
                 // IF nothing selected --> give ALL OPTIONS
                 if(vm.bookout.course && vm.bookout.course.id > 0){
 
@@ -3575,7 +3608,13 @@
                     } else if(where_to == "debrief") {
                         console.log("DEBRIEF!!");
                         //if((vm.user.id == vm.bookout.instructor_id) && (vm.bookout.booking_id > 0 || vm.bookout.course_id > 0)){
-                        if((vm.user.id == vm.bookout.instructor_id || (vm.user.id == vm.bookout.pic_id && vm.bookout.put_id > 0)) && (vm.bookout.booking_id > 0 || vm.bookout.course_id > 0) ){
+                        // Route to the student record/debrief when the original gate
+                        // passes OR when this is an instructor completing an
+                        // instructional flight (covers claimed flights, where
+                        // booking_id/course_id scalars may be 0 — see
+                        // vm.is_instructional_completion).
+                        if(((vm.user.id == vm.bookout.instructor_id || (vm.user.id == vm.bookout.pic_id && vm.bookout.put_id > 0)) && (vm.bookout.booking_id > 0 || vm.bookout.course_id > 0))
+                           || vm.is_instructional_completion() ){
                           console.log("DEBRIEF 2!!");
 
                           // /debriefing/:booking_id/:plane_log_sheet_id
@@ -3587,7 +3626,7 @@
                           //
                               var booking_id = 0;
                               if(vm.bookout.booking_id < 1){
-                                  booking_id = data.split.booking_id;
+                                  booking_id = (data && data.split && data.split.booking_id) ? data.split.booking_id : 0;
                               } else {
                                   booking_id = vm.bookout.booking_id;
                               }

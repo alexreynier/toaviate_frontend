@@ -1,7 +1,7 @@
  app.controller('PassengerSignupCompleteController', PassengerSignupCompleteController);
 
-    PassengerSignupCompleteController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', 'ToastService'];
-    function PassengerSignupCompleteController(UserService, $rootScope, $location, $scope, $state, $stateParams, ToastService) {
+    PassengerSignupCompleteController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', 'ToastService', 'SignupPreviewService', 'PasswordPolicyService'];
+    function PassengerSignupCompleteController(UserService, $rootScope, $location, $scope, $state, $stateParams, ToastService, SignupPreviewService, PasswordPolicyService) {
         	
 
 	    	 ////console.log("HELLO");
@@ -38,6 +38,34 @@
 		            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		        }, 100);
 		    }
+
+		    // Design preview: tokens starting with "preview" simulate the
+		    // identity check and submission locally (non-production only).
+		    var isPreview = SignupPreviewService.IsPreview($stateParams.token);
+
+		    // Live password-requirements checklist under the password field.
+		    $scope.pwCheck = PasswordPolicyService.Rules;
+
+		    // ── Refresh / back-forward robustness ──────────────────────────
+		    // This flow only collects a password (never stored), so there is
+		    // no draft to save — but the stepper should follow the current
+		    // state, including across a refresh or browser back/forward.
+		    var STEP_BY_STATE = {
+		        'passenger_signup_complete.check':        1,
+		        'passenger_signup_complete.your_profile': 2,
+		        'passenger_signup_complete.thank_you':    3
+		    };
+
+		    function syncStepFromState(stateName) {
+		        if (STEP_BY_STATE[stateName]) {
+		            $scope.formStep = STEP_BY_STATE[stateName];
+		        }
+		    }
+
+		    syncStepFromState($state.current.name);
+		    $scope.$on('$stateChangeSuccess', function (event, toState) {
+		        syncStepFromState(toState.name);
+		    });
 
 
         	if($scope.formData.password && $scope.formData.password !== "" && $scope.formData.password == $scope.formData.password2){
@@ -168,6 +196,14 @@
 		       for (var i = 0; i < 6; i++) {
 		           var el = document.getElementById('index' + i);
 		           if (el) el.value = '';
+		       }
+
+		       if (isPreview) {
+		           $scope.resendSending = false;
+		           $scope.resendMessage = 'Preview: a new code has been "sent" — any 6 digits will pass.';
+		           $scope.resendMessageType = 'success';
+		           startResendCooldown();
+		           return;
 		       }
 
 		       UserService.ResendPaxCode($stateParams.token)
@@ -353,6 +389,16 @@
 		       $scope.codeVerifying = true;
 		       $scope.codeError = '';
 
+		       if (isPreview) {
+		           $scope.codeVerifying = false;
+		           ToastService.success('Preview', 'Identity check simulated — any code passes.');
+		           $scope.formData.user_id = 1;
+		           $scope.formData.token = $stateParams.token;
+		           $scope.checked_identity = true;
+		           $state.go("passenger_signup_complete.your_profile");
+		           return;
+		       }
+
 		       UserService.GetPaxSecureInvite2($stateParams.token, combine)
                 .then(function (data) {
                 	$scope.codeVerifying = false;
@@ -398,28 +444,21 @@
 		    $scope.submit_user_for_signup = function(){
 
 		    	$scope.formErrors = {};
-		    	var valid = true;
 
-		    	if (!$scope.formData.password || $scope.formData.password.length < 8) {
+		    	// Tell the user exactly which password rule failed rather than
+		    	// a generic "password issue" message.
+		    	var pwMessage = PasswordPolicyService.Message($scope.formData.password);
+		    	if (pwMessage) {
 		    	    $scope.formErrors.password = true;
-		    	    $scope.formErrors.password_msg = 'Password must be at least 8 characters';
-		    	    valid = false;
-		    	}
-
-		    	var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
-		    	if ($scope.formData.password && !strongPassword.test($scope.formData.password)) {
-		    	    $scope.formErrors.password = true;
-		    	    $scope.formErrors.password_msg = 'Must contain uppercase, lowercase, number & special character';
-		    	    valid = false;
+		    	    $scope.formErrors.password_msg = pwMessage;
+		    	    ToastService.warning('Password Not Strong Enough', pwMessage);
+		    	    scrollToFirstError();
+		    	    return false;
 		    	}
 
 		    	if ($scope.formData.password !== $scope.formData.password2) {
 		    	    $scope.formErrors.password2 = true;
-		    	    valid = false;
-		    	}
-
-		    	if (!valid) {
-		    	    ToastService.warning('Password Issue', 'Please ensure your password is at least 8 characters, contains mixed case, a number & special character, and both fields match.');
+		    	    ToastService.warning('Passwords Don\'t Match', 'Your two passwords are different — please re-type the confirmation.');
 		    	    scrollToFirstError();
 		    	    return false;
 		    	}
@@ -437,6 +476,13 @@
 
 		    	////console.log("SENDING", to_send);
 
+		    	if (isPreview) {
+		    		ToastService.success('Preview', 'Account creation simulated.');
+		    		$scope.formData = {};
+		    		$scope.checked_identity = false;
+		    		$state.go("passenger_signup_complete.thank_you");
+		    		return;
+		    	}
 
 	    		UserService.SignupUserFromPassenger($stateParams.token, to_send)
                 .then(function (data) {

@@ -24,7 +24,8 @@ app.directive('aircraftCheckPanel', ['$filter', function ($filter) {
         scope: {
             isOpen:            '=',
             planeRegistration: '=',
-            checkTypes:        '=',
+            offeredType:       '=',   // the mandatory role-matched type to complete (or null)
+            customTypes:       '=',   // the club's role:'custom' types ("add another check")
             onSubmit:          '&',
             onClose:           '&'
         },
@@ -53,18 +54,39 @@ app.directive('aircraftCheckPanel', ['$filter', function ($filter) {
                             '<div class="dr-section-num">1</div>' +
                             '<div class="dr-section-content">' +
                                 '<h4 class="dr-section-title">Check details</h4>' +
-                                '<div class="dr-field" ng-if="checkTypes.length > 1">' +
-                                    '<label class="dr-label">Check type</label>' +
-                                    '<select class="dr-input" ng-model="form.check_type" ng-options="ct.code as ct.name for ct in checkTypes"></select>' +
+
+                                // The required check to complete (role-matched), shown prominently.
+                                '<div class="dr-field" ng-if="offeredType">' +
+                                    '<label class="dr-label">Required check</label>' +
+                                    '<div class="ac-single-type">{{ offeredType.name }}</div>' +
                                 '</div>' +
-                                '<div class="dr-field" ng-if="checkTypes.length === 1">' +
-                                    '<label class="dr-label">Check type</label>' +
-                                    '<div class="ac-single-type">{{ checkTypes[0].name }}</div>' +
+
+                                // Optional: complete a different (custom) check instead.
+                                '<div class="dr-field" ng-if="allOptions().length > 1">' +
+                                    '<label class="dr-label">' +
+                                        '<span ng-if="offeredType">Or record a different check</span>' +
+                                        '<span ng-if="!offeredType">Check type</span>' +
+                                    '</label>' +
+                                    '<select class="dr-input" ng-model="form.check_type_obj" ng-options="ct as ct.name for ct in allOptions()"></select>' +
                                 '</div>' +
+
+                                // Only one option and no offered mandatory type — show it plainly.
+                                '<div class="dr-field" ng-if="!offeredType && allOptions().length === 1">' +
+                                    '<label class="dr-label">Check type</label>' +
+                                    '<div class="ac-single-type">{{ allOptions()[0].name }}</div>' +
+                                '</div>' +
+
+                                // No check types available for this club at all.
+                                '<div class="dr-field" ng-if="!offeredType && allOptions().length === 0">' +
+                                    '<div class="ac-no-types"><i class="fa fa-exclamation-circle"></i> ' +
+                                        'No check types are set up for this club yet. A club administrator ' +
+                                        'needs to add one (Manage Club → Settings → Aircraft Check Types).</div>' +
+                                '</div>' +
+
                                 '<p class="ac-type-desc" ng-if="selectedTypeDesc()">{{ selectedTypeDesc() }}</p>' +
                                 '<div class="dr-field" id="field-check-time">' +
                                     '<label class="dr-label">Checked at</label>' +
-                                    '<input type="datetime-local" class="dr-input" ng-model="form.checked_at" />' +
+                                    '<input type="datetime-local" step="60" class="dr-input" ng-model="form.checked_at" />' +
                                 '</div>' +
                             '</div>' +
                         '</div>' +
@@ -116,23 +138,43 @@ app.directive('aircraftCheckPanel', ['$filter', function ($filter) {
 
         link: function (scope) {
 
+            // All selectable types = the offered mandatory type (if any) + the custom
+            // types, deduped by id. The offered one is the default.
+            scope.allOptions = function () {
+                var opts = [];
+                var seen = {};
+                if (scope.offeredType) { opts.push(scope.offeredType); seen[scope.offeredType.id] = true; }
+                (scope.customTypes || []).forEach(function (t) {
+                    if (!seen[t.id]) { opts.push(t); seen[t.id] = true; }
+                });
+                return opts;
+            };
+
             function pickDefaultType() {
-                if (!scope.checkTypes || !scope.checkTypes.length) { return null; }
-                // Prefer Check A (code 'check_a'); else the first active type.
-                for (var i = 0; i < scope.checkTypes.length; i++) {
-                    if (scope.checkTypes[i].code === 'check_a') { return scope.checkTypes[i].code; }
-                }
-                return scope.checkTypes[0].code;
+                if (scope.offeredType) { return scope.offeredType; }
+                var opts = scope.allOptions();
+                return opts.length ? opts[0] : null;
             }
 
-            function nowLocal() {
-                return $filter('date')(new Date(), 'yyyy-MM-ddTHH:mm');
+            // "now" with seconds/ms zeroed so the datetime-local picker shows
+            // minute precision only.
+            function nowToMinute() {
+                var d = new Date();
+                d.setSeconds(0, 0);
+                return d;
             }
 
             function defaultForm() {
                 return {
-                    check_type: pickDefaultType(),
-                    checked_at: nowLocal(),
+                    // Bind the whole check-type object so we can send its code
+                    // (check_type) and id (check_type_id) at submit.
+                    check_type_obj: pickDefaultType(),
+                    // datetime-local binds a Date object in AngularJS 1.x — NOT a
+                    // string (a string throws [ngModel:datefmt]). Convert to the
+                    // 'yyyy-MM-ddTHH:mm' string the API wants only at submit time.
+                    // Zero seconds/ms so the picker shows minute precision only
+                    // (paired with step="60" on the input).
+                    checked_at: nowToMinute(),
                     fuel_us_gallons: null,
                     oil_quarts: null,
                     notes: ''
@@ -152,26 +194,21 @@ app.directive('aircraftCheckPanel', ['$filter', function ($filter) {
                 }
             });
 
-            // If check types arrive after open, set a sensible default.
-            scope.$watch('checkTypes', function (list) {
-                if (list && list.length && !scope.form.check_type) {
-                    scope.form.check_type = pickDefaultType();
-                }
+            // If the offered type / custom types arrive after open, set the default.
+            scope.$watch('offeredType', function () {
+                if (!scope.form.check_type_obj) { scope.form.check_type_obj = pickDefaultType(); }
+            });
+            scope.$watch('customTypes', function () {
+                if (!scope.form.check_type_obj) { scope.form.check_type_obj = pickDefaultType(); }
             });
 
             scope.selectedTypeDesc = function () {
-                if (!scope.checkTypes) { return ''; }
-                for (var i = 0; i < scope.checkTypes.length; i++) {
-                    if (scope.checkTypes[i].code === scope.form.check_type) {
-                        return scope.checkTypes[i].description || '';
-                    }
-                }
-                return '';
+                return (scope.form.check_type_obj && scope.form.check_type_obj.description) || '';
             };
 
             // Fuel & oil quantities are REQUIRED (daily inspection), matching bookout.
             scope.canSubmit = function () {
-                if (!scope.form.check_type) { return false; }
+                if (!scope.form.check_type_obj) { return false; }
                 if (!scope.form.checked_at) { return false; }
                 if (!(scope.form.fuel_us_gallons > 0)) { return false; }
                 if (!(scope.form.oil_quarts > 0)) { return false; }
@@ -181,14 +218,23 @@ app.directive('aircraftCheckPanel', ['$filter', function ($filter) {
             scope.submit = function () {
                 if (!scope.canSubmit() || scope.submitting) { return; }
                 scope.submitting = true;
-                var label = '';
-                for (var i = 0; i < (scope.checkTypes || []).length; i++) {
-                    if (scope.checkTypes[i].code === scope.form.check_type) { label = scope.checkTypes[i].name; break; }
-                }
+
+                var ct = scope.form.check_type_obj;
+
+                // checked_at is a Date object (datetime-local) — format to the
+                // 'yyyy-MM-ddTHH:mm' string the API/bookout flow uses.
+                var checkedAtStr = (scope.form.checked_at instanceof Date)
+                    ? $filter('date')(scope.form.checked_at, 'yyyy-MM-ddTHH:mm')
+                    : scope.form.checked_at;
+
+                // Role-based model: every option is a real active check-type row, so
+                // send its code (check_type) AND id (check_type_id). The backend keys
+                // the requirement off the type's role, not the code.
                 var checkData = {
-                    check_type: scope.form.check_type,
-                    check_type_label: label,
-                    checked_at: scope.form.checked_at,
+                    check_type: ct.code,
+                    check_type_id: ct.id,
+                    check_type_label: ct.name,
+                    checked_at: checkedAtStr,
                     fuel_us_gallons: scope.form.fuel_us_gallons,
                     oil_quarts: scope.form.oil_quarts,
                     notes: scope.form.notes || ''

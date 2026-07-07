@@ -47,36 +47,33 @@
         vm.user_id = vm.user.id;
 
         // ── Aircraft Check Types ──
+        // Role-based (backend updated 1 Jul 2026): code & name are freely editable;
+        // the mandatory pre-flight types are identified by ROLE, not by code.
+        //   a_check  — the "first flight of the day" check (satisfies Check A)
+        //   transit  — the subsequent-flight check
+        //   custom   — anything else (default)
+        // The backend keeps exactly one a_check and one transit per club, auto-
+        // demoting the previous holder when a role is reassigned.
         vm.check_types = [];
         vm.check_types_loading = false;
         vm.editing_check_type = false;
-        vm.check_type_form = { is_active: true, display_order: 1 };
+        vm.check_type_form = { is_active: true, display_order: 1, role: 'custom' };
 
-        vm.system_codes = ['check_a', 'transit_check'];
-
-        vm.check_type_codes = [
-            { value: 'check_a',       label: 'Check A (first flight of the day)' },
-            { value: 'transit_check', label: 'Transit Check (subsequent flights)' },
-            { value: 'check_b',       label: 'Check B' },
-            { value: 'daily_check',   label: 'Daily Check' },
-            { value: 'weekly_check',  label: 'Weekly Check' },
-            { value: 'preflight',     label: 'Pre-Flight Inspection' },
-            { value: 'annual_check',  label: 'Annual Check' },
-            { value: 'custom',        label: 'Custom' }
+        vm.check_type_roles = [
+            { value: 'a_check', label: 'A Check (first flight of the day)' },
+            { value: 'transit', label: 'Transit / Interim (subsequent flights)' },
+            { value: 'custom',  label: 'Custom (no mandatory role)' }
         ];
 
-        vm.isSystemCode = function(code) {
-            return vm.system_codes.indexOf(code) !== -1;
+        vm.roleLabel = function(role) {
+            if (role === 'a_check') { return 'A CHECK'; }
+            if (role === 'transit') { return 'TRANSIT'; }
+            return 'CUSTOM';
         };
-
-        vm.availableCodeOptions = function() {
-            // When editing, show all codes; when adding, hide system codes (they are auto-seeded)
-            if (vm.editing_check_type) {
-                return vm.check_type_codes;
-            }
-            return vm.check_type_codes.filter(function(c) {
-                return !vm.isSystemCode(c.value);
-            });
+        vm.roleBadgeClass = function(role) {
+            if (role === 'a_check') { return 'badge-success'; }
+            if (role === 'transit') { return 'badge-info'; }
+            return 'badge-default';
         };
 
         vm.loadCheckTypes = function() {
@@ -100,6 +97,7 @@
                 club_id: vm.club_id,
                 name: vm.check_type_form.name,
                 code: vm.check_type_form.code,
+                role: vm.check_type_form.role || 'custom',
                 description: vm.check_type_form.description || '',
                 is_active: vm.check_type_form.is_active ? 1 : 0,
                 display_order: vm.check_type_form.display_order || 1
@@ -134,14 +132,14 @@
 
         vm.openCheckTypeModal = function() {
             vm.editing_check_type = false;
-            vm.check_type_form = { is_active: true, display_order: 1 };
+            vm.check_type_form = { is_active: true, display_order: 1, role: 'custom' };
             vm.show_check_type_modal = true;
         };
 
         vm.closeCheckTypeModal = function() {
             vm.show_check_type_modal = false;
             vm.editing_check_type = false;
-            vm.check_type_form = { is_active: true, display_order: 1 };
+            vm.check_type_form = { is_active: true, display_order: 1, role: 'custom' };
         };
 
         vm.editCheckType = function(ct) {
@@ -150,6 +148,7 @@
                 id: ct.id,
                 name: ct.name,
                 code: ct.code,
+                role: ct.role || 'custom',
                 description: ct.description,
                 is_active: ct.is_active == 1,
                 display_order: ct.display_order

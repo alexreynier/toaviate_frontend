@@ -1,7 +1,7 @@
 app.controller('ClubSignupController', ClubSignupController);
 
-    ClubSignupController.$inject = ['ClubService', 'MemberService', 'UserService', 'GoCardService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$http', 'ToastService' ];
-    function ClubSignupController(ClubService, MemberService, UserService, GoCardService, $rootScope, $location, $scope, $state, $stateParams, $cookies, $http, ToastService) {
+    ClubSignupController.$inject = ['ClubService', 'MemberService', 'UserService', 'GoCardService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$http', 'ToastService', 'SignupDraftService', 'PasswordPolicyService' ];
+    function ClubSignupController(ClubService, MemberService, UserService, GoCardService, $rootScope, $location, $scope, $state, $stateParams, $cookies, $http, ToastService, SignupDraftService, PasswordPolicyService) {
         
 
     		var vm = this;
@@ -1542,11 +1542,98 @@ app.controller('ClubSignupController', ClubSignupController);
 		        $scope.formStep = n;
 		    };
 
+		    // ── Refresh / back-forward robustness ──────────────────────────
+		    // Form data lives on the parent state's scope, so a page refresh
+		    // used to wipe everything. We auto-save a sanitised draft (never
+		    // passwords or T&C ticks) and restore it here, keep the stepper in
+		    // sync with the browser's back/forward buttons, and bounce deep
+		    // links to a step whose prerequisite data is missing.
+
+		    var DRAFT_KEY = 'club_signup';
+
+		    // state name → stepper position (club_signup 1-4, club_signup2 5-8)
+		    var STEP_BY_STATE = {
+		        'club_signup':            1,
+		        'club_signup.my_profile': 1,
+		        'club_signup.my_club':    2,
+		        'club_signup.terms':      3,
+		        'club_signup.verify':     4,
+		        'club_signup2':           5,
+		        'club_signup2.verify':    5,
+		        'club_signup2.payment':   6,
+		        'club_signup2.payment2':  6,
+		        'club_signup2.payment_setup_confirmation':  7,
+		        'club_signup2.payment_setup_confirmation2': 7,
+		        'club_signup2.complete':  8
+		    };
+
+		    function syncStepFromState(stateName) {
+		        if (STEP_BY_STATE[stateName]) {
+		            $scope.formStep = STEP_BY_STATE[stateName];
+		        }
+		    }
+
+		    // Steps 2-3 need the profile from step 1. (Step 4+ are post-submit
+		    // informational screens — never bounce those.)
+		    function guardStep(stateName) {
+		        if (stateName !== 'club_signup.my_club' && stateName !== 'club_signup.terms') { return; }
+		        var user = $scope.formData.user || {};
+		        if (!user.first_name || !user.email) {
+		            ToastService.warning('Start With Your Details', 'Please complete your personal details first — anything you had already entered has been restored.');
+		            $state.go('club_signup.my_profile', {}, { location: 'replace' });
+		            return;
+		        }
+		        if (!user.password) {
+		            ToastService.warning('Please Re-enter Your Password', 'For security we never store your password — please re-enter it to continue.');
+		            $state.go('club_signup.my_profile', {}, { location: 'replace' });
+		        }
+		    }
+
+		    // Restore any saved draft (never contains passwords / T&C ticks).
+		    var draft = SignupDraftService.Load(DRAFT_KEY);
+		    if (draft && draft.formData) {
+		        if (draft.formData.user) { angular.extend($scope.formData.user, draft.formData.user); }
+		        if (draft.formData.club) { angular.extend($scope.formData.club, draft.formData.club); }
+		        if (draft.selected_phone) { vm.selected_phone = draft.selected_phone; }
+		        if ($scope.formData.user.first_name || $scope.formData.club.title) {
+		            ToastService.success('Progress Restored', 'Welcome back — we saved what you had entered so far.');
+		        }
+		    }
+
+		    // Auto-save as the user types (debounced, sanitised).
+		    SignupDraftService.Watch($scope, DRAFT_KEY, function () {
+		        return { formData: $scope.formData, selected_phone: vm.selected_phone };
+		    });
+
+		    // Landing on the bare parent URL shows an empty card — send the
+		    // user to the first step instead.
+		    if ($state.current.name === 'club_signup') {
+		        $state.go('club_signup.my_profile', {}, { location: 'replace' });
+		    } else {
+		        syncStepFromState($state.current.name);
+		        guardStep($state.current.name);
+		    }
+
+		    // Keep the stepper + guards in sync when the user navigates with
+		    // the browser's back/forward buttons (child state changes do not
+		    // re-instantiate this controller).
+		    $scope.$on('$stateChangeSuccess', function (event, toState) {
+		        if (toState.name === 'club_signup') {
+		            $state.go('club_signup.my_profile', {}, { location: 'replace' });
+		            return;
+		        }
+		        syncStepFromState(toState.name);
+		        guardStep(toState.name);
+		    });
+
 		    $scope.clearFormError = function(field) {
 		        if ($scope.formErrors[field]) {
 		            delete $scope.formErrors[field];
 		        }
 		    };
+
+		    // Live password-requirements checklist under the password field.
+		    $scope.pwCheck = PasswordPolicyService.Rules;
 
 		    // Scroll to the first field with an error
 		    function scrollToFirstError() {
@@ -1578,31 +1665,26 @@ app.controller('ClubSignupController', ClubSignupController);
 		        if (!$scope.formData.user.phone || !$scope.formData.user.phone.trim()) {
 		            $scope.formErrors.phone = true; valid = false;
 		        }
-		        if (!$scope.formData.user.password || $scope.formData.user.password.length < 8) {
-		            $scope.formErrors.password = true;
-		            $scope.formErrors.password_msg = 'Password must be at least 8 characters';
-		            valid = false;
-		        }
-
 		        if (!valid) {
 		            ToastService.warning('Missing Fields', 'Please fill in all required fields.');
 		            scrollToFirstError();
 		            return;
 		        }
 
-		        // Strong password check
-		        var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})');
-		        if (!strongPassword.test($scope.formData.user.password)) {
+		        // Password checks — tell the user exactly which rule failed
+		        // rather than a generic "missing fields" message.
+		        var pwMessage = PasswordPolicyService.Message($scope.formData.user.password);
+		        if (pwMessage) {
 		            $scope.formErrors.password = true;
-		            $scope.formErrors.password_msg = 'Must contain uppercase, lowercase, number & special character';
-		            ToastService.warning('Weak Password', 'Your password must contain 1 uppercase, 1 lowercase, 1 number, and 1 special character.');
+		            $scope.formErrors.password_msg = pwMessage;
+		            ToastService.warning('Password Not Strong Enough', pwMessage);
 		            scrollToFirstError();
 		            return;
 		        }
 
 		        if ($scope.formData.user.password !== $scope.formData.user.password2) {
 		            $scope.formErrors.password2 = true;
-		            ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		            ToastService.warning('Passwords Don\'t Match', 'Your two passwords are different — please re-type the confirmation.');
 		            scrollToFirstError();
 		            return;
 		        }
@@ -1779,13 +1861,11 @@ app.controller('ClubSignupController', ClubSignupController);
               return false;
             }
 
-            //check the password length > 8 characters
-            var strongPassword = new RegExp('(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])(?=.{8,})')
-            if(strongPassword.test($scope.formData.user.password)) {
-              //console.log("password strength OK");
-            } else {
+            //check the password against the shared policy
+            var pwMessage = PasswordPolicyService.Message($scope.formData.user.password);
+            if(pwMessage) {
               $("input[type='password']").removeClass("ng-pristine").addClass("ng-invalid");
-              ToastService.warning('Weak Password', 'Your password must be at least 8 characters in length, contain 1 uppercase, 1 lowercase, 1 number, and 1 special character');
+              ToastService.warning('Password Not Strong Enough', pwMessage);
               return false;
             }
 
@@ -1846,23 +1926,74 @@ app.controller('ClubSignupController', ClubSignupController);
 		    }
 
 
+		    // Compose a full E.164 number (+ then digits only) from the selected
+		    // country prefix and the national number as typed: strip spaces and
+		    // other separators, drop the leading zero(s) of the national part.
+		    // Agreed backend contract — see BACKEND_SIGNUP_ROBUSTNESS_GUIDE.md Task 8.
+		    function e164Phone(prefix, national) {
+		        var raw = String(national || '').trim();
+		        if (raw.charAt(0) === '+') {
+		            // already typed as international — just sanitise
+		            return '+' + raw.replace(/\D/g, '');
+		        }
+		        var digits = raw.replace(/\D/g, '').replace(/^0+/, '');
+		        return String(prefix || '') + digits;
+		    }
+
 		    // function to process the form
+		    $scope.submitting = false;
 		    $scope.processForm = function() {
+		         if ($scope.submitting) { return; }
+
+		         // This also fires on an Enter-key implicit form submission.
+		         // On steps 1-2, Enter should advance the current step, not
+		         // submit the whole wizard.
+		         if ($state.current.name === 'club_signup.my_profile') {
+		             $scope.validateProfile();
+		             return;
+		         }
+		         if ($state.current.name === 'club_signup.my_club') {
+		             $scope.validateClub();
+		             return;
+		         }
+		         // From the terms step (or anywhere else) never send an
+		         // incomplete form.
+		         if (!$scope.formData.user || !$scope.formData.user.email || !$scope.formData.user.password || !vm.selected_phone || !vm.selected_phone.CountryCode) {
+		             $scope.validateProfile();
+		             return;
+		         }
+		         if (!$scope.formData.club || !$scope.formData.club.title) {
+		             $scope.validateClub();
+		             return;
+		         }
+		         if (!$scope.formData.tnc) {
+		             ToastService.warning('Terms Required', 'Please accept the Terms & Conditions to continue.');
+		             return;
+		         }
+
 		         if ($scope.formData) {
 	                //contact the service to create a new club! :)
 
-	                //sort out the phone number: 
-	                $scope.formData.user.phone = vm.selected_phone.CountryCode + $scope.formData.user.phone;
+	                //sort out the phone number on a copy — never mutate the
+	                //live form data, or a failed submit + retry would prepend
+	                //the country code a second time.
+	                var payload = angular.copy($scope.formData);
+	                payload.user.phone = e164Phone(vm.selected_phone.CountryCode, payload.user.phone);
+
+	                $scope.submitting = true;
 
  					//console.log("GO!");
- 					ClubService.Create($scope.formData)
+ 					ClubService.Create(payload)
 		                .then(function(data){
 		                    //console.log(data);
+		                    $scope.submitting = false;
 		                    if(data.success){
+			                    SignupDraftService.Clear(DRAFT_KEY);
 			                    $state.go("club_signup.verify");
 			                    $scope.formData = {};
 		                    } else {
 		                    	$("#error_message").html(data.message);
+		                    	ToastService.error('Signup Failed', data.message || 'Something went wrong — please check your details and try again. Nothing you entered has been lost.');
 		                    }
 		                });
 
@@ -1900,9 +2031,19 @@ app.controller('ClubSignupController', ClubSignupController);
 
         function titlepath(path,name){
 
-        //In this path defined as your pdf url and name (your pdf name)
-            var prntWin = window.open();
-            prntWin.document.write("<html><head><title>"+name+"</title></head><body>"
+        //Open the document in a centred popup window so the signup form
+        //stays visible behind it (a bare window.open() covered the screen).
+            var w = Math.min(900, window.screen.availWidth - 40);
+            var h = Math.min(800, window.screen.availHeight - 80);
+            var left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+            var top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+            var prntWin = window.open('', '_blank', 'popup=yes,width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
+            if (!prntWin) {
+                // popup blocked — fall back to a normal new tab
+                window.open(path, '_blank');
+                return;
+            }
+            prntWin.document.write("<html><head><title>"+name+"</title></head><body style=\"margin:0\">"
                 + '<embed width="100%" height="100%" name="plugin" src="'+ path+ '" '
                 + 'type="application/pdf" internalinstanceid="21"></body></html>');
             prntWin.document.close();

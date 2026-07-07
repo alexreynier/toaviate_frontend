@@ -1,7 +1,7 @@
  app.controller('InvitationsSignupController', InvitationsSignupController);
 
-    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService', 'PaymentService', 'EnvConfig'];
-    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService, PaymentService, EnvConfig) {
+    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService', 'PaymentService', 'EnvConfig', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService'];
+    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService, PaymentService, EnvConfig, SignupDraftService, SignupPreviewService, PasswordPolicyService) {
         	
         	var vm = this;
 
@@ -20,12 +20,92 @@
         		$scope.invStep = n;
         	};
 
+        	// ── Refresh / back-forward robustness ──────────────────────────
+        	// The invitation itself is always re-fetched by token, but what
+        	// the user *typed* (DOB, phone, next of kin…) used to die on a
+        	// refresh, and the stepper ignored the browser's back/forward
+        	// buttons. We auto-save a sanitised draft per invitation token
+        	// (never passwords or T&C ticks), restore it after the invite
+        	// loads, derive the stepper from the current state, and bounce
+        	// deep links to steps whose prerequisites are missing.
+
+        	var DRAFT_KEY = 'invitation_' + ($stateParams.token || 'unknown');
+
+        	var STEP_BY_STATE = {
+        		'invitations.introduction': 1,
+        		'invitations.your_details': 2,
+        		'invitations.next_of_kin':  3,
+        		'invitations.your_club':    4,
+        		'invitations.tnc':          4,
+        		'invitations.direct_debit': 5,
+        		'invitations.verified':     6
+        	};
+
+        	function syncStepFromState(stateName) {
+        		if (STEP_BY_STATE[stateName]) {
+        			$scope.invStep = STEP_BY_STATE[stateName];
+        		}
+        	}
+
+        	// Steps 3-4 need the details step completed *this session*
+        	// (we never store the password, so after a refresh the user is
+        	// sent back to re-enter it — everything else is restored).
+        	// Steps 5-6 run AFTER the account exists — never bounce those.
+        	function guardStep(stateName) {
+        		if (stateName !== 'invitations.next_of_kin' && stateName !== 'invitations.your_club' && stateName !== 'invitations.tnc') { return; }
+        		if (!$scope.formData.password) {
+        			ToastService.warning('Please Re-enter Your Password', 'For security we never store your password — your other details have been kept. Please choose your password again to continue.');
+        			$state.go('invitations.your_details', { token: $stateParams.token }, { location: 'replace' });
+        		}
+        	}
+
+        	function goToDefaultChild() {
+        		// Landing on the bare /invitations/:token URL shows an empty
+        		// card. Payment-provider redirects resume at the payment
+        		// result; everyone else starts at the introduction.
+        		if ($location.search().redirect_flow_id || $location.search().stripe_success || $location.search().setup_intent) {
+        			$state.go('invitations.direct_debit', { token: $stateParams.token }, { location: 'replace' });
+        		} else {
+        			$state.go('invitations.introduction', { token: $stateParams.token }, { location: 'replace' });
+        		}
+        	}
+
+        	if ($state.current.name === 'invitations') {
+        		goToDefaultChild();
+        	} else {
+        		syncStepFromState($state.current.name);
+        		guardStep($state.current.name);
+        	}
+
+        	$scope.$on('$stateChangeSuccess', function (event, toState) {
+        		if (toState.name === 'invitations') {
+        			goToDefaultChild();
+        			return;
+        		}
+        		syncStepFromState(toState.name);
+        		guardStep(toState.name);
+        	});
+
+        	// Read any existing draft NOW (synchronously) — the auto-save
+        	// watcher below starts writing straight away, and we must not let
+        	// it overwrite last session's draft before the (async) invitation
+        	// fetch gets a chance to restore it.
+        	var savedDraft = SignupDraftService.Load(DRAFT_KEY);
+
+        	// Auto-save what the user types (debounced, sanitised).
+        	SignupDraftService.Watch($scope, DRAFT_KEY, function () {
+        		return { formData: $scope.formData, selected_phone: vm.selected_phone };
+        	});
+
         	// ── Clear a single field error on user input ──
         	$scope.clearInvError = function(field) {
         		if ($scope.invErrors[field]) {
         			delete $scope.invErrors[field];
         		}
         	};
+
+        	// Live password-requirements checklist under the password field.
+        	$scope.pwCheck = PasswordPolicyService.Rules;
 
 
 vm.selected_phone;
@@ -1222,18 +1302,8 @@ vm.selected_phone;
     		}
 
 
-    		if($stateParams.token){
-
-    			
-    			UserService.GetInvite($stateParams.token)
-                .then(function (data) {
-	    			////console.log("GETTING TOKEN", data);
-
-                    // A real invitation payload is a truthy object that ISN'T the
-                    // service's error shape ({success:false}). On any error we
-                    // stay on this public page and show a message — we must NOT
-                    // bounce the (usually logged-out) recipient to /login.
-                    if(data && data.success !== false){
+    		// Apply an invitation payload (real or design-preview) to the scope.
+    		function applyInvite(data){
 
                     	$scope.total_invite = data;
                     	
@@ -1262,11 +1332,58 @@ vm.selected_phone;
 
 		    			$scope.all = data;
 
-                    	////console.log("success");
+		    			// Restore anything the user had already typed on this
+		    			// device (draft never contains passwords / T&C ticks).
+		    			// User-edited values win over the invite's prefill, but
+		    			// the invitation itself stays authoritative for the
+		    			// club / membership / token fields.
+		    			var draft = savedDraft;
+		    			if (draft && draft.formData) {
+		    				angular.extend($scope.formData, draft.formData);
+		    				$scope.formData.membership_id = data.membership_id;
+		    				$scope.formData.club_id = data.club_id;
+		    				$scope.formData.to_pay = data.to_pay;
+		    				$scope.formData.token = data.invitation_token;
+		    				$scope.formData.invited_by = data.invited_by;
+		    				if (draft.selected_phone) { vm.selected_phone = draft.selected_phone; }
+		    				// Dates come back from JSON as ISO strings — revive for the date input.
+		    				if (typeof $scope.formData.dob === 'string') { $scope.formData.dob = new Date($scope.formData.dob); }
+		    				if (draft.formData.dob || draft.formData.phone_number || (draft.formData.nok && draft.formData.nok.first_name)) {
+		    					ToastService.success('Progress Restored', 'Welcome back — we saved what you had entered so far.');
+		    				}
+		    			}
+
+    		}
+
+    		function inviteLoadFailed(){
+    			// Stay on the invitation page — do NOT redirect to login.
+    			$scope.invite_load_failed = true;
+    			ToastService.error('Invitation Not Found', 'Sorry we were unable to load this invitation. It may have expired, or the link may be incomplete. Please try clicking the link again, or ask your club to re-send it.');
+    		}
+
+    		// Design preview: tokens starting with "preview" load sample data
+    		// and simulate every submit locally (non-production builds only).
+    		var isPreview = SignupPreviewService.IsPreview($stateParams.token);
+
+    		if(isPreview){
+
+    			applyInvite(SignupPreviewService.GetInvitation($stateParams.token));
+    			ToastService.warning('Design Preview', 'Sample invitation data — submits are simulated, nothing is saved.');
+
+    		} else if($stateParams.token){
+
+    			UserService.GetInvite($stateParams.token)
+                .then(function (data) {
+	    			////console.log("GETTING TOKEN", data);
+
+                    // A real invitation payload is a truthy object that ISN'T the
+                    // service's error shape ({success:false}). On any error we
+                    // stay on this public page and show a message — we must NOT
+                    // bounce the (usually logged-out) recipient to /login.
+                    if(data && data.success !== false){
+                    	applyInvite(data);
                     } else {
-                    	// Stay on the invitation page — do NOT redirect to login.
-                    	$scope.invite_load_failed = true;
-                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to load this invitation. It may have expired, or the link may be incomplete. Please try clicking the link again, or ask your club to re-send it.');
+                    	inviteLoadFailed();
                     }
                 });
 
@@ -1337,6 +1454,16 @@ vm.selected_phone;
 		    }
 
 		    $scope.downloadClubDocument = function(doc) {
+	            // Club T&C links call this with no argument — resolve the
+	            // club's own terms document from the invitation payload.
+	            if (!doc) {
+	                doc = ($scope.club && ($scope.club.membership_terms || ($scope.club.settings && $scope.club.settings.membership_terms))) || null;
+	            }
+	            if (!doc) {
+	                ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+	                return;
+	            }
+
 	            var data = $.param({
 	                id: doc
 	            });
@@ -1375,10 +1502,24 @@ vm.selected_phone;
 
 
 
+		    // Compose a full E.164 number (+ then digits only) from the selected
+		    // country prefix and the national number as typed: strip spaces and
+		    // other separators, drop the leading zero(s) of the national part.
+		    // Agreed backend contract — see BACKEND_SIGNUP_ROBUSTNESS_GUIDE.md Task 8.
+		    function e164Phone(prefix, national) {
+		    	var raw = String(national || '').trim();
+		    	if (raw.charAt(0) === '+') {
+		    		// already typed as international — just sanitise
+		    		return '+' + raw.replace(/\D/g, '');
+		    	}
+		    	var digits = raw.replace(/\D/g, '').replace(/^0+/, '');
+		    	return String(prefix || '') + digits;
+		    }
+
 		    function check_user_is_valid(){
 
-		    	if(		!$scope.formData.first_name 
-		    		|| !$scope.formData.last_name 
+		    	if(		!$scope.formData.first_name
+		    		|| !$scope.formData.last_name
 		    		|| !$scope.formData.email
 		    		|| !$scope.formData.dob
 		    		|| !$scope.formData.password
@@ -1389,15 +1530,25 @@ vm.selected_phone;
 		    		return false;
 		    	}
 
-		    	if($scope.formData.password.length < 7){
-		    		//not long enough
-		    		ToastService.warning('Password Too Short', 'Password must be more than 7 characters long');
+		    	if(!$scope.formData.phone_number || !String($scope.formData.phone_number).trim()){
+		    		ToastService.warning('Mobile Number Required', 'Please enter your mobile number.');
+		    		return false;
+		    	}
+
+		    	if(!vm.selected_phone || !vm.selected_phone.CountryCode){
+		    		ToastService.warning('Country Code Required', 'Please select the country prefix for your mobile number from the drop-down.');
+		    		return false;
+		    	}
+
+		    	var pwMessage = PasswordPolicyService.Message($scope.formData.password);
+		    	if(pwMessage){
+		    		ToastService.warning('Password Not Strong Enough', pwMessage);
 		    		return false;
 		    	}
 
 		    	if($scope.formData.password !== $scope.formData.password2){
 		    		//passwords do not match
-		    		ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		    		ToastService.warning('Passwords Don\'t Match', 'Your two passwords are different — please re-type the confirmation.');
 		    		return false;
 		    	}
 
@@ -1428,27 +1579,26 @@ vm.selected_phone;
 		    	if (!$scope.formData.phone_number || !$scope.formData.phone_number.trim()) {
 		    		$scope.invErrors.phone_number = true; valid = false;
 		    	}
-		    	if (!$scope.formData.password || $scope.formData.password.length < 8) {
-		    		$scope.invErrors.password = true; valid = false;
+		    	if (!vm.selected_phone || !vm.selected_phone.CountryCode) {
+		    		$scope.invErrors.phone_number = true; valid = false;
 		    	}
-		    	if (!$scope.formData.password2 || $scope.formData.password !== $scope.formData.password2) {
-		    		$scope.invErrors.password2 = true; valid = false;
-		    	}
-
 		    	if (!valid) {
 		    		ToastService.warning('Missing Fields', 'Please fill in all required fields.');
 		    		return;
 		    	}
 
-		    	// Password-specific checks
-		    	if ($scope.formData.password.length < 8) {
+		    	// Password checks — tell the user exactly which rule failed
+		    	// rather than a generic "missing fields" message.
+		    	var pwMessage = PasswordPolicyService.Message($scope.formData.password);
+		    	if (pwMessage) {
 		    		$scope.invErrors.password = true;
-		    		ToastService.warning('Password Too Short', 'Password must be at least 8 characters long.');
+		    		$scope.invErrors.password_msg = pwMessage;
+		    		ToastService.warning('Password Not Strong Enough', pwMessage);
 		    		return;
 		    	}
-		    	if ($scope.formData.password !== $scope.formData.password2) {
+		    	if (!$scope.formData.password2 || $scope.formData.password !== $scope.formData.password2) {
 		    		$scope.invErrors.password2 = true;
-		    		ToastService.warning('Password Mismatch', 'Your passwords do not match.');
+		    		ToastService.warning('Passwords Don\'t Match', 'Your two passwords are different — please re-type the confirmation.');
 		    		return;
 		    	}
 
@@ -1539,6 +1689,10 @@ vm.selected_phone;
 		    };
 
 		    function initStripeForm() {
+		    	if (isPreview) {
+		    		ToastService.warning('Preview', 'The live Stripe card form needs a real invitation — the rest of this step is fully previewable.');
+		    		return;
+		    	}
 		    	// Only init once — if user toggles back we re-mount
 		    	var uid = $cookies.get('uid');
 		    	var send = {
@@ -1599,6 +1753,14 @@ vm.selected_phone;
 		    		return;
 		    	}
 
+		    	if (isPreview) {
+		    		$scope.invPaymentResult = 'stripe';
+		    		$scope.invStep = 5;
+		    		ToastService.success('Preview', 'Card setup simulated.');
+		    		$state.go('invitations.direct_debit');
+		    		return;
+		    	}
+
 		    	if (!invStripeElements) {
 		    		ToastService.error('Card Not Ready', 'The card form is still loading. Please wait a moment.');
 		    		return;
@@ -1608,6 +1770,7 @@ vm.selected_phone;
 
 		    	// First create the user account (same as DD flow)
 		    	var to_send = angular.copy($scope.formData);
+		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
 		    	to_send.request_id = $scope.all.membership_request_id;
 		    	to_send.invitation = $stateParams.token;
 		    	to_send.payment_now = $scope.payment_now;
@@ -1621,6 +1784,9 @@ vm.selected_phone;
 		    	UserService.InviteSignup(to_send)
 		    	.then(function(data) {
 		    		if (data.success) {
+		    			// Account created — the typed draft is no longer needed
+		    			SignupDraftService.Clear(DRAFT_KEY);
+
 		    			// Store session
 		    			if (data.uid) $cookies.put('uid', data.uid);
 		    			if (data.session) $cookies.put('session', data.session);
@@ -1683,10 +1849,20 @@ vm.selected_phone;
 
 		    $scope.confirmSkipPayment = function() {
 		    	$scope.invShowSkipConfirm = false;
+
+		    	if (isPreview) {
+		    		$scope.invPaymentResult = 'skipped';
+		    		$scope.invStep = 5;
+		    		ToastService.success('Preview', 'Skip-payment path simulated.');
+		    		$state.go('invitations.direct_debit');
+		    		return;
+		    	}
+
 		    	$scope.invLoading = true;
 
 		    	// Create user without payment
 		    	var to_send = angular.copy($scope.formData);
+		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
 		    	to_send.request_id = $scope.all.membership_request_id;
 		    	to_send.invitation = $stateParams.token;
 		    	to_send.payment_now = $scope.payment_now;
@@ -1697,6 +1873,7 @@ vm.selected_phone;
 		    	.then(function(data) {
 		    		$scope.invLoading = false;
 		    		if (data.success) {
+		    			SignupDraftService.Clear(DRAFT_KEY);
 		    			if (data.uid) $cookies.put('uid', data.uid);
 		    			$scope.invPaymentResult = 'skipped';
 		    			$scope.invStep = 5;
@@ -1730,12 +1907,23 @@ vm.selected_phone;
 
 		    $scope.setup_direct_debit = function(){
 
+		    	if(isPreview){
+		    		$scope.invLoading = false;
+		    		$scope.invPaymentResult = 'direct_debit';
+		    		$scope.invStep = 5;
+		    		ToastService.success('Preview', 'Direct debit setup simulated.');
+		    		$state.go('invitations.direct_debit');
+		    		return;
+		    	}
 
 		    	// //console.log("CHECK IS L ", $scope.checkValid("verify_account", 1));
 
 		    	if($scope.checkValid("verify_account", 1)){
 
-			    	var to_send = $scope.formData;
+			    	//build the payload on a copy — never mutate the live form
+			    	//data (it feeds the auto-saved draft)
+			    	var to_send = angular.copy($scope.formData);
+			    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
 			    	to_send.request_id = $scope.all.membership_request_id;
 			    	to_send.invitation = $stateParams.token;
 
@@ -1753,6 +1941,9 @@ vm.selected_phone;
 			    			// //console.log("INVITATION BEING SENT NOW...", data);
 		                    if(data.success){
 		                    	// //console.log("YAY we created stuff");
+
+		                    	//account created — the typed draft is no longer needed
+		                    	SignupDraftService.Clear(DRAFT_KEY);
 
 		                    	//store the session::::::
 		                    	$cookies.put("session", data.mandate.session);
@@ -1848,6 +2039,12 @@ vm.selected_phone;
 		    $scope.sendVerification = function(){
 		    	var user_id = $cookies.get("uid");
 		    	$scope.invStep = 6;
+
+		    	if(isPreview){
+		    		ToastService.success('Preview', 'Verification email simulated.');
+		    		$state.go('invitations.verified');
+		    		return;
+		    	}
 
 		    	MemberService.VerifyInvitedUser(user_id)
 		                .then(function (data) {
@@ -2062,6 +2259,13 @@ vm.selected_phone;
 		        $scope.codeVerifying = true;
 		        $scope.codeError = '';
 
+		        if (isPreview) {
+		            $scope.codeVerifying = false;
+		            $scope.verified_mobile = true;
+		            ToastService.success('Preview', 'Phone verification simulated — any code passes.');
+		            return;
+		        }
+
 		        MemberService.VerifyPhoneInvite(combine, $cookies.get("uid"))
 		            .then(function (data) {
 		                $scope.codeVerifying = false;
@@ -2090,9 +2294,19 @@ vm.selected_phone;
 
     		function titlepath(path,name){
 
-        //In this path defined as your pdf url and name (your pdf name)
-            var prntWin = window.open();
-            prntWin.document.write("<html><head><title>"+name+"</title></head><body>"
+        //Open the document in a centred popup window so the signup form
+        //stays visible behind it (a bare window.open() covered the screen).
+            var w = Math.min(900, window.screen.availWidth - 40);
+            var h = Math.min(800, window.screen.availHeight - 80);
+            var left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+            var top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+            var prntWin = window.open('', '_blank', 'popup=yes,width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
+            if (!prntWin) {
+                // popup blocked — fall back to a normal new tab
+                window.open(path, '_blank');
+                return;
+            }
+            prntWin.document.write("<html><head><title>"+name+"</title></head><body style=\"margin:0\">"
                 + '<embed width="100%" height="100%" name="plugin" src="'+ path+ '" '
                 + 'type="application/pdf" internalinstanceid="21"></body></html>');
             prntWin.document.close();
@@ -2196,20 +2410,61 @@ vm.selected_phone;
 
 		    // function to process the form
 		    $scope.processForm = function() {
-		        
-		    	//basic checks of what is being sent should be added here....
-		        UserService.InviteSignup($scope.formData)
+
+		    	// This also fires on an Enter-key implicit form submission.
+		    	// On the earlier steps, Enter advances the current step; on
+		    	// the payment step it must do nothing (payment has explicit
+		    	// buttons — an implicit submit here would create the account
+		    	// with no payment method).
+		    	if ($scope.invLoading) { return; }
+		    	if ($state.current.name === 'invitations.your_details') {
+		    		$scope.validateDetails();
+		    		return;
+		    	}
+		    	if ($state.current.name === 'invitations.next_of_kin') {
+		    		$scope.validateNextOfKin();
+		    		return;
+		    	}
+		    	if ($state.current.name !== 'invitations.tnc') {
+		    		return;
+		    	}
+		    	if (!check_user_is_valid()) {
+		    		$state.go('invitations.your_details');
+		    		return;
+		    	}
+		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
+		    		$state.go('invitations.next_of_kin');
+		    		return;
+		    	}
+		    	if (!$scope.formData.tnc) {
+		    		ToastService.warning('Terms Required', 'You must accept the Terms & Conditions to continue.');
+		    		return;
+		    	}
+
+		    	if (isPreview) {
+		    		ToastService.success('Preview', 'Signup simulated.');
+		    		$state.go('invitations.verified');
+		    		return;
+		    	}
+
+		    	$scope.invLoading = true;
+		    	//send a copy with the phone normalised to E.164 — never mutate
+		    	//the live form data (it feeds the auto-saved draft)
+		    	var to_send = angular.copy($scope.formData);
+		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
+		        UserService.InviteSignup(to_send)
 	                .then(function (data) {
 		    			//console.log("INVITATION BEING SENT NOW...", data);
 
-
-	                    if(data){
+	                    $scope.invLoading = false;
+	                    if(data && data.success !== false){
 	                    	//console.log("success");
+	                    	SignupDraftService.Clear(DRAFT_KEY);
 	                    	ToastService.success('Success', 'All good to go!');
 	                    	$state.go("invitations.verified");
 	                    } else {
-	                    	ToastService.error('Invitation Not Found', 'Sorry we were unable to find this invitation. Please try clicking the link again.')
-	                    	$state.go("login");
+	                    	ToastService.error('Signup Failed', 'An error occurred: ' + ((data && (data.error || data.message)) || 'please try again.') + ' Nothing you entered has been lost.');
 	                    }
 	                });
 

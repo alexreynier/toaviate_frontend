@@ -29,6 +29,11 @@
 
         <div ng-repeat="plane in club.planes | filter: search2" ng-if="!my_search || (my_search && (getMySearchCount(plane) > 0))">
 <!--             <div class="plane_docs">
+                  <hr />
+
+
+
+                  <hr />
  -->               
 
                 <div class="club_docs_all2">
@@ -38,23 +43,220 @@
                   <span class="ac-badge ac-badge--dual" ng-if="plane.dual_only == 1"><i class="fas fa-user-friends"></i> DUAL ONLY</span>
                 </div>
 
+                <!-- At-a-glance stats first: hours/days remaining + meter reading -->
+                <div class="card as-topstats">
+
+                  <div class="cards">
+                    <h4>Hours Remaining</h4>
+                    <span class="big_number no_{{ plane.maintenance.hours_status }}">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
+                  </div>
+
+                  <div class="cards">
+                    <h4>Days Remaining</h4>
+                    <span class="big_number no_{{ plane.maintenance.days_status }}">{{ plane.maintenance.days_remaining || "0" }}</span>
+                  </div>
+
+                  <div class="cards">
+                    <h4>Meter Reading</h4>
+                    <span class="big_number">{{ plane.location.meter_reading || "0.00" }}</span>
+                  </div>
+
+                </div>
+
 
                 <div class="plane_docs">
+                  <div class="card">
 
-                  <h4>Reported Maintenance State</h4>
-
-
-
-                  <div class="form-group">
+                    <h4>Aircraft Journey Log</h4>
 
 
-                    <div class="no_defects" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) < 1">
-                     There are no currently reported maintenance issues...
+                    <div class="plane_docs_none" ng-if="plane.logs.length < 1">
+                        There are presently no journey log entries for this aircraft.
                     </div>
 
 
 
-                    <div class="card">
+                    <div class="" ng-if="plane.logs.length > 0">
+                        <div class="mc-table-wrap">
+                        <table>
+                            <tr>
+                                <td class="bold_text">
+                                    Date
+                                </td>
+                                <td class="bold_text">
+                                    Pilot
+                                </td>
+                                <td class="bold_text centre_me">
+                                    From
+                                </td>
+                                <td class="bold_text centre_me">
+                                    To
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Off
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes On
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Brakes Time
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Fuel Uplift
+                                </td>
+                                <td class="bold_text centre_me">
+                                    Oil Uplift
+                                </td>
+                            </tr>
+                            <tr ng-repeat="log in plane.logs" vertical-align="middle">
+                            
+                                 <td class="log_no_break">
+                                    {{ log.flight_date | asDate | date:"dd MMM yyyy" }}
+                                </td>
+                                <td class="log_no_break">
+                                    <!-- <span uib-tooltip="{{log.first_name}} {{log.last_name}}">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span> -->
+                                    <span>{{ vm.get_pic(log) }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <!-- {{ vm.clean_times(log.brakes_off) | roundFive }} -->
+                                    <!-- {{ vm.round_brake_times_start( vm.clean_times(log.brakes_off), vm.clean_times(log.takeoff_time) ) | roundFive }}
+
+                                    rounding == > --> 
+                                    {{ vm.clean_times(log.brakes_off_rounded) }}
+                                </td>
+                                <td class="centre_me">
+                                    <!-- {{ vm.clean_times(log.brakes_on) | roundFive }} -->
+                                    <!-- {{ vm.round_brake_times_end( vm.clean_times(log.brakes_on), vm.clean_times(log.landing_time)) | roundFive }}
+                                    rounding == > --> 
+                                    {{ vm.clean_times(log.brakes_on_rounded) }}
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip='airborne time: {{ get_hours_from_decimal(log.flight_time) || "0:00" }}'> {{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{ log.fuel_uplift_litres }} litres">{{ log.fuel_uplift_litres }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{log.oil_uplift_litres}} quarts">{{ log.oil_uplift_litres }}</span>
+                                </td>
+
+                            </tr>
+                        </table>
+                        </div>
+
+                        <div class="mc-cards">
+                          <div class="mc-card" ng-repeat="log in plane.logs">
+                            <div class="mc-card-header">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</div>
+                            <div class="mc-card-sub">{{ vm.get_pic(log) }}</div>
+                            <div class="mc-card-route">
+                              <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
+                              <i class="fa fa-long-arrow-right"></i>
+                              <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
+                            </div>
+                            <div class="mc-card-grid">
+                              <div class="mc-card-stat">
+                                <span class="mc-card-label">Brakes Off</span>
+                                <span>{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                              </div>
+                              <div class="mc-card-stat">
+                                <span class="mc-card-label">Brakes On</span>
+                                <span>{{ vm.clean_times(log.brakes_on_rounded) }}</span>
+                              </div>
+                              <div class="mc-card-stat">
+                                <span class="mc-card-label">Duration</span>
+                                <span>{{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                              </div>
+                              <div class="mc-card-stat">
+                                <span class="mc-card-label">Fuel</span>
+                                <span>{{ log.fuel_uplift_litres }}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})">VIEW FULL JOURNEY LOGS</button>  
+
+
+                    </div>
+
+
+
+                </div>
+
+
+                <hr />
+                  <hr ng-if="plane.documents.length > 0" />
+                 
+
+                  <div class="card" ng-if="plane.documents.length > 0">
+
+                     <h4>Aircraft Documents</h4>
+
+                    <div class="plane_docs">
+                        <div class="mc-table-wrap">
+                        <table>
+                            <tr>
+                                <td class="bold_text">File Name</td>
+                                <td class="centre_text_align bold_text">Click Icon To Open</td>
+                                <td class="right_text_align bold_text">Last Updated</td>
+                            </tr>
+                            <tr ng-repeat="plane_doc in plane.documents | filter: search" vertical-align="middle">
+                                <td vertical-align="middle">{{ plane_doc.title }}</td>
+                                <td class="centre_text_align"> <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a></td>
+                                <td class="right_text_align" vertical-align="middle">{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</td>
+                            </tr>
+                        </table>
+                        </div>
+
+                        <div class="mc-cards">
+                          <div class="mc-card" ng-repeat="plane_doc in plane.documents | filter: search">
+                            <div class="mc-card-header">{{ plane_doc.title }}</div>
+                            <div class="mc-card-body">
+                              <div class="mc-card-grid">
+                                <div class="mc-card-stat mc-card-stat-icon">
+                                  <span class="mc-card-label">Open</span>
+                                  <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a>
+                                </div>
+                                <div class="mc-card-stat">
+                                  <span class="mc-card-label">Updated</span>
+                                  <span>{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    </div>
+                    
+                  </div>
+
+                  <hr />
+
+
+                  <div class="as-card-head">
+                    <h4><i class="fa fa-wrench"></i> Reported Maintenance State</h4>
+                    <button class="btn btn-primary adding_button"
+                            uib-tooltip="Click to report a defect" tooltip-placement="left" tooltip-append-to-body="true"
+                            ng-click="vm.openDefectPanel(plane.plane_id, plane.registration, club.id)">
+                      <i class="fa fa-plus"></i>
+                    </button>
+                  </div>
+
+                  <div class="form-group">
+
+
+                    <div class="as-empty-state" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) < 1">
+                      <i class="fa fa-check-circle"></i> No currently reported maintenance issues.
+                    </div>
+
+
+
+                    <div class="card" ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) > 0">
 
                       <div class="mc-table-wrap">
                       <table ng-if="plane.defects && count_defects(plane.defects, plane.show_all_defects) > 0">
@@ -126,12 +328,10 @@
                     </div>
 
 
-                    <div class="center_if_large">
-                      Show All Previous Defects <input type="checkbox" name="" ng-model="plane.show_all_defects" />
-                                 
-                       <button class="btn btn-primary adding_button" ng-click="vm.openDefectPanel(plane.plane_id, plane.registration, club.id)">+</button>  
-
-                    </div>
+                    <label class="as-toggle-row">
+                      <input type="checkbox" ng-model="plane.show_all_defects" />
+                      <span>Show all previous defects</span>
+                    </label>
 
                     
                     </div>
@@ -142,17 +342,20 @@
                       <hr />
                       <div class="card">
                         <div class="as-card-head">
-                          <h4><i class="fa fa-clipboard"></i> Aircraft Checks</h4>
-                          <button class="btn btn-primary adding_button" title="Complete a check"
-                                  ng-click="vm.openCheckPanel(plane, club)">+</button>
+                          <h4><i class="fa fa-clipboard-check"></i> Aircraft Checks</h4>
+                          <button class="btn btn-primary adding_button"
+                                  uib-tooltip="Click to add a maintenance check" tooltip-placement="left" tooltip-append-to-body="true"
+                                  ng-click="vm.openCheckPanel(plane, club)">
+                            <i class="fa fa-plus"></i>
+                          </button>
                         </div>
 
-                        <div ng-if="plane._checks_loading" class="text-center" style="padding:12px;">
-                          <i class="fa fa-spinner fa-spin"></i> Loading checks...
+                        <div ng-if="plane._checks_loading" class="as-empty-state">
+                          <i class="fa fa-spinner fa-spin"></i> Loading checks…
                         </div>
 
-                        <div ng-if="!plane._checks_loading && (!plane._aircraft_checks || plane._aircraft_checks.length === 0)" class="no_defects">
-                          No checks have been recorded for this aircraft yet.
+                        <div ng-if="!plane._checks_loading && (!plane._aircraft_checks || plane._aircraft_checks.length === 0)" class="as-empty-state">
+                          <i class="fa fa-clipboard"></i> No checks have been recorded for this aircraft yet.
                         </div>
 
                         <div ng-if="!plane._checks_loading && plane._aircraft_checks && plane._aircraft_checks.length > 0">
@@ -172,8 +375,8 @@
                               <tr ng-repeat="check in plane._aircraft_checks">
                                 <td>{{ check.checked_at | myDateTime }}</td>
                                 <td>
-                                  <span class="badge" ng-class="{'badge-success': check.check_type == 'check_a', 'badge-info': check.check_type == 'transit_check'}">
-                                    {{ check.check_type_name || check.check_type }}
+                                  <span class="badge" ng-class="vm.checkBadgeClass(check)">
+                                    {{ vm.checkTypeLabel(check) }}
                                   </span>
                                 </td>
                                 <td>{{ check.first_name }} {{ check.last_name }}</td>
@@ -188,8 +391,8 @@
                             <div class="mc-card" ng-repeat="check in plane._aircraft_checks">
                               <div class="mc-card-header">
                                 <span>{{ check.checked_at | myDateTime }}</span>
-                                <span class="badge" ng-class="{'badge-success': check.check_type == 'check_a', 'badge-info': check.check_type == 'transit_check'}" style="font-size:10px;">
-                                  {{ check.check_type_name || check.check_type }}
+                                <span class="badge" ng-class="vm.checkBadgeClass(check)" style="font-size:10px;">
+                                  {{ vm.checkTypeLabel(check) }}
                                 </span>
                               </div>
                               <div class="mc-card-body">
@@ -225,29 +428,6 @@
                       </div>
                     </div>
 
-
-                    <hr />
-
-
-                    <div class="card">
-
-
-                      <div class="cards">
-                        <h4>Hours Remaining</h4>
-                        <span class="big_number no_{{ plane.maintenance.hours_status }}">{{ get_hours_from_decimal(plane.maintenance.hours_remaining) }}</span>
-                      </div>
-
-                      <div class="cards">
-                        <h4>Days Remaining</h4>
-                        <span class="big_number no_{{ plane.maintenance.days_status }}">{{ plane.maintenance.days_remaining || "0"  }}</span>
-                      </div>
-
-                      <div class="cards">
-                        <h4>Meter Reading</h4>
-                        <span class="big_number">{{ plane.location.meter_reading || "0.00" }}</span>
-                      </div>
-
-                  </div>
 
                   <div class="card">
 
@@ -419,143 +599,17 @@
 
                   </div>
 
-                  <hr />
-
-
-                  <div class="card">
-
-                    <h4>Aircraft Journey Log</h4>
-
-
-                    <div class="plane_docs_none" ng-if="plane.logs.length < 1">
-                        There are presently no journey log entries for this aircraft.
-                    </div>
-
-
-
-                    <div class="" ng-if="plane.logs.length > 0">
-                        <div class="mc-table-wrap">
-                        <table>
-                            <tr>
-                                <td class="bold_text">
-                                    Date
-                                </td>
-                                <td class="bold_text">
-                                    Pilot
-                                </td>
-                                <td class="bold_text centre_me">
-                                    From
-                                </td>
-                                <td class="bold_text centre_me">
-                                    To
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes Off
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes On
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes Time
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Fuel Uplift
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Oil Uplift
-                                </td>
-                            </tr>
-                            <tr ng-repeat="log in plane.logs" vertical-align="middle">
-                            
-                                 <td class="log_no_break">
-                                    {{ log.flight_date | asDate | date:"dd MMM yyyy" }}
-                                </td>
-                                <td class="log_no_break">
-                                    <!-- <span uib-tooltip="{{log.first_name}} {{log.last_name}}">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span> -->
-                                    <span>{{ vm.get_pic(log) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <!-- {{ vm.clean_times(log.brakes_off) | roundFive }} -->
-                                    <!-- {{ vm.round_brake_times_start( vm.clean_times(log.brakes_off), vm.clean_times(log.takeoff_time) ) | roundFive }}
-
-                                    rounding == > --> 
-                                    {{ vm.clean_times(log.brakes_off_rounded) }}
-                                </td>
-                                <td class="centre_me">
-                                    <!-- {{ vm.clean_times(log.brakes_on) | roundFive }} -->
-                                    <!-- {{ vm.round_brake_times_end( vm.clean_times(log.brakes_on), vm.clean_times(log.landing_time)) | roundFive }}
-                                    rounding == > --> 
-                                    {{ vm.clean_times(log.brakes_on_rounded) }}
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip='airborne time: {{ get_hours_from_decimal(log.flight_time) || "0:00" }}'> {{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.fuel_uplift_litres }} litres">{{ log.fuel_uplift_litres }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.oil_uplift_litres}} quarts">{{ log.oil_uplift_litres }}</span>
-                                </td>
-
-                            </tr>
-                        </table>
-                        </div>
-
-                        <div class="mc-cards">
-                          <div class="mc-card" ng-repeat="log in plane.logs">
-                            <div class="mc-card-header">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</div>
-                            <div class="mc-card-sub">{{ vm.get_pic(log) }}</div>
-                            <div class="mc-card-route">
-                              <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
-                              <i class="fa fa-long-arrow-right"></i>
-                              <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
-                            </div>
-                            <div class="mc-card-grid">
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Brakes Off</span>
-                                <span>{{ vm.clean_times(log.brakes_off_rounded) }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Brakes On</span>
-                                <span>{{ vm.clean_times(log.brakes_on_rounded) }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Duration</span>
-                                <span>{{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Fuel</span>
-                                <span>{{ log.fuel_uplift_litres }}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <button class="btn btn-primary view_journey_logs" ui-sref="dashboard.my_account.aircraft_journey_log({plane_id: plane.plane_id})">VIEW FULL JOURNEY LOGS</button>  
-
-
-                    </div>
-
-
-
-                </div>
-
-
-                <hr />
 
 
                   <div class="card">
 
                     <div class="as-card-head">
-                      <h4>Aircraft Receipts</h4>
-                      <button class="btn btn-primary adding_button" title="Add fuel / oil uplift"
-                              ng-click="vm.openFuelPanel(plane, club)">+</button>
+                      <h4><i class="fa fa-gas-pump"></i> Aircraft Lubricants</h4>
+                      <button class="btn btn-primary adding_button"
+                              uib-tooltip="Click to add fuel / oil uplift" tooltip-placement="left" tooltip-append-to-body="true"
+                              ng-click="vm.openFuelPanel(plane, club)">
+                        <i class="fa fa-plus"></i>
+                      </button>
                     </div>
 
 
@@ -579,11 +633,14 @@
                               <td>{{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}</td>
                               <td>{{ receipt.item }}</td>
                               <td>
-                                <span uib-tooltip="Quantity Entered by user" ng-if="receipt.modified_quantity == 0">{{ receipt.quantity }}</span>
-                                <span uib-tooltip="Quantity Modified from {{ receipt.quantity }}" ng-if="receipt.modified_quantity !== 0">{{ receipt.modified_quantity }}</span>
+                                <span uib-tooltip="Quantity Entered by user" ng-if="!receipt.modified_quantity">{{ receipt.quantity }}</span>
+                                <span uib-tooltip="Quantity Modified from {{ receipt.quantity }}" ng-if="receipt.modified_quantity">{{ receipt.modified_quantity }}</span>
                               </td>
                               <td>{{ receipt.invoice_number }}</td>
-                              <td><img ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ vm.get_icon3(receipt.image) }}" alt="Receipt" /></td>
+                              <td>
+                                <img ng-if="vm.hasReceiptImage(receipt.image)" ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ vm.get_icon3(receipt.image) }}" alt="Receipt" />
+                                <span ng-if="!vm.hasReceiptImage(receipt.image)" class="snazzy-table__muted">—</span>
+                              </td>
                             </tr>
                         </table>
                         </div>
@@ -592,15 +649,15 @@
                           <div class="mc-card" ng-repeat="receipt in plane.receipts">
                             <div class="mc-card-header">
                               <span>{{ receipt.item }}</span>
-                              <img ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ vm.get_icon3(receipt.image) }}" alt="Receipt" />
+                              <img ng-if="vm.hasReceiptImage(receipt.image)" ng-click="vm.show_receipt_image(receipt)" class="mini_icon click_me" src="{{ vm.get_icon3(receipt.image) }}" alt="Receipt" />
                             </div>
                             <div class="mc-card-sub">{{ receipt.created_at | asDate | date:"dd MMM yyyy HH:mm" }}</div>
                             <div class="mc-card-grid">
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Quantity</span>
                                 <span>
-                                  <span ng-if="receipt.modified_quantity == 0">{{ receipt.quantity }}</span>
-                                  <span ng-if="receipt.modified_quantity !== 0">{{ receipt.modified_quantity }}</span>
+                                  <span ng-if="!receipt.modified_quantity">{{ receipt.quantity }}</span>
+                                  <span ng-if="receipt.modified_quantity">{{ receipt.modified_quantity }}</span>
                                 </span>
                               </div>
                               <div class="mc-card-stat">
@@ -617,51 +674,6 @@
 
                 </div>
 
-                  <hr ng-if="plane.documents.length > 0" />
-                 
-
-                  <div class="card" ng-if="plane.documents.length > 0">
-
-                     <h4>Aircraft Documents</h4>
-
-                    <div class="plane_docs">
-                        <div class="mc-table-wrap">
-                        <table>
-                            <tr>
-                                <td class="bold_text">File Name</td>
-                                <td class="centre_text_align bold_text">Click Icon To Open</td>
-                                <td class="right_text_align bold_text">Last Updated</td>
-                            </tr>
-                            <tr ng-repeat="plane_doc in plane.documents | filter: search" vertical-align="middle">
-                                <td vertical-align="middle">{{ plane_doc.title }}</td>
-                                <td class="centre_text_align"> <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a></td>
-                                <td class="right_text_align" vertical-align="middle">{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</td>
-                            </tr>
-                        </table>
-                        </div>
-
-                        <div class="mc-cards">
-                          <div class="mc-card" ng-repeat="plane_doc in plane.documents | filter: search">
-                            <div class="mc-card-header">{{ plane_doc.title }}</div>
-                            <div class="mc-card-body">
-                              <div class="mc-card-grid">
-                                <div class="mc-card-stat mc-card-stat-icon">
-                                  <span class="mc-card-label">Open</span>
-                                  <a class="open_document_anchor" ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a>
-                                </div>
-                                <div class="mc-card-stat">
-                                  <span class="mc-card-label">Updated</span>
-                                  <span>{{ plane_doc.updated_at | asDate | date:'dd/MM/yyyy H:mm' }}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                    </div>
-                    
-                  </div>
-
-                  <hr />
 
                   
 
@@ -779,7 +791,8 @@
 <aircraft-check-panel
     is-open="vm.showCheckPanel"
     plane-registration="vm._checkPlane.registration"
-    check-types="vm.checkTypesByClub[vm._checkClubId]"
+    offered-type="vm.checkOfferedType"
+    custom-types="vm.checkCustomTypes"
     on-submit="vm.submitAircraftCheck(checkData)"
     on-close="vm.closeCheckPanel()">
 </aircraft-check-panel>

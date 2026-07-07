@@ -2394,67 +2394,75 @@ var app = angular
 
 
         //USER SIGNUP FORM
+        // UNLINKED (2026-07): this wizard was a non-functional demo (hard-coded
+        // club list, submit was a no-op). Real member onboarding is either the
+        // club invitation flow (/invitations/:token) or /register followed by
+        // My Account → Memberships → JOIN CLUB. /user_signup now falls through
+        // to the login redirect. Re-enable by uncommenting these states and
+        // re-adding '/user_signup' to publicPages + 'user_signup' to publicStates.
+        // NB: email verification links use /registration_verification/:userId/:token
+        // (the 'registration_verification' state), NOT user_signup.verify_account.
 
-        .state('user_signup', {
-            url: '/user_signup',
-            templateUrl: 'views/forms/user_signup/form.html',
-            controller: 'UserSignupController'
-        })
-        
-        .state('user_signup.next_of_kin', {
-            url: '/next_of_kin',
-            templateUrl: 'views/forms/user_signup/form-nok.html'
-        })
+        // .state('user_signup', {
+        //     url: '/user_signup',
+        //     templateUrl: 'views/forms/user_signup/form.html',
+        //     controller: 'UserSignupController'
+        // })
 
-        .state('user_signup.your_club', {
-            url: '/your_club',
-            templateUrl: 'views/forms/user_signup/form-club.html'
-        })
+        // .state('user_signup.next_of_kin', {
+        //     url: '/next_of_kin',
+        //     templateUrl: 'views/forms/user_signup/form-nok.html'
+        // })
 
-        .state('user_signup.your_club_confirmation', {
-            url: '/your_club_confirmation',
-            templateUrl: 'views/forms/user_signup/form-club-two.html'
-        })
+        // .state('user_signup.your_club', {
+        //     url: '/your_club',
+        //     templateUrl: 'views/forms/user_signup/form-club.html'
+        // })
 
-        .state('user_signup.your_membership', {
-            url: '/your_membership',
-            templateUrl: 'views/forms/user_signup/form-club-three.html'
-        })
-        
-        .state('user_signup.your_details', {
-            url: '/your_details',
-            templateUrl: 'views/forms/user_signup/form-profile.html'
-        })
+        // .state('user_signup.your_club_confirmation', {
+        //     url: '/your_club_confirmation',
+        //     templateUrl: 'views/forms/user_signup/form-club-two.html'
+        // })
 
-        .state('user_signup.your_license_check', {
-            url: '/license_check',
-            templateUrl: 'views/forms/user_signup/form-license-check.html'
-        })
-        
-        .state('user_signup.your_license', {
-            url: '/license',
-            templateUrl: 'views/forms/user_signup/form-license.html'
-        })
+        // .state('user_signup.your_membership', {
+        //     url: '/your_membership',
+        //     templateUrl: 'views/forms/user_signup/form-club-three.html'
+        // })
 
-        .state('user_signup.your_medical', {
-            url: '/medical',
-            templateUrl: 'views/forms/user_signup/form-medical.html'
-        })
+        // .state('user_signup.your_details', {
+        //     url: '/your_details',
+        //     templateUrl: 'views/forms/user_signup/form-profile.html'
+        // })
 
-        .state('user_signup.tnc', {
-            url: '/terms-and-conditions',
-            templateUrl: 'views/forms/user_signup/form-tnc.html'
-        })
+        // .state('user_signup.your_license_check', {
+        //     url: '/license_check',
+        //     templateUrl: 'views/forms/user_signup/form-license-check.html'
+        // })
 
-        .state('user_signup.verify_account', {
-            url: '/verify/:user_id?verify',
-            templateUrl: 'views/forms/user_signup/verify.html'
-        })
+        // .state('user_signup.your_license', {
+        //     url: '/license',
+        //     templateUrl: 'views/forms/user_signup/form-license.html'
+        // })
 
-        .state('user_signup.verified', {
-            url: '/verified',
-            templateUrl: 'views/forms/user_signup/verified.html'
-        })
+        // .state('user_signup.your_medical', {
+        //     url: '/medical',
+        //     templateUrl: 'views/forms/user_signup/form-medical.html'
+        // })
+
+        // .state('user_signup.tnc', {
+        //     url: '/terms-and-conditions',
+        //     templateUrl: 'views/forms/user_signup/form-tnc.html'
+        // })
+
+        // .state('user_signup.verify_account', {
+        //     url: '/verify/:user_id?verify',
+        //     templateUrl: 'views/forms/user_signup/verify.html'
+        // })
+
+        // .state('user_signup.verified', {
+        //     url: '/verified',
+        //     templateUrl: 'views/forms/user_signup/verified.html'
+        // })
 
 
 
@@ -2733,7 +2741,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'user_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -2810,7 +2818,7 @@ var app = angular
                 '/display',
                 '/club_signup',                 // club signup wizard
                 '/club_signup2',                // club signup, post email-verification (token)
-                '/user_signup',                 // member self-signup wizard
+                // '/user_signup' removed — dead demo wizard, states unlinked (see route block)
                 '/passenger_signup',            // passenger invitation (token)
                 '/passenger_signup_complete',   // returning passenger post-signup (token)
                 '/invitations',                 // member invitation / BS-import conversion (token)

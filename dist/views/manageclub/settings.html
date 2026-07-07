@@ -639,6 +639,7 @@
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>Role</th>
                       <th class="hide_on_mobile">Code</th>
                       <th class="hide_on_mobile">Description</th>
                       <th>Active</th>
@@ -648,6 +649,9 @@
                   <tbody>
                     <tr ng-repeat="ct in vm.check_types | orderBy:'display_order'">
                       <td data-label="Name">{{ ct.name }}</td>
+                      <td data-label="Role">
+                        <span class="badge" ng-class="vm.roleBadgeClass(ct.role)">{{ vm.roleLabel(ct.role) }}</span>
+                      </td>
                       <td data-label="Code" class="hide_on_mobile"><code>{{ ct.code }}</code></td>
                       <td data-label="Description" class="hide_on_mobile">{{ ct.description | limitTo:60 }}{{ ct.description.length > 60 ? '...' : '' }}</td>
                       <td data-label="Active">
@@ -692,13 +696,18 @@
 
             <div class="form-group">
               <label for="ct_code">Code</label>
-              <select class="form-control inputtext" id="ct_code" ng-model="vm.check_type_form.code"
-                      ng-options="opt.value as opt.label for opt in vm.availableCodeOptions()"
-                      ng-disabled="vm.editing_check_type && vm.isSystemCode(vm.check_type_form.code)">
-                <option value="">-- Select a code --</option>
+              <input type="text" class="form-control inputtext" id="ct_code" ng-model="vm.check_type_form.code" placeholder="e.g. daily_check" />
+              <p class="help-block">A short slug for this check type (letters, numbers, underscores).</p>
+            </div>
+
+            <div class="form-group">
+              <label for="ct_role">Role</label>
+              <select class="form-control inputtext" id="ct_role" ng-model="vm.check_type_form.role"
+                      ng-options="opt.value as opt.label for opt in vm.check_type_roles">
               </select>
-              <p class="help-block" ng-if="vm.editing_check_type && vm.isSystemCode(vm.check_type_form.code)">
-                <i class="fa fa-lock"></i> System code — cannot be changed.
+              <p class="help-block" ng-if="vm.check_type_form.role === 'a_check' || vm.check_type_form.role === 'transit'">
+                <i class="fa fa-info-circle"></i> Assigning this role will make it the club's
+                {{ vm.check_type_form.role === 'a_check' ? 'A Check' : 'Transit check' }} and replace the current one.
               </p>
             </div>
 

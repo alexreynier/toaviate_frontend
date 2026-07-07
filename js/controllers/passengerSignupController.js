@@ -1,7 +1,7 @@
  app.controller('PassengerSignupController', PassengerSignupController);
 
-    PassengerSignupController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$http', 'ToastService'];
-    function PassengerSignupController(UserService, $rootScope, $location, $scope, $state, $stateParams, $http, ToastService) {
+    PassengerSignupController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$http', 'ToastService', 'SignupDraftService', 'SignupPreviewService'];
+    function PassengerSignupController(UserService, $rootScope, $location, $scope, $state, $stateParams, $http, ToastService, SignupDraftService, SignupPreviewService) {
         	
 
 	    	 //console.log("HELLO");
@@ -37,6 +37,70 @@
 		            var el = document.querySelector('.inv-field--error');
 		            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		        }, 100);
+		    }
+
+		    // ── Refresh / back-forward robustness ──────────────────────────
+		    // A refresh always re-runs the 6-digit identity check (good — it's
+		    // a security gate), but what the passenger had typed (DOB, next of
+		    // kin, guardian) used to be lost. We auto-save a sanitised draft
+		    // per invitation token (never passwords or T&C ticks) and restore
+		    // it after the identity check passes. The stepper also follows the
+		    // browser's back/forward buttons now.
+
+		    var DRAFT_KEY = 'passenger_' + ($stateParams.token || 'unknown');
+
+		    // Design preview: tokens starting with "preview" simulate the
+		    // identity check and submission locally (non-production only).
+		    var isPreview = SignupPreviewService.IsPreview($stateParams.token);
+
+		    var STEP_BY_STATE = {
+		        'passenger_signup.your_profile': 1,
+		        'passenger_signup.next_of_kin':  2,
+		        'passenger_signup.tnc':          3,
+		        'passenger_signup.thank_you':    4
+		    };
+
+		    function syncStepFromState(stateName) {
+		        if (STEP_BY_STATE[stateName]) {
+		            $scope.formStep = STEP_BY_STATE[stateName];
+		        }
+		    }
+
+		    syncStepFromState($state.current.name);
+		    $scope.$on('$stateChangeSuccess', function (event, toState) {
+		        syncStepFromState(toState.name);
+		    });
+
+		    // Auto-save what the user types (debounced, sanitised). Only kicks
+		    // in once the identity check has populated the form.
+		    SignupDraftService.Watch($scope, DRAFT_KEY, function () {
+		        return $scope.checked_identity ? { formData: $scope.formData } : undefined;
+		    });
+
+		    function restoreDraft() {
+		        var draft = SignupDraftService.Load(DRAFT_KEY);
+		        if (!draft || !draft.formData) { return; }
+		        var server = angular.copy($scope.formData);
+		        angular.extend($scope.formData, draft.formData);
+		        // The invitation stays authoritative for its own fields.
+		        $scope.formData.user_id = server.user_id;
+		        $scope.formData.token = server.token;
+		        $scope.formData.club_id = server.club_id;
+		        $scope.formData.membership_id = server.membership_id;
+		        $scope.formData.booking_id = server.booking_id;
+		        $scope.formData.invited_by = server.invited_by;
+		        $scope.formData.status = server.status;
+		        $scope.formData.club = server.club;
+		        if (server.voucher_id) { $scope.formData.voucher_id = server.voucher_id; }
+		        // Dates come back from JSON as ISO strings — revive them.
+		        if (typeof $scope.formData.dob === 'string') { $scope.formData.dob = new Date($scope.formData.dob); }
+		        if ($scope.formData.guardian && typeof $scope.formData.guardian.dob === 'string') {
+		            $scope.formData.guardian.dob = new Date($scope.formData.guardian.dob);
+		        }
+		        if ($scope.formData.guardian && $scope.formData.guardian.first_name) { $scope.guardian = true; }
+		        if (draft.formData.dob || (draft.formData.nok && draft.formData.nok.first_name)) {
+		            ToastService.success('Progress Restored', 'Welcome back — we saved what you had entered so far.');
+		        }
 		    }
 
 		    // Step 2: Validate profile (called from form-profile)
@@ -321,10 +385,11 @@
 
 
 		    	//let us prepare the content that needs to be sent back here:::
-		    	var self_dob = new Date($scope.formData.dob);
-
-		    	if($scope.formData.guardian){
-			    	$scope.formData.guardian.dob = $scope.formData.guardian.dob.format("yyyy-MM-dd")
+		    	//(format dates on a copy — mutating the live form data meant a
+		    	//failed submit + retry crashed on Date methods)
+		    	var guardian_to_send = $scope.formData.guardian ? angular.copy($scope.formData.guardian) : undefined;
+		    	if(guardian_to_send && guardian_to_send.dob && guardian_to_send.dob.format){
+			    	guardian_to_send.dob = guardian_to_send.dob.format("yyyy-MM-dd")
 		    	}
 
 		    	var to_send = {
@@ -337,7 +402,7 @@
 		    		club_tnc: $scope.formData.club_tnc,
 		    		tnc: $scope.formData.tnc,
 		    		nok: $scope.formData.nok,
-		    		guardian: $scope.formData.guardian,
+		    		guardian: guardian_to_send,
 		    		booking_id: $scope.formData.booking_id,
 		    		token: $scope.formData.token,
 		    		membership_id: 0,
@@ -345,21 +410,41 @@
 		    		voucher_id: $scope.formData.voucher_id || null
 		    	}
 
+		    	if (isPreview) {
+		    		ToastService.success('Preview', 'Submission simulated.');
+		    		$scope.formData = {};
+		    		$scope.checked_identity = false;
+		    		SignupDraftService.Clear(DRAFT_KEY);
+		    		$scope.formStep = 4;
+		    		$state.go("passenger_signup.thank_you");
+		    		return;
+		    	}
+
 		    	$scope.submitting = true;
 
 	    		UserService.ConfirmPaxInvite($stateParams.token, to_send)
                 .then(function (data) {
                 	if(data.success){
-				    	
+
                 		//this is successful - now let's clear the contents:
                 		$scope.formData = {};
                 		//and let's remove the top links
                 		$scope.checked_identity = false;
 
+                		SignupDraftService.Clear(DRAFT_KEY);
+
                 		// Clear any stored return URL so the user's first login
                 		// goes to the dashboard, not back to this signup form
                 		try { localStorage.removeItem('toaviate_return_url'); } catch(e) {}
 
+                		$scope.formStep = 4;
+                		$state.go("passenger_signup.thank_you");
+
+                	} else {
+                		//previously a failed save was silent — the passenger
+                		//was left staring at the same page with no feedback
+                		$scope.submitError = (data && (data.message || data.error)) || 'We were unable to save your details. Please try again.';
+                		ToastService.error('Submission Failed', $scope.submitError + ' Nothing you entered has been lost.');
                 	}
 
                 }, function () {
@@ -378,6 +463,17 @@
 
 
 		    $scope.downloadClubDocument = function(doc) {
+            // Club T&C links call this with no argument — resolve the club's
+            // own passenger terms document from the invitation payload.
+            if (!doc) {
+                var club = $scope.formData.club;
+                doc = (club && (club.passenger_terms || club.membership_terms || (club.settings && (club.settings.passenger_terms || club.settings.membership_terms)))) || null;
+            }
+            if (!doc) {
+                ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+                return;
+            }
+
             var data = $.param({
                 id: doc
             });
@@ -401,9 +497,19 @@
 
         function titlepath(path,name){
 
-        //In this path defined as your pdf url and name (your pdf name)
-            var prntWin = window.open();
-            prntWin.document.write("<html><head><title>"+name+"</title></head><body>"
+        //Open the document in a centred popup window so the signup form
+        //stays visible behind it (a bare window.open() covered the screen).
+            var w = Math.min(900, window.screen.availWidth - 40);
+            var h = Math.min(800, window.screen.availHeight - 80);
+            var left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+            var top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+            var prntWin = window.open('', '_blank', 'popup=yes,width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
+            if (!prntWin) {
+                // popup blocked — fall back to a normal new tab
+                window.open(path, '_blank');
+                return;
+            }
+            prntWin.document.write("<html><head><title>"+name+"</title></head><body style=\"margin:0\">"
                 + '<embed width="100%" height="100%" name="plugin" src="'+ path+ '" '
                 + 'type="application/pdf" internalinstanceid="21"></body></html>');
             prntWin.document.close();
@@ -552,6 +658,14 @@
 		       for (var i = 0; i < 6; i++) {
 		           var el = document.getElementById('index' + i);
 		           if (el) el.value = '';
+		       }
+
+		       if (isPreview) {
+		           $scope.resendSending = false;
+		           $scope.resendMessage = 'Preview: a new code has been "sent" — any 6 digits will pass.';
+		           $scope.resendMessageType = 'success';
+		           startResendCooldown();
+		           return;
 		       }
 
 		       UserService.ResendPaxCode($stateParams.token)
@@ -756,62 +870,79 @@
 		       $scope.codeVerifying = true;
 		       $scope.codeError = '';
 
+		       // Apply an invitation payload (real or design-preview) to the form.
+		       function applyPaxInvite(invitation){
+
+                		if(invitation.is_already_user){
+
+                			$scope.is_already_user = true;
+
+							$scope.formData.user_id = invitation.user_id;
+							$scope.formData.first_name = invitation.user.first_name;
+                			$scope.formData.last_name = invitation.user.last_name;
+                			$scope.formData.email = invitation.user.email;
+                			$scope.formData.dob = new Date(invitation.user.dob);
+                			$scope.formData.club = invitation.club;
+                			$scope.formData.guardian = invitation.user.guardian;
+                			$scope.formData.nok = invitation.user.nok;
+                			$scope.formData.membership_id = invitation.membership_id;
+                			$scope.formData.club_id = invitation.club_id;
+                			$scope.formData.token = invitation.invitation_token;
+                			$scope.formData.status = invitation.status;
+                			$scope.formData.invited_by = invitation.invited_by;
+                			$scope.formData.booking_id = invitation.booking_id;
+
+                			// Voucher-linked invitation support
+                			if (invitation.voucher_id) {
+                				$scope.formData.voucher_id = invitation.voucher_id;
+                			}
+
+                			if(invitation.user.guardian && invitation.user.guardian.first_name !== ""){
+                				$scope.guardian = true;
+                			}
+
+                			restoreDraft();
+
+                		} else {
+
+                			$scope.formData.first_name = invitation.first_name;
+                			$scope.formData.last_name = invitation.last_name;
+                			$scope.formData.email = invitation.email;
+                			$scope.formData.membership_id = invitation.membership_id;
+                			$scope.formData.club_id = invitation.club_id;
+                			$scope.formData.token = invitation.invitation_token;
+                			$scope.formData.status = invitation.status;
+                			$scope.formData.invited_by = invitation.invited_by;
+                			$scope.formData.booking_id = invitation.booking_id;
+                			$scope.formData.club = invitation.club;
+
+                			// Voucher-linked invitation support
+                			if (invitation.voucher_id) {
+                				$scope.formData.voucher_id = invitation.voucher_id;
+                			}
+
+                			restoreDraft();
+
+                		}
+
+                		$scope.checked_identity = true;
+                		$state.go("passenger_signup.your_profile");
+		       }
+
+		       if (isPreview) {
+		           $scope.codeVerifying = false;
+		           ToastService.success('Preview', 'Identity check simulated — any code passes.');
+		           applyPaxInvite(SignupPreviewService.GetPaxInvitation($stateParams.token));
+		           return;
+		       }
+
 		       UserService.GetPaxSecureInvite($stateParams.token, combine)
                 .then(function (data) {
                 	$scope.codeVerifying = false;
 
                 	if(data.success){
 
-                		if(data.invitation.is_already_user){
-
-                			$scope.is_already_user = true;
-
-							$scope.formData.user_id = data.invitation.user_id;
-							$scope.formData.first_name = data.invitation.user.first_name;
-                			$scope.formData.last_name = data.invitation.user.last_name;
-                			$scope.formData.email = data.invitation.user.email;
-                			$scope.formData.dob = new Date(data.invitation.user.dob);
-                			$scope.formData.club = data.invitation.club;
-                			$scope.formData.guardian = data.invitation.user.guardian;
-                			$scope.formData.nok = data.invitation.user.nok;
-                			$scope.formData.membership_id = data.invitation.membership_id;
-                			$scope.formData.club_id = data.invitation.club_id;
-                			$scope.formData.token = data.invitation.invitation_token;
-                			$scope.formData.status = data.invitation.status;
-                			$scope.formData.invited_by = data.invitation.invited_by;
-                			$scope.formData.booking_id = data.invitation.booking_id;
-
-                			// Voucher-linked invitation support
-                			if (data.invitation.voucher_id) {
-                				$scope.formData.voucher_id = data.invitation.voucher_id;
-                			}
-
-                			if(data.invitation.user.guardian && data.invitation.user.guardian.first_name !== ""){
-                				$scope.guardian = true;
-                			}
-
-                		} else {
-
-                			$scope.formData.first_name = data.invitation.first_name;
-                			$scope.formData.last_name = data.invitation.last_name;
-                			$scope.formData.email = data.invitation.email;
-                			$scope.formData.membership_id = data.invitation.membership_id;
-                			$scope.formData.club_id = data.invitation.club_id;
-                			$scope.formData.token = data.invitation.invitation_token;
-                			$scope.formData.status = data.invitation.status;
-                			$scope.formData.invited_by = data.invitation.invited_by;
-                			$scope.formData.booking_id = data.invitation.booking_id;
-                			$scope.formData.club = data.invitation.club;
-
-                			// Voucher-linked invitation support
-                			if (data.invitation.voucher_id) {
-                				$scope.formData.voucher_id = data.invitation.voucher_id;
-                			}
-
-                		}
-
-                		$scope.checked_identity = true;
-                		$state.go("passenger_signup.your_profile");
+                		applyPaxInvite(data.invitation);
 
                 	} else {
                 		// Shake the inputs and show error

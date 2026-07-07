@@ -51,7 +51,9 @@
             message: '',
             loading: false,
             submitted: false,
-            existing_check_id: null
+            existing_check_id: null,
+            prefilled: false,            // transit values were carried over from today's A-Check
+            flights_since_check: null    // flights since that A-Check (0 → safe to prefill)
         };
         vm.check_form = {
             fuel_us_gallons: null,
@@ -61,6 +63,20 @@
             confirmed: false
         };
         vm.check_submitting = false;
+
+        // Parse a backend check timestamp (UTC "YYYY-MM-DD HH:MM:SS", or ISO) into a
+        // Date object for the datetime-local input (which binds a Date, NOT a string —
+        // a string throws [ngModel:datefmt]). Seconds zeroed for minute precision.
+        // Returns null if it can't be parsed. Uses moment (available globally).
+        function parseCheckDateTime(ts) {
+            if (!ts) { return null; }
+            var m = moment.utc(ts, 'YYYY-MM-DD HH:mm:ss', true);
+            if (!m.isValid()) { m = moment.utc(ts); }        // lenient fallback (ISO etc.)
+            if (!m.isValid()) { return null; }
+            var d = m.local().toDate();
+            d.setSeconds(0, 0);
+            return d;
+        }
 
         vm.bookout.plane = {
             id: 12,
@@ -1451,12 +1467,43 @@
                         vm.aircraft_check.check_type = data.check_type;
                         vm.aircraft_check.message = data.message;
                         vm.aircraft_check.existing_check_id = data.existing_check_id || null;
+                        vm.aircraft_check.flights_since_check =
+                            (typeof data.flights_since_check !== 'undefined') ? data.flights_since_check : null;
+                        vm.aircraft_check.prefilled = false;
 
                         if (data.required) {
-                            // Pre-fill the check form with sensible defaults
+                            // The check time defaults to fresh (now). datetime-local
+                            // binds a DATE object in AngularJS 1.x (a string throws
+                            // [ngModel:datefmt]); seconds/ms zeroed for minute precision.
                             var now = new Date();
-                            vm.check_form.checked_at = $filter('date')(now, 'yyyy-MM-ddTHH:mm');
+                            now.setSeconds(0, 0);
+                            vm.check_form.checked_at = now;
                             vm.aircraft_check.check_type_label = (data.check_type === 'check_a') ? 'Check A' : 'Transit Check';
+
+                            // ── Pre-fill a TRANSIT check from today's A-Check ──
+                            // Carry over the A-Check's fuel/oil/notes (editable) when it
+                            // hands back the earlier check's values — UNLESS there have
+                            // explicitly been flights since (flights_since_check > 0), in
+                            // which case fresh numbers are required. flights_since_check
+                            // being 0 OR unknown (null/absent) is treated as "safe to
+                            // carry over". Coerced to a number so a string "0" still works.
+                            var prior = data.existing_check_data || data.a_check_data;
+                            var flightsSince = vm.aircraft_check.flights_since_check;
+                            var flightsSinceNum = (flightsSince === null || typeof flightsSince === 'undefined')
+                                ? null : Number(flightsSince);
+                            var noFlightsSince = (flightsSinceNum === null) || (flightsSinceNum <= 0);
+                            if (data.check_type === 'transit_check' && prior && noFlightsSince) {
+                                if (prior.fuel_us_gallons != null) { vm.check_form.fuel_us_gallons = prior.fuel_us_gallons; }
+                                if (prior.oil_quarts != null)      { vm.check_form.oil_quarts = prior.oil_quarts; }
+                                if (prior.notes)                   { vm.check_form.notes = prior.notes; }
+                                // Also carry the A-Check's original date/time across
+                                // (editable). The backend sends UTC "YYYY-MM-DD HH:MM:SS";
+                                // the datetime-local input needs "yyyy-MM-ddTHH:mm".
+                                var priorTime = prior.checked_at || prior.checked_at_utc;
+                                var parsedTime = parseCheckDateTime(priorTime);
+                                if (parsedTime) { vm.check_form.checked_at = parsedTime; }
+                                vm.aircraft_check.prefilled = true;
+                            }
                         }
 
                         if (data.existing_check_id) {
@@ -1669,45 +1716,175 @@
                     var payload = vm._bookout_obj;
                     if (forceOverride) payload.force_override = true;
 
+                    vm.bookout_airworthiness.working = true;
+
                     BookoutService.SendBookout(vm.user.id, payload)
                     .then(function(data){
                         if(data.success){
-                            // Warn policy: book-out succeeded but the aircraft has
-                            // airworthiness/insurance issues — non-blocking notice(s).
-                            showBookoutAirworthinessWarnings(data);
+                            // Book-out succeeded. Any airworthiness issues were already
+                            // shown and acknowledged in the pre-book-out gate below, so
+                            // just proceed to the booked-out screen.
+                            vm.bookout_airworthiness = { visible: false };
                             $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
                         } else if (data.reason === 'airworthiness') {
                             // Force policy: a blocking airworthiness/insurance issue.
                             // Managers/super-admins (can_force_override) get a Force button.
+                            // The backend says WHEN to block; we enrich the WHAT with a
+                            // full client-side scan so every out-of-date item is visible.
                             vm.bookout_airworthiness = {
                                 visible: true,
+                                mode: 'force',
                                 message: data.message || 'This aircraft has an airworthiness or insurance issue.',
                                 hard_block: data.hard_block || null,
-                                issues: data.airworthiness_issues || [],
+                                issues: mergeAirworthinessIssues(data.airworthiness_issues, buildAirworthinessIssues()),
                                 can_force: data.can_force_override === true,
+                                acknowledged: false,
                                 working: false
                             };
                         } else {
+                            vm.bookout_airworthiness.working = false;
                             ToastService.error('Bookout Failed', 'Something went wrong: ' + (data.message || 'Unknown error'));
                         }
                     }, function(){
+                        vm.bookout_airworthiness.working = false;
                         ToastService.error('Bookout Failed', 'Could not connect to the server.');
                     });
                 };
 
-                // Non-blocking airworthiness/insurance notice(s) under the warn policy.
-                // data.airworthiness_warning is an array of ready-to-display messages.
-                function showBookoutAirworthinessWarnings(data){
-                    if(!data || !data.airworthiness_warning) return;
-                    var msgs = angular.isArray(data.airworthiness_warning) ? data.airworthiness_warning : [data.airworthiness_warning];
-                    msgs.forEach(function(m){
-                        ToastService.warning('Airworthiness / Insurance Notice', m);
+                // ── Pre-book-out airworthiness gate ──────────────────────────────
+                // BEFORE we commit the book-out, scan the aircraft's documents/defects
+                // client-side. If ANYTHING is out of date (expired ARC/insurance/radio,
+                // missing CRS, overdue/low hours or days, no-fly defects) the pilot must
+                // see the itemised list and ACKNOWLEDGE it in a blocking modal first —
+                // they cannot unknowingly fly an unairworthy aircraft. Only once they
+                // confirm do we actually send the book-out. This runs regardless of the
+                // club's warn/force policy; the backend force block remains the hard
+                // enforcement (handled in doBookout's 'airworthiness' branch).
+                function startBookout(){
+                    var issues = buildAirworthinessIssues();
+                    if (issues.length > 0 && !(vm.bookout_airworthiness && vm.bookout_airworthiness.acknowledged)) {
+                        vm.bookout_airworthiness = {
+                            visible: true,
+                            mode: 'warn',
+                            message: 'This aircraft has the airworthiness or insurance issue(s) listed below. Please read them carefully before you book out and fly.',
+                            issues: issues,
+                            can_force: false,
+                            acknowledged: false,
+                            working: false
+                        };
+                        return;
+                    }
+                    doBookout();
+                }
+
+                // Confirm from the pre-book-out (warn) gate → proceed with the book-out.
+                vm.confirmBookoutAirworthiness = function(){
+                    if (!vm.bookout_airworthiness || !vm.bookout_airworthiness.acknowledged) return;
+                    vm.bookout_airworthiness.working = true;
+                    doBookout();
+                };
+
+                // Build a rich, categorised list of airworthiness issues from the
+                // client-side aircraft data (vm.club.plane + open defects), so the
+                // warning popup can show EXACTLY what's out of date — not just the
+                // backend's summary message. Each issue: { key, label, detail,
+                // severity: 'critical'|'warning', icon }.
+                var LOW_HOURS_THRESHOLD = 2;   // < 2 hrs to next check → flag
+                function buildAirworthinessIssues(){
+                    var issues = [];
+                    var plane = vm.club && vm.club.plane;
+                    if (!plane) { return issues; }
+
+                    function fmtDate(d){ return d ? $filter('date')($filter('asDate')(d), 'dd MMM yyyy') : ''; }
+                    function isExpired(doc){
+                        if (!doc) { return false; }
+                        if (doc.status) { return String(doc.status).toLowerCase() === 'expired'; }
+                        if (typeof doc.days_to_expiry !== 'undefined') { return doc.days_to_expiry <= 0; }
+                        return false;
+                    }
+
+                    // Airworthiness certificate (ARC / Permit to Fly)
+                    if (isExpired(plane.certificate)) {
+                        issues.push({ key: 'certificate', label: 'Airworthiness certificate expired',
+                            detail: (plane.maintenance_type === 'permit' ? 'Permit to Fly' : 'ARC') +
+                                    (plane.certificate.date_expiry ? ' expired ' + fmtDate(plane.certificate.date_expiry) : ' has expired'),
+                            severity: 'critical', icon: 'fa-file-contract' });
+                    }
+                    // Insurance
+                    if (isExpired(plane.insurance)) {
+                        issues.push({ key: 'insurance', label: 'Insurance expired',
+                            detail: plane.insurance.date_expiry ? 'Expired ' + fmtDate(plane.insurance.date_expiry) : 'Insurance has expired',
+                            severity: 'critical', icon: 'fa-shield-alt' });
+                    }
+                    // Radio licence
+                    if (isExpired(plane.radio_licence)) {
+                        issues.push({ key: 'radio', label: 'Radio licence expired',
+                            detail: plane.radio_licence.date_expiry ? 'Expired ' + fmtDate(plane.radio_licence.date_expiry) : 'Radio licence has expired',
+                            severity: 'warning', icon: 'fa-broadcast-tower' });
+                    }
+                    // Missing Certificate of Release to Service
+                    if (!plane.crs || !plane.crs.certificate) {
+                        issues.push({ key: 'crs', label: 'No Certificate of Release to Service',
+                            detail: 'The aircraft has no current CRS on record.',
+                            severity: 'critical', icon: 'fa-clipboard-check' });
+                    }
+                    // Maintenance: hours / days remaining to next check
+                    if (plane.maintenance) {
+                        var hrs = plane.maintenance.hours_remaining;
+                        if (hrs != null && hrs <= 0) {
+                            issues.push({ key: 'hours', label: 'Overdue for check (hours)',
+                                detail: 'No hours remaining to the next check.',
+                                severity: 'critical', icon: 'fa-clock' });
+                        } else if (hrs != null && hrs < LOW_HOURS_THRESHOLD) {
+                            issues.push({ key: 'hours', label: 'Low hours to next check',
+                                detail: (Math.round(hrs * 10) / 10) + ' hrs remaining (under ' + LOW_HOURS_THRESHOLD + ' hrs).',
+                                severity: 'warning', icon: 'fa-clock' });
+                        }
+                        var days = plane.maintenance.days_remaining;
+                        if (days != null && days <= 0) {
+                            issues.push({ key: 'days', label: 'Overdue for check (calendar)',
+                                detail: 'No days remaining to the next check.',
+                                severity: 'critical', icon: 'fa-calendar-times' });
+                        }
+                    }
+                    // Open "No Fly" defects
+                    (vm.reported_defects || []).forEach(function(d){
+                        if (d.severity && d.severity.indexOf('No Fly') > -1) {
+                            issues.push({ key: 'nofly_' + d.id, label: 'No-fly defect: grounded',
+                                detail: d.defect || 'An open no-fly defect is on this aircraft.',
+                                severity: 'critical', icon: 'fa-ban' });
+                        }
                     });
+
+                    return issues;
+                }
+
+                // Merge the backend's issue list with our client-side one, de-duping.
+                // Backend issues are normalised to { label, detail, severity, icon }.
+                function mergeAirworthinessIssues(backendIssues, clientIssues){
+                    var out = [];
+                    var seen = {};
+                    function add(it){
+                        var label = (it && (it.label || it.message)) ? (it.label || it.message) : String(it);
+                        var k = label.toLowerCase().replace(/\s+/g, ' ').trim();
+                        if (seen[k]) { return; }
+                        seen[k] = true;
+                        out.push({
+                            label: label,
+                            detail: it.detail || '',
+                            severity: it.severity || 'critical',
+                            icon: it.icon || 'fa-exclamation-triangle'
+                        });
+                    }
+                    (backendIssues || []).forEach(add);
+                    (clientIssues || []).forEach(add);
+                    return out;
                 }
 
                 // Confirm + resend the book-out with force_override (managers/super-admins).
+                // Requires the pilot to have ticked the acknowledgement first.
                 vm.forceBookout = function(){
-                    if (!vm.bookout_airworthiness) return;
+                    if (!vm.bookout_airworthiness || !vm.bookout_airworthiness.acknowledged) return;
                     vm.bookout_airworthiness.working = true;
                     vm.bookout_airworthiness.visible = false;
                     doBookout(true);
@@ -1719,13 +1896,18 @@
                 if (vm.aircraft_check.required && !vm.aircraft_check.submitted) {
                     vm.check_submitting = true;
                     var flight_date = $filter('date')(vm.bookout.booking_start, 'yyyy-MM-dd');
+                    // checked_at is a Date (datetime-local) — format to the
+                    // 'yyyy-MM-ddTHH:mm' string the API expects.
+                    var checkedAtStr = (vm.check_form.checked_at instanceof Date)
+                        ? $filter('date')(vm.check_form.checked_at, 'yyyy-MM-ddTHH:mm')
+                        : vm.check_form.checked_at;
                     var check_payload = {
                         club_id: vm.bookout.club_id,
                         plane_id: vm.bookout.plane.id,
                         booking_id: vm.bookout.booking_id,
                         check_type: vm.aircraft_check.check_type,
                         performed_by: vm.user.id,
-                        checked_at: vm.check_form.checked_at,
+                        checked_at: checkedAtStr,
                         fuel_us_gallons: vm.check_form.fuel_us_gallons,
                         oil_quarts: vm.check_form.oil_quarts,
                         flight_date: flight_date,
@@ -1738,13 +1920,13 @@
                             if (checkData.success) {
                                 vm.aircraft_check.submitted = true;
                                 ToastService.success('Check Submitted', vm.aircraft_check.check_type_label + ' submitted successfully.');
-                                doBookout();
+                                startBookout();
                             } else {
                                 ToastService.error('Check Failed', 'Aircraft check could not be submitted: ' + (checkData.message || 'Unknown error'));
                             }
                         });
                 } else {
-                    doBookout();
+                    startBookout();
                 }
 
 

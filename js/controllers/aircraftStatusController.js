@@ -89,25 +89,40 @@
                     ////console.log("data is : ", data);
                    vm.clubs = data.clubs;
 
-                   // Load aircraft checks for each plane (today only initially)
+                   // Today's aircraft checks per plane.
+                   // PREFERRED: the main maintenance response embeds today's checks
+                   // on each plane (plane.aircraft_checks / plane.checks_today), so we
+                   // don't fire one /aircraft_checks/plane/{id}/{date} call per aircraft
+                   // (that produced dozens of requests on load).
+                   // FALLBACK: if the field isn't present yet, fetch per plane as before
+                   // so the page keeps working until the backend embeds them.
                    var todayStr = new Date().toISOString().slice(0, 10);
                    if (vm.clubs && vm.clubs.length > 0) {
                        vm.clubs.forEach(function(club) {
                            if (club.planes && club.planes.length > 0) {
                                club.planes.forEach(function(plane) {
-                                   plane._checks_loading = true;
-                                   plane._aircraft_checks = [];
                                    plane._checks_show_all = false;
-                                   AircraftChecksService.GetChecksByPlaneDate(plane.plane_id, todayStr)
-                                       .then(function(checkData) {
-                                           plane._checks_loading = false;
-                                           if (checkData.success) {
-                                               plane._aircraft_checks = checkData.checks || [];
-                                           }
-                                       })
-                                       .catch(function() {
-                                           plane._checks_loading = false;
-                                       });
+
+                                   var embedded = plane.aircraft_checks || plane.checks_today;
+                                   if (angular.isArray(embedded)) {
+                                       // Checks came back with the main call — no extra request.
+                                       plane._aircraft_checks = embedded;
+                                       plane._checks_loading = false;
+                                   } else {
+                                       // Backend hasn't embedded them yet — fetch per plane.
+                                       plane._checks_loading = true;
+                                       plane._aircraft_checks = [];
+                                       AircraftChecksService.GetChecksByPlaneDate(plane.plane_id, todayStr)
+                                           .then(function(checkData) {
+                                               plane._checks_loading = false;
+                                               if (checkData.success) {
+                                                   plane._aircraft_checks = checkData.checks || [];
+                                               }
+                                           })
+                                           .catch(function() {
+                                               plane._checks_loading = false;
+                                           });
+                                   }
                                });
                            }
                        });
@@ -213,14 +228,78 @@
             vm._checkPlane = null;
             vm._checkClubId = null;
 
+            // The panel is fed with:
+            //   vm.checkOfferedType   — the mandatory type to complete (role-matched
+            //                           from the /required response), or null.
+            //   vm.checkCustomTypes   — the club's role:'custom' types ("Add another check").
+            vm.checkOfferedType = null;
+            vm.checkCustomTypes = [];
+
+            // Find the club's active type for a given role (a_check / transit).
+            function typeForRole(clubId, role) {
+                var list = vm.checkTypesByClub[clubId] || [];
+                for (var i = 0; i < list.length; i++) {
+                    if (list[i].role === role) { return list[i]; }
+                }
+                return null;
+            }
+
+            // The "other checks" list = every active type EXCEPT the one being offered
+            // as the mandatory check. We intentionally do NOT filter on role === 'custom'
+            // here, because a club's types may have no role assigned yet — filtering
+            // strictly on 'custom' would hide them and leave nothing selectable.
+            function setSelectableTypes(clubId, offeredType) {
+                var list = vm.checkTypesByClub[clubId] || [];
+                var offeredId = offeredType ? offeredType.id : null;
+                vm.checkCustomTypes = list.filter(function(t) { return t.id !== offeredId; });
+            }
+
+            // Decide which mandatory type to offer from the /required response:
+            //   check_type 'check_a'       -> the role:'a_check' type
+            //   check_type 'transit_check' -> the role:'transit' type (an A already done today)
+            //   not required               -> no mandatory offer (custom only)
+            function resolveOfferedType(clubId, requiredData) {
+                if (!requiredData || !requiredData.required) { return null; }
+                if (requiredData.check_type === 'check_a')       { return typeForRole(clubId, 'a_check'); }
+                if (requiredData.check_type === 'transit_check') { return typeForRole(clubId, 'transit'); }
+                return null;
+            }
+
             vm.openCheckPanel = function(plane, club) {
                 vm._checkPlane = plane;
                 vm._checkClubId = club.id;
+                vm.checkOfferedType = null;
+                vm.checkCustomTypes = [];
+
+                var todayStr = new Date().toISOString().slice(0, 10);
+
+                function applyTypes(offeredType) {
+                    vm.checkOfferedType = offeredType;
+                    setSelectableTypes(club.id, offeredType);
+                }
+
+                // Load the club's active types (with roles), then ask what's required
+                // today and resolve the mandatory type by role. If the requirement
+                // can't be resolved to a role-matched type (e.g. roles not assigned),
+                // fall back so the panel is still usable: offer nothing mandatory but
+                // list ALL active types to choose from.
+                function afterTypesLoaded() {
+                    AircraftChecksService.GetRequiredCheck(plane.plane_id, todayStr)
+                        .then(function(reqData) {
+                            applyTypes(resolveOfferedType(club.id, reqData));
+                        })
+                        .catch(function() { applyTypes(null); });
+                }
+
                 if (!vm.checkTypesByClub[club.id]) {
                     AircraftChecksService.GetActiveCheckTypes(club.id).then(function(data) {
                         vm.checkTypesByClub[club.id] = (data && data.check_types) ? data.check_types : [];
+                        afterTypesLoaded();
                     });
+                } else {
+                    afterTypesLoaded();
                 }
+
                 vm.showCheckPanel = true;
             };
             vm.closeCheckPanel = function() { vm.showCheckPanel = false; };
@@ -234,7 +313,8 @@
                     club_id: clubId,
                     plane_id: plane.plane_id,
                     booking_id: null,              // standalone — not tied to a flight
-                    check_type: checkData.check_type,
+                    check_type: checkData.check_type,          // the type's code
+                    check_type_id: checkData.check_type_id,    // the type's id (role-based model)
                     performed_by: vm.user_id,
                     checked_at: checkData.checked_at,
                     fuel_us_gallons: checkData.fuel_us_gallons,
@@ -257,6 +337,16 @@
                             plane._checks_loading = false;
                             if (checkData2.success) { plane._aircraft_checks = checkData2.checks || []; }
                         }).catch(function() { plane._checks_loading = false; });
+
+                        // Re-check the requirement so the status flips (e.g. after an
+                        // A-check, bookout should no longer demand one). If it's now
+                        // satisfied, clear the per-plane flag locally.
+                        AircraftChecksService.GetRequiredCheck(plane.plane_id, todayStr)
+                            .then(function(reqData) {
+                                if (reqData && !reqData.required) {
+                                    plane.requires_check_a = 0;
+                                }
+                            });
                     } else {
                         ToastService.error('Check Failed', (data && data.message) || 'The check could not be submitted.');
                         $scope.$broadcast('checkPanelReset');
@@ -267,6 +357,30 @@
             vm.get_initial = function(text){
                 return text.charAt(0);
             }
+
+            // Label a check by its (club-defined) name. Role-based model: the club
+            // names its own types (e.g. "A Check"), so prefer check_type_name; fall
+            // back to a tidied code, then a role word.
+            vm.checkTypeLabel = function(check) {
+                if (!check) { return ''; }
+                if (check.check_type_name) { return check.check_type_name; }
+                var code = check.check_type;
+                if (code) {
+                    return code.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+                }
+                if (check.role === 'a_check') { return 'A Check'; }
+                if (check.role === 'transit') { return 'Transit Check'; }
+                return 'Check';
+            };
+
+            // Colour the badge by ROLE (not code): a_check=green, transit=blue,
+            // custom=neutral. Checks carry a `role` field.
+            vm.checkBadgeClass = function(check) {
+                if (!check) { return 'badge-default'; }
+                if (check.role === 'a_check') { return 'badge-success'; }
+                if (check.role === 'transit') { return 'badge-info'; }
+                return 'badge-default';
+            };
 
             vm.list_pilots = function(row){
 
@@ -598,7 +712,22 @@
                 return "images/file_icons/"+icon_name;
             }
 
-        
+        // A receipt only has a real image when there's actual content. Standalone
+        // uplifts saved without a photo come back as an empty data-URI prefix
+        // ("data:image/png;base64,") with nothing after the comma — that must NOT
+        // show a clickable icon (it would open a blank preview).
+        vm.hasReceiptImage = function(image){
+            if (!image) { return false; }
+            var idx = image.indexOf('base64,');
+            if (idx > -1) {
+                // data URI: real only if there's payload after "base64,"
+                return image.substring(idx + 7).trim().length > 0;
+            }
+            // otherwise treat any non-empty string (e.g. a URL/path) as a real image
+            return image.trim().length > 0;
+        };
+
+
         $scope.search = function(row){
             ////console.log("hi", (angular.lowercase(row.title).indexOf(angular.lowercase($scope.my_search) || '') !== -1));
             return (angular.lowercase(row.title).indexOf(angular.lowercase($scope.my_search) || '') !== -1);

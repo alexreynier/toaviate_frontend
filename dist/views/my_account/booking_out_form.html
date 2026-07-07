@@ -669,60 +669,102 @@
           
 
     <!-- ── Aircraft Pre-Flight Check ── -->
-    <div class="club_docs_all" ng-if="vm.aircraft_check.loading">
-      <h2>Pre-Flight Check</h2>
-      <div class="text-center">
-        <i class="fa fa-spinner fa-spin"></i> Checking if a pre-flight check is required...
-      </div>
+    <div class="ac-check-done" ng-if="vm.aircraft_check.loading" style="color:#475569;background:#f8fafc;border-color:#e2e8f0;">
+      <i class="fa fa-spinner fa-spin ac-check-done__icon" style="color:#2d5a8e;"></i>
+      <div>Checking if a pre-flight check is required…</div>
     </div>
 
-    <div class="club_docs_all" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.required && !vm.aircraft_check.submitted">
-      <h2>
-        <i class="fa fa-plane"></i>
-        {{ vm.aircraft_check.check_type_label }} &mdash; {{ vm.bookout.plane.registration }}
-      </h2>
-      <p class="help-block">{{ vm.aircraft_check.message }}</p>
+    <div class="ac-check-card" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.required && !vm.aircraft_check.submitted">
 
-      <div class="center_if_large2 left_al">
+      <div class="ac-check-card__header">
+        <div class="ac-check-card__header-icon"><i class="fa fa-clipboard-check"></i></div>
+        <div class="ac-check-card__header-text">
+          <h3 class="ac-check-card__title">{{ vm.aircraft_check.check_type_label }}</h3>
+          <span class="ac-check-card__reg">{{ vm.bookout.plane.registration }}</span>
+        </div>
+      </div>
 
-        <div class="form-group">
-          <label>Performed by</label>
-          <input type="text" class="form-control inputtext" value="{{ vm.user.first_name }} {{ vm.user.last_name }}" disabled="true" />
+      <div class="ac-check-card__body">
+
+        <p class="ac-check-card__message" ng-if="vm.aircraft_check.message">
+          <i class="fa fa-info-circle"></i> {{ vm.aircraft_check.message }}
+        </p>
+
+        <!-- Pre-filled from today's A-Check (no flights since it) -->
+        <div class="ac-prefill-banner" ng-if="vm.aircraft_check.prefilled">
+          <i class="fa fa-magic ac-prefill-banner__icon"></i>
+          <div class="ac-prefill-banner__text">
+            <strong>Pre-filled from today's A-Check.</strong>
+            <span ng-if="vm.aircraft_check.flights_since_check === 0">No flights since — </span>date/time, fuel &amp; oil carried over. Please review and adjust if anything changed.
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="check_checked_at">Date / Time of Check (UTC)</label>
-          <input type="datetime-local" class="form-control inputtext" id="check_checked_at" ng-model="vm.check_form.checked_at" />
+        <!-- There have been flights since the A-Check — fresh numbers required -->
+        <div class="ac-prefill-banner ac-prefill-banner--warn"
+             ng-if="!vm.aircraft_check.prefilled && vm.aircraft_check.check_type === 'transit_check' && vm.aircraft_check.flights_since_check > 0">
+          <i class="fa fa-exclamation-circle ac-prefill-banner__icon"></i>
+          <div class="ac-prefill-banner__text">
+            <strong>{{ vm.aircraft_check.flights_since_check }} flight(s) since the A-Check.</strong>
+            Please enter the current fuel &amp; oil on board.
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="check_fuel">Fuel on Board (US Gallons)</label>
-          <input type="number" step="0.01" min="0" class="form-control inputtext" id="check_fuel" ng-model="vm.check_form.fuel_us_gallons" placeholder="e.g. 30.5" />
+        <div class="ac-field">
+          <label class="ac-field__label">Performed by</label>
+          <div class="ac-field__static"><i class="fa fa-user"></i> {{ vm.user.first_name }} {{ vm.user.last_name }}</div>
         </div>
 
-        <div class="form-group">
-          <label for="check_oil">Oil on Board (Quarts)</label>
-          <input type="number" step="0.01" min="0" class="form-control inputtext" id="check_oil" ng-model="vm.check_form.oil_quarts" placeholder="e.g. 6.0" />
-        </div>
-
-        <div class="form-group">
-          <label for="check_notes">Notes (optional)</label>
-          <textarea class="form-control inputtext" id="check_notes" ng-model="vm.check_form.notes" rows="2" placeholder="Any observations from the check..."></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="check_confirm" class="check_confirm_label">
-            <input type="checkbox" id="check_confirm" ng-model="vm.check_form.confirmed" class="check_confirm_checkbox" />
-            I confirm I have performed this check and accept responsibility for its accuracy.
+        <div class="ac-field">
+          <label class="ac-field__label" for="check_checked_at">
+            Date / Time of Check (UTC)
+            <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i> from A-Check</span>
           </label>
+          <input type="datetime-local" step="60" class="ac-field__input" id="check_checked_at"
+                 ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                 ng-model="vm.check_form.checked_at" />
         </div>
+
+        <div class="ac-field-grid">
+          <div class="ac-field">
+            <label class="ac-field__label" for="check_fuel">
+              <i class="fa fa-gas-pump ac-field__label-icon"></i> Fuel (US Gallons)
+              <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i></span>
+            </label>
+            <input type="number" step="0.01" min="0" class="ac-field__input" id="check_fuel"
+                   ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                   ng-model="vm.check_form.fuel_us_gallons" placeholder="e.g. 30.5" />
+          </div>
+
+          <div class="ac-field">
+            <label class="ac-field__label" for="check_oil">
+              <i class="fa fa-oil-can ac-field__label-icon"></i> Oil (Quarts)
+              <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i></span>
+            </label>
+            <input type="number" step="0.01" min="0" class="ac-field__input" id="check_oil"
+                   ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                   ng-model="vm.check_form.oil_quarts" placeholder="e.g. 6.0" />
+          </div>
+        </div>
+
+        <div class="ac-field">
+          <label class="ac-field__label" for="check_notes">Notes <span class="ac-field__optional">(optional)</span></label>
+          <textarea class="ac-field__input ac-field__textarea" id="check_notes" ng-model="vm.check_form.notes" rows="2" placeholder="Any observations from the check…"></textarea>
+        </div>
+
+        <label class="ac-confirm" for="check_confirm" ng-class="{'ac-confirm--checked': vm.check_form.confirmed}">
+          <input type="checkbox" id="check_confirm" ng-model="vm.check_form.confirmed" class="ac-confirm__box" />
+          <span class="ac-confirm__text">I confirm I have performed this check and accept responsibility for its accuracy.</span>
+        </label>
 
       </div>
     </div>
 
-    <div class="club_docs_all" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.submitted">
-      <h2><i class="fa fa-check-circle" style="color: green;"></i> Pre-Flight Check Complete</h2>
-      <p>{{ vm.aircraft_check.check_type_label }} has been submitted for this booking.</p>
+    <div class="ac-check-done" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.submitted">
+      <i class="fa fa-check-circle ac-check-done__icon"></i>
+      <div>
+        <strong>Pre-Flight Check Complete.</strong>
+        {{ vm.aircraft_check.check_type_label }} has been submitted for this booking.
+      </div>
     </div>
 
     <div class="club_docs_all" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.required && vm.aircraft_check.message">
@@ -781,32 +823,68 @@
     </div>
 </div>
 
-<!-- ═══ Airworthiness / insurance book-out block (force policy) ═══
-     Shown when the book-out endpoint returns a blocking airworthiness issue.
-     Managers/super-admins (can_force) get a Force book-out button. -->
-<div class="popup_bg" ng-if="vm.bookout_airworthiness.visible" ng-click="vm.cancelBookoutAirworthiness()">
-    <div class="popup_box popup_box--hardblock" ng-click="$event.stopPropagation()">
+<!-- ═══ Airworthiness / insurance book-out warning ═══
+     Shown when the book-out endpoint flags an airworthiness issue (per the club's
+     policy). Lists EVERY out-of-date item so the pilot cannot be unaware.
+     Managers/super-admins (can_force) get a Force button, gated on acknowledgement. -->
+<div class="aw-modal-bg" ng-if="vm.bookout_airworthiness.visible" ng-click="vm.cancelBookoutAirworthiness()">
+    <div class="aw-modal" ng-click="$event.stopPropagation()">
 
-        <div class="hardblock-icon"><i class="fa fa-ban"></i></div>
-        <h3 class="hardblock-title">Book-out Blocked</h3>
-        <br />
+        <div class="aw-modal__header">
+            <div class="aw-modal__header-icon"><i class="fa fa-exclamation-triangle"></i></div>
+            <div>
+                <h3 class="aw-modal__title">Airworthiness Warning</h3>
+                <p class="aw-modal__sub">{{ vm.bookout.plane.registration }} — please read before flying</p>
+            </div>
+        </div>
 
-        <p>{{ vm.bookout_airworthiness.message }}</p>
+        <div class="aw-modal__body">
 
-        <ul ng-if="vm.bookout_airworthiness.issues.length > 0" style="text-align:left; margin:12px auto 0; max-width:420px; color:#475569; font-size:13px;">
-            <li ng-repeat="issue in vm.bookout_airworthiness.issues">{{ issue.message || issue }}</li>
-        </ul>
+            <p class="aw-modal__message">{{ vm.bookout_airworthiness.message }}</p>
 
-        <p ng-if="vm.bookout_airworthiness.can_force" class="hardblock-warn">
-            <i class="fa fa-exclamation-triangle"></i>
-            Forcing this book-out accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
-        </p>
+            <ul class="aw-issues" ng-if="vm.bookout_airworthiness.issues.length > 0">
+                <li class="aw-issue" ng-repeat="issue in vm.bookout_airworthiness.issues"
+                    ng-class="{'aw-issue--critical': issue.severity === 'critical', 'aw-issue--warning': issue.severity !== 'critical'}">
+                    <span class="aw-issue__icon"><i class="fa" ng-class="issue.icon || 'fa-exclamation-triangle'"></i></span>
+                    <span class="aw-issue__text">
+                        <span class="aw-issue__label">{{ issue.label }}</span>
+                        <span class="aw-issue__detail" ng-if="issue.detail">{{ issue.detail }}</span>
+                    </span>
+                    <span class="aw-issue__tag">{{ issue.severity === 'critical' ? 'DO NOT FLY' : 'CAUTION' }}</span>
+                </li>
+            </ul>
 
-        <div class="bottom_btn">
-            <button ng-click="vm.cancelBookoutAirworthiness()" class="btn btn-warning" ng-disabled="vm.bookout_airworthiness.working">Cancel</button>
-            <button ng-if="vm.bookout_airworthiness.can_force" ng-click="vm.forceBookout()" class="btn btn-danger" ng-disabled="vm.bookout_airworthiness.working">
-                <i class="fa fa-exclamation-triangle"></i> {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'FORCE BOOK-OUT ANYWAY' }}
+            <label class="aw-ack" ng-class="{'aw-ack--checked': vm.bookout_airworthiness.acknowledged}">
+                <input type="checkbox" class="aw-ack__box" ng-model="vm.bookout_airworthiness.acknowledged" />
+                <span class="aw-ack__text">
+                    I have read the above and understand this aircraft has the issue(s) listed.
+                    I accept responsibility for flying it and confirm I am satisfied it is safe and lawful to do so.
+                </span>
+            </label>
+
+        </div>
+
+        <div class="aw-modal__footer">
+            <button ng-click="vm.cancelBookoutAirworthiness()" class="aw-btn aw-btn--cancel" ng-disabled="vm.bookout_airworthiness.working">
+                <i class="fa fa-arrow-left"></i> Go back
             </button>
+
+            <!-- Warn policy: any pilot may proceed once they've acknowledged. -->
+            <button ng-if="vm.bookout_airworthiness.mode === 'warn'" ng-click="vm.confirmBookoutAirworthiness()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged">
+                <i class="fa" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Confirm &amp; book out' }}
+            </button>
+
+            <!-- Force policy: only managers/super-admins with can_force may override. -->
+            <button ng-if="vm.bookout_airworthiness.mode !== 'warn' && vm.bookout_airworthiness.can_force" ng-click="vm.forceBookout()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged">
+                <i class="fa" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
+                {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Book out anyway' }}
+            </button>
+            <div ng-if="vm.bookout_airworthiness.mode !== 'warn' && !vm.bookout_airworthiness.can_force" class="aw-noforce">
+                <i class="fa fa-lock"></i> This book-out is blocked. Contact a club administrator.
+            </div>
         </div>
 
     </div>
