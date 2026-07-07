@@ -164,7 +164,11 @@ in a follow-up.
    pattern: `POST /api/v1/users/resend_phone_code` with `{ "id": … }`, same
    rate limits. Today the UI dead-ends at "please request a new code" with no
    way to request one.
-3. **Server-side attempt limiting on all 6-digit code checks** —
+3. **SMS wording for code autofill** — while touching the code SMSes, apply
+   the message template in `BACKEND_SMS_OTP_AUTOFILL_GUIDE.md` (repo root) so
+   iOS/Android offer to prefill the code from the messages app. Text-only
+   change; the frontend side is already live.
+4. **Server-side attempt limiting on all 6-digit code checks** —
    `GET /api/v1/invitations/:token/:code`,
    `POST /api/v1/invitations/verify_invitation_for_user`,
    `POST /api/v1/users/verify_phone`, `POST /api/v1/users/verify_phone_invite`.

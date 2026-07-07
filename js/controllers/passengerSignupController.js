@@ -847,6 +847,24 @@
 		       setTimeout(attachPasteHandlers, 200);
 		   });
 
+		   // ── WebOTP: auto-prefill the code from the SMS (Android Chrome) ──
+		   // Needs the SMS to end with the origin-bound line, e.g.
+		   // "@app.toaviate.com #123456" — see BACKEND_SMS_OTP_AUTOFILL_GUIDE.md.
+		   // Silent no-op on browsers without OTPCredential support (passenger
+		   // codes currently arrive by email, so this only kicks in if/when
+		   // they are also sent by SMS).
+		   if ('OTPCredential' in window && typeof AbortController !== 'undefined') {
+		       var otpAbort = new AbortController();
+		       $scope.$on('$destroy', function () { otpAbort.abort(); });
+		       navigator.credentials.get({ otp: { transport: ['sms'] }, signal: otpAbort.signal })
+		           .then(function (otp) {
+		               if (otp && otp.code) {
+		                   $scope.$apply(function () { fillCodeFromString(otp.code); });
+		               }
+		           })
+		           .catch(function () { /* aborted or dismissed — manual entry still works */ });
+		   }
+
 		   // Submit / verify code
 		   $scope.submitCode = function() {
 		       var combine = '';
