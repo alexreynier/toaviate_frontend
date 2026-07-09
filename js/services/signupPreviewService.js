@@ -59,9 +59,12 @@ app.factory('SignupPreviewService', SignupPreviewService);
                     price: 240,
                     currency: 'GBP',
                     payment_term: 'Annually',
+                    skip_payment_allowed: 0,
                     request: {
                         membership_start: '2026-08-01',
-                        membership_end: '2027-07-31'
+                        membership_end: '2027-07-31',
+                        payment_required: 1,
+                        first_payment: ''
                     }
                 }
             };
@@ -73,10 +76,17 @@ app.factory('SignupPreviewService', SignupPreviewService);
                 base.membership.membership_name = 'Social Membership';
                 base.membership.price = 0;
                 base.to_pay = 0;
+                base.membership.skip_payment_allowed = 1;
+                base.membership.request.payment_required = 0;
             }
             if (token === 'preview-deferred') {
+                // Paid-up converted member: term already paid, payment method
+                // optional, first charge deferred to the renewal date.
                 base.payment_now = 0;
                 base.first_payment = '2026-09-01';
+                base.membership.skip_payment_allowed = 1;
+                base.membership.request.payment_required = 0;
+                base.membership.request.first_payment = '2026-09-01';
             }
             return base;
         }

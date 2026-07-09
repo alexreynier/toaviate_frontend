@@ -1816,7 +1816,6 @@ vm.selected_phone;
 		    };
 
 		    $scope.validateAndSkipPayment = function() {
-		    	// Validate T&C (not payment checkbox since it's free)
 		    	$scope.invErrors = {};
 		    	var valid = true;
 		    	if (!$scope.formData.membership_tnc) {
@@ -1824,6 +1823,13 @@ vm.selected_phone;
 		    	}
 		    	if (!$scope.formData.tnc) {
 		    		$scope.invErrors.tnc = true; valid = false;
+		    	}
+		    	// Paid memberships show a payment acknowledgment even when
+		    	// skipping (for paid-up members it's the renewal wording) —
+		    	// require it so all three payment paths behave the same.
+		    	// Free memberships have no payment checkbox at all.
+		    	if ($scope.membership && $scope.membership.price > 0 && !$scope.formData.payment) {
+		    		$scope.invErrors.payment = true; valid = false;
 		    	}
 		    	if (!valid) {
 		    		ToastService.warning('Please Accept All Terms', 'You must accept all terms and conditions to continue.');
@@ -1879,7 +1885,13 @@ vm.selected_phone;
 		    			$scope.invStep = 5;
 		    			$state.go('invitations.direct_debit');
 		    		} else {
-		    			ToastService.error('Signup Error', 'An error occurred: ' + (data.error || 'Unknown error'));
+		    			var msg = (data && (data.error || data.message)) || 'Unknown error';
+		    			ToastService.error('Signup Error', 'An error occurred: ' + msg);
+		    			if (String(msg).toLowerCase().indexOf('payment required') > -1) {
+		    				// Backend refused the skip — clear it so the member
+		    				// picks a real payment method instead.
+		    				$scope.invPaymentMethod = null;
+		    			}
 		    		}
 		    	});
 		    };

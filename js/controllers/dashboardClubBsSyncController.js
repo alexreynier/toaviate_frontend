@@ -1207,22 +1207,65 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             return null;
         }
 
-        // Ensure a row has its date defaults before the boxes render.
+        // ── Payment-at-signup (require_payment) ──
+        // The backend derives it from the expiry: future end date = paid up,
+        // no payment requested; end date today/past (or none) = payment
+        // requested at signup. The checkbox mirrors that derivation live as
+        // the admin edits the dates, until they toggle it themselves.
+
+        // Is this row's membership expiry today or in the past (or missing)?
+        function isExpired(u) {
+            if (!u._membershipEnds) return true;
+            var m = moment(u._membershipEnds);
+            if (!m.isValid()) return true;
+            return !m.isAfter(moment(), 'day');
+        }
+        vm.isExpired = isExpired;
+
+        // Re-derive the checkbox default unless the admin has toggled it.
+        function recomputePayment(u) {
+            if (u._payOverridden) return;
+            u._requirePayment = isExpired(u);
+        }
+
+        // Marks the checkbox as admin-set so date edits stop moving it.
+        vm.onPaymentToggled = function(u) { u._payOverridden = true; };
+
+        // Live helper text under the checkbox, reflecting dates + choice.
+        vm.paymentHint = function(u) {
+            var endTxt = u._membershipEnds ? moment(u._membershipEnds).format('D MMM YYYY') : null;
+            if (isExpired(u)) {
+                return u._requirePayment
+                    ? 'This membership has expired — payment for the new term will be requested at signup.'
+                    : 'Expired, but payment will NOT be requested (admin override).';
+            }
+            return u._requirePayment
+                ? 'Payment will be requested at signup even though the membership is paid up until ' + endTxt + '.'
+                : 'Paid up until ' + endTxt + ' — no payment will be requested. They can skip adding a payment method (we\'ll encourage one for renewals).';
+        };
+
+        // Ensure a row has its date + payment defaults before the boxes render.
         function _ensureConvertDefaults(u) {
             if (!u._termStart) u._termStart = new Date();
+            if (u._requirePayment === undefined) recomputePayment(u);
         }
         vm.ensureConvertDefaults = _ensureConvertDefaults;
 
         // Re-derive the expiry from the chosen tier + term start, unless the admin
         // has manually overridden it. Called on tier or term-start change.
         vm.recomputeExpiry = function(u) {
-            if (u._endsOverridden) return;
-            var m = findMembership(u._membershipId);
-            u._membershipEnds = m ? computeExpiry(u._termStart, m.payment_term) : null;
+            if (!u._endsOverridden) {
+                var m = findMembership(u._membershipId);
+                u._membershipEnds = m ? computeExpiry(u._termStart, m.payment_term) : null;
+            }
+            recomputePayment(u);
         };
 
         // Marks the expiry as admin-edited so auto-compute stops fighting them.
-        vm.onExpiryEdited = function(u) { u._endsOverridden = true; };
+        vm.onExpiryEdited = function(u) {
+            u._endsOverridden = true;
+            recomputePayment(u);
+        };
 
         // Show the right confirmation toast for the backend's `mode`:
         //   signup          → brand-new person, complete-signup invite emailed
@@ -1263,7 +1306,10 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             return {
                 membership_id: u._membershipId,
                 term_start: toYmd(u._termStart) || toYmd(new Date()),
-                membership_ends: toYmd(u._membershipEnds)
+                membership_ends: toYmd(u._membershipEnds),
+                // Always sent explicitly — an untouched checkbox equals the
+                // backend-derived default, so the two never disagree.
+                require_payment: u._requirePayment ? 1 : 0
             };
         }
 

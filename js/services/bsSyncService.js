@@ -186,6 +186,10 @@ app.factory('BsSyncService', BsSyncService);
             if (opts.membership_id) body.membership_id = opts.membership_id;
             if (opts.term_start)    body.term_start = opts.term_start;
             if (opts.membership_ends) body.membership_ends = opts.membership_ends;
+            // 1|0 — must the member set up payment at signup? Sent explicitly
+            // from the UI checkbox; omitting it would give the backend-derived
+            // default (which the checkbox mirrors anyway).
+            if (opts.require_payment !== undefined && opts.require_payment !== null) body.require_payment = opts.require_payment;
             return $http.post('/api/v1/bs_sync/convert/' + club_id + '/' + user_id, body)
                 .then(handleSuccess, handleError);
         }

@@ -1294,6 +1294,13 @@ var app = angular
             // SAFETY MANAGEMENT SYSTEM (SMS) — admin / SMS staff
             // All share SmsController; the screen is chosen by data.screen.
             // ════════════════════════════════════════════════════
+            .state('dashboard.manage_club.reminders', {
+                url: '/reminders',
+                controller: 'ClubRemindersController',
+                templateUrl: 'views/manageclub/reminders.html',
+                controllerAs: 'vm'
+            })
+
             .state('dashboard.manage_club.sms', {
                 url: '/sms',
                 controller: 'SmsController',
@@ -2143,6 +2150,13 @@ var app = angular
         // SAFETY (SMS) — member-facing
         // SmsMemberController; the screen is chosen by data.screen.
         // ════════════════════════════════════════════════════
+        .state('dashboard.my_account.reminders', {
+            url: '/reminders',
+            templateUrl: 'views/my_account/reminders.html',
+            controller: 'RemindersController',
+            controllerAs: 'vm'
+        })
+
         .state('dashboard.my_account.sms', {
             url: '/safety',
             templateUrl: 'views/my_account/sms/home.html',

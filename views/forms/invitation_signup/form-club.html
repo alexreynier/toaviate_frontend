@@ -1,12 +1,16 @@
 <div>
   <h2 class="inv-title">Terms &amp; Payment</h2>
-  <p class="inv-subtitle">Please review and accept the terms below, then choose how you'd like to pay.</p>
+  <p class="inv-subtitle" ng-if="!(membership.price > 0 && membership.request.payment_required == 0)">Please review and accept the terms below, then choose how you'd like to pay.</p>
+  <p class="inv-subtitle" ng-if="membership.price > 0 && membership.request.payment_required == 0">Please review and accept the terms below. Nothing is due today — your membership is already paid.</p>
 
-  <!-- Payment summary (only when price > 0) -->
+  <!-- Payment summary (only when price > 0). For paid-up members this is a
+       renewal preview, NOT an amount due today. -->
   <div class="inv-payment-banner" ng-if="membership.price > 0">
     <div>
-      <div class="inv-payment-banner__label">Membership Payment</div>
-      <div class="inv-payment-banner__date" ng-if="payment_now == 0">First payment on {{ first_payment | asDate | date:"dd/MM/yyyy" }}</div>
+      <div class="inv-payment-banner__label" ng-if="membership.request.payment_required != 0">Membership Payment</div>
+      <div class="inv-payment-banner__date" ng-if="membership.request.payment_required != 0 && payment_now == 0">First payment on {{ first_payment | asDate | date:"dd/MM/yyyy" }}</div>
+      <div class="inv-payment-banner__label" ng-if="membership.request.payment_required == 0">Membership Renewal</div>
+      <div class="inv-payment-banner__date" ng-if="membership.request.payment_required == 0">Nothing due today — renews {{ (membership.request.first_payment || membership.request.membership_end) | asDate | date:"dd/MM/yyyy" }}</div>
     </div>
     <div class="inv-payment-banner__amount">{{ membership.currency }} {{ membership.price }}</div>
   </div>
@@ -15,6 +19,12 @@
   <div class="inv-info" ng-if="membership.price == 0">
     <i class="fa fa-gift"></i>
     <span>This is a free membership — no payment is required. You can optionally add a payment method now, or set one up later from your account.</span>
+  </div>
+
+  <!-- Paid-up membership notice (e.g. converted members whose term is already paid) -->
+  <div class="inv-info" ng-if="membership.price > 0 && membership.request.payment_required == 0">
+    <i class="fa fa-check-circle"></i>
+    <span>Your membership is <strong>paid up until {{ membership.request.membership_end | asDate | date:"dd/MM/yyyy" }}</strong>. Add a payment method now so your renewal is effortless — you won't be charged until {{ (membership.request.first_payment || membership.request.membership_end) | asDate | date:"dd/MM/yyyy" }}.</span>
   </div>
 
   <!-- Club T&C -->
@@ -35,8 +45,10 @@
     </div>
   </label>
 
-  <!-- Payment agreement (only when price > 0) -->
-  <label class="inv-agreement" ng-if="membership.price > 0" ng-class="{'inv-agreement--checked': formData.payment, 'inv-agreement--error': invErrors.payment}">
+  <!-- Payment agreement — wording depends on whether anything is actually
+       due now. Paid-up members acknowledge the future renewal instead of
+       "agreeing to pay" (which contradicted the paid-up notice above). -->
+  <label class="inv-agreement" ng-if="membership.price > 0 && membership.request.payment_required != 0" ng-class="{'inv-agreement--checked': formData.payment, 'inv-agreement--error': invErrors.payment}">
     <input type="checkbox" ng-model="formData.payment" ng-change="clearInvError('payment')">
     <div class="inv-agreement__check"></div>
     <div class="inv-agreement__text">
@@ -44,11 +56,20 @@
     </div>
   </label>
 
+  <label class="inv-agreement" ng-if="membership.price > 0 && membership.request.payment_required == 0" ng-class="{'inv-agreement--checked': formData.payment, 'inv-agreement--error': invErrors.payment}">
+    <input type="checkbox" ng-model="formData.payment" ng-change="clearInvError('payment')">
+    <div class="inv-agreement__check"></div>
+    <div class="inv-agreement__text">
+      I understand that my membership is paid up until <strong>{{ membership.request.membership_end | asDate | date:"dd/MM/yyyy" }}</strong>, with nothing to pay today, and that my next renewal of <strong>{{ membership.price }} {{ membership.currency }}</strong> falls due on {{ (membership.request.first_payment || membership.request.membership_end) | asDate | date:"dd/MM/yyyy" }}.
+    </div>
+  </label>
+
   <div class="inv-divider"></div>
 
   <!-- ═══ Payment method choice ═══ -->
   <h3 class="inv-title" style="font-size:18px;">Choose a Payment Method</h3>
-  <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price > 0">Select how you'd like to pay for your membership.</p>
+  <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price > 0 && membership.request.payment_required != 0">Select how you'd like to pay for your membership.</p>
+  <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price > 0 && membership.request.payment_required == 0">You're already paid up — adding a payment method now is optional but makes your renewal effortless.</p>
   <p class="inv-subtitle" style="margin-bottom:20px;" ng-if="membership.price == 0">Adding a payment method is optional but recommended for future bookings.</p>
 
   <div class="inv-payment-options">
@@ -73,8 +94,9 @@
       </div>
     </div>
 
-    <!-- Skip option (only if price is 0) -->
-    <div class="inv-payment-option" ng-if="membership.price == 0" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'skip'}" ng-click="selectPaymentMethod('skip')">
+    <!-- Skip option — backend decides (free tiers always allowed; paid-up
+         converted members allowed; expired/unpaid memberships not) -->
+    <div class="inv-payment-option" ng-if="membership.skip_payment_allowed == 1" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'skip'}" ng-click="selectPaymentMethod('skip')">
       <div class="inv-payment-option__radio"></div>
       <div class="inv-payment-option__icon"><i class="fa fa-clock"></i></div>
       <div class="inv-payment-option__body">

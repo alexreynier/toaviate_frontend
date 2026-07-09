@@ -1,0 +1,115 @@
+<div class="rem-page">
+
+  <!-- ── Header ── -->
+  <div class="rem-page__header">
+    <div class="rem-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="rem-page__title">
+        <h2><i class="fa fa-bell"></i> Reminders</h2>
+        <p>Choose which expiry reminder emails you receive, and when</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="rem-page__body">
+
+    <!-- Loading -->
+    <div class="rem-loading" ng-if="vm.loading">
+      <div class="rem-spinner"></div>
+      <span>Loading your reminder settings&hellip;</span>
+    </div>
+
+    <!-- Load failed -->
+    <div class="rem-empty" ng-if="!vm.loading && vm.load_failed">
+      <div class="rem-empty__icon"><i class="fa fa-bell-slash"></i></div>
+      <h3>We couldn't load your reminders</h3>
+      <p>Please refresh the page to try again.</p>
+    </div>
+
+    <div ng-if="!vm.loading && !vm.load_failed">
+
+      <!-- How it works -->
+      <div class="rem-info">
+        <i class="fa fa-info-circle"></i>
+        <span>Each time is a reminder <strong>band</strong> — e.g. 30, 14 and 1 days before, plus on the day. All reminders due on the same day arrive as <strong>one daily digest email</strong>. Changes save automatically.</span>
+      </div>
+
+      <!-- One card per reminder type -->
+      <div class="rem-card" ng-repeat="pref in vm.preferences" ng-class="{'rem-card--off': !pref.enabled}">
+
+        <div class="rem-card__top">
+          <div class="rem-card__icon"><i class="fa" ng-class="vm.typeIcon(pref.reminder_type)"></i></div>
+          <div class="rem-card__heading">
+            <div class="rem-card__label">
+              {{ pref.label }}
+              <span class="rem-saved" ng-if="vm.savedFlash[pref.reminder_type]"><i class="fa fa-check-circle"></i> Saved</span>
+            </div>
+            <div class="rem-card__desc">{{ pref.description }}</div>
+            <div class="rem-card__hint" ng-if="vm.typeHint(pref.reminder_type)">
+              <i class="fa fa-lightbulb"></i> {{ vm.typeHint(pref.reminder_type) }}
+            </div>
+          </div>
+          <div class="rem-card__control">
+            <label class="snazzy-toggle">
+              <input type="checkbox" ng-checked="pref.enabled == 1" ng-click="vm.toggleType(pref)" ng-disabled="vm.saving[pref.reminder_type]">
+              <span class="snazzy-toggle__slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Timeline editor (only when enabled) -->
+        <div class="rem-offsets" ng-if="pref.enabled == 1">
+          <div class="rem-offsets__label">
+            Remind me
+            <span class="rem-badge rem-badge--default" ng-if="pref.is_default == 1">Default timeline</span>
+            <a class="rem-reset" ng-if="pref.is_default != 1" ng-click="vm.resetToDefault(pref)">
+              <i class="fa fa-undo"></i> Reset to default
+            </a>
+          </div>
+          <div class="rem-chips">
+            <span class="rem-chip" ng-repeat="o in pref.offsets_days track by $index">
+              {{ o === 0 ? 'on the day' : (o === 1 ? '1 day before' : o + ' days before') }}
+              <a class="rem-chip__remove" ng-click="vm.removeOffset(pref, $index)" title="Remove this reminder time">&times;</a>
+            </span>
+            <span class="rem-chip-add">
+              <input type="number" min="0" max="365" step="1" placeholder="days"
+                     ng-model="pref.newOffset"
+                     ng-keydown="$event.keyCode === 13 && vm.addOffset(pref)">
+              <button type="button" ng-click="vm.addOffset(pref)" ng-disabled="vm.saving[pref.reminder_type]" title="Add a reminder time">
+                <i class="fa fa-plus"></i>
+              </button>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Recently sent ── -->
+      <div class="rem-collapse" ng-class="{'rem-collapse--open': vm.historyOpen}">
+        <button type="button" class="rem-collapse__head" ng-click="vm.toggleHistory()">
+          <i class="fa fa-history"></i> Recently sent reminders
+          <i class="fa fa-chevron-down rem-collapse__chev"></i>
+        </button>
+        <div class="rem-collapse__body" ng-if="vm.historyOpen">
+          <div class="rem-loading rem-loading--inline" ng-if="vm.historyLoading">
+            <div class="rem-spinner"></div><span>Loading&hellip;</span>
+          </div>
+          <div class="rem-empty rem-empty--inline" ng-if="!vm.historyLoading && vm.history.length === 0">
+            <p>No reminder emails have been sent to you yet.</p>
+          </div>
+          <div class="rem-history" ng-if="!vm.historyLoading && vm.history.length > 0">
+            <div class="rem-history__row" ng-repeat="row in vm.history">
+              <span class="rem-history__what">{{ vm.historyLabel(row.reminder_type) }}</span>
+              <span class="rem-history__band">{{ row.offset_value === 0 ? 'on the day' : row.offset_value + ' before' }}</span>
+              <span class="rem-history__due">expiry {{ row.due_key | date:'dd MMM yyyy' }}</span>
+              <span class="rem-history__sent">{{ row.sent_at | date:'dd MMM yyyy' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

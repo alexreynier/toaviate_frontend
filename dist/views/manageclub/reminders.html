@@ -1,0 +1,238 @@
+<div class="rem-page">
+
+  <!-- ── Header ── -->
+  <div class="rem-page__header">
+    <div class="rem-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="rem-page__title">
+        <h2><i class="fa fa-bell"></i> Aircraft &amp; Organisation Reminders</h2>
+        <p>What your club is reminded about, when, and who receives it</p>
+      </div>
+      <div class="rem-page__header-actions" ng-if="vm.is_manager && !vm.loading && !vm.load_failed">
+        <button class="rem-btn rem-btn--header" ng-click="vm.runPreview()" ng-disabled="vm.previewLoading">
+          <i class="fa" ng-class="vm.previewLoading ? 'fa-spinner fa-spin' : 'fa-eye'"></i>
+          Preview today's emails
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rem-page__body">
+
+    <!-- Loading -->
+    <div class="rem-loading" ng-if="vm.loading">
+      <div class="rem-spinner"></div>
+      <span>Loading reminder settings&hellip;</span>
+    </div>
+
+    <!-- Load failed (includes "manager privileges required") -->
+    <div class="rem-empty" ng-if="!vm.loading && vm.load_failed">
+      <div class="rem-empty__icon"><i class="fa fa-lock"></i></div>
+      <h3>We couldn't load the reminder settings</h3>
+      <p>{{ vm.load_failed_message }}</p>
+    </div>
+
+    <div ng-if="!vm.loading && !vm.load_failed">
+
+      <!-- Preview result -->
+      <div class="rem-preview" ng-if="vm.preview">
+        <div class="rem-preview__head">
+          <i class="fa fa-eye"></i> If the reminders ran right now&hellip;
+          <a class="rem-preview__close" ng-click="vm.preview = null">&times;</a>
+        </div>
+        <div class="rem-empty rem-empty--inline" ng-if="!vm.preview.recipients.length">
+          <p>Nothing is due today — anything already sent doesn't get re-sent, so an empty preview after this morning's run is normal.</p>
+        </div>
+        <div class="rem-preview__person" ng-repeat="r in vm.preview.recipients">
+          <div class="rem-preview__email"><i class="fa fa-envelope"></i> {{ r.email }}</div>
+          <ul>
+            <li ng-repeat="item in r.items">{{ item }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="rem-info">
+        <i class="fa fa-info-circle"></i>
+        <span>Each time is a reminder <strong>band</strong>; everything due arrives as <strong>one daily digest email</strong> per person. Changes save automatically. Sending time is set in <em>Automations</em> (default 06:00).</span>
+      </div>
+
+      <!-- ══ Club reminder settings ══ -->
+      <h3 class="rem-section-title"><i class="fa fa-sliders-h"></i> Reminder timelines</h3>
+
+      <div class="rem-card" ng-repeat="setting in vm.settings" ng-class="{'rem-card--off': !setting.enabled}">
+        <div class="rem-card__top">
+          <div class="rem-card__icon"><i class="fa" ng-class="vm.typeIcon(setting.reminder_type)"></i></div>
+          <div class="rem-card__heading">
+            <div class="rem-card__label">
+              {{ setting.label }}
+              <span class="rem-badge rem-badge--unit" ng-if="setting.unit === 'hours'">flying hours</span>
+              <span class="rem-saved" ng-if="vm.savedFlash[setting.reminder_type]"><i class="fa fa-check-circle"></i> Saved</span>
+            </div>
+            <div class="rem-card__desc">{{ setting.description }}</div>
+          </div>
+          <div class="rem-card__control">
+            <label class="snazzy-toggle" ng-class="{'rem-disabled': !vm.is_manager}">
+              <input type="checkbox" ng-checked="setting.enabled == 1" ng-click="vm.toggleSetting(setting)" ng-disabled="!vm.is_manager || vm.saving[setting.reminder_type]">
+              <span class="snazzy-toggle__slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="rem-offsets" ng-if="setting.enabled == 1">
+          <div class="rem-offsets__label">
+            Remind
+            <span class="rem-badge rem-badge--default" ng-if="setting.is_default == 1">Default timeline</span>
+            <a class="rem-reset" ng-if="vm.is_manager && setting.is_default != 1" ng-click="vm.resetSettingToDefault(setting)">
+              <i class="fa fa-undo"></i> Reset to default
+            </a>
+          </div>
+          <div class="rem-chips">
+            <span class="rem-chip" ng-repeat="o in setting.offsets track by $index">
+              {{ vm.chipLabel(o, setting.unit) }}
+              <a class="rem-chip__remove" ng-if="vm.is_manager" ng-click="vm.removeSettingOffset(setting, $index)" title="Remove this reminder time">&times;</a>
+            </span>
+            <span class="rem-chip-add" ng-if="vm.is_manager">
+              <input type="number" min="0" step="1" max="{{ setting.unit === 'hours' ? 500 : 365 }}" placeholder="{{ setting.unit === 'hours' ? 'hours' : 'days' }}"
+                     ng-model="setting.newOffset"
+                     ng-keydown="$event.keyCode === 13 && vm.addSettingOffset(setting)">
+              <button type="button" ng-click="vm.addSettingOffset(setting)" ng-disabled="vm.saving[setting.reminder_type]" title="Add a reminder time">
+                <i class="fa fa-plus"></i>
+              </button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Recipients ══ -->
+      <h3 class="rem-section-title">
+        <i class="fa fa-users"></i> Who receives these reminders
+        <button class="rem-btn rem-btn--small" ng-if="vm.is_manager" ng-click="vm.openAdd()">
+          <i class="fa" ng-class="vm.addOpen ? 'fa-times' : 'fa-user-plus'"></i>
+          {{ vm.addOpen ? 'Cancel' : 'Add recipient' }}
+        </button>
+      </h3>
+
+      <!-- No recipients → owner fallback -->
+      <div class="rem-info rem-info--warn" ng-if="!vm.people.length">
+        <i class="fa fa-exclamation-triangle"></i>
+        <span>No recipients are configured — all reminders currently go to the <strong>club owner</strong>. Add the people who should receive them.</span>
+      </div>
+
+      <!-- Add recipient panel -->
+      <div class="rem-add" ng-if="vm.addOpen">
+        <div class="rem-add__col">
+          <label class="rem-add__label">1. Choose a member</label>
+          <div class="rem-add__search">
+            <i class="fa fa-search"></i>
+            <input type="text" placeholder="Search members by name or email…" ng-model="vm.memberSearch">
+          </div>
+          <div class="rem-loading rem-loading--inline" ng-if="vm.membersLoading">
+            <div class="rem-spinner"></div><span>Loading members&hellip;</span>
+          </div>
+          <div class="rem-add__members" ng-if="!vm.membersLoading">
+            <a class="rem-add__member" ng-repeat="member in vm.members | filter:vm.filterMembers | limitTo:30"
+               ng-class="{'rem-add__member--selected': vm.addForm.member === member}"
+               ng-click="vm.selectMember(member)">
+              <span class="rem-avatar">{{ (member.first_name || '?').charAt(0) }}{{ (member.last_name || '?').charAt(0) }}</span>
+              <span class="rem-add__member-name">{{ member.first_name }} {{ member.last_name }}</span>
+              <span class="rem-add__member-email">{{ member.email }}</span>
+            </a>
+          </div>
+        </div>
+        <div class="rem-add__col">
+          <label class="rem-add__label">2. Which reminders?</label>
+          <label class="rem-check rem-check--all">
+            <input type="checkbox" ng-model="vm.addForm.all">
+            <span>All reminders (including ones added in future)</span>
+          </label>
+          <label class="rem-check" ng-repeat="setting in vm.settings" ng-class="{'rem-check--muted': vm.addForm.all}">
+            <input type="checkbox" ng-model="vm.addForm.types[setting.reminder_type]" ng-disabled="vm.addForm.all">
+            <span><i class="fa" ng-class="vm.typeIcon(setting.reminder_type)"></i> {{ setting.label }}</span>
+          </label>
+          <button class="rem-btn rem-btn--primary" ng-click="vm.submitAdd()" ng-disabled="vm.adding || !vm.addForm.member">
+            <i class="fa" ng-class="vm.adding ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            Add {{ vm.addForm.member ? vm.addForm.member.first_name : 'recipient' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- People -->
+      <div class="rem-person" ng-repeat="person in vm.people">
+        <div class="rem-person__head">
+          <span class="rem-avatar rem-avatar--lg">{{ (person.first_name || '?').charAt(0) }}{{ (person.last_name || '?').charAt(0) }}</span>
+          <div>
+            <div class="rem-person__name">{{ person.first_name }} {{ person.last_name }}
+              <span class="rem-badge rem-badge--you" ng-if="person.user_id == vm.user.id">you</span>
+            </div>
+            <div class="rem-person__email">{{ person.email }}</div>
+          </div>
+        </div>
+
+        <div class="rem-person__row" ng-repeat="row in person.rows" ng-class="{'rem-person__row--off': !row.enabled, 'rem-person__row--busy': vm.rowBusy[row.id]}">
+          <div class="rem-person__row-main">
+            <span class="rem-person__type"><i class="fa" ng-class="vm.typeIcon(row.reminder_type)"></i> {{ vm.typeLabel(row.reminder_type) }}</span>
+
+            <span class="rem-person__controls">
+              <label class="snazzy-toggle snazzy-toggle--sm" ng-class="{'rem-disabled': !vm.canEditRow(row)}">
+                <input type="checkbox" ng-checked="row.enabled == 1" ng-click="vm.toggleRecipientRow(row)" ng-disabled="!vm.canEditRow(row) || vm.rowBusy[row.id]">
+                <span class="snazzy-toggle__slider"></span>
+              </label>
+              <a class="rem-person__delete" ng-if="vm.is_manager" ng-click="vm.removeRecipientRow(person, row)" title="Stop sending this reminder to {{ person.first_name }}">
+                <i class="fa fa-trash-alt"></i>
+              </a>
+            </span>
+          </div>
+
+          <!-- Timeline: inherit vs personal -->
+          <div class="rem-person__timeline" ng-if="row.enabled == 1">
+            <span ng-if="!row.editingTimeline" class="rem-person__inherits">
+              Club timeline
+              <a ng-if="vm.canEditRow(row)" class="rem-reset" ng-click="vm.startCustomTimeline(row)"><i class="fa fa-sliders-h"></i> Customise for {{ person.user_id == vm.user.id ? 'me' : person.first_name }}</a>
+            </span>
+            <div ng-if="row.editingTimeline" class="rem-chips rem-chips--sm">
+              <span class="rem-chip" ng-repeat="o in row.override_arr track by $index">
+                {{ vm.chipLabel(o, vm.unitFor(row.reminder_type)) }}
+                <a class="rem-chip__remove" ng-if="vm.canEditRow(row)" ng-click="vm.removeOverrideOffset(row, $index)">&times;</a>
+              </span>
+              <span class="rem-chip-add" ng-if="vm.canEditRow(row)">
+                <input type="number" min="0" step="1" placeholder="add"
+                       ng-model="row.newOffset"
+                       ng-keydown="$event.keyCode === 13 && vm.addOverrideOffset(row)">
+                <button type="button" ng-click="vm.addOverrideOffset(row)"><i class="fa fa-plus"></i></button>
+              </span>
+              <a class="rem-reset" ng-if="vm.canEditRow(row)" ng-click="vm.inheritClubTimeline(row)"><i class="fa fa-undo"></i> Use club timeline</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Sent log ══ -->
+      <div class="rem-collapse" ng-class="{'rem-collapse--open': vm.historyOpen}">
+        <button type="button" class="rem-collapse__head" ng-click="vm.toggleHistory()">
+          <i class="fa fa-history"></i> Sent log
+          <i class="fa fa-chevron-down rem-collapse__chev"></i>
+        </button>
+        <div class="rem-collapse__body" ng-if="vm.historyOpen">
+          <div class="rem-loading rem-loading--inline" ng-if="vm.historyLoading">
+            <div class="rem-spinner"></div><span>Loading&hellip;</span>
+          </div>
+          <div class="rem-empty rem-empty--inline" ng-if="!vm.historyLoading && vm.history.length === 0">
+            <p>No reminder emails have been sent yet.</p>
+          </div>
+          <div class="rem-history" ng-if="!vm.historyLoading && vm.history.length > 0">
+            <div class="rem-history__row" ng-repeat="row in vm.history">
+              <span class="rem-history__what">{{ vm.typeLabel(row.reminder_type) }}</span>
+              <span class="rem-history__who">{{ row.first_name }} {{ row.last_name }}</span>
+              <span class="rem-history__band">{{ row.offset_value === 0 ? 'on the day' : row.offset_value + ' before' }}</span>
+              <span class="rem-history__sent">{{ row.sent_at | date:'dd MMM yyyy' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
