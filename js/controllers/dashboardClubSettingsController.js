@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService) {
         var vm = this;
 
         vm.user = null;
@@ -85,6 +85,317 @@
                         vm.check_types = data.check_types;
                     }
                 });
+        };
+
+        // ── Pre-solo requirements editor (pilot checks / student solo) ──
+        // Club-defined checklist a student must satisfy before flying solo.
+        // Requirements are club-wide ("All courses") or scoped to one course,
+        // and are manual (instructor sign-off) or auto-verified: 'medical'
+        // (accepted certificate classes), 'questionnaire' (instructor-reviewed
+        // attempt) or 'exam' (linked ground exam + optional pass mark).
+        // BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4/§6.
+        vm.solo = {
+            loading: false,
+            items: [],
+            groups: [],       // [{ key, course_id, title, items }] — "All courses" first
+            collapsed: {},    // group key → true (persists across reloads this session)
+            filter: null,     // null = everything | 0 = all-courses items | course id
+            busy: {},         // requirement id → true while its save is in flight
+            seeding: false,
+            saving: false,
+            editor: null,     // open add/edit form (null = closed)
+            lookups: { loaded: false, loading: false, courses: [], questionnaires: [], exams: [], examsByCourse: {}, medicalClasses: [] }
+        };
+
+        vm.loadSoloRequirements = function() {
+            vm.solo.loading = true;
+            vm.ensureSoloLookups();
+            SoloRequirementsService.GetForClubAdmin(vm.club_id).then(function(data) {
+                vm.solo.loading = false;
+                if (data && data.success !== false) {
+                    vm.solo.items = data.requirements || data.items || (angular.isArray(data) ? data : []);
+                } else {
+                    vm.solo.items = [];
+                }
+                soloRebuildGroups();
+            });
+        };
+
+        // Courses / questionnaires / exams / medical classes powering the
+        // course groups, the editor's pickers and the chips on each card.
+        vm.ensureSoloLookups = function() {
+            var lk = vm.solo.lookups;
+            if (lk.loaded || lk.loading) return;
+            lk.loading = true;
+            CourseService.GetCoursesByClubId(vm.club_id).then(function(data) {
+                lk.courses = (data && data.items) || [];
+            });
+            QuestionnaireService.ListByClub(vm.club_id).then(function(data) {
+                lk.questionnaires = (data && (data.items || data.questionnaires)) || [];
+            });
+            SoloRequirementsService.GetExamsByClub(vm.club_id).then(function(data) {
+                lk.exams = (data && (data.items || data.exams)) || (angular.isArray(data) ? data : []);
+            });
+            MedicalService.GetComponents().then(function(data) {
+                var all = (data && data.items) || (angular.isArray(data) ? data : []);
+                // Only actual certificate classes may satisfy a medical
+                // requirement — never the date trackers (ECG / audiogram).
+                lk.medicalClasses = all.filter(function(c) { return c.is_certificate == 1; });
+                lk.loaded = true;
+                lk.loading = false;
+            });
+        };
+
+        // Group into "All courses" (course_id null) first, then one group per
+        // course that has requirements. New courses appear once a requirement
+        // is added to them via the editor's course picker.
+        function soloRebuildGroups() {
+            var groups = [{ key: 'all', course_id: null, title: 'All courses', items: [] }];
+            var byCourse = {};
+            angular.forEach(vm.solo.items, function(item) {
+                if (!item.course_id) { groups[0].items.push(item); return; }
+                var key = 'c' + item.course_id;
+                if (!byCourse[key]) {
+                    byCourse[key] = { key: key, course_id: parseInt(item.course_id, 10), title: item.course_title || ('Course #' + item.course_id), items: [] };
+                    groups.push(byCourse[key]);
+                }
+                byCourse[key].items.push(item);
+            });
+            groups.forEach(function(g) {
+                g.items.sort(function(a, b) { return (parseInt(a.display_order, 10) || 0) - (parseInt(b.display_order, 10) || 0); });
+            });
+            vm.solo.groups = groups;
+        }
+
+        // Course filter chips: null = everything; 0 = only the all-courses
+        // items; a course id = all-courses + that course (what its students see).
+        vm.soloSetFilter = function(val) {
+            vm.solo.filter = (vm.solo.filter === val) ? null : val;
+        };
+        vm.soloGroupVisible = function(group) {
+            if (vm.solo.filter === null) return true;
+            if (vm.solo.filter === 0) return group.course_id === null;
+            return group.course_id === null || group.course_id === vm.solo.filter;
+        };
+        vm.soloToggleGroup = function(group) {
+            vm.solo.collapsed[group.key] = !vm.solo.collapsed[group.key];
+        };
+
+        vm.soloSeedDefaults = function() {
+            if (vm.solo.seeding) return;
+            vm.solo.seeding = true;
+            SoloRequirementsService.SeedDefaults(vm.club_id).then(function(data) {
+                vm.solo.seeding = false;
+                if (data && data.success) {
+                    ToastService.success('Defaults Added', 'Medical, pre-solo questionnaire and air law ground exam are now on your checklist.');
+                    vm.loadSoloRequirements();
+                } else {
+                    ToastService.error('Not Added', (data && data.message) || 'Could not add the default requirements.');
+                }
+            });
+        };
+
+        // ── Requirement editor (shared by add + edit) ──
+        // vtype 'manual' | 'medical' | 'questionnaire' | 'exam' → auto_type.
+        vm.soloOpenAdd = function(group) {
+            vm.ensureSoloLookups();
+            vm.soloCloseEditor();
+            vm.solo.editor = {
+                id: null,
+                name: '',
+                description: '',
+                course_id: (group && group.course_id) ? group.course_id : null,
+                vtype: 'manual',
+                med_ids: {},          // medical_components.id → true
+                questionnaire_id: null,
+                require_review: true,
+                exam_id: null,
+                min_score_percent: null
+            };
+        };
+
+        vm.soloStartEdit = function(item) {
+            vm.ensureSoloLookups();
+            vm.soloCloseEditor();
+            var med_ids = {};
+            angular.forEach(String(item.medical_component_ids || '').split(','), function(id) {
+                id = parseInt(id, 10);
+                if (id) med_ids[id] = true;
+            });
+            item._editing = true;
+            vm.solo.editor = {
+                id: item.id,
+                item: item,
+                name: item.name,
+                description: item.description || '',
+                course_id: item.course_id ? parseInt(item.course_id, 10) : null,
+                vtype: item.auto_type || 'manual',
+                med_ids: med_ids,
+                questionnaire_id: item.questionnaire_id ? parseInt(item.questionnaire_id, 10) : null,
+                require_review: item.require_review === undefined || item.require_review === null || item.require_review == 1,
+                exam_id: item.exam_id ? parseInt(item.exam_id, 10) : null,
+                min_score_percent: (item.min_score_percent !== null && item.min_score_percent !== undefined && item.min_score_percent !== '') ? parseFloat(item.min_score_percent) : null
+            };
+            if (vm.solo.editor.course_id) vm.soloEditorCourseChanged();
+        };
+
+        vm.soloCloseEditor = function() {
+            if (vm.solo.editor && vm.solo.editor.item) vm.solo.editor.item._editing = false;
+            vm.solo.editor = null;
+        };
+
+        vm.soloToggleMedClass = function(component_id) {
+            vm.solo.editor.med_ids[component_id] = !vm.solo.editor.med_ids[component_id];
+        };
+
+        // Course-scoped requirements offer that course's exams (the backend
+        // rejects an exam from a different course); club-wide offers them all.
+        vm.soloEditorCourseChanged = function() {
+            var ed = vm.solo.editor;
+            var lk = vm.solo.lookups;
+            if (!ed || !ed.course_id || lk.examsByCourse[ed.course_id]) return;
+            CourseService.GetExamsByCourseId(ed.course_id).then(function(data) {
+                lk.examsByCourse[ed.course_id] = (data && (data.items || data.exams)) || [];
+            });
+        };
+        vm.soloEditorExams = function() {
+            var ed = vm.solo.editor;
+            var lk = vm.solo.lookups;
+            if (ed && ed.course_id) return lk.examsByCourse[ed.course_id] || [];
+            return lk.exams;
+        };
+
+        vm.soloEditorSave = function() {
+            if (vm.solo.saving || !vm.solo.editor) return;
+            var ed = vm.solo.editor;
+            if (!ed.name || !ed.name.trim()) {
+                ToastService.warning('Name Required', 'Please give the requirement a name (e.g. "Pre-solo questionnaire").');
+                return;
+            }
+            if (ed.vtype === 'questionnaire' && !ed.questionnaire_id) {
+                ToastService.warning('Questionnaire Required', 'Choose which questionnaire verifies this requirement.');
+                return;
+            }
+            if (ed.vtype === 'exam' && !ed.exam_id) {
+                ToastService.warning('Exam Required', 'Choose which ground exam verifies this requirement.');
+                return;
+            }
+            var score = (ed.min_score_percent === null || ed.min_score_percent === undefined || ed.min_score_percent === '') ? null : parseFloat(ed.min_score_percent);
+            if (score !== null && (isNaN(score) || score < 0 || score > 100)) {
+                ToastService.warning('Pass Mark Invalid', 'The pass mark must be between 0 and 100%.');
+                return;
+            }
+            var med_ids = [];
+            angular.forEach(ed.med_ids, function(on, id) { if (on) med_ids.push(parseInt(id, 10)); });
+
+            var payload = {
+                club_id: vm.club_id,
+                name: ed.name.trim(),
+                description: (ed.description || '').trim(),
+                course_id: ed.course_id || null,
+                auto_type: ed.vtype === 'manual' ? null : ed.vtype,
+                medical_component_ids: (ed.vtype === 'medical' && med_ids.length) ? med_ids.join(',') : null,
+                questionnaire_id: ed.vtype === 'questionnaire' ? ed.questionnaire_id : null,
+                require_review: (ed.vtype === 'questionnaire' && !ed.require_review) ? 0 : 1,
+                exam_id: ed.vtype === 'exam' ? ed.exam_id : null,
+                min_score_percent: (ed.vtype === 'questionnaire' || ed.vtype === 'exam') ? score : null
+            };
+
+            vm.solo.saving = true;
+            var call;
+            if (ed.id) {
+                call = SoloRequirementsService.Update(ed.id, payload);
+            } else {
+                var maxOrder = 0;
+                for (var i = 0; i < vm.solo.items.length; i++) {
+                    var o = parseInt(vm.solo.items[i].display_order, 10) || 0;
+                    if (o > maxOrder) maxOrder = o;
+                }
+                payload.active = 1;
+                payload.display_order = maxOrder + 1;
+                call = SoloRequirementsService.Create(payload);
+            }
+            call.then(function(data) {
+                vm.solo.saving = false;
+                if (data && data.success) {
+                    ToastService.success(ed.id ? 'Requirement Updated' : 'Requirement Added', '"' + payload.name + '" saved to the pre-solo checklist.');
+                    vm.soloCloseEditor();
+                    vm.loadSoloRequirements();
+                } else {
+                    ToastService.error('Not Saved', (data && data.message) || 'Could not save the requirement.');
+                }
+            });
+        };
+
+        vm.soloToggleActive = function(item) {
+            if (vm.solo.busy[item.id]) return;
+            var newVal = item.active == 1 ? 0 : 1;
+            vm.solo.busy[item.id] = true;
+            SoloRequirementsService.Update(item.id, { active: newVal }).then(function(data) {
+                vm.solo.busy[item.id] = false;
+                if (data && data.success) {
+                    item.active = newVal;
+                } else {
+                    ToastService.error('Not Saved', (data && data.message) || 'Could not update the requirement.');
+                }
+            });
+        };
+
+        // Chip helpers for the requirement cards.
+        vm.soloMedNames = function(item) {
+            var ids = String(item.medical_component_ids || '').split(',');
+            var names = [];
+            angular.forEach(ids, function(id) {
+                id = parseInt(id, 10);
+                if (!id) return;
+                var match = null;
+                angular.forEach(vm.solo.lookups.medicalClasses, function(c) { if (c.id == id) match = c; });
+                names.push(match ? match.title : ('Class #' + id));
+            });
+            return names;
+        };
+
+        // Reorder with up/down buttons (works on touch too). Swap within the
+        // course group, then persist display_order = overall position across
+        // all groups for any row it changed.
+        vm.soloMove = function(group, item, dir) {
+            var idx = group.items.indexOf(item);
+            var swapWith = group.items[idx + dir];
+            if (!swapWith) return;
+            group.items[idx] = swapWith;
+            group.items[idx + dir] = item;
+            var pos = 0;
+            angular.forEach(vm.solo.groups, function(g) {
+                angular.forEach(g.items, function(row) {
+                    pos++;
+                    if (parseInt(row.display_order, 10) !== pos) {
+                        row.display_order = pos;
+                        SoloRequirementsService.Update(row.id, { display_order: pos });
+                    }
+                });
+            });
+        };
+
+        // Two-step inline delete (no browser confirm). Backend refuses when
+        // sign-offs exist — surface its "set it inactive instead" message.
+        vm.soloAskDelete = function(item) {
+            item._confirmDelete = true;
+        };
+        vm.soloCancelDelete = function(item) {
+            item._confirmDelete = false;
+        };
+        vm.soloDelete = function(item) {
+            vm.solo.busy[item.id] = true;
+            SoloRequirementsService.Delete(item.id).then(function(data) {
+                vm.solo.busy[item.id] = false;
+                item._confirmDelete = false;
+                if (data && data.success) {
+                    ToastService.success('Deleted', '"' + item.name + '" removed from the checklist.');
+                    vm.loadSoloRequirements();
+                } else {
+                    ToastService.warning('Not Deleted', (data && data.message) || 'This requirement could not be deleted — set it inactive instead.');
+                }
+            });
         };
 
         vm.saveCheckType = function() {
@@ -613,6 +924,7 @@
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
                         vm.club.settings.airworthiness_booking_policy = vm.club.settings.airworthiness_booking_policy || 'allow';
                         vm.club.settings.airworthiness_bookout_policy = vm.club.settings.airworthiness_bookout_policy || 'allow';
+                        vm.club.settings.pilot_checks_bookout_policy = vm.club.settings.pilot_checks_bookout_policy || 'allow';
                         // Reminder policy is effectively two-state (allow vs include
                         // warnings); the backend treats 'warn' and 'force' the same
                         // for reminders, so normalise 'force' → 'warn' for the toggle.
@@ -632,6 +944,9 @@
 
                 // Load aircraft check types
                 vm.loadCheckTypes();
+
+                // Load the pre-solo requirements checklist
+                vm.loadSoloRequirements();
 
                 // Load schedule display token
                 vm.loadDisplayToken();

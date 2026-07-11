@@ -1,7 +1,7 @@
  app.controller('BookoutController', BookoutController);
 
-    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService', 'AircraftChecksService'];
-    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService, AircraftChecksService) {
+    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService', 'AircraftChecksService', 'SoloRequirementsService'];
+    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService, AircraftChecksService, SoloRequirementsService) {
         
         var vm = this;
 
@@ -43,6 +43,60 @@
 
         // Airworthiness/insurance book-out block popup state (force policy).
         vm.bookout_airworthiness = { visible: false };
+
+        // ── Pilot checks / student solo state ──
+        // (FRONTEND_BOOKOUT_PILOT_CHECKS_GUIDE.md)
+        vm.bookout_pilot_checks = { visible: false };   // force-policy block popup
+        vm.solo_intent = null;                          // 'student_solo' | 'solo_check' | null (dual bookouts)
+        vm.solo_readiness = { loading: false, status: null, for_key: null };
+
+        // Toggle the "may send solo / solo check" intent on a dual bookout,
+        // and show the student's pre-solo readiness so the instructor knows
+        // ON THE GROUND whether a later send-solo would pass.
+        vm.setSoloIntent = function(intent){
+            vm.solo_intent = (vm.solo_intent === intent) ? null : intent;
+            if (vm.solo_intent) { vm.fetchSoloReadiness(); }
+        };
+
+        // Fetch the student's pre-solo requirement status (cached per
+        // student+course). Requirements are course-scoped: pass the booking's
+        // course so the status matches what the book-out gate will check.
+        vm.fetchSoloReadiness = function(){
+            var student_id = vm.bookout.user_id;
+            var club_id = vm.bookout.club_id;
+            var course_id = vm.bookout.course_id || null;
+            if (!student_id || !club_id) { return; }
+            var key = student_id + ':' + (course_id || 0);
+            if (vm.solo_readiness.for_key === key && (vm.solo_readiness.status || vm.solo_readiness.loading)) { return; }
+            vm.solo_readiness = { loading: true, status: null, for_key: key };
+            SoloRequirementsService.GetStatus(club_id, student_id, course_id).then(function(data){
+                vm.solo_readiness.loading = false;
+                // No requirements configured → nothing to show (allow quietly).
+                vm.solo_readiness.status = (data && data.success && data.requirements && data.requirements.length) ? data : null;
+            });
+        };
+
+        // Friendly next-step for an unmet requirement's state
+        // (BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4.3/§4.4).
+        vm.soloStateAction = function(state){
+            switch (state) {
+                case 'pending_review':              return 'Ask an instructor to review the questionnaire';
+                case 'in_progress':                 return 'Finish and submit the questionnaire';
+                case 'not_attempted':               return 'Complete the linked questionnaire or exam';
+                case 'below_min_score':             return 'The pass mark was not reached — retake it';
+                case 'not_passed':                  return 'Enter or achieve a passing exam result';
+                case 'no_medical':                  return 'Add a medical to the student\'s records';
+                case 'medical_expired':             return 'The medical has expired — renew it';
+                case 'medical_class_not_accepted':  return 'A different medical class is required';
+                case 'not_signed_off':              return 'Needs an instructor sign-off';
+                default:                            return '';
+            }
+        };
+
+        // The student ticked / unticked "Authorise Solo Flight".
+        vm.onAuthorisedSoloChange = function(){
+            if (vm.bookout.authorised_solo) { vm.fetchSoloReadiness(); }
+        };
 
         // ── Aircraft Check A / Transit Check state ──
         vm.aircraft_check = {
@@ -1705,6 +1759,22 @@
                 }    
 
 
+                // ── Student solo / pilot-checks fields ──
+                // (FRONTEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §5.1)
+                if (bookout_obj.dual_flight == 1 && vm.solo_intent) {
+                    // "I may send this student solo" / "solo check flight" —
+                    // creates the provisional STUDENT SOLO airfield bookout.
+                    bookout_obj.solo_intent = vm.solo_intent;
+                    if (vm.bookout.put && vm.bookout.put.user_id) {
+                        bookout_obj.put_id = vm.bookout.put.user_id;
+                    }
+                }
+                if (vm.bookout.authorised_solo) {
+                    // Who authorises the student solo — the booking's
+                    // instructor (shown as "Pilot Authorising Flight").
+                    bookout_obj.authorising_instructor_id = vm.bookout.instructor_id || 0;
+                }
+
                 // console.log("READY WITH: ", bookout_obj);
                 // return false;
 
@@ -1725,7 +1795,34 @@
                             // shown and acknowledged in the pre-book-out gate below, so
                             // just proceed to the booked-out screen.
                             vm.bookout_airworthiness = { visible: false };
+                            vm.bookout_pilot_checks = { visible: false };
+                            // Warn policy: checks ran, never block — surface each
+                            // warning prominently (they persist across the redirect).
+                            if (data.pilot_check_warning && data.pilot_check_warning.length) {
+                                for (var w = 0; w < data.pilot_check_warning.length; w++) {
+                                    ToastService.warning('Pilot Check', data.pilot_check_warning[w]);
+                                }
+                            }
                             $state.go('dashboard.my_account.booked_out', {booking_id: vm.bookout.booking_id});
+                        } else if (data.reason === 'pilot_checks') {
+                            // Force policy: the pilot re-validation failed. Show every
+                            // failure; offer self-certify when currency is the only
+                            // problem, and Force for managers/super-admins.
+                            vm.bookout_airworthiness = { visible: false };
+                            vm.bookout_pilot_checks = {
+                                visible: true,
+                                message: data.message || 'The pilot checks for this flight did not pass.',
+                                failures: (data.failures && data.failures.length) ? data.failures : [{ code: 'unknown', message: data.message || 'Pilot checks failed.' }],
+                                can_override: data.can_override === true,
+                                can_force: data.can_force_override === true,
+                                working: false
+                            };
+                        } else if (data.reason === 'booking_invalid') {
+                            vm.bookout_airworthiness.working = false;
+                            ToastService.error('Booking Problem', data.message || 'This booking could not be matched to the aircraft — please go back to the schedule and try again.');
+                        } else if (data.reason === 'not_allowed') {
+                            vm.bookout_airworthiness.working = false;
+                            ToastService.error('Not Your Flight', data.message || "Only the booking's member, its instructor, or a club manager can book this flight out.");
                         } else if (data.reason === 'airworthiness') {
                             // Force policy: a blocking airworthiness/insurance issue.
                             // Managers/super-admins (can_force_override) get a Force button.
@@ -1891,6 +1988,34 @@
                 };
                 vm.cancelBookoutAirworthiness = function(){
                     vm.bookout_airworthiness = { visible: false };
+                };
+
+                // ── Pilot-checks modal actions (force policy) ──
+                // Self-certify: only offered when a lapsed currency is the SOLE
+                // failure — resend with override:1 (the pilot certifies they
+                // are safe and current to fly).
+                vm.selfCertifyBookout = function(){
+                    if (!vm.bookout_pilot_checks || !vm.bookout_pilot_checks.can_override) return;
+                    vm.bookout_pilot_checks.working = true;
+                    vm.bookout_pilot_checks.visible = false;
+                    vm._bookout_obj.override = 1;
+                    doBookout();
+                };
+                // Force: managers/super-admins only — resend with force_override.
+                vm.forcePilotChecks = function(){
+                    if (!vm.bookout_pilot_checks || !vm.bookout_pilot_checks.can_force) return;
+                    vm.bookout_pilot_checks.working = true;
+                    vm.bookout_pilot_checks.visible = false;
+                    doBookout(true);
+                };
+                // Cancel: close the modal AND strip any override flags so a
+                // later normal retry doesn't silently carry them.
+                vm.cancelPilotChecks = function(){
+                    vm.bookout_pilot_checks = { visible: false };
+                    if (vm._bookout_obj) {
+                        delete vm._bookout_obj.override;
+                        delete vm._bookout_obj.force_override;
+                    }
                 };
 
                 if (vm.aircraft_check.required && !vm.aircraft_check.submitted) {

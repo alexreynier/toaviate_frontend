@@ -76,7 +76,89 @@
             </a>
           </h2>
         </div>
-          
+
+        <!-- ── Solo readiness (pre-solo requirements + sign-offs) ──
+             Course-scoped: all-courses items + the viewed course's items.
+             Each row renders its backend `state` as a status chip; amber
+             pending_review rows deep-link into the questionnaire review. -->
+        <div class="solo-ready" ng-if="vm.action == 'student_records' && vm.solo.status">
+          <div class="solo-ready__banner" ng-class="vm.solo.status.all_satisfied ? 'solo-ready__banner--go' : 'solo-ready__banner--wait'">
+            <i class="fas" ng-class="vm.solo.status.all_satisfied ? 'fa-plane-departure' : 'fa-hourglass-half'"></i>
+            <div>
+              <strong ng-if="vm.solo.status.all_satisfied">All clear for solo</strong>
+              <strong ng-if="!vm.solo.status.all_satisfied">Not yet solo-ready</strong>
+              <span ng-if="vm.solo.status.all_satisfied">{{ vm.student.first_name }} satisfies every pre-solo requirement for {{ vm.course.title }}.</span>
+              <span ng-if="!vm.solo.status.all_satisfied">Outstanding items below need attention before {{ vm.student.first_name }} can fly solo on {{ vm.course.title }}.</span>
+            </div>
+          </div>
+
+          <div class="solo-ready__row" ng-repeat="req in vm.solo.status.requirements"
+               ng-class="{'solo-ready__row--ok': req.satisfied, 'solo-ready__row--busy': vm.solo.busy[req.id]}">
+            <div class="solo-ready__state solo-ready__state--{{ vm.soloStateKind(req) }}">
+              <i class="fas" ng-class="{ 'fa-check-circle': vm.soloStateKind(req) === 'ok',
+                                         'fa-hourglass-half': vm.soloStateKind(req) === 'review',
+                                         'fa-times-circle': vm.soloStateKind(req) === 'fail',
+                                         'fa-circle-notch': vm.soloStateKind(req) === 'todo' }"></i>
+            </div>
+            <div class="solo-ready__main">
+              <div class="solo-ready__name">
+                {{ req.name }}
+                <span class="solo-req__badge solo-req__badge--auto" ng-if="req.auto_type"
+                      uib-tooltip="Verified automatically — cannot be signed off manually and never goes stale.">
+                  <i class="fas fa-magic"></i> auto&nbsp;&middot;&nbsp;{{ req.auto_type }}
+                </span>
+                <span class="solo-req__badge solo-req__badge--course" ng-if="req.course_id">
+                  <i class="fas fa-graduation-cap"></i> {{ req.course_title || 'course' }}
+                </span>
+                <span class="solo-chip solo-chip--review" ng-if="req.state === 'pending_review'">awaiting review</span>
+              </div>
+
+              <!-- The backend's ready-to-display sentence (score, expiry, class…) -->
+              <div class="solo-ready__meta"
+                   ng-class="{'solo-ready__meta--todo': !req.satisfied && vm.soloStateKind(req) !== 'fail', 'solo-ready__meta--fail': vm.soloStateKind(req) === 'fail'}"
+                   ng-if="req.detail">{{ req.detail }}</div>
+              <div class="solo-ready__meta" ng-if="!req.detail && req.satisfied && req.via === 'medical'">Verified from medical records</div>
+              <div class="solo-ready__meta solo-ready__meta--todo" ng-if="!req.detail && !req.satisfied">{{ req.auto_type ? 'Verified automatically — not yet met' : 'Awaiting instructor sign-off' }}</div>
+              <div class="solo-ready__meta" ng-if="req.satisfied && req.via === 'sign_off' && req.sign_off">
+                Signed off {{ req.sign_off.signed_off_at | asDate | date:'dd MMM yyyy' }}<span ng-if="req.sign_off.expires_at"> &middot; expires {{ req.sign_off.expires_at | asDate | date:'dd MMM yyyy' }}</span><span ng-if="req.sign_off.notes"> &middot; {{ req.sign_off.notes }}</span>
+              </div>
+
+              <!-- Inline sign-off form (manual items only) -->
+              <div class="solo-ready__signform" ng-if="vm.solo.signing === req.id">
+                <input type="date" ng-model="vm.solo.form.expires_at" uib-tooltip="Optional expiry — leave blank if the sign-off doesn't lapse">
+                <input type="text" ng-model="vm.solo.form.notes" placeholder="Notes (optional)" maxlength="255">
+                <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.soloSignOff(req)" ng-disabled="vm.solo.busy[req.id]">
+                  <i class="fas" ng-class="vm.solo.busy[req.id] ? 'fa-spinner fa-spin' : 'fa-check'"></i> Confirm sign-off
+                </button>
+                <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.soloCancelSignOff()">Cancel</button>
+              </div>
+            </div>
+            <div class="solo-ready__actions">
+              <!-- Submitted questionnaire awaiting instructor review — review it now, with the student -->
+              <button type="button" class="solo-btn solo-btn--primary solo-btn--sm solo-btn--pulse"
+                      ng-if="req.state === 'pending_review' && req.evidence.id"
+                      ng-click="vm.soloReviewAttempt(req)">
+                <i class="fas fa-clipboard-check"></i> Review now
+              </button>
+              <button type="button" class="solo-btn solo-btn--outline solo-btn--sm"
+                      ng-if="!req.satisfied && !req.auto_type && vm.solo.signing !== req.id"
+                      ng-click="vm.soloStartSignOff(req)">
+                <i class="fas fa-pen"></i> Sign off
+              </button>
+              <span ng-if="req.satisfied && req.via === 'sign_off' && req.sign_off">
+                <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-if="!req._confirmRevoke" ng-click="vm.soloAskRevoke(req)">
+                  Revoke
+                </button>
+                <span class="solo-ready__confirm" ng-if="req._confirmRevoke">
+                  Revoke this sign-off?
+                  <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.soloRevoke(req)" ng-disabled="vm.solo.busy[req.id]">Revoke</button>
+                  <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.soloCancelRevoke(req)">Keep</button>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+
             <div class="card centre_me" ng-if="vm.all_items.length == 0">
              There are no student training records
             </div>

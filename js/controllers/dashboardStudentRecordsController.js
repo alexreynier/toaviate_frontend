@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -232,17 +232,99 @@
                  CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
                     .then(function(data){
                         vm.show_record = true;
-                        vm.all_items = data.all_items;   
+                        vm.all_items = data.all_items;
                         vm.student = data.student;
-                        vm.training_records = data.training_records;   
+                        vm.training_records = data.training_records;
                         vm.exams = data.exams;
                         vm.exam_records = data.exam_records;
                         vm.course_totals = data.course_hours;
                         vm.log_sheets = data.log_sheets;
+                        vm.loadSoloReadiness();
                     });
 
             }
         }
+
+        // ── Student solo readiness (pilot checks / pre-solo requirements) ──
+        // Per-student checklist against the club's pre-solo requirements,
+        // scoped to the course being viewed (all-courses items + this course).
+        // Instructors/managers sign manual items off here; auto items
+        // (medical / questionnaire / exam) are system-verified and cannot be
+        // signed off by hand. Each row carries a `state` + ready-to-display
+        // `detail` (BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4.3).
+        vm.solo = { loading: false, status: null, busy: {}, signing: null, form: {} };
+
+        vm.loadSoloReadiness = function(){
+            if (!vm.club_id || !vm.student_id) { return; }
+            vm.solo.loading = true;
+            vm.solo.signing = null;
+            SoloRequirementsService.GetStatus(vm.club_id, vm.student_id, vm.course_id).then(function(data){
+                vm.solo.loading = false;
+                // No requirements configured (or no access) → hide the panel.
+                vm.solo.status = (data && data.success && data.requirements && data.requirements.length) ? data : null;
+            });
+        };
+
+        // Status chip per state: green tick, amber "review now", red failure,
+        // grey outstanding. Unknown/legacy states fall back on `satisfied`.
+        vm.soloStateKind = function(req){
+            if (req.satisfied) { return 'ok'; }
+            if (req.state === 'pending_review' || req.state === 'in_progress') { return 'review'; }
+            if (req.state === 'medical_expired' || req.state === 'medical_class_not_accepted' ||
+                req.state === 'below_min_score' || req.state === 'not_passed' || req.state === 'no_medical') { return 'fail'; }
+            return 'todo';
+        };
+
+        // The questionnaire attempt awaiting review — deep-link straight into
+        // the marking screen so it can be reviewed with the student.
+        vm.soloReviewAttempt = function(req){
+            if (!req.evidence || !req.evidence.id) { return; }
+            $state.go('dashboard.manage_club.questionnaire_review', { attempt_id: req.evidence.id });
+        };
+
+        vm.soloStartSignOff = function(req){
+            vm.solo.signing = req.id;
+            vm.solo.form = { expires_at: null, notes: '' };
+        };
+
+        vm.soloCancelSignOff = function(){
+            vm.solo.signing = null;
+        };
+
+        vm.soloSignOff = function(req){
+            if (vm.solo.busy[req.id]) { return; }
+            vm.solo.busy[req.id] = true;
+            var payload = { club_id: vm.club_id, user_id: vm.student_id, requirement_id: req.id };
+            if (vm.solo.form.expires_at) { payload.expires_at = moment(vm.solo.form.expires_at).format('YYYY-MM-DD'); }
+            if (vm.solo.form.notes && vm.solo.form.notes.trim()) { payload.notes = vm.solo.form.notes.trim(); }
+            SoloRequirementsService.SignOff(payload).then(function(data){
+                vm.solo.busy[req.id] = false;
+                if (data && data.success){
+                    ToastService.success('Signed Off', '"' + req.name + '" signed off for ' + vm.student.first_name + '.');
+                    vm.loadSoloReadiness();
+                } else {
+                    ToastService.error('Not Signed Off', (data && data.message) || 'Could not record the sign-off — please try again.');
+                }
+            });
+        };
+
+        // Two-step inline revoke (no browser confirm); history is kept server-side.
+        vm.soloAskRevoke = function(req){ req._confirmRevoke = true; };
+        vm.soloCancelRevoke = function(req){ req._confirmRevoke = false; };
+        vm.soloRevoke = function(req){
+            if (vm.solo.busy[req.id] || !req.sign_off) { return; }
+            vm.solo.busy[req.id] = true;
+            SoloRequirementsService.RevokeSignOff(req.sign_off.id).then(function(data){
+                vm.solo.busy[req.id] = false;
+                req._confirmRevoke = false;
+                if (data && data.success){
+                    ToastService.success('Revoked', '"' + req.name + '" sign-off revoked for ' + vm.student.first_name + '.');
+                    vm.loadSoloReadiness();
+                } else {
+                    ToastService.error('Not Revoked', (data && data.message) || 'Could not revoke the sign-off — please try again.');
+                }
+            });
+        };
 
         vm.get_initial = function(text){
                 return text.charAt(0);

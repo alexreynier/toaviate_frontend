@@ -124,6 +124,7 @@ module.exports = function (grunt) {
                     'css/maintenance-org.css',
                     'css/sms.css',
                     'css/reminders.css',
+                    'css/solo-checks.css',
                     'css/payment-mode.css',
                     'css/logbook.css',
                     'css/course-content.css',

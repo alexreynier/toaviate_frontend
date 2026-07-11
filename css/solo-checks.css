@@ -1,0 +1,691 @@
+/* ═══════════════════════════════════════════════════════════════
+   PILOT CHECKS & STUDENT SOLO — solo-* BEM
+   Used by:
+     views/manageclub/settings.html        (pre-solo requirements editor)
+     views/manageuser/student_records.html (solo readiness + sign-offs)
+     views/my_account/booking_out_form.html (solo intent + readiness)
+     views/my_account/booking_in_form.html  (send solo / stand down)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Shared buttons ── */
+.solo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.solo-btn:hover { transform: translateY(-1px); }
+.solo-btn:active { transform: translateY(0); }
+.solo-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.solo-btn--sm { padding: 6px 12px; font-size: 12.5px; }
+.solo-btn--primary {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(30, 58, 95, 0.25);
+}
+.solo-btn--outline {
+  background: #fff;
+  color: #1e3a5f;
+  border: 1px solid #cbd5e1;
+}
+.solo-btn--outline:hover { background: #f1f5f9; }
+.solo-btn--ghost { background: #f1f5f9; color: #475569; }
+.solo-btn--ghost:hover { background: #e2e8f0; }
+.solo-btn--danger { background: #dc2626; color: #fff; }
+.solo-btn--danger:hover { background: #b91c1c; }
+.solo-btn--go {
+  background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
+  color: #fff;
+  font-size: 15px;
+  padding: 12px 22px;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+}
+
+/* ── Requirements editor (club settings) ── */
+.solo-req { max-width: 760px; margin: 0 auto; text-align: left; }
+.solo-req__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 14px;
+  padding: 18px 0;
+}
+.solo-req__spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #2d5a8e;
+  border-radius: 50%;
+  animation: soloSpin 0.8s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.solo-req__empty {
+  text-align: center;
+  padding: 26px 16px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  animation: soloFadeUp 0.3s ease both;
+}
+.solo-req__empty i { font-size: 28px; color: #cbd5e1; }
+.solo-req__empty p { margin: 8px 0 14px; font-size: 14px; }
+.solo-req__empty-or { display: block; margin-top: 10px; font-size: 12.5px; color: #94a3b8; }
+
+.solo-req__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  transition: box-shadow 0.2s ease, opacity 0.25s ease;
+  animation: soloFadeUp 0.3s ease both;
+}
+.solo-req__row:hover { box-shadow: 0 4px 14px rgba(30, 58, 95, 0.08); }
+.solo-req__row--inactive { opacity: 0.55; }
+.solo-req__row--busy { opacity: 0.6; pointer-events: none; }
+
+.solo-req__order { display: flex; flex-direction: column; gap: 2px; }
+.solo-req__order button {
+  border: none;
+  background: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 1px 5px;
+  transition: color 0.15s ease;
+}
+.solo-req__order button:hover { color: #2d5a8e; }
+.solo-req__order button:disabled { opacity: 0.3; cursor: default; }
+
+.solo-req__main { flex: 1; min-width: 0; }
+.solo-req__name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.solo-req__desc { font-size: 12.5px; color: #64748b; margin-top: 2px; }
+.solo-req__badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.solo-req__badge--auto { background: #ede9fe; color: #6d28d9; }
+.solo-req__badge--inactive { background: #f1f5f9; color: #94a3b8; }
+
+.solo-req__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.solo-req__confirm { font-size: 13px; color: #b91c1c; font-weight: 600; }
+.solo-req__icon-btn {
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.solo-req__icon-btn:hover { color: #2d5a8e; transform: scale(1.12); text-decoration: none; }
+.solo-req__icon-btn--danger:hover { color: #dc2626; }
+
+.solo-req__input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  outline: none;
+  margin-bottom: 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.solo-req__input:focus {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.solo-req__addbar { margin-top: 12px; }
+.solo-req__add {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  animation: soloFadeUp 0.25s ease both;
+}
+.solo-req__check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+  margin: 4px 0 12px;
+  cursor: pointer;
+}
+.solo-req__check input { margin: 0; }
+
+/* ── Solo readiness panel (student records) ── */
+.solo-ready {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 0 auto 18px;
+  max-width: 860px;
+  text-align: left;
+  animation: soloFadeUp 0.3s ease both;
+}
+.solo-ready__banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+.solo-ready__banner i { font-size: 20px; }
+.solo-ready__banner strong { display: block; font-size: 15px; }
+.solo-ready__banner--go { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.solo-ready__banner--wait { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+
+.solo-ready__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid #f1f5f9;
+  transition: opacity 0.25s ease;
+}
+.solo-ready__row--busy { opacity: 0.6; pointer-events: none; }
+.solo-ready__state i { font-size: 17px; color: #dc2626; margin-top: 2px; }
+.solo-ready__row--ok .solo-ready__state i { color: #16a34a; }
+.solo-ready__main { flex: 1; min-width: 0; }
+.solo-ready__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.solo-ready__meta { font-size: 12.5px; color: #64748b; margin-top: 2px; }
+.solo-ready__meta--todo { color: #b45309; }
+.solo-ready__actions { flex-shrink: 0; }
+.solo-ready__confirm { font-size: 12.5px; color: #b91c1c; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.solo-ready__signform {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  animation: soloFadeUp 0.25s ease both;
+}
+.solo-ready__signform input {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.solo-ready__signform input[type="text"] { flex: 1; min-width: 160px; }
+.solo-ready__signform input:focus {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Solo intent pills (bookout form) ── */
+.solo-intent { display: flex; gap: 10px; flex-wrap: wrap; }
+.solo-intent__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+.solo-intent__opt:hover { border-color: #94a3b8; text-decoration: none; color: #1e293b; }
+.solo-intent__opt--on,
+.solo-intent__opt--on:hover {
+  border-color: #2d5a8e;
+  background: #eff6ff;
+  color: #1e3a5f;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.solo-intent__hint { font-size: 12.5px; color: #64748b; margin: 10px 0 0; line-height: 1.5; }
+
+/* ── Compact readiness (bookout form) ── */
+.solo-mini {
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  animation: soloFadeUp 0.25s ease both;
+}
+.solo-mini__loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; }
+.solo-mini__banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+}
+.solo-mini__banner--go { background: #f0fdf4; color: #15803d; }
+.solo-mini__banner--wait { background: #fef3c7; color: #92400e; }
+.solo-mini__item { font-size: 13px; color: #b91c1c; padding: 3px 0; }
+.solo-mini__item--ok { color: #15803d; }
+.solo-mini__item i { width: 18px; text-align: center; margin-right: 4px; }
+
+/* ── Send solo / stand down (book-in form) ── */
+.solo-send { animation: soloFadeUp 0.3s ease both; }
+.solo-send__text { font-size: 14px; color: #475569; line-height: 1.6; max-width: 640px; margin: 0 auto 16px; }
+.solo-send__btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.solo-send__sent {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: #15803d;
+  font-size: 14px;
+  max-width: 640px;
+  margin: 0 auto 14px;
+  text-align: left;
+  animation: soloPop 0.3s ease both;
+}
+.solo-send__sent i { font-size: 24px; }
+.solo-send__sent-sub { display: block; font-size: 12.5px; color: #64748b; margin-top: 2px; }
+.solo-send__blocked {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 14px 18px;
+  max-width: 640px;
+  margin: 0 auto 14px;
+  text-align: left;
+  animation: soloFadeUp 0.25s ease both;
+}
+.solo-send__blocked-head { font-weight: 700; color: #b91c1c; font-size: 14px; margin-bottom: 6px; }
+.solo-send__blocked-head i { margin-right: 6px; }
+.solo-send__blocked-item { font-size: 13px; color: #7f1d1d; padding: 2px 0; }
+.solo-send__blocked .solo-btn { margin-top: 10px; }
+
+/* ── Animations ── */
+@keyframes soloFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes soloPop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes soloSpin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════
+   COURSE-SCOPED REQUIREMENTS (2026-07) — course groups, filter chips,
+   the 4-way verification editor, criteria sub-chips and per-state
+   readiness rendering. BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §6.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Course filter chips ── */
+.solo-req__filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.solo-req__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s ease;
+}
+.solo-req__filter-chip:hover { border-color: #94a3b8; color: #1e293b; text-decoration: none; }
+.solo-req__filter-chip--on,
+.solo-req__filter-chip--on:hover {
+  border-color: #2d5a8e;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(30, 58, 95, 0.25);
+}
+
+/* ── Course groups (collapsible) ── */
+.solo-req__group { margin-bottom: 14px; animation: soloFadeUp 0.3s ease both; }
+.solo-req__group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.solo-req__group-head:hover { background: #f1f5f9; text-decoration: none; }
+.solo-req__group-chev {
+  font-size: 11px;
+  color: #94a3b8;
+  transition: transform 0.25s ease;
+}
+.solo-req__group-chev--closed { transform: rotate(-90deg); }
+.solo-req__group-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e3a5f;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.solo-req__group-title i { color: #2d5a8e; font-size: 12px; }
+.solo-req__group-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+  border-radius: 999px;
+  padding: 2px 9px;
+  min-width: 24px;
+  text-align: center;
+}
+.solo-req__group-hint { font-size: 12px; color: #94a3b8; margin-left: auto; font-style: italic; }
+.solo-req__group-body { animation: soloExpand 0.25s ease both; transform-origin: top; }
+.solo-req__group-empty {
+  font-size: 12.5px;
+  color: #94a3b8;
+  padding: 8px 14px 4px;
+  font-style: italic;
+}
+
+/* ── Criteria sub-chips on requirement cards ── */
+.solo-req__subchips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.solo-req__subchip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.solo-req__subchip i { font-size: 10px; color: #64748b; }
+.solo-req__subchip--link { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.solo-req__subchip--link i { color: #2563eb; }
+.solo-req__badge--course { background: #dbeafe; color: #1e40af; }
+.solo-req__badge--course i { font-size: 9px; margin-right: 3px; }
+.solo-req__row--editing { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+
+/* ── Requirement editor (add + edit) ── */
+.solo-req__editor {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 10px;
+  animation: soloFadeUp 0.25s ease both;
+}
+.solo-req__editor-head {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e3a5f;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.solo-req__editor-head i { color: #2d5a8e; font-size: 13px; }
+.solo-req__editor-btns { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.solo-req__field { margin: 12px 0; }
+.solo-req__field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.solo-req__field-hint { font-size: 12px; color: #94a3b8; margin: 6px 0 0; line-height: 1.5; }
+.solo-req__select { background: #fff; cursor: pointer; }
+
+/* Verification type selector — four cards */
+.solo-req__vtypes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.solo-req__vtype {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.solo-req__vtype:hover { border-color: #94a3b8; text-decoration: none; transform: translateY(-1px); }
+.solo-req__vtype i { font-size: 17px; color: #94a3b8; transition: color 0.18s ease; }
+.solo-req__vtype strong { font-size: 13px; color: #1e293b; }
+.solo-req__vtype strong em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #6d28d9;
+  background: #ede9fe;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 4px;
+  vertical-align: 2px;
+}
+.solo-req__vtype span { font-size: 11.5px; color: #64748b; line-height: 1.45; }
+.solo-req__vtype--on,
+.solo-req__vtype--on:hover {
+  border-color: #2d5a8e;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.solo-req__vtype--on i { color: #2d5a8e; }
+
+/* Accepted medical classes — multi-select chips */
+.solo-req__classpick { display: flex; gap: 8px; flex-wrap: wrap; }
+.solo-req__class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s ease;
+}
+.solo-req__class-chip:hover { border-color: #94a3b8; color: #1e293b; text-decoration: none; }
+.solo-req__class-chip i { font-size: 11px; color: #cbd5e1; transition: color 0.18s ease; }
+.solo-req__class-chip--on,
+.solo-req__class-chip--on:hover {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.solo-req__class-chip--on i { color: #22c55e; animation: soloPop 0.25s ease both; }
+
+/* Pass mark input */
+.solo-req__score { display: inline-flex; align-items: center; gap: 8px; }
+.solo-req__input--score { width: 90px; margin-bottom: 0; text-align: center; }
+.solo-req__score-unit { font-size: 13.5px; font-weight: 700; color: #64748b; }
+
+/* ── Per-state readiness rendering (student records + bookout) ── */
+.solo-ready__state--ok i { color: #16a34a; }
+.solo-ready__state--todo i { color: #94a3b8; }
+.solo-ready__state--fail i { color: #dc2626; }
+.solo-ready__state--review i { color: #d97706; animation: soloPulse 1.8s ease-in-out infinite; }
+.solo-ready__meta--fail { color: #b91c1c; }
+
+.solo-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.solo-chip--review { background: #fef3c7; color: #92400e; animation: soloPulse 1.8s ease-in-out infinite; }
+
+.solo-btn--pulse { animation: soloGlow 2s ease-in-out infinite; }
+
+/* Bookout-form mini readiness — state detail lines */
+.solo-mini__item--review { color: #b45309; }
+.solo-mini__item--review i { color: #d97706; }
+.solo-mini__course { color: #64748b; font-weight: 600; font-size: 12px; }
+.solo-mini__detail { font-size: 12px; color: #64748b; padding: 1px 0 2px 22px; line-height: 1.45; }
+
+/* Book-in blocked panel — next-step hints + review jump */
+.solo-send__blocked-action {
+  display: block;
+  font-size: 12.5px;
+  color: #1e40af;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.solo-send__blocked-action i { font-size: 10px; margin-right: 4px; }
+.solo-send__blocked-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e3a5f;
+  background: #fff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.solo-send__blocked-review:hover { border-color: #2d5a8e; background: #eff6ff; text-decoration: none; color: #1e3a5f; }
+
+/* ── Extra animations ── */
+@keyframes soloExpand {
+  from { opacity: 0; transform: scaleY(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+@keyframes soloPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+@keyframes soloGlow {
+  0%, 100% { box-shadow: 0 3px 8px rgba(30, 58, 95, 0.25); }
+  50%      { box-shadow: 0 3px 16px rgba(45, 90, 142, 0.55); }
+}
+
+/* ═══════════════ Mobile ═══════════════ */
+@media (max-width: 768px) {
+  .solo-ready { padding: 13px 14px; }
+  .solo-ready__row { flex-wrap: wrap; }
+  .solo-ready__actions { width: 100%; padding-left: 29px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .solo-req__group-hint { display: none; }
+  .solo-req__editor { padding: 14px; }
+  .solo-req__vtypes { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .solo-req__row { flex-wrap: wrap; padding: 11px 12px; }
+  .solo-req__actions { width: 100%; justify-content: flex-end; }
+  .solo-req__vtypes { grid-template-columns: 1fr; }
+  .solo-req__filters { gap: 6px; }
+  .solo-req__filter-chip { padding: 6px 11px; font-size: 12px; }
+  .solo-req__class-chip { padding: 7px 11px; font-size: 12px; }
+  .solo-req__editor-btns { flex-direction: column; }
+  .solo-req__editor-btns .solo-btn { width: 100%; justify-content: center; }
+  .solo-intent { flex-direction: column; }
+  .solo-intent__opt { justify-content: center; }
+  .solo-send__btns { flex-direction: column; }
+  .solo-send__btns .solo-btn { width: 100%; justify-content: center; }
+  .solo-ready__signform input[type="date"] { width: 100%; }
+  .solo-ready__signform input[type="text"] { width: 100%; flex: none; }
+}
+
+/* ═══════════════ Reduced motion ═══════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .solo-req__row, .solo-req__group, .solo-req__group-body, .solo-req__editor,
+  .solo-req__add, .solo-req__empty, .solo-ready, .solo-mini, .solo-send,
+  .solo-send__sent, .solo-send__blocked, .solo-ready__signform {
+    animation: none !important;
+  }
+  .solo-ready__state--review i, .solo-chip--review, .solo-btn--pulse,
+  .solo-req__class-chip--on i {
+    animation: none !important;
+  }
+  .solo-btn, .solo-btn:hover, .solo-req__vtype, .solo-req__vtype:hover,
+  .solo-req__group-chev, .solo-req__icon-btn, .solo-req__icon-btn:hover {
+    transition: none !important;
+    transform: none !important;
+  }
+}

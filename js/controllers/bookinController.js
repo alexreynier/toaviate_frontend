@@ -2245,6 +2245,78 @@
 
         }
 
+        // ── Student solo: send / stand down ─────────────────────────────
+        // Activates (or closes) the provisional STUDENT SOLO airfield
+        // bookout created at book-out. The gate re-runs the pre-solo checks
+        // per club policy; a 'pilot_checks' block is shown inline with a
+        // Force option for managers. Standing down is deliberately
+        // friction-free — not going solo is completely normal.
+        vm.solo_send = { working: false, failures: [], can_force: false };
+
+        // Friendly next-step per unmet-requirement state (failures now carry
+        // `state` — BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4.4).
+        vm.soloStateAction = function(state){
+            switch (state) {
+                case 'pending_review':              return 'Review the questionnaire with the student, then send solo again';
+                case 'in_progress':                 return 'The questionnaire was started but never submitted';
+                case 'not_attempted':               return 'The linked questionnaire/exam has not been attempted';
+                case 'below_min_score':             return 'The pass mark was not reached';
+                case 'not_passed':                  return 'No passing exam result is recorded';
+                case 'no_medical':                  return 'No acceptable medical on record';
+                case 'medical_expired':             return 'The medical has expired';
+                case 'medical_class_not_accepted':  return 'The medical held is not an accepted class for this course';
+                case 'not_signed_off':              return 'Needs an instructor sign-off on the student record';
+                default:                            return '';
+            }
+        };
+
+        // A questionnaire is sat submitted-but-unreviewed — jump to the
+        // student's attempts so it can be reviewed on the spot.
+        vm.soloReviewStudent = function(){
+            var student_id = vm.bookout.put_id || vm.bookout.pic_id;
+            if (!student_id) { return; }
+            $state.go('dashboard.manage_user.student_questionnaires', { student_id: student_id });
+        };
+
+        vm.send_solo = function(force){
+            if (vm.solo_send.working) { return; }
+            vm.solo_send.working = true;
+            var opts = {};
+            if (force) { opts.force_override = 1; }
+            BookoutService.SendSolo(vm.bookout.id, opts).then(function(data){
+                vm.solo_send.working = false;
+                if (data && data.success){
+                    vm.solo_send.failures = [];
+                    vm.solo_send.can_force = false;
+                    vm.bookout.solo_sent_at = new Date();
+                    vm.bookout.authorised_by = data.authorised_by;
+                    ToastService.success('Solo Sent!', 'Student solo confirmed — the airfield display has been updated. Have a great flight!');
+                } else if (data && data.reason === 'pilot_checks'){
+                    vm.solo_send.failures = data.failures || [{ message: data.message || 'The pre-solo checks did not pass.' }];
+                    vm.solo_send.can_force = data.can_force_override === true;
+                    ToastService.warning('Solo Blocked', data.message || 'The pre-solo checks did not pass — see the details on screen.');
+                } else {
+                    ToastService.error('Solo Not Sent', (data && data.message) || 'Could not send the solo — please try again.');
+                }
+            });
+        };
+
+        vm.cancel_solo = function(){
+            if (vm.solo_send.working) { return; }
+            vm.solo_send.working = true;
+            BookoutService.CancelSolo(vm.bookout.id).then(function(data){
+                vm.solo_send.working = false;
+                if (data && data.success){
+                    vm.solo_send.failures = [];
+                    vm.bookout.solo_sent_at = null;
+                    vm.bookout.solo_intent = null;
+                    ToastService.success('Solo Stood Down', 'No problem — the planned solo has been removed from the airfield display.');
+                } else {
+                    ToastService.error('Not Stood Down', (data && data.message) || 'Could not stand the solo down — please try again.');
+                }
+            });
+        };
+
         vm.this_was_instructional_claim = function(){
             //toggle as it worked
             vm.this_claim_was_instructional = !vm.this_claim_was_instructional;

@@ -672,23 +672,34 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
 
         function getStatusClass(status) {
             switch (status) {
-                case 'active':    return 'abd-status--active';
-                case 'copied':    return 'abd-status--copied';
-                case 'confirmed': return 'abd-status--confirmed';
-                case 'closed':    return 'abd-status--closed';
-                default:          return '';
+                case 'active':      return 'abd-status--active';
+                case 'copied':      return 'abd-status--copied';
+                case 'confirmed':   return 'abd-status--confirmed';
+                case 'closed':      return 'abd-status--closed';
+                case 'provisional': return 'abd-status--provisional';
+                default:            return '';
             }
         }
 
         function getStatusLabel(status) {
             switch (status) {
-                case 'active':    return 'NEW';
-                case 'copied':    return 'COPIED';
-                case 'confirmed': return 'CONFIRMED';
-                case 'closed':    return 'CLOSED';
-                default:          return status;
+                case 'active':      return 'NEW';
+                case 'copied':      return 'COPIED';
+                case 'confirmed':   return 'CONFIRMED';
+                case 'closed':      return 'CLOSED';
+                case 'provisional': return 'PLANNED';
+                default:            return status;
             }
         }
+
+        // STUDENT SOLO / SOLO CHECK badge label for solo-linked rows.
+        // Provisional = planned (amber, outlined); active = the moment the
+        // clubhouse cares about — first solos!
+        vm.soloBadge = function(b) {
+            if (!b || !b.flight_type) { return null; }
+            var base = (b.flight_type === 'solo_check') ? 'SOLO CHECK' : 'STUDENT SOLO';
+            return (b.status === 'provisional') ? base + ' (planned)' : base;
+        };
 
         function formatTime(dateStr) {
             if (!dateStr) return '';

@@ -99,6 +99,8 @@ app.factory('BookoutService', BookoutService);
         service.RetryPaymentMachine = RetryPaymentMachine;
         service.ClearMachine = ClearMachine;
         service.ConfirmPayment = ConfirmPayment;
+        service.SendSolo = SendSolo;
+        service.CancelSolo = CancelSolo;
        
         return service;
         //ConfirmPayment
@@ -208,6 +210,22 @@ app.factory('BookoutService', BookoutService);
 
         function SendBookout(user_id, bookout) {
             return $http.post('/api/v1/plane_log_sheets', bookout).then(handleSuccess, handleError2);
+        }
+
+        // ── Student solo (in-flight instructor actions) ──
+        // See FRONTEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §6.
+
+        // opts: { authorising_instructor_id?, force_override? } — authoriser
+        // defaults to the caller server-side. Re-runs the solo-requirement
+        // checks per club policy (may return reason:'pilot_checks').
+        function SendSolo(log_sheet_id, opts) {
+            return $http.put('/api/v1/plane_log_sheets/send_solo/' + log_sheet_id, opts || {}).then(handleSuccess, handleError2);
+        }
+
+        // One tap, no body, no judgment — closes the STUDENT SOLO bookout(s)
+        // (provisional or active) and clears solo_sent_at/authorised_by.
+        function CancelSolo(log_sheet_id) {
+            return $http.put('/api/v1/plane_log_sheets/cancel_solo/' + log_sheet_id, {}).then(handleSuccess, handleError2);
         }
 
         function UpdateBookout(id, amended_bookout) {
