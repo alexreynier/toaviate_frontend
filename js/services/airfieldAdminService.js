@@ -37,6 +37,11 @@ function AirfieldAdminService($http, $location, EnvConfig) {
     service.DeleteAirfield  = DeleteAirfield;
     service.SearchAirfields = SearchAirfields;
     service.GetAirfield     = GetAirfield;
+    service.MergeIntoExisting = MergeIntoExisting;
+
+    // The fields a location_dup candidate can contribute to an existing row,
+    // in the order they're shown in the compare card.
+    service.merge_fields = MERGE_FIELDS;
 
     // Reference data used by the views (country names, airfield types).
     service.countries = COUNTRIES;
@@ -99,9 +104,33 @@ function AirfieldAdminService($http, $location, EnvConfig) {
             { headers: airfieldSearchHeaders }).then(handleSuccess, handleError2);
     }
 
+    // Returns { success, airfield: {…all columns…} }.
     function GetAirfield(id) {
         return $http.get('/api/v1/airfields/' + id, { headers: airfieldSearchHeaders })
             .then(handleSuccess, handleError2);
+    }
+
+    // ── Merge a review candidate INTO the existing airfield ──
+    // The backend has no atomic merge endpoint yet (see
+    // BACKEND_AIRFIELD_MERGE_GUIDE.md); until it does we compose one from the
+    // endpoints that already exist: PUT the chosen fields onto the existing
+    // row (keeping its id, so every flight/booking link survives), then clear
+    // the queue item. `fields` is the already-resolved patch — only what the
+    // admin ticked.
+    function MergeIntoExisting(reviewId, airfieldId, fields) {
+        return UpdateAirfield(airfieldId, fields).then(function (res) {
+            if (!res || res.success === false) { return res; }
+            // The candidate is now folded in, so the queue item is settled:
+            // dismiss drops it WITHOUT inserting a duplicate row.
+            return DismissReview(reviewId).then(function (dis) {
+                if (!dis || dis.success === false) {
+                    // The data landed but the item is still queued — say so
+                    // rather than claiming a clean merge.
+                    return { success: true, partial: true, airfield_id: airfieldId };
+                }
+                return { success: true, airfield_id: airfieldId };
+            });
+        });
     }
 
     // ── Helpers ──
@@ -120,6 +149,25 @@ function AirfieldAdminService($http, $location, EnvConfig) {
         return { success: false, message: res.data, status: res.status };
     }
 }
+
+// ── Mergeable fields ──
+// The columns a location_dup candidate can contribute back to the existing
+// airfield row. `kind` drives how the value is rendered in the compare card.
+// Deliberately excluded: id, source, source_ref, to_be_verified, update_at,
+// timezone, metar_station_* and the ppr/afh columns — those are ours, derived
+// or club-specific, and must not be clobbered by an OurAirports row.
+var MERGE_FIELDS = [
+    { key: 'title',        label: 'Name',         kind: 'text' },
+    { key: 'code',         label: 'Code',         kind: 'code' },
+    { key: 'iata_code',    label: 'IATA',         kind: 'code' },
+    { key: 'af_type',      label: 'Type',         kind: 'type' },
+    { key: 'country_code', label: 'Country code', kind: 'code' },
+    { key: 'country',      label: 'Country',      kind: 'text' },
+    { key: 'municipality', label: 'Municipality', kind: 'text' },
+    { key: 'elevation',    label: 'Elevation',    kind: 'number', suffix: ' ft' },
+    { key: 'wgs_n',        label: 'Latitude',     kind: 'coord' },
+    { key: 'wgs_e',        label: 'Longitude',    kind: 'coord' }
+];
 
 // ── Airfield types (backend `af_type` enum) ──
 var AF_TYPES = [

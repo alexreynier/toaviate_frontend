@@ -259,15 +259,174 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
         vm.acting        = {};            // id → true while its request is in flight
         vm.leaving       = {};            // id → true while the card animates out
 
+        vm.merge_fields  = AirfieldAdminService.merge_fields;
+
         vm.loadReview       = loadReview;
         vm.setReviewStatus  = setReviewStatus;
         vm.approveItem      = approveItem;
         vm.dismissItem      = dismissItem;
+        vm.mergeItem        = mergeItem;
+        vm.toggleMerge      = toggleMerge;
+        vm.tickAllGaps      = tickAllGaps;
+        vm.tickNone         = tickNone;
+        vm.selectedCount    = selectedCount;
+        vm.fmtValue         = fmtValue;
         vm.mapLink          = mapLink;
         vm.itemLat          = itemLat;
         vm.itemLon          = itemLon;
 
         loadReview();
+    }
+
+    // ── The merge comparison ────────────────────────────────────────
+    // Pull the FULL existing record (the review payload only carries its
+    // title + code) and diff it against the candidate, field by field.
+    function loadComparison(item) {
+        if (item.reason !== 'location_dup' || !item.nearest_airfield_id) { return; }
+
+        item.cmp_loading = true;
+
+        AirfieldAdminService.GetAirfield(item.nearest_airfield_id).then(function (data) {
+            item.cmp_loading = false;
+
+            if (!data || data.success === false || !data.airfield) {
+                // Without the existing row we can't offer a safe merge — the
+                // card falls back to plain approve/dismiss.
+                item.cmp_error = true;
+                return;
+            }
+
+            item.existing = data.airfield;
+            buildRows(item);
+        });
+    }
+
+    function buildRows(item) {
+        var cand = item.payload_decoded || {};
+        var cur  = item.existing || {};
+
+        item.rows = [];
+        item.gap_count      = 0;   // fields the existing row is missing
+        item.conflict_count = 0;   // fields where both differ
+
+        for (var i = 0; i < vm.merge_fields.length; i++) {
+            var f    = vm.merge_fields[i];
+            var newV = cand[f.key];
+            var oldV = cur[f.key];
+
+            // Nothing to contribute — skip the row entirely.
+            if (isBlank(newV)) { continue; }
+
+            var missing  = isBlank(oldV);
+            var conflict = !missing && !sameValue(oldV, newV, f);
+
+            // Identical values are noise; don't show them.
+            if (!missing && !conflict) { continue; }
+
+            if (missing)  { item.gap_count++; }
+            if (conflict) { item.conflict_count++; }
+
+            item.rows.push({
+                field:    f,
+                old:      oldV,
+                'new':    newV,
+                missing:  missing,
+                conflict: conflict,
+                // Back-fills are pre-ticked (pure gain, no data lost).
+                // Overwrites must be opted into deliberately.
+                checked:  missing
+            });
+        }
+    }
+
+    function isBlank(v) {
+        return v === null || v === undefined || v === '' ||
+               (typeof v === 'string' && v.trim() === '');
+    }
+
+    // Coordinates and elevations arrive as strings of differing precision
+    // ("45.28" vs "45.2800000") — compare them numerically so we don't flag a
+    // conflict where there is none.
+    function sameValue(a, b, f) {
+        if (f.kind === 'coord' || f.kind === 'number') {
+            var na = parseFloat(a), nb = parseFloat(b);
+            if (!isNaN(na) && !isNaN(nb)) {
+                // Coords: 0.0005° ≈ 55 m. Two sources rounding the same
+                // threshold differently (-74.8502 vs -74.8500) is noise, not a
+                // disagreement — flagging it trains the admin to ignore the
+                // "differs" badge. A real position error is far larger than this.
+                // Elevation: to the foot.
+                var tol = (f.kind === 'coord') ? 0.0005 : 0.5;
+                return Math.abs(na - nb) < tol;
+            }
+        }
+        return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+    }
+
+    function toggleMerge(row) {
+        row.checked = !row.checked;
+    }
+
+    function tickAllGaps(item) {
+        item.rows.forEach(function (r) { r.checked = r.missing; });
+    }
+
+    function tickNone(item) {
+        item.rows.forEach(function (r) { r.checked = false; });
+    }
+
+    function selectedCount(item) {
+        if (!item.rows) { return 0; }
+        return item.rows.filter(function (r) { return r.checked; }).length;
+    }
+
+    function fmtValue(row, which) {
+        var v = (which === 'new') ? row['new'] : row.old;
+        if (isBlank(v)) { return null; }
+        var f = row.field;
+        if (f.kind === 'type')   { return typeLabel(v); }
+        if (f.kind === 'number') { return v + (f.suffix || ''); }
+        return v;
+    }
+
+    // Write the ticked fields onto the EXISTING row (same id → every flight and
+    // booking that references it stays intact), then settle the queue item.
+    function mergeItem(item) {
+        if (vm.acting[item.id]) { return; }
+
+        var picked = item.rows.filter(function (r) { return r.checked; });
+        if (!picked.length) {
+            ToastService.warning('Nothing selected',
+                'Tick at least one field to copy across, or choose another action.');
+            return;
+        }
+
+        var patch = {};
+        picked.forEach(function (r) { patch[r.field.key] = r['new']; });
+
+        vm.acting[item.id] = true;
+
+        AirfieldAdminService.MergeIntoExisting(item.id, item.nearest_airfield_id, patch)
+            .then(function (data) {
+                vm.acting[item.id] = false;
+
+                if (!data || data.success === false) {
+                    ToastService.error('Could not merge',
+                        messageOf(data, 'The existing airfield was not updated.'));
+                    return;
+                }
+
+                var n = picked.length;
+                if (data.partial) {
+                    ToastService.warning('Merged, but still queued',
+                        n + ' field' + (n === 1 ? '' : 's') + ' copied into ' +
+                        item.nearest_code + ', but the review item could not be cleared.');
+                } else {
+                    ToastService.success('Merged into ' + item.nearest_code,
+                        n + ' field' + (n === 1 ? '' : 's') + ' back-filled · no duplicate created');
+                }
+                removeCard(item);
+            });
     }
 
     function loadReview() {
@@ -291,6 +450,9 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
 
             if (vm.review_status === 'pending') {
                 vm.pending_review = vm.items.length;
+                // Pull each duplicate's existing record so the admin can see
+                // both sides in full and back-fill what's missing.
+                vm.items.forEach(loadComparison);
             }
         });
     }
