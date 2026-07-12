@@ -1,0 +1,400 @@
+<div class="af-admin">
+
+    <!-- ════════════════════════════════════════════════════════════
+         ACCESS DENIED
+         ════════════════════════════════════════════════════════════ -->
+    <div class="af-admin__denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>The airfield database is managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── HEADER ── -->
+        <div class="af-admin__header">
+            <div class="af-admin__header-inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.super_admin">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="af-admin__title">
+                        <h2><i class="fas fa-globe-americas"></i> Airfield Database</h2>
+                        <p>Coverage, imports and de-duplication across the global airfield table</p>
+                    </div>
+                </div>
+
+                <div class="af-admin__header-controls">
+                    <button class="af-admin__refresh-btn"
+                            ng-class="{'af-spin': vm.refreshing}"
+                            ng-click="vm.loadStatus(true)"
+                            ng-disabled="vm.refreshing || vm.import_running">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── SUB-NAV ── -->
+            <div class="af-admin__nav">
+                <a class="af-admin__nav-item af-admin__nav-item--active"
+                   ui-sref="dashboard.super_admin.airfields">
+                    <i class="fas fa-chart-pie"></i> <span>Overview</span>
+                </a>
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields_review">
+                    <i class="fas fa-clipboard-check"></i> <span>Review</span>
+                    <span class="af-admin__nav-badge" ng-if="vm.pending_review > 0">{{ vm.pending_review }}</span>
+                </a>
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields_manage">
+                    <i class="fas fa-sliders-h"></i> <span>Manage</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ── ERROR BANNER ── -->
+        <div class="af-admin__banner af-admin__banner--error" ng-if="vm.error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ vm.error }}</span>
+        </div>
+
+        <!-- ── STAT STRIP ── -->
+        <div class="af-admin__stat-strip">
+
+            <div class="af-stat" ng-class="{'af-stat--loading': vm.loading}">
+                <div class="af-stat__icon af-stat__icon--total"><i class="fas fa-globe"></i></div>
+                <div class="af-stat__body">
+                    <div class="af-stat__value">{{ vm.loading ? '—' : (vm.totals.total | number) }}</div>
+                    <div class="af-stat__label">Airfields</div>
+                </div>
+            </div>
+
+            <div class="af-stat" ng-class="{'af-stat--loading': vm.loading}">
+                <div class="af-stat__icon af-stat__icon--import"><i class="fas fa-cloud-download-alt"></i></div>
+                <div class="af-stat__body">
+                    <div class="af-stat__value">{{ vm.loading ? '—' : (vm.totals.from_import | number) }}</div>
+                    <div class="af-stat__label">From import</div>
+                </div>
+            </div>
+
+            <div class="af-stat" ng-class="{'af-stat--loading': vm.loading}">
+                <div class="af-stat__icon af-stat__icon--manual"><i class="fas fa-pen-nib"></i></div>
+                <div class="af-stat__body">
+                    <div class="af-stat__value">{{ vm.loading ? '—' : (vm.totals.manual | number) }}</div>
+                    <div class="af-stat__label">Added by hand</div>
+                </div>
+            </div>
+
+            <a class="af-stat af-stat--clickable"
+               ng-class="{'af-stat--loading': vm.loading, 'af-stat--alert': vm.pending_review > 0}"
+               ui-sref="dashboard.super_admin.airfields_review">
+                <div class="af-stat__icon af-stat__icon--review"><i class="fas fa-clipboard-check"></i></div>
+                <div class="af-stat__body">
+                    <div class="af-stat__value">{{ vm.loading ? '—' : vm.pending_review }}</div>
+                    <div class="af-stat__label">Awaiting review</div>
+                </div>
+                <i class="fas fa-chevron-right af-stat__chev"></i>
+            </a>
+
+            <div class="af-stat" ng-class="{'af-stat--loading': vm.loading, 'af-stat--alert': vm.gaps_pending > 0}">
+                <div class="af-stat__icon af-stat__icon--gap"><i class="fas fa-map-marked-alt"></i></div>
+                <div class="af-stat__body">
+                    <div class="af-stat__value">{{ vm.loading ? '—' : vm.gaps_pending }}</div>
+                    <div class="af-stat__label">Open coverage gaps</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             FETCH NEW AIRFIELDS
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card af-fetch">
+
+            <div class="af-card__header">
+                <span class="af-card__title">
+                    <i class="fas fa-cloud-download-alt"></i> Fetch new airfields
+                </span>
+                <span class="af-card__hint">Pulled from OurAirports · duplicates are detected automatically</span>
+            </div>
+
+            <div class="af-card__body">
+
+                <!-- Mode toggle -->
+                <div class="af-toggle">
+                    <button class="af-toggle__btn"
+                            ng-class="{'af-toggle__btn--active': vm.import_mode === 'country'}"
+                            ng-click="vm.setImportMode('country')"
+                            ng-disabled="vm.import_running">
+                        <i class="fas fa-flag"></i> By country
+                    </button>
+                    <button class="af-toggle__btn"
+                            ng-class="{'af-toggle__btn--active': vm.import_mode === 'area'}"
+                            ng-click="vm.setImportMode('area')"
+                            ng-disabled="vm.import_running">
+                        <i class="fas fa-crosshairs"></i> By map area
+                    </button>
+                </div>
+
+                <!-- BY COUNTRY -->
+                <div class="af-fetch__panel" ng-show="vm.import_mode === 'country'">
+                    <div class="af-field af-field--grow">
+                        <label for="field-import-country">Country</label>
+                        <select id="field-import-country"
+                                class="af-input"
+                                ng-model="vm.country_pick"
+                                ng-disabled="vm.import_running"
+                                ng-options="c.code as (c.flag + '  ' + c.name) for c in vm.countries">
+                            <option value="">Choose a country…</option>
+                        </select>
+                        <p class="af-field__hint">
+                            Imports every airfield in the country — open, closed, heliports and seaplane bases.
+                        </p>
+                    </div>
+
+                    <button class="af-btn af-btn--primary af-btn--lg"
+                            ng-click="vm.runCountryImport()"
+                            ng-disabled="vm.import_running || !vm.country_pick">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.import_running"></i>
+                        <i class="fas fa-download" ng-if="!vm.import_running"></i>
+                        <span>{{ vm.import_running ? 'Importing…' : 'Import country' }}</span>
+                    </button>
+                </div>
+
+                <!-- BY AREA -->
+                <div class="af-fetch__panel" ng-show="vm.import_mode === 'area'">
+                    <div class="af-field">
+                        <label for="field-area-lat">Latitude</label>
+                        <input id="field-area-lat" class="af-input" type="number" step="any"
+                               placeholder="e.g. 64.13"
+                               ng-model="vm.area.lat" ng-disabled="vm.import_running" />
+                    </div>
+                    <div class="af-field">
+                        <label for="field-area-lon">Longitude</label>
+                        <input id="field-area-lon" class="af-input" type="number" step="any"
+                               placeholder="e.g. -21.93"
+                               ng-model="vm.area.lon" ng-disabled="vm.import_running" />
+                    </div>
+                    <div class="af-field">
+                        <label for="field-area-box">Box (± degrees)</label>
+                        <input id="field-area-box" class="af-input" type="number" step="0.1" min="0.1" max="10"
+                               ng-model="vm.area.box" ng-disabled="vm.import_running" />
+                        <p class="af-field__hint">0.1 – 10. A box of {{ vm.area.box || 0 }}° covers roughly
+                            {{ (vm.area.box || 0) * 2 }}° × {{ (vm.area.box || 0) * 2 }}° around the point.</p>
+                    </div>
+
+                    <button class="af-btn af-btn--primary af-btn--lg"
+                            ng-click="vm.runAreaImport()"
+                            ng-disabled="vm.import_running">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.import_running"></i>
+                        <i class="fas fa-download" ng-if="!vm.import_running"></i>
+                        <span>{{ vm.import_running ? 'Importing…' : 'Import area' }}</span>
+                    </button>
+                </div>
+
+                <!-- RUNNING BAR — a big country takes 15–20 s -->
+                <div class="af-progress" ng-if="vm.import_running">
+                    <div class="af-progress__bar"></div>
+                    <p class="af-progress__text">
+                        <i class="fas fa-satellite-dish"></i>
+                        Downloading and de-duplicating… a large country can take up to 20 seconds.
+                    </p>
+                </div>
+
+                <!-- RESULT CARD -->
+                <div class="af-result" ng-if="vm.import_result">
+                    <button class="af-result__close" ng-click="vm.dismissResult()" title="Dismiss">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="af-result__head">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Imported <strong>{{ vm.import_result.label }}</strong></span>
+                    </div>
+                    <div class="af-result__grid">
+                        <div class="af-result__item">
+                            <div class="af-result__value af-result__value--good">{{ vm.import_result.added | number }}</div>
+                            <div class="af-result__label">Added</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value">{{ vm.import_result.skipped | number }}</div>
+                            <div class="af-result__label">Already had</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value" ng-class="{'af-result__value--warn': vm.import_result.review > 0}">
+                                {{ vm.import_result.review | number }}
+                            </div>
+                            <div class="af-result__label">To review</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value" ng-class="{'af-result__value--good': vm.import_result.rematched > 0}">
+                                {{ vm.import_result.rematched | number }}
+                            </div>
+                            <div class="af-result__label">Past flights fixed</div>
+                        </div>
+                    </div>
+                    <a class="af-result__link" ui-sref="dashboard.super_admin.airfields_review"
+                       ng-if="vm.import_result.review > 0">
+                        Review the {{ vm.import_result.review }} flagged airfield{{ vm.import_result.review === 1 ? '' : 's' }}
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             COVERAGE BY COUNTRY
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card">
+
+            <div class="af-card__header">
+                <span class="af-card__title">
+                    <i class="fas fa-flag"></i> Coverage by country
+                </span>
+                <div class="af-search-wrap af-search-wrap--sm">
+                    <i class="fas fa-search"></i>
+                    <input class="af-input af-input--search" type="text"
+                           placeholder="Filter countries…" ng-model="vm.coverage_search" />
+                </div>
+            </div>
+
+            <!-- Loading skeleton -->
+            <div class="af-card__body" ng-if="vm.loading">
+                <div class="af-skel-row" ng-repeat="n in [1,2,3,4,5,6]">
+                    <span class="af-skel" style="width:28px;"></span>
+                    <span class="af-skel" style="width:40%;"></span>
+                    <span class="af-skel" style="width:80px;"></span>
+                </div>
+            </div>
+
+            <!-- Empty -->
+            <div class="af-empty" ng-if="!vm.loading && !vm.by_country.length">
+                <i class="fas fa-globe"></i>
+                <p>No coverage recorded yet. Import a country above to get started.</p>
+            </div>
+
+            <div class="af-table-scroll" ng-if="!vm.loading && vm.by_country.length">
+                <table class="af-table">
+                    <thead>
+                        <tr>
+                            <th class="af-sortable" ng-click="vm.setCoverageSort('name')">
+                                Country <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="af-sortable af-num" ng-click="vm.setCoverageSort('n')">
+                                Total <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="af-sortable af-num af-col--hide-mobile" ng-click="vm.setCoverageSort('active_n')">
+                                Active <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="af-num af-col--hide-mobile">Inactive</th>
+                            <th class="af-col--hide-mobile">Active share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="af-row"
+                            ng-repeat="c in vm.by_country
+                                        | filter:vm.coverage_search
+                                        | orderBy:vm.coverage_sort
+                                        | limitTo:vm.coverage_limit">
+                            <td>
+                                <span class="af-flag">{{ c.flag }}</span>
+                                <span class="af-country-name">{{ c.name }}</span>
+                                <span class="af-country-code">{{ c.country_code }}</span>
+                            </td>
+                            <td class="af-num"><strong>{{ c.n | number }}</strong></td>
+                            <td class="af-num af-col--hide-mobile">{{ c.active_n | number }}</td>
+                            <td class="af-num af-col--hide-mobile af-muted">{{ c.inactive_n | number }}</td>
+                            <td class="af-col--hide-mobile">
+                                <div class="af-bar">
+                                    <div class="af-bar__fill" ng-style="{ width: c.active_pct + '%' }"></div>
+                                </div>
+                                <span class="af-bar__pct">{{ c.active_pct }}%</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="af-load-more"
+                     ng-if="(vm.by_country | filter:vm.coverage_search).length > vm.coverage_limit">
+                    <button class="af-btn af-btn--outline" ng-click="vm.showMoreCoverage()">
+                        Show more
+                        ({{ (vm.by_country | filter:vm.coverage_search).length - vm.coverage_limit }} more)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             RECENT IMPORT RUNS
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card">
+            <div class="af-card__header">
+                <span class="af-card__title">
+                    <i class="fas fa-history"></i> Recent import runs
+                </span>
+            </div>
+
+            <div class="af-card__body" ng-if="vm.loading">
+                <div class="af-skel-row" ng-repeat="n in [1,2,3]">
+                    <span class="af-skel" style="width:100%;"></span>
+                </div>
+            </div>
+
+            <div class="af-empty" ng-if="!vm.loading && !vm.recent_runs.length">
+                <i class="fas fa-history"></i>
+                <p>No imports have been run yet.</p>
+            </div>
+
+            <div class="af-runs" ng-if="!vm.loading && vm.recent_runs.length">
+                <div class="af-run" ng-class="vm.runStatusClass(run.status)"
+                     ng-repeat="run in vm.recent_runs">
+
+                    <div class="af-run__icon">
+                        <i class="fas fa-check" ng-if="run.status === 'done'"></i>
+                        <i class="fas fa-exclamation-triangle" ng-if="run.status === 'failed'"></i>
+                        <i class="fas fa-circle-notch af-spin" ng-if="run.status === 'running'"></i>
+                        <i class="fas fa-clock" ng-if="run.status !== 'done' && run.status !== 'failed' && run.status !== 'running'"></i>
+                    </div>
+
+                    <div class="af-run__main">
+                        <div class="af-run__scope">
+                            <i class="fas" ng-class="run.scope === 'country' ? 'fa-flag' : 'fa-crosshairs'"></i>
+                            {{ vm.scopeLabel(run) }}
+                            <span class="af-badge af-badge--soft">{{ run.triggered_by }}</span>
+                        </div>
+                        <div class="af-run__meta">
+                            {{ run.created_at }} · {{ run.source }}
+                        </div>
+                        <div class="af-run__error" ng-if="run.status === 'failed' && run.message">
+                            {{ run.message }}
+                        </div>
+                    </div>
+
+                    <div class="af-run__counts">
+                        <span class="af-count af-count--good" title="Added">
+                            <i class="fas fa-plus"></i> {{ run.added | number }}
+                        </span>
+                        <span class="af-count" title="Skipped — already in the database">
+                            <i class="fas fa-equals"></i> {{ run.skipped_existing | number }}
+                        </span>
+                        <span class="af-count af-count--warn" ng-if="run.flagged_review > 0" title="Queued for review">
+                            <i class="fas fa-flag"></i> {{ run.flagged_review | number }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── AUTO-FILL NOTE ── -->
+        <div class="af-note">
+            <i class="fas fa-robot"></i>
+            <div>
+                <strong>Airfields fill in automatically.</strong>
+                When an aircraft flies somewhere we don't have, a coverage gap is recorded and a
+                background job imports that region and re-matches the flight within 30 minutes.
+                Anything it adds appears on the
+                <a ui-sref="dashboard.super_admin.airfields_review">Review</a> tab for a sanity check.
+            </div>
+        </div>
+
+    </div>
+</div>

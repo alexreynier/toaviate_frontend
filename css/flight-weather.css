@@ -1,0 +1,734 @@
+/* ============================================================================
+   Flight Weather panel (fw-*) — METAR/TAF snapshots per flight.
+   Used by <flight-weather-panel> and <wx-chip> (js/directives/flightWeatherPanel.js)
+   mounted in the personal logbook, journey logbooks, flight replay and the
+   training-record flight popup. Tokens follow the snazzy design system
+   (see CLAUDE.md). Mobile + night-mode + reduced-motion at the bottom.
+   ============================================================================ */
+
+/* ── Flight-category colours (standard aviation, consistent everywhere) ──
+   VFR green · MVFR blue · IFR red · LIFR magenta. Each class sets custom
+   props consumed by the pill, chips and TAF active segment.               */
+.fw-cat--vfr  { --fw-cat: #16a34a; --fw-cat-bg: #dcfce7; --fw-cat-text: #15803d; --fw-cat-glow: rgba(22, 163, 74, 0.35); }
+.fw-cat--mvfr { --fw-cat: #2563eb; --fw-cat-bg: #dbeafe; --fw-cat-text: #1e40af; --fw-cat-glow: rgba(37, 99, 235, 0.35); }
+.fw-cat--ifr  { --fw-cat: #dc2626; --fw-cat-bg: #fee2e2; --fw-cat-text: #b91c1c; --fw-cat-glow: rgba(220, 38, 38, 0.35); }
+.fw-cat--lifr { --fw-cat: #a21caf; --fw-cat-bg: #fae8ff; --fw-cat-text: #86198f; --fw-cat-glow: rgba(162, 28, 175, 0.35); }
+.fw-cat--na   { --fw-cat: #64748b; --fw-cat-bg: #f1f5f9; --fw-cat-text: #475569; --fw-cat-glow: rgba(100, 116, 139, 0.25); }
+
+/* ── Layout: desktop two-up, stacks in narrow containers/phones ─────────── */
+.fw {
+    width: 100%;
+}
+.fw__phases {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+/* ── PhaseCard ───────────────────────────────────────────────────────────── */
+.fw-phase {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(30, 58, 95, 0.08);
+    padding: 14px 16px 16px;
+    min-width: 0;
+    animation: fw-card-in 0.25s ease-out backwards;   /* delay set inline (stagger) */
+}
+@keyframes fw-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Header — the WHERE and the WHEN, unmissable */
+.fw-phase__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 12px;
+}
+.fw-phase__where {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+.fw-phase__glyph {
+    color: #2d5a8e;
+    font-size: 13px;
+}
+.fw-phase__glyph--takeoff i  { transform: rotate(-45deg); display: inline-block; }
+.fw-phase__glyph--landing i  { transform: rotate(45deg);  display: inline-block; }
+.fw-phase__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+.fw-phase__airfield {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.fw-phase__code { color: #64748b; font-weight: 600; }
+.fw-phase__when {
+    text-align: right;
+    white-space: nowrap;
+}
+.fw-phase__when-time {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+.fw-phase__when-sub {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* Station segmented toggle (two nearby stations, nearest first) */
+.fw-phase__stations {
+    display: inline-flex;
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: 12px;
+}
+.fw-phase__station-btn {
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.fw-phase__station-btn:hover { color: #334155; }
+.fw-phase__station-btn.is-active {
+    background: #fff;
+    color: #1e3a5f;
+    box-shadow: 0 1px 2px rgba(30, 58, 95, 0.15);
+}
+.fw-phase__station-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Station report (cross-fades in when the station toggles) ──────────── */
+.fw-report {
+    animation: fw-fade-in 0.2s ease-out;
+}
+@keyframes fw-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.fw-report__meta {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.fw-report__station { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.fw-report__station-line {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.4;
+}
+.fw-report__station-line strong { color: #1e293b; }
+.fw-report__obs-line {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+}
+.fw-badge-archive {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    vertical-align: 1px;
+}
+
+/* Category pill — the anchor. Scales in last with a soft one-off glow. */
+.fw-pill {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 13px;
+    border-radius: 999px;
+    background: var(--fw-cat-bg, #f1f5f9);
+    color: var(--fw-cat-text, #475569);
+    border: 1px solid var(--fw-cat, #64748b);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    animation:
+        fw-pill-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s backwards,
+        fw-pill-glow 1.1s ease-out 0.6s 1;
+}
+@keyframes fw-pill-in {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes fw-pill-glow {
+    0%   { box-shadow: 0 0 0 0 var(--fw-cat-glow, transparent); }
+    100% { box-shadow: 0 0 0 10px rgba(0, 0, 0, 0); }
+}
+
+/* Raw ⇄ decoded toggle button */
+.fw-raw-toggle {
+    flex: none;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.fw-raw-toggle:hover { background: #f8fafc; color: #334155; }
+.fw-raw-toggle.is-on {
+    background: #1e3a5f;
+    border-color: #1e3a5f;
+    color: #fff;
+}
+.fw-raw-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Decoded ⇄ raw flip (grid-rows height animation — no layout jump; older
+      browsers fall back to an instant swap) ──────────────────────────────── */
+.fw-flip__pane {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition: grid-template-rows 0.2s ease, opacity 0.2s ease;
+}
+.fw-flip__inner { overflow: hidden; min-height: 0; }
+.fw-flip--raw       .fw-flip__pane--decoded,
+.fw-flip:not(.fw-flip--raw) .fw-flip__pane--raw {
+    grid-template-rows: 0fr;
+    opacity: 0;
+}
+.fw-flip--raw       .fw-flip__pane--decoded .fw-flip__inner,
+.fw-flip:not(.fw-flip--raw) .fw-flip__pane--raw .fw-flip__inner {
+    visibility: hidden;
+}
+
+/* ── Decoded METAR grid (definition list) ───────────────────────────────── */
+.fw-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 0;
+}
+.fw-grid__cell {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-width: 0;
+}
+.fw-grid__cell dt {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 3px;
+}
+.fw-grid__cell dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+.fw-grid__cell--wind { grid-column: 1 / -1; }
+.fw-grid__soft { color: #94a3b8 !important; font-weight: 600 !important; }
+
+/* Cloud base: one line per reported layer, amount spelled out; the layer
+   forming the cloud base (lowest broken/overcast/obscured) is emphasised */
+.fw-clouds {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.fw-clouds__layer {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+}
+.fw-clouds__layer--base {
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 14px;
+}
+.fw-clouds__ft { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Wind: compass rose whose needle swings from north to the true direction */
+.fw-wind {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.fw-wind__rose {
+    width: 44px;
+    height: 44px;
+    flex: none;
+}
+.fw-wind__ring {
+    fill: #fff;
+    stroke: #cbd5e1;
+    stroke-width: 1.5;
+}
+.fw-wind__tick { stroke: #cbd5e1; stroke-width: 1.5; }
+.fw-wind__hub  { fill: #1e3a5f; }
+.fw-wind__needle {
+    fill: #2d5a8e;
+    transform-origin: 22px 22px;
+    transition: transform 0.9s cubic-bezier(0.34, 1.4, 0.64, 1);   /* springy swing */
+}
+.fw-wind__rose--vrb .fw-wind__needle {
+    transition: none;
+    animation: fw-vrb-spin 6s linear infinite;   /* variable wind idles slowly */
+}
+@keyframes fw-vrb-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+.fw-wind__text {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+.fw-wind__text--calm { color: #64748b; }
+.fw-wind__dir { color: #334155; }
+.fw-wind__gust {
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 13px;
+}
+
+/* ── Raw report text ─────────────────────────────────────────────────────── */
+.fw-raw {
+    display: block;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: copy;
+    transition: background 0.15s ease;
+}
+.fw-raw + .fw-raw { margin-top: 8px; }
+.fw-raw:hover { background: #1e293b; }
+
+/* ── TAF block ───────────────────────────────────────────────────────────── */
+.fw-taf {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #e2e8f0;
+}
+.fw-taf__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.fw-taf__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.fw-taf__title i { color: #2d5a8e; margin-right: 4px; }
+.fw-taf__meta { font-size: 12px; color: #64748b; }
+.fw-taf__inforce {
+    font-size: 11px;
+    font-weight: 700;
+    color: #15803d;
+    background: #dcfce7;
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+}
+.fw-taf__inforce i { margin-right: 3px; }
+
+/* Validity timeline: one lane, proportional segments, pin at flight time */
+.fw-taf__lane-wrap { position: relative; }
+.fw-taf__lane {
+    position: relative;
+    height: 30px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    overflow: hidden;
+    transform-origin: left center;
+    animation: fw-lane-draw 0.3s ease-out;
+}
+@keyframes fw-lane-draw {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+}
+.fw-taf__seg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: #e2e8f0;
+    border-left: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    transition: filter 0.15s ease, background 0.2s ease;
+}
+.fw-taf__seg:hover { filter: brightness(0.96); }
+.fw-taf__seg-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    white-space: nowrap;
+    pointer-events: none;
+}
+/* the period in force at the flight time — category colour */
+.fw-taf__seg.is-active { background: var(--fw-cat-bg, #dbeafe); }
+.fw-taf__seg.is-active .fw-taf__seg-label { color: var(--fw-cat-text, #1e40af); }
+/* TEMPO/PROB/INTER — hatched overlay stripe on the top half */
+.fw-taf__seg--tempo {
+    top: 0;
+    bottom: 50%;
+    background: repeating-linear-gradient(
+        -45deg, rgba(146, 64, 14, 0.22) 0 4px, rgba(254, 243, 199, 0.65) 4px 8px);
+    border-left: none;
+    border-radius: 0 0 4px 4px;
+}
+.fw-taf__seg--tempo .fw-taf__seg-label { color: #92400e; font-size: 8.5px; }
+.fw-taf__seg.is-selected { box-shadow: inset 0 0 0 2px #2d5a8e; }
+
+/* flight-time pin drops in after the lane draws */
+.fw-taf__pin {
+    position: absolute;
+    top: -7px;
+    width: 0;
+    z-index: 2;
+    animation: fw-pin-drop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s backwards;
+    pointer-events: none;
+}
+.fw-taf__pin i {
+    position: absolute;
+    left: -8px;
+    font-size: 13px;
+    color: #1e3a5f;
+    transform: rotate(45deg);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+.fw-taf__pin::after {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 12px;
+    width: 2px;
+    height: 25px;
+    background: #1e3a5f;
+    border-radius: 2px;
+    opacity: 0.55;
+}
+@keyframes fw-pin-drop {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.fw-taf__axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: #94a3b8;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Selected period detail */
+.fw-taf__detail {
+    margin-top: 10px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    padding: 9px 12px;
+    animation: fw-fade-in 0.2s ease-out;
+}
+.fw-taf__detail-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.fw-taf__detail-kind {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #1e3a5f;
+}
+.fw-taf__detail-time { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+.fw-taf__detail-flag { font-size: 11px; font-weight: 700; color: #15803d; }
+.fw-taf__detail-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.fw-taf__chip {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+}
+.fw-taf__chip--soft { color: #94a3b8; font-weight: 500; }
+
+/* ── Loading skeleton (ghost of the final two-card layout) ──────────────── */
+.fw__skeleton {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 16px;
+}
+.fw-skel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+}
+.fw-skel__head, .fw-skel__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.fw-skel__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.fw-skel__ghost {
+    background: #f1f5f9;
+    border-radius: 8px;
+    animation: fw-shimmer 1.2s ease-in-out infinite;
+}
+.fw-skel__ghost--glyph { width: 22px;  height: 22px; border-radius: 50%; }
+.fw-skel__ghost--title { width: 45%;   height: 15px; }
+.fw-skel__ghost--time  { width: 52px;  height: 15px; margin-left: auto; }
+.fw-skel__ghost--pill  { width: 64px;  height: 26px; border-radius: 999px; }
+.fw-skel__ghost--line  { flex: 1;      height: 13px; }
+.fw-skel__ghost--cell  { height: 52px; }
+@keyframes fw-shimmer {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
+}
+.fw__skeleton-note {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #64748b;
+    padding-top: 2px;
+}
+.fw__spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #2d5a8e;
+    border-radius: 50%;
+    animation: fw-spin 0.8s linear infinite;
+}
+@keyframes fw-spin { to { transform: rotate(360deg); } }
+
+/* ── Empty / error states (quiet, cloud glyph — not warnings) ───────────── */
+.fw__empty {
+    text-align: center;
+    padding: 22px 16px;
+    color: #64748b;
+    font-size: 13px;
+}
+.fw__empty--phase { padding: 16px 10px; }
+.fw__empty-icon {
+    font-size: 26px;
+    color: #cbd5e1;
+    margin-bottom: 6px;
+}
+.fw__empty p { margin: 0; }
+.fw__retry {
+    margin-top: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.fw__retry:hover { background: #f8fafc; }
+
+/* ── wx-chip (tiny pill for table rows / booking lists) ─────────────────── */
+.fw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    background: var(--fw-cat-bg, #f1f5f9);
+    color: var(--fw-cat-text, #475569);
+    border: 1px solid var(--fw-cat, #64748b);
+    padding: 1px 9px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.fw-chip__wind { font-weight: 600; opacity: 0.85; }
+
+/* ── Drawer helpers for mounting inside wide, horizontally-scrolling
+      logbook tables: the sticky wrapper keeps the panel in the viewport
+      while the table scrolls sideways. ─────────────────────────────────── */
+.fw-drawer-row > td {
+    padding: 0 !important;
+    border-top: none !important;
+}
+.fw-drawer {
+    white-space: normal;   /* logbook tds set nowrap — undo it inside the drawer */
+    position: sticky;
+    left: 0;
+    max-width: calc(100vw - 64px);
+    padding: 12px 14px 16px;
+    background: #f8fafc;
+    box-shadow: inset 0 2px 4px rgba(30, 58, 95, 0.06);
+    animation: fw-fade-in 0.2s ease-out;
+}
+
+/* Mount wrappers: replay page (between summary strip and map stage),
+   journey-log mobile cards, training-record popup */
+.fw-replay-mount { margin: 0 0 18px; }
+.fw-card-mount   { margin-top: 10px; }
+.fw-popup-mount  { margin: 14px 0; }
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .fw__phases, .fw__skeleton { grid-template-columns: 1fr; }
+    .fw-drawer { max-width: calc(100vw - 32px); }
+}
+@media (max-width: 480px) {
+    .fw-phase { padding: 12px 12px 14px; }
+    .fw-phase__head { flex-direction: column; gap: 2px; }
+    .fw-phase__when { text-align: left; }
+    .fw-phase__when-sub { display: inline; margin-left: 6px; }
+    .fw-report__meta { flex-wrap: wrap; }
+    /* keep the station text readable — the raw toggle wraps below instead */
+    .fw-report__station { flex: 1 1 150px; }
+    .fw-taf__head { gap: 6px; }
+    .fw-wind__text { font-size: 15px; }
+    .fw-grid__cell dd { font-size: 14px; }
+    .fw-drawer { max-width: calc(100vw - 24px); padding: 10px 10px 12px; }
+}
+
+/* ── Night mode ──────────────────────────────────────────────────────────── */
+body.night-mode .fw-phase,
+body.night-mode .fw-skel {
+    background: #1e293b;
+    border-color: #334155;
+}
+body.night-mode .fw-phase__head { border-bottom-color: #334155; }
+body.night-mode .fw-phase__airfield,
+body.night-mode .fw-phase__when-time,
+body.night-mode .fw-grid__cell dd,
+body.night-mode .fw-wind__text,
+body.night-mode .fw-taf__title,
+body.night-mode .fw-report__station-line strong { color: #e2e8f0; }
+body.night-mode .fw-report__station-line,
+body.night-mode .fw-taf__chip { color: #cbd5e1; }
+body.night-mode .fw-clouds__layer { color: #94a3b8; }
+body.night-mode .fw-clouds__layer--base { color: #e2e8f0; }
+body.night-mode .fw-grid__cell,
+body.night-mode .fw-taf__detail {
+    background: #0f172a;
+    border-color: #334155;
+}
+body.night-mode .fw-taf__chip {
+    background: #1e293b;
+    border-color: #334155;
+}
+body.night-mode .fw-taf__lane { background: #0f172a; }
+body.night-mode .fw-taf__seg { background: #334155; border-left-color: #1e293b; }
+body.night-mode .fw-taf__seg-label { color: #94a3b8; }
+body.night-mode .fw-taf__pin i { color: #e2e8f0; text-shadow: none; }
+body.night-mode .fw-taf__pin::after { background: #e2e8f0; }
+body.night-mode .fw-taf { border-top-color: #334155; }
+body.night-mode .fw-phase__stations { background: #0f172a; }
+body.night-mode .fw-phase__station-btn.is-active { background: #334155; color: #e2e8f0; }
+body.night-mode .fw-raw-toggle,
+body.night-mode .fw__retry {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+body.night-mode .fw-raw-toggle:hover,
+body.night-mode .fw__retry:hover { background: #334155; }
+body.night-mode .fw-wind__ring { fill: #0f172a; stroke: #475569; }
+body.night-mode .fw-wind__tick { stroke: #475569; }
+body.night-mode .fw-wind__hub { fill: #e2e8f0; }
+body.night-mode .fw-wind__needle { fill: #60a5fa; }
+body.night-mode .fw-skel__ghost { background: #334155; }
+body.night-mode .fw-drawer { background: #0f172a; }
+body.night-mode .fw__empty { color: #94a3b8; }
+body.night-mode .fw__empty-icon { color: #475569; }
+
+/* ── Reduced motion: keep opacity fades, kill movement/spins/tickers ────── */
+@media (prefers-reduced-motion: reduce) {
+    .fw-phase,
+    .fw-pill,
+    .fw-taf__lane,
+    .fw-taf__pin,
+    .fw-report,
+    .fw-taf__detail,
+    .fw-drawer { animation: fw-fade-in 0.15s ease-out; }
+    .fw-wind__needle { transition: none; }
+    .fw-wind__rose--vrb .fw-wind__needle { animation: none; }
+    .fw-flip__pane { transition: opacity 0.15s ease; }
+    .fw-skel__ghost { animation: none; }
+}

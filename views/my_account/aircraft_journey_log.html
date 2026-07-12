@@ -104,7 +104,7 @@
                                 <td class="bold_text centre_me">Oil Uplift</td>
                                 <td class="bold_text centre_me"></td>
                             </tr>
-                            <tr ng-repeat="log in vm.logs | filter: search2" vertical-align="middle">
+                            <tr ng-repeat-start="log in vm.logs | filter: search2" vertical-align="middle">
                                 <td class="log_no_break">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</td>
                                 <td class="log_no_break">
                                     <span uib-tooltip-html="vm.list_pilots(log)">{{ vm.get_pic(log) }}</span>
@@ -135,6 +135,19 @@
                                 </td>
                                 <td class="centre_me">
                                     <span class="fr-replay-link" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="Flight replay"><i class="fa fa-play-circle"></i></span>
+                                    <span class="fr-replay-link" ng-if="log.id" ng-click="log._wxOpen = !log._wxOpen" uib-tooltip="Flight weather"><i class="fa fa-cloud"></i></span>
+                                </td>
+                            </tr>
+                            <!-- Weather drawer. ng-show on the row (ng-if is inert on an
+                                 ng-repeat element in this Angular build) but ng-if on the
+                                 inner mount, so the panel only fetches when opened. -->
+                            <tr ng-repeat-end class="fw-drawer-row" ng-show="log._wxOpen">
+                                <td colspan="13">
+                                    <div class="fw-drawer" fw-drawer-fit ng-if="log._wxOpen">
+                                        <flight-weather-panel flight-id="log.id"
+                                                              dep-name="log.departure_airport"
+                                                              arr-name="log.destination_airport"></flight-weather-panel>
+                                    </div>
                                 </td>
                             </tr>
                         </table>
@@ -187,6 +200,15 @@
                             </div>
                             <div class="mc-card-actions" ng-if="vm.canReplay(log)">
                               <button class="fr-replay-btn" ng-click="vm.viewReplay(log)"><i class="fa fa-play-circle"></i> Flight Replay</button>
+                            </div>
+                            <div class="mc-card-actions" ng-if="log.id">
+                              <button class="fr-replay-btn" ng-click="log._wxOpen = !log._wxOpen"><i class="fa fa-cloud"></i> {{ log._wxOpen ? 'Hide Weather' : 'Flight Weather' }}</button>
+                            </div>
+                            <!-- Lazy: the panel only fetches when opened -->
+                            <div class="fw-card-mount" ng-if="log._wxOpen">
+                              <flight-weather-panel flight-id="log.id"
+                                                    dep-name="log.departure_airport"
+                                                    arr-name="log.destination_airport"></flight-weather-panel>
                             </div>
                           </div>
                         </div>

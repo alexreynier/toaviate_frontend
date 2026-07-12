@@ -510,6 +510,38 @@ var app = angular
                 }
             })
 
+            // AIRFIELD DATABASE — coverage, OurAirports imports, review queue,
+            // and manual CRUD. One controller, dispatched on data.screen.
+            .state('dashboard.super_admin.airfields', {
+                url: '/airfields',
+                controller: 'AirfieldAdminController',
+                templateUrl: 'views/manageclub/airfields_overview.html',
+                controllerAs: 'vm',
+                data: {
+                    screen: 'overview'
+                }
+            })
+
+            .state('dashboard.super_admin.airfields_review', {
+                url: '/airfields/review',
+                controller: 'AirfieldAdminController',
+                templateUrl: 'views/manageclub/airfields_review.html',
+                controllerAs: 'vm',
+                data: {
+                    screen: 'review'
+                }
+            })
+
+            .state('dashboard.super_admin.airfields_manage', {
+                url: '/airfields/manage',
+                controller: 'AirfieldAdminController',
+                templateUrl: 'views/manageclub/airfields_manage.html',
+                controllerAs: 'vm',
+                data: {
+                    screen: 'manage'
+                }
+            })
+
             // CRON STATUS
             .state('dashboard.super_admin.cron_status', {
                 url: '/cron_status',
@@ -1293,6 +1325,15 @@ var app = angular
             //  dashboard.super_admin hub — see the TOAVIATE SUPER-ADMIN block.)
 
             // CLUB SETTINGS
+
+            // TPC training-records import — run review (filters live in the
+            // URL so fix-it queues are shareable/bookmarkable)
+            .state('dashboard.manage_club.tpc_import_run', {
+                url: '/data_import/run/:run_id?status&action&issue&q&edited&page',
+                controller: 'TpcImportRunController',
+                templateUrl: 'views/manageclub/tpc_import_run.html',
+                controllerAs: 'vm'
+            })
 
             .state('dashboard.manage_club.settings', {
                 url: '/settings',

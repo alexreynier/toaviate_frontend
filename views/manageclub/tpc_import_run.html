@@ -1,0 +1,518 @@
+<!-- ══════════════════════════════════════════════════════════
+     TPC IMPORT — run review dashboard
+     Summary tiles double as filters; row table below; slide-over
+     drawer for compare / edit / match / people. Keyboard: j/k/a/s/r.
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page tpcrun">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.settings">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-import"></i> {{ vm.run.file_name || 'Import run' }}</h2>
+        <p>Review every staged row — nothing changes until you apply, and the whole import can be reverted.</p>
+      </div>
+      <div class="snazzy-page__header-actions">
+        <a class="snazzy-page__action-btn-header" ng-if="vm.run.status === 'ready'" ng-click="vm.openOverlay('apply_all')">
+          <i class="fas fa-play"></i> Apply all
+        </a>
+        <a class="tpcrun__menu-btn" ng-click="vm.menuOpen = !vm.menuOpen"><i class="fas fa-ellipsis-v"></i></a>
+        <div class="tpcrun__menu" ng-if="vm.menuOpen" ng-click="vm.menuOpen = false">
+          <a ng-click="vm.openOverlay('revert')" class="tpc__danger"><i class="fas fa-undo"></i> Revert whole import</a>
+          <a ng-click="vm.openOverlay('reprocess')"><i class="fas fa-redo"></i> Re-process</a>
+          <a ng-click="vm.openOverlay('delete')"><i class="fas fa-trash-alt"></i> Delete run</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ── Processing / applying banner ── -->
+    <div class="tpcrun__busy" ng-if="vm.run.status === 'processing' || vm.run.status === 'applying'">
+      <div class="tpcrun__busy-head">
+        <i class="fas fa-sync fa-spin"></i>
+        <strong>{{ vm.run.status === 'applying' ? 'Applying' : 'Processing' }}</strong>
+        <span ng-if="vm.run.stage">— {{ vm.run.stage }}</span>
+        <span class="tpcrun__busy-count" ng-if="vm.run.progress_total">
+          {{ vm.run.progress_done | number }} / {{ vm.run.progress_total | number }}
+        </span>
+      </div>
+      <div class="tpcrun__bar"><div class="tpcrun__bar-fill" ng-style="{width: vm.progressPct() + '%'}"></div></div>
+    </div>
+
+    <div class="tpcrun__failed" ng-if="vm.run.status === 'failed'">
+      <i class="fas fa-times-circle"></i>
+      <div>
+        <strong>Processing failed</strong> — {{ vm.run.error || 'unknown error' }}
+        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.reprocess()">
+          <i class="fas fa-redo"></i> Retry processing
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Summary tiles (click to filter) ── -->
+    <div class="tpcrun__tiles" ng-if="vm.summary">
+      <a class="tpcrun__tile tpcrun__tile--{{ t.cls }}" ng-repeat="t in vm.tileList"
+         ng-class="{'tpcrun__tile--on': vm.tileActive(t)}" ng-click="vm.clickTile(t)">
+        <span class="tpcrun__tile-num">{{ t.count | number }}</span>
+        <span class="tpcrun__tile-label">{{ t.label }}</span>
+      </a>
+    </div>
+
+    <!-- ── Filters bar ── -->
+    <div class="tpcrun__filters">
+      <div class="snazzy-page__search-wrap tpcrun__search">
+        <i class="fas fa-search snazzy-page__search-icon"></i>
+        <input type="text" class="snazzy-page__search-input" placeholder="Search name, registration or row (e.g. 2025:475)…"
+               ng-model="vm.filters.q" ng-change="vm.onSearch()">
+      </div>
+      <select class="fox-tracker__filter-select" ng-model="vm.filters.action" ng-change="vm.filters.page = 1; vm.loadRows()">
+        <option value="">All actions</option>
+        <option value="update">Update (matched)</option>
+        <option value="insert">Insert (new)</option>
+        <option value="skip">Skip</option>
+      </select>
+      <select class="fox-tracker__filter-select" ng-model="vm.filters.issue" ng-change="vm.filters.page = 1; vm.loadRows()">
+        <option value="">All issues</option>
+        <option value="time_review">Time review</option>
+        <option value="unknown_aircraft">Unknown aircraft</option>
+        <option value="student_unresolved">Student unresolved</option>
+        <option value="instructor_unresolved">Instructor unresolved</option>
+        <option value="dup_in_sheet">Duplicate in sheet</option>
+        <option value="time_discrepancy">Time discrepancy</option>
+        <option value="source_reject">Source problem</option>
+        <option value="already_imported">Already imported</option>
+      </select>
+      <select class="fox-tracker__filter-select" ng-model="vm.filters.status" ng-change="vm.filters.page = 1; vm.loadRows()">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="applied">Applied</option>
+        <option value="rejected">Rejected</option>
+        <option value="failed">Failed</option>
+      </select>
+      <select class="fox-tracker__filter-select" ng-model="vm.filters.edited" ng-change="vm.filters.page = 1; vm.loadRows()">
+        <option value="">Edited &amp; untouched</option>
+        <option value="1">Edited only</option>
+      </select>
+      <label class="tpcrun__group-toggle" ng-if="vm.groupable()">
+        <input type="checkbox" ng-model="vm.group_mode" ng-change="vm.rebuildGroups()">
+        <span>Group by {{ vm.filters.issue === 'unknown_aircraft' ? 'registration' : 'name' }}</span>
+      </label>
+    </div>
+
+    <!-- ── Bulk bar ── -->
+    <div class="tpcrun__bulk" ng-if="vm.selCount() > 0">
+      <strong>{{ vm.selCount() }}</strong> selected
+      <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.applySelected()" ng-disabled="vm.bulkBusy">
+        <i class="fas" ng-class="vm.bulkBusy ? 'fa-spinner fa-spin' : 'fa-play'"></i> Apply selected
+      </button>
+      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.bulkAction('skip')" ng-disabled="vm.bulkBusy">Skip</button>
+      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.bulkAction('reject')" ng-disabled="vm.bulkBusy">Reject</button>
+      <a class="tpcrun__bulk-clear" ng-click="vm.sel = {}">clear</a>
+    </div>
+
+    <div class="snazzy-page__toolbar">
+      <div class="snazzy-page__meta">
+        <span class="snazzy-page__count-badge">{{ vm.total | number }}</span> rows
+        <span ng-if="vm.pages() > 1"> &middot; page {{ vm.filters.page }} of {{ vm.pages() | number }}</span>
+        <a class="tpcrun__selall" ng-if="vm.rows.length && !vm.group_mode" ng-click="vm.toggleAllSel(true)">select page</a>
+      </div>
+    </div>
+
+    <div class="exadmin__loading" ng-if="vm.loadingRows">
+      <div class="solo-req__spinner"></div> Loading rows…
+    </div>
+
+    <div class="snazzy-page__empty" ng-if="!vm.loadingRows && vm.rows.length === 0">
+      <div class="snazzy-page__empty-icon"><i class="fas fa-clipboard-check"></i></div>
+      <p>No rows match these filters.</p>
+    </div>
+
+    <!-- ── Grouped fix-it view ── -->
+    <div class="tpcrun__groups" ng-if="!vm.loadingRows && vm.group_mode && vm.groupable()">
+      <div class="tpcrun__group" ng-repeat="g in vm.groupList">
+        <div class="tpcrun__group-main">
+          <strong>{{ g.key }}</strong>
+          <span class="tpcrun__group-count">{{ g.rows.length }} row{{ g.rows.length === 1 ? '' : 's' }} on this page</span>
+        </div>
+        <div class="tpcrun__group-actions">
+          <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.fixGroup(g)">
+            <i class="fas fa-wrench"></i> Fix
+          </button>
+          <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-if="vm.filters.issue === 'unknown_aircraft'"
+                  ng-click="vm.rematchGroup(g)" ng-disabled="g._busy">
+            <i class="fas" ng-class="g._busy ? 'fa-spinner fa-spin' : 'fa-sync'"></i> Rematch
+          </button>
+          <a class="solo-btn solo-btn--outline solo-btn--sm" ng-if="vm.filters.issue === 'unknown_aircraft'"
+             ui-sref="dashboard.manage_club.add_plane">
+            <i class="fas fa-plus"></i> Add to fleet
+          </a>
+        </div>
+      </div>
+      <p class="tpcrun__group-hint" ng-if="vm.filters.issue === 'unknown_aircraft'">
+        Fixing a typo? Open the group, correct the registration and it re-matches. Added an aircraft to the fleet? Hit Rematch.
+      </p>
+      <p class="tpcrun__group-hint" ng-if="vm.filters.issue !== 'unknown_aircraft'">
+        One decision fixes the whole group — the person picker applies to every row with the same name.
+      </p>
+    </div>
+
+    <!-- ── Row list ── -->
+    <div class="tpcrun__rows" ng-if="!vm.loadingRows && !vm.group_mode">
+      <div class="tpcrun__row" ng-repeat="row in vm.rows"
+           ng-class="{'tpcrun__row--rejected': row.status === 'rejected', 'tpcrun__row--open': vm.drawer.row.id === row.id}"
+           ng-click="vm.openDrawer(row)">
+        <label class="tpcrun__check" ng-click="$event.stopPropagation()" ng-if="row.status === 'pending'">
+          <input type="checkbox" ng-model="vm.sel[row.id]">
+        </label>
+        <span class="tpcrun__badge tpcrun__badge--{{ vm.badge(row).cls }}">{{ vm.badge(row).label }}</span>
+        <div class="tpcrun__row-main">
+          <div class="tpcrun__row-top">
+            <span class="tpcrun__key fxh__mono">{{ row.import_key }}</span>
+            <span class="tpcrun__date">{{ row.flight_date | asDate | date:'dd MMM yy' }}</span>
+            <span class="tpcrun__reg">{{ row.registration }}</span>
+            <span class="tpcrun__cap">{{ vm.capacityLabel(row.capacity) }}</span>
+            <span class="tpcrun__issue" ng-repeat="issue in row.issues" uib-tooltip="{{ vm.issueMeta(issue).label }}">
+              <i class="fas {{ vm.issueMeta(issue).icon }}"></i>
+            </span>
+          </div>
+          <div class="tpcrun__row-people">
+            <span ng-if="row.student_kind === 'trial'" class="tpcrun__trial">TRIAL</span>
+            <span ng-if="row.student_kind !== 'trial'"
+                  ng-class="row.student_user_id ? 'tpcrun__person--ok' : 'tpcrun__person--fix'"
+                  uib-tooltip="{{ row.student_user_id ? 'Matched: ' + row.student_match_tier : 'Unresolved — click to fix' }}">
+              {{ row.first_name }} {{ row.last_name }}
+              <i class="fas" ng-class="row.student_user_id ? 'fa-check' : 'fa-wrench'"></i>
+            </span>
+            <span class="tpcrun__inst" ng-if="row.instructor_name"
+                  ng-class="row.instructor_user_id ? '' : 'tpcrun__person--fix'">
+              · {{ row.instructor_name }} <i class="fas" ng-class="row.instructor_user_id ? 'fa-check' : 'fa-wrench'"></i>
+            </span>
+          </div>
+        </div>
+        <div class="tpcrun__times">
+          <div class="tpcrun__times-new">
+            {{ row.new_times.brakes_off }}→{{ row.new_times.brakes_on }}
+            <span class="tpcrun__chip" ng-if="vm.offsetChip(row)" uib-tooltip="Workbook entered off the tracker clock — stored as {{ row.new_times.stored_brakes_off }}→{{ row.new_times.stored_brakes_on }} to stay on it">{{ vm.offsetChip(row) }}</span>
+            <span class="tpcrun__chip tpcrun__chip--delta" ng-if="row.match.delta_min > 10">Δ{{ row.match.delta_min }}m</span>
+          </div>
+          <div class="tpcrun__times-old" ng-if="row.old_times">
+            was {{ row.old_times.brakes_off }}→{{ row.old_times.brakes_on }}
+            <i class="fas fa-satellite-dish" ng-if="row.old_times.has_fox_data" uib-tooltip="Tracker flight — replay preserved"></i>
+          </div>
+          <div class="tpcrun__times-old tpcrun__times-old--new" ng-if="!row.old_times">NEW</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="exadmin__pager" ng-if="!vm.loadingRows && vm.pages() > 1">
+      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="vm.filters.page <= 1" ng-click="vm.goPage(vm.filters.page - 1)">
+        <i class="fas fa-chevron-left"></i> Prev
+      </button>
+      <span class="exadmin__pager-info">Page {{ vm.filters.page }} of {{ vm.pages() | number }}</span>
+      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="vm.filters.page >= vm.pages()" ng-click="vm.goPage(vm.filters.page + 1)">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ══ Row drawer (slide-over) ══ -->
+  <div class="tpcdrawer__scrim" ng-if="vm.drawer" ng-click="vm.closeDrawer()"></div>
+  <div class="tpcdrawer" ng-if="vm.drawer">
+    <div class="tpcdrawer__head">
+      <div>
+        <span class="tpcrun__key fxh__mono">{{ vm.drawer.row.import_key }}</span>
+        <span class="tpcdrawer__head-meta">{{ vm.drawer.row.flight_date | asDate | date:'dd MMM yyyy' }} · {{ vm.drawer.row.registration }}</span>
+        <span class="tpcrun__badge tpcrun__badge--{{ vm.badge(vm.drawer.row).cls }}">{{ vm.badge(vm.drawer.row).label }}</span>
+      </div>
+      <a class="tpcdrawer__close" ng-click="vm.closeDrawer()"><i class="fas fa-times"></i></a>
+    </div>
+
+    <div class="tpcdrawer__body">
+      <div class="exadmin__loading" ng-if="vm.drawer.loading"><div class="solo-req__spinner"></div> Loading row…</div>
+
+      <div ng-if="!vm.drawer.loading">
+
+        <!-- Applied: read-only -->
+        <div class="tpcdrawer__applied" ng-if="vm.drawer.row.status === 'applied'">
+          <i class="fas fa-check-circle"></i>
+          Applied — flight <a ui-sref="dashboard.flight_replay({flight_id: vm.drawer.row.applied_pls_id})">#{{ vm.drawer.row.applied_pls_id }}</a>.
+          Use the run menu's <em>Revert</em> to change applied rows.
+        </div>
+        <div class="tpcdrawer__applied tpcdrawer__applied--failed" ng-if="vm.drawer.row.status === 'failed'">
+          <i class="fas fa-times-circle"></i> Apply failed: {{ vm.drawer.row.error || 'unknown error' }}
+        </div>
+
+        <!-- ── Two-column compare ── -->
+        <div class="tpcdrawer__compare">
+          <div class="tpcdrawer__col tpcdrawer__col--new">
+            <h4><i class="fas fa-file-excel"></i> Workbook <span>(will be written)</span></h4>
+            <div class="tpcdrawer__field"><label>Date</label>
+              <input type="text" ng-model="vm.drawer.edit.flight_date" placeholder="YYYY-MM-DD" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+            <div class="tpcdrawer__field"><label>Registration</label>
+              <input type="text" ng-model="vm.drawer.edit.registration" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+            <div class="tpcdrawer__field-pair">
+              <div class="tpcdrawer__field"><label>Brakes off</label>
+                <input type="text" ng-model="vm.drawer.edit.brakes_off" placeholder="HH:MM" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+              <div class="tpcdrawer__field"><label>Brakes on</label>
+                <input type="text" ng-model="vm.drawer.edit.brakes_on" placeholder="HH:MM" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+            </div>
+            <div class="tpcdrawer__field-pair">
+              <div class="tpcdrawer__field"><label>Flight time (h)</label>
+                <input type="number" step="0.01" ng-model="vm.drawer.edit.flight_time_hours" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+              <div class="tpcdrawer__field"><label>Landings</label>
+                <input type="number" ng-model="vm.drawer.edit.landings" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+            </div>
+            <div class="tpcdrawer__field"><label>Capacity</label>
+              <select ng-model="vm.drawer.edit.capacity" ng-disabled="vm.drawer.row.status !== 'pending'">
+                <option value="PUT">Pu/t — dual training</option>
+                <option value="P1">P1 — self-hire</option>
+                <option value="P1S">P1/S — P1 supervised</option>
+              </select></div>
+            <div class="tpcdrawer__stored" ng-if="vm.drawer.row.new_times.stored_brakes_off !== vm.drawer.row.new_times.brakes_off">
+              stored as {{ vm.drawer.row.new_times.stored_brakes_off }}→{{ vm.drawer.row.new_times.stored_brakes_on }} <span uib-tooltip="Shifted by the detected clock offset so the database stays on the tracker clock">(tracker clock)</span>
+            </div>
+          </div>
+
+          <div class="tpcdrawer__col tpcdrawer__col--old">
+            <h4><i class="fas fa-satellite-dish"></i> Current flight <span>(tracker)</span></h4>
+            <div ng-if="vm.drawer.row.old_times">
+              <div class="tpcdrawer__old-row"><label>Brakes off</label> {{ vm.drawer.row.old_times.brakes_off }}
+                <i class="fas fa-satellite-dish" ng-if="vm.drawer.row.old_times.has_fox_data"></i></div>
+              <div class="tpcdrawer__old-row"><label>Brakes on</label> {{ vm.drawer.row.old_times.brakes_on }}</div>
+              <div class="tpcdrawer__old-row" ng-if="vm.drawer.row.old_times.takeoff_time"><label>Airborne</label>
+                {{ vm.drawer.row.old_times.takeoff_time }} → {{ vm.drawer.row.old_times.landing_time }}</div>
+              <div class="tpcdrawer__old-row"><label>Flight time</label> {{ vm.flightHours(vm.drawer.row.old_times) }}
+                <span class="tpcdrawer__approx" ng-if="vm.flightHoursComputed(vm.drawer.row.old_times)"
+                      uib-tooltip="No logged flight time on this tracker record yet — computed from its brakes times">from brakes</span></div>
+              <div class="tpcdrawer__old-row" ng-repeat="p in vm.drawer.row.old_times.pilot_labels">{{ p }}</div>
+              <div class="tpcdrawer__keep"><i class="fas fa-shield-alt"></i> Replay &amp; tracker data will be kept</div>
+            </div>
+            <div ng-if="!vm.drawer.row.old_times" class="tpcdrawer__no-old">
+              No existing flight found — a new record will be created.
+              <a ng-click="vm.drawer.pickerOpen = true">Match to a flight…</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Match line + candidate picker -->
+        <div class="tpcdrawer__match" ng-if="vm.drawer.row.match">
+          Matched flight <strong>#{{ vm.drawer.row.match.pls_id }}</strong>
+          · Δ{{ vm.drawer.row.match.delta_min }} min
+          · clock offset {{ vm.drawer.row.match.offset_min ? (vm.drawer.row.match.offset_min / 60) + 'h' : '0' }}
+          <a ng-click="vm.drawer.pickerOpen = !vm.drawer.pickerOpen">Change <i class="fas" ng-class="vm.drawer.pickerOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i></a>
+        </div>
+
+        <div class="tpcdrawer__cands" ng-if="vm.drawer.pickerOpen">
+          <div class="tpcdrawer__cands-hint" ng-if="(vm.drawer.row.issues || []).indexOf('time_review') > -1">
+            <i class="fas fa-info-circle"></i> Workbook may be BST while the tracker logs UTC — differences of exactly 1 h are usually the same flight (±1 h is already tried; a row here is genuinely off).
+          </div>
+
+          <!-- Imported vs tracker times, on one axis — see the overlap at a glance -->
+          <div class="tpctl" ng-if="vm.drawer.timeline">
+            <div class="tpctl__lane" ng-repeat="span in vm.drawer.timeline.spans">
+              <span class="tpctl__label">{{ span.label }}</span>
+              <div class="tpctl__track">
+                <div class="tpctl__band tpctl__band--{{ span.kind }}"
+                     ng-style="{left: span.left + '%', width: span.width + '%'}"
+                     uib-tooltip="{{ span.text }}">{{ span.text }}</div>
+              </div>
+            </div>
+            <div class="tpctl__axis"><span>{{ vm.drawer.timeline.startLabel }}</span><span>{{ vm.drawer.timeline.endLabel }}</span></div>
+          </div>
+
+          <div class="tpcdrawer__cand" ng-repeat="c in vm.drawer.cands"
+               ng-class="{'tpcdrawer__cand--taken': c.assigned}"
+               ng-click="vm.matchTo(c)"
+               uib-tooltip="{{ c.assigned ? 'Already assigned to another workbook row — it can\'t be selected. Pick an un-assigned flight or create a new one.' : 'Match this flight — workbook times will override it' }}">
+            <span class="fxh__mono">#{{ c.pls_id }}</span>
+            <strong>{{ c.brakes_off }}→{{ c.brakes_on }}</strong>
+            <span>{{ vm.flightHours(c) }}</span>
+            <span class="tpcrun__chip" ng-if="vm.candDelta(c) !== null">Δ{{ vm.candDelta(c) }}m</span>
+            <i class="fas fa-satellite-dish" ng-if="c.has_fox_data"></i>
+            <span class="tpcdrawer__tag" ng-class="c.assigned ? 'tpcdrawer__tag--assigned' : 'tpcdrawer__tag--free'">
+              <i class="fas" ng-class="c.assigned ? 'fa-lock' : 'fa-check'"></i> {{ c.assigned ? 'assigned' : 'un-assigned' }}
+            </span>
+            <span class="tpcdrawer__cand-pilots">{{ c.pilot_labels.join(' · ') }}</span>
+          </div>
+          <div class="tpcdrawer__cands-actions">
+            <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.forceInsert()"><i class="fas fa-plus"></i> Create as new flight instead</button>
+            <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.skipRow()">Don't import</button>
+          </div>
+        </div>
+
+        <!-- ── People ── -->
+        <div class="tpcdrawer__people">
+          <div class="tpcdrawer__person">
+            <label>Student</label>
+            <span ng-if="vm.drawer.row.student_kind === 'trial'" class="tpcrun__trial">TRIAL LESSON</span>
+            <span ng-if="vm.drawer.row.student_kind !== 'trial'"
+                  ng-class="vm.drawer.row.student_user_id ? 'tpcrun__person--ok' : 'tpcrun__person--fix'"
+                  uib-tooltip="{{ vm.drawer.row.student_match_tier ? 'Matched: ' + vm.drawer.row.student_match_tier : '' }}">
+              {{ vm.drawer.row.first_name }} {{ vm.drawer.row.last_name }}
+              <i class="fas" ng-class="vm.drawer.row.student_user_id ? 'fa-check' : 'fa-wrench'"></i>
+            </span>
+            <a ng-if="vm.drawer.row.student_kind !== 'trial' && vm.drawer.row.status === 'pending'" ng-click="vm.ppOpen('student')">change</a>
+          </div>
+          <div class="tpcdrawer__person" ng-if="vm.drawer.row.instructor_name || vm.drawer.row.instructor_user_id">
+            <label>Instructor</label>
+            <span ng-class="vm.drawer.row.instructor_user_id ? 'tpcrun__person--ok' : 'tpcrun__person--fix'">
+              {{ vm.drawer.row.instructor_name }}
+              <i class="fas" ng-class="vm.drawer.row.instructor_user_id ? 'fa-check' : 'fa-wrench'"></i>
+            </span>
+            <a ng-if="vm.drawer.row.status === 'pending'" ng-click="vm.ppOpen('instructor')">change</a>
+          </div>
+
+          <!-- Person picker -->
+          <div class="tpcdrawer__pp" ng-if="vm.drawer.pp">
+            <div class="tpcdrawer__pp-search">
+              <i class="fas fa-search"></i>
+              <input type="text" ng-model="vm.drawer.pp.q" ng-change="vm.ppSearch()"
+                     placeholder="Search members ({{ vm.drawer.pp.target }})…" autofocus>
+              <a ng-click="vm.ppClose()"><i class="fas fa-times"></i></a>
+            </div>
+            <div class="tpcdrawer__pp-results">
+              <a class="tpcdrawer__pp-row" ng-repeat="p in vm.drawer.pp.results" ng-click="vm.ppChoose(p)">
+                <strong>{{ p.first_name }} {{ p.last_name }}</strong>
+                <span class="tpcdrawer__pp-sub">{{ p.email }}</span>
+                <span class="tpcrun__chip" ng-if="p.imported_user == 1">imported</span>
+                <span class="tpcrun__chip" ng-if="p.instructor == 1">instructor</span>
+                <span class="tpcrun__chip" ng-if="p.current_member == 1">member</span>
+              </a>
+              <div class="tpcdrawer__pp-empty" ng-if="!vm.drawer.pp.searching && vm.drawer.pp.q && !vm.drawer.pp.results.length">No matches.</div>
+            </div>
+            <div class="tpcdrawer__pp-foot">
+              <label class="tpcrun__group-toggle">
+                <input type="checkbox" ng-model="vm.drawer.pp.applyAll">
+                <span>Apply to every row with this name</span>
+              </label>
+              <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.ppCreate()">
+                <i class="fas fa-user-plus"></i> Create new member “{{ vm.drawer.row.first_name }} {{ vm.drawer.row.last_name }}”
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exercise + remarks -->
+        <div class="tpcdrawer__field"><label>Exercise</label>
+          <input type="text" ng-model="vm.drawer.edit.exercise" ng-disabled="vm.drawer.row.status !== 'pending'">
+          <span class="tpcdrawer__ex-preview" ng-if="vm.exercisePreview(vm.drawer.edit.exercise).lessons">
+            → lesson: {{ vm.exercisePreview(vm.drawer.edit.exercise).lessons.join(', ') }}
+          </span>
+          <span class="tpcdrawer__ex-preview tpcdrawer__ex-preview--notes" ng-if="vm.exercisePreview(vm.drawer.edit.exercise).notesOnly">
+            notes only — no lesson record
+          </span>
+        </div>
+        <div class="tpcdrawer__field"><label>Remarks</label>
+          <input type="text" ng-model="vm.drawer.edit.remarks" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
+
+        <!-- Save edits -->
+        <div class="tpcdrawer__savebar" ng-if="vm.dirtyFields().length">
+          <span>{{ vm.dirtyFields().length }} unsaved change{{ vm.dirtyFields().length === 1 ? '' : 's' }}
+            <em class="tpcdrawer__hours-hint" ng-if="vm.hoursStale()">— check <strong>Flight time</strong> too: it isn't recomputed from the times, and it's the official (billed) value written on apply
+              <a class="tpcdrawer__hours-use" ng-if="vm.editSpanHours() !== null" ng-click="vm.useSpanHours()">
+                use {{ vm.editSpanHours() }} h ({{ vm.drawer.edit.brakes_off }}→{{ vm.drawer.edit.brakes_on }})
+              </a>
+            </em>
+          </span>
+          <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.saveEdit()" ng-disabled="vm.drawer.saving">
+            <i class="fas" ng-class="vm.drawer.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i> Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tpcdrawer__foot">
+      <div class="tpcdrawer__foot-actions" ng-if="vm.drawer.row.status === 'pending'">
+        <button type="button" class="solo-btn solo-btn--go solo-btn--sm" ng-click="vm.applyRow()"><i class="fas fa-play"></i> Apply this row</button>
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.skipRow()">Skip</button>
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.rejectRow()">Reject</button>
+      </div>
+      <div class="tpcdrawer__foot-actions" ng-if="vm.drawer.row.status === 'rejected'">
+        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.restoreRow()"><i class="fas fa-undo"></i> Restore</button>
+      </div>
+      <div class="tpcdrawer__nav">
+        <span class="tpcdrawer__keys">j / k · a apply · s skip · r reject</span>
+        <a ng-click="vm.prevRow()"><i class="fas fa-chevron-left"></i> prev</a>
+        <a ng-click="vm.nextRow()">next <i class="fas fa-chevron-right"></i></a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Overlays ══ -->
+  <div class="fox-tracker__overlay" ng-if="vm.overlay" ng-click="vm.closeOverlay()">
+    <div class="fox-tracker__confirm-dialog" ng-click="$event.stopPropagation()">
+
+      <div ng-if="vm.overlay === 'apply_all'">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-play"></i></div>
+          <div class="fox-tracker__confirm-title">Apply all pending rows?</div>
+        </div>
+        <div class="fox-tracker__confirm-body">
+          Apply <strong>{{ vm.summary.by_action.update | number }} matched overrides</strong> and
+          <strong>{{ vm.summary.by_action.insert | number }} new flights</strong>?
+          Matched flights keep their tracker data and can be reverted at any time.
+          Rows needing review ({{ vm.summary.by_action.skip | number }}) are not touched.
+        </div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.applyAll()"><i class="fas fa-play"></i> Apply all</button>
+        </div>
+      </div>
+
+      <div ng-if="vm.overlay === 'revert'">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--danger"><i class="fas fa-undo"></i></div>
+          <div class="fox-tracker__confirm-title">Revert this import?</div>
+        </div>
+        <div class="fox-tracker__confirm-body">
+          Every applied row is undone: overridden flights are restored to their tracker values and
+          created flights (plus their training records) are deleted. Members created during the import stay
+          (harmless imported stubs).
+          <div class="tpcrun__revert-word">
+            <label>Type <strong>REVERT</strong> to confirm</label>
+            <input type="text" ng-model="vm.revert_word" placeholder="REVERT">
+          </div>
+        </div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.revert()" ng-disabled="vm.revert_word !== 'REVERT'">
+            <i class="fas fa-undo"></i> Revert import
+          </button>
+        </div>
+      </div>
+
+      <div ng-if="vm.overlay === 'reprocess'">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-redo"></i></div>
+          <div class="fox-tracker__confirm-title">Re-process this run?</div>
+        </div>
+        <div class="fox-tracker__confirm-body"><strong>This clears all staged edits.</strong> Rows are rebuilt from the workbook and re-matched; applied rows are re-detected as already imported.</div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.reprocess()"><i class="fas fa-redo"></i> Re-process</button>
+        </div>
+      </div>
+
+      <div ng-if="vm.overlay === 'delete'">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--danger"><i class="fas fa-trash-alt"></i></div>
+          <div class="fox-tracker__confirm-title">Delete this run?</div>
+        </div>
+        <div class="fox-tracker__confirm-body">Staged rows are discarded. Runs with applied rows can't be deleted — revert first.</div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.deleteRun()"><i class="fas fa-trash-alt"></i> Delete</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

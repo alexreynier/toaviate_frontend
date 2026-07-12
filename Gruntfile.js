@@ -129,6 +129,9 @@ module.exports = function (grunt) {
                     'css/logbook.css',
                     'css/course-content.css',
                     'css/exam-sales.css',
+                    'css/tpc-import.css',
+                    'css/flight-weather.css',
+                    'css/airfield-admin.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

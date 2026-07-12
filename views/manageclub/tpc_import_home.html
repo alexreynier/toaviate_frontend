@@ -1,0 +1,91 @@
+<!-- "The Pilot Centre style import" — embedded in Settings → Data Import.
+     Own controller so the settings page stays lean. Manager-gated. -->
+<div ng-controller="TpcImportController as tpc">
+  <div ng-if="tpc.is_manager">
+
+    <p class="tpc__intro">
+      Upload the club's training-records workbook. We match each row to the tracker's flight
+      records; the workbook's times become the official (billed / logbook) times, while
+      <strong>tracker data and flight replays are always preserved</strong>. Nothing is written
+      until you apply, and a whole import can be reverted.
+    </p>
+
+    <!-- Dropzone -->
+    <label class="tpc__dropzone" ng-class="{'tpc__dropzone--over': tpc.drag_over, 'tpc__dropzone--busy': tpc.uploading}"
+           lcf-dropzone lcf-on-drop="tpc.onFiles(files)" lcf-on-drag-state="tpc.setDragState(isDragging)">
+      <i class="fas" ng-class="tpc.uploading ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
+      <span ng-if="!tpc.uploading"><strong>Drag &amp; drop the workbook here</strong>, or tap to choose &mdash; .xlsx only · max 30&nbsp;MB</span>
+      <span ng-if="tpc.uploading">Uploading the workbook&hellip;</span>
+      <input type="file" accept=".xlsx" lcf-file-select="tpc.onFiles(files)" style="display:none;" ng-disabled="tpc.uploading">
+    </label>
+
+    <!-- 4-step explainer when there's nothing yet -->
+    <div class="tpc__steps" ng-if="!tpc.loading && tpc.runs.length === 0">
+      <span class="tpc__step"><strong>1</strong> Upload</span><i class="fas fa-chevron-right"></i>
+      <span class="tpc__step"><strong>2</strong> Review</span><i class="fas fa-chevron-right"></i>
+      <span class="tpc__step"><strong>3</strong> Apply</span><i class="fas fa-chevron-right"></i>
+      <span class="tpc__step"><strong>4</strong> Done <em>(revert any time)</em></span>
+    </div>
+
+    <!-- Previous imports -->
+    <div class="tpc__runs" ng-if="tpc.runs.length > 0">
+      <h4 class="tpc__runs-title">Previous imports</h4>
+      <div class="tpc__run" ng-repeat="run in tpc.runs">
+        <div class="tpc__run-main">
+          <div class="tpc__run-name">
+            <span class="tpc__run-id">#{{ run.id }}</span> {{ run.file_name }}
+            <span class="tpc__status tpc__status--{{ tpc.statusMeta(run).cls }}">
+              <i class="fas {{ tpc.statusMeta(run).icon }}"></i> {{ tpc.statusMeta(run).label }}
+            </span>
+          </div>
+          <div class="tpc__run-sub">
+            {{ run.created_at | asDate | date:'dd MMM yyyy HH:mm' }}
+            <span ng-if="run.created_by_first_name"> &middot; {{ run.created_by_first_name }} {{ run.created_by_last_name }}</span>
+            <span ng-if="run.error" class="tpc__run-error"> &middot; {{ run.error }}</span>
+          </div>
+        </div>
+        <div class="tpc__run-actions">
+          <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="tpc.review(run)">
+            <i class="fas fa-search"></i> Review
+          </button>
+          <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-if="run.status === 'failed'"
+                  ng-click="tpc.askConfirm('reprocess', run)">
+            <i class="fas fa-redo"></i> Retry
+          </button>
+          <a class="tpc__run-menu" ng-click="run._menu = !run._menu"><i class="fas fa-ellipsis-v"></i></a>
+          <div class="tpc__run-menu-pop" ng-if="run._menu" ng-click="run._menu = false">
+            <a ng-click="tpc.askConfirm('reprocess', run)"><i class="fas fa-redo"></i> Re-process</a>
+            <a class="tpc__danger" ng-click="tpc.askConfirm('delete', run)"><i class="fas fa-trash-alt"></i> Delete run</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm overlay -->
+    <div class="fox-tracker__overlay" ng-if="tpc.confirm" ng-click="tpc.closeConfirm()">
+      <div class="fox-tracker__confirm-dialog" ng-click="$event.stopPropagation()">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon" ng-class="tpc.confirm.type === 'delete' ? 'fox-tracker__confirm-icon--danger' : 'fox-tracker__confirm-icon--warn'">
+            <i class="fas" ng-class="tpc.confirm.type === 'delete' ? 'fa-trash-alt' : 'fa-redo'"></i>
+          </div>
+          <div class="fox-tracker__confirm-title">{{ tpc.confirm.type === 'delete' ? 'Delete this run?' : 'Re-process this run?' }}</div>
+        </div>
+        <div class="fox-tracker__confirm-body">
+          <strong>{{ tpc.confirm.run.file_name }}</strong>
+          <p ng-if="tpc.confirm.type === 'delete'" style="margin-top:8px;">Staged rows are discarded. Runs with applied rows can't be deleted — revert the import first.</p>
+          <p ng-if="tpc.confirm.type === 'reprocess'" style="margin-top:8px;"><strong>This clears all staged edits.</strong> Rows are rebuilt from the workbook and re-matched (useful after adding aircraft or members). Already-applied rows are re-detected and left alone.</p>
+        </div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="tpc.closeConfirm()" ng-disabled="tpc.confirm.busy">Cancel</button>
+          <button class="snazzy-page__btn" ng-class="tpc.confirm.type === 'delete' ? 'snazzy-page__btn--danger' : 'snazzy-page__btn--success'"
+                  ng-click="tpc.doConfirm()" ng-disabled="tpc.confirm.busy">
+            <i class="fas" ng-class="tpc.confirm.busy ? 'fa-spinner fa-spin' : (tpc.confirm.type === 'delete' ? 'fa-trash-alt' : 'fa-redo')"></i>
+            {{ tpc.confirm.type === 'delete' ? 'Delete' : 'Re-process' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="tpc__intro" ng-if="!tpc.is_manager">Data import is available to club managers only.</p>
+</div>

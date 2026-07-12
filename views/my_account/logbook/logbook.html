@@ -143,7 +143,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="e in vm.entries" ng-class="{'lb-row--tentative': !e.verified}">
+              <tr ng-repeat-start="e in vm.entries" ng-class="{'lb-row--tentative': !e.verified}">
                 <td>{{ e.flight_date }}</td>
                 <td><span uib-tooltip="{{ vm.depPlaceAlt(e) }}">{{ vm.depPlace(e) }}</span><span ng-if="e.departure_time"> {{ e.departure_time }}</span></td>
                 <td><span uib-tooltip="{{ vm.arrPlaceAlt(e) }}">{{ vm.arrPlace(e) }}</span><span ng-if="e.arrival_time"> {{ e.arrival_time }}</span></td>
@@ -168,6 +168,9 @@
                 <td class="lb-table__actions">
                   <!-- Flight replay — only when a recorded track exists -->
                   <button class="lb-table__action-btn lb-table__action-btn--replay" ng-if="vm.canReplay(e)" ng-click="vm.viewReplay(e)" uib-tooltip="Flight replay"><i class="fa fa-play-circle"></i></button>
+                  <!-- Weather at takeoff/landing — club-verified flights carry ref_id (= plane_log_sheets.id) -->
+                  <button class="lb-table__action-btn" ng-if="e.ref_id" ng-click="e._wxOpen = !e._wxOpen"
+                          ng-class="{'lb-table__action-btn--replay': e._wxOpen}" uib-tooltip="Flight weather"><i class="fa fa-cloud"></i></button>
                   <!-- Only manual rows are editable/deletable -->
                   <span ng-if="e.kind === 'manual' && !e._confirmDelete">
                     <button class="lb-table__action-btn" ng-click="vm.editEntry(e)" uib-tooltip="Edit"><i class="fa fa-pen"></i></button>
@@ -178,6 +181,20 @@
                     <button class="lb-table__action-btn lb-table__action-btn--danger" ng-click="vm.confirmDelete(e)" ng-disabled="e._deleting"><i class="fa" ng-class="{'fa-spinner fa-spin': e._deleting, 'fa-check': !e._deleting}"></i></button>
                     <button class="lb-table__action-btn" ng-click="vm.cancelDelete(e)"><i class="fa fa-xmark"></i></button>
                   </span>
+                </td>
+              </tr>
+              <!-- Weather drawer. ng-show on the row (ng-if is inert on an
+                   ng-repeat element in this Angular build) but ng-if on the
+                   inner mount, so the panel only fetches when opened. The
+                   .fw-drawer sticky wrapper keeps it in view while the wide
+                   table scrolls sideways. -->
+              <tr ng-repeat-end class="fw-drawer-row" ng-show="e._wxOpen">
+                <td colspan="19">
+                  <div class="fw-drawer" fw-drawer-fit ng-if="e._wxOpen">
+                    <flight-weather-panel flight-id="e.ref_id"
+                                          dep-name="e.departure_airport"
+                                          arr-name="e.arrival_airport"></flight-weather-panel>
+                  </div>
                 </td>
               </tr>
             </tbody>

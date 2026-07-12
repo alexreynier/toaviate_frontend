@@ -1,0 +1,239 @@
+<div class="af-admin">
+
+    <div class="af-admin__denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>The airfield database is managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── HEADER ── -->
+        <div class="af-admin__header">
+            <div class="af-admin__header-inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.super_admin">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="af-admin__title">
+                        <h2><i class="fas fa-clipboard-check"></i> Airfields requiring review</h2>
+                        <p>Possible duplicates and robot-added airfields, waiting on a human decision</p>
+                    </div>
+                </div>
+
+                <div class="af-admin__header-controls">
+                    <button class="af-admin__refresh-btn"
+                            ng-class="{'af-spin': vm.loading}"
+                            ng-click="vm.loadReview()"
+                            ng-disabled="vm.loading">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="af-admin__nav">
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields">
+                    <i class="fas fa-chart-pie"></i> <span>Overview</span>
+                </a>
+                <a class="af-admin__nav-item af-admin__nav-item--active"
+                   ui-sref="dashboard.super_admin.airfields_review">
+                    <i class="fas fa-clipboard-check"></i> <span>Review</span>
+                    <span class="af-admin__nav-badge" ng-if="vm.review_status === 'pending' && vm.items.length">
+                        {{ vm.items.length }}
+                    </span>
+                </a>
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields_manage">
+                    <i class="fas fa-sliders-h"></i> <span>Manage</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ── ERROR ── -->
+        <div class="af-admin__banner af-admin__banner--error" ng-if="vm.error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ vm.error }}</span>
+        </div>
+
+        <!-- ── STATUS FILTER ── -->
+        <div class="af-filter-bar">
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'pending'}"
+                    ng-click="vm.setReviewStatus('pending')">
+                <i class="fas fa-hourglass-half"></i> Pending
+            </button>
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'approved'}"
+                    ng-click="vm.setReviewStatus('approved')">
+                <i class="fas fa-check"></i> Approved
+            </button>
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'dismissed'}"
+                    ng-click="vm.setReviewStatus('dismissed')">
+                <i class="fas fa-ban"></i> Dismissed
+            </button>
+        </div>
+
+        <!-- ── LOADING SKELETON ── -->
+        <div ng-if="vm.loading">
+            <div class="af-review-card af-review-card--skeleton" ng-repeat="n in [1,2,3]">
+                <span class="af-skel" style="width:30%;height:16px;"></span>
+                <span class="af-skel" style="width:100%;height:90px;margin-top:14px;"></span>
+            </div>
+        </div>
+
+        <!-- ── EMPTY ── -->
+        <div class="af-empty af-empty--big" ng-if="!vm.loading && !vm.items.length && !vm.error">
+            <i class="fas" ng-class="vm.review_status === 'pending' ? 'fa-check-circle' : 'fa-inbox'"></i>
+            <h3 ng-if="vm.review_status === 'pending'">Nothing to review</h3>
+            <h3 ng-if="vm.review_status !== 'pending'">No {{ vm.review_status }} items</h3>
+            <p ng-if="vm.review_status === 'pending'">
+                Every imported airfield has been checked. New ones will show up here automatically.
+            </p>
+            <p ng-if="vm.review_status !== 'pending'">
+                Items you {{ vm.review_status === 'approved' ? 'approve' : 'dismiss' }} will be listed here.
+            </p>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             REVIEW CARDS
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-review-list" ng-if="!vm.loading && vm.items.length">
+
+            <div class="af-review-card"
+                 ng-class="{'af-review-card--leaving': vm.leaving[item.id],
+                            'af-review-card--busy':    vm.acting[item.id]}"
+                 ng-repeat="item in vm.items track by item.id">
+
+                <!-- Card header -->
+                <div class="af-review-card__head">
+                    <span class="af-reason"
+                          ng-class="item.reason === 'location_dup' ? 'af-reason--dup' : 'af-reason--auto'">
+                        <i class="fas"
+                           ng-class="item.reason === 'location_dup' ? 'fa-clone' : 'fa-robot'"></i>
+                        {{ item.reason === 'location_dup' ? 'Possible duplicate' : 'Auto-imported' }}
+                    </span>
+                    <span class="af-review-card__hint" ng-if="item.reason === 'location_dup'">
+                        Withheld — there is already an airfield
+                        <strong ng-if="item.distance_km !== null">{{ item.distance_km | number:2 }} km</strong>
+                        away
+                    </span>
+                    <span class="af-review-card__hint" ng-if="item.reason === 'auto_import'">
+                        Added by the gap-filler after an aircraft flew here
+                    </span>
+                </div>
+
+                <!-- ── location_dup: side-by-side compare ── -->
+                <div class="af-compare" ng-if="item.reason === 'location_dup'">
+
+                    <!-- New candidate -->
+                    <div class="af-compare__side af-compare__side--new">
+                        <div class="af-compare__tag">New candidate</div>
+                        <div class="af-compare__title">{{ item.payload_decoded.title }}</div>
+                        <div class="af-compare__code">{{ item.payload_decoded.code }}</div>
+                        <dl class="af-compare__facts">
+                            <div>
+                                <dt>Type</dt>
+                                <dd>
+                                    <i class="fas" ng-class="vm.typeIcon(item.payload_decoded.af_type)"></i>
+                                    {{ vm.typeLabel(item.payload_decoded.af_type) }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Country</dt>
+                                <dd>{{ vm.countryFlag(item.payload_decoded.country_code) }}
+                                    {{ vm.countryName(item.payload_decoded.country_code) }}</dd>
+                            </div>
+                            <div>
+                                <dt>Position</dt>
+                                <dd>
+                                    <a ng-href="{{ vm.mapLink(item.payload_decoded.wgs_n, item.payload_decoded.wgs_e) }}"
+                                       target="_blank" rel="noopener">
+                                        {{ item.payload_decoded.wgs_n }}, {{ item.payload_decoded.wgs_e }}
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <!-- Distance connector -->
+                    <div class="af-compare__vs">
+                        <div class="af-compare__vs-line"></div>
+                        <div class="af-compare__vs-badge">
+                            <i class="fas fa-arrows-alt-h"></i>
+                            <span ng-if="item.distance_km !== null">{{ item.distance_km | number:2 }} km</span>
+                            <span ng-if="item.distance_km === null">nearby</span>
+                        </div>
+                        <div class="af-compare__vs-line"></div>
+                    </div>
+
+                    <!-- Existing airfield -->
+                    <div class="af-compare__side af-compare__side--existing">
+                        <div class="af-compare__tag">Already in the database</div>
+                        <div class="af-compare__title">{{ item.nearest_title }}</div>
+                        <div class="af-compare__code">{{ item.nearest_code }}</div>
+                        <dl class="af-compare__facts">
+                            <div>
+                                <dt>Airfield ID</dt>
+                                <dd>#{{ item.nearest_airfield_id }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- ── auto_import: single airfield ── -->
+                <div class="af-compare af-compare--single" ng-if="item.reason === 'auto_import'">
+                    <div class="af-compare__side af-compare__side--new">
+                        <div class="af-compare__tag">Added automatically</div>
+                        <div class="af-compare__title">{{ item.airfield_title }}</div>
+                        <div class="af-compare__code">{{ item.airfield_code }}</div>
+                        <dl class="af-compare__facts">
+                            <div>
+                                <dt>Airfield ID</dt>
+                                <dd>#{{ item.airfield_id }}</dd>
+                            </div>
+                            <div ng-if="vm.mapLink(vm.itemLat(item), vm.itemLon(item))">
+                                <dt>Position</dt>
+                                <dd>
+                                    <a ng-href="{{ vm.mapLink(vm.itemLat(item), vm.itemLon(item)) }}"
+                                       target="_blank" rel="noopener">
+                                        {{ vm.itemLat(item) }}, {{ vm.itemLon(item) }}
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- Actions (pending only — the history tabs are read-only) -->
+                <div class="af-review-card__actions" ng-if="vm.review_status === 'pending'">
+                    <button class="af-btn af-btn--danger-ghost"
+                            ng-click="vm.dismissItem(item)"
+                            ng-disabled="vm.acting[item.id]">
+                        <i class="fas fa-times"></i>
+                        <span ng-if="item.reason === 'location_dup'">Same place — skip it</span>
+                        <span ng-if="item.reason === 'auto_import'">Not real — delete it</span>
+                    </button>
+                    <button class="af-btn af-btn--success"
+                            ng-click="vm.approveItem(item)"
+                            ng-disabled="vm.acting[item.id]">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.acting[item.id]"></i>
+                        <i class="fas fa-check" ng-if="!vm.acting[item.id]"></i>
+                        <span ng-if="item.reason === 'location_dup'">Different place — add it</span>
+                        <span ng-if="item.reason === 'auto_import'">Looks right — keep it</span>
+                    </button>
+                </div>
+
+                <div class="af-review-card__resolved" ng-if="vm.review_status !== 'pending'">
+                    <i class="fas" ng-class="vm.review_status === 'approved' ? 'fa-check-circle' : 'fa-ban'"></i>
+                    {{ vm.review_status === 'approved' ? 'Approved' : 'Dismissed' }}
+                    <span ng-if="item.airfield_id"> · airfield #{{ item.airfield_id }}</span>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
