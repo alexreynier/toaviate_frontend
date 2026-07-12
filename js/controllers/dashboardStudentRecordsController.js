@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -651,6 +651,76 @@
                                     }
                                 });
         }
+
+        // ── Exam result actions (edit / history / delete — audited) ──
+        // Shares the exam_result/audit modals with the shop + exam-results
+        // screens. Delete is manager-only and soft; a purchased exam's result
+        // returns to the outstanding-results list. BACKEND_EXAM_SALES_GUIDE.md §5.4.
+        // Live check — the page's club selector can change vm.club_id.
+        vm.is_manager = function(){
+            return (vm.user.access.manager || []).indexOf(vm.club_id) > -1 ||
+                   (vm.user.access.super_admin || []).length > 0;
+        };
+
+        vm.exam_edit = function(exam){
+            var record = vm.get_exam(exam.id);
+            if (!record || !record.id) { return; }
+            $uibModal.open({
+                templateUrl: 'views/modals/exam_result_modal.html',
+                controller: 'ExamResultModalController',
+                controllerAs: 'vm',
+                backdrop: 'static',
+                resolve: { context: function(){ return {
+                    mode: 'edit',
+                    record: record,
+                    exam_title: exam.title,
+                    course_title: vm.course ? vm.course.title : '',
+                    student_name: vm.student ? (vm.student.first_name + ' ' + vm.student.last_name) : '',
+                    is_manager: vm.is_manager()
+                }; } }
+            }).result.then(function(res){
+                if (res && res.saved) { vm.load_records(); }
+            }, function(){});
+        };
+
+        vm.exam_history = function(exam){
+            var record = vm.get_exam(exam.id);
+            if (!record || !record.id) { return; }
+            $uibModal.open({
+                templateUrl: 'views/modals/exam_audit_modal.html',
+                controller: 'ExamAuditModalController',
+                controllerAs: 'vm',
+                size: 'lg',
+                resolve: { context: function(){ return {
+                    exam_record_id: record.id,
+                    heading: exam.title + (vm.student ? ' — ' + vm.student.first_name + ' ' + vm.student.last_name : '')
+                }; } }
+            });
+        };
+
+        vm.exam_ask_delete = function(exam){
+            var record = vm.get_exam(exam.id);
+            if (record) { record._confirmDelete = true; }
+        };
+        vm.exam_cancel_delete = function(exam){
+            var record = vm.get_exam(exam.id);
+            if (record) { record._confirmDelete = false; }
+        };
+        vm.exam_delete = function(exam){
+            var record = vm.get_exam(exam.id);
+            if (!record || !record.id || record._busy) { return; }
+            record._busy = true;
+            ExamSalesService.DeleteRecord(record.id).then(function(data){
+                record._busy = false;
+                record._confirmDelete = false;
+                if (data && data.success){
+                    ToastService.success('Result Deleted', '"' + exam.title + '" removed from ' + vm.student.first_name + '\'s records.');
+                    vm.load_records();
+                } else {
+                    ToastService.error('Not Deleted', (data && data.message) || 'The exam result could not be deleted.');
+                }
+            });
+        };
 
         vm.get_remarks = function(item_id, record){
 

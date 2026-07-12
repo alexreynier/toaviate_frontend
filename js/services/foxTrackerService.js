@@ -15,6 +15,12 @@ function FoxTrackerService($http, $location) {
     service.Retire         = Retire;
     service.GetChangeLog   = GetChangeLog;
 
+    // Tracker health / unmatched flights (FRONTEND_FOX_UNMATCHED_FLIGHTS_GUIDE.md)
+    service.GetHealth       = GetHealth;        // registry vs transmitted identity
+    service.GetUnmatched    = GetUnmatched;     // flights with no tech-log sheet
+    service.MatchEntry      = MatchEntry;       // one flight → creates the sheet
+    service.CorrectIdentity = CorrectIdentity;  // fix imei/ccid + backfill
+
     return service;
 
     function GetAll() {
@@ -59,6 +65,35 @@ function FoxTrackerService($http, $location) {
 
     function GetChangeLog(trackerId) {
         return $http.get('/api/v1/fox_trackers/change_log/' + trackerId)
+            .then(handleSuccess, handleError);
+    }
+
+    function GetHealth() {
+        return $http.get('/api/v1/fox_trackers/health')
+            .then(handleSuccess, handleError);
+    }
+
+    // filters = { club_id?, imei?, from?, to?, limit? } — server-side.
+    function GetUnmatched(filters) {
+        var parts = [];
+        angular.forEach(filters || {}, function(v, k) {
+            if (v !== null && v !== undefined && v !== '') { parts.push(k + '=' + encodeURIComponent(v)); }
+        });
+        return $http.get('/api/v1/fox_trackers/unmatched' + (parts.length ? '?' + parts.join('&') : ''))
+            .then(handleSuccess, handleError);
+    }
+
+    // body = { plane_id?, club_id?, tracker_id? } — omit to use the suggestion.
+    function MatchEntry(foxEntryId, body) {
+        return $http.post('/api/v1/fox_trackers/match_entry/' + foxEntryId, body || {})
+            .then(handleSuccess, handleError);
+    }
+
+    // Normal flow: { adopt_transmitted: true, reason }. Manual: { imei?, ccid?,
+    // reason, allow_ccid_mismatch? } — a contradicted ccid refuses with
+    // reason:'ccid_mismatch' + transmitted_ccid.
+    function CorrectIdentity(trackerId, body) {
+        return $http.put('/api/v1/fox_trackers/correct_identity/' + trackerId, body)
             .then(handleSuccess, handleError);
     }
 

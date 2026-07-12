@@ -737,7 +737,7 @@
 
                         // Save CRS alongside (fire and forget alongside workpack)
                         saveCrs();
-
+e
                         // Save logbook links for the new maintenance check (fire and forget)
                         if (data.maintenance_check_id) {
                             vm.saveCreateLogbookLinks(data.maintenance_check_id);

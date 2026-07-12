@@ -126,6 +126,138 @@
             </div>
           </uib-tab>
 
+          <!-- EXAMS TAB — ground-exam sales (BACKEND_EXAM_SALES_GUIDE.md §5.1) -->
+          <uib-tab index="5">
+            <uib-tab-heading>EXAMS</uib-tab-heading>
+            <div class="tab_wrapper">
+
+              <div class="exsale__loading" ng-if="vm.exams.loading">
+                <div class="solo-req__spinner"></div> Loading the exam catalog&hellip;
+              </div>
+
+              <div class="exsale__empty" ng-if="!vm.exams.loading && vm.exams.courses.length === 0">
+                <i class="fas fa-graduation-cap"></i>
+                <p>No courses with ground exams yet.</p>
+              </div>
+
+              <div ng-if="!vm.exams.loading && vm.exams.courses.length > 0">
+
+                <!-- Course selector -->
+                <div class="exsale__courses">
+                  <a class="exsale__course-chip" ng-repeat="course in vm.exams.courses"
+                     ng-class="{'exsale__course-chip--on': vm.exams.selected_course === course}"
+                     ng-click="vm.examSelectCourse(course)">
+                    <i class="fas fa-graduation-cap"></i> {{ course.course_title }}
+                  </a>
+                </div>
+
+                <p class="exsale__pick-hint" ng-if="!vm.exams.selected_course">Pick a course to see its exams.</p>
+
+                <!-- Student — picked here, as part of the exams flow -->
+                <div class="exsale__student" ng-if="vm.exams.selected_course">
+                  <label class="exsale__student-label"><i class="fas fa-user-graduate"></i> Who is sitting {{ vm.exams.selected_course.course_title }} exams?</label>
+                  <ui-select ng-model="vm.exams.student" on-select="vm.examStudentSelected($item)" theme="bootstrap"
+                             title="Select the student" append-to-body="true">
+                    <ui-select-match placeholder="Choose the student…" allow-clear="true">
+                      {{ $select.selected.first_name }} {{ $select.selected.last_name }}
+                    </ui-select-match>
+                    <ui-select-choices repeat="client in vm.exams.members | propsFilterA: {first_name: $select.search, last_name: $select.search, id: $select.search}"
+                                       refresh="refreshShopMembers($select.search)" refresh-delay="300">
+                      <span ng-bind-html="client.first_name | highlight: $select.search"></span>
+                      <span ng-bind-html="client.last_name | highlight: $select.search"></span>
+                      <small ng-if="client.email" ng-bind-html="client.email | highlight: $select.search"></small>
+                    </ui-select-choices>
+                  </ui-select>
+                </div>
+
+                <!-- Exam tiles -->
+                <div class="exsale__grid" ng-if="vm.exams.selected_course">
+                  <!-- div, not <a>: the unpriced state nests a real link and
+                       anchors cannot nest (the parser would hoist it out) -->
+                  <div class="exsale__exam" ng-repeat="exam in vm.exams.selected_course.exams"
+                     ng-class="{'exsale__exam--on': vm.exams.ticked[exam.id], 'exsale__exam--unpriced': exam.effective_price === null}"
+                     ng-click="vm.examToggle(exam)">
+                    <span class="exsale__exam-tick"><i class="fas fa-check"></i></span>
+                    <span class="exsale__exam-main">
+                      <span class="exsale__exam-title">{{ exam.title }}</span>
+                      <span class="exsale__exam-badges">
+                        <span class="exsale__badge" ng-if="exam.has_override">override</span>
+                      </span>
+                    </span>
+                    <span class="exsale__exam-price" ng-if="exam.effective_price !== null">{{ club_settings.account_currency }}{{ exam.effective_price | number:2 }}</span>
+                    <span class="exsale__exam-price exsale__exam-price--none" ng-if="exam.effective_price === null">
+                      not priced
+                      <a ng-if="vm.is_manager" ui-sref="dashboard.manage_club.exam_results({tab: 'pricing'})" ng-click="$event.stopPropagation()">Set a price first</a>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Running total + sell -->
+                <div class="exsale__bar" ng-if="vm.examTickedIds().length > 0">
+                  <span class="exsale__bar-count">{{ vm.examTickedIds().length }} exam{{ vm.examTickedIds().length === 1 ? '' : 's' }}</span>
+                  <span class="exsale__bar-total">{{ club_settings.account_currency }}{{ vm.examTotal() | number:2 }}</span>
+                  <span class="exsale__bar-student" ng-if="vm.exams.student && vm.exams.student.user_id > 0">
+                    for <strong>{{ vm.exams.student.first_name }} {{ vm.exams.student.last_name }}</strong>
+                  </span>
+                  <span class="exsale__bar-student exsale__bar-student--missing" ng-if="!vm.exams.student || !(vm.exams.student.user_id > 0)">
+                    choose the student above
+                  </span>
+                  <button type="button" class="exsale__sell-btn" ng-click="vm.examSell()" ng-disabled="vm.exams.selling">
+                    <i class="fas" ng-class="vm.exams.selling ? 'fa-spinner fa-spin' : 'fa-cash-register'"></i>
+                    Sell &amp; take payment
+                  </button>
+                </div>
+
+                <!-- Sale confirmation — keeps the payment reachable after the
+                     window is closed, and shows whether the invoice was paid -->
+                <div class="exsale__sold" ng-if="vm.exams.sold">
+                  <i class="fas fa-check-circle"></i>
+                  <div class="exsale__sold-main">
+                    <strong>Invoice #{{ vm.exams.sold.invoice_id }}</strong> — {{ vm.exams.sold.purchases.length }} exam{{ vm.exams.sold.purchases.length === 1 ? '' : 's' }}
+                    for {{ vm.exams.sold.student }}, {{ club_settings.account_currency }}{{ vm.exams.sold.total | number:2 }}
+                    <span class="exadmin__paychip exadmin__paychip--paid" ng-if="vm.exams.sold.pay_kind === 'paid'"><i class="fas fa-check"></i> paid</span>
+                    <span class="exadmin__paychip exadmin__paychip--requested" ng-if="vm.exams.sold.pay_kind === 'requested'"><i class="fas fa-university"></i> payment requested</span>
+                    <span class="exadmin__paychip exadmin__paychip--unpaid" ng-if="vm.exams.sold.pay_kind === 'unpaid'"><i class="fas fa-exclamation-circle"></i> not paid</span>
+                    <span class="exsale__sold-sub">Once each exam has been sat, record its result right here — or later from <a ui-sref="dashboard.manage_club.exam_results">Exam Results</a>.</span>
+                    <span class="exsale__sold-results">
+                      <span ng-repeat="p in vm.exams.sold.purchases" class="exsale__sold-result">
+                        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-if="!p._done" ng-click="vm.examEnterResult(p)">
+                          <i class="fas fa-pen"></i> {{ p.exam_title }} result
+                        </button>
+                        <span class="exsale__sold-recorded" ng-if="p._done"><i class="fas fa-check-circle"></i> {{ p.exam_title }} recorded</span>
+                      </span>
+                    </span>
+                  </div>
+                  <button type="button" class="solo-btn solo-btn--primary solo-btn--sm exsale__sold-pay" ng-if="vm.exams.sold.pay_kind !== 'paid'"
+                          ng-click="vm.examReopenPayment()">
+                    <i class="fas fa-credit-card"></i> Take payment
+                  </button>
+                </div>
+
+                <!-- Awaiting results (quick entry — same modal as the admin screen) -->
+                <div class="exsale__pending" ng-if="vm.exams.pending.length > 0">
+                  <div class="exsale__pending-head">
+                    <i class="fas fa-hourglass-half"></i> Awaiting results
+                    <a class="exsale__pending-all" ui-sref="dashboard.manage_club.exam_results">See all ({{ vm.exams.pending.length }}) <i class="fas fa-arrow-right"></i></a>
+                  </div>
+                  <div class="exsale__pending-row" ng-repeat="purchase in vm.exams.pending | limitTo:5">
+                    <span class="exsale__pending-who">{{ purchase.student_first_name }} {{ purchase.student_last_name }}</span>
+                    <span class="exsale__pending-what">{{ purchase.exam_title }} <em>{{ purchase.course_title }}</em>
+                      <span class="exadmin__paychip exadmin__paychip--unpaid" ng-if="vm.examPayKind(purchase) === 'unpaid'"><i class="fas fa-exclamation-circle"></i> not paid</span>
+                    </span>
+                    <span class="exsale__pending-age" ng-class="{'exsale__pending-age--amber': vm.examWaitingDays(purchase) > 7}">
+                      {{ vm.examWaitingDays(purchase) }}d
+                    </span>
+                    <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.examEnterResult(purchase)">
+                      <i class="fas fa-pen"></i> Enter result
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </uib-tab>
+
         </uib-tabset>
       </div>
     </div>

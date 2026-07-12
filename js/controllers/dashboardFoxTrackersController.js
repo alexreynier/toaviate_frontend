@@ -53,7 +53,10 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
     } else if (vm.action === 'detail') {
         loadDetail($stateParams.tracker_id);
     } else if (vm.action === 'add') {
-        // nothing to preload
+        // Pre-filled from the health board's "Register tracker" (unknown
+        // devices carry their transmitted identity).
+        if ($stateParams.imei) { vm.new_tracker.imei = $stateParams.imei; }
+        if ($stateParams.ccid) { vm.new_tracker.ccid = $stateParams.ccid; }
     }
 
     // ═══════════════════════════════════════════
@@ -222,7 +225,12 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
         ToastService.clearFieldError(event);
     };
 
-    vm.createTracker = function() {
+    // The backend refuses a CCID contradicted by observed traffic
+    // (reason:'ccid_mismatch' + transmitted_ccid). Offer "use transmitted";
+    // forcing past it is almost always the wrong move, so keep it tiny.
+    vm.ccid_conflict = null;
+
+    vm.createTracker = function(force) {
         var checks = [
             { ok: vm.new_tracker.imei && /^\d{15}$/.test(vm.new_tracker.imei), field: 'imei', label: 'IMEI (must be exactly 15 digits)' },
             { ok: vm.new_tracker.ccid && vm.new_tracker.ccid.trim().length > 0, field: 'ccid', label: 'CCID' }
@@ -230,16 +238,34 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
 
         if (!ToastService.validateForm(checks)) return;
 
+        var payload = angular.copy(vm.new_tracker);
+        if (force) { payload.allow_ccid_mismatch = true; }
+
         vm.creating = true;
-        FoxTrackerService.Create(vm.new_tracker).then(function(data) {
+        FoxTrackerService.Create(payload).then(function(data) {
             vm.creating = false;
             if (data.success) {
                 ToastService.success('Tracker Created', 'ID: ' + data.tracker_id);
                 $state.go('dashboard.super_admin.fox_trackers');
+            } else if (data.reason === 'ccid_mismatch') {
+                vm.ccid_conflict = { message: data.message, transmitted_ccid: data.transmitted_ccid };
             } else {
+                vm.ccid_conflict = null;
                 ToastService.error('Creation Failed', data.message);
             }
         });
+    };
+
+    vm.useTransmittedCcid = function() {
+        if (!vm.ccid_conflict) return;
+        vm.new_tracker.ccid = vm.ccid_conflict.transmitted_ccid;
+        vm.ccid_conflict = null;
+        vm.createTracker();
+    };
+
+    vm.forceCreateAnyway = function() {
+        vm.ccid_conflict = null;
+        vm.createTracker(true);
     };
 
     // ── Navigation ──
@@ -277,7 +303,9 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
             'edited': 'fa-pencil-alt',
             'deactivated': 'fa-pause-circle',
             'reactivated': 'fa-play-circle',
-            'retired': 'fa-ban'
+            'retired': 'fa-ban',
+            'identity_corrected': 'fa-fingerprint',
+            'entry_matched': 'fa-link'
         };
         return map[action] || 'fa-circle';
     };
@@ -291,17 +319,39 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
             'edited': '#64748b',
             'deactivated': '#f59e0b',
             'reactivated': '#16a34a',
-            'retired': '#dc2626'
+            'retired': '#dc2626',
+            'identity_corrected': '#8b5cf6',
+            'entry_matched': '#16a34a'
         };
         return map[action] || '#64748b';
     };
 
     vm.formatDetails = function(entry) {
-        if (!entry.parsed_details) return entry.details || '';
-        var parts = [];
         var d = entry.parsed_details;
+
+        // Identity fix: old→new ccid/imei, the reason, and the backfill count.
+        if (entry.action === 'identity_corrected' && d) {
+            var bits = [];
+            ['ccid', 'imei'].forEach(function(key) {
+                if (d[key] && d[key].old !== undefined) {
+                    bits.push(key + ': "' + (d[key].old || '') + '" → "' + (d[key].new || '') + '"');
+                }
+            });
+            if (d.reason) { bits.push('reason: "' + d.reason + '"'); }
+            var regen = d.pls_regenerated !== undefined ? d.pls_regenerated : d.entries_claimed;
+            if (regen !== undefined && regen !== null) { bits.push(regen + ' flight(s) backfilled'); }
+            return bits.join(' · ');
+        }
+
+        // Manual flight match: entry → tech log sheet.
+        if (entry.action === 'entry_matched' && d) {
+            return 'Flight ENTRY #' + (d.fox_entry_id || '?') + ' manually matched → tech log sheet #' + (d.plane_log_sheet_id || '?');
+        }
+
+        if (!d) return entry.details || '';
+        var parts = [];
         for (var key in d) {
-            if (d.hasOwnProperty(key) && d[key].old !== undefined) {
+            if (d.hasOwnProperty(key) && d[key] && d[key].old !== undefined) {
                 parts.push(key + ': "' + (d[key].old || '') + '" → "' + (d[key].new || '') + '"');
             }
         }

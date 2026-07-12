@@ -441,13 +441,52 @@ var app = angular
             })
 
             .state('dashboard.super_admin.fox_tracker_add', {
-                url: '/fox_trackers_add',
+                // ?imei&ccid — pre-filled by the health board's unknown-device
+                // "Register tracker" button
+                url: '/fox_trackers_add?imei&ccid',
                 controller: 'DashboardFoxTrackersController',
                 templateUrl: 'views/manageclub/fox_tracker_form.html',
                 controllerAs: 'vm',
                 data: {
                     action: 'add'
                 }
+            })
+
+            // Tracker health board — registry vs transmitted identity,
+            // fix-identity with backfill, unknown devices. ?tracker= scrolls
+            // to + highlights that row.
+            .state('dashboard.super_admin.fox_tracker_health', {
+                url: '/fox_trackers_health?tracker',
+                controller: 'FoxTrackerHealthController',
+                templateUrl: 'views/manageclub/fox_tracker_health.html',
+                controllerAs: 'vm'
+            })
+
+            // Unmatched flights worklist (deep-linkable: ?imei= from the
+            // health board's badges, ?entry= from the admin alert emails —
+            // that entry is highlighted, or noted as already matched).
+            .state('dashboard.super_admin.fox_unmatched', {
+                url: '/fox_unmatched?imei&club_id&entry',
+                controller: 'FoxUnmatchedController',
+                templateUrl: 'views/manageclub/fox_unmatched.html',
+                controllerAs: 'vm'
+            })
+
+            // ── Email button-link aliases ──
+            // The backend's "FLIGHT NOT ASSOCIATED" / "CCID MISMATCH" alert
+            // emails link to {host} + these EXACT paths — absolute URLs ('^')
+            // so they resolve regardless of the dashboard state prefix.
+            .state('dashboard.super_admin.fox_tracker_health_email', {
+                url: '^/trackers/health?tracker',
+                controller: 'FoxTrackerHealthController',
+                templateUrl: 'views/manageclub/fox_tracker_health.html',
+                controllerAs: 'vm'
+            })
+            .state('dashboard.super_admin.fox_unmatched_email', {
+                url: '^/trackers/unmatched?entry',
+                controller: 'FoxUnmatchedController',
+                templateUrl: 'views/manageclub/fox_unmatched.html',
+                controllerAs: 'vm'
             })
 
             // TRACKER ↔ PLANE ASSIGNMENT
@@ -597,6 +636,15 @@ var app = angular
                 url: '/the_shop',
                 controller: 'DashboardClubShopSaleController',
                 templateUrl: 'views/manageclub/the_shop.html',
+                controllerAs: 'vm'
+            })
+
+            // Exam results admin — outstanding results, purchase history,
+            // audit activity + per-course pricing (BACKEND_EXAM_SALES_GUIDE.md)
+            .state('dashboard.manage_club.exam_results', {
+                url: '/exam_results?tab',
+                controller: 'ExamResultsController',
+                templateUrl: 'views/manageclub/exam_results.html',
                 controllerAs: 'vm'
             })
 
@@ -2142,6 +2190,14 @@ var app = angular
             url: '/my_vouchers',
             templateUrl: 'views/my_account/my_vouchers.html',
             controller: 'MyVouchersController',
+            controllerAs: 'vm'
+        })
+
+        // Student's own ground-exam purchases, results & CAA certificates
+        .state('dashboard.my_account.my_exams', {
+            url: '/my_exams',
+            templateUrl: 'views/my_account/my_exams.html',
+            controller: 'MyExamsController',
             controllerAs: 'vm'
         })
 

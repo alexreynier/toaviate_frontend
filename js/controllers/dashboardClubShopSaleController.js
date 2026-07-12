@@ -1,7 +1,7 @@
  app.controller('DashboardClubShopSaleController', DashboardClubShopSaleController);
 
-    DashboardClubShopSaleController.$inject = ['$timeout', '$sce', 'ExperiencesService', 'PaymentService', '$scope', '$rootScope', 'MemberService', 'ClubService', 'ShopItemService', '$state', 'PackageService'];
-    function DashboardClubShopSaleController($timeout, $sce, ExperiencesService, PaymentService, $scope, $rootScope,   MemberService, ClubService, ShopItemService, $state, PackageService) {         
+    DashboardClubShopSaleController.$inject = ['$timeout', '$sce', 'ExperiencesService', 'PaymentService', '$scope', '$rootScope', 'MemberService', 'ClubService', 'ShopItemService', '$state', 'PackageService', 'ExamSalesService', 'ToastService', '$uibModal'];
+    function DashboardClubShopSaleController($timeout, $sce, ExperiencesService, PaymentService, $scope, $rootScope,   MemberService, ClubService, ShopItemService, $state, PackageService, ExamSalesService, ToastService, $uibModal) {
 
           var vm = this;
 
@@ -45,6 +45,9 @@
             vm.close_pay_now = function(){
                vm.show_pay_now = false;
                vm.show_loading = false;
+               // Closing without paying is fine — the exam sold strip keeps a
+               // "Take payment" button and re-checks whether the invoice paid.
+               if (vm.exams && vm.exams.sold) { vm.examRefreshSoldStatus(); }
             }
 
               vm.donConfirm = function(methodLabel, paymentIntent){
@@ -426,6 +429,213 @@
             }
 
 
+          // ── Ground exam sales (Exams tab) ──────────────────────────
+          // Catalog is per course with effective_price (per-exam override ??
+          // course default). Ticking exams builds a running total; the sale
+          // POSTs exam_sales (the backend creates the invoice with snapshot
+          // lines) and payment is taken through the normal invoice flow.
+          // BACKEND_EXAM_SALES_GUIDE.md §5.1.
+          vm.is_manager = ($rootScope.globals.currentUser.access.manager || []).indexOf(vm.club_id) > -1 ||
+                          ($rootScope.globals.currentUser.access.super_admin || []).length > 0;
+
+          vm.exams = {
+              loading: false,
+              courses: [],            // catalog: [{course_id, course_title, exams: [...]}]
+              selected_course: null,
+              student: null,          // who the exams are for — picked in the tab
+              members: [],            // member list for the picker (no "New Client" sentinel)
+              ticked: {},             // exam_id → true
+              selling: false,
+              sold: null,             // last successful sale (confirmation strip)
+              pending: [],            // outstanding results (quick entry from the shop)
+              pending_loading: false
+          };
+
+          // The exams student picker rides the shop's member list (and its
+          // server-side search) but never offers "New Client" — exams can
+          // only be sold to a current member.
+          $scope.$watchCollection('members', function(members){
+              vm.exams.members = (members || []).filter(function(m){ return m.id != -12; });
+          });
+
+          // Selecting the student here also drives the Payment section below,
+          // so the invoice + payment flow stays one continuous story.
+          vm.examStudentSelected = function(client){
+              vm.exams.student = client;
+              $scope.selected_client = client;
+              $scope.member_selected(client);
+          };
+
+          vm.examsLoad = function(){
+              vm.exams.loading = true;
+              ExamSalesService.GetCatalog(vm.club_id).then(function(data){
+                  vm.exams.loading = false;
+                  vm.exams.courses = (data && data.courses) || [];
+                  if (vm.exams.courses.length === 1) { vm.exams.selected_course = vm.exams.courses[0]; }
+              });
+              vm.exams.pending_loading = true;
+              ExamSalesService.GetPending(vm.club_id).then(function(data){
+                  vm.exams.pending_loading = false;
+                  vm.exams.pending = (data && (data.purchases || data.items)) || [];
+              });
+          };
+          vm.examsLoad();
+
+          vm.examSelectCourse = function(course){
+              vm.exams.selected_course = course;
+              vm.exams.ticked = {};   // ticks are per course — a sale is one course
+          };
+
+          vm.examToggle = function(exam){
+              if (exam.effective_price === null || exam.effective_price === undefined) { return; }
+              vm.exams.ticked[exam.id] = !vm.exams.ticked[exam.id];
+          };
+
+          vm.examTickedIds = function(){
+              var ids = [];
+              var course = vm.exams.selected_course;
+              if (!course) { return ids; }
+              angular.forEach(course.exams, function(exam){
+                  if (vm.exams.ticked[exam.id]) { ids.push(exam.id); }
+              });
+              return ids;
+          };
+
+          vm.examTotal = function(){
+              var total = 0;
+              var course = vm.exams.selected_course;
+              if (!course) { return 0; }
+              angular.forEach(course.exams, function(exam){
+                  if (vm.exams.ticked[exam.id] && exam.effective_price !== null) {
+                      total += parseFloat(exam.effective_price);
+                  }
+              });
+              return total;
+          };
+
+          vm.examSell = function(){
+              if (vm.exams.selling) { return; }
+              var exam_ids = vm.examTickedIds();
+              if (!exam_ids.length) {
+                  ToastService.warning('Nothing Selected', 'Tick at least one exam to sell.');
+                  return;
+              }
+              var student = vm.exams.student;
+              if (!student || !(student.user_id > 0)) {
+                  ToastService.warning('Select The Student', 'Exams can only be sold to a current member — choose the student above.');
+                  return;
+              }
+              // Keep the payment section in step even if it was changed there.
+              $scope.selected_client = student;
+              vm.exams.selling = true;
+              vm.exams.sold = null;
+              ExamSalesService.Sell({
+                  club_id: vm.club_id,
+                  course_id: vm.exams.selected_course.course_id,
+                  user_id: student.user_id,
+                  exam_ids: exam_ids
+              }).then(function(data){
+                  vm.exams.selling = false;
+                  if (data && data.success) {
+                      // Enrich each purchase with what the shared result modal
+                      // shows in its header — results are enterable from the
+                      // sold strip the moment the exam has been sat.
+                      var sold_purchases = (data.purchases || []).map(function(p){
+                          p.course_title = vm.exams.selected_course.course_title;
+                          p.student_first_name = $scope.selected_client.first_name;
+                          p.student_last_name = $scope.selected_client.last_name;
+                          return p;
+                      });
+                      vm.exams.sold = {
+                          invoice_id: data.invoice_id,
+                          total: data.total,
+                          purchases: sold_purchases,
+                          student: $scope.selected_client.first_name + ' ' + $scope.selected_client.last_name,
+                          user_id: $scope.selected_client.user_id,
+                          pay_kind: null,        // 'paid' | 'requested' | 'unpaid' | null (unknown)
+                          checking: false
+                      };
+                      vm.exams.ticked = {};
+                      vm.examsLoad();
+                      ToastService.success('Exams Sold', (data.purchases || []).length + ' exam(s) invoiced to ' + vm.exams.sold.student + ' — take payment now.');
+                      open_payment_for_invoice($scope.selected_client.user_id, data.invoice_id);
+                  } else {
+                      ToastService.error('Not Sold', (data && data.message) || 'The exams could not be sold.');
+                  }
+              });
+          };
+
+          // Re-open the payment window for the last sale — closing it without
+          // paying must never strand the invoice.
+          vm.examReopenPayment = function(){
+              if (!vm.exams.sold) { return; }
+              open_payment_for_invoice(vm.exams.sold.user_id, vm.exams.sold.invoice_id);
+          };
+
+          // Re-check whether the sold invoice has been paid (the purchase row
+          // carries invoice_status once the backend joins it; until then the
+          // chip stays unknown and only the Take-payment button shows).
+          vm.examRefreshSoldStatus = function(){
+              var sold = vm.exams.sold;
+              if (!sold || !sold.purchases.length || sold.checking) { return; }
+              sold.checking = true;
+              ExamSalesService.Get(sold.purchases[0].id).then(function(data){
+                  sold.checking = false;
+                  var row = (data && (data.purchase || data.item)) || (data && data.id ? data : null);
+                  if (row) { sold.pay_kind = ExamSalesService.InvoiceStatusKind(row.invoice_status); }
+              });
+          };
+
+          vm.examPayKind = function(purchase){
+              return ExamSalesService.InvoiceStatusKind(purchase.invoice_status);
+          };
+
+          // Enter a result for an outstanding purchase, right from the shop.
+          vm.examEnterResult = function(purchase){
+              $uibModal.open({
+                  templateUrl: 'views/modals/exam_result_modal.html',
+                  controller: 'ExamResultModalController',
+                  controllerAs: 'vm',
+                  backdrop: 'static',
+                  resolve: { context: function(){ return { mode: 'enter', purchase: purchase, is_manager: vm.is_manager }; } }
+              }).result.then(function(res){
+                  if (res && res.saved) {
+                      purchase._done = true;   // sold-strip button flips to "recorded"
+                      vm.examsLoad();
+                  }
+              }, function(){});
+          };
+
+          vm.examWaitingDays = function(purchase){
+              if (!purchase.created_at) { return 0; }
+              return moment().diff(moment(String(purchase.created_at).replace(' ', 'T')), 'days');
+          };
+
+          // Hand an already-created invoice to the normal payment step
+          // (mandate/cards/machine discovery → payment accordion).
+          function open_payment_for_invoice(user_id, invoice_id){
+              vm.show_loading = true;
+              vm.invoice_id = invoice_id;
+              vm.send = {
+                  club_id: $scope.club_id,
+                  user_id: user_id,
+                  invoice_id: invoice_id
+              };
+              MemberService.GetMandate(user_id, $scope.club_id)
+                  .then(function (data) {
+                      if(data.success){
+                          vm.info = data.info;
+                          vm.savedCards = data.cards;
+                          vm.methods[1].visible = vm.savedCards.length > 0;
+                          vm.methods[0].visible = vm.info != null;
+                          vm.machine = data.machine;
+                          vm.methods[3].visible = !!(vm.machine && vm.machine.success);
+                          vm.show_pay_now = true;
+                      }
+                      vm.show_loading = false;
+                  });
+          }
+
           vm.complete_now = function(method, paymentIntent){
               //user_id
               //club_id
@@ -445,13 +655,23 @@
                 .then(function (data) {
                     if(data.success){
                       console.log("complete", data);
-                      //alert("success!");
 
+                      // Exam sales STAY on the page — the natural next step is
+                      // entering the results, offered right in the sold strip
+                      // and the awaiting-results list below it.
+                      if (vm.exams && vm.exams.sold && vm.exams.sold.invoice_id == vm.invoice_id) {
+                          vm.show_pay_now = false;
+                          vm.show_loading = false;
+                          vm.exams.sold.pay_kind = 'paid';
+                          ToastService.success('Payment Complete', 'Invoice #' + vm.invoice_id + ' paid — enter each result below once the exam has been sat.');
+                          vm.examsLoad();
+                          return;
+                      }
+
+                      // Ordinary shop sale — original behaviour.
                       $timeout(function() {
                         $state.go('dashboard.manage_club', {}, { reload: true });
                       }, 2000); // delay in milliseconds (2 seconds here)
-
-                      //$state.go('dashboard.manage_club', {}, { reload: true });
 
                     }
               });

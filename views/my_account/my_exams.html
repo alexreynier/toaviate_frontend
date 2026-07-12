@@ -1,0 +1,79 @@
+<div class="snazzy-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-award"></i> My Ground Exams</h2>
+        <p>Your exam purchases, results and certificates</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- Club chips when a member of several clubs -->
+    <div class="exadmin__filters" ng-if="vm.clubs.length > 1">
+      <a class="exadmin__filter" ng-repeat="club in vm.clubs"
+         ng-class="{'exadmin__filter--on': vm.club.id === club.id}"
+         ng-click="vm.selectClub(club)">{{ club.title }}</a>
+    </div>
+
+    <div class="exadmin__loading" ng-if="vm.loading">
+      <div class="solo-req__spinner"></div> Loading your exams&hellip;
+    </div>
+
+    <div class="exadmin__empty" ng-if="!vm.loading && vm.items.length === 0">
+      <i class="fas fa-award"></i>
+      <p>No ground exams yet — they'll appear here once the club sells you one.</p>
+    </div>
+
+    <div class="exadmin__list" ng-if="!vm.loading && vm.items.length > 0">
+      <div class="exadmin__row myexams__row" ng-repeat="item in vm.items"
+           ng-class="{'exadmin__row--cancelled': item.status === 'cancelled', 'myexams__row--open': item._open}">
+
+        <div class="exadmin__row-main" ng-click="vm.toggle(item)">
+          <div class="exadmin__row-title">
+            {{ item.exam_title }}
+            <span class="exadmin__status exadmin__status--{{ item.status }}">{{ vm.statusLabel(item) }}</span>
+            <span class="exadmin__resultchip" ng-if="item.status === 'result_entered'"
+                  ng-class="item.record_pass_fail == 1 ? 'exadmin__resultchip--pass' : 'exadmin__resultchip--fail'">
+              {{ item.record_pass_fail == 1 ? 'PASS' : 'FAIL' }}<span ng-if="item.record_result"> &middot; {{ item.record_result | number:0 }}%</span>
+            </span>
+            <span class="exadmin__paychip exadmin__paychip--unpaid" ng-if="vm.payKind(item) === 'unpaid' && item.status !== 'cancelled'"
+                  uib-tooltip="Pay from My Invoices"><i class="fas fa-exclamation-circle"></i> payment due</span>
+          </div>
+          <div class="myexams__paydue" ng-if="vm.payKind(item) === 'unpaid' && item.status !== 'cancelled'">
+            This exam's invoice hasn't been paid yet —
+            <a ui-sref="dashboard.my_account.invoices" ng-click="$event.stopPropagation()">pay it from My Invoices</a>.
+          </div>
+          <div class="exadmin__row-sub">
+            {{ item.course_title }}
+            &middot; purchased {{ item.created_at | asDate | date:'dd MMM yyyy' }}
+            &middot; {{ vm.club.currency }}{{ item.price | number:2 }}
+            <span ng-if="item.record_date"> &middot; sat {{ item.record_date | asDate | date:'dd MMM yyyy' }}</span>
+          </div>
+
+          <!-- Certificates (lazy-loaded on expand) -->
+          <div class="myexams__certs" ng-if="item._open && item.exam_record_id">
+            <div class="exadmin__loading" ng-if="item._filesLoading">
+              <div class="solo-req__spinner"></div> Loading certificates&hellip;
+            </div>
+            <p class="myexams__nocerts" ng-if="!item._filesLoading && item._files && item._files.length === 0">
+              No certificate on file for this exam.
+            </p>
+            <a class="myexams__cert" ng-repeat="f in item._files" ng-click="vm.viewCertificate(f); $event.stopPropagation()">
+              <i class="fas" ng-class="f.file_type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'"></i>
+              {{ f.original_name }}
+              <span class="myexams__cert-view"><i class="fas fa-eye"></i> view</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="exadmin__row-actions myexams__chev" ng-if="item.exam_record_id">
+          <i class="fas fa-chevron-down" ng-class="{'myexams__chev-icon--open': item._open}" ng-click="vm.toggle(item)"></i>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

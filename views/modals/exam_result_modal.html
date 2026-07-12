@@ -1,0 +1,112 @@
+<div class="exres-modal">
+
+  <div class="exres-modal__header">
+    <div class="exres-modal__header-icon"><i class="fas fa-file-signature"></i></div>
+    <div>
+      <h3 class="exres-modal__title">{{ vm.mode === 'enter' ? 'Enter Exam Result' : 'Edit Exam Result' }}</h3>
+      <p class="exres-modal__sub">
+        <strong>{{ vm.exam_title }}</strong>
+        <span ng-if="vm.course_title"> &middot; {{ vm.course_title }}</span>
+        <span ng-if="vm.student_name"> &middot; {{ vm.student_name }}</span>
+      </p>
+    </div>
+    <a class="exres-modal__close" ng-click="vm.cancel()"><i class="fas fa-times"></i></a>
+  </div>
+
+  <div class="exres-modal__body">
+
+    <!-- Pass / fail — the admin's manual assertion, never inferred from the score -->
+    <div class="exres-modal__field">
+      <label class="exres-modal__label">Result <span class="exres-modal__required">required</span></label>
+      <div class="exres-modal__passfail">
+        <a class="exres-modal__pf exres-modal__pf--pass" ng-class="{'exres-modal__pf--on': vm.form.pass_fail === 1}" ng-click="vm.setPassFail(1)">
+          <i class="fas fa-check-circle"></i> PASS
+        </a>
+        <a class="exres-modal__pf exres-modal__pf--fail" ng-class="{'exres-modal__pf--on': vm.form.pass_fail === 0}" ng-click="vm.setPassFail(0)">
+          <i class="fas fa-times-circle"></i> FAIL
+        </a>
+      </div>
+      <p class="exres-modal__hint">Your assertion as the examiner/admin — it is never derived from the score.</p>
+    </div>
+
+    <div class="exres-modal__grid">
+      <div class="exres-modal__field">
+        <label class="exres-modal__label">Date sat</label>
+        <input type="date" class="exres-modal__input" ng-model="vm.form.date">
+      </div>
+      <div class="exres-modal__field">
+        <label class="exres-modal__label">Score % <span class="exres-modal__optional">optional</span></label>
+        <input type="number" class="exres-modal__input" ng-model="vm.form.result" min="0" max="100" step="0.5" placeholder="—">
+      </div>
+      <div class="exres-modal__field">
+        <label class="exres-modal__label">Sitting</label>
+        <input type="text" class="exres-modal__input" ng-model="vm.form.sitting" maxlength="20" placeholder="e.g. 1">
+      </div>
+      <div class="exres-modal__field">
+        <label class="exres-modal__label">Set</label>
+        <input type="text" class="exres-modal__input" ng-model="vm.form.set_no" maxlength="20" placeholder="e.g. B">
+      </div>
+      <div class="exres-modal__field exres-modal__field--wide">
+        <label class="exres-modal__label">Examiner</label>
+        <input type="text" class="exres-modal__input" ng-model="vm.form.examiner" maxlength="120" placeholder="e.g. UK CAA">
+      </div>
+      <div class="exres-modal__field exres-modal__field--wide">
+        <label class="exres-modal__label">Notes</label>
+        <textarea class="exres-modal__input exres-modal__textarea" ng-model="vm.form.notes" maxlength="500" rows="2"></textarea>
+      </div>
+      <div class="exres-modal__field exres-modal__field--wide" ng-if="vm.mode === 'edit'">
+        <label class="exres-modal__label">Reason for the change <span class="exres-modal__optional">optional — recorded in the history</span></label>
+        <input type="text" class="exres-modal__input" ng-model="vm.form.reason" maxlength="255" placeholder="What was wrong?">
+      </div>
+    </div>
+
+    <!-- ── CAA certificate ── -->
+    <div class="exres-modal__certs">
+      <label class="exres-modal__label"><i class="fas fa-award"></i> CAA portal certificate</label>
+
+      <!-- Existing files (edit mode) -->
+      <div class="exres-modal__file" ng-repeat="f in vm.files.existing" ng-class="{'exres-modal__file--busy': vm.files.busy[f.id]}">
+        <i class="fas exres-modal__file-icon" ng-class="f.file_type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'"></i>
+        <span class="exres-modal__file-name">{{ f.original_name }}</span>
+        <span class="exres-modal__file-actions" ng-if="!f._confirmDelete">
+          <a ng-click="vm.viewExisting(f)" title="View"><i class="fas fa-eye"></i></a>
+          <a ng-if="vm.is_manager" class="exres-modal__file-del" ng-click="vm.askDeleteExisting(f)" title="Delete"><i class="fas fa-trash-alt"></i></a>
+        </span>
+        <span class="exres-modal__file-confirm" ng-if="f._confirmDelete">
+          Delete?
+          <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.deleteExisting(f)">Delete</button>
+          <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.cancelDeleteExisting(f)">Keep</button>
+        </span>
+      </div>
+
+      <!-- Queued for upload -->
+      <div class="exres-modal__file exres-modal__file--queued" ng-repeat="q in vm.files.queued track by $index">
+        <img class="exres-modal__file-thumb" ng-if="q.preview" ng-src="{{ q.preview }}" alt="">
+        <i class="fas fa-file-pdf exres-modal__file-icon" ng-if="!q.preview"></i>
+        <span class="exres-modal__file-name">{{ q.name }} <em>({{ (q.size / 1048576) | number:1 }} MB)</em></span>
+        <span class="exres-modal__file-actions">
+          <i class="fas fa-spinner fa-spin" ng-if="q._uploading"></i>
+          <a ng-if="!q._uploading" ng-click="vm.removeQueued($index)" title="Remove"><i class="fas fa-times"></i></a>
+        </span>
+      </div>
+
+      <!-- Dropzone -->
+      <label class="exres-modal__dropzone" ng-class="{'exres-modal__dropzone--over': vm.drag_over}"
+             lcf-dropzone lcf-on-drop="vm.addFiles(files)" lcf-on-drag-state="vm.setDragState(isDragging)">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <span><strong>Drop the certificate here</strong> or tap to choose &mdash; PNG, JPG or PDF, up to 20&nbsp;MB. Stored encrypted.</span>
+        <input type="file" accept="image/png,image/jpeg,application/pdf" multiple lcf-file-select="vm.addFiles(files)" style="display:none;">
+      </label>
+    </div>
+
+  </div>
+
+  <div class="exres-modal__footer">
+    <button type="button" class="solo-btn solo-btn--ghost" ng-click="vm.cancel()" ng-disabled="vm.saving">Cancel</button>
+    <button type="button" class="solo-btn solo-btn--primary" ng-click="vm.save()" ng-disabled="vm.saving">
+      <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+      {{ vm.mode === 'enter' ? 'Record result' : 'Save changes' }}
+    </button>
+  </div>
+
+</div>
