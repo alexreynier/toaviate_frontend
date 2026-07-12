@@ -1158,6 +1158,11 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                         bs_last_name:  u.last_name,
                         ta_email:      u.login_email,     // fake bsNNNN@ login (temp)
                         bs_email:      u.original_email,  // real email to invite
+                        // No real email on record (original_email null — e.g.
+                        // tpc-import-… stubs): the row shows an email input and
+                        // the address is sent as "email" in the convert body.
+                        needs_email:   !u.original_email,
+                        _email:        '',
                         booking_count: u.booking_count
                     };
                 });
@@ -1282,7 +1287,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                     break;
                 case 'signup':
                 default:
-                    ToastService.success('Signup Invitation Sent', 'Signup invitation sent to ' + u.bs_email);
+                    ToastService.success('Signup Invitation Sent', 'Signup invitation sent to ' + (u.bs_email || u._email));
                     break;
             }
             if (data.membership && data.membership.already_expired) {
@@ -1303,7 +1308,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         // uses exactly the membership_id it receives — so this must be the admin's
         // selected tier (the dropdown uses ng-options to keep that mapping correct).
         function _convertPayload(u) {
-            return {
+            var payload = {
                 membership_id: u._membershipId,
                 term_start: toYmd(u._termStart) || toYmd(new Date()),
                 membership_ends: toYmd(u._membershipEnds),
@@ -1311,12 +1316,37 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 // backend-derived default, so the two never disagree.
                 require_payment: u._requirePayment ? 1 : 0
             };
+            // Rows with no stored real email carry the admin-typed one.
+            if (u.needs_email && u._email && u._email.trim()) {
+                payload.email = u._email.trim();
+            }
+            return payload;
+        }
+
+        // Light-touch validity: backend is authoritative (INVALID_EMAIL), this
+        // just stops obvious slips before a round-trip.
+        var EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        vm.emailLooksValid = function(u) {
+            return !!(u._email && EMAIL_RX.test(u._email.trim()));
+        };
+        vm.onEmailInput = function(u) { u._emailError = null; };
+
+        // A pending row is convert-ready only when any required email is present.
+        function emailBlocked(u) {
+            return u.needs_email && !vm.emailLooksValid(u);
         }
 
         vm.convertUser = function(u) {
             _ensureConvertDefaults(u);
             if (!u._membershipId) {
                 ToastService.warning('Membership Required', 'Please choose a membership tier before converting.');
+                return;
+            }
+            if (emailBlocked(u)) {
+                u._emailError = u._email && u._email.trim()
+                    ? 'That doesn\'t look like a valid email address.'
+                    : 'This person has no email on record — enter one to invite them.';
+                ToastService.warning('Email Required', 'Enter a real email address for ' + ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '')).trim() + ' before converting.');
                 return;
             }
             u._converting = true;
@@ -1332,6 +1362,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                     showConvertResult(u, data);
                 } else if (data.error === 'MEMBERSHIP_REQUIRED') {
                     handleMembershipRequired(u, data);
+                } else if (data.error === 'EMAIL_REQUIRED') {
+                    u._emailError = 'This person has no email on record — enter one to invite them.';
+                    ToastService.warning('Email Required', 'Enter a real email address for this user, then convert again.');
+                } else if (data.error === 'INVALID_EMAIL') {
+                    u._emailError = 'The backend rejected this address — please check it.';
+                    ToastService.warning('Invalid Email', data.message || 'That email address doesn\'t look right — please check it.');
                 } else {
                     ToastService.error('Error', data.message || 'Failed to convert user.');
                 }
@@ -1347,6 +1383,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             var missing = pending.filter(function(u) { return !u._membershipId; });
             if (missing.length) {
                 ToastService.warning('Membership Required', missing.length + ' user(s) have no membership tier selected. Pick a tier for each before converting all.');
+                return;
+            }
+            var noEmail = pending.filter(emailBlocked);
+            if (noEmail.length) {
+                noEmail.forEach(function(u) { u._emailError = 'Email needed before converting.'; });
+                ToastService.warning('Email Required', noEmail.length + ' user(s) have no email on record. Enter a real email for each highlighted row before converting all.');
                 return;
             }
             if (!confirm('This will send invitations to ALL imported users. Continue?')) return;

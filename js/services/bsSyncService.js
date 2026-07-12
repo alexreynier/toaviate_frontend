@@ -190,6 +190,11 @@ app.factory('BsSyncService', BsSyncService);
             // from the UI checkbox; omitting it would give the backend-derived
             // default (which the checkbox mirrors anyway).
             if (opts.require_payment !== undefined && opts.require_payment !== null) body.require_payment = opts.require_payment;
+            // The person's real email — REQUIRED when the imported row has no
+            // original_email (e.g. TPC training-records stubs); also overrides
+            // a stale stored address. Backend refuses with EMAIL_REQUIRED /
+            // INVALID_EMAIL (FRONTEND_BS_SYNC_GUIDE.md).
+            if (opts.email) body.email = opts.email;
             return $http.post('/api/v1/bs_sync/convert/' + club_id + '/' + user_id, body)
                 .then(handleSuccess, handleError);
         }

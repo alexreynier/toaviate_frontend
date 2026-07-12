@@ -1242,7 +1242,28 @@
                   ng-init="vm.ensureConvertDefaults(u)">
                 <td data-label="Name">
                   <strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong>
-                  <div class="bs-mono bs-subtle">{{ u.bs_email }}</div>
+                  <div class="bs-mono bs-subtle" ng-if="!u.needs_email">{{ u.bs_email }}</div>
+
+                  <!-- No real email on record (TPC-import stubs etc.) — capture
+                       one here; it's sent as "email" in the convert body. -->
+                  <div class="bs-email-fill" ng-if="u.needs_email && !u._converted"
+                       ng-class="{'bs-email-fill--error': u._emailError, 'bs-email-fill--ok': vm.emailLooksValid(u)}">
+                    <span class="bs-email-fill__chip" uib-tooltip="This person was imported without an email (e.g. from the training-records import). They can't be invited until you add one.">
+                      <i class="fa fa-envelope-open"></i> no email on record
+                    </span>
+                    <div class="bs-email-fill__wrap">
+                      <i class="fa bs-email-fill__icon" ng-class="vm.emailLooksValid(u) ? 'fa-check-circle' : 'fa-envelope'"></i>
+                      <input type="email" class="bs-input bs-input--sm bs-email-fill__input"
+                             ng-model="u._email" ng-change="vm.onEmailInput(u)"
+                             placeholder="their real email…" autocomplete="off">
+                    </div>
+                    <div class="bs-email-fill__err" ng-if="u._emailError">
+                      <i class="fa fa-exclamation-circle"></i> {{ u._emailError }}
+                    </div>
+                  </div>
+                  <div class="bs-mono bs-subtle" ng-if="u.needs_email && u._converted">
+                    <i class="fa fa-envelope"></i> {{ u._email }}
+                  </div>
                 </td>
                 <td data-label="Temp Email"><span class="bs-mono">{{ u.ta_email }}</span></td>
 
@@ -1299,7 +1320,10 @@
                 </td>
 
                 <td data-label="Action" class="bs-table__actions-col">
-                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.convertUser(u)" ng-disabled="u._converting || !u._membershipId" ng-if="!u._converted">
+                  <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.convertUser(u)"
+                          ng-disabled="u._converting || !u._membershipId || (u.needs_email && !vm.emailLooksValid(u))"
+                          uib-tooltip="{{ u.needs_email && !vm.emailLooksValid(u) ? 'Enter their real email first' : '' }}"
+                          ng-if="!u._converted">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': u._converting, 'fa-paper-plane': !u._converting}"></i>
                     {{ u._converting ? 'Sending...' : 'Convert' }}
                   </button>
