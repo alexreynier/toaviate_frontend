@@ -71,11 +71,36 @@ function ToastService($timeout) {
         return el;
     }
 
+    // ── Subtitle sanitiser ──
+    // Controllers routinely pass `data.message` from a service's handleError2,
+    // which on an HTTP error is the raw response BODY — an object. Rendering
+    // that verbatim gives "[object Object]", so pull the human string out of
+    // the shapes our API uses, or fall back to a generic sentence.
+    function cleanSubtitle(subtitle) {
+        if (subtitle === null || subtitle === undefined) { return ''; }
+        if (typeof subtitle === 'string') { return subtitle; }
+        if (typeof subtitle === 'object') {
+            if (typeof subtitle.error === 'string' && subtitle.error !== '') { return subtitle.error; }
+            if (typeof subtitle.message === 'string' && subtitle.message !== '') { return subtitle.message; }
+            return 'Something went wrong — please try again.';
+        }
+        return String(subtitle);
+    }
+
+    // A 401 body (fail: 'AUTHENTICATION') already produces the single
+    // "Session Expired" notice from the HTTP interceptor — a per-controller
+    // "Load Failed" toast for the same event is just noise on top of it.
+    function isAuthFailure(subtitle) {
+        return !!(subtitle && typeof subtitle === 'object' && subtitle.fail === 'AUTHENTICATION');
+    }
+
     // ── Success toast (green tick + optional confetti) ──
     function showSuccess(title, subtitle, opts) {
         opts = opts || {};
         var duration = opts.duration || 3000;
         var confetti = opts.confetti !== false; // default true
+
+        subtitle = cleanSubtitle(subtitle);
 
         var wrapper = document.createElement('div');
         wrapper.className = 'payok-root';
@@ -108,6 +133,9 @@ function ToastService($timeout) {
         opts = opts || {};
         var duration = opts.duration || 5000;
 
+        if (isAuthFailure(subtitle)) { return; }
+        subtitle = cleanSubtitle(subtitle);
+
         var wrapper = document.createElement('div');
         wrapper.className = 'payfail-root';
         wrapper.setAttribute('role', 'alert');
@@ -124,6 +152,9 @@ function ToastService($timeout) {
     function showWarning(title, subtitle, opts) {
         opts = opts || {};
         var duration = opts.duration || 4000;
+
+        if (isAuthFailure(subtitle)) { return; }
+        subtitle = cleanSubtitle(subtitle);
 
         var wrapper = document.createElement('div');
         wrapper.className = 'ta-warn-root';

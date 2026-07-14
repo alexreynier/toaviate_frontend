@@ -114,9 +114,20 @@
                     </div>
 
                     <div class="af-field">
-                        <label for="field-af-elev">Elevation (ft)</label>
+                        <label for="field-af-elev">
+                            Elevation (ft)
+                            <span class="af-elev-pill" ng-if="vm.elevSource(vm.form).show"
+                                  ng-class="vm.elevSource(vm.form).cls">
+                                {{ vm.elevSource(vm.form).label }}
+                            </span>
+                        </label>
                         <input id="field-af-elev" class="af-input" type="number"
                                placeholder="AMSL" ng-model="vm.form.elevation" />
+                        <p class="af-field__hint" ng-if="vm.form.elevation_source === 'terrain'">
+                            Estimated from a terrain model (~±5 ft) — not a surveyed figure.
+                            Typing a value here marks it <strong>manual</strong>, and the
+                            automatic filler will never overwrite it.
+                        </p>
                     </div>
 
                     <div class="af-field af-field--wide">
@@ -212,6 +223,7 @@
                             <th>Airfield</th>
                             <th class="af-col--hide-mobile">Country</th>
                             <th class="af-col--hide-mobile">Type</th>
+                            <th class="af-col--hide-mobile">Elevation</th>
                             <th>Status</th>
                             <th class="af-col--hide-mobile">Source</th>
                             <th class="af-num">Actions</th>
@@ -232,6 +244,20 @@
                             <td class="af-col--hide-mobile">
                                 <i class="fas af-type-icon" ng-class="vm.typeIcon(af.af_type)"></i>
                                 {{ vm.typeLabel(af.af_type) }}
+                            </td>
+                            <td class="af-col--hide-mobile">
+                                <span ng-if="af.elevation !== null && af.elevation !== ''">
+                                    {{ af.elevation }} ft
+                                    <span class="af-elev-pill" ng-if="vm.elevSource(af).show"
+                                          ng-class="vm.elevSource(af).cls">
+                                        {{ vm.elevSource(af).label }}
+                                    </span>
+                                </span>
+                                <span class="af-elev__missing"
+                                      ng-if="af.elevation === null || af.elevation === ''"
+                                      title="Flight replay falls back to raw GPS altitude without this">
+                                    <i class="fas fa-exclamation-triangle"></i> none
+                                </span>
                             </td>
                             <td>
                                 <span class="af-pill af-pill--active" ng-if="vm.isActive(af)">
@@ -277,6 +303,14 @@
                     <div class="af-mcard__meta">
                         <span>{{ vm.countryFlag(af.country_code) }} {{ vm.countryName(af.country_code) || af.country }}</span>
                         <span><i class="fas af-type-icon" ng-class="vm.typeIcon(af.af_type)"></i> {{ vm.typeLabel(af.af_type) }}</span>
+                        <span ng-if="af.elevation !== null && af.elevation !== ''">
+                            {{ af.elevation }} ft
+                            <span class="af-elev-pill" ng-if="vm.elevSource(af).show"
+                                  ng-class="vm.elevSource(af).cls">{{ vm.elevSource(af).label }}</span>
+                        </span>
+                        <span class="af-elev__missing" ng-if="af.elevation === null || af.elevation === ''">
+                            <i class="fas fa-exclamation-triangle"></i> no elevation
+                        </span>
                         <span class="af-badge" ng-class="vm.sourceClass(af)">{{ vm.sourceLabel(af) }}</span>
                         <span class="af-pill af-pill--verify" ng-if="af.to_be_verified == 1">
                             <i class="fas fa-exclamation"></i> Needs review

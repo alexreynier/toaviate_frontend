@@ -63,6 +63,11 @@
                 <i class="fas fa-hourglass-half"></i> Pending
             </button>
             <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'merged'}"
+                    ng-click="vm.setReviewStatus('merged')">
+                <i class="fas fa-compress-arrows-alt"></i> Merged
+            </button>
+            <button class="af-filter-btn"
                     ng-class="{'af-filter-btn--active': vm.review_status === 'approved'}"
                     ng-click="vm.setReviewStatus('approved')">
                 <i class="fas fa-check"></i> Approved
@@ -90,8 +95,14 @@
             <p ng-if="vm.review_status === 'pending'">
                 Every imported airfield has been checked. New ones will show up here automatically.
             </p>
-            <p ng-if="vm.review_status !== 'pending'">
-                Items you {{ vm.review_status === 'approved' ? 'approve' : 'dismiss' }} will be listed here.
+            <p ng-if="vm.review_status === 'merged'">
+                Candidates you merge into an existing airfield will be listed here.
+            </p>
+            <p ng-if="vm.review_status === 'approved'">
+                Candidates you add as separate airfields will be listed here.
+            </p>
+            <p ng-if="vm.review_status === 'dismissed'">
+                Items you dismiss will be listed here.
             </p>
         </div>
 
@@ -313,7 +324,7 @@
                             ng-click="vm.mergeItem(item)"
                             ng-disabled="vm.acting[item.id] || !vm.selectedCount(item)">
                         <i class="fas fa-circle-notch af-spin" ng-if="vm.acting[item.id]"></i>
-                        <i class="fas fa-code-merge" ng-if="!vm.acting[item.id]"></i>
+                        <i class="fas fa-compress-arrows-alt" ng-if="!vm.acting[item.id]"></i>
                         <span ng-if="vm.selectedCount(item)">
                             Same place — update {{ item.nearest_code }}
                             ({{ vm.selectedCount(item) }} field<span ng-if="vm.selectedCount(item) !== 1">s</span>)
@@ -332,8 +343,18 @@
                 </div>
 
                 <div class="af-review-card__resolved" ng-if="vm.review_status !== 'pending'">
-                    <i class="fas" ng-class="vm.review_status === 'approved' ? 'fa-check-circle' : 'fa-ban'"></i>
-                    {{ vm.review_status === 'approved' ? 'Approved' : 'Dismissed' }}
+                    <span ng-if="vm.review_status === 'merged'">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                        Merged into the existing airfield
+                    </span>
+                    <span ng-if="vm.review_status === 'approved'">
+                        <i class="fas fa-check-circle"></i>
+                        Added as a separate airfield
+                    </span>
+                    <span ng-if="vm.review_status === 'dismissed'">
+                        <i class="fas fa-ban"></i>
+                        Dismissed
+                    </span>
                     <span ng-if="item.airfield_id"> · airfield #{{ item.airfield_id }}</span>
                 </div>
 

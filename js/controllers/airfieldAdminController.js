@@ -72,6 +72,13 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
         vm.country_pick    = '';
         vm.area            = { lat: null, lon: null, box: 2.0 };
 
+        // ── Elevation health ──
+        // A blank elevation silently degrades flight replay (it falls back to
+        // raw GPS altitude), so this is a real data-quality problem, not cosmetic.
+        vm.elevation      = null;
+        vm.elev_running   = false;
+        vm.elev_result    = null;
+
         vm.loadStatus       = loadStatus;
         vm.setImportMode    = setImportMode;
         vm.runCountryImport = runCountryImport;
@@ -79,10 +86,65 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
         vm.showMoreCoverage = showMoreCoverage;
         vm.setCoverageSort  = setCoverageSort;
         vm.dismissResult    = function () { vm.import_result = null; };
+        vm.dismissElevResult = function () { vm.elev_result = null; };
         vm.runStatusClass   = runStatusClass;
         vm.scopeLabel       = scopeLabel;
+        vm.fillElevations   = fillElevations;
 
         loadStatus();
+    }
+
+    // ── Elevation fill ──
+    // `used_by_flights` scopes the run to airfields that flights actually
+    // depart from / land at — the ones whose replay is currently degraded.
+    // The long tail (~17.8k nobody flies from) is left to the background cron.
+    function fillElevations(usedByFlights) {
+        if (vm.elev_running) { return; }
+
+        vm.elev_running = true;
+        vm.elev_result  = null;
+
+        AirfieldAdminService.FillElevations(300, usedByFlights).then(function (data) {
+            vm.elev_running = false;
+
+            if (!data || data.success === false) {
+                ToastService.error('Could not fill elevations',
+                    messageOf(data, 'The elevation lookup did not complete.'));
+                return;
+            }
+
+            var surveyed  = num(data.from_ourairports);
+            var estimated = num(data.from_terrain);
+            var noData    = num(data.no_data);
+            var remaining = num(data.remaining);
+            var filled    = surveyed + estimated;
+
+            vm.elev_result = {
+                surveyed:  surveyed,
+                estimated: estimated,
+                no_data:   noData,
+                remaining: remaining,
+                filled:    filled,
+                scoped:    !!usedByFlights
+            };
+
+            // Report honestly — including the case where nothing was filled.
+            if (filled === 0) {
+                ToastService.warning('Nothing filled',
+                    remaining > 0
+                        ? remaining + ' still missing — the terrain service returned no data for these.'
+                        : 'There was nothing left to fill.');
+            } else {
+                var bits = [];
+                if (surveyed > 0)  { bits.push(surveyed + ' surveyed'); }
+                if (estimated > 0) { bits.push(estimated + ' estimated'); }
+                ToastService.success(
+                    'Filled ' + filled + ' elevation' + (filled === 1 ? '' : 's'),
+                    bits.join(', ') + ' · ' + remaining + ' remaining');
+            }
+
+            loadStatus(true);
+        });
     }
 
     function loadStatus(isRefresh) {
@@ -138,6 +200,29 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
             });
 
             vm.pending_review = num(data.pending_review);
+
+            // Elevation health. Everything here arrives as a MySQL string except
+            // missing_used_by_flights, which the backend already casts to int.
+            var e = data.elevation || {};
+            var surveyed  = num(e.from_ourairports);
+            var estimated = num(e.from_terrain);
+            var manual    = num(e.from_manual);
+            var have      = surveyed + estimated + manual;
+
+            vm.elevation = {
+                total:      num(e.total),
+                missing:    num(e.missing),
+                surveyed:   surveyed,
+                estimated:  estimated,
+                manual:     manual,
+                have:       have,
+                // The number that matters: airfields flights actually use that
+                // still have no elevation → their replay is degraded right now.
+                at_risk:    num(e.missing_used_by_flights),
+                // Share of the rows that HAVE an elevation which are only DEM
+                // estimates — context for how much is surveyed vs guessed.
+                est_pct:    have > 0 ? Math.round((estimated / have) * 100) : 0
+            };
 
             vm.gaps = data.gaps || [];
             vm.gaps_pending = 0;
@@ -279,26 +364,20 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
     }
 
     // ── The merge comparison ────────────────────────────────────────
-    // Pull the FULL existing record (the review payload only carries its
-    // title + code) and diff it against the candidate, field by field.
+    // The review payload carries the whole existing row nested under
+    // `nearest_airfield`. Diff it against the candidate, field by field.
     function loadComparison(item) {
         if (item.reason !== 'location_dup' || !item.nearest_airfield_id) { return; }
 
-        item.cmp_loading = true;
+        if (!item.nearest_airfield) {
+            // Without the existing row we can't offer a safe merge — the card
+            // falls back to plain approve/dismiss.
+            item.cmp_error = true;
+            return;
+        }
 
-        AirfieldAdminService.GetAirfield(item.nearest_airfield_id).then(function (data) {
-            item.cmp_loading = false;
-
-            if (!data || data.success === false || !data.airfield) {
-                // Without the existing row we can't offer a safe merge — the
-                // card falls back to plain approve/dismiss.
-                item.cmp_error = true;
-                return;
-            }
-
-            item.existing = data.airfield;
-            buildRows(item);
-        });
+        item.existing = item.nearest_airfield;
+        buildRows(item);
     }
 
     function buildRows(item) {
@@ -406,27 +485,25 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
 
         vm.acting[item.id] = true;
 
-        AirfieldAdminService.MergeIntoExisting(item.id, item.nearest_airfield_id, patch)
-            .then(function (data) {
-                vm.acting[item.id] = false;
+        AirfieldAdminService.MergeIntoExisting(item.id, patch).then(function (data) {
+            vm.acting[item.id] = false;
 
-                if (!data || data.success === false) {
-                    ToastService.error('Could not merge',
-                        messageOf(data, 'The existing airfield was not updated.'));
-                    return;
-                }
+            if (!data || data.success === false) {
+                // e.g. the ticked code collides with another airfield — the
+                // server names it, so show that rather than a generic failure.
+                ToastService.error('Could not merge',
+                    messageOf(data, 'The existing airfield was not updated.'));
+                return;
+            }
 
-                var n = picked.length;
-                if (data.partial) {
-                    ToastService.warning('Merged, but still queued',
-                        n + ' field' + (n === 1 ? '' : 's') + ' copied into ' +
-                        item.nearest_code + ', but the review item could not be cleared.');
-                } else {
-                    ToastService.success('Merged into ' + item.nearest_code,
-                        n + ' field' + (n === 1 ? '' : 's') + ' back-filled · no duplicate created');
-                }
-                removeCard(item);
-            });
+            // Trust the server's count over our own — it applies the whitelist.
+            var n = (data.updated !== undefined && data.updated !== null)
+                ? num(data.updated) : picked.length;
+
+            ToastService.success('Merged into ' + item.nearest_code,
+                n + ' field' + (n === 1 ? '' : 's') + ' back-filled · no duplicate created');
+            removeCard(item);
+        });
     }
 
     function loadReview() {
@@ -561,6 +638,20 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
         vm.sourceLabel   = sourceLabel;
         vm.sourceClass   = sourceClass;
         vm.isActive      = isActive;
+        vm.elevSource    = elevSource;
+    }
+
+    // ── Elevation provenance ──
+    // A `terrain` figure is the ground height at the coordinate from a 30 m DEM
+    // (~±5 ft), NOT a surveyed field elevation. It's a fine replay datum but must
+    // never be shown to a pilot as authoritative — hence the explicit "estimated"
+    // pill. `manual` is the highest authority: the auto-filler won't overwrite it.
+    function elevSource(af) {
+        var s = af && af.elevation_source;
+        if (s === 'terrain')     { return { label: 'estimated', cls: 'af-elev--estimated', show: true }; }
+        if (s === 'manual')      { return { label: 'manual',    cls: 'af-elev--manual',    show: true }; }
+        if (s === 'ourairports') { return { label: 'surveyed',  cls: 'af-elev--surveyed',  show: true }; }
+        return { show: false };   // legacy / unknown origin — no pill
     }
 
     var searchTimer = null;
@@ -626,7 +717,10 @@ function AirfieldAdminController(AirfieldAdminService, ToastService, $rootScope,
             municipality: af.municipality || '',
             active:       isActive(af) ? 1 : 0,
             source:       af.source,
-            to_be_verified: af.to_be_verified
+            to_be_verified: af.to_be_verified,
+            // Read-only — shown as a provenance pill. The backend re-stamps this
+            // to 'manual' whenever an admin PUTs an elevation, so we never send it.
+            elevation_source: af.elevation_source
         };
         vm.delete_blocked = null;
         scrollToForm();

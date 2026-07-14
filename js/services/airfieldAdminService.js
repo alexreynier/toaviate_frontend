@@ -29,6 +29,7 @@ function AirfieldAdminService($http, $location, EnvConfig) {
     service.GetStatus       = GetStatus;
     service.ImportCountry   = ImportCountry;
     service.ImportArea      = ImportArea;
+    service.FillElevations  = FillElevations;
     service.GetReview       = GetReview;
     service.ApproveReview   = ApproveReview;
     service.DismissReview   = DismissReview;
@@ -64,6 +65,19 @@ function AirfieldAdminService($http, $location, EnvConfig) {
     function ImportArea(lat, lon, box) {
         return $http.post('/api/v1/airfield_import/area', { lat: lat, lon: lon, box: box })
             .then(handleSuccess, handleError2);
+    }
+
+    // ── Elevations ──
+    // Fill blank elevations: OurAirports where it has a figure, terrain DEM for
+    // the rest. NOTE: the terrain provider is throttled to ~1 req/sec, so a run
+    // takes MINUTES (our first real run: ~350 s). Deliberately no `timeout` —
+    // $http would abort a healthy request. Resumable and idempotent: if
+    // `remaining > 0`, calling again picks up where it left off.
+    function FillElevations(limit, usedByFlights) {
+        return $http.post('/api/v1/airfield_import/elevations', {
+            limit:           limit || 300,
+            used_by_flights: !!usedByFlights
+        }).then(handleSuccess, handleError2);
     }
 
     // ── Review queue ──
@@ -111,26 +125,13 @@ function AirfieldAdminService($http, $location, EnvConfig) {
     }
 
     // ── Merge a review candidate INTO the existing airfield ──
-    // The backend has no atomic merge endpoint yet (see
-    // BACKEND_AIRFIELD_MERGE_GUIDE.md); until it does we compose one from the
-    // endpoints that already exist: PUT the chosen fields onto the existing
-    // row (keeping its id, so every flight/booking link survives), then clear
-    // the queue item. `fields` is the already-resolved patch — only what the
-    // admin ticked.
-    function MergeIntoExisting(reviewId, airfieldId, fields) {
-        return UpdateAirfield(airfieldId, fields).then(function (res) {
-            if (!res || res.success === false) { return res; }
-            // The candidate is now folded in, so the queue item is settled:
-            // dismiss drops it WITHOUT inserting a duplicate row.
-            return DismissReview(reviewId).then(function (dis) {
-                if (!dis || dis.success === false) {
-                    // The data landed but the item is still queued — say so
-                    // rather than claiming a clean merge.
-                    return { success: true, partial: true, airfield_id: airfieldId };
-                }
-                return { success: true, airfield_id: airfieldId };
-            });
-        });
+    // Writes the ticked fields onto the row we already have (keeping its id, so
+    // every flight/booking pointing at it stays intact) and settles the queue
+    // item — atomically, server-side. `fields` is the patch: only what the admin
+    // ticked. Returns { success, airfield_id, updated }.
+    function MergeIntoExisting(reviewId, fields) {
+        return $http.post('/api/v1/airfield_import/review/' + reviewId + '/merge',
+            { fields: fields }).then(handleSuccess, handleError2);
     }
 
     // ── Helpers ──

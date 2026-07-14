@@ -242,6 +242,158 @@
         </div>
 
         <!-- ════════════════════════════════════════════════════════
+             ELEVATION HEALTH
+             A blank elevation silently degrades flight replay (it falls back
+             to raw GPS altitude), so this is a real data-quality panel.
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card af-elev" ng-if="vm.elevation">
+
+            <div class="af-card__header">
+                <span class="af-card__title">
+                    <i class="fas fa-mountain"></i> Elevation health
+                </span>
+                <span class="af-card__hint">Calibrates altitude in flight replay</span>
+            </div>
+
+            <div class="af-card__body">
+
+                <!-- HEADLINE: airfields flights actually use that have no elevation -->
+                <div class="af-elev__headline"
+                     ng-class="vm.elevation.at_risk > 0 ? 'af-elev__headline--warn' : 'af-elev__headline--ok'">
+
+                    <div class="af-elev__headline-icon">
+                        <i class="fas fa-check-circle" ng-if="vm.elevation.at_risk === 0"></i>
+                        <i class="fas fa-exclamation-triangle" ng-if="vm.elevation.at_risk > 0"></i>
+                    </div>
+
+                    <div class="af-elev__headline-body">
+                        <div class="af-elev__headline-value">{{ vm.elevation.at_risk | number }}</div>
+                        <div class="af-elev__headline-label">
+                            <strong ng-if="vm.elevation.at_risk === 0">
+                                Every airfield your flights use has an elevation
+                            </strong>
+                            <strong ng-if="vm.elevation.at_risk > 0">
+                                airfield<span ng-if="vm.elevation.at_risk !== 1">s</span>
+                                in use with no elevation
+                            </strong>
+                            <p ng-if="vm.elevation.at_risk === 0">
+                                Flight replay is calibrating altitude correctly.
+                            </p>
+                            <p ng-if="vm.elevation.at_risk > 0">
+                                Flights depart from or land at these, so their replay silently falls
+                                back to raw GPS altitude — noisier, with no error shown. Fill them.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button class="af-btn af-btn--primary"
+                            ng-if="vm.elevation.at_risk > 0"
+                            ng-click="vm.fillElevations(true)"
+                            ng-disabled="vm.elev_running">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.elev_running"></i>
+                        <i class="fas fa-magic" ng-if="!vm.elev_running"></i>
+                        <span>{{ vm.elev_running ? 'Filling…' : 'Fill these now' }}</span>
+                    </button>
+                </div>
+
+                <!-- SOURCE SPLIT — surveyed vs estimated vs manual -->
+                <div class="af-elev__split">
+                    <div class="af-elev__stat">
+                        <div class="af-elev__stat-value">{{ vm.elevation.surveyed | number }}</div>
+                        <div class="af-elev__stat-label">
+                            <span class="af-elev-pill af-elev--surveyed">surveyed</span>
+                        </div>
+                    </div>
+                    <div class="af-elev__stat">
+                        <div class="af-elev__stat-value">{{ vm.elevation.estimated | number }}</div>
+                        <div class="af-elev__stat-label">
+                            <span class="af-elev-pill af-elev--estimated">estimated</span>
+                            <span class="af-elev__note">from terrain, ~±5 ft</span>
+                        </div>
+                    </div>
+                    <div class="af-elev__stat">
+                        <div class="af-elev__stat-value">{{ vm.elevation.manual | number }}</div>
+                        <div class="af-elev__stat-label">
+                            <span class="af-elev-pill af-elev--manual">manual</span>
+                            <span class="af-elev__note">never overwritten</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- THE LONG TAIL — informational, not a problem. -->
+                <div class="af-elev__tail">
+                    <span>
+                        <i class="fas fa-info-circle"></i>
+                        {{ vm.elevation.missing | number }} of {{ vm.elevation.total | number }} airfields
+                        still have no elevation — almost all of them are places nobody flies from.
+                        A background job chips away at these.
+                    </span>
+                    <button class="af-linkbtn"
+                            ng-click="vm.fillElevations(false)"
+                            ng-disabled="vm.elev_running">
+                        Fill 300 of them now
+                    </button>
+                </div>
+
+                <!-- RUNNING — the terrain provider is throttled to ~1/sec -->
+                <div class="af-progress" ng-if="vm.elev_running">
+                    <div class="af-progress__bar"></div>
+                    <p class="af-progress__text">
+                        <i class="fas fa-mountain"></i>
+                        Looking up terrain heights… the provider allows about one per second,
+                        so this can take several minutes. You can leave this page open.
+                    </p>
+                </div>
+
+                <!-- RESULT -->
+                <div class="af-result" ng-if="vm.elev_result">
+                    <button class="af-result__close" ng-click="vm.dismissElevResult()" title="Dismiss">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="af-result__head">
+                        <i class="fas fa-check-circle"></i>
+                        <span>
+                            Filled <strong>{{ vm.elev_result.filled | number }}</strong>
+                            elevation<span ng-if="vm.elev_result.filled !== 1">s</span>
+                        </span>
+                    </div>
+                    <div class="af-result__grid">
+                        <div class="af-result__item">
+                            <div class="af-result__value af-result__value--good">
+                                {{ vm.elev_result.surveyed | number }}
+                            </div>
+                            <div class="af-result__label">Surveyed</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value">{{ vm.elev_result.estimated | number }}</div>
+                            <div class="af-result__label">Estimated</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value" ng-class="{'af-result__value--warn': vm.elev_result.no_data > 0}">
+                                {{ vm.elev_result.no_data | number }}
+                            </div>
+                            <div class="af-result__label">No terrain data</div>
+                        </div>
+                        <div class="af-result__item">
+                            <div class="af-result__value">{{ vm.elev_result.remaining | number }}</div>
+                            <div class="af-result__label">Remaining</div>
+                        </div>
+                    </div>
+
+                    <!-- Resumable: press again to pick up where it left off. -->
+                    <button class="af-btn af-btn--outline af-btn--sm af-result__again"
+                            ng-if="vm.elev_result.remaining > 0"
+                            ng-click="vm.fillElevations(vm.elev_result.scoped)"
+                            ng-disabled="vm.elev_running">
+                        <i class="fas fa-redo"></i>
+                        Run again ({{ vm.elev_result.remaining | number }} left)
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
              COVERAGE BY COUNTRY
              ════════════════════════════════════════════════════════ -->
         <div class="af-card">

@@ -63,6 +63,16 @@ var app = angular
 
             try { $injector.get('AuthenticationService').ClearCredentials(); } catch (e) {}
 
+            // Tell the user WHY they're being bounced — exactly once (the gate
+            // guards this whole block). Controllers' own error toasts for the
+            // same 401 are suppressed by ToastService, so this is the single
+            // voice for the event.
+            try {
+                $injector.get('ToastService').warning('Session Expired',
+                    'You were logged out after being idle — please sign in again.',
+                    { duration: 6000 });
+            } catch (e) {}
+
             var $location = $injector.get('$location');
             if ($location.path() !== '/login') {
                 $location.path('/login');
@@ -84,7 +94,11 @@ var app = angular
                 // what actually stops the 401 storm at the source.
                 if (authGate.isExpired() && isProtectedApiUrl(url)) {
                     return $q.reject({
-                        data: null,
+                        // Same body shape as the server's real 401, so anything
+                        // that surfaces `data.message` downstream is recognised
+                        // (and suppressed) by ToastService like the real one.
+                        data: { success: false, fail: 'AUTHENTICATION',
+                                error: 'You have been logged out, please login' },
                         status: 401,
                         config: config,
                         _sessionExpired: true,
@@ -1126,7 +1140,9 @@ var app = angular
             })
 
             .state('dashboard.manage_user.student_records', {
-                url: '/student_records',
+                // Deep-linkable: club/student/course selection lives in the URL so
+                // refresh, back button and shared links land on the same record.
+                url: '/student_records?club_id&student_id&course_id',
                 controller: 'DashboardStudentRecordsController',
                 templateUrl: 'views/manageuser/student_records.html',
                 controllerAs: 'vm',

@@ -84,10 +84,20 @@
         ////console.log("REG: "+$stateParams.registration);
 
 
+         // The maintenance fetch is one big call (every club, plane, defect and
+         // check) — show the loading state until it lands, then reveal.
+         vm.loading = true;
+
          PlaneService.GetByUserMaintenance(vm.user.id)
             .then(function (data) {
                     ////console.log("data is : ", data);
+                   vm.loading = false;
                    vm.clubs = data.clubs;
+
+                   // Let the entrance cascade play once, then drop the
+                   // animation classes so search filtering re-renders
+                   // instantly instead of replaying the stagger delays.
+                   $timeout(function () { vm.reveal_done = true; }, 1600);
 
                    // Today's aircraft checks per plane.
                    // PREFERRED: the main maintenance response embeds today's checks

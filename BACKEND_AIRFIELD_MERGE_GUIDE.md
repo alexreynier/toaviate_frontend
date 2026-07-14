@@ -1,10 +1,19 @@
 # Backend Guide — Airfield review: merge a candidate into the existing record
 
-**Status:** Frontend built and shipped against a client-side composition of
-existing endpoints. This document specifies the two backend changes that would
-make it correct and atomic.
+**Status: ✅ DONE — both changes are implemented on the backend and the frontend
+now uses them.** This document is kept as the record of the contract.
 **Audience:** Backend team. Companion to
 [BACKEND_AIRFIELD_IMPORT_GUIDE.md](BACKEND_AIRFIELD_IMPORT_GUIDE.md).
+
+| Change | Status |
+| --- | --- |
+| 1 — `nearest_airfield` (full row) nested in `GET review` | ✅ implemented (batched, no N+1) |
+| 2 — `POST review/{id}/merge` (atomic) | ✅ implemented, whitelist + code-collision guard |
+| New `status = 'merged'` | ✅ `REVIEW_STATUSES`; frontend has a "Merged" history tab |
+
+The frontend now reads the nested row (no per-card `GET airfields/{id}`) and
+calls the atomic merge endpoint, so the "data written but item still queued"
+split-brain described below **can no longer happen**.
 
 ---
 
@@ -135,20 +144,21 @@ naming the conflicting row, exactly as `POST airfield_import/airfield` does.
 
 ---
 
-## What the frontend does in the meantime
+## What the frontend does (now both changes have shipped)
 
-`AirfieldAdminService.MergeIntoExisting()` composes the merge from endpoints
-that already exist:
+`AirfieldAdminService.MergeIntoExisting(reviewId, fields)` is a single
+`POST airfield_import/review/{id}/merge`. The review card reads the existing row
+straight from the nested `nearest_airfield` — no extra round-trip per card.
 
-1. `GET  airfields/{nearest_airfield_id}` — fetch the existing record (per card)
-2. `PUT  airfield_import/airfield/{id}` — write the ticked fields onto it
-3. `POST airfield_import/review/{id}/dismiss` — settle the queue item *without*
-   inserting a duplicate
+Two behaviours worth knowing when reading the diff code
+([airfieldAdminController.js](js/controllers/airfieldAdminController.js)):
 
-This is correct in the happy path but **not atomic**: if step 3 fails after step
-2 succeeds, the data lands but the item stays queued. The UI reports that
-honestly ("Merged, but still queued") rather than claiming success. Change 2
-collapses all three into one transaction and removes that failure mode.
+- **Blank candidate values are never offered.** Real payloads carry things like
+  `"elevation": ""`; `isBlank()` drops those rows so an empty string can't
+  overwrite a real value.
+- **Coordinates are compared with a ~55 m tolerance** (`0.0005°`). Two sources
+  rounding the same point differently (`-74.8502` vs `-74.8500`) is noise, not a
+  disagreement — flagging it would train the admin to ignore the "differs" badge.
 
-Once both changes ship, the frontend switches to the single `merge` call and
-drops the per-card `GET airfields/{id}`.
+The UI trusts the server's `updated` count over its own tick count, since the
+server applies `MERGEABLE_FIELDS` and may honour fewer fields than were sent.

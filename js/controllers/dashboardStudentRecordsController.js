@@ -33,17 +33,24 @@
             
             case "student_records":
 
+                // Deep-link restore: ?club_id&student_id&course_id in the URL
+                // re-select the club, student and course after a refresh, back
+                // button or a shared link. Consumed once the lists have loaded.
+                vm.link_student_id = $stateParams.student_id || null;
+                vm.link_course_id = $stateParams.course_id || null;
+
                 // Load the clubs this instructor belongs to
                 UserService.GetAdminClubs(vm.user_id)
                     .then(function(data) {
                         if (data.success && data.clubs && data.clubs.length > 0) {
                             vm.instructor_clubs = data.clubs;
 
-                            // Try to restore previously selected club from localStorage
-                            var savedClubId = null;
+                            // The URL's club wins over the localStorage one so a
+                            // shared link opens on the right club.
+                            var savedClubId = $stateParams.club_id || null;
                             try {
                                 var stored = localStorage.getItem('toaviate_instructor_selected_club_id');
-                                if (stored !== null) {
+                                if (savedClubId === null && stored !== null) {
                                     savedClubId = stored;
                                 }
                             } catch(e) {}
@@ -140,6 +147,9 @@
             vm.show_record = false;
             vm._initialMembers = [];
 
+            // A club switch invalidates any student/course in the URL.
+            sync_url(true);
+
             load_students_for_club(vm.club_id);
         };
 
@@ -153,7 +163,49 @@
                     vm.courses = data.courses;
                     vm.members = data.members || [];
                     vm._initialMembers = vm.members.slice();
+                    restore_link_selection();
                 });
+        }
+
+        // Re-select the student + course a deep link (?student_id&course_id)
+        // points at, then load their records. Runs once, after the club's
+        // member/course lists are in.
+        function restore_link_selection() {
+            if (!vm.link_student_id || !vm.link_course_id) { return; }
+            var sid = String(vm.link_student_id);
+            var cid = String(vm.link_course_id);
+            vm.link_student_id = null;
+            vm.link_course_id = null;
+
+            for (var i = 0; i < (vm.members || []).length; i++) {
+                if (String(vm.members[i].user_id || vm.members[i].id) === sid) {
+                    vm.member = vm.members[i];
+                    break;
+                }
+            }
+            for (var j = 0; j < (vm.courses || []).length; j++) {
+                if (String(vm.courses[j].id) === cid) {
+                    vm.course = vm.courses[j];
+                    break;
+                }
+            }
+
+            vm.student_id = sid;
+            vm.course_id = cid;
+            fetch_student_records();
+        }
+
+        // Mirror the current selection into the URL's query params without
+        // re-instantiating the controller (notify:false), so refresh / back /
+        // copy-link all land straight back on this student + course.
+        function sync_url(replace) {
+            var options = { notify: false };
+            if (replace) { options.location = 'replace'; }
+            $state.go('dashboard.manage_user.student_records', {
+                club_id: vm.club_id,
+                student_id: vm.show_record ? vm.student_id : null,
+                course_id: vm.show_record ? vm.course_id : null
+            }, options);
         }
 
         /**
@@ -228,21 +280,88 @@
             } else {
                 vm.student_id = vm.member.user_id;
                 vm.course_id = vm.course.id;
-
-                 CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
-                    .then(function(data){
-                        vm.show_record = true;
-                        vm.all_items = data.all_items;
-                        vm.student = data.student;
-                        vm.training_records = data.training_records;
-                        vm.exams = data.exams;
-                        vm.exam_records = data.exam_records;
-                        vm.course_totals = data.course_hours;
-                        vm.log_sheets = data.log_sheets;
-                        vm.loadSoloReadiness();
-                    });
-
+                fetch_student_records();
             }
+        }
+
+        // The actual records fetch for the instructor screen — called both by
+        // the "See records" button and the deep-link restore.
+        function fetch_student_records(){
+            CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
+                .then(function(data){
+                    vm.show_record = true;
+                    vm.all_items = data.all_items;
+                    vm.student = data.student;
+                    vm.training_records = data.training_records;
+                    vm.exams = data.exams;
+                    vm.exam_records = data.exam_records;
+                    vm.course_totals = data.course_hours;
+                    vm.log_sheets = data.log_sheets;
+                    // Same lesson accordions the member-facing screen uses.
+                    vm.lessons = group_items_by_lesson(vm.all_items);
+                    vm.grade_legend = build_grade_legend(vm.all_items);
+                    vm.loadSoloReadiness();
+                    // The course's lessons back the record-edit lesson pickers.
+                    load_course_lessons();
+                    // Deep-link where the student wasn't in the initial member
+                    // list (it's search-backed) — surface them in the picker
+                    // from the record itself.
+                    if(!vm.member && data.student){
+                        vm.member = {
+                            user_id: data.student.id,
+                            first_name: data.student.first_name,
+                            last_name: data.student.last_name
+                        };
+                    }
+                    sync_url();
+                });
+        }
+
+        // The course's full lesson list — backs both lesson pickers in the record
+        // edit form (this record's lesson, and the student's next lesson).
+        vm.all_lessons = [];
+        function load_course_lessons(){
+            if(!vm.course_id){ return; }
+            CourseService.GetLessonsByCourseId(vm.course_id)
+                .then(function(data){
+                    vm.all_lessons = data.items || [];
+                });
+        }
+
+        // Short label for a flight row's lesson column. course_reference is
+        // optional club data (blank on most lessons), so fall back to the
+        // lesson number, then the title — a stored lesson must never render
+        // as an empty cell.
+        vm.lesson_ref = function(log){
+            if(!log || !log.lesson_id){ return ''; }
+            var num = log.lesson_number;
+            var ref = log.lesson_reference;
+            if(num && ref){ return 'Lesson ' + num + ': ' + ref; }
+            if(ref){ return ref; }
+            if(num){ return 'Lesson ' + num; }
+            return log.lesson_title || '';
+        };
+
+        // A lesson's display label, e.g. "Lesson 4 — Straight and Level Part 1".
+        vm.lesson_label = function(lesson){
+            if(!lesson || !lesson.id){ return ''; }
+            var num = lesson.organise || lesson.lesson_number;
+            return (num ? 'Lesson ' + num + ' — ' : '') + lesson.title;
+        };
+
+        // The distinct grades actually used in this course's records, so the
+        // legend only ever shows grades the club has configured.
+        function build_grade_legend(items){
+            var seen = {};
+            var legend = [];
+            (items || []).forEach(function(it){
+                var e = it.last_entry;
+                if(e && e.grade_name && !seen[e.grade_name]){
+                    seen[e.grade_name] = true;
+                    legend.push({ name: e.grade_name, colour: e.grade_colour, icon: e.grade_icon });
+                }
+            });
+            return legend;
         }
 
         // ── Student solo readiness (pilot checks / pre-solo requirements) ──
@@ -585,6 +704,7 @@
                         vm.questionnaires = data.questionnaires || [];
                         // Group the flat objective list into lessons for the accordion view.
                         vm.lessons = group_items_by_lesson(vm.all_items);
+                        vm.grade_legend = build_grade_legend(vm.all_items);
                     });
 
             }
@@ -783,6 +903,62 @@
             
         }
 
+        // ── Grade chips ──
+        // The grade colour is club-configured, so it can only come through as an
+        // inline style. These build the chip's style/icon from an entry rather
+        // than hand-rolling an HTML string through $sce like get_competence2 did.
+        vm.grade_style = function(entry){
+            if(!entry || !entry.grade_colour){ return {}; }
+            return { color: entry.grade_colour, 'border-color': entry.grade_colour };
+        };
+        vm.grade_icon_class = function(entry){
+            return (entry && entry.grade_icon) ? ('fa fa-' + entry.grade_icon) : '';
+        };
+        vm.has_grade = function(entry){
+            return !!(entry && entry.grade_name);
+        };
+
+        // The grade options in the edit form come from /training_records' `competences`,
+        // which only guarantees id + title — colour/icon may or may not be there. Read
+        // them defensively so the picker shows a coloured icon when the club has
+        // configured one, and a readable text pill when it hasn't.
+        function competence_colour(competence){
+            return competence ? (competence.colour || competence.grade_colour) : null;
+        }
+        vm.competence_icon = function(competence){
+            var icon = competence ? (competence.icon || competence.grade_icon) : null;
+            return icon ? ('fa fa-' + icon) : '';
+        };
+        // A selected segment fills SOLID in the grade's colour so a graded row is
+        // unmistakable. Unselected segments stay plain (styled by CSS).
+        vm.competence_style = function(competence, entry){
+            var colour = competence_colour(competence);
+            if(!vm.is_graded_as(entry, competence) || !colour){ return {}; }
+            return { 'background-color': colour, 'border-color': colour, color: '#fff' };
+        };
+
+        vm.is_graded_as = function(entry, competence){
+            return !!(entry && competence && String(entry.result) === String(competence.id));
+        };
+
+        // "Has this objective been graded at all?" — result 0/null/'' means no.
+        vm.is_graded = function(entry){
+            return !!(entry && entry.result !== null && entry.result !== undefined &&
+                      entry.result !== '' && Number(entry.result) > 0);
+        };
+
+        // Drives the "x of y graded" banner over the objectives table. Counts the
+        // entries the instructor is actually editing in the drawer.
+        vm.graded_count = function(rows){
+            var n = 0;
+            (rows || []).forEach(function(r){ if(vm.is_graded(r.this_entry)) { n++; } });
+            return n;
+        };
+        vm.grade_percent = function(rows){
+            if(!rows || !rows.length){ return 0; }
+            return Math.round((vm.graded_count(rows) / rows.length) * 100);
+        };
+
         vm.get_flight_date = function(item_id, record){
             var item = record.items.find(function(item){ return item.lesson_item_id === item_id; });
             return (item) ? item.flight_date : "";
@@ -941,6 +1117,14 @@
             vm.selected_record_remarks = "";
             vm.this_entry = {};
 
+            // Don't carry an edit's lesson choice / reason into the next record.
+            vm.lesson_choice = null;
+            vm.next_lesson = null;
+            vm.original_lesson_id = null;
+            vm.edit_reason = "";
+            vm.edit_reason_error = false;
+            vm.my_search4 = "";
+
         }
 
 
@@ -1014,31 +1198,86 @@
             .then(function(data){
                 for(var i=0;i<data.items.length;i++){
                     data.items.flight_tag_id = data.items.id;
-                }  
-                vm.all_tags = data.items; 
+                }
+                vm.all_tags = data.items;
             });
 
-            //cleaning it??
-            vm.selected_flight_tags = vm.plane_log_sheet.flight_tags;
-            for(var i=0;i<vm.selected_flight_tags.length;i++){
-                vm.selected_flight_tags[i]["logging_time"] = Math.round((vm.selected_flight_tags[i].tag_time * 60) / 5) * 5;
-            }
+            // Seed the tag editor from THIS RECORD's tags, not the log sheet's.
+            // Tags are scoped by student_record_id — on a shared flight the log
+            // sheet carries every student's tags, so seeding from
+            // plane_log_sheet.flight_tags loaded the wrong set, and because the save
+            // is replace-all it then overwrote this record's real tags with them.
+            // The backend now returns the correct set on this_entry.flight_tags.
+            //
+            // Times: the record returns tag_minutes (minutes) alongside tag_time
+            // (hours as stored); the write payload speaks minutes (logging_time).
+            // Prefer tag_minutes and fall back to converting tag_time for any
+            // response that predates it.
+            var record_tags = (vm.this_entry && vm.this_entry.flight_tags) || [];
+            vm.selected_flight_tags = record_tags.map(function(tag){
+                var mins = (tag.tag_minutes !== undefined && tag.tag_minutes !== null)
+                    ? Number(tag.tag_minutes)
+                    : Math.round((Number(tag.tag_time) * 60) / 5) * 5;
+                // Copy — never mutate the fetched record in place.
+                return angular.extend({}, tag, { logging_time: mins });
+            });
 
 
             CourseService.GetExamsByCourseId(vm.course_id)
                                 .then(function(data){
-                                    vm.course.exams = data.items;   
-                            
+                                    vm.course.exams = data.items;
+
                                 });
 
-            CourseService.GetLessonsByCourseId(vm.course_id)
+            // The lesson pickers repeat over vm.all_lessons. Load them if the
+            // records fetch hasn't already, then seed both selections from the
+            // record being edited.
+            if(vm.all_lessons.length){
+                seed_lesson_pickers();
+            } else {
+                CourseService.GetLessonsByCourseId(vm.course_id)
                     .then(function(data){
-                        vm.course.lessons = data.items;   
+                        vm.all_lessons = data.items || [];
+                        seed_lesson_pickers();
                     });
+            }
 
-            vm.is_lesson_completed = (vm.this_entry.completed == 1)? true : false;
+            // The save reads vm.lesson_completed — keep the flag it binds to and
+            // the flag it saves as one and the same.
+            vm.lesson_completed = (vm.this_entry.completed == 1);
+            vm.edit_reason = "";
 
         }
+
+        // Point both lesson dropdowns at the record's current lesson / next lesson.
+        // vm.original_lesson_id is what the change-warning compares against.
+        function seed_lesson_pickers(){
+            vm.lesson_choice = find_lesson(vm.this_entry.lesson_id);
+            vm.next_lesson   = find_lesson(vm.this_entry.next_lesson_id);
+            vm.original_lesson_id = vm.this_entry.lesson_id;
+        }
+
+        function find_lesson(lesson_id){
+            if(!lesson_id){ return null; }
+            for(var i=0;i<vm.all_lessons.length;i++){
+                if(String(vm.all_lessons[i].id) === String(lesson_id)){
+                    return vm.all_lessons[i];
+                }
+            }
+            return null;
+        }
+
+        // True once the instructor picks a different lesson for this record. The
+        // view shows an amber warning and makes the edit reason mandatory, because
+        // objectives already graded here belong to the lesson it's moving off.
+        vm.lesson_was_changed = function(){
+            return !!(vm.lesson_choice && vm.original_lesson_id &&
+                      String(vm.lesson_choice.id) !== String(vm.original_lesson_id));
+        };
+
+        vm.original_lesson_label = function(){
+            return vm.lesson_label(find_lesson(vm.original_lesson_id));
+        };
 
         vm.tag_flight_time = 0;
 
@@ -1048,9 +1287,6 @@
                 ToastService.warning('Duplicate Tag', 'You already have this tag on this flight!');
                 return false;
             }
-
-            //matching the correct tag IDs
-            vm.flight_tag.flight_tag_id = vm.flight_tag.id;
 
             if((Math.round(vm.tag_flight_time / 5) * 5) > (vm.plane_log_sheet.brakes_times_rounded * 60)){
                 vm.tag_flight_time = (vm.plane_log_sheet.brakes_times_rounded * 60);
@@ -1066,15 +1302,14 @@
                 vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
             }
 
-            vm.flight_tag.logging_time = vm.tag_flight_time;
-            // if(!vm.tag_full_flight){
-            //     vm.flight_tag.logging_time = Math.round(vm.tag_flight_time / 5) * 5;
-            // } else {
-            //     vm.flight_tag.logging_time = (vm.plane_log_sheet.brakes_times_rounded * 60);
-            //     vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
-            // }
+            // Push a COPY. vm.flight_tag is the object ui-select picked out of
+            // vm.all_tags, so mutating it would stamp flight_tag_id/logging_time
+            // onto the master tag list itself.
+            vm.selected_flight_tags.push(angular.extend({}, vm.flight_tag, {
+                flight_tag_id: vm.flight_tag.id,
+                logging_time: vm.tag_flight_time
+            }));
 
-            vm.selected_flight_tags.push(vm.flight_tag);
             vm.flight_tag = "";
             vm.tag_flight_time = (vm.plane_log_sheet.brakes_times_rounded * 60);
             vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
@@ -1154,98 +1389,222 @@
             console.log("FLIGHT TAGS : ", vm.selected_flight_tags);
             console.log("SELECTED RECORD?? : ", vm.selected_record);
 
+            // Send EVERY objective on the record, not just the ones that look
+            // "changed". The old guard dropped any item with no grade and no
+            // remarks (and also any grade whose id is 0, since 0 is falsy). If the
+            // backend rebuilds the record's item set from this array, a dropped
+            // objective is lost from the record — which is how an edit could gut a
+            // record. Sending the full set makes the payload a faithful snapshot.
+            //
+            // `remarks` must always be a STRING: JSON.stringify silently omits
+            // undefined properties, so an untouched remark used to vanish from the
+            // payload entirely rather than round-tripping as "".
             var compiled_items = [];
             for(var i=0;i<vm.selected_record.length;i++){
-                if( (vm.selected_record[i].this_entry && (vm.selected_record[i].this_entry.result || vm.selected_record[i].this_entry.remarks) && (vm.selected_record[i].this_entry.result > -1 || vm.selected_record[i].this_entry.remarks !== "")) ){
-                    var entry = {"remarks": vm.selected_record[i].this_entry.remarks, "result": vm.selected_record[i].this_entry.result, "lesson_item_id": vm.selected_record[i].id};
-                    compiled_items.push(entry);
-                }
+                var this_entry = vm.selected_record[i].this_entry || {};
+                var result = this_entry.result;
+                compiled_items.push({
+                    lesson_item_id: vm.selected_record[i].id,
+                    // null (not undefined) so an ungraded objective is explicit on the wire
+                    result: (result === undefined || result === null || result === '') ? null : result,
+                    remarks: this_entry.remarks || ''
+                });
             }
-// {"id":100,"training_record_id":6,"lesson_item_id":1,"result":4,"completed_by":2,"remarks":"","updated_at":"2024-10-31 18:46:17","created_at":"2024-10-31 18:46:17","deleted":0,"deleted_at":"0000-00-00 00:00:00","grade_name":"Competent","grade_icon":"star","grade_colour":"#4CBB17","plane_log_sheet_id":138,"general_remarks":"Flew very well almost there","pic_id":2,"put_id":3,"user_id":3,"instructor_id":2,"flight_date":"2024-09-29","plane_id":13,"instructor_first_name":"Alex","instructor_last_name":"Reynier","pic_first_name":"Alex","pic_last_name":"Reynier","put_first_name":"Camilla","put_last_name":"Barber","usr_first_name":"Camilla","usr_last_name":"Barber","completed_by_first_name":"Alex","completed_by_last_name":"Reynier","registration":"G-NIXIS","plane_type":"C182","type_name":"SKYLANE"}}
-            //some rough checks:::
 
             console.log("COMPILED ITEMS: ", compiled_items);
-            // //console.log("PROGRESS: ", compiled_items.length);
 
-            if(compiled_items.length < 1 && (!vm.general_remarks || vm.general_remarks == "")){
-                ToastService.warning('Validation', 'To save student records, you need to tick at least one student progress record item OR add a general remark');
+            // Has the instructor actually recorded anything? (Distinct from what we
+            // SEND — we send every objective, but we still won't save an empty record.)
+            var has_any_grade = compiled_items.some(function(it){
+                return (it.result !== null && Number(it.result) > 0) || it.remarks !== '';
+            });
+
+            if(!has_any_grade && (!vm.this_entry.general_remarks || vm.this_entry.general_remarks == "")){
+                ToastService.warning('Validation', 'To save student records, you need to grade at least one objective OR add a general remark');
                 return false;
             }
 
+            // Safety net: a tag that was picked from the dropdown but never committed
+            // with "Add …" is NOT in selected_flight_tags, so it would be silently
+            // dropped. Catch it rather than lose the instructor's intent.
+            if(vm.flight_tag && vm.flight_tag.id){
+                var pending = vm.flight_tag;
+                vm.confirm_dialog = {
+                    kind: 'pending_tag',
+                    message: '"' + String(pending.title).toUpperCase() + '" was selected but never added to the flight. ' +
+                             'Add it before saving, or discard it?',
+                    changes: [],
+                    confirmLabel: 'Add it and save',
+                    cancelLabel: 'Discard it and save',
+                    onConfirm: function(){
+                        vm.confirm_dialog = null;
+                        vm.add_tag();          // commits the pending tag
+                        vm.save_edit_record(); // re-run; flight_tag is cleared so this won't loop
+                    },
+                    onCancel: function(){
+                        vm.confirm_dialog = null;
+                        vm.flight_tag = "";    // discard, then save without it
+                        vm.save_edit_record();
+                    }
+                };
+                return false;
+            }
+
+            // Re-filing a record under a different lesson is a real data change —
+            // the objectives graded on it were graded against the old lesson. Make
+            // the instructor say why.
+            vm.edit_reason_error = false;
+            if(vm.lesson_was_changed() && (!vm.edit_reason || vm.edit_reason.trim() === "")){
+                vm.edit_reason_error = true;
+                ToastService.warning('Reason Required', 'You have changed this record\'s lesson — please give a reason for the edit.');
+                return false;
+            }
+
+            // The lesson this record is filed under (the headline). Falls back to
+            // whatever it already was if the picker never loaded.
+            var lesson_id = (vm.lesson_choice && vm.lesson_choice.id) ? vm.lesson_choice.id : vm.this_entry.lesson_id;
+
             var next_lesson = vm.this_entry.next_lesson_id;
 
-            console.log("NEXT LESSON: ", next_lesson);
-
-            if(vm.lesson_completed == 1 && vm.next_lesson && vm.next_lesson.id > 0){
+            if(vm.lesson_completed && vm.next_lesson && vm.next_lesson.id > 0){
                 next_lesson = vm.next_lesson.id;
             }
 
-            console.log("NEXT LESSON: ", next_lesson);
-            console.log("vm.booking_id : ", vm.booking_id);
-
+            // ── The payload is now an OVERRIDE, not a snapshot ──
+            // PUT /training_records/{id} treats the STORED record as the base: any
+            // field we omit is inherited, not blanked. So we send only what the
+            // instructor actually changed, plus edited_by (required).
+            //
+            // We deliberately do NOT echo back user_id / instructor_id / club_id /
+            // course_id / plane_log_sheet_id. Echoing them is what broke record 6162:
+            // `user_id: vm.this_entry.user_id` was sending the INSTRUCTOR's id, which
+            // re-filed the record under the instructor and made it vanish from the
+            // student's list. Omitting them means they simply can't be corrupted.
+            // (BACKEND_TRAINING_RECORD_EDIT_GUIDE.md)
             vm.compiled_save = {
                 update_record_id: vm.this_entry.id,
-                club_id: vm.this_entry.club_id,
-                items: compiled_items,
-                general_remarks: vm.this_entry.general_remarks,//vm.general_remarks,
-                lesson_id: vm.this_entry.lesson_id,
-                course_id: vm.this_entry.course_id,
-                user_id: vm.this_entry.user_id, // vm.student.id,
-                instructor_id: vm.this_entry.instructor_id,
-                completed_by: vm.this_entry.completed_by,
-                plane_log_sheet_id: vm.selected_flight.id,
-                next_lesson_id: next_lesson,
                 edited_by: vm.user.id,
+                items: compiled_items,
+                general_remarks: vm.this_entry.general_remarks,
+                lesson_id: lesson_id,
+                next_lesson_id: next_lesson,
                 completed: (vm.lesson_completed) ? 1 : 0,
-                //booking_id: vm.booking_id,
                 flight_tags: vm.selected_flight_tags,
                 edit_reason: vm.edit_reason
             };
 
             console.log("COMPILED SAVE");
             console.log(vm.compiled_save);
-            console.log("COMPILED SAVE");
 
-            
-            //SENT THIS COMPILED SAVE TO THE SERVER
+            send_record_update(vm.compiled_save);
+        }
 
+        // Submits the edit, handling the backend's confirmation flows. A
+        // CONFIRM_REQUIRED response is HTTP 200 + success:false and writes NOTHING,
+        // so it's safe to ask the user and retry the same payload with the matching
+        // confirm flag set.
+        function send_record_update(payload){
 
-            CourseService.UpdateTrainingRecord(vm.compiled_save, vm.this_entry.id)
+            vm.saving_record = true;
+
+            CourseService.UpdateTrainingRecord(payload, vm.this_entry.id)
                 .then(function(data){
-                    if(data.success){
+                    vm.saving_record = false;
 
+                    if(data && data.success){
                         ToastService.success('Records Saved', 'Thank you!');
-                        //$state.go('dashboard.manage_user', {reload: true});
-                        //vm.show_record = false;
-                        //vm.show_edit_record = false;
-                        
-
-                        CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
-                        .then(function(data){
-                            vm.show_record = true;
-                            vm.all_items = data.all_items;   
-                            vm.student = data.student;
-                            vm.training_records = data.training_records;   
-                            vm.exams = data.exams;
-                            vm.exam_records = data.exam_records;
-                            vm.course_totals = data.course_hours;
-                            vm.log_sheets = data.log_sheets;
-                        });
-
-                        vm.show_edit_training_record = false;
-                        vm.close_popup();
-
-                        //clearing this
-                        vm.lesson = {};
-                        vm.plane_log_sheet = {};
-                        vm.compiled_save = {};
-                        vm.this_entry = {};
-
-                    } else {
-                        ToastService.error('Save Failed', 'We could not save your training records...');
+                        reload_after_save();
+                        return;
                     }
-        
+
+                    if(data && data.error === 'CONFIRM_REQUIRED'){
+                        confirm_and_retry(payload, data);
+                        return;
+                    }
+
+                    // A stale tab edited a version that has since been superseded.
+                    if(data && data.error === 'ALREADY_SUPERSEDED'){
+                        ToastService.error('Record Out Of Date',
+                            'This record has been edited elsewhere since you opened it. Please reload and try again.');
+                        return;
+                    }
+
+                    ToastService.error('Save Failed',
+                        (data && data.message) || 'We could not save your training records...');
                 });
+        }
+
+        // The two confirmations the backend can ask for. Both are destructive-ish
+        // and genuinely intentional in some cases, so we ask rather than block.
+        function confirm_and_retry(payload, data){
+
+            if(data.confirm === 'identity_change'){
+                vm.confirm_dialog = {
+                    kind: 'identity_change',
+                    // Backend sends a human-readable sentence naming both people.
+                    message: data.message || 'This will move the record to a different student or flight.',
+                    changes: data.changes || [],
+                    onConfirm: function(){
+                        vm.confirm_dialog = null;
+                        payload.confirm_identity_change = true;
+                        send_record_update(payload);
+                    }
+                };
+                return;
+            }
+
+            if(data.confirm === 'item_removal'){
+                var n = (data.removed_lesson_item_ids || []).length;
+                vm.confirm_dialog = {
+                    kind: 'item_removal',
+                    message: data.message || (n + ' already-graded objective(s) would be removed from this record.'),
+                    changes: [],
+                    onConfirm: function(){
+                        vm.confirm_dialog = null;
+                        payload.confirm_item_removal = true;
+                        send_record_update(payload);
+                    }
+                };
+                return;
+            }
+
+            ToastService.error('Save Failed', data.message || 'This edit needs confirmation, but we did not understand the request.');
+        }
+
+        vm.confirm_dialog = null;
+        // Some dialogs (the pending-tag one) need Cancel to DO something — discard the
+        // tag and carry on saving — rather than just close.
+        vm.cancel_confirm_dialog = function(){
+            var dialog = vm.confirm_dialog;
+            vm.confirm_dialog = null;
+            if(dialog && dialog.onCancel){ dialog.onCancel(); }
+        };
+
+        function reload_after_save(){
+            // Editing always creates a NEW record version (regulatory audit trail),
+            // so never re-key off the old id — just refetch the student's records.
+            CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
+                .then(function(data){
+                    vm.show_record = true;
+                    vm.all_items = data.all_items;
+                    vm.student = data.student;
+                    vm.training_records = data.training_records;
+                    vm.exams = data.exams;
+                    vm.exam_records = data.exam_records;
+                    vm.course_totals = data.course_hours;
+                    vm.log_sheets = data.log_sheets;
+                    vm.questionnaires = data.questionnaires || [];
+                    vm.lessons = group_items_by_lesson(vm.all_items);
+                    vm.grade_legend = build_grade_legend(vm.all_items);
+                });
+
+            vm.show_edit_training_record = false;
+            vm.close_popup();
+
+            vm.lesson = {};
+            vm.plane_log_sheet = {};
+            vm.compiled_save = {};
+            vm.this_entry = {};
 
 
             // CLOSE THIS VIEW

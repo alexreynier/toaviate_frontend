@@ -7493,3 +7493,134 @@ select.rental-item-form__input {
     gap: 4px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Shared section loading + reveal
+   Used by: aircraft status, scheduler (add_booking). Reusable on
+   any page: show .snazzy-loading while fetching, put .snazzy-reveal
+   (optionally --stagger) on the content that replaces it.
+   ══════════════════════════════════════════════════════════════ */
+
+.snazzy-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 64px 24px;
+  text-align: center;
+  animation: snazzyOverlayIn 0.25s ease-out;
+}
+
+.snazzy-loading__plane {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 22px;
+  animation: snazzySpinPlane 1.6s linear infinite;
+  box-shadow: 0 4px 16px rgba(30, 58, 95, 0.3);
+}
+
+.snazzy-loading__text {
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  animation: snazzy-loading-pulse 1.4s ease-in-out infinite;
+}
+
+.snazzy-loading__sub {
+  color: #94a3b8;
+  font-size: 12.5px;
+  margin-top: -6px;
+}
+
+@keyframes snazzy-loading-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Overlay variant: sits over a host section (e.g. the scheduler calendar)
+   while it refreshes, instead of replacing it. The spinner is kept near the
+   top so it stays on-screen over tall hosts. */
+.snazzy-loading-host { position: relative; }
+
+.snazzy-loading--overlay {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 40;
+  justify-content: flex-start;
+  padding-top: 110px;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  border-radius: 12px;
+}
+
+/* The content being loaded dims while waiting and fades back in when done. */
+.snazzy-loading-fade { transition: opacity 0.4s ease; }
+.snazzy-loading-host.is-loading .snazzy-loading-fade {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* Content reveal once data lands (runs when ng-if/ng-repeat inserts it).
+   Transform + opacity ONLY (composited — no layout/paint per frame), no
+   scale (subpixel text shimmer), translate3d to stay on the GPU. */
+.snazzy-reveal { animation: snazzy-reveal-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes snazzy-reveal-up {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes snazzy-reveal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Stagger direct children for a choreographed cascade (header first, then
+   each card in turn); later children share one delay so a long fleet never
+   keeps the user waiting. */
+.snazzy-reveal--stagger > * {
+  animation: snazzy-reveal-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+.snazzy-reveal--stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.snazzy-reveal--stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.snazzy-reveal--stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.snazzy-reveal--stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.snazzy-reveal--stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.snazzy-reveal--stagger > *:nth-child(6) { animation-delay: 0.40s; }
+.snazzy-reveal--stagger > *:nth-child(7) { animation-delay: 0.46s; }
+.snazzy-reveal--stagger > *:nth-child(n+8) { animation-delay: 0.52s; }
+
+/* A container that staggers its children must itself only FADE — if it
+   translated too, its motion would stack on the children's and wobble. */
+.snazzy-reveal--stagger.snazzy-reveal {
+  animation: snazzy-reveal-fade 0.35s ease both;
+}
+
+/* The loader must vacate the LAYOUT the instant it's dismissed. ngAnimate
+   sees the block's entrance animation and holds the leaving element in the
+   DOM for that duration — during which it pushes the arriving content down,
+   then everything snaps up when it's finally removed. Hiding it on ng-leave
+   keeps the incoming content in its final position from the first frame. */
+.snazzy-loading.ng-leave { display: none !important; }
+
+/* Respect users who prefer no motion */
+@media (prefers-reduced-motion: reduce) {
+  .snazzy-loading,
+  .snazzy-reveal,
+  .snazzy-reveal--stagger > * { animation: none; }
+  .snazzy-loading-fade { transition: none; }
+}
+
+body.night-mode .snazzy-loading__text { color: #94a3b8; }
+body.night-mode .snazzy-loading__sub { color: #64748b; }
+body.night-mode .snazzy-loading--overlay { background: rgba(15, 23, 42, 0.72); }

@@ -1,4 +1,4 @@
-<div class="centre_align_boxes2 courses">
+<div class="centre_align_boxes2 courses sr-page">
 
     <div class="snazzy-page__header">
             <div class="snazzy-page__header-inner">
@@ -287,182 +287,243 @@
       </div>
 
        <div class="club_docs_all" ng-if="!vm.no_lesson_selected">
-        <h2>Student Progress</h2>
-          
-            <div class="card centre_me" ng-if="vm.lesson.items.length == 0 && !vm.show_all_lessons">
-             There are no student progress tasks for this lesson
+
+        <div class="sr-section sr-section--stickyhead">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-tasks"></i> Student Progress</h3>
+                <div class="sr-section__tools">
+                    <div class="sr-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search objectives" ng-model="vm.my_search2" ng-change="vm.set_updated_search()"
+                               uib-tooltip="Searching looks across the whole course, not just this lesson. Clear it to show this lesson only." />
+                    </div>
+                    <button type="button" class="sr-btn sr-btn--outline sr-btn--sm" ng-click="vm.show_whole_course()">
+                        <i class="fas fa-layer-group"></i>
+                        {{ (vm.show_all_lessons) ? 'This lesson only' : 'Whole course' }}
+                    </button>
+                </div>
             </div>
 
-            <div class="card">
-                <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
-                <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search2" ng-change="vm.set_updated_search()" class="form-control searchbar smaller_search" uib-tooltip="Using the search function will automatically search the whole course, and not just the lesson already shown, to return to show only this lesson, remove any searched items" />
+            <!-- Non-blocking nudge: exactly how many objectives still need a grade.
+                 A partial debrief is legitimate, so this never stops a save. -->
+            <div class="sr-grade-progress" ng-if="vm.all_items.length"
+                 ng-class="vm.graded_count() === vm.all_items.length ? 'sr-grade-progress--done' : 'sr-grade-progress--todo'">
+                <i class="fas" ng-class="vm.graded_count() === vm.all_items.length ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span>{{ vm.graded_count() }} of {{ vm.all_items.length }} objectives graded</span>
+                <span class="sr-grade-progress__bar">
+                    <span class="sr-grade-progress__fill" ng-style="{width: vm.grade_percent() + '%'}"></span>
+                </span>
             </div>
 
-            <div class="card" ng-if="vm.lesson.items.length > 0 || vm.show_all_lessons">
-                <table class="competence-table competence-table-highlight-all" >
-                    <thead>
-                        <tr>
-                            <th>Key Learning Objective</th>
-                            <th class="competences_header competence_same_width" ng-repeat="competence in vm.competences">
-                                {{ competence.title }}
-                            </th>
-                            <th class="competences_header">
-                                Remarks
-                            </th>
+            <div class="sr-section__body sr-section__body--flush">
 
-                        </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }">
-                          <td class="competence_title">
-                            <!-- uib-tooltip="{{ item.description }}" -->
-<!--                             <span uib-popover="{{ item.description }}" popover-trigger="mouseenter" popover-placement="right" >{{ item.title }}</span> 
- -->                            <span uib-tooltip="{{ item.description }}" tooltip-placement="right" >{{ item.title }}</span> 
+                <div class="sr-empty" ng-if="vm.lesson.items.length == 0 && !vm.show_all_lessons">
+                    <div class="sr-empty__icon"><i class="fas fa-clipboard"></i></div>
+                    <p class="sr-empty__text">There are no student progress tasks for this lesson.</p>
+                </div>
 
-                          </td>
-                          <td class="competences_marking competence_same_width" ng-repeat="competence in vm.competences">
-                                
-                                <input class="form-control" type="radio" name="{{ item.id }}" value="{{competence.id}}" ng-model="item.result" />
+                <div ng-if="vm.lesson.items.length > 0 || vm.show_all_lessons">
 
-                          </td>
-                          <td class="competences_marking remarks">
-                            <textarea class="form-control inputtext" ng-model="item.remarks"></textarea>
-                          </td>
+                    <!-- Header pins while the objectives scroll, so the grade columns stay labelled -->
+                    <div class="sr-table-wrap sr-table-wrap--stickyhead">
+                        <table class="sr-table sr-table--stickyhead">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">Key Learning Objective</th>
+                                    <th style="width: 40%;">
+                                        <!-- Grade names live here, so each row is just the control -->
+                                        <span class="sr-grade-head">
+                                            <span class="sr-grade-head__cell" ng-repeat="competence in vm.competences">{{ competence.title }}</span>
+                                        </span>
+                                    </th>
+                                    <th style="width: 30%;">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }"
+                                    ng-class="{'sr-obj-row--ungraded': !vm.is_graded(item)}">
+                                    <td>
+                                        <span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span>
+                                        <span class="sr-ungraded-flag" ng-if="!vm.is_graded(item)">
+                                            <i class="fas fa-exclamation-circle"></i> Not graded
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="sr-grade-pick" ng-class="{'sr-grade-pick--empty': !vm.is_graded(item)}">
+                                            <label class="sr-grade-opt" ng-repeat="competence in vm.competences"
+                                                   ng-class="{'sr-grade-opt--on': vm.is_graded_as(item, competence)}"
+                                                   ng-style="vm.competence_style(competence, item)"
+                                                   uib-tooltip="{{ competence.title }}">
+                                                <input type="radio" name="{{ item.id }}" value="{{ competence.id }}" ng-model="item.result" />
+                                                <span class="sr-grade-opt__label">
+                                                    <i class="fas fa-check sr-grade-opt__tick"></i>
+                                                    <i ng-if="vm.competence_icon(competence)" class="{{ vm.competence_icon(competence) }}"></i>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <textarea class="sr-textarea" style="min-height: 44px;" ng-model="item.remarks" placeholder="Remarks…"></textarea>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-                        
-                      </tr>
-                    </tbody>
-                </table>
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ item.title }}</span>
+                                <span class="sr-ungraded-flag" ng-if="!vm.is_graded(item)">
+                                    <i class="fas fa-exclamation-circle"></i> Not graded
+                                </span>
+                            </div>
+                            <div class="sr-card__sub" ng-if="item.description">{{ item.description }}</div>
+                            <div class="sr-grade-pick" style="margin-bottom: 10px;"
+                                 ng-class="{'sr-grade-pick--empty': !vm.is_graded(item)}">
+                                <label class="sr-grade-opt" ng-repeat="competence in vm.competences"
+                                       ng-class="{'sr-grade-opt--on': vm.is_graded_as(item, competence)}"
+                                       ng-style="vm.competence_style(competence, item)">
+                                    <input type="radio" name="m_{{ item.id }}" value="{{ competence.id }}" ng-model="item.result" />
+                                    <i class="fas fa-check sr-grade-opt__tick"></i>
+                                    <i ng-if="vm.competence_icon(competence)" class="{{ vm.competence_icon(competence) }}"></i>
+                                    {{ competence.title }}
+                                </label>
+                            </div>
+                            <textarea class="sr-textarea" style="min-height: 44px;" ng-model="item.remarks" placeholder="Remarks…"></textarea>
+                        </div>
+                    </div>
+
+                </div>
 
             </div>
-
-           
+        </div>
 
       </div>
      <div class="club_docs_all" ng-if="!vm.no_lesson_selected">
-        <h2>General Remarks</h2>
-        <div class="card centre_me">
-            <textarea class="form-control inputtext gen_remarks" ng-model="vm.general_remarks" uib-tooltip="Type any general remarks that may be useful or required to be kept in the student records."></textarea>
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-comment-dots"></i> General Remarks</h3>
+            </div>
+            <div class="sr-section__body">
+                <textarea class="sr-textarea" ng-model="vm.general_remarks"
+                          placeholder="Any general remarks worth keeping in the student's records…"></textarea>
+            </div>
         </div>
-
     </div>
 
 
-<div class="bookingout_wrapper no_padding" ng-if="!vm.no_lesson_selected">
+<div class="club_docs_all" ng-if="!vm.no_lesson_selected">
 
-    <div class="club_docs_all">
-        <h2>Lesson Tagging</h2>
-      <div class="center_if_large2 left_al">
+    <div class="sr-section">
+        <div class="sr-section__head">
+            <h3 class="sr-section__title"><i class="fas fa-tags"></i> Lesson Tagging</h3>
+            <span class="sr-section__count" ng-if="vm.selected_flight_tags.length">{{ vm.selected_flight_tags.length }}</span>
+        </div>
+        <div class="sr-section__body">
 
-            <!-- <div class="form-group">
-              <label for="card-number">This flight included times that need to coun</label>
-              <div class="check_box_in_form">
-                <input type="checkbox" class="form-control inputtext" ng-model="vm.lesson_completed">
-              </div>
-            </div> -->
-
-            <div class="form-group">
-                <div class="card centre_me" ng-if="vm.selected_flight_tags.length == 0">
-                  There are no tags for this lesson (yet)
-                </div>
-
-            <div class="card" ng-if="vm.selected_flight_tags.length > 0">
-                <table>
-                    <tr>
-                        <th>Tag name</th>
-                        <th>Tag Logged Time</th>
-                        <th>Functions</th>
-                    </tr>
-                      <tr ng-repeat="tag in vm.selected_flight_tags">
-                        <td>
-                          <span>{{ tag.title | myToUpperCase }}</span> 
-                        </td>
-                        <td>
-                          <span>{{ tag.logging_time }} [mins]</span> 
-                        </td>
-                        <td>
-                          <a ng-click="vm.delete_tag(tag, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
-                        </td>
-                    </tr>
-                     
-                </table>
+            <!-- Only says "no tags" when nothing is on the record AND nothing is
+                 being composed — otherwise it contradicts the draft below it. -->
+            <div class="sr-empty" ng-if="!vm.selected_flight_tags.length && !vm.flight_tag" style="padding: 18px 12px;">
+                <p class="sr-empty__text">No tags on this flight yet.</p>
             </div>
 
-            <div class="form-group">
-                <label for="instructor">Add Flight Tag</label>
-                <ui-select ng-model="vm.flight_tag" theme="bootstrap" ng-disabled="disabled" title="Please select the flight tag for this flight" append-to-body="true" ng-change="vm.update_flight_tag()">
-                    <ui-select-match placeholder="Please select the flight tag for this flight">
-                       {{ vm.flight_tag.title | myToUpperCase }} 
-                    </ui-select-match>
+            <div ng-if="vm.selected_flight_tags.length" style="margin-bottom: 14px;">
+                <div class="sr-tag-row" ng-repeat="tag in vm.selected_flight_tags">
+                    <span class="sr-tag-row__name">{{ tag.title | myToUpperCase }}</span>
+                    <span class="sr-tag-row__time">{{ tag.logging_time }} mins</span>
+                    <a class="sr-iconbtn sr-iconbtn--danger" ng-click="vm.delete_tag(tag, $index)" uib-tooltip="Remove tag"><i class="fa fa-trash-alt"></i></a>
+                </div>
+            </div>
+
+            <div class="sr-form-group">
+                <label class="sr-form-group__label">Add a flight tag</label>
+                <ui-select ng-model="vm.flight_tag" theme="bootstrap" title="Select a flight tag" append-to-body="true" ng-change="vm.update_flight_tag()">
+                    <ui-select-match placeholder="Search for a tag…">{{ vm.flight_tag.title | myToUpperCase }}</ui-select-match>
                     <ui-select-choices repeat="tag in vm.all_tags | propsFilterA: {title: $select.search, id: $select.search}">
-                      <!-- {{ tag.title }} --> 
-                      <div ng-bind-html="tag.title | myToUpperCase | highlight: $select.search"></div>
+                        <div ng-bind-html="tag.title | myToUpperCase | highlight: $select.search"></div>
                     </ui-select-choices>
                 </ui-select>
+            </div>
 
-                <div class="form-group" ng-if="vm.flight_tag">
-                  <label for="card-number">This tag is for full flight time</label>
-                  <div class="check_box_in_form">
-                    <input type="checkbox" class="form-control inputtext" ng-model="vm.tag_full_flight" ng-change="vm.update_flight_full_flight()">
-                  </div>
+            <!-- Selected-but-not-yet-added: an explicitly unfinished draft -->
+            <div class="sr-tag-draft" ng-if="vm.flight_tag">
+                <span class="sr-tag-draft__flag">
+                    <i class="fas fa-exclamation-circle"></i> Not added yet
+                </span>
+
+                <div class="sr-form-group">
+                    <label class="sr-toggle" ng-class="{'sr-toggle--on': vm.tag_full_flight}">
+                        <input type="checkbox" ng-model="vm.tag_full_flight" ng-change="vm.update_flight_full_flight()">
+                        <span class="sr-toggle__text">
+                            <span class="sr-toggle__title">This tag covers the full flight time</span>
+                            <span class="sr-toggle__sub">Untick to log only part of the flight against this tag.</span>
+                        </span>
+                    </label>
                 </div>
 
-                <div class="form-group" ng-if="vm.flight_tag && !vm.tag_full_flight">
-                  <label for="card-number">{{ vm.flight_tag.title }} Tag Flight Time:</label>
-                  <div class="check_box_in_form">
-                    <input type="number" class="form-control inputtext" step="5" ng-keyup="vm.tag_time_to_five()" ng-model="vm.tag_flight_time">
-                  </div>
+                <div class="sr-form-group" ng-if="!vm.tag_full_flight">
+                    <label class="sr-form-group__label">{{ vm.flight_tag.title | myToUpperCase }} time (minutes)</label>
+                    <input type="number" class="sr-input" step="5" ng-keyup="vm.tag_time_to_five()" ng-model="vm.tag_flight_time" />
                 </div>
 
-
-
+                <div class="sr-form-group">
+                    <button type="button" class="sr-btn sr-btn--primary sr-tag-draft__commit" ng-click="vm.add_tag()">
+                        <i class="fas fa-plus"></i> Add {{ vm.flight_tag.title | myToUpperCase }} to this flight
+                    </button>
+                </div>
             </div>
-            <div class="form-group">
-                 <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.add_tag()" value="ADD FLIGHT TAG" />
-            </div>
+
         </div>
-
     </div>
 </div>
 
 
-<div class="bookingout_wrapper no_padding">
+<div class="club_docs_all">
 
-    <div class="club_docs_all">
-        <h2>Lesson Status</h2>
-      <div class="center_if_large2 left_al">
+    <div class="sr-section">
+        <div class="sr-section__head">
+            <h3 class="sr-section__title"><i class="fas fa-flag-checkered"></i> Lesson Status</h3>
+        </div>
+        <div class="sr-section__body">
 
-            <div class="form-group">
-              <label for="card-number">This lesson was completed</label>
-              <div class="check_box_in_form">
-                <input type="checkbox" class="form-control inputtext" ng-model="vm.lesson_completed">
-              </div>
+            <div class="sr-form-group">
+                <label class="sr-toggle" ng-class="{'sr-toggle--on': vm.lesson_completed}">
+                    <input type="checkbox" ng-model="vm.lesson_completed">
+                    <span class="sr-toggle__text">
+                        <span class="sr-toggle__title">This lesson was completed</span>
+                        <span class="sr-toggle__sub">Signs the lesson off and lets you set what the student flies next.</span>
+                    </span>
+                </label>
             </div>
 
-            <div class="form-group" ng-if="vm.lesson_completed">
-            <label for="instructor">Select Next Lesson</label>
-            <ui-select ng-model="vm.next_lesson" theme="bootstrap" ng-disabled="disabled" title="Please select the next lesson" append-to-body="true">
-                <ui-select-match placeholder="Please select the next lesson">
-                  Lesson {{ vm.next_lesson.organise }} - {{ vm.next_lesson.title }}
-                </ui-select-match>
-                <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
-                  Lesson {{ lesson.organise }} 
-                  <div ng-bind-html="lesson.title | highlight: $select.search"></div>
-                </ui-select-choices>
-            </ui-select>
-
+            <div class="sr-form-group" ng-if="vm.lesson_completed">
+                <label class="sr-form-group__label">Next lesson for the student</label>
+                <ui-select ng-model="vm.next_lesson" theme="bootstrap" title="Search for the student's next lesson" append-to-body="true">
+                    <ui-select-match placeholder="Search for the next lesson…">
+                        Lesson {{ vm.next_lesson.organise }} — {{ vm.next_lesson.title }}
+                    </ui-select-match>
+                    <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
+                        <div ng-bind-html="('Lesson ' + lesson.organise + ' — ' + lesson.title) | highlight: $select.search"></div>
+                    </ui-select-choices>
+                </ui-select>
             </div>
 
         </div>
-
     </div>
 </div>
 
-   <div class="club_docs">
-           <!--  {{ vm.show_split }} -->
-            <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.save_progress()" value="SAVE PROGRESS" />
-
+   <div class="club_docs_all">
+        <div class="sr-savebar">
+            <span class="sr-savebar__note" ng-if="vm.all_items.length && vm.graded_count() < vm.all_items.length">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ vm.all_items.length - vm.graded_count() }} objective(s) still ungraded — you can still save.
+            </span>
+            <button type="button" class="sr-btn sr-btn--success" ng-click="vm.save_progress()">
+                <i class="fas fa-check"></i> Save progress
+            </button>
         </div>
+    </div>
 </div>
 
 

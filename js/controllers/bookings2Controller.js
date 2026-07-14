@@ -157,6 +157,11 @@
         //just in case i missed a changed value...
         vm.user_id = vm.user.id;
 
+        // True until the first schedule fetch lands (and again while the user
+        // navigates to a different date range). Drives the calendar's loading
+        // overlay + fade in the view.
+        $scope.calendar_loading = true;
+
         vm.no_show_cols = ["membership_start", "membership_id", "selected"];
 
         var newDate = new Date();
@@ -649,9 +654,16 @@
         _lastViewStart = start;
         _lastViewEnd = end;
 
+        // FullCalendar calls this from outside Angular, so nudge a digest to
+        // make the loading overlay appear straight away.
+        $scope.calendar_loading = true;
+        $scope.$applyAsync();
+
         BookingService.GetAll(vm.user.id, start, end)
         .then(function(data){
             // //console.log(data);
+
+            $scope.calendar_loading = false;
 
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;
@@ -1518,9 +1530,13 @@
          //        });
 
          // //console.log("UPDATE BOOKINGS ");
+         $scope.calendar_loading = true;
+
          BookingService.GetAll(vm.user.id, moment().format("Y-MM-DD"), "")
         .then(function(data){
             // //console.log(data);
+
+            $scope.calendar_loading = false;
 
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;

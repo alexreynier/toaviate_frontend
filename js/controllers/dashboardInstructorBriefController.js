@@ -350,7 +350,58 @@
             
         }
 
+        // ── Grading control (segmented bar) ──
+        // On this screen the grade lives flat on the item (item.result), unlike the
+        // records edit form where it sits under item.this_entry. Same visual control,
+        // different binding — these helpers read the flat shape.
+        function competence_colour(competence){
+            return competence ? (competence.colour || competence.grade_colour) : null;
+        }
+        vm.competence_icon = function(competence){
+            var icon = competence ? (competence.icon || competence.grade_icon) : null;
+            return icon ? ('fa fa-' + icon) : '';
+        };
+        vm.is_graded_as = function(item, competence){
+            return !!(item && competence && String(item.result) === String(competence.id));
+        };
+        // A selected segment fills SOLID in the club's configured grade colour.
+        vm.competence_style = function(competence, item){
+            var colour = competence_colour(competence);
+            if(!vm.is_graded_as(item, competence) || !colour){ return {}; }
+            return { 'background-color': colour, 'border-color': colour, color: '#fff' };
+        };
+        vm.is_graded = function(item){
+            return !!(item && item.result !== null && item.result !== undefined &&
+                      item.result !== '' && Number(item.result) > 0);
+        };
+
+        // Only the objectives currently on screen count toward the "x of y graded"
+        // banner — when the whole course is shown, that's every item.
+        vm.gradable_items = function(){
+            return vm.all_items || [];
+        };
+        vm.graded_count = function(){
+            var n = 0;
+            vm.gradable_items().forEach(function(i){ if(vm.is_graded(i)) { n++; } });
+            return n;
+        };
+        vm.grade_percent = function(){
+            var rows = vm.gradable_items();
+            if(!rows.length){ return 0; }
+            return Math.round((vm.graded_count() / rows.length) * 100);
+        };
+
         vm.save_progress = function(){
+
+            // Safety net: a tag picked from the dropdown but never committed with
+            // "Add …" isn't in selected_flight_tags and would be silently dropped.
+            // Stop and make the instructor decide rather than lose it.
+            if(vm.flight_tag && vm.flight_tag.id){
+                ToastService.warning('Tag Not Added',
+                    '"' + String(vm.flight_tag.title).toUpperCase() + '" is selected but has not been added yet — ' +
+                    'press "Add ' + String(vm.flight_tag.title).toUpperCase() + ' to this flight", or clear the tag, then save.');
+                return false;
+            }
 
             var compiled_items = [];
             for(var i=0;i<vm.all_items.length;i++){
@@ -448,15 +499,14 @@
                 vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
             }
 
-            vm.flight_tag.logging_time = vm.tag_flight_time;
-            // if(!vm.tag_full_flight){
-            //     vm.flight_tag.logging_time = Math.round(vm.tag_flight_time / 5) * 5;
-            // } else {
-            //     vm.flight_tag.logging_time = (vm.plane_log_sheet.brakes_times_rounded * 60);
-            //     vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
-            // }
+            // Push a COPY. vm.flight_tag is the object ui-select picked out of
+            // vm.all_tags, so mutating it would stamp logging_time onto the master
+            // tag list itself.
+            vm.selected_flight_tags.push(angular.extend({}, vm.flight_tag, {
+                flight_tag_id: vm.flight_tag.id,
+                logging_time: vm.tag_flight_time
+            }));
 
-            vm.selected_flight_tags.push(vm.flight_tag);
             vm.flight_tag = "";
             vm.tag_flight_time = (vm.plane_log_sheet.brakes_times_rounded * 60);
             vm.tag_flight_time = Math.round(vm.tag_flight_time / 5) * 5;
