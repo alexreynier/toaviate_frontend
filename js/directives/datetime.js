@@ -428,6 +428,7 @@ app.directive('collapsible', ['$timeout', function($timeout){
 
         vm.show_loading = false;
         vm.show_cardmachine = false;
+        vm.saveNewCard = false;   // "use this card & save" checkbox (new-card panel)
 
         // This club's Stripe publishable key (per-club, per payment mode) is resolved
         // lazily via PaymentService.GetClubStripeKey(clubId) at each init site below.
@@ -489,7 +490,19 @@ app.directive('collapsible', ['$timeout', function($timeout){
                     });
                     event.preventDefault();
                     //console.log('Submit button clicked!');
-                    
+
+                    // "use this card & save" — flag the intent server-side so
+                    // Stripe attaches the card to the payer's customer on
+                    // confirmation. Must happen before confirmPayment; if it
+                    // fails the payment still goes ahead, just without saving.
+                    if (vm.saveNewCard && data.payment_intent_id && vm.send && vm.send.user_id > 0) {
+                        await PaymentService.SetSaveCardOnIntent({
+                            payment_intent_id: data.payment_intent_id,
+                            club_id: _clubId,
+                            user_id: vm.send.user_id
+                        });
+                    }
+
                     // Process the payment manually
                     const {error, paymentIntent} = await stripe.confirmPayment({
                       elements,

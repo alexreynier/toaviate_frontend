@@ -46,6 +46,7 @@ app.factory('PaymentService', PaymentService);
         //create_cardmachine_intent
 
         service.CreatePaymentIntentNewCard = CreatePaymentIntentNewCard; //ok
+        service.SetSaveCardOnIntent = SetSaveCardOnIntent;
         service.CreateSavedPaymentIntent = CreateSavedPaymentIntent; //ok
         service.CreateCardMachinePaymentIntent = CreateCardMachinePaymentIntent; //ok
 
@@ -133,6 +134,12 @@ app.factory('PaymentService', PaymentService);
 
         function CreatePaymentIntentNewCard(send){
             return $http.post('/api/v1/cards/create_payment_intent_new_card', send).then(handleSuccess, handleError2);
+        }
+
+        // Marks an in-flight payment intent so the card is saved to the payer's
+        // Stripe customer on confirmation — must be called BEFORE confirmPayment.
+        function SetSaveCardOnIntent(send){
+            return $http.post('/api/v1/cards/save_card_on_intent', send).then(handleSuccess, handleError2);
         }
 
         //create_payment_intent_new_card

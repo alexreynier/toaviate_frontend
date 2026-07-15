@@ -2808,9 +2808,29 @@
             MemberService.GetMandate(vm.bookout.payer_id, club_id_confirmed)
                     .then(function (data) {
                             ////console.log("data is : ", data);
-                           
+
                             if(data.success){
                                 vm.info = data.info;
+                                // The member row comes back even when there is
+                                // no BACS mandate (all mandate fields null) —
+                                // only offer Direct Debit when there is
+                                // actually a mandate to charge.
+                                vm.methods[0].visible = !!(vm.info && vm.info.account_bank);
+
+                                vm.machine = data.machine;
+                                if(vm.machine && vm.machine.success){
+                                    vm.methods[3].visible = true;
+                                } else {
+                                    vm.methods[3].visible = false;
+                                    // machine.id set but success false = the club has
+                                    // a terminal but it isn't online right now.
+                                    if (vm.machine && vm.machine.id) {
+                                        ToastService.warning('Card Machine Offline', 'The club card machine is not responding — wake it up and reopen payment to use it.');
+                                    }
+                                }
+                            } else {
+                                vm.methods[0].visible = false;
+                                vm.methods[3].visible = false;
                             }
 
                         });
@@ -2827,8 +2847,9 @@
             .then(function (data) {
 
                 //console.log(data);
-                vm.cards = data.cards;
-                vm.savedCards = data.cards;
+                vm.cards = data.cards || [];
+                vm.savedCards = data.cards || [];
+                vm.methods[1].visible = vm.savedCards.length > 0;
                 // vm.membership_now.cards = data.cards;
                 // vm.membership_now.default_card = data.default_card;
 

@@ -209,9 +209,17 @@ app.controller('ExamResultsController', ExamResultsController);
                     vm.info = data.info;
                     vm.savedCards = data.cards || [];
                     vm.methods[1].visible = vm.savedCards.length > 0;
-                    vm.methods[0].visible = vm.info != null;
+                    // The member row comes back even when there is no BACS mandate
+                    // (all mandate fields null) — only offer Direct Debit when
+                    // there is actually a mandate to charge.
+                    vm.methods[0].visible = !!(vm.info && vm.info.account_bank);
                     vm.machine = data.machine;
                     vm.methods[3].visible = !!(vm.machine && vm.machine.success);
+                    // machine.id set but success false = the club has a terminal
+                    // but it isn't online right now.
+                    if (vm.machine && !vm.machine.success && vm.machine.id) {
+                        ToastService.warning('Card Machine Offline', 'The club card machine is not responding — wake it up and reopen payment to use it.');
+                    }
                     vm.show_pay_now = true;
                 } else {
                     ToastService.error('Payment Unavailable', (data && data.message) || 'Could not load the payment options for this member.');

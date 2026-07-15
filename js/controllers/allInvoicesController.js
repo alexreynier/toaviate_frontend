@@ -146,8 +146,12 @@
                            
                     if(data.success){
                         vm.info = data.info;
+                        // The member row comes back even when there is no BACS
+                        // mandate (all mandate fields null) — only offer Direct
+                        // Debit when there is actually a mandate to charge.
+                        vm.methods[0].visible = !!(vm.info && vm.info.account_bank);
 
-                        vm.savedCards = data.cards;
+                        vm.savedCards = data.cards || [];
 
                         if(vm.savedCards.length > 0){
                             vm.methods[1].visible = true;
@@ -156,10 +160,20 @@
                         }
 
                         vm.machine = data.machine;
-                        if(vm.machine.success){
+                        if(vm.machine && vm.machine.success){
                             vm.methods[3].visible = true;
                         } else {
                             vm.methods[3].visible = false;
+                            // machine.id set but success false = the club has a
+                            // terminal but it isn't online right now.
+                            if (vm.machine && vm.machine.id) {
+                                ToastService.warning('Card Machine Offline', 'The club card machine is not responding — wake it up and reopen payment to use it.');
+                            }
+                        }
+
+                        // Expand the first method that's actually available.
+                        for (var mi = 0; mi < vm.methods.length; mi++) {
+                            if (vm.methods[mi].visible) { vm.default_payment = vm.methods[mi].id; break; }
                         }
 
                         vm.show_pay_now = true;

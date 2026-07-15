@@ -134,9 +134,17 @@
                                 ids[merged[i].user_id || merged[i].id] = true;
                             }
                             for (var j = 0; j < data.members.length; j++) {
-                                var key = data.members[j].user_id || data.members[j].id;
+                                var row = data.members[j];
+                                // Server search rows carry users.id as `id` and no
+                                // `user_id` — normalise so flows that need
+                                // student.user_id (exam sales, GetMandate) work
+                                // for searched members too.
+                                if (row.is_member && !(row.user_id > 0)) {
+                                    row.user_id = row.id;
+                                }
+                                var key = row.user_id || row.id;
                                 if (!ids[key]) {
-                                    merged.push(data.members[j]);
+                                    merged.push(row);
                                 }
                             }
                             $scope.members = merged;
@@ -625,11 +633,19 @@
                   .then(function (data) {
                       if(data.success){
                           vm.info = data.info;
-                          vm.savedCards = data.cards;
+                          vm.savedCards = data.cards || [];
                           vm.methods[1].visible = vm.savedCards.length > 0;
-                          vm.methods[0].visible = vm.info != null;
+                          // The member row comes back even when there is no BACS
+                          // mandate (all mandate fields null) — only offer Direct
+                          // Debit when there is actually a mandate to charge.
+                          vm.methods[0].visible = !!(vm.info && vm.info.account_bank);
                           vm.machine = data.machine;
                           vm.methods[3].visible = !!(vm.machine && vm.machine.success);
+                          // machine.id set but success false = the club has a
+                          // terminal but it isn't online right now.
+                          if (vm.machine && !vm.machine.success && vm.machine.id) {
+                              ToastService.warning('Card Machine Offline', 'The club card machine is not responding — wake it up and reopen payment to use it.');
+                          }
                           vm.show_pay_now = true;
                       }
                       vm.show_loading = false;
@@ -751,7 +767,7 @@
                                 if(data.success){
                                     vm.info = data.info;
 
-                                    vm.savedCards = data.cards;
+                                    vm.savedCards = data.cards || [];
 
                                     if(vm.savedCards.length > 0){
                                         vm.methods[1].visible = true;
@@ -759,17 +775,22 @@
                                         vm.methods[1].visible = false;
                                     }
 
-                                    if(vm.info == null){
-                                        vm.methods[0].visible = false;
-                                    } else {
-                                        vm.methods[0].visible = true;
-                                    }
+                                    // The member row comes back even when there is
+                                    // no BACS mandate (all mandate fields null) —
+                                    // only offer Direct Debit when there is
+                                    // actually a mandate to charge.
+                                    vm.methods[0].visible = !!(vm.info && vm.info.account_bank);
 
                                     vm.machine = data.machine;
-                                    if(vm.machine.success){
+                                    if(vm.machine && vm.machine.success){
                                         vm.methods[3].visible = true;
                                     } else {
                                         vm.methods[3].visible = false;
+                                        // machine.id set but success false = the club
+                                        // has a terminal but it isn't online right now.
+                                        if (vm.machine && vm.machine.id) {
+                                            ToastService.warning('Card Machine Offline', 'The club card machine is not responding — wake it up and reopen payment to use it.');
+                                        }
                                     }
 
                                     vm.show_pay_now = true;
