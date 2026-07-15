@@ -1,0 +1,112 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-map-marker-alt"></i> Units Manager</h2>
+        <p>Every tracker unit in the field — billing state, registry links and overrides.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.statusFilter}" ng-click="vm.setUnitFilter('')">All</div>
+        <div class="trk-chip"
+             ng-repeat="st in vm.enums.unitStatus"
+             ng-class="{'trk-chip--active': vm.statusFilter === st}"
+             ng-click="vm.setUnitFilter(st)">
+          {{ vm.pretty(st) }}<span class="trk-chip__count" ng-if="vm.status_counts[st]">{{ vm.status_counts[st] }}</span>
+        </div>
+      </div>
+
+      <div class="trk-toolbar">
+        <div class="trk-search">
+          <i class="fa fa-search"></i>
+          <input type="text" placeholder="Search serial or club… (press Enter)" ng-model="vm.search" ng-keyup="$event.keyCode === 13 && vm.searchUnits()">
+        </div>
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.searchUnits()"><i class="fa fa-search"></i> Search</button>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.loading && !vm.units.length">
+        <i class="fa fa-map-marker-alt"></i>
+        <p>No units match this filter.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.units.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Serial</th>
+                <th>Club</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Monthly</th>
+                <th>Billing</th>
+                <th>Device</th>
+                <th>Order</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody ng-repeat="u in vm.units">
+              <tr>
+                <td data-label="Serial"><span class="trk-table__ref">{{ u.serial || '—' }}</span></td>
+                <td data-label="Club">{{ u.club_title }}</td>
+                <td data-label="Version">{{ u.version_name }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.unitBadge(u.status)">{{ vm.pretty(u.status) }}</span></td>
+                <td data-label="Monthly" class="trk-table__money">{{ vm.cur(u.currency) }}{{ u.monthly_price | number:2 }}</td>
+                <td data-label="Billing" class="trk-table__muted">
+                  {{ u.billing_starts_on ? (u.billing_starts_on | asDate | date:'dd MMM yy') : '—' }}
+                  <span ng-if="u.billing_ends_on"> → {{ u.billing_ends_on | asDate | date:'dd MMM yy' }}</span>
+                </td>
+                <td data-label="Device" class="trk-table__muted">{{ u.fox_imei || '—' }}</td>
+                <td data-label="Order" class="trk-table__muted">{{ u.order_number || '—' }}</td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Edit unit" ng-click="vm.editUnit(u)"><i class="fa fa-pen"></i></a>
+                  <a class="trk-table__action-btn" href="" ng-if="u.status === 'active'" uib-tooltip="Pause billing"
+                     ng-click="vm.pauseBilling(u)"><i class="fa" ng-class="u.busy ? 'fa-circle-notch fa-spin' : 'fa-pause'"></i></a>
+                  <a class="trk-table__action-btn" href="" ng-if="u.status === 'billing_paused'" uib-tooltip="Resume billing"
+                     ng-click="vm.resumeBilling(u)"><i class="fa" ng-class="u.busy ? 'fa-circle-notch fa-spin' : 'fa-play'"></i></a>
+                  <a class="trk-table__action-btn" href="" ng-if="u.status !== 'retired'" uib-tooltip="Retire unit"
+                     ng-click="u.retire_open = !u.retire_open"><i class="fa fa-ban"></i></a>
+                </td>
+              </tr>
+              <tr class="trk-table__expand-row" ng-if="u.retire_open">
+                <td colspan="9">
+                  <div class="trk-confirm trk-confirm--danger" style="margin-top: 0;">
+                    <p><strong>Retire {{ u.serial || 'this unit' }}?</strong> Retiring is permanent — billing ends today and the unit can't be reactivated.</p>
+                    <div class="trk-confirm__actions">
+                      <button class="trk-btn trk-btn--danger trk-btn--sm" ng-click="vm.retireUnit(u)" ng-disabled="u.busy">
+                        <span ng-if="u.busy" class="trk-spinner trk-spinner--inline"></span> Yes, retire it
+                      </button>
+                      <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="u.retire_open = false">Keep it</button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading units…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.loading && vm.has_more && vm.units.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreUnits()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

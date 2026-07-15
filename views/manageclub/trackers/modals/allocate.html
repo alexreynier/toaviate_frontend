@@ -1,0 +1,38 @@
+<div class="modal-header">
+  <h3 class="modal-title"><i class="fa fa-barcode"></i> Allocate serials</h3>
+  <p>Order {{ m.order.order_number }} · {{ m.rows.length }} unit{{ m.rows.length == 1 ? '' : 's' }} to allocate</p>
+</div>
+<div class="modal-body">
+
+  <div class="trk-empty" ng-if="!m.rows.length" style="padding: 24px;">
+    <i class="fa fa-check-circle"></i>
+    <p>Every unit on this order already has a serial.</p>
+  </div>
+
+  <div class="trk-section" ng-repeat="row in m.rows">
+    <h5 class="trk-section-title">Unit {{ $index + 1 }} — {{ row.version_name }}</h5>
+    <div class="trk-form-grid">
+      <div class="trk-field">
+        <label for="field-trk-alloc-serial-{{ $index }}">Serial <span class="trk-req">*</span></label>
+        <input id="field-trk-alloc-serial-{{ $index }}" class="trk-input" type="text" ng-model="row.serial" placeholder="Device serial">
+      </div>
+      <div class="trk-field">
+        <label>Fox tracker (device registry, optional)</label>
+        <ui-select ng-model="row.fox_pick" theme="bootstrap" title="Link to a fox tracker">
+          <ui-select-match placeholder="Search by IMEI or label…" allow-clear="true">{{ m.trackerLabel($select.selected) }}</ui-select-match>
+          <ui-select-choices repeat="t in m.trackers | filter: $select.search">
+            <div>{{ m.trackerLabel(t) }}</div>
+          </ui-select-choices>
+        </ui-select>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="modal-footer">
+  <button class="trk-btn trk-btn--ghost" ng-click="m.cancel()" ng-disabled="m.saving">Cancel</button>
+  <button class="trk-btn trk-btn--primary" ng-click="m.submit()" ng-disabled="m.saving || !m.rows.length">
+    <span ng-if="m.saving" class="trk-spinner trk-spinner--inline"></span>
+    <i class="fa fa-check" ng-if="!m.saving"></i> Allocate
+  </button>
+</div>

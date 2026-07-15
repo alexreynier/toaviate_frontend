@@ -20,7 +20,7 @@ app.directive('defectMediaGallery', ['DefectMediaService', 'ToastService', '$tim
                         'ng-class="{\'dm-drag-over\': dragOver}" ' +
                         'dm-drop-zone on-files-dropped="onFilesSelected(files)">' +
                         '<div class="dm-upload-content">' +
-                            '<i class="fa fa-cloud-upload dm-upload-icon"></i>' +
+                            '<i class="fa fa-cloud-upload-alt dm-upload-icon"></i>' +
                             '<div class="dm-upload-text">Drop photos or video here</div>' +
                             '<div class="dm-upload-or">or</div>' +
                             '<label class="btn btn-primary btn-sm dm-upload-btn">' +

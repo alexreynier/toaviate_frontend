@@ -21,21 +21,21 @@ app.controller('SmsController', SmsController);
 
         // ── Sub-navigation (rendered by the shared partial) ──
         vm.nav = [
-            { screen: 'dashboard',   state: 'dashboard.manage_club.sms',            label: 'Dashboard',   icon: 'fa-gauge-high' },
-            { screen: 'hazards',     state: 'dashboard.manage_club.sms_hazards',     label: 'Hazards',     icon: 'fa-triangle-exclamation' },
+            { screen: 'dashboard',   state: 'dashboard.manage_club.sms',            label: 'Dashboard',   icon: 'fa-tachometer-alt' },
+            { screen: 'hazards',     state: 'dashboard.manage_club.sms_hazards',     label: 'Hazards',     icon: 'fa-exclamation-triangle' },
             { screen: 'occurrences', state: 'dashboard.manage_club.sms_occurrences', label: 'Occurrences', icon: 'fa-bolt' },
-            { screen: 'risks',       state: 'dashboard.manage_club.sms_risks',       label: 'Risk Register', icon: 'fa-table-cells' },
-            { screen: 'actions',     state: 'dashboard.manage_club.sms_actions',     label: 'Actions',     icon: 'fa-list-check' },
+            { screen: 'risks',       state: 'dashboard.manage_club.sms_risks',       label: 'Risk Register', icon: 'fa-th' },
+            { screen: 'actions',     state: 'dashboard.manage_club.sms_actions',     label: 'Actions',     icon: 'fa-tasks' },
             { screen: 'audits',      state: 'dashboard.manage_club.sms_audits',      label: 'Audits',      icon: 'fa-clipboard-check' },
-            { screen: 'change',      state: 'dashboard.manage_club.sms_change',      label: 'Mgmt of Change', icon: 'fa-shuffle' },
-            { screen: 'meetings',    state: 'dashboard.manage_club.sms_meetings',    label: 'Meetings',    icon: 'fa-people-group' },
+            { screen: 'change',      state: 'dashboard.manage_club.sms_change',      label: 'Mgmt of Change', icon: 'fa-random' },
+            { screen: 'meetings',    state: 'dashboard.manage_club.sms_meetings',    label: 'Meetings',    icon: 'fa-users' },
             { screen: 'documents',   state: 'dashboard.manage_club.sms_documents',   label: 'Documents',   icon: 'fa-folder-open' },
-            { screen: 'instructors', state: 'dashboard.manage_club.sms_instructors', label: 'Instructors', icon: 'fa-chalkboard-user' },
+            { screen: 'instructors', state: 'dashboard.manage_club.sms_instructors', label: 'Instructors', icon: 'fa-chalkboard-teacher' },
             { screen: 'students',    state: 'dashboard.manage_club.sms_students',    label: 'Students',    icon: 'fa-user-graduate' },
-            { screen: 'erp',         state: 'dashboard.manage_club.sms_erp',         label: 'ERP',         icon: 'fa-kit-medical' },
+            { screen: 'erp',         state: 'dashboard.manage_club.sms_erp',         label: 'ERP',         icon: 'fa-first-aid' },
             { screen: 'bulletins',   state: 'dashboard.manage_club.sms_bulletins',   label: 'Bulletins',   icon: 'fa-bullhorn' },
-            { screen: 'audit_view',  state: 'dashboard.manage_club.sms_audit_view',  label: 'CAA Audit View', icon: 'fa-magnifying-glass-chart' },
-            { screen: 'settings',    state: 'dashboard.manage_club.sms_settings',    label: 'Settings',    icon: 'fa-gear' }
+            { screen: 'audit_view',  state: 'dashboard.manage_club.sms_audit_view',  label: 'CAA Audit View', icon: 'fa-search' },
+            { screen: 'settings',    state: 'dashboard.manage_club.sms_settings',    label: 'Settings',    icon: 'fa-cog' }
         ];
 
         vm.back = function() { $state.go('dashboard.manage_club'); };
@@ -118,18 +118,18 @@ app.controller('SmsController', SmsController);
 
             // SPI tiles definition → which dashboard counters to show, and where they link.
             vm.tiles = [
-                { key: 'hazards_open',        label: 'Open Hazards',      icon: 'fa-triangle-exclamation', tone: '',       state: 'dashboard.manage_club.sms_hazards' },
+                { key: 'hazards_open',        label: 'Open Hazards',      icon: 'fa-exclamation-triangle', tone: '',       state: 'dashboard.manage_club.sms_hazards' },
                 { key: 'occurrences_open',    label: 'Open Occurrences',  icon: 'fa-bolt',                 tone: 'violet', state: 'dashboard.manage_club.sms_occurrences' },
-                { key: 'risks_open',          label: 'Open Risks',        icon: 'fa-table-cells',          tone: '',       state: 'dashboard.manage_club.sms_risks' },
+                { key: 'risks_open',          label: 'Open Risks',        icon: 'fa-th',          tone: '',       state: 'dashboard.manage_club.sms_risks' },
                 { key: 'risks_high_extreme',  label: 'High / Extreme',    icon: 'fa-fire',                 tone: 'red',    state: 'dashboard.manage_club.sms_risks', alert: true },
                 { key: 'findings_open',       label: 'Open Findings',     icon: 'fa-clipboard-list',       tone: 'amber',  state: 'dashboard.manage_club.sms_audits' },
-                { key: 'actions_open',        label: 'Open Actions',      icon: 'fa-list-check',           tone: '',       state: 'dashboard.manage_club.sms_actions' },
+                { key: 'actions_open',        label: 'Open Actions',      icon: 'fa-tasks',           tone: '',       state: 'dashboard.manage_club.sms_actions' },
                 { key: 'actions_overdue',     label: 'Overdue Actions',   icon: 'fa-clock',                tone: 'red',    state: 'dashboard.manage_club.sms_actions', alert: true },
                 { key: 'audits_open',         label: 'Open Audits',       icon: 'fa-clipboard-check',      tone: '',       state: 'dashboard.manage_club.sms_audits' },
-                { key: 'instructor_alerts',   label: 'Instructor Alerts', icon: 'fa-chalkboard-user',      tone: 'amber',  state: 'dashboard.manage_club.sms_instructors' },
+                { key: 'instructor_alerts',   label: 'Instructor Alerts', icon: 'fa-chalkboard-teacher',      tone: 'amber',  state: 'dashboard.manage_club.sms_instructors' },
                 { key: 'instructor_expired',  label: 'Instructor Expired',icon: 'fa-user-clock',           tone: 'red',    state: 'dashboard.manage_club.sms_instructors', alert: true },
                 { key: 'student_concerns_open', label: 'Student Concerns', icon: 'fa-user-graduate',       tone: 'amber',  state: 'dashboard.manage_club.sms_students' },
-                { key: 'changes_open',        label: 'Open Changes',      icon: 'fa-shuffle',              tone: 'violet', state: 'dashboard.manage_club.sms_change' }
+                { key: 'changes_open',        label: 'Open Changes',      icon: 'fa-random',              tone: 'violet', state: 'dashboard.manage_club.sms_change' }
             ];
         }
 

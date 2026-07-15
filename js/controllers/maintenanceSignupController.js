@@ -1,8 +1,8 @@
 // MaintenanceSignupController — public single-page signup for a maintenance organisation.
 app.controller('MaintenanceSignupController', MaintenanceSignupController);
 
-MaintenanceSignupController.$inject = ['$rootScope', '$scope', '$state', '$location', 'ToastService', 'MaintenanceOrganisationService', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService'];
-function MaintenanceSignupController($rootScope, $scope, $state, $location, ToastService, MaintenanceOrganisationService, SignupDraftService, SignupPreviewService, PasswordPolicyService) {
+MaintenanceSignupController.$inject = ['$rootScope', '$scope', '$state', '$location', 'ToastService', 'MaintenanceOrganisationService', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService', 'TrackerCommerceService'];
+function MaintenanceSignupController($rootScope, $scope, $state, $location, ToastService, MaintenanceOrganisationService, SignupDraftService, SignupPreviewService, PasswordPolicyService, TrackerCommerceService) {
     var vm = this;
 
     vm.submitting = false;
@@ -77,6 +77,36 @@ function MaintenanceSignupController($rootScope, $scope, $state, $location, Toas
             } else {
                 ToastService.warning('Invite link expired',
                     'You can still sign up below — just ask your club to re-link your aircraft afterwards.');
+            }
+        });
+    }
+
+    // ── Honor ?tracker_invite=<token> — a club inviting this organisation to
+    // take on fitted Fox trackers (FRONTEND_TRACKER_COMMERCE_GUIDE.md §C1).
+    // The invite is accepted AFTER signup + login: the token is remembered in
+    // localStorage and the maintenance workspace completes the link.
+    var trackerInviteToken = $location.search().tracker_invite;
+    vm.tracker_invite = null;
+    vm.tracker_invite_error = null;
+    vm.tracker_invite_loading = false;
+    var trackerInviteErrors = {
+        invite_invalid:  'This tracker invitation link is not valid.',
+        invite_expired:  'This tracker invitation has expired — ask the club to send a new one.',
+        invite_accepted: 'This tracker invitation has already been accepted.',
+        invite_revoked:  'The club has withdrawn this tracker invitation.'
+    };
+    if (trackerInviteToken) {
+        vm.tracker_invite_loading = true;
+        TrackerCommerceService.GetMaintenanceInvite(trackerInviteToken).then(function(res) {
+            vm.tracker_invite_loading = false;
+            if (res && res.success !== false && res.invite) {
+                vm.tracker_invite = res.invite;
+                if (res.invite.email && !vm.user.email)            { vm.user.email = res.invite.email; }
+                if (res.invite.organisation_name && !vm.org.title) { vm.org.title  = res.invite.organisation_name; }
+                try { localStorage.setItem('toaviate_tracker_invite', trackerInviteToken); } catch (e) {}
+            } else {
+                vm.tracker_invite_error = trackerInviteErrors[res && res.error] || trackerInviteErrors.invite_invalid;
+                try { localStorage.removeItem('toaviate_tracker_invite'); } catch (e) {}
             }
         });
     }

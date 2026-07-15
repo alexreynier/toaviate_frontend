@@ -1,0 +1,77 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-tachometer-alt"></i> Tracker Commerce</h2>
+        <p>Orders, billing, fleet and returns across every club.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the overview…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.overview">
+
+      <div class="trk-stat-grid">
+        <div class="trk-stat trk-stat--click" ng-repeat="m in vm.overview.mrr" ui-sref="dashboard.super_admin.tracker_units">
+          <div class="trk-stat__icon trk-stat__icon"><i class="fa fa-map-marker-alt"></i></div>
+          <div class="trk-stat__body">
+            <div class="trk-stat__value">{{ vm.cur(m.currency) }}{{ m.monthly | number:2 }}</div>
+            <div class="trk-stat__label">MRR · {{ m.units }} active unit{{ m.units == 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+        <div class="trk-stat trk-stat--amber trk-stat--click" ng-repeat="o in vm.overview.outstanding" ui-sref="dashboard.super_admin.tracker_invoices">
+          <div class="trk-stat__icon"><i class="fa fa-file-invoice-dollar"></i></div>
+          <div class="trk-stat__body">
+            <div class="trk-stat__value">{{ vm.cur(o.currency) }}{{ o.amount | number:2 }}</div>
+            <div class="trk-stat__label">Outstanding · {{ o.invoices }} invoice{{ o.invoices == 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+        <div class="trk-stat trk-stat--red trk-stat--click" ui-sref="dashboard.super_admin.tracker_invoices">
+          <div class="trk-stat__icon"><i class="fa fa-exclamation-triangle"></i></div>
+          <div class="trk-stat__body">
+            <div class="trk-stat__value" ng-class="{'trk-stat__value--alert': vm.overview.failed_recent.length}">{{ vm.overview.failed_recent.length }}</div>
+            <div class="trk-stat__label">Recent failed payments</div>
+          </div>
+        </div>
+        <div class="trk-stat trk-stat--violet trk-stat--click" ui-sref="dashboard.super_admin.tracker_returns">
+          <div class="trk-stat__icon"><i class="fa fa-undo"></i></div>
+          <div class="trk-stat__body">
+            <div class="trk-stat__value">{{ vm.overview.open_returns }}</div>
+            <div class="trk-stat__label">Open returns</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trk-card" ng-if="vm.overview.failed_recent.length">
+        <h4 class="trk-card__title"><i class="fa fa-exclamation-triangle"></i> Failed payments</h4>
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr><th>Club</th><th>Invoice</th><th>Amount</th><th>Error</th></tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="f in vm.overview.failed_recent">
+                <td data-label="Club">{{ f.club_title }}</td>
+                <td data-label="Invoice"><span class="trk-table__ref">{{ f.invoice_number }}</span></td>
+                <td data-label="Amount" class="trk-table__money">{{ vm.cur(f.currency) }}{{ f.total | number:2 }}</td>
+                <td data-label="Error" class="trk-table__muted">{{ f.last_error || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,163 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin.tracker_orders">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-box-open"></i> Order {{ vm.order.order_number }}</h2>
+        <p>{{ vm.order.club_title }}<span ng-if="!vm.order.club_title">Club order</span> · placed {{ vm.order.created_at | asDate | date:'dd MMM yyyy' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the order…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.order">
+
+      <!-- Pipeline actions per status -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-arrow-right"></i> Next steps
+          <span class="trk-badge" ng-class="vm.orderBadge(vm.order.status)">{{ vm.pretty(vm.order.status) }}</span>
+        </h4>
+
+        <div ng-if="vm.order.status === 'awaiting_payment' || vm.order.status === 'pending'">
+          <p class="trk-card__hint">Waiting on payment — the club can pay online, or record a bank transfer here.</p>
+          <div class="trk-confirm__actions">
+            <button class="trk-btn trk-btn--success" ng-click="vm.mark_paid_open = true" ng-if="!vm.mark_paid_open">
+              <i class="fa fa-money-check-alt"></i> Mark paid (bank transfer)
+            </button>
+            <button class="trk-btn trk-btn--danger" ng-click="vm.cancel_open = true" ng-if="!vm.cancel_open">
+              <i class="fa fa-ban"></i> Cancel order
+            </button>
+          </div>
+          <div class="trk-confirm" ng-if="vm.mark_paid_open">
+            <p><strong>Record payment for {{ vm.order.order_number }}?</strong></p>
+            <div class="trk-field" style="margin-bottom: 12px;">
+              <label for="field-trk-paid-reference">Reference (optional)</label>
+              <input id="field-trk-paid-reference" class="trk-input" type="text" ng-model="vm.mark_paid_reference" placeholder="Bank transfer reference">
+            </div>
+            <div class="trk-confirm__actions">
+              <button class="trk-btn trk-btn--success" ng-click="vm.markPaid()" ng-disabled="vm.marking_paid">
+                <span ng-if="vm.marking_paid" class="trk-spinner trk-spinner--inline"></span> Confirm payment received
+              </button>
+              <button class="trk-btn trk-btn--ghost" ng-click="vm.mark_paid_open = false">Cancel</button>
+            </div>
+          </div>
+          <div class="trk-confirm trk-confirm--danger" ng-if="vm.cancel_open">
+            <p><strong>Cancel this order?</strong> If a Direct Debit collection is in flight the backend will refuse — wait for it to settle first.</p>
+            <div class="trk-field" style="margin-bottom: 12px;">
+              <label for="field-trk-admin-cancel-reason">Reason (optional)</label>
+              <input id="field-trk-admin-cancel-reason" class="trk-input" type="text" ng-model="vm.cancel_reason">
+            </div>
+            <div class="trk-confirm__actions">
+              <button class="trk-btn trk-btn--danger" ng-click="vm.cancelOrder()" ng-disabled="vm.cancelling">
+                <span ng-if="vm.cancelling" class="trk-spinner trk-spinner--inline"></span> Yes, cancel it
+              </button>
+              <button class="trk-btn trk-btn--ghost" ng-click="vm.cancel_open = false">Keep it</button>
+            </div>
+          </div>
+        </div>
+
+        <div ng-if="vm.order.status === 'paid'">
+          <p class="trk-card__hint">Payment received — start preparing the shipment.</p>
+          <button class="trk-btn trk-btn--primary" ng-click="vm.setOrderStatus('processing')" ng-disabled="vm.status_saving">
+            <span ng-if="vm.status_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-cogs" ng-if="!vm.status_saving"></i> Start processing
+          </button>
+        </div>
+
+        <div ng-if="vm.order.status === 'processing'">
+          <p class="trk-card__hint">
+            <span ng-if="vm.unallocatedCount()">{{ vm.unallocatedCount() }} unit{{ vm.unallocatedCount() == 1 ? '' : 's' }} still need{{ vm.unallocatedCount() == 1 ? 's' : '' }} a serial before shipping.</span>
+            <span ng-if="!vm.unallocatedCount()">All serials allocated — ready to ship.</span>
+          </p>
+          <div class="trk-confirm__actions">
+            <button class="trk-btn trk-btn--primary" ng-click="vm.openAllocate()" ng-if="vm.unallocatedCount()">
+              <i class="fa fa-barcode"></i> Allocate serials
+            </button>
+            <button class="trk-btn trk-btn--success" ng-click="vm.openShip()">
+              <i class="fa fa-shipping-fast"></i> Ship order…
+            </button>
+          </div>
+        </div>
+
+        <div ng-if="vm.order.status === 'shipped'">
+          <p class="trk-card__hint">In transit<span ng-if="vm.order.courier"> with {{ vm.order.courier }}</span> — mark delivered when it lands (activates units and schedules billing), or wait for the club to confirm.</p>
+          <button class="trk-btn trk-btn--success" ng-click="vm.setOrderStatus('delivered')" ng-disabled="vm.status_saving">
+            <span ng-if="vm.status_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-box-open" ng-if="!vm.status_saving"></i> Mark delivered
+          </button>
+        </div>
+
+        <div ng-if="vm.order.status === 'delivered'">
+          <p class="trk-card__hint">Delivered — close the order once everything's squared away.</p>
+          <button class="trk-btn trk-btn--success" ng-click="vm.setOrderStatus('completed')" ng-disabled="vm.status_saving">
+            <span ng-if="vm.status_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-flag-checkered" ng-if="!vm.status_saving"></i> Complete order
+          </button>
+        </div>
+
+        <div ng-if="vm.order.status === 'completed' || vm.order.status === 'cancelled'">
+          <p class="trk-card__hint">No further actions — this order is {{ vm.pretty(vm.order.status) }}.</p>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-info-circle"></i> Summary</h4>
+        <dl class="trk-kv"><dt>Total</dt><dd>{{ vm.cur(vm.order.currency) }}{{ vm.order.total | number:2 }}</dd></dl>
+        <dl class="trk-kv" ng-if="vm.order.invoice_number"><dt>Invoice</dt><dd>{{ vm.order.invoice_number }}
+          <span class="trk-badge" ng-class="vm.invoiceBadge(vm.order.invoice_status)">{{ vm.pretty(vm.order.invoice_status) }}</span></dd></dl>
+        <dl class="trk-kv" ng-if="vm.order.courier"><dt>Courier</dt><dd>{{ vm.order.courier }} · {{ vm.order.tracking_code }}
+          <a ng-if="vm.order.tracking_url" href="{{ vm.order.tracking_url }}" target="_blank" rel="noopener">track <i class="fa fa-external-link-alt"></i></a></dd></dl>
+        <dl class="trk-kv" ng-if="vm.order.shipping"><dt>Ship to</dt><dd>
+          {{ vm.order.shipping.name }}, {{ vm.order.shipping.address_line1 }}<span ng-if="vm.order.shipping.address_line2">, {{ vm.order.shipping.address_line2 }}</span>,
+          {{ vm.order.shipping.city }}, {{ vm.order.shipping.postcode }}, {{ vm.order.shipping.country }}
+          <span ng-if="vm.order.shipping.phone"> · {{ vm.order.shipping.phone }}</span>
+        </dd></dl>
+        <dl class="trk-kv" ng-if="vm.order.notes"><dt>Club notes</dt><dd>{{ vm.order.notes }}</dd></dl>
+      </div>
+
+      <!-- Items & units -->
+      <div class="trk-card" ng-if="vm.order.items.length">
+        <h4 class="trk-card__title"><i class="fa fa-list"></i> Items</h4>
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead><tr><th>Tracker</th><th>Quantity</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="it in vm.order.items">
+                <td data-label="Tracker">{{ it.version_name }}</td>
+                <td data-label="Quantity">{{ it.quantity }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trk-card" ng-if="vm.order.units.length">
+        <h4 class="trk-card__title"><i class="fa fa-map-marker-alt"></i> Units</h4>
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead><tr><th>Serial</th><th>Version</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="u in vm.order.units">
+                <td data-label="Serial"><span class="trk-table__ref">{{ u.serial || 'unallocated' }}</span></td>
+                <td data-label="Version">{{ u.version_name }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.unitBadge(u.status)">{{ vm.pretty(u.status) }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,98 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.trackers_returns">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-undo"></i> {{ vm.rma.rma_number }}</h2>
+        <p style="text-transform: capitalize;">{{ vm.rma.type }} · {{ vm.pretty(vm.rma.reason) }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the case…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.rma">
+
+      <!-- Status banner -->
+      <div class="trk-banner"
+           ng-class="{
+             'trk-banner--warn':   ['reported','acknowledged','awaiting_shipment'].indexOf(vm.rma.status) > -1,
+             'trk-banner--info':   ['approved','in_transit','received'].indexOf(vm.rma.status) > -1,
+             'trk-banner--success': vm.rma.status === 'resolved',
+             'trk-banner--danger':  ['rejected','cancelled'].indexOf(vm.rma.status) > -1
+           }">
+        <i class="fa fa-info-circle"></i>
+        <div class="trk-banner__body">
+          <strong style="text-transform: capitalize;">{{ vm.pretty(vm.rma.status) }}</strong>
+          {{ vm.returnStatusHint(vm.rma.status) }}
+          <span ng-if="vm.rma.status === 'resolved' && vm.rma.resolution"> Resolution: <strong style="display:inline; text-transform: capitalize;">{{ vm.pretty(vm.rma.resolution) }}</strong><span ng-if="vm.rma.resolution_notes"> — {{ vm.rma.resolution_notes }}</span></span>
+        </div>
+        <div class="trk-banner__actions" ng-if="vm.canWithdraw()">
+          <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.withdraw_open = true" ng-if="!vm.withdraw_open">
+            <i class="fa fa-ban"></i> Withdraw request
+          </button>
+        </div>
+      </div>
+      <div class="trk-confirm trk-confirm--danger" ng-if="vm.withdraw_open">
+        <p><strong>Withdraw this request?</strong> The case will be closed and the tracker stays active.</p>
+        <div class="trk-confirm__actions">
+          <button class="trk-btn trk-btn--danger" ng-click="vm.withdrawReturn()" ng-disabled="vm.withdrawing">
+            <span ng-if="vm.withdrawing" class="trk-spinner trk-spinner--inline"></span> Yes, withdraw it
+          </button>
+          <button class="trk-btn trk-btn--ghost" ng-click="vm.withdraw_open = false">Keep it open</button>
+        </div>
+      </div>
+
+      <!-- Case details -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-info-circle"></i> Details</h4>
+        <dl class="trk-kv"><dt>Tracker</dt><dd class="trk-table__ref">{{ vm.rma.serial || '—' }}</dd></dl>
+        <dl class="trk-kv"><dt>Type</dt><dd style="text-transform: capitalize;">{{ vm.rma.type }}</dd></dl>
+        <dl class="trk-kv"><dt>Reason</dt><dd style="text-transform: capitalize;">{{ vm.pretty(vm.rma.reason) }}</dd></dl>
+        <dl class="trk-kv" ng-if="vm.rma.description"><dt>Description</dt><dd>{{ vm.rma.description }}</dd></dl>
+        <dl class="trk-kv"><dt>Reported</dt><dd>{{ vm.rma.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</dd></dl>
+      </div>
+
+      <!-- Conversation -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-comments"></i> Conversation</h4>
+
+        <div class="trk-empty" ng-if="!vm.rma.updates.length" style="padding: 18px;">
+          <p>No messages yet — add one below if you have more to tell us.</p>
+        </div>
+
+        <div class="trk-thread" ng-if="vm.rma.updates.length">
+          <div class="trk-msg" ng-repeat="u in vm.rma.updates" ng-class="u.is_admin ? 'trk-msg--admin' : 'trk-msg--club'">
+            <div ng-if="u.message">{{ u.message }}</div>
+            <div class="trk-msg__status" ng-if="u.new_status && u.new_status !== u.old_status">
+              Status changed to “{{ vm.pretty(u.new_status) }}”
+            </div>
+            <div class="trk-msg__meta">
+              <span class="trk-msg__badge" ng-if="u.is_admin">ToAviate</span>
+              <span>{{ u.first_name }}</span>
+              <span>· {{ u.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="trk-reply" ng-if="vm.rma.status !== 'cancelled'">
+          <textarea class="trk-textarea" ng-model="vm.reply" placeholder="Write a message to ToAviate…"></textarea>
+          <button class="trk-btn trk-btn--primary" ng-click="vm.sendReply()" ng-disabled="vm.replying || !vm.reply">
+            <span ng-if="vm.replying" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-paper-plane" ng-if="!vm.replying"></i> Send
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

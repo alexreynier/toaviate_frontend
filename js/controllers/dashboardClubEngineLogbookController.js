@@ -326,7 +326,7 @@
                 switch (type) {
                     case 'airframe': return 'fa-plane';
                     case 'engine': return 'fa-cog';
-                    case 'propeller': return 'fa-refresh';
+                    case 'propeller': return 'fa-sync-alt';
                     default: return 'fa-book';
                 }
             };
@@ -334,14 +334,14 @@
             vm.getCheckTypeIcon = function(type) {
                 if (!type) return 'fa-wrench';
                 switch (type.toLowerCase()) {
-                    case 'annual': return 'fa-calendar-check-o';
-                    case '50hours': case '50hour': case '25hours': case '100hours': case '100hour': case '150hour': return 'fa-tachometer';
-                    case 'extension': return 'fa-clock-o';
+                    case 'annual': return 'fa-calendar-check';
+                    case '50hours': case '50hour': case '25hours': case '100hours': case '100hour': case '150hour': return 'fa-tachometer-alt';
+                    case 'extension': return 'fa-clock';
                     case 'interim': return 'fa-cogs';
                     case '6months': return 'fa-calendar';
                     case 'cofa': case 'arc': return 'fa-certificate';
                     case 'engine_overhaul': return 'fa-cog';
-                    case 'propeller_overhaul': return 'fa-repeat';
+                    case 'propeller_overhaul': return 'fa-redo';
                     case 'workpack': return 'fa-briefcase';
                     default: return 'fa-wrench';
                 }

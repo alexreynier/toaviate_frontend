@@ -228,13 +228,13 @@ app.controller('FlightMergeModalController', FlightMergeModalController);
 
         $scope.getEntityIcon = function(type) {
             var icons = {
-                'plane_log_sheet': 'fa-file-text-o',
+                'plane_log_sheet': 'fa-file-alt',
                 'booking': 'fa-calendar',
                 'fox_entry': 'fa-wifi',
-                'invoice': 'fa-file-text',
+                'invoice': 'fa-file-alt',
                 'logbook': 'fa-book'
             };
-            return icons[type] || 'fa-circle-o';
+            return icons[type] || 'fa-circle';
         };
 
         // ═══════════════════════════════════════════════

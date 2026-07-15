@@ -1,0 +1,83 @@
+<!-- Maintenance-org tracker portal (child of dashboard.maintenance).
+     The parent home.html renders the org switcher above this view. -->
+<div class="trk-page" style="padding: 0;">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.maintenance">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-map-marker-alt"></i> Trackers</h2>
+        <p>Fox trackers assigned to {{ vm.org.title || 'your organisation' }} for fitting and upkeep.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading trackers…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading">
+
+      <div class="trk-toolbar">
+        <div class="trk-search">
+          <i class="fa fa-search"></i>
+          <input type="text" placeholder="Search by serial, version or club…" ng-model="vm.search">
+        </div>
+        <span class="trk-count-badge">{{ vm.units.length }}</span>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.units.length">
+        <i class="fa fa-map-marker-alt"></i>
+        <p>No trackers have been assigned to your organisation yet. Clubs link you from their tracker pages.</p>
+      </div>
+
+      <div ng-repeat="club in vm.clubs" ng-show="vm.clubHasMatches(club)">
+        <h3 class="trk-org-club"><i class="fa fa-plane"></i> {{ club.club_title }}</h3>
+
+        <div class="trk-table-card">
+          <div class="trk-table-scroll">
+            <table class="trk-table trk-table--stack">
+              <thead>
+                <tr>
+                  <th>Serial</th>
+                  <th>Version</th>
+                  <th>Status</th>
+                  <th>Linked</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="u in club.units" ng-show="vm.matches(u)">
+                  <td data-label="Serial"><span class="trk-table__ref">{{ u.serial || '—' }}</span></td>
+                  <td data-label="Version">{{ u.version_name }} <span class="trk-table__muted">{{ u.version_code }}</span></td>
+                  <td data-label="Status"><span class="trk-badge trk-badge--grey" style="text-transform: capitalize;">{{ vm.pretty(u.unit_status) }}</span></td>
+                  <td data-label="Linked" class="trk-table__muted">{{ u.linked_at | asDate | date:'dd MMM yyyy' }}</td>
+                  <td data-label="Notes" class="trk-table__muted">{{ u.link_notes || '—' }}</td>
+                  <td class="trk-table__actions">
+                    <a class="trk-table__action-btn" href="" ng-if="u.has_fitting_pdf" uib-tooltip="Fitting instructions (PDF)"
+                       ng-click="vm.downloadFittingPdf(u)">
+                      <i class="fa" ng-class="u.downloading ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'"></i>
+                    </a>
+                    <span class="trk-table__muted" ng-if="!u.has_fitting_pdf">no PDF</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div ng-repeat="u in club.units" ng-show="vm.matches(u) && u.fitting_notes">
+          <div class="trk-fitting-notes" style="margin-bottom: 12px;">
+            <strong>{{ u.serial }} fitting notes:</strong> {{ u.fitting_notes }}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

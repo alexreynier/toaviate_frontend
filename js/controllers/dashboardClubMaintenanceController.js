@@ -2247,9 +2247,9 @@ e
         vm.getEventTypeIcon = function (type) {
             if (!type) return 'fa-wrench';
             switch (type.toLowerCase()) {
-                case 'annual': return 'fa-calendar-check-o';
-                case '50hours': case '25hours': case '100hours': return 'fa-tachometer';
-                case 'extension': return 'fa-clock-o';
+                case 'annual': return 'fa-calendar-check';
+                case '50hours': case '25hours': case '100hours': return 'fa-tachometer-alt';
+                case 'extension': return 'fa-clock';
                 case 'interim': return 'fa-tools';
                 case '6months': return 'fa-calendar';
                 default: return 'fa-wrench';
@@ -2416,7 +2416,7 @@ e
             switch (type) {
                 case 'airframe': return 'fa-plane';
                 case 'engine': return 'fa-cog';
-                case 'propeller': return 'fa-refresh';
+                case 'propeller': return 'fa-sync-alt';
                 default: return 'fa-book';
             }
         };

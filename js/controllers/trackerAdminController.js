@@ -1,0 +1,544 @@
+// One controller serves every ToAviate-admin tracker-commerce screen; the
+// screen is chosen by the route's data.screen (same architecture as
+// SmsController). Screens: dashboard, versions, version_detail, orders,
+// order_detail, units, invoices, returns, return_detail, audit.
+//
+// Access: ToAviate staff only — the backend is authoritative, this mirrors
+// DashboardSuperAdminController's client-side bounce.
+app.controller('TrackerAdminController', TrackerAdminController);
+    TrackerAdminController.$inject = ['TrackerCommerceService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$location', '$uibModal'];
+    function TrackerAdminController(TrackerCommerceService, ToastService, $rootScope, $scope, $state, $stateParams, $location, $uibModal) {
+        var vm = this;
+        vm.user = $rootScope.globals.currentUser;
+        vm.is_toaviate_staff = !!(vm.user && vm.user.email && /@toaviate\.com$/i.test(vm.user.email));
+        if (!vm.is_toaviate_staff) {
+            $location.path('/dashboard');
+            return;
+        }
+
+        vm.screen = $state.current.data.screen;
+        vm.enums  = TrackerCommerceService.enums;
+        vm.loading = false;
+
+        // ── Sub-nav (shared partial views/manageclub/trackers/admin/_nav.html) ──
+        vm.nav = [
+            { screen: 'dashboard', state: 'dashboard.super_admin.tracker_commerce',        label: 'Overview', icon: 'fa-tachometer-alt' },
+            { screen: 'orders',    state: 'dashboard.super_admin.tracker_orders',          label: 'Orders',   icon: 'fa-box-open' },
+            { screen: 'units',     state: 'dashboard.super_admin.tracker_units',           label: 'Units',    icon: 'fa-map-marker-alt' },
+            { screen: 'invoices',  state: 'dashboard.super_admin.tracker_invoices',        label: 'Invoices', icon: 'fa-file-invoice-dollar' },
+            { screen: 'returns',   state: 'dashboard.super_admin.tracker_returns',         label: 'Returns',  icon: 'fa-undo' },
+            { screen: 'versions',  state: 'dashboard.super_admin.tracker_versions',        label: 'Versions', icon: 'fa-microchip' },
+            { screen: 'audit',     state: 'dashboard.super_admin.tracker_audit',           label: 'Audit',    icon: 'fa-history' }
+        ];
+        var navAlias = { order_detail: 'orders', return_detail: 'returns', version_detail: 'versions' };
+        vm.navActive = navAlias[vm.screen] || vm.screen;
+        vm.go = function(state, params) { $state.go(state, params || {}); };
+
+        // ── Shared helpers ────────────────────────────────────────────────
+        vm.pretty = function(str) { return str ? String(str).replace(/_/g, ' ') : ''; };
+        vm.cur = function(code) {
+            if (code === 'GBP' || !code) { return '£'; }
+            if (code === 'EUR') { return '€'; }
+            if (code === 'USD') { return '$'; }
+            return code + ' ';
+        };
+        vm.orderBadge   = function(st) { return TrackerCommerceService.badges.order[st]   || 'trk-badge--grey'; };
+        vm.invoiceBadge = function(st) { return TrackerCommerceService.badges.invoice[st] || 'trk-badge--grey'; };
+        vm.unitBadge    = function(st) { return TrackerCommerceService.badges.unit[st]    || 'trk-badge--grey'; };
+        vm.returnBadge  = function(st) { return TrackerCommerceService.badges.return[st]  || 'trk-badge--grey'; };
+
+        function toastFail(title, data) {
+            ToastService.error(title, (data && data.message) || 'Something went wrong. Please try again.');
+        }
+        function todayYmd() {
+            var d = new Date();
+            var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+            var dd = ('0' + d.getDate()).slice(-2);
+            return d.getFullYear() + '-' + mm + '-' + dd;
+        }
+
+        init();
+        function init() {
+            switch (vm.screen) {
+                case 'dashboard':      initDashboard(); break;
+                case 'versions':       initVersions(); break;
+                case 'version_detail': initVersionDetail(); break;
+                case 'orders':         initOrders(); break;
+                case 'order_detail':   initOrderDetail(); break;
+                case 'units':          initUnits(); break;
+                case 'invoices':       initInvoices(); break;
+                case 'returns':        initReturns(); break;
+                case 'return_detail':  initReturnDetail(); break;
+                case 'audit':          initAudit(); break;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // DASHBOARD (B1)
+        // ══════════════════════════════════════════════════════════════════
+        function initDashboard() {
+            vm.loading = true;
+            TrackerCommerceService.AdminOverview().then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load the overview', data); return; }
+                vm.overview = data;
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // VERSIONS & PRICING (B2)
+        // ══════════════════════════════════════════════════════════════════
+        function initVersions() {
+            vm.loading = true;
+            TrackerCommerceService.ListVersions().then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load versions', data); return; }
+                vm.versions = (data && data.versions) || [];
+            });
+        }
+        vm.openVersion = function(v) { $state.go('dashboard.super_admin.tracker_version_detail', { id: v.id }); };
+        vm.newVersion = function() { openVersionModal(null, function() { initVersions(); }); };
+
+        function openVersionModal(version, onSaved) {
+            $uibModal.open({
+                animation: true, size: 'lg', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/version_form.html',
+                controller: 'TrackerVersionModalController', controllerAs: 'm',
+                resolve: { version: function() { return version; } }
+            }).result.then(function(changed) { if (changed && onSaved) { onSaved(); } }, function() {});
+        }
+
+        function initVersionDetail() {
+            vm.version_id = $stateParams.id;
+            vm.delete_open = false;
+            loadVersion();
+        }
+        function loadVersion() {
+            vm.loading = true;
+            TrackerCommerceService.GetVersion(vm.version_id).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load the version', data); return; }
+                vm.version = data.version || data;
+            });
+        }
+        vm.editVersion = function() { openVersionModal(vm.version, loadVersion); };
+        vm.deleteVersion = function() {
+            vm.deleting = true;
+            TrackerCommerceService.DeleteVersion(vm.version_id).then(function(data) {
+                vm.deleting = false;
+                if (data && data.success === false) { toastFail('Could not delete the version', data); return; }
+                if (data.discontinued) {
+                    ToastService.warning('Version discontinued', 'Units exist for this version, so it was discontinued rather than deleted.');
+                    vm.delete_open = false;
+                    loadVersion();
+                } else {
+                    ToastService.success('Version deleted', 'The version has been removed.');
+                    $state.go('dashboard.super_admin.tracker_versions');
+                }
+            });
+        };
+        vm.addPricing = function() { openPricingModal(null); };
+        vm.editPricing = function(row) {
+            if (!row.is_future) { ToastService.warning('Price locked', 'Prices that are already in force cannot be edited — schedule a new price instead.'); return; }
+            openPricingModal(row);
+        };
+        function openPricingModal(row) {
+            $uibModal.open({
+                animation: true, size: 'md', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/pricing_form.html',
+                controller: 'TrackerPricingModalController', controllerAs: 'm',
+                resolve: {
+                    versionId: function() { return parseInt(vm.version_id, 10); },
+                    pricing:   function() { return row; }
+                }
+            }).result.then(function(changed) { if (changed) { loadVersion(); } }, function() {});
+        }
+        vm.deletePricing = function(row) {
+            row.deleting = true;
+            TrackerCommerceService.DeletePricing(row.id).then(function(data) {
+                row.deleting = false;
+                if (data && data.success === false) { toastFail('Could not delete the price', data); return; }
+                ToastService.success('Scheduled price removed', 'The future price row has been deleted.');
+                loadVersion();
+            });
+        };
+
+        // Fitting PDF — chunk-uploaded via ng-flow to /upload_documents.php,
+        // then the temp filename is attached to the version.
+        vm.processFittingPdf = function(files) {
+            if (!files || !files.length) { return; }
+            var parsed;
+            try { parsed = JSON.parse(files[files.length - 1].file_return); }
+            catch (e) { ToastService.error('Upload failed', 'The file could not be processed. Please try again.'); return; }
+            vm.pdf_saving = true;
+            TrackerCommerceService.SetVersionFittingPdf(vm.version_id, parsed.saved_url).then(function(data) {
+                vm.pdf_saving = false;
+                if (data && data.success === false) { toastFail('Could not attach the PDF', data); return; }
+                ToastService.success('Fitting PDF attached', 'The fitting instructions are now available for this version.');
+                loadVersion();
+            });
+        };
+        vm.previewFittingPdf = function() {
+            vm.pdf_downloading = true;
+            TrackerCommerceService.DownloadVersionFittingPdf(vm.version_id, (vm.version && vm.version.code || 'version') + '-fitting.pdf').then(function(res) {
+                vm.pdf_downloading = false;
+                if (res && res.success === false) { toastFail('Download failed', res); }
+            });
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        // ORDER PIPELINE (B3)
+        // ══════════════════════════════════════════════════════════════════
+        function initOrders() {
+            vm.statusFilter = '';
+            vm.search = '';
+            vm.page = 1;
+            vm.orders = [];
+            vm.status_counts = {};
+            loadAdminOrders(true);
+        }
+        function loadAdminOrders(reset) {
+            vm.loading = true;
+            TrackerCommerceService.AdminListOrders({ status: vm.statusFilter, page: vm.page }).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load orders', data); return; }
+                var rows = (data && data.orders) || [];
+                vm.orders = reset ? rows : vm.orders.concat(rows);
+                vm.status_counts = (data && data.status_counts) || vm.status_counts;
+                vm.has_more = rows.length > 0;
+            });
+        }
+        vm.setOrderFilter = function(status) {
+            vm.statusFilter = status;
+            vm.page = 1;
+            loadAdminOrders(true);
+        };
+        vm.loadMoreOrders = function() { vm.page++; loadAdminOrders(false); };
+        vm.openAdminOrder = function(o) { $state.go('dashboard.super_admin.tracker_order_detail', { id: o.id }); };
+        vm.orderItemsSummary = function(o) {
+            return ((o && o.items) || []).map(function(it) { return it.quantity + '× ' + it.version_name; }).join(', ');
+        };
+
+        function initOrderDetail() {
+            vm.order_id = $stateParams.id;
+            vm.mark_paid_open = false;
+            vm.mark_paid_reference = '';
+            vm.cancel_open = false;
+            vm.cancel_reason = '';
+            loadOrder();
+        }
+        function loadOrder() {
+            vm.loading = true;
+            TrackerCommerceService.GetOrder(vm.order_id).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load the order', data); return; }
+                vm.order = data.order || data;
+            });
+        }
+        vm.unallocatedCount = function() {
+            return ((vm.order && vm.order.units) || []).filter(function(u) { return !u.serial; }).length;
+        };
+        vm.markPaid = function() {
+            vm.marking_paid = true;
+            TrackerCommerceService.MarkOrderPaid(vm.order_id, vm.mark_paid_reference).then(function(data) {
+                vm.marking_paid = false;
+                if (data && data.success === false) { toastFail('Could not mark as paid', data); return; }
+                vm.mark_paid_open = false;
+                ToastService.success('Order marked paid', 'Payment has been recorded against the order.');
+                loadOrder();
+            });
+        };
+        vm.cancelOrder = function() {
+            vm.cancelling = true;
+            TrackerCommerceService.CancelOrder(vm.order_id, vm.cancel_reason).then(function(data) {
+                vm.cancelling = false;
+                if (data && data.success === false) { toastFail('Could not cancel the order', data); return; }
+                vm.cancel_open = false;
+                ToastService.success('Order cancelled', 'The order has been cancelled.');
+                loadOrder();
+            });
+        };
+        vm.setOrderStatus = function(status) {
+            vm.status_saving = true;
+            TrackerCommerceService.SetOrderStatus(vm.order_id, { status: status }).then(function(data) {
+                vm.status_saving = false;
+                if (data && data.success === false) { toastFail('Could not update the order', data); return; }
+                ToastService.success('Order updated', 'The order is now ' + vm.pretty(status) + '.');
+                loadOrder();
+            });
+        };
+        vm.openAllocate = function() {
+            $uibModal.open({
+                animation: true, size: 'lg', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/allocate.html',
+                controller: 'TrackerAllocateModalController', controllerAs: 'm',
+                resolve: { order: function() { return vm.order; } }
+            }).result.then(function(changed) { if (changed) { loadOrder(); } }, function() {});
+        };
+        vm.openShip = function() {
+            $uibModal.open({
+                animation: true, size: 'md', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/ship.html',
+                controller: 'TrackerShipModalController', controllerAs: 'm',
+                resolve: { order: function() { return vm.order; } }
+            }).result.then(function(changed) { if (changed) { loadOrder(); } }, function() {});
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        // UNITS MANAGER (B4)
+        // ══════════════════════════════════════════════════════════════════
+        function initUnits() {
+            vm.statusFilter = '';
+            vm.search = '';
+            vm.page = 1;
+            vm.units = [];
+            vm.status_counts = {};
+            loadAdminUnits(true);
+        }
+        function loadAdminUnits(reset) {
+            vm.loading = true;
+            TrackerCommerceService.AdminListUnits({ status: vm.statusFilter, search: vm.search, page: vm.page }).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load units', data); return; }
+                var rows = (data && data.units) || [];
+                vm.units = reset ? rows : vm.units.concat(rows);
+                vm.status_counts = (data && data.status_counts) || vm.status_counts;
+                vm.has_more = rows.length > 0;
+            });
+        }
+        vm.setUnitFilter = function(status) { vm.statusFilter = status; vm.page = 1; loadAdminUnits(true); };
+        vm.searchUnits = function() { vm.page = 1; loadAdminUnits(true); };
+        vm.loadMoreUnits = function() { vm.page++; loadAdminUnits(false); };
+        vm.editUnit = function(u) {
+            $uibModal.open({
+                animation: true, size: 'md', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/unit_edit.html',
+                controller: 'TrackerUnitEditModalController', controllerAs: 'm',
+                resolve: { unit: function() { return u; } }
+            }).result.then(function(changed) { if (changed) { loadAdminUnits(true); } }, function() {});
+        };
+        vm.pauseBilling = function(u) {
+            u.busy = true;
+            TrackerCommerceService.PauseBilling(u.id).then(function(data) {
+                u.busy = false;
+                if (data && data.success === false) { toastFail('Could not pause billing', data); return; }
+                ToastService.success('Billing paused', (u.serial || 'The unit') + ' will not be billed until resumed.');
+                loadAdminUnits(true);
+            });
+        };
+        vm.resumeBilling = function(u) {
+            u.busy = true;
+            TrackerCommerceService.ResumeBilling(u.id).then(function(data) {
+                u.busy = false;
+                if (data && data.success === false) { toastFail('Could not resume billing', data); return; }
+                ToastService.success('Billing resumed', (u.serial || 'The unit') + ' is billable again.');
+                loadAdminUnits(true);
+            });
+        };
+        vm.retireUnit = function(u) {
+            u.busy = true;
+            TrackerCommerceService.RetireUnit(u.id).then(function(data) {
+                u.busy = false;
+                u.retire_open = false;
+                if (data && data.success === false) { toastFail('Could not retire the unit', data); return; }
+                ToastService.success('Unit retired', (u.serial || 'The unit') + ' has been retired — billing ends today.');
+                loadAdminUnits(true);
+            });
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        // INVOICES & PAYMENTS (B5)
+        // ══════════════════════════════════════════════════════════════════
+        function initInvoices() {
+            vm.statusFilter = '';
+            vm.typeFilter = '';
+            vm.search = '';
+            vm.page = 1;
+            vm.invoices = [];
+            vm.status_counts = {};
+            loadAdminInvoices(true);
+        }
+        function loadAdminInvoices(reset) {
+            vm.loading = true;
+            TrackerCommerceService.AdminListInvoices({ status: vm.statusFilter, type: vm.typeFilter, page: vm.page }).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load invoices', data); return; }
+                var rows = (data && data.invoices) || [];
+                vm.invoices = reset ? rows : vm.invoices.concat(rows);
+                vm.status_counts = (data && data.status_counts) || vm.status_counts;
+                vm.has_more = rows.length > 0;
+            });
+        }
+        vm.setInvoiceFilter = function(status) { vm.statusFilter = status; vm.page = 1; loadAdminInvoices(true); };
+        vm.setInvoiceType = function(type) { vm.typeFilter = type; vm.page = 1; loadAdminInvoices(true); };
+        vm.loadMoreInvoices = function() { vm.page++; loadAdminInvoices(false); };
+        vm.toggleInvoice = function(inv) {
+            inv.show_more = !inv.show_more;
+            if (inv.show_more && !inv.detail && !inv.detail_loading) {
+                inv.detail_loading = true;
+                TrackerCommerceService.GetInvoice(inv.id).then(function(data) {
+                    inv.detail_loading = false;
+                    if (data && data.success === false) { return; }
+                    inv.detail = data.invoice || data;
+                });
+            }
+        };
+        vm.downloadInvoice = function(inv) {
+            inv.downloading = true;
+            TrackerCommerceService.DownloadInvoicePdf(inv.id, (inv.invoice_number || 'tracker-invoice') + '.pdf').then(function(res) {
+                inv.downloading = false;
+                if (res && res.success === false) { toastFail('Download failed', res); }
+            });
+        };
+        vm.retryPayment = function(inv) {
+            inv.paying = true;
+            TrackerCommerceService.PayInvoice(inv.id).then(function(data) {
+                inv.paying = false;
+                if (data && data.success === false) { toastFail('Collection failed', data); loadAdminInvoices(true); return; }
+                if (data.status === 'payment_pending') {
+                    ToastService.success('Collection started', 'The Direct Debit collection is in flight.');
+                } else {
+                    ToastService.success('Invoice paid', 'The payment went through.');
+                }
+                loadAdminInvoices(true);
+            });
+        };
+        vm.openInvoiceStatus = function(inv) {
+            $uibModal.open({
+                animation: true, size: 'md', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/invoice_status.html',
+                controller: 'TrackerInvoiceStatusModalController', controllerAs: 'm',
+                resolve: { invoice: function() { return inv; } }
+            }).result.then(function(changed) { if (changed) { loadAdminInvoices(true); } }, function() {});
+        };
+        // Per-club auto-billing toggle (admins only)
+        vm.loadClubProfile = function(inv) {
+            if (inv.profile || inv.profile_loading) { inv.show_profile = !inv.show_profile; return; }
+            inv.profile_loading = true;
+            inv.show_profile = true;
+            TrackerCommerceService.GetBillingProfile(inv.club_id).then(function(data) {
+                inv.profile_loading = false;
+                if (data && data.success === false) { toastFail('Could not load the billing profile', data); return; }
+                inv.profile = data.profile;
+            });
+        };
+        vm.toggleAutoBilling = function(inv) {
+            var next = !inv.profile.auto_billing_enabled;
+            TrackerCommerceService.UpdateBillingProfile(inv.club_id, { auto_billing_enabled: next }).then(function(data) {
+                if (data && data.success === false) { toastFail('Could not update auto-billing', data); return; }
+                inv.profile.auto_billing_enabled = next;
+                ToastService.success('Auto-billing ' + (next ? 'enabled' : 'paused'), (inv.club_title || 'The club') + (next ? ' will be charged automatically again.' : ' will not be auto-charged.'));
+            });
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        // RETURNS QUEUE (B6)
+        // ══════════════════════════════════════════════════════════════════
+        function initReturns() {
+            vm.statusFilter = 'open';
+            vm.search = '';
+            vm.page = 1;
+            vm.returns = [];
+            vm.status_counts = {};
+            loadAdminReturns(true);
+        }
+        function loadAdminReturns(reset) {
+            vm.loading = true;
+            TrackerCommerceService.AdminListReturns({ status: vm.statusFilter, page: vm.page }).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load returns', data); return; }
+                var rows = (data && data.returns) || [];
+                vm.returns = reset ? rows : vm.returns.concat(rows);
+                vm.status_counts = (data && data.status_counts) || vm.status_counts;
+                vm.has_more = rows.length > 0;
+            });
+        }
+        vm.setReturnFilter = function(status) { vm.statusFilter = status; vm.page = 1; loadAdminReturns(true); };
+        vm.loadMoreReturns = function() { vm.page++; loadAdminReturns(false); };
+        vm.openAdminReturn = function(r) { $state.go('dashboard.super_admin.tracker_return_detail', { id: r.id }); };
+
+        function initReturnDetail() {
+            vm.return_id = $stateParams.id;
+            vm.reply = '';
+            loadReturn();
+        }
+        function loadReturn() {
+            vm.loading = true;
+            TrackerCommerceService.GetReturn(vm.return_id).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load the return', data); return; }
+                vm.rma = data.return || data;
+            });
+        }
+        vm.sendReply = function() {
+            if (!vm.reply) { return; }
+            vm.replying = true;
+            TrackerCommerceService.ReplyReturn(vm.return_id, vm.reply).then(function(data) {
+                vm.replying = false;
+                if (data && data.success === false) { toastFail('Could not send the message', data); return; }
+                vm.reply = '';
+                loadReturn();
+            });
+        };
+        // reported → acknowledged → approved → awaiting_shipment → in_transit → received
+        var pipeline = ['reported', 'acknowledged', 'approved', 'awaiting_shipment', 'in_transit', 'received'];
+        vm.nextReturnStatus = function() {
+            var i = pipeline.indexOf(vm.rma && vm.rma.status);
+            return (i > -1 && i < pipeline.length - 1) ? pipeline[i + 1] : null;
+        };
+        vm.returnIsOpen = function() {
+            return vm.rma && ['resolved', 'rejected', 'cancelled'].indexOf(vm.rma.status) === -1;
+        };
+        vm.setReturnStatus = function(status) {
+            var payload = { status: status };
+            if (status === 'received') { payload.received_at = todayYmd(); }
+            vm.status_saving = true;
+            TrackerCommerceService.SetReturnStatus(vm.return_id, payload).then(function(data) {
+                vm.status_saving = false;
+                if (data && data.success === false) { toastFail('Could not update the return', data); return; }
+                if (status === 'received') {
+                    ToastService.success('Unit received', 'Billing for this unit has stopped.');
+                } else {
+                    ToastService.success('Return updated', 'The case is now ' + vm.pretty(status) + '.');
+                }
+                loadReturn();
+            });
+        };
+        vm.openResolve = function() {
+            $uibModal.open({
+                animation: true, size: 'md', backdrop: 'static', windowClass: 'trk-modal',
+                templateUrl: 'views/manageclub/trackers/modals/resolve_return.html',
+                controller: 'TrackerResolveReturnModalController', controllerAs: 'm',
+                resolve: { rma: function() { return vm.rma; } }
+            }).result.then(function(changed) { if (changed) { loadReturn(); } }, function() {});
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        // AUDIT VIEWER (B7)
+        // ══════════════════════════════════════════════════════════════════
+        function initAudit() {
+            vm.entityFilter = '';
+            vm.page = 1;
+            vm.entries = [];
+            loadAudit(true);
+        }
+        function loadAudit(reset) {
+            vm.loading = true;
+            TrackerCommerceService.AuditRecent({ entity_type: vm.entityFilter, page: vm.page }).then(function(data) {
+                vm.loading = false;
+                if (data && data.success === false) { toastFail('Could not load the audit log', data); return; }
+                var rows = (data && data.entries) || [];
+                vm.entries = reset ? rows : vm.entries.concat(rows);
+                vm.has_more = rows.length > 0;
+            });
+        }
+        vm.setEntityFilter = function(type) { vm.entityFilter = type; vm.page = 1; loadAudit(true); };
+        vm.loadMoreAudit = function() { vm.page++; loadAudit(false); };
+        vm.snapshot = function(obj) {
+            if (!obj) { return ''; }
+            if (typeof obj === 'string') {
+                try { return JSON.stringify(JSON.parse(obj), null, 2); } catch (e) { return obj; }
+            }
+            return JSON.stringify(obj, null, 2);
+        };
+    }

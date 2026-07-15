@@ -394,6 +394,14 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // Fox trackers assigned to the org for fitting (tracker commerce §C2)
+            .state('dashboard.maintenance.trackers', {
+                url: '/trackers',
+                controller: 'TrackerMaintenanceController',
+                templateUrl: 'views/maintenance/trackers.html',
+                controllerAs: 'vm'
+            })
+
 
 
 
@@ -562,6 +570,96 @@ var app = angular
                 controller: 'CronStatusController',
                 templateUrl: 'views/manageclub/cron_status.html',
                 controllerAs: 'vm'
+            })
+
+            // ── TRACKER COMMERCE (ToAviate admin) ──
+            // One controller (TrackerAdminController) serves every screen,
+            // dispatched by data.screen — same pattern as SMS.
+            .state('dashboard.super_admin.tracker_commerce', {
+                url: '/tracker_commerce',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/dashboard.html',
+                controllerAs: 'vm',
+                data: { screen: 'dashboard' }
+            })
+            .state('dashboard.super_admin.tracker_versions', {
+                url: '/tracker_versions',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/versions.html',
+                controllerAs: 'vm',
+                data: { screen: 'versions' }
+            })
+            .state('dashboard.super_admin.tracker_version_detail', {
+                url: '/tracker_versions/:id',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/version_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'version_detail' }
+            })
+            .state('dashboard.super_admin.tracker_orders', {
+                url: '/tracker_orders',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/orders.html',
+                controllerAs: 'vm',
+                data: { screen: 'orders' }
+            })
+            // Email alias — order emails deep-link to /dashboard/toaviate_admin/tracker_orders
+            .state('dashboard.super_admin.tracker_orders_email', {
+                url: '^/dashboard/toaviate_admin/tracker_orders',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/orders.html',
+                controllerAs: 'vm',
+                data: { screen: 'orders' }
+            })
+            .state('dashboard.super_admin.tracker_order_detail', {
+                url: '/tracker_orders/:id',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/order_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'order_detail' }
+            })
+            .state('dashboard.super_admin.tracker_units', {
+                url: '/tracker_units',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/units.html',
+                controllerAs: 'vm',
+                data: { screen: 'units' }
+            })
+            .state('dashboard.super_admin.tracker_invoices', {
+                url: '/tracker_invoices',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/invoices.html',
+                controllerAs: 'vm',
+                data: { screen: 'invoices' }
+            })
+            .state('dashboard.super_admin.tracker_returns', {
+                url: '/tracker_returns',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/returns.html',
+                controllerAs: 'vm',
+                data: { screen: 'returns' }
+            })
+            // Email alias — RMA emails deep-link to /dashboard/toaviate_admin/tracker_returns
+            .state('dashboard.super_admin.tracker_returns_email', {
+                url: '^/dashboard/toaviate_admin/tracker_returns',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/returns.html',
+                controllerAs: 'vm',
+                data: { screen: 'returns' }
+            })
+            .state('dashboard.super_admin.tracker_return_detail', {
+                url: '/tracker_returns/:id',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/return_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'return_detail' }
+            })
+            .state('dashboard.super_admin.tracker_audit', {
+                url: '/tracker_audit',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/audit.html',
+                controllerAs: 'vm',
+                data: { screen: 'audit' }
             })
 
 
@@ -1510,6 +1608,83 @@ var app = angular
                 templateUrl: 'views/manageclub/sms/audit_view.html',
                 controllerAs: 'vm',
                 data: { screen: 'audit_view' }
+            })
+
+            // ── TRACKER COMMERCE (club side) ──
+            // One controller (TrackerClubController) serves every screen,
+            // dispatched by data.screen — same pattern as SMS. The URLs match
+            // the deep links the backend puts in its emails
+            // (dashboard/manage_club/trackers/…).
+            .state('dashboard.manage_club.trackers', {
+                url: '/trackers',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/units.html',
+                controllerAs: 'vm',
+                data: { screen: 'units' }
+            })
+            .state('dashboard.manage_club.trackers_shop', {
+                url: '/trackers/shop',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/shop.html',
+                controllerAs: 'vm',
+                data: { screen: 'shop' }
+            })
+            .state('dashboard.manage_club.trackers_orders', {
+                url: '/trackers/orders',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/orders.html',
+                controllerAs: 'vm',
+                data: { screen: 'orders' }
+            })
+            .state('dashboard.manage_club.trackers_order_detail', {
+                url: '/trackers/orders/:id',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/order_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'order_detail' }
+            })
+            .state('dashboard.manage_club.trackers_billing', {
+                url: '/trackers/billing',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/billing.html',
+                controllerAs: 'vm',
+                data: { screen: 'billing' }
+            })
+            // GoCardless redirect-flow return page (?redirect_flow_id=RE…)
+            .state('dashboard.manage_club.trackers_dd_confirm', {
+                url: '/trackers/billing/dd_confirm',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/dd_confirm.html',
+                controllerAs: 'vm',
+                data: { screen: 'dd_confirm' }
+            })
+            .state('dashboard.manage_club.trackers_unit_detail', {
+                url: '/trackers/units/:id',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/unit_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'unit_detail' }
+            })
+            .state('dashboard.manage_club.trackers_returns', {
+                url: '/trackers/returns',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/returns.html',
+                controllerAs: 'vm',
+                data: { screen: 'returns' }
+            })
+            .state('dashboard.manage_club.trackers_return_detail', {
+                url: '/trackers/returns/:id',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/return_detail.html',
+                controllerAs: 'vm',
+                data: { screen: 'return_detail' }
+            })
+            .state('dashboard.manage_club.trackers_activity', {
+                url: '/trackers/activity',
+                controller: 'TrackerClubController',
+                templateUrl: 'views/manageclub/trackers/activity.html',
+                controllerAs: 'vm',
+                data: { screen: 'activity' }
             })
 
             // CLUB PAYMENTS TO:::

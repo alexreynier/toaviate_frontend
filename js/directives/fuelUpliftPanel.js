@@ -103,7 +103,7 @@ app.directive('fuelUpliftPanel', ['$timeout', function ($timeout) {
                                 '</h4>' +
                                 '<div class="dr-dropzone" ng-class="{\'dr-dropzone--has-files\': !!pendingFile}">' +
                                     '<div class="dr-dropzone-content" ng-if="!pendingFile">' +
-                                        '<i class="fa fa-cloud-upload dr-dropzone-icon"></i>' +
+                                        '<i class="fa fa-cloud-upload-alt dr-dropzone-icon"></i>' +
                                         '<span class="dr-dropzone-text">Add a photo of the receipt</span>' +
                                         '<label class="dr-file-btn">' +
                                             '<i class="fa fa-camera"></i> Browse' +
@@ -114,7 +114,7 @@ app.directive('fuelUpliftPanel', ['$timeout', function ($timeout) {
                                         '<div class="dr-file-item">' +
                                             '<div class="dr-file-thumb">' +
                                                 '<img ng-if="filePreview" ng-src="{{ filePreview }}" />' +
-                                                '<i ng-if="!filePreview" class="fa fa-file-image-o dr-file-thumb-icon"></i>' +
+                                                '<i ng-if="!filePreview" class="fa fa-file-image dr-file-thumb-icon"></i>' +
                                             '</div>' +
                                             '<div class="dr-file-info">' +
                                                 '<span class="dr-file-name">{{ pendingFile.name | limitTo:30 }}{{ pendingFile.name.length > 30 ? "…" : "" }}</span>' +

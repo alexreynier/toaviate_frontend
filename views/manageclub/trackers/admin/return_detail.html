@@ -1,0 +1,107 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin.tracker_returns">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-undo"></i> {{ vm.rma.rma_number }}</h2>
+        <p>{{ vm.rma.club_title }} · <span style="text-transform: capitalize;">{{ vm.rma.type }}</span> · {{ vm.pretty(vm.rma.reason) }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the case…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.rma">
+
+      <!-- Pipeline actions -->
+      <div class="trk-card" ng-if="vm.returnIsOpen()">
+        <h4 class="trk-card__title"><i class="fa fa-arrow-right"></i> Pipeline
+          <span class="trk-badge" ng-class="vm.returnBadge(vm.rma.status)">{{ vm.pretty(vm.rma.status) }}</span>
+        </h4>
+        <p class="trk-card__hint">reported → acknowledged → approved → awaiting shipment → in transit → received. Any early state can jump straight to received or be rejected.</p>
+        <div class="trk-confirm__actions">
+          <button class="trk-btn trk-btn--primary" ng-if="vm.nextReturnStatus() && vm.nextReturnStatus() !== 'received'"
+                  ng-click="vm.setReturnStatus(vm.nextReturnStatus())" ng-disabled="vm.status_saving">
+            <span ng-if="vm.status_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-arrow-right" ng-if="!vm.status_saving"></i> Move to “{{ vm.pretty(vm.nextReturnStatus()) }}”
+          </button>
+          <button class="trk-btn trk-btn--success" ng-if="vm.rma.status !== 'received'"
+                  ng-click="vm.setReturnStatus('received')" ng-disabled="vm.status_saving">
+            <span ng-if="vm.status_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-box-open" ng-if="!vm.status_saving"></i> Unit received — stop billing
+          </button>
+          <button class="trk-btn trk-btn--primary" ng-if="vm.rma.status === 'received'"
+                  ng-click="vm.openResolve()">
+            <i class="fa fa-clipboard-check"></i> Resolve case…
+          </button>
+          <button class="trk-btn trk-btn--ghost" ng-if="vm.rma.status !== 'received'"
+                  ng-click="vm.openResolve()">
+            <i class="fa fa-clipboard-check"></i> Resolve…
+          </button>
+          <button class="trk-btn trk-btn--danger" ng-click="vm.setReturnStatus('rejected')" ng-disabled="vm.status_saving">
+            <i class="fa fa-ban"></i> Reject
+          </button>
+        </div>
+      </div>
+
+      <div class="trk-banner trk-banner--success" ng-if="vm.rma.status === 'resolved'">
+        <i class="fa fa-clipboard-check"></i>
+        <div class="trk-banner__body">
+          <strong style="text-transform: capitalize;">Resolved — {{ vm.pretty(vm.rma.resolution) }}</strong>
+          {{ vm.rma.resolution_notes }}
+        </div>
+      </div>
+
+      <!-- Case details -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-info-circle"></i> Details</h4>
+        <dl class="trk-kv"><dt>Club</dt><dd>{{ vm.rma.club_title }}</dd></dl>
+        <dl class="trk-kv"><dt>Tracker</dt><dd class="trk-table__ref">{{ vm.rma.serial }} <span class="trk-table__muted">{{ vm.rma.version_name }}</span></dd></dl>
+        <dl class="trk-kv" ng-if="vm.rma.description"><dt>Description</dt><dd>{{ vm.rma.description }}</dd></dl>
+        <dl class="trk-kv"><dt>Reported</dt><dd>{{ vm.rma.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</dd></dl>
+        <dl class="trk-kv" ng-if="vm.rma.received_at"><dt>Received</dt><dd>{{ vm.rma.received_at | asDate | date:'dd MMM yyyy' }}</dd></dl>
+      </div>
+
+      <!-- Conversation -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-comments"></i> Conversation</h4>
+
+        <div class="trk-empty" ng-if="!vm.rma.updates.length" style="padding: 18px;">
+          <p>No messages yet.</p>
+        </div>
+
+        <div class="trk-thread" ng-if="vm.rma.updates.length">
+          <div class="trk-msg" ng-repeat="u in vm.rma.updates" ng-class="u.is_admin ? 'trk-msg--club' : 'trk-msg--admin'">
+            <div ng-if="u.message">{{ u.message }}</div>
+            <div class="trk-msg__status" ng-if="u.new_status && u.new_status !== u.old_status">
+              Status changed to “{{ vm.pretty(u.new_status) }}”
+            </div>
+            <div class="trk-msg__meta">
+              <span class="trk-msg__badge" ng-if="u.is_admin">ToAviate</span>
+              <span>{{ u.first_name }}</span>
+              <span>· {{ u.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="trk-reply">
+          <textarea class="trk-textarea" ng-model="vm.reply" placeholder="Write a reply to the club…"></textarea>
+          <button class="trk-btn trk-btn--primary" ng-click="vm.sendReply()" ng-disabled="vm.replying || !vm.reply">
+            <span ng-if="vm.replying" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-paper-plane" ng-if="!vm.replying"></i> Send
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

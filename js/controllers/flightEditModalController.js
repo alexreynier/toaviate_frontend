@@ -1222,14 +1222,14 @@ app.controller('FlightEditModalController', FlightEditModalController);
         $scope.getEntityIcon = function(type) {
             switch(type) {
                 case 'booking': return 'fa-calendar';
-                case 'plane_log_sheet': return 'fa-file-text';
-                case 'invoice': return 'fa-file-text-o';
+                case 'plane_log_sheet': return 'fa-file-alt';
+                case 'invoice': return 'fa-file-alt';
                 case 'payment': return 'fa-credit-card';
                 case 'training_record': return 'fa-graduation-cap';
                 case 'aircraft_logbook': return 'fa-book';
                 case 'admin_adjustment': return 'fa-balance-scale';
                 case 'credit_note': return 'fa-sticky-note';
-                default: return 'fa-circle-o';
+                default: return 'fa-circle';
             }
         };
 
@@ -1245,12 +1245,12 @@ app.controller('FlightEditModalController', FlightEditModalController);
 
         $scope.getEditTypeIcon = function(type) {
             switch(type) {
-                case 'minor_update': return 'fa-pencil';
-                case 'time_change': return 'fa-clock-o';
+                case 'minor_update': return 'fa-pencil-alt';
+                case 'time_change': return 'fa-clock';
                 case 'aircraft_change': return 'fa-plane';
                 case 'instructor_change': return 'fa-user';
                 case 'student_reassignment': return 'fa-users';
-                case 'full_reassignment': return 'fa-refresh';
+                case 'full_reassignment': return 'fa-sync-alt';
                 default: return 'fa-edit';
             }
         };

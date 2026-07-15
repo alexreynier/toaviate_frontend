@@ -1,0 +1,82 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-microchip"></i> Tracker Versions</h2>
+        <p>Hardware versions, pricing and fitting packs.</p>
+      </div>
+      <div class="trk-page__header-actions">
+        <button class="trk-btn trk-btn--white" ng-click="vm.newVersion()">
+          <i class="fa fa-plus"></i> New version
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading versions…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading">
+
+      <div class="trk-empty" ng-if="!vm.versions.length">
+        <i class="fa fa-microchip"></i>
+        <p>No versions yet — create the first one to open the shop.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.versions.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Current price</th>
+                <th>Next price</th>
+                <th>Units</th>
+                <th>Fitting PDF</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="trk-table__row-click" ng-repeat="v in vm.versions" ng-click="vm.openVersion(v)">
+                <td data-label="Code"><span class="trk-table__ref">{{ v.code }}</span></td>
+                <td data-label="Name">{{ v.name }}</td>
+                <td data-label="Status">
+                  <span class="trk-badge" ng-class="v.status === 'active' ? 'trk-badge--green' : 'trk-badge--grey'">{{ v.status }}</span>
+                </td>
+                <td data-label="Current price" class="trk-table__money">
+                  <span ng-if="v.current_pricing">{{ vm.cur(v.current_pricing.currency) }}{{ v.current_pricing.unit_price | number:2 }}
+                    <span class="trk-table__muted">+ {{ vm.cur(v.current_pricing.currency) }}{{ v.current_pricing.monthly_price | number:2 }}/mo</span></span>
+                  <span class="trk-table__muted" ng-if="!v.current_pricing">not priced</span>
+                </td>
+                <td data-label="Next price" class="trk-table__muted">
+                  <span ng-if="v.next_pricing">{{ vm.cur(v.next_pricing.currency) }}{{ v.next_pricing.unit_price | number:2 }} from {{ v.next_pricing.effective_from | asDate | date:'dd MMM yyyy' }}</span>
+                  <span ng-if="!v.next_pricing">—</span>
+                </td>
+                <td data-label="Units">{{ v.active_unit_count }} active / {{ v.unit_count }}</td>
+                <td data-label="Fitting PDF">
+                  <i class="fa fa-check" style="color: #16a34a;" ng-if="v.has_fitting_pdf"></i>
+                  <span class="trk-table__muted" ng-if="!v.has_fitting_pdf">none</span>
+                </td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" ng-click="$event.stopPropagation(); vm.openVersion(v)"><i class="fa fa-chevron-right"></i></a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

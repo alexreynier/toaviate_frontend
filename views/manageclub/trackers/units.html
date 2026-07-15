@@ -1,0 +1,120 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-map-marker-alt"></i> My Trackers</h2>
+        <p>Every tracker your club owns — billing, fitting packs and maintenance access.</p>
+      </div>
+      <div class="trk-page__header-actions">
+        <button class="trk-btn trk-btn--white" ui-sref="dashboard.manage_club.trackers_shop">
+          <i class="fa fa-shopping-cart"></i> Order more
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading your trackers…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading">
+
+      <!-- Monthly summary banner -->
+      <div class="trk-banner trk-banner--info" ng-if="vm.monthly_summary.billable_units">
+        <i class="fa fa-calendar-alt"></i>
+        <div class="trk-banner__body">
+          <strong>Your {{ vm.monthly_summary.billable_units }} tracker{{ vm.monthly_summary.billable_units == 1 ? '' : 's' }}
+            cost {{ vm.cur() }}{{ vm.monthly_summary.monthly_total | number:2 }}/month incl. VAT</strong>
+          <span ng-if="vm.monthly_summary.next_period">Next billing period: {{ vm.monthly_summary.next_period }}.</span>
+        </div>
+      </div>
+
+      <div class="trk-toolbar">
+        <div class="trk-search">
+          <i class="fa fa-search"></i>
+          <input type="text" placeholder="Search by serial, version, order…" ng-model="vm.search">
+        </div>
+        <span class="trk-count-badge">{{ (vm.units | filter:{status: vm.statusFilter} | filter:vm.search).length }}</span>
+      </div>
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.statusFilter}" ng-click="vm.statusFilter = ''">All</div>
+        <div class="trk-chip"
+             ng-repeat="st in vm.enums.unitStatus"
+             ng-class="{'trk-chip--active': vm.statusFilter === st}"
+             ng-click="vm.statusFilter = st">
+          {{ vm.pretty(st) }}
+        </div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.units.length">
+        <i class="fa fa-map-marker-alt"></i>
+        <p>No trackers yet — order your first ones from the shop.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.units.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Serial</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Monthly</th>
+                <th>Billing from</th>
+                <th>Device</th>
+                <th>Maintenance</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="trk-table__row-click"
+                  ng-repeat="u in vm.units | filter:{status: vm.statusFilter} | filter:vm.search"
+                  ng-click="vm.openUnit(u)">
+                <td data-label="Serial"><span class="trk-table__ref">{{ u.serial || '—' }}</span></td>
+                <td data-label="Version">{{ u.version_name }}</td>
+                <td data-label="Status">
+                  <span class="trk-badge" ng-class="vm.unitBadge(u.status)">{{ vm.pretty(u.status) }}</span>
+                  <span class="trk-badge trk-badge--amber" ng-if="u.open_rma_number" uib-tooltip="Open return / problem report">{{ u.open_rma_number }}</span>
+                </td>
+                <td data-label="Monthly" class="trk-table__money">{{ vm.cur() }}{{ u.monthly_price | number:2 }}</td>
+                <td data-label="Billing from" class="trk-table__muted">
+                  {{ u.billing_starts_on ? (u.billing_starts_on | asDate | date:'dd MMM yyyy') : '—' }}
+                  <span ng-if="u.billing_ends_on"> → {{ u.billing_ends_on | asDate | date:'dd MMM yyyy' }}</span>
+                </td>
+                <td data-label="Device" class="trk-table__muted">{{ u.fox_label || u.fox_imei || 'Not linked yet' }}</td>
+                <td data-label="Maintenance" class="trk-table__muted">
+                  <span ng-if="u.maintenance_orgs.length">{{ u.maintenance_orgs.length }} org{{ u.maintenance_orgs.length == 1 ? '' : 's' }}</span>
+                  <span ng-if="!u.maintenance_orgs.length">—</span>
+                </td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" ng-if="u.has_fitting_pdf" uib-tooltip="Fitting instructions (PDF)"
+                     ng-click="$event.stopPropagation(); vm.downloadFittingPdf(u)">
+                    <i class="fa" ng-class="u.downloading ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'"></i>
+                  </a>
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Report a problem / return"
+                     ng-click="$event.stopPropagation(); vm.reportProblem(u)">
+                    <i class="fa fa-exclamation-triangle"></i>
+                  </a>
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Details"
+                     ng-click="$event.stopPropagation(); vm.openUnit(u)">
+                    <i class="fa fa-chevron-right"></i>
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

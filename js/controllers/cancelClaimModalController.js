@@ -155,11 +155,11 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
 
         $scope.getEntityIcon = function(type) {
             switch (type) {
-                case 'credit_note':      return 'fa-file-text-o';
+                case 'credit_note':      return 'fa-file-alt';
                 case 'payment':          return 'fa-credit-card';
-                case 'invoice':          return 'fa-file-text';
+                case 'invoice':          return 'fa-file-alt';
                 case 'training_record':  return 'fa-graduation-cap';
-                case 'voucher':          return 'fa-ticket';
+                case 'voucher':          return 'fa-ticket-alt';
                 case 'booking':          return 'fa-calendar';
                 case 'plane_log_sheet':  return 'fa-plane';
                 default:                 return 'fa-circle';

@@ -89,7 +89,7 @@ app.directive('defectReportPanel', ['$timeout', function ($timeout) {
                                     'ng-class="{\'dr-dropzone--has-files\': pendingFiles.length > 0, \'dr-dropzone--drag-over\': dragOver}" ' +
                                     'dm-drop-zone on-files-dropped="onFilesDropped(files)">' +
                                     '<div class="dr-dropzone-content" ng-if="pendingFiles.length === 0">' +
-                                        '<i class="fa fa-cloud-upload dr-dropzone-icon"></i>' +
+                                        '<i class="fa fa-cloud-upload-alt dr-dropzone-icon"></i>' +
                                         '<span class="dr-dropzone-text">Drop files here</span>' +
                                         '<span class="dr-dropzone-or">or</span>' +
                                         '<label class="dr-file-btn">' +
@@ -104,7 +104,7 @@ app.directive('defectReportPanel', ['$timeout', function ($timeout) {
                                         '<div class="dr-file-item" ng-repeat="f in pendingFiles">' +
                                             '<div class="dr-file-thumb">' +
                                                 '<img ng-if="f._preview" ng-src="{{ f._preview }}" />' +
-                                                '<i ng-if="!f._preview" class="fa fa-file-video-o dr-file-thumb-icon"></i>' +
+                                                '<i ng-if="!f._preview" class="fa fa-file-video dr-file-thumb-icon"></i>' +
                                             '</div>' +
                                             '<div class="dr-file-info">' +
                                                 '<span class="dr-file-name">{{ f.name | limitTo:30 }}{{ f.name.length > 30 ? "…" : "" }}</span>' +
@@ -155,7 +155,7 @@ app.directive('defectReportPanel', ['$timeout', function ($timeout) {
             scope.severities = [
                 { title: 'No Fly Item - Ground the plane',                    short: 'No Fly',    desc: 'Ground the plane',                          level: 'nofly',  icon: 'fa-ban'              },
                 { title: 'Flyable - needs to be checked at next maintenance', short: 'Flyable',   desc: 'Needs checking at next maintenance',        level: 'maint',  icon: 'fa-wrench'           },
-                { title: 'Not urgent - but needs noting',                     short: 'Not Urgent',desc: 'Needs noting',                               level: 'note',   icon: 'fa-sticky-note-o'    },
+                { title: 'Not urgent - but needs noting',                     short: 'Not Urgent',desc: 'Needs noting',                               level: 'note',   icon: 'fa-sticky-note'    },
                 { title: 'Unsure of severity',                                short: 'Unsure',    desc: 'Not sure how severe',                       level: 'unsure', icon: 'fa-question-circle'  }
             ];
 

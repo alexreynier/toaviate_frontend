@@ -1,0 +1,158 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-shopping-cart"></i> Order Trackers</h2>
+        <p>Fox flight trackers for your fleet — one-off hardware price plus a monthly service fee per tracker.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the catalogue…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading">
+
+      <div class="trk-empty" ng-if="!vm.catalogue.length">
+        <i class="fa fa-box-open"></i>
+        <p>Nothing is available to order right now — please check back soon.</p>
+      </div>
+
+      <div class="trk-shop" ng-if="vm.catalogue.length">
+
+        <!-- Catalogue -->
+        <div>
+          <div class="trk-catalogue">
+            <div class="trk-product" ng-repeat="p in vm.catalogue">
+              <div class="trk-product__icon"><i class="fa fa-map-marker-alt"></i></div>
+              <h3 class="trk-product__name">{{ p.name }}</h3>
+              <div class="trk-product__code">{{ p.code }}</div>
+              <p class="trk-product__desc">{{ p.description }}</p>
+              <div class="trk-product__price">{{ vm.cur(p.currency) }}{{ p.unit_price | number:2 }} <small>one-off</small></div>
+              <div class="trk-product__monthly">+ {{ vm.cur(p.currency) }}{{ p.monthly_price | number:2 }} / month per tracker</div>
+              <div class="trk-product__qty">
+                <button class="trk-qty-btn" ng-click="vm.removeFromBasket(p)" ng-disabled="!vm.qtyOf(p)" aria-label="Remove one"><i class="fa fa-minus"></i></button>
+                <span class="trk-product__qty-num">{{ vm.qtyOf(p) }}</span>
+                <button class="trk-qty-btn" ng-click="vm.addToBasket(p)" aria-label="Add one"><i class="fa fa-plus"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Basket / quote -->
+        <div class="trk-basket">
+          <div class="trk-card">
+            <h4 class="trk-card__title"><i class="fa fa-shopping-basket"></i> Your basket</h4>
+
+            <div class="trk-empty" ng-if="!vm.basketCount()" style="padding: 24px 12px;">
+              <i class="fa fa-shopping-basket"></i>
+              <p>Add trackers to see a live quote.</p>
+            </div>
+
+            <div ng-if="vm.basketCount()">
+              <div class="trk-basket__line" ng-repeat="(id, qty) in vm.basket">
+                <span>{{ qty }}× {{ vm.basketLine(id).name }}</span>
+                <span>{{ vm.cur(vm.basketLine(id).currency) }}{{ (qty * vm.basketLine(id).unit_price) | number:2 }}</span>
+              </div>
+
+              <div ng-if="vm.quote_loading" class="trk-basket__line trk-basket__line--muted">
+                <span><span class="trk-spinner trk-spinner--inline"></span> Updating quote…</span>
+              </div>
+
+              <div ng-if="vm.quote && !vm.quote_loading">
+                <hr class="trk-basket__divider">
+                <div class="trk-basket__line trk-basket__line--muted">
+                  <span>Subtotal</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.subtotal | number:2 }}</span>
+                </div>
+                <div class="trk-basket__line trk-basket__line--muted">
+                  <span>Shipping</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.shipping_total | number:2 }}</span>
+                </div>
+                <div class="trk-basket__line trk-basket__line--muted">
+                  <span>VAT</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.vat_total | number:2 }}</span>
+                </div>
+                <hr class="trk-basket__divider">
+                <div class="trk-basket__total">
+                  <span>Total today</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.total | number:2 }}</span>
+                </div>
+                <div class="trk-basket__monthly">
+                  <strong>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.monthly_total | number:2 }} / month</strong>
+                  {{ vm.quote.monthly_note || 'Monthly billing starts on the 1st of the month after delivery.' }}
+                </div>
+              </div>
+
+              <div style="margin-top: 16px;">
+                <button class="trk-btn trk-btn--primary trk-btn--lg trk-btn--block" ng-click="vm.openCheckout()" ng-if="!vm.checkout_open">
+                  <i class="fa fa-arrow-right"></i> Checkout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkout -->
+      <div class="trk-card" id="trk-checkout" ng-if="vm.checkout_open && vm.basketCount()">
+        <h4 class="trk-card__title"><i class="fa fa-truck"></i> Delivery details</h4>
+        <div class="trk-form-grid">
+          <div class="trk-field">
+            <label for="field-trk-ship-name">Recipient name <span class="trk-req">*</span></label>
+            <input id="field-trk-ship-name" class="trk-input" type="text" ng-model="vm.shipping.name" placeholder="Who should the parcel be addressed to?">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-address1">Address line 1 <span class="trk-req">*</span></label>
+            <input id="field-trk-ship-address1" class="trk-input" type="text" ng-model="vm.shipping.address_line1">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-address2">Address line 2</label>
+            <input id="field-trk-ship-address2" class="trk-input" type="text" ng-model="vm.shipping.address_line2">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-city">City <span class="trk-req">*</span></label>
+            <input id="field-trk-ship-city" class="trk-input" type="text" ng-model="vm.shipping.city">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-county">County</label>
+            <input id="field-trk-ship-county" class="trk-input" type="text" ng-model="vm.shipping.county">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-postcode">Postcode <span class="trk-req">*</span></label>
+            <input id="field-trk-ship-postcode" class="trk-input" type="text" ng-model="vm.shipping.postcode">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-country">Country <span class="trk-req">*</span></label>
+            <input id="field-trk-ship-country" class="trk-input" type="text" ng-model="vm.shipping.country">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-phone">Phone</label>
+            <input id="field-trk-ship-phone" class="trk-input" type="text" ng-model="vm.shipping.phone">
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-ship-email">Email</label>
+            <input id="field-trk-ship-email" class="trk-input" type="email" ng-model="vm.shipping.email">
+          </div>
+          <div class="trk-field trk-field--full">
+            <label for="field-trk-ship-notes">Notes for ToAviate</label>
+            <textarea id="field-trk-ship-notes" class="trk-textarea" ng-model="vm.notes" placeholder="Anything we should know about this order?"></textarea>
+          </div>
+        </div>
+        <div class="trk-form-actions">
+          <button class="trk-btn trk-btn--ghost" ng-click="vm.checkout_open = false">Back to basket</button>
+          <button class="trk-btn trk-btn--success trk-btn--lg" ng-click="vm.placeOrder()" ng-disabled="vm.placing">
+            <span ng-if="vm.placing" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-check" ng-if="!vm.placing"></i> Place order
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
