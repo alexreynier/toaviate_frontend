@@ -101,9 +101,11 @@
 
         function GetFoxEntries() {
             //is this a club_id ? OR is this a USER id --> therefore return all clubs with all un-claimed flights?
+            vm.loading = true;
             FoxService.GetFoxEntries($rootScope.globals.currentUser.id)
                 .then(function (data) {
                     console.log("GetFoxEntries was called here");
+                    vm.loading = false;
                     vm.unclaimed = data;
                     console.log("vm.unclaimed", vm.unclaimed);
                     buildHelperLists();

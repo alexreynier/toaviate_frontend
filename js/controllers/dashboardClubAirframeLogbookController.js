@@ -119,8 +119,11 @@
             }
 
 
+            vm.logs_loading = true;
+
             PlaneService.GetAirframeLogs( $stateParams.plane_id, 0, 25)
             .then(function (data) {
+                    vm.logs_loading = false;
                     // //console.log("ALL is : ", data);
                    vm.logs = data.logs;
                    vm.plane = data.plane;

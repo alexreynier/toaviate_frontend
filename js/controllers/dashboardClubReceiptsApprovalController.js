@@ -32,9 +32,12 @@
                     });
 
 
+        vm.receipts_loading = true;
+
         PlaneService.GetReceiptsApproval(vm.club_id)
                     .then(function(data){
-                        vm.receipts = data.receipts;   
+                        vm.receipts_loading = false;
+                        vm.receipts = data.receipts;
                            
                            //check for modded
                            vm.receipts.forEach(receipt => {

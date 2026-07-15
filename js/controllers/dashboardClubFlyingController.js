@@ -168,8 +168,11 @@
 
                 //incomplete_club
 
+                vm.flights_loading = true;
+
                 PlaneService.GetIncompleteClub(vm.club_id)
                     .then(function(data){
+                        vm.flights_loading = false;
                         vm.club.flights = data.bookouts;
                         // vm.club.member.membership_id.selected = vm.club.member.membership_id;
                         // vm.membership = vm.club.member.membership_name;

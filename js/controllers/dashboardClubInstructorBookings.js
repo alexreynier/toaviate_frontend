@@ -155,8 +155,10 @@
                 //need to update this to be part of the authentication
                 //to find out club id
                 //console.log("hey");
+                vm.instructors_loading = true;
                 InstructorService.GetAllByClub(vm.club_id, vm.user_id)
                     .then(function(data){
+                        vm.instructors_loading = false;
                         vm.club.instructors = data.instructors;
                         // Initialise boolean toggles for email preferences
                         for (var i = 0; i < vm.club.instructors.length; i++) {

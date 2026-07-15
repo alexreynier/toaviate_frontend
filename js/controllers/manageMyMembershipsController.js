@@ -6,10 +6,26 @@
         var vm = this;        
 
         vm.user = $rootScope.globals.currentUser;
-        vm.user_id = vm.user.id;        
+        vm.user_id = vm.user.id;
         vm.noks = [];
         vm.requests = [];
         vm.auto_renew = false;
+        vm.$state = $state;
+
+        //The parent template (memberships.html) renders the membership list around its
+        //ui-view whatever child state is active, so load the list unconditionally -
+        //otherwise landing directly on a child state (e.g. refreshing /memberships/edit/:id)
+        //leaves the list empty when the user navigates BACK to it.
+        vm.memberships_loading = true;
+        MemberService.GetUserMemberships(vm.user.id)
+        .then(function (data) {
+            vm.memberships_loading = false;
+            if(data.success){
+                vm.memberships = data.memberships;
+            }
+        });
+
+        update_requests();
 
         
     
@@ -41,10 +57,13 @@
             //         //console.log("DATA HERE", data);
             //         vm.cards = data.cards;
 
+                    vm.loading = true;
+                    vm.cards_loading = true;
 
                     MemberService.GetOneForUser($stateParams.membership_id)
                     .then(function (data) {
                             //console.log("DATA HERE", data);
+                            vm.loading = false;
                             if(data.success){
                                 vm.membership_now = data.membership;
                                 vm.auto_renew = (data.membership.auto_renew == 1) ? true : false;
@@ -65,7 +84,8 @@
                                 .then(function (data) {
 
                                     console.log(data);
-                                    vm.membership_now.cards = data.cards;
+                                    vm.cards_loading = false;
+                                    vm.membership_now.cards = data.cards || [];
                                     vm.membership_now.default_card = data.default_card;
 
                                 });
@@ -76,8 +96,8 @@
                             } else {
                                 //console.log("woops");
                             }
-                            
-                            
+
+
 
 
                         });
@@ -125,23 +145,7 @@
 
                 //console.log("LIST ALL");
 
-                 //1 get the user's nok...
-                 //list stuff
-
-                 MemberService.GetUserMemberships(vm.user.id)
-                .then(function (data) {
-                    if(data.success){
-                        vm.memberships = data.memberships;
-                        //console.log("memberships", vm.memberships);
-
-                    } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-                    }
-
-                });
-
-                update_requests();
+                //memberships + requests are loaded unconditionally above the switch
 
                 //  MembershipService.GetRequestsByUser(vm.user.id)
                 // .then(function (data) {
@@ -226,10 +230,19 @@
                     default_payment_method: name
                 };
 
+                vm.setting_default = name;
+
                 MemberService.UpdateOneByUser($stateParams.membership_id, obj)
                 .then(function (data) {
                     //console.log("ACCEPT HERE", data);
+                    vm.setting_default = false;
 
+                    if(data && data.success === false){
+                        ToastService.error('Update Failed', 'Could not change your default payment method - please try again.');
+                        return;
+                    }
+
+                    ToastService.success('Default Updated', (name == 'stripe' ? 'Card payments are' : 'Direct debit is') + ' now the default payment method for this membership.');
 
                     MemberService.GetOneForUser($stateParams.membership_id)
                     .then(function (data) {
@@ -279,46 +292,46 @@
             }
 
             $scope.make_default_card = function(card){
-                var a = confirm("Are you sure you wish to make this card the default card?");
+                var send = {user_id: vm.user.id, club_id: vm.membership_now.club_id, card_id: card.stripe_id};
+                PaymentService.UpdateDefaultCard(send)
+                .then(function (data) {
+                    console.log("DATA HERE", data);
+                    if(data.success){
+                        //update the card list!
+                        vm.membership_now.cards = data.cards;
+                        vm.membership_now.default_card = data.default_card;
+                        ToastService.success('Default Card Updated', 'The card ending ' + card.last4 + ' is now your default card.');
+                    } else {
+                        ToastService.error('Update Failed', 'Could not update your default card - please try again.');
+                    }
 
-                if(a){
-                    var send = {user_id: vm.user.id, club_id: vm.membership_now.club_id, card_id: card.stripe_id};
-                    PaymentService.UpdateDefaultCard(send)
-                    .then(function (data) {
-                        console.log("DATA HERE", data);
-                        if(data.success){
-                            //update the card list!
-                            vm.membership_now.cards = data.cards;
-                            vm.membership_now.default_card = data.default_card;
-                        }
-                      
-                    });
-                }
+                });
             }
 
+            //the view shows an inline "Remove card?" confirmation (vm.card_pending_delete) before calling this
             $scope.delete_member_card = function(card){
 
-                var a = confirm("Are you sure you wish to delete this card?");
+                var send = {user_id: vm.user.id, club_id: vm.membership_now.club_id, card_id: card.stripe_id};
+                PaymentService.DeleteMemberCard(send)
+                .then(function (data) {
+                    console.log("DATA HERE", data);
+                    vm.card_pending_delete = null;
+                    if(data.success){
+                        //update the card list!
+                        PaymentService.GetMemberCards(send)
+                                .then(function (data) {
+                                    // console.log(data);
+                                    vm.membership_now.cards = data.cards || [];
+                                    vm.membership_now.default_card = data.default_card;
 
-                if(a){
-                    var send = {user_id: vm.user.id, club_id: vm.membership_now.club_id, card_id: card.stripe_id};
-                    PaymentService.DeleteMemberCard(send)
-                    .then(function (data) {
-                        console.log("DATA HERE", data);
-                        if(data.success){
-                            //update the card list!
-                            PaymentService.GetMemberCards(send)
-                                    .then(function (data) {
-                                        // console.log(data);
-                                        vm.membership_now.cards = data.cards;
+                                });
+                        ToastService.success('Card Removed', 'The card ending ' + card.last4 + ' has been removed.');
+                    } else {
+                        ToastService.error('Removal Failed', 'Could not remove this card - please try again.');
+                    }
 
-                                    });
-                        }
-                      
-                    });
-                }
+                });
 
-                
             }
 
             $scope.delete_request = function(id){
@@ -392,7 +405,13 @@
                 MemberService.UpdateOneByUser($stateParams.membership_id, obj)
                 .then(function (data) {
                     //console.log("ACCEPT HERE", data);
-                    //vm.aut
+                    if(data && data.success === false){
+                        // Revert on failure
+                        vm.auto_renew = !vm.auto_renew;
+                        ToastService.error('Update Failed', 'Could not update auto-renewal - please try again.');
+                    } else {
+                        ToastService.success('Saved', 'Auto-renewal is now ' + (vm.auto_renew ? 'on' : 'off') + '.');
+                    }
                     //$state.go('dashboard.my_account.memberships', {}, {reload: true});
                 });
 
@@ -500,8 +519,25 @@
 
             }
 
-          
+
             vm.show_add_card = false;
+            vm.card_pending_delete = null;
+            vm.setting_default = false;
+
+            //FontAwesome brand icon for a Stripe card brand
+            vm.card_icon = function(brand){
+                switch((brand || '').toLowerCase()){
+                    case 'visa': return 'fab fa-cc-visa';
+                    case 'mastercard': return 'fab fa-cc-mastercard';
+                    case 'amex':
+                    case 'american express': return 'fab fa-cc-amex';
+                    case 'discover': return 'fab fa-cc-discover';
+                    case 'diners':
+                    case 'diners club': return 'fab fa-cc-diners-club';
+                    case 'jcb': return 'fab fa-cc-jcb';
+                    default: return 'far fa-credit-card';
+                }
+            }
 
             $scope.add_card = function(){
 
@@ -620,21 +656,6 @@
 
 
 
-
-            }
-
-            vm.try_charge_default_card = function(){
-                ToastService.success('Processing', 'Initiating card charge.');
-                var invoice_id = 55;
-                var send_me = {
-                    invoice_id: 55,
-                    card_id: vm.membership_now.cards[1].stripe_id,
-                    last4: vm.membership_now.cards[1].last4
-                }
-                PaymentService.CreatePaymentIntent(send_me).then(function (data) {
-                    console.log("DATA IS : ", data);
-
-                });
 
             }
 

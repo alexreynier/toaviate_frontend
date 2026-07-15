@@ -133,6 +133,7 @@ module.exports = function (grunt) {
                     'css/flight-weather.css',
                     'css/airfield-admin.css',
                     'css/student-records.css',
+                    'css/membership-payments.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

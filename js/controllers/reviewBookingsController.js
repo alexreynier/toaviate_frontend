@@ -18,7 +18,8 @@
          //CheckLoggedIn
 
         vm.bookings = [];
-        
+        vm.bookings_loading = true;
+
         // //console.log("vmuser", vm.user);
         vm.allUsers = [];
 
@@ -78,8 +79,9 @@
             BookingService.GetBookingsToReview(vm.user.id)
                     .then(function(data){
 
-                        vm.bookings = data.bookings;   
-                        
+                        vm.bookings_loading = false;
+                        vm.bookings = data.bookings;
+
                     });
         }
         get_the_approval_list();

@@ -7599,8 +7599,14 @@ select.rental-item-form__input {
 
 /* Content reveal once data lands (runs when ng-if/ng-repeat inserts it).
    Transform + opacity ONLY (composited — no layout/paint per frame), no
-   scale (subpixel text shimmer), translate3d to stay on the GPU. */
-.snazzy-reveal { animation: snazzy-reveal-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+   scale (subpixel text shimmer), translate3d to stay on the GPU.
+   fill-mode is BACKWARDS, not both: `both` would retain the final
+   keyframe's transform forever, and even an identity transform makes the
+   element a containing block that re-anchors position:fixed descendants
+   (e.g. full-screen overlays living inside a revealed container).
+   `backwards` still hides stagger-delayed children before they start,
+   then drops every animation style once finished. */
+.snazzy-reveal { animation: snazzy-reveal-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
 
 @keyframes snazzy-reveal-up {
   from { opacity: 0; transform: translate3d(0, 12px, 0); }
@@ -7616,8 +7622,7 @@ select.rental-item-form__input {
    each card in turn); later children share one delay so a long fleet never
    keeps the user waiting. */
 .snazzy-reveal--stagger > * {
-  animation: snazzy-reveal-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform, opacity;
+  animation: snazzy-reveal-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   backface-visibility: hidden;
 }
 .snazzy-reveal--stagger > *:nth-child(1) { animation-delay: 0.05s; }
@@ -7632,7 +7637,7 @@ select.rental-item-form__input {
 /* A container that staggers its children must itself only FADE — if it
    translated too, its motion would stack on the children's and wobble. */
 .snazzy-reveal--stagger.snazzy-reveal {
-  animation: snazzy-reveal-fade 0.35s ease both;
+  animation: snazzy-reveal-fade 0.35s ease backwards;
 }
 
 /* The loader must vacate the LAYOUT the instant it's dismissed. ngAnimate
@@ -7653,3 +7658,36 @@ select.rental-item-form__input {
 body.night-mode .snazzy-loading__text { color: #94a3b8; }
 body.night-mode .snazzy-loading__sub { color: #64748b; }
 body.night-mode .snazzy-loading--overlay { background: rgba(15, 23, 42, 0.72); }
+
+/* ══════════════════════════════════════════════════════════════
+   Route-transition fade
+   ngAnimate puts .ng-enter on the arriving ui-view clone, so every
+   page navigation eases in — no per-page work needed. Opacity ONLY:
+   a transform here would make the view a containing block and
+   dislodge any position:fixed descendant mid-animation.
+   The signup wizard (#form-views) keeps its own slide — its ID
+   selector outranks these rules.
+   ══════════════════════════════════════════════════════════════ */
+
+[ui-view].ng-enter,
+ui-view.ng-enter {
+  animation: snazzy-view-enter 0.3s ease-out both;
+}
+
+@keyframes snazzy-view-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The outgoing view must vacate the layout immediately — otherwise it
+   sits above the (still invisible) arriving view for the length of the
+   enter animation and the page visibly jumps when it's removed. */
+[ui-view].ng-leave:not(#form-views),
+ui-view.ng-leave:not(#form-views) {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [ui-view].ng-enter,
+  ui-view.ng-enter { animation: none; }
+}
