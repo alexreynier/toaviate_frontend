@@ -1,0 +1,365 @@
+<div class="af-admin">
+
+    <div class="af-admin__denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>The airfield database is managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── HEADER ── -->
+        <div class="af-admin__header">
+            <div class="af-admin__header-inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.super_admin">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="af-admin__title">
+                        <h2><i class="fas fa-clipboard-check"></i> Airfields requiring review</h2>
+                        <p>Possible duplicates and robot-added airfields, waiting on a human decision</p>
+                    </div>
+                </div>
+
+                <div class="af-admin__header-controls">
+                    <button class="af-admin__refresh-btn"
+                            ng-class="{'af-spin': vm.loading}"
+                            ng-click="vm.loadReview()"
+                            ng-disabled="vm.loading">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="af-admin__nav">
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields">
+                    <i class="fas fa-chart-pie"></i> <span>Overview</span>
+                </a>
+                <a class="af-admin__nav-item af-admin__nav-item--active"
+                   ui-sref="dashboard.super_admin.airfields_review">
+                    <i class="fas fa-clipboard-check"></i> <span>Review</span>
+                    <span class="af-admin__nav-badge" ng-if="vm.review_status === 'pending' && vm.items.length">
+                        {{ vm.items.length }}
+                    </span>
+                </a>
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields_manage">
+                    <i class="fas fa-sliders-h"></i> <span>Manage</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ── ERROR ── -->
+        <div class="af-admin__banner af-admin__banner--error" ng-if="vm.error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>{{ vm.error }}</span>
+        </div>
+
+        <!-- ── STATUS FILTER ── -->
+        <div class="af-filter-bar">
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'pending'}"
+                    ng-click="vm.setReviewStatus('pending')">
+                <i class="fas fa-hourglass-half"></i> Pending
+            </button>
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'merged'}"
+                    ng-click="vm.setReviewStatus('merged')">
+                <i class="fas fa-compress-arrows-alt"></i> Merged
+            </button>
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'approved'}"
+                    ng-click="vm.setReviewStatus('approved')">
+                <i class="fas fa-check"></i> Approved
+            </button>
+            <button class="af-filter-btn"
+                    ng-class="{'af-filter-btn--active': vm.review_status === 'dismissed'}"
+                    ng-click="vm.setReviewStatus('dismissed')">
+                <i class="fas fa-ban"></i> Dismissed
+            </button>
+        </div>
+
+        <!-- ── LOADING SKELETON ── -->
+        <div ng-if="vm.loading">
+            <div class="af-review-card af-review-card--skeleton" ng-repeat="n in [1,2,3]">
+                <span class="af-skel" style="width:30%;height:16px;"></span>
+                <span class="af-skel" style="width:100%;height:90px;margin-top:14px;"></span>
+            </div>
+        </div>
+
+        <!-- ── EMPTY ── -->
+        <div class="af-empty af-empty--big" ng-if="!vm.loading && !vm.items.length && !vm.error">
+            <i class="fas" ng-class="vm.review_status === 'pending' ? 'fa-check-circle' : 'fa-inbox'"></i>
+            <h3 ng-if="vm.review_status === 'pending'">Nothing to review</h3>
+            <h3 ng-if="vm.review_status !== 'pending'">No {{ vm.review_status }} items</h3>
+            <p ng-if="vm.review_status === 'pending'">
+                Every imported airfield has been checked. New ones will show up here automatically.
+            </p>
+            <p ng-if="vm.review_status === 'merged'">
+                Candidates you merge into an existing airfield will be listed here.
+            </p>
+            <p ng-if="vm.review_status === 'approved'">
+                Candidates you add as separate airfields will be listed here.
+            </p>
+            <p ng-if="vm.review_status === 'dismissed'">
+                Items you dismiss will be listed here.
+            </p>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             REVIEW CARDS
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-review-list snazzy-reveal snazzy-reveal--stagger" ng-if="!vm.loading && vm.items.length">
+
+            <div class="af-review-card"
+                 ng-class="{'af-review-card--leaving': vm.leaving[item.id],
+                            'af-review-card--busy':    vm.acting[item.id]}"
+                 ng-repeat="item in vm.items track by item.id">
+
+                <!-- Card header -->
+                <div class="af-review-card__head">
+                    <span class="af-reason"
+                          ng-class="item.reason === 'location_dup' ? 'af-reason--dup' : 'af-reason--auto'">
+                        <i class="fas"
+                           ng-class="item.reason === 'location_dup' ? 'fa-clone' : 'fa-robot'"></i>
+                        {{ item.reason === 'location_dup' ? 'Possible duplicate' : 'Auto-imported' }}
+                    </span>
+                    <span class="af-review-card__hint" ng-if="item.reason === 'location_dup'">
+                        Withheld — there is already an airfield
+                        <strong ng-if="item.distance_km !== null">{{ item.distance_km | number:2 }} km</strong>
+                        away
+                    </span>
+                    <span class="af-review-card__hint" ng-if="item.reason === 'auto_import'">
+                        Added by the gap-filler after an aircraft flew here
+                    </span>
+                </div>
+
+                <!-- ── location_dup: field-by-field compare ── -->
+                <div ng-if="item.reason === 'location_dup'">
+
+                    <!-- Titles + distance -->
+                    <div class="af-compare af-compare--heads">
+                        <div class="af-compare__side af-compare__side--existing">
+                            <div class="af-compare__tag">
+                                <i class="fas fa-database"></i> Already in the database
+                            </div>
+                            <div class="af-compare__title">{{ item.nearest_title }}</div>
+                            <div class="af-compare__code">{{ item.nearest_code }}</div>
+                            <div class="af-compare__id">Airfield #{{ item.nearest_airfield_id }} — keeps this ID</div>
+                        </div>
+
+                        <div class="af-compare__vs">
+                            <div class="af-compare__vs-line"></div>
+                            <div class="af-compare__vs-badge">
+                                <i class="fas fa-arrows-alt-h"></i>
+                                <span ng-if="item.distance_km !== null">{{ item.distance_km | number:2 }} km</span>
+                                <span ng-if="item.distance_km === null">nearby</span>
+                            </div>
+                            <div class="af-compare__vs-line"></div>
+                        </div>
+
+                        <div class="af-compare__side af-compare__side--new">
+                            <div class="af-compare__tag">
+                                <i class="fas fa-cloud-download-alt"></i> New candidate
+                            </div>
+                            <div class="af-compare__title">{{ item.payload_decoded.title }}</div>
+                            <div class="af-compare__code">{{ item.payload_decoded.code }}</div>
+                            <div class="af-compare__id">From OurAirports — not yet saved</div>
+                        </div>
+                    </div>
+
+                    <!-- Loading the existing record -->
+                    <div class="af-diff__loading" ng-if="item.cmp_loading">
+                        <i class="fas fa-circle-notch af-spin"></i>
+                        Loading the existing record to compare…
+                    </div>
+
+                    <!-- Couldn't load it — merge isn't safe, fall back -->
+                    <div class="af-diff__unavailable" ng-if="item.cmp_error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Couldn’t load the existing airfield, so fields can’t be compared.
+                        You can still add the candidate as a separate airfield, or skip it.
+                    </div>
+
+                    <!-- FIELD-BY-FIELD DIFF -->
+                    <div class="af-diff" ng-if="item.rows && item.rows.length">
+
+                        <div class="af-diff__head">
+                            <span class="af-diff__lead">
+                                <strong>{{ item.gap_count }}</strong>
+                                field<span ng-if="item.gap_count !== 1">s</span> missing from the
+                                existing record<span ng-if="item.conflict_count > 0">,
+                                <strong>{{ item.conflict_count }}</strong> that differ</span>
+                            </span>
+                            <span class="af-diff__bulk">
+                                <button class="af-linkbtn" ng-click="vm.tickAllGaps(item)"
+                                        ng-if="item.gap_count > 0">
+                                    Tick the {{ item.gap_count }} gap<span ng-if="item.gap_count !== 1">s</span>
+                                </button>
+                                <button class="af-linkbtn" ng-click="vm.tickNone(item)">Clear</button>
+                            </span>
+                        </div>
+
+                        <table class="af-diff__table">
+                            <thead>
+                                <tr>
+                                    <th class="af-diff__c-check"></th>
+                                    <th class="af-diff__c-field">Field</th>
+                                    <th class="af-diff__c-old">Existing ({{ item.nearest_code }})</th>
+                                    <th class="af-diff__c-arrow"></th>
+                                    <th class="af-diff__c-new">Candidate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="row in item.rows"
+                                    class="af-diff__row"
+                                    ng-class="{'af-diff__row--missing':  row.missing,
+                                               'af-diff__row--conflict': row.conflict,
+                                               'af-diff__row--checked':  row.checked}"
+                                    ng-click="vm.toggleMerge(row)">
+
+                                    <td class="af-diff__c-check">
+                                        <span class="af-check" ng-class="{'af-check--on': row.checked}">
+                                            <i class="fas fa-check"></i>
+                                        </span>
+                                    </td>
+
+                                    <td class="af-diff__c-field">
+                                        {{ row.field.label }}
+                                        <span class="af-diff__tag af-diff__tag--gap" ng-if="row.missing">
+                                            missing
+                                        </span>
+                                        <span class="af-diff__tag af-diff__tag--clash" ng-if="row.conflict">
+                                            differs
+                                        </span>
+                                    </td>
+
+                                    <td class="af-diff__c-old">
+                                        <span class="af-diff__val" ng-if="vm.fmtValue(row, 'old')">
+                                            {{ vm.fmtValue(row, 'old') }}
+                                        </span>
+                                        <span class="af-diff__empty" ng-if="!vm.fmtValue(row, 'old')">
+                                            — empty —
+                                        </span>
+                                    </td>
+
+                                    <td class="af-diff__c-arrow">
+                                        <i class="fas fa-arrow-left" ng-class="{'af-diff__arrow--on': row.checked}"></i>
+                                    </td>
+
+                                    <td class="af-diff__c-new">
+                                        <span class="af-diff__val af-diff__val--new">
+                                            {{ vm.fmtValue(row, 'new') }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p class="af-diff__note" ng-if="item.conflict_count > 0">
+                            <i class="fas fa-info-circle"></i>
+                            Gaps are ticked for you. Rows marked <em>differs</em> would
+                            <strong>overwrite</strong> data you already hold — tick those only if the
+                            candidate is genuinely more accurate.
+                        </p>
+                    </div>
+
+                    <!-- Nothing to gain -->
+                    <div class="af-diff__identical"
+                         ng-if="item.existing && item.rows && !item.rows.length">
+                        <i class="fas fa-equals"></i>
+                        The candidate adds nothing new — every field it carries already matches
+                        {{ item.nearest_code }}. This is almost certainly the same airfield.
+                    </div>
+                </div>
+
+                <!-- ── auto_import: single airfield ── -->
+                <div class="af-compare af-compare--single" ng-if="item.reason === 'auto_import'">
+                    <div class="af-compare__side af-compare__side--new">
+                        <div class="af-compare__tag">Added automatically</div>
+                        <div class="af-compare__title">{{ item.airfield_title }}</div>
+                        <div class="af-compare__code">{{ item.airfield_code }}</div>
+                        <dl class="af-compare__facts">
+                            <div>
+                                <dt>Airfield ID</dt>
+                                <dd>#{{ item.airfield_id }}</dd>
+                            </div>
+                            <div ng-if="vm.mapLink(vm.itemLat(item), vm.itemLon(item))">
+                                <dt>Position</dt>
+                                <dd>
+                                    <a ng-href="{{ vm.mapLink(vm.itemLat(item), vm.itemLon(item)) }}"
+                                       target="_blank" rel="noopener">
+                                        {{ vm.itemLat(item) }}, {{ vm.itemLon(item) }}
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- Actions (pending only — the history tabs are read-only) -->
+                <div class="af-review-card__actions" ng-if="vm.review_status === 'pending'">
+
+                    <button class="af-btn af-btn--danger-ghost"
+                            ng-click="vm.dismissItem(item)"
+                            ng-disabled="vm.acting[item.id]">
+                        <i class="fas fa-times"></i>
+                        <span ng-if="item.reason === 'location_dup'">Same place — skip it</span>
+                        <span ng-if="item.reason === 'auto_import'">Not real — delete it</span>
+                    </button>
+
+                    <!-- Add as a genuinely separate airfield (the old "approve") -->
+                    <button class="af-btn af-btn--outline"
+                            ng-if="item.reason === 'location_dup'"
+                            ng-click="vm.approveItem(item)"
+                            ng-disabled="vm.acting[item.id]">
+                        <i class="fas fa-plus"></i>
+                        <span>Different place — add separately</span>
+                    </button>
+
+                    <!-- The usual case: fold the better data into the row we have -->
+                    <button class="af-btn af-btn--success"
+                            ng-if="item.reason === 'location_dup' && item.rows.length"
+                            ng-click="vm.mergeItem(item)"
+                            ng-disabled="vm.acting[item.id] || !vm.selectedCount(item)">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.acting[item.id]"></i>
+                        <i class="fas fa-compress-arrows-alt" ng-if="!vm.acting[item.id]"></i>
+                        <span ng-if="vm.selectedCount(item)">
+                            Same place — update {{ item.nearest_code }}
+                            ({{ vm.selectedCount(item) }} field<span ng-if="vm.selectedCount(item) !== 1">s</span>)
+                        </span>
+                        <span ng-if="!vm.selectedCount(item)">Same place — tick fields to copy</span>
+                    </button>
+
+                    <button class="af-btn af-btn--success"
+                            ng-if="item.reason === 'auto_import'"
+                            ng-click="vm.approveItem(item)"
+                            ng-disabled="vm.acting[item.id]">
+                        <i class="fas fa-circle-notch af-spin" ng-if="vm.acting[item.id]"></i>
+                        <i class="fas fa-check" ng-if="!vm.acting[item.id]"></i>
+                        <span>Looks right — keep it</span>
+                    </button>
+                </div>
+
+                <div class="af-review-card__resolved" ng-if="vm.review_status !== 'pending'">
+                    <span ng-if="vm.review_status === 'merged'">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                        Merged into the existing airfield
+                    </span>
+                    <span ng-if="vm.review_status === 'approved'">
+                        <i class="fas fa-check-circle"></i>
+                        Added as a separate airfield
+                    </span>
+                    <span ng-if="vm.review_status === 'dismissed'">
+                        <i class="fas fa-ban"></i>
+                        Dismissed
+                    </span>
+                    <span ng-if="item.airfield_id"> · airfield #{{ item.airfield_id }}</span>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>

@@ -611,6 +611,15 @@ var app = angular
                 controllerAs: 'vm',
                 data: { screen: 'orders' }
             })
+            // Place an order on behalf of a club (distinct URL so it can't be
+            // swallowed by the /tracker_orders/:id pattern below)
+            .state('dashboard.super_admin.tracker_order_place', {
+                url: '/tracker_orders_place',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/order_place.html',
+                controllerAs: 'vm',
+                data: { screen: 'order_place' }
+            })
             .state('dashboard.super_admin.tracker_order_detail', {
                 url: '/tracker_orders/:id',
                 controller: 'TrackerAdminController',
@@ -1446,6 +1455,16 @@ var app = angular
                 url: '/data_import/run/:run_id?status&action&issue&q&edited&page',
                 controller: 'TpcImportRunController',
                 templateUrl: 'views/manageclub/tpc_import_run.html',
+                controllerAs: 'vm'
+            })
+
+            // Missing students queue — imported flights whose student could not
+            // be matched by name (instructors may deep-link here from the
+            // debrief list; the backend allows instructor membership)
+            .state('dashboard.manage_club.missing_students', {
+                url: '/missing_students',
+                controller: 'MissingStudentsController',
+                templateUrl: 'views/manageclub/missing_students.html',
                 controllerAs: 'vm'
             })
 

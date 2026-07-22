@@ -3,7 +3,10 @@
   <!-- ── Snazzy header ── -->
   <div class="snazzy-page__header">
     <div class="snazzy-page__header-inner">
-      <div class="snazzy-page__title">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+            <div class="snazzy-page__title">
         <h2><i class="fas fa-plane-arrival"></i> Booking Back In</h2>
         <p>Return from flight</p>
       </div>
@@ -25,6 +28,67 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
   <form>
 
+    <!-- ═══ Student solo: send / stand down (open bookouts with solo_intent) ═══
+         Activates or closes the provisional STUDENT SOLO airfield bookout.
+         Standing down is one tap, zero friction — not going solo is normal.
+         Booking in without either simply auto-closes the provisional solo. -->
+    <div class="club_docs_all solo-send" ng-if="vm.bookout.solo_intent && vm.bookout.booked_in != 1">
+      <h2><i class="fas fa-user-graduate"></i> Planned {{ vm.bookout.solo_intent === 'solo_check' ? 'Solo Check' : 'Student Solo' }}</h2>
+
+      <!-- Not yet sent -->
+      <div ng-if="!vm.bookout.solo_sent_at">
+        <p class="solo-send__text">
+          This flight was booked out with a possible <strong>{{ vm.bookout.solo_intent === 'solo_check' ? 'solo check' : 'student solo' }}</strong>.
+          If the student is going solo, confirm it here — the airfield display will light up, and the authorisation is recorded against your name.
+          If not, stand it down (or just book in — it closes automatically).
+        </p>
+
+        <!-- Pilot-check failures from a blocked send-solo. Each failure
+             carries a `state` → friendly next step; a submitted-but-unreviewed
+             questionnaire gets a direct "review it now" jump. -->
+        <div class="solo-send__blocked" ng-if="vm.solo_send.failures.length">
+          <div class="solo-send__blocked-head"><i class="fas fa-times-circle"></i> Solo blocked by pilot checks</div>
+          <div class="solo-send__blocked-item" ng-repeat="failure in vm.solo_send.failures">
+            {{ failure.message }}
+            <span class="solo-send__blocked-action" ng-if="vm.soloStateAction(failure.state)">
+              <i class="fas fa-arrow-right"></i> {{ vm.soloStateAction(failure.state) }}
+            </span>
+            <a class="solo-send__blocked-review" ng-if="failure.state === 'pending_review'" ng-click="vm.soloReviewStudent()">
+              <i class="fas fa-clipboard-check"></i> Review the questionnaire now
+            </a>
+          </div>
+          <button type="button" class="solo-btn solo-btn--danger" ng-if="vm.solo_send.can_force" ng-click="vm.send_solo(true)" ng-disabled="vm.solo_send.working">
+            <i class="fas" ng-class="vm.solo_send.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i> Force send solo
+          </button>
+        </div>
+
+        <div class="solo-send__btns">
+          <button type="button" class="solo-btn solo-btn--go" ng-click="vm.send_solo(false)" ng-disabled="vm.solo_send.working">
+            <i class="fas" ng-class="vm.solo_send.working ? 'fa-spinner fa-spin' : 'fa-plane-departure'"></i>
+            Send solo
+          </button>
+          <button type="button" class="solo-btn solo-btn--ghost" ng-click="vm.cancel_solo()" ng-disabled="vm.solo_send.working">
+            <i class="fas fa-cloud"></i> Didn't fly solo
+          </button>
+        </div>
+      </div>
+
+      <!-- Sent -->
+      <div ng-if="vm.bookout.solo_sent_at">
+        <div class="solo-send__sent">
+          <i class="fas fa-plane-departure"></i>
+          <div>
+            <strong>Solo sent</strong> — the airfield display is showing <strong>STUDENT SOLO</strong>.
+            <span class="solo-send__sent-sub">Accidental? Standing down undoes it completely.</span>
+          </div>
+        </div>
+        <div class="solo-send__btns">
+          <button type="button" class="solo-btn solo-btn--ghost" ng-click="vm.cancel_solo()" ng-disabled="vm.solo_send.working">
+            <i class="fas" ng-class="vm.solo_send.working ? 'fa-spinner fa-spin' : 'fa-undo'"></i> Stand the solo down
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div class="club_docs_all" ng-if="vm.claim_a_flight.length > 0 && ((vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id) || vm.auto_claim !== 1)">
       

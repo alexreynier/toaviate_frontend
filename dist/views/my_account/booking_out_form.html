@@ -2,11 +2,16 @@
 <div class="bookingout_wrapper">
 
 
-  <div class="welcome_title">
-      <h2>BOOKOUT</h2> 
-      <h4 class="capitalise">
-        Get ready for flight!
-      </h4>
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-plane-departure"></i> BOOKOUT</h2>
+        <p>Get ready for flight!</p>
+      </div>
+    </div>
   </div>
 
 
@@ -64,15 +69,69 @@
           <label for="card-number">Pilot Under Training</label>
 
           <input type="text" class="form-control inputtext" value="{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}" disabled="true">
-        
+
+        </div>
+
+        <!-- ── Solo intent (dual bookouts): "I may send this student solo" ──
+             Creates a provisional STUDENT SOLO airfield bookout, activated later
+             with the Send Solo button, and auto-closed if it never happens. -->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id && vm.bookout.put">
+          <label>Might this flight go solo?</label>
+          <div class="solo-intent">
+            <a class="solo-intent__opt" ng-class="{'solo-intent__opt--on': vm.solo_intent === 'student_solo'}" ng-click="vm.setSoloIntent('student_solo')">
+              <i class="fas fa-user-graduate"></i> I may send {{ vm.bookout.put.first_name || 'this student' }} solo
+            </a>
+            <a class="solo-intent__opt" ng-class="{'solo-intent__opt--on': vm.solo_intent === 'solo_check'}" ng-click="vm.setSoloIntent('solo_check')">
+              <i class="fas fa-clipboard-check"></i> Solo check flight
+            </a>
+          </div>
+          <p class="solo-intent__hint" ng-if="vm.solo_intent">
+            A planned <strong>{{ vm.solo_intent === 'solo_check' ? 'SOLO CHECK' : 'STUDENT SOLO' }}</strong> will appear on the airfield display.
+            Use <em>Send solo</em> during the flight to activate it — or stand it down with one tap, no questions asked.
+          </p>
+
+          <!-- Inline readiness so the instructor knows on the ground -->
+          <div class="solo-mini" ng-if="vm.solo_intent">
+            <div class="solo-mini__loading" ng-if="vm.solo_readiness.loading"><div class="solo-req__spinner"></div> Checking pre-solo requirements&hellip;</div>
+            <div ng-if="!vm.solo_readiness.loading && vm.solo_readiness.status">
+              <div class="solo-mini__banner" ng-class="vm.solo_readiness.status.all_satisfied ? 'solo-mini__banner--go' : 'solo-mini__banner--wait'">
+                <i class="fas" ng-class="vm.solo_readiness.status.all_satisfied ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span ng-if="vm.solo_readiness.status.all_satisfied">All pre-solo requirements satisfied — a send-solo will pass.</span>
+                <span ng-if="!vm.solo_readiness.status.all_satisfied">Pre-solo requirements outstanding — a send-solo may be blocked (see below).</span>
+              </div>
+              <div class="solo-mini__item" ng-repeat="req in vm.solo_readiness.status.requirements"
+                   ng-class="{'solo-mini__item--ok': req.satisfied, 'solo-mini__item--review': !req.satisfied && (req.state === 'pending_review' || req.state === 'in_progress')}">
+                <i class="fas" ng-class="req.satisfied ? 'fa-check-circle' : ((req.state === 'pending_review' || req.state === 'in_progress') ? 'fa-hourglass-half' : 'fa-times-circle')"></i>
+                {{ req.name }}<span class="solo-mini__course" ng-if="req.course_title"> &middot; {{ req.course_title }}</span>
+                <div class="solo-mini__detail" ng-if="!req.satisfied && req.detail">{{ req.detail }}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id && vm.can_authorise">
           <label for="card-number">Authorise Solo Flight</label>
           <div class="check_box_in_form">
-            <input type="checkbox" class="form-control inputtext" ng-model="vm.bookout.authorised_solo">
+            <input type="checkbox" class="form-control inputtext" ng-model="vm.bookout.authorised_solo" ng-change="vm.onAuthorisedSoloChange()">
           </div>
-        
+
+          <!-- Student-solo readiness, shown as soon as the solo is authorised -->
+          <div class="solo-mini" ng-if="vm.bookout.authorised_solo">
+            <div class="solo-mini__loading" ng-if="vm.solo_readiness.loading"><div class="solo-req__spinner"></div> Checking pre-solo requirements&hellip;</div>
+            <div ng-if="!vm.solo_readiness.loading && vm.solo_readiness.status">
+              <div class="solo-mini__banner" ng-class="vm.solo_readiness.status.all_satisfied ? 'solo-mini__banner--go' : 'solo-mini__banner--wait'">
+                <i class="fas" ng-class="vm.solo_readiness.status.all_satisfied ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span ng-if="vm.solo_readiness.status.all_satisfied">All pre-solo requirements satisfied.</span>
+                <span ng-if="!vm.solo_readiness.status.all_satisfied">Pre-solo requirements outstanding — this book-out may be blocked by the club's pilot-checks policy.</span>
+              </div>
+              <div class="solo-mini__item" ng-repeat="req in vm.solo_readiness.status.requirements"
+                   ng-class="{'solo-mini__item--ok': req.satisfied, 'solo-mini__item--review': !req.satisfied && (req.state === 'pending_review' || req.state === 'in_progress')}">
+                <i class="fas" ng-class="req.satisfied ? 'fa-check-circle' : ((req.state === 'pending_review' || req.state === 'in_progress') ? 'fa-hourglass-half' : 'fa-times-circle')"></i>
+                {{ req.name }}<span class="solo-mini__course" ng-if="req.course_title"> &middot; {{ req.course_title }}</span>
+                <div class="solo-mini__detail" ng-if="!req.satisfied && req.detail">{{ req.detail }}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id">
@@ -884,6 +943,74 @@
             </button>
             <div ng-if="vm.bookout_airworthiness.mode !== 'warn' && !vm.bookout_airworthiness.can_force" class="aw-noforce">
                 <i class="fa fa-lock"></i> This book-out is blocked. Contact a club administrator.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ═══ Pilot checks book-out block (force policy) ═══
+     Shown when the book-out endpoint returns reason:'pilot_checks'. Lists every
+     failed check. Self-certify appears ONLY when lapsed currency is the sole
+     failure; Force appears for managers/super-admins. -->
+<div class="aw-modal-bg" ng-if="vm.bookout_pilot_checks.visible" ng-click="vm.cancelPilotChecks()">
+    <div class="aw-modal" ng-click="$event.stopPropagation()">
+
+        <div class="aw-modal__header">
+            <div class="aw-modal__header-icon"><i class="fa fa-user-check"></i></div>
+            <div>
+                <h3 class="aw-modal__title">Pilot Checks Failed</h3>
+                <p class="aw-modal__sub">This book-out is blocked by your club's pilot-checks policy</p>
+            </div>
+        </div>
+
+        <div class="aw-modal__body">
+
+            <p class="aw-modal__message">{{ vm.bookout_pilot_checks.message }}</p>
+
+            <ul class="aw-issues">
+                <li class="aw-issue aw-issue--critical" ng-repeat="failure in vm.bookout_pilot_checks.failures">
+                    <span class="aw-issue__icon"><i class="fa" ng-class="failure.code === 'currency_lapsed' ? 'fa-hourglass-end' : (failure.code === 'solo_requirement' ? 'fa-clipboard-list' : 'fa-times-circle')"></i></span>
+                    <span class="aw-issue__text">
+                        <span class="aw-issue__label" ng-if="failure.code === 'solo_requirement'">Pre-solo requirement: {{ failure.name }}</span>
+                        <span class="aw-issue__label" ng-if="failure.code !== 'solo_requirement'">{{ failure.message }}</span>
+                        <span class="aw-issue__detail" ng-if="failure.code === 'solo_requirement'">{{ failure.message }}</span>
+                        <span class="aw-issue__action" ng-if="failure.code === 'solo_requirement' && vm.soloStateAction(failure.state)">
+                            <i class="fa fa-arrow-right"></i> {{ vm.soloStateAction(failure.state) }}
+                        </span>
+                    </span>
+                    <span class="aw-issue__tag">BLOCKED</span>
+                </li>
+            </ul>
+
+            <p class="aw-modal__message" ng-if="vm.bookout_pilot_checks.can_override" style="margin-top:12px;">
+                Your currency has lapsed and it is the only failed check. If you are satisfied you are safe
+                and current to fly, you may self-certify below — this is recorded against your name.
+            </p>
+
+        </div>
+
+        <div class="aw-modal__footer">
+            <button ng-click="vm.cancelPilotChecks()" class="aw-btn aw-btn--cancel" ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa fa-arrow-left"></i> Go back
+            </button>
+
+            <!-- Currency-only failure: the pilot may self-certify. -->
+            <button ng-if="vm.bookout_pilot_checks.can_override" ng-click="vm.selfCertifyBookout()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
+                {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Self-certify & book out' }}
+            </button>
+
+            <!-- Managers / super-admins may force any pilot-check block. -->
+            <button ng-if="vm.bookout_pilot_checks.can_force" ng-click="vm.forcePilotChecks()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
+                {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Force book-out' }}
+            </button>
+
+            <div ng-if="!vm.bookout_pilot_checks.can_override && !vm.bookout_pilot_checks.can_force" class="aw-noforce">
+                <i class="fa fa-lock"></i> This book-out is blocked. Contact a club instructor or administrator.
             </div>
         </div>
 

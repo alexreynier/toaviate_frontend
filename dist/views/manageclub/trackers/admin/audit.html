@@ -1,0 +1,71 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-history"></i> Tracker Audit</h2>
+        <p>Every change across versions, orders, units, invoices and returns.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.entityFilter}" ng-click="vm.setEntityFilter('')">All</div>
+        <div class="trk-chip"
+             ng-repeat="t in vm.enums.auditEntityTypes"
+             ng-class="{'trk-chip--active': vm.entityFilter === t}"
+             ng-click="vm.setEntityFilter(t)">
+          {{ vm.pretty(t) }}
+        </div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.loading && !vm.entries.length">
+        <i class="fa fa-history"></i>
+        <p>No audit entries match this filter.</p>
+      </div>
+
+      <div class="trk-audit-entry" ng-repeat="e in vm.entries">
+        <div class="trk-audit-entry__head" ng-click="e.show_diff = !e.show_diff">
+          <span class="trk-badge trk-badge--grey">{{ vm.pretty(e.entity_type) }} #{{ e.entity_id }}</span>
+          <span class="trk-badge trk-badge--blue">{{ vm.pretty(e.action) }}</span>
+          <span class="trk-audit-entry__summary">{{ e.changes_summary || '—' }}</span>
+          <span class="trk-audit-entry__meta">
+            {{ e.first_name }} {{ e.last_name }}<span ng-if="e.club_title"> · {{ e.club_title }}</span>
+            · {{ e.created_at | asDate | date:'dd MMM yyyy HH:mm' }}
+            <span ng-if="e.ip_address" class="trk-table__muted"> · {{ e.ip_address }}</span>
+            <i class="fa" ng-class="e.show_diff ? 'fa-chevron-up' : 'fa-chevron-down'" ng-if="e.snapshot_before || e.snapshot_after"></i>
+          </span>
+        </div>
+        <div class="trk-audit-entry__diff" ng-if="e.show_diff && (e.snapshot_before || e.snapshot_after)">
+          <div>
+            <h5>Before</h5>
+            <pre>{{ vm.snapshot(e.snapshot_before) || '—' }}</pre>
+          </div>
+          <div>
+            <h5>After</h5>
+            <pre>{{ vm.snapshot(e.snapshot_after) || '—' }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading the audit log…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.loading && vm.has_more && vm.entries.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreAudit()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

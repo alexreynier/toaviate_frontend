@@ -1,0 +1,257 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-file-invoice-dollar"></i> Tracker Billing</h2>
+        <p>Payment methods and invoices for your club's trackers.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.profile_loading">
+      <div class="trk-spinner"></div> Loading billing details…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.profile_loading && vm.profile">
+
+      <div class="trk-banner trk-banner--warn" ng-if="vm.profile.payment_mode === 'sandbox'">
+        <i class="fa fa-flask"></i>
+        <div class="trk-banner__body"><strong>Sandbox mode</strong> Payments are running against test systems — no real money will move.</div>
+      </div>
+
+      <!-- Payment methods -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-wallet"></i> Payment methods</h4>
+        <div class="trk-paymethods">
+
+          <!-- Card -->
+          <div class="trk-paymethod" ng-class="{'trk-paymethod--active': vm.profile.payment_method === 'card'}">
+            <span class="trk-paymethod__default">
+              <span class="trk-badge trk-badge--blue" ng-if="vm.profile.payment_method === 'card'">Default</span>
+            </span>
+            <div class="trk-paymethod__head">
+              <i class="fa fa-credit-card"></i>
+              <strong>Card</strong>
+            </div>
+            <div class="trk-paymethod__detail" ng-if="vm.profile.has_card">
+              {{ vm.profile.card_brand | uppercase }} ending {{ vm.profile.card_last4 }}
+            </div>
+            <div class="trk-paymethod__detail" ng-if="!vm.profile.has_card">
+              No card saved yet.
+            </div>
+
+            <div ng-if="!vm.profile.has_card && !vm.card_setup_open">
+              <button class="trk-btn trk-btn--primary trk-btn--sm" ng-click="vm.startCardSetup()" ng-disabled="vm.card_setup_loading">
+                <span ng-if="vm.card_setup_loading" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-plus" ng-if="!vm.card_setup_loading"></i> Add a card
+              </button>
+            </div>
+
+            <!-- Stripe Payment Element (setup mode) -->
+            <div class="trk-stripe-wrap" ng-show="vm.card_setup_open">
+              <div id="trk-payment-element"></div>
+              <div class="trk-stripe-error" ng-if="vm.card_error">{{ vm.card_error }}</div>
+              <div class="trk-confirm__actions">
+                <button class="trk-btn trk-btn--success trk-btn--sm" ng-click="vm.submitCard()" ng-disabled="vm.card_saving">
+                  <span ng-if="vm.card_saving" class="trk-spinner trk-spinner--inline"></span> Save card
+                </button>
+                <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.cancelCardSetup()" ng-disabled="vm.card_saving">Cancel</button>
+              </div>
+            </div>
+
+            <div ng-if="vm.profile.has_card">
+              <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.remove_card_open = true" ng-if="!vm.remove_card_open">
+                <i class="fa fa-trash-alt"></i> Remove card
+              </button>
+              <div class="trk-confirm trk-confirm--danger" ng-if="vm.remove_card_open">
+                <p>Remove the saved card? Invoices will no longer be charged to it.</p>
+                <div class="trk-confirm__actions">
+                  <button class="trk-btn trk-btn--danger trk-btn--sm" ng-click="vm.removeCard()" ng-disabled="vm.removing_card">
+                    <span ng-if="vm.removing_card" class="trk-spinner trk-spinner--inline"></span> Yes, remove it
+                  </button>
+                  <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.remove_card_open = false">Keep it</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Direct Debit -->
+          <div class="trk-paymethod" ng-class="{'trk-paymethod--active': vm.profile.payment_method === 'direct_debit'}">
+            <span class="trk-paymethod__default">
+              <span class="trk-badge trk-badge--blue" ng-if="vm.profile.payment_method === 'direct_debit'">Default</span>
+            </span>
+            <div class="trk-paymethod__head">
+              <i class="fa fa-university"></i>
+              <strong>Direct Debit</strong>
+            </div>
+
+            <div ng-if="vm.profile.direct_debit_available">
+              <div class="trk-paymethod__detail" ng-if="vm.profile.has_mandate">
+                {{ vm.profile.account_bank || 'Bank account' }}<span ng-if="vm.profile.account_ending"> ending {{ vm.profile.account_ending }}</span>
+                · mandate {{ vm.profile.mandate_reference }}
+              </div>
+              <div class="trk-paymethod__detail" ng-if="!vm.profile.has_mandate">
+                No mandate set up yet — you'll be taken to GoCardless to authorise one.
+              </div>
+              <button class="trk-btn trk-btn--primary trk-btn--sm" ng-if="!vm.profile.has_mandate" ng-click="vm.startDdSetup()" ng-disabled="vm.dd_loading">
+                <span ng-if="vm.dd_loading" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-plus" ng-if="!vm.dd_loading"></i> Set up Direct Debit
+              </button>
+              <div ng-if="vm.profile.has_mandate">
+                <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.remove_dd_open = true" ng-if="!vm.remove_dd_open">
+                  <i class="fa fa-trash-alt"></i> Cancel mandate
+                </button>
+                <div class="trk-confirm trk-confirm--danger" ng-if="vm.remove_dd_open">
+                  <p>Cancel the Direct Debit mandate? Invoices will no longer be collected automatically.</p>
+                  <div class="trk-confirm__actions">
+                    <button class="trk-btn trk-btn--danger trk-btn--sm" ng-click="vm.removeDd()" ng-disabled="vm.removing_dd">
+                      <span ng-if="vm.removing_dd" class="trk-spinner trk-spinner--inline"></span> Yes, cancel it
+                    </button>
+                    <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.remove_dd_open = false">Keep it</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="trk-paymethod__detail" ng-if="!vm.profile.direct_debit_available">
+              Direct Debit isn't available at the moment — card payments only.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Billing preferences -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-cog"></i> Billing preferences</h4>
+        <div class="trk-form-grid">
+          <div class="trk-field">
+            <label for="field-trk-billing-email">Billing email <span class="trk-req">*</span></label>
+            <input id="field-trk-billing-email" class="trk-input" type="email" ng-model="vm.profile_edit.billing_email">
+            <div class="trk-field__hint">Invoices and payment updates go here.</div>
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-billing-day">Billing day</label>
+            <select id="field-trk-billing-day" class="trk-select" ng-model="vm.profile_edit.billing_day"
+                    ng-options="d for d in vm.billing_days"></select>
+            <div class="trk-field__hint">Day of the month we collect recurring invoices (1–28).</div>
+          </div>
+          <div class="trk-field">
+            <label for="field-trk-billing-method">Default payment method</label>
+            <select id="field-trk-billing-method" class="trk-select" ng-model="vm.profile_edit.payment_method">
+              <option ng-value="null">— none —</option>
+              <option value="card" ng-if="vm.profile.has_card">Card</option>
+              <option value="direct_debit" ng-if="vm.profile.has_mandate">Direct Debit</option>
+            </select>
+            <div class="trk-field__hint">Only methods you've already configured can be chosen.</div>
+          </div>
+        </div>
+        <div class="trk-form-actions">
+          <button class="trk-btn trk-btn--primary" ng-click="vm.saveProfile()" ng-disabled="vm.profile_saving">
+            <span ng-if="vm.profile_saving" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-check" ng-if="!vm.profile_saving"></i> Save preferences
+          </button>
+        </div>
+      </div>
+
+      <!-- Invoices -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-file-invoice"></i> Invoices</h4>
+
+        <div class="trk-loading" ng-if="vm.invoices_loading">
+          <div class="trk-spinner"></div> Loading invoices…
+        </div>
+
+        <div class="trk-empty" ng-if="!vm.invoices_loading && !vm.invoices.length">
+          <i class="fa fa-file-invoice"></i>
+          <p>No invoices yet.</p>
+        </div>
+
+        <div class="trk-table-scroll" ng-if="!vm.invoices_loading && vm.invoices.length">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Type</th>
+                <th>Period</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody ng-repeat="inv in vm.invoices">
+              <tr class="trk-table__row-click" ng-click="vm.toggleInvoice(inv)">
+                <td data-label="Invoice"><span class="trk-table__ref">{{ inv.invoice_number }}</span></td>
+                <td data-label="Type" style="text-transform: capitalize;">{{ inv.type }}</td>
+                <td data-label="Period" class="trk-table__muted">
+                  <span ng-if="inv.period_start">{{ inv.period_start | asDate | date:'dd MMM' }} – {{ inv.period_end | asDate | date:'dd MMM yyyy' }}</span>
+                  <span ng-if="!inv.period_start">—</span>
+                </td>
+                <td data-label="Total" class="trk-table__money">{{ vm.cur(inv.currency) }}{{ inv.total | number:2 }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.invoiceBadge(inv.status)">{{ vm.pretty(inv.status) }}</span></td>
+                <td data-label="Due" class="trk-table__muted">{{ inv.due_date ? (inv.due_date | asDate | date:'dd MMM yyyy') : '—' }}</td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Download PDF"
+                     ng-click="$event.stopPropagation(); vm.downloadInvoice(inv)">
+                    <i class="fa" ng-class="inv.downloading ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'"></i>
+                  </a>
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Details" ng-click="$event.stopPropagation(); vm.toggleInvoice(inv)">
+                    <i class="fa" ng-class="inv.show_more ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </a>
+                </td>
+              </tr>
+              <tr class="trk-table__expand-row" ng-if="inv.show_more">
+                <td colspan="7">
+                  <div class="trk-loading" ng-if="inv.detail_loading" style="padding: 16px;">
+                    <div class="trk-spinner"></div> Loading…
+                  </div>
+                  <div ng-if="!inv.detail_loading">
+                    <div class="trk-banner trk-banner--danger" ng-if="inv.status === 'failed' && inv.last_error" style="margin-bottom: 12px;">
+                      <i class="fa fa-exclamation-triangle"></i>
+                      <div class="trk-banner__body"><strong>Last payment attempt failed</strong> {{ inv.last_error }}</div>
+                    </div>
+                    <div class="trk-banner trk-banner--info" ng-if="inv.status === 'payment_pending'" style="margin-bottom: 12px;">
+                      <i class="fa fa-hourglass-half"></i>
+                      <div class="trk-banner__body">A Direct Debit collection is in progress — we'll email you when it completes.</div>
+                    </div>
+                    <dl class="trk-kv" ng-if="inv.paid_at"><dt>Paid</dt><dd>{{ inv.paid_at | asDate | date:'dd MMM yyyy HH:mm' }}</dd></dl>
+                    <dl class="trk-kv" ng-if="inv.detail.order"><dt>Order</dt><dd>{{ inv.detail.order.order_number }}</dd></dl>
+                    <table class="trk-table" ng-if="inv.detail.items.length" style="margin-top: 8px;">
+                      <thead><tr><th>Item</th><th>Amount</th></tr></thead>
+                      <tbody>
+                        <tr ng-repeat="it in inv.detail.items">
+                          <td>{{ it.description || it.name }}</td>
+                          <td class="trk-table__money">{{ vm.cur(inv.currency) }}{{ it.total || it.amount | number:2 }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div class="trk-form-actions" ng-if="vm.invoicePayable(inv)">
+                      <button class="trk-btn trk-btn--primary" ng-if="vm.profile.has_card" ng-disabled="inv.paying" ng-click="vm.payInvoice(inv, 'card')">
+                        <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
+                        <i class="fa fa-credit-card" ng-if="!inv.paying"></i> Pay by card
+                      </button>
+                      <button class="trk-btn trk-btn--primary" ng-if="vm.profile.has_mandate" ng-disabled="inv.paying" ng-click="vm.payInvoice(inv, 'direct_debit')">
+                        <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
+                        <i class="fa fa-university" ng-if="!inv.paying"></i> Pay by Direct Debit
+                      </button>
+                      <span class="trk-table__muted" ng-if="!vm.hasPaymentMethod()">Add a payment method above to pay online.</span>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

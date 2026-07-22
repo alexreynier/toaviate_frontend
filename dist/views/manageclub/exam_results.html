@@ -1,0 +1,320 @@
+<div class="snazzy-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+            <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-signature"></i> Exam Results</h2>
+        <p>Ground-exam sales, outstanding results, history and pricing</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- ── Tabs ── -->
+    <div class="exadmin__tabs">
+      <a class="exadmin__tab" ng-class="{'exadmin__tab--on': vm.tab === 'outstanding'}" ng-click="vm.setTab('outstanding')">
+        <i class="fas fa-hourglass-half"></i> Outstanding
+        <span class="exadmin__tab-count" ng-if="vm.pending.loaded && vm.pending.items.length">{{ vm.pending.items.length }}</span>
+      </a>
+      <a class="exadmin__tab" ng-class="{'exadmin__tab--on': vm.tab === 'purchases'}" ng-click="vm.setTab('purchases')">
+        <i class="fas fa-receipt"></i> All purchases
+      </a>
+      <a class="exadmin__tab" ng-class="{'exadmin__tab--on': vm.tab === 'activity'}" ng-click="vm.setTab('activity')">
+        <i class="fas fa-history"></i> Activity
+      </a>
+      <a class="exadmin__tab" ng-if="vm.is_manager" ng-class="{'exadmin__tab--on': vm.tab === 'pricing'}" ng-click="vm.setTab('pricing')">
+        <i class="fas fa-tags"></i> Pricing
+      </a>
+    </div>
+
+    <!-- ═══ OUTSTANDING ═══ -->
+    <div ng-if="vm.tab === 'outstanding'">
+
+      <div class="exadmin__loading" ng-if="vm.pending.loading">
+        <div class="solo-req__spinner"></div> Loading outstanding results&hellip;
+      </div>
+
+      <div class="exadmin__empty" ng-if="!vm.pending.loading && vm.pending.items.length === 0">
+        <i class="fas fa-mug-hot"></i>
+        <p>No exam results waiting 🎉</p>
+      </div>
+
+      <div class="exadmin__list" ng-if="!vm.pending.loading && vm.pending.items.length > 0">
+        <div class="exadmin__row" ng-repeat="purchase in vm.pending.items">
+          <div class="exadmin__row-main">
+            <div class="exadmin__row-title">
+              {{ purchase.student_first_name }} {{ purchase.student_last_name }}
+              <span class="exadmin__age" ng-class="{'exadmin__age--amber': vm.waitingDays(purchase) > 7}"
+                    uib-tooltip="Purchased {{ purchase.created_at }}">
+                waiting {{ vm.waitingDays(purchase) }} day{{ vm.waitingDays(purchase) === 1 ? '' : 's' }}
+              </span>
+              <span class="exadmin__paychip exadmin__paychip--paid" ng-if="vm.payKind(purchase) === 'paid'"><i class="fas fa-check"></i> paid</span>
+              <span class="exadmin__paychip exadmin__paychip--requested" ng-if="vm.payKind(purchase) === 'requested'"><i class="fas fa-university"></i> payment requested</span>
+              <span class="exadmin__paychip exadmin__paychip--unpaid" ng-if="vm.payKind(purchase) === 'unpaid'"><i class="fas fa-exclamation-circle"></i> not paid</span>
+            </div>
+            <div class="exadmin__row-sub">
+              <strong>{{ purchase.exam_title }}</strong> &middot; {{ purchase.course_title }}
+              &middot; {{ vm.currency }}{{ purchase.price | number:2 }}
+              &middot; sold by {{ purchase.purchased_by_first_name }} {{ purchase.purchased_by_last_name }}
+            </div>
+          </div>
+          <div class="exadmin__row-actions">
+            <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-if="vm.payKind(purchase) === 'unpaid'"
+                    ng-click="vm.takePayment(purchase)" ng-disabled="vm.pay_loading">
+              <i class="fas fa-credit-card"></i> Take payment
+            </button>
+            <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.enterResult(purchase)">
+              <i class="fas fa-pen"></i> Enter result
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ALL PURCHASES ═══ -->
+    <div ng-if="vm.tab === 'purchases'">
+
+      <div class="exadmin__filters">
+        <a class="exadmin__filter" ng-class="{'exadmin__filter--on': vm.purch.status === ''}" ng-click="vm.setStatus('')">All</a>
+        <a class="exadmin__filter" ng-class="{'exadmin__filter--on': vm.purch.status === 'purchased'}" ng-click="vm.setStatus('purchased')">Awaiting result</a>
+        <a class="exadmin__filter" ng-class="{'exadmin__filter--on': vm.purch.status === 'result_entered'}" ng-click="vm.setStatus('result_entered')">Completed</a>
+        <a class="exadmin__filter" ng-class="{'exadmin__filter--on': vm.purch.status === 'cancelled'}" ng-click="vm.setStatus('cancelled')">Cancelled</a>
+      </div>
+
+      <div class="exadmin__loading" ng-if="vm.purch.loading">
+        <div class="solo-req__spinner"></div> Loading purchases&hellip;
+      </div>
+
+      <div class="exadmin__empty" ng-if="!vm.purch.loading && vm.purch.items.length === 0">
+        <i class="fas fa-receipt"></i>
+        <p>No exam purchases {{ vm.purch.status ? 'with this status' : 'yet — sell one from The Shop' }}.</p>
+      </div>
+
+      <div class="exadmin__list" ng-if="!vm.purch.loading && vm.purch.items.length > 0">
+        <div class="exadmin__row" ng-repeat="purchase in vm.purch.items" ng-class="{'exadmin__row--busy': purchase._busy, 'exadmin__row--cancelled': purchase.status === 'cancelled'}">
+          <div class="exadmin__row-main">
+            <div class="exadmin__row-title">
+              {{ purchase.student_first_name }} {{ purchase.student_last_name }}
+              <span class="exadmin__status exadmin__status--{{ purchase.status }}">
+                {{ purchase.status === 'purchased' ? 'awaiting result' : (purchase.status === 'result_entered' ? 'completed' : 'cancelled') }}
+              </span>
+              <span class="exadmin__resultchip" ng-if="purchase.status === 'result_entered'"
+                    ng-class="purchase.record_pass_fail == 1 ? 'exadmin__resultchip--pass' : 'exadmin__resultchip--fail'">
+                {{ purchase.record_pass_fail == 1 ? 'PASS' : 'FAIL' }}<span ng-if="purchase.record_result"> &middot; {{ purchase.record_result | number:0 }}%</span>
+              </span>
+              <span class="exadmin__paychip exadmin__paychip--paid" ng-if="vm.payKind(purchase) === 'paid'"><i class="fas fa-check"></i> paid</span>
+              <span class="exadmin__paychip exadmin__paychip--requested" ng-if="vm.payKind(purchase) === 'requested'"><i class="fas fa-university"></i> payment requested</span>
+              <span class="exadmin__paychip exadmin__paychip--unpaid" ng-if="vm.payKind(purchase) === 'unpaid' && purchase.status !== 'cancelled'"><i class="fas fa-exclamation-circle"></i> not paid</span>
+            </div>
+            <div class="exadmin__row-sub">
+              <strong>{{ purchase.exam_title }}</strong> &middot; {{ purchase.course_title }}
+              &middot; {{ vm.currency }}{{ purchase.price | number:2 }}
+              &middot; {{ purchase.created_at | asDate | date:'dd MMM yyyy' }}
+              <span ng-if="purchase.record_date"> &middot; sat {{ purchase.record_date | asDate | date:'dd MMM yyyy' }}</span>
+              <span ng-if="purchase.invoice_id"> &middot; invoice #{{ purchase.invoice_id }}</span>
+            </div>
+
+            <!-- Inline cancel confirm -->
+            <div class="exadmin__confirm" ng-if="purchase._confirmCancel">
+              <input type="text" ng-model="purchase._cancelReason" placeholder="Reason (optional)" maxlength="255">
+              <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.doCancel(purchase)">Cancel purchase</button>
+              <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.cancelCancel(purchase)">Keep</button>
+              <span class="exadmin__confirm-note">Refunds go through the invoice as usual.</span>
+            </div>
+
+            <!-- Inline delete confirm -->
+            <div class="exadmin__confirm" ng-if="purchase._confirmDelete">
+              <input type="text" ng-model="purchase._deleteReason" placeholder="What was wrong? (optional)" maxlength="255">
+              <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.doDelete(purchase)">Delete result</button>
+              <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.cancelDelete(purchase)">Keep</button>
+              <span class="exadmin__confirm-note">The purchase returns to the outstanding list.</span>
+            </div>
+          </div>
+
+          <div class="exadmin__row-actions" ng-if="!purchase._confirmCancel && !purchase._confirmDelete">
+            <button type="button" class="solo-btn solo-btn--outline solo-btn--sm"
+                    ng-if="vm.payKind(purchase) === 'unpaid' && purchase.status !== 'cancelled'"
+                    ng-click="vm.takePayment(purchase)" ng-disabled="vm.pay_loading">
+              <i class="fas fa-credit-card"></i> Take payment
+            </button>
+            <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-if="purchase.status === 'purchased'" ng-click="vm.enterResult(purchase)">
+              <i class="fas fa-pen"></i> Enter result
+            </button>
+            <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-if="purchase.status === 'result_entered'" ng-click="vm.editResult(purchase)">
+              <i class="fas fa-pen"></i> Edit
+            </button>
+            <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-if="purchase.exam_record_id" ng-click="vm.history(purchase)">
+              <i class="fas fa-history"></i> History
+            </button>
+            <a class="exadmin__icon-btn" ng-if="vm.is_manager && purchase.status === 'purchased'" ng-click="vm.askCancel(purchase)" uib-tooltip="Cancel this purchase">
+              <i class="fas fa-ban"></i>
+            </a>
+            <a class="exadmin__icon-btn exadmin__icon-btn--danger" ng-if="vm.is_manager && purchase.status === 'result_entered'" ng-click="vm.askDelete(purchase)" uib-tooltip="Delete the result">
+              <i class="fas fa-trash-alt"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ACTIVITY ═══ -->
+    <div ng-if="vm.tab === 'activity'">
+
+      <div class="exadmin__filters">
+        <a class="exadmin__filter" ng-class="{'exadmin__filter--on': vm.audit.action_filter === ''}" ng-click="vm.audit.action_filter = ''">All actions</a>
+        <a class="exadmin__filter" ng-repeat="action in vm.audit_actions"
+           ng-class="{'exadmin__filter--on': vm.audit.action_filter === action}"
+           ng-click="vm.setAuditFilter(action)">{{ vm.actionLabel(action) }}</a>
+      </div>
+
+      <div class="exadmin__loading" ng-if="vm.audit.loading">
+        <div class="solo-req__spinner"></div> Loading activity&hellip;
+      </div>
+
+      <div class="exadmin__empty" ng-if="!vm.audit.loading && vm.audit.trail.length === 0">
+        <i class="fas fa-history"></i>
+        <p>No exam-result activity yet.</p>
+      </div>
+
+      <div class="exaudit" ng-if="!vm.audit.loading && vm.audit.trail.length > 0">
+        <!-- ng-show, not ng-if: ng-if is inert alongside ng-repeat on Angular 1.4 -->
+        <div class="exaudit__entry" ng-repeat="entry in vm.audit.trail" ng-show="vm.auditVisible(entry)"
+             ng-style="{'animation-delay': ($index < 12 ? $index * 45 : 500) + 'ms'}">
+          <div class="exaudit__dot exaudit__dot--{{ entry.action }}"></div>
+          <div class="exaudit__card">
+            <div class="exaudit__head">
+              <span class="exaudit__action exaudit__action--{{ entry.action }}">{{ vm.actionLabel(entry.action) }}</span>
+              <span class="exaudit__actor"><i class="fas fa-user"></i> {{ entry.actor_first_name }} {{ entry.actor_last_name }}</span>
+              <span class="exaudit__student" ng-if="entry.student_first_name"><i class="fas fa-user-graduate"></i> {{ entry.student_first_name }} {{ entry.student_last_name }}</span>
+              <span class="exaudit__when" uib-tooltip="{{ entry.created_at }}">{{ vm.ago(entry.created_at) }}</span>
+            </div>
+            <div class="exaudit__reason" ng-if="entry.reason"><i class="fas fa-quote-left"></i> {{ entry.reason }}</div>
+            <div class="exaudit__chips" ng-if="vm.changeChips(entry).length">
+              <span class="exaudit__chip" ng-repeat="chip in vm.changeChips(entry) track by $index">{{ chip }}</span>
+            </div>
+            <a class="exaudit__raw-toggle" ng-if="entry.snapshot_before || entry.snapshot_after" ng-click="vm.toggleRaw(entry)">
+              <i class="fas" ng-class="entry._showRaw ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              {{ entry._showRaw ? 'Hide' : 'Show' }} snapshots
+            </a>
+            <div class="exaudit__raw" ng-if="entry._showRaw">
+              <div class="exaudit__raw-col" ng-if="entry.snapshot_before">
+                <label>Before</label>
+                <pre>{{ entry.snapshot_before | json }}</pre>
+              </div>
+              <div class="exaudit__raw-col" ng-if="entry.snapshot_after">
+                <label>After</label>
+                <pre>{{ entry.snapshot_after | json }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="exadmin__pager" ng-if="!vm.audit.loading && vm.auditPages() > 1">
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="vm.audit.page <= 1" ng-click="vm.loadAudit(vm.audit.page - 1)">
+          <i class="fas fa-chevron-left"></i> Newer
+        </button>
+        <span class="exadmin__pager-info">Page {{ vm.audit.page }} of {{ vm.auditPages() }}</span>
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="vm.audit.page >= vm.auditPages()" ng-click="vm.loadAudit(vm.audit.page + 1)">
+          Older <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ PRICING (managers) ═══ -->
+    <div ng-if="vm.tab === 'pricing' && vm.is_manager">
+
+      <div class="exadmin__loading" ng-if="vm.pricing.loading">
+        <div class="solo-req__spinner"></div> Loading pricing&hellip;
+      </div>
+
+      <div class="exadmin__empty" ng-if="!vm.pricing.loading && vm.pricing.courses.length === 0">
+        <i class="fas fa-tags"></i>
+        <p>No courses with ground exams to price yet.</p>
+      </div>
+
+      <div ng-if="!vm.pricing.loading">
+      <div class="expricing__course" ng-repeat="course in vm.pricing.courses">
+        <div class="expricing__course-head">
+          <span class="expricing__course-title"><i class="fas fa-graduation-cap"></i> {{ course.course_title }}</span>
+          <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.savePricing(course)" ng-disabled="vm.pricing.busy[course.course_id]">
+            <i class="fas" ng-class="vm.pricing.busy[course.course_id] ? 'fa-spinner fa-spin' : 'fa-check'"></i> Save pricing
+          </button>
+        </div>
+
+        <div class="expricing__defaults">
+          <div class="expricing__field">
+            <label>Default price per exam</label>
+            <div class="expricing__money">
+              <span>{{ vm.currency }}</span>
+              <input type="number" min="0" step="0.01" ng-model="course._default" placeholder="—">
+            </div>
+          </div>
+          <div class="expricing__field">
+            <label>VAT rate</label>
+            <div class="expricing__money expricing__money--pct">
+              <input type="number" min="0" max="100" step="0.1" ng-model="course._vat" placeholder="0">
+              <span>%</span>
+            </div>
+          </div>
+          <p class="expricing__hint">Set it once — e.g. {{ vm.currency }}55 for every exam — then override only the exceptions below. Prices are VAT-inclusive; sold prices are snapshotted and never change retrospectively.</p>
+        </div>
+
+        <div class="expricing__exam" ng-repeat="exam in course.exams">
+          <span class="expricing__exam-title">{{ exam.title }}</span>
+          <span class="expricing__exam-default" ng-if="!exam._override">
+            {{ course._default !== null ? vm.currency + (course._default | number:2) : 'no price' }} <em>default</em>
+          </span>
+          <div class="expricing__money expricing__money--override" ng-if="exam._override">
+            <span>{{ vm.currency }}</span>
+            <input type="number" min="0" step="0.01" ng-model="exam._price" placeholder="0.00">
+          </div>
+          <label class="snazzy-toggle snazzy-toggle--sm" uib-tooltip="{{ exam._override ? 'Overriding the course default' : 'Using the course default' }}">
+            <input type="checkbox" ng-checked="exam._override" ng-click="vm.toggleOverride(exam)">
+            <span class="snazzy-toggle__slider"></span>
+          </label>
+          <span class="expricing__override-label">override</span>
+        </div>
+      </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ Payment window (same accordion as the shop / invoices pages) ═══
+     Opened from a purchase row's "Take payment" — an invoice is never
+     stranded just because the window was closed at sale time. -->
+<div ng-if="vm.pay_loading" class="positioning-container2">
+  <div class="airplane_center_loading">Loading...</div>
+  <div class="spinning-container">
+    <div class="airplane-container"><span class="fa fa-plane fa-2x"></span></div>
+  </div>
+</div>
+
+<div ng-if="vm.show_pay_now" class="positioning-container">
+  <div class="centre_pay_now">
+    <div class="payment-accordion">
+      <div class="pa-container">
+        <h1 class="pa-title">Choose a payment method</h1>
+        <payment-accordion
+          methods="vm.methods"
+          send="vm.send"
+          open="vm.default_payment"
+          info="vm.info"
+          user="vm.user"
+          bookout="vm.bookout"
+          saved-cards="vm.savedCards"
+          on-confirm="vm.donConfirm(methodLabel, paymentIntent)">
+        </payment-accordion>
+      </div>
+    </div>
+    <div class="btns_bottom">
+      <a class="btn btn-danger confirm_btn" ng-click="vm.close_pay_now()">CLOSE</a>
+    </div>
+  </div>
+</div>

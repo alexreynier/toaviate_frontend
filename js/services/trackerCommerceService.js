@@ -35,6 +35,9 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
         s.EditPricing      = function(id, pricing) { return $http.put(base + '/tracker_versions/pricing/' + id, pricing).then(handleSuccess, handleError); };
         s.DeletePricing    = function(id)          { return $http.delete(base + '/tracker_versions/pricing/' + id).then(handleSuccess, handleError); };
         s.SetVersionFittingPdf = function(id, file){ return $http.post(base + '/tracker_versions/fitting_pdf/' + id, { file: file }).then(handleSuccess, handleError); };
+        // Stock control (B2): positive quantity = batch received, negative = correction
+        s.AddStock         = function(payload)     { return $http.post(base + '/tracker_versions/stock', payload).then(handleSuccess, handleError); };
+        s.GetStockMovements= function(version_id, page) { return $http.get(base + '/tracker_versions/stock_movements/' + version_id + qs({ page: page })).then(handleSuccess, handleError); };
 
         // ── Orders (A1 / A2 / B3) ─────────────────────────────────────────
         s.QuoteOrder       = function(payload)     { return $http.post(base + '/tracker_orders/quote', payload).then(handleSuccess, handleError); };
@@ -63,6 +66,7 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
         s.AdminOverview        = function()                 { return $http.get(base + '/tracker_billing/admin/overview').then(handleSuccess, handleError); };
         s.AdminListInvoices    = function(filters)          { return $http.get(base + '/tracker_billing/admin/invoices' + qs(filters)).then(handleSuccess, handleError); };
         s.SetInvoiceStatus     = function(id, payload)      { return $http.put(base + '/tracker_billing/invoice_status/' + id, payload).then(handleSuccess, handleError); };
+        s.ListWebhookEvents    = function(filters)          { return $http.get(base + '/tracker_billing/admin/webhook_events' + qs(filters)).then(handleSuccess, handleError); };
 
         // ── Units (A4 / B4) ───────────────────────────────────────────────
         s.ListClubUnits    = function(club_id)     { return $http.get(base + '/tracker_units/club/' + club_id).then(handleSuccess, handleError); };
@@ -144,6 +148,8 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
             returnType:     ['return', 'malfunction'],
             returnReason:   ['defective', 'no_longer_required', 'damaged', 'other'],
             resolution:     ['billing_stopped', 'replaced', 'repaired', 'refunded', 'no_fault_found', 'other'],
+            stockReason:    ['purchase', 'order_reserved', 'order_cancelled', 'return_restock', 'replacement', 'adjustment'],
+            webhookResourceTypes: ['payments', 'mandates'],
             auditEntityTypes: ['version', 'pricing', 'order', 'unit', 'invoice', 'billing_profile', 'return', 'maintenance_link', 'maintenance_invite']
         };
 

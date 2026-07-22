@@ -16,7 +16,7 @@
   <div class="snazzy-page__body">
 
     <!-- ── Empty state ── -->
-    <div class="snazzy-page__empty" ng-if="vm.briefings.length == 0">
+    <div class="snazzy-page__empty" ng-if="vm.briefings.length == 0 && vm.flight_debriefs.length == 0">
       <div class="snazzy-page__empty-icon"><i class="fa fa-check-double"></i></div>
       <p>It looks like you don't have any debriefings remaining to do!</p>
     </div>
@@ -120,6 +120,144 @@
           </a>
         </div>
       </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Imported / unlogged flights — dual flights with no booking (TPC
+         training-records import or tracker-claimed) that still need a
+         student record. Rows with an unresolved student can't be
+         debriefed yet: dismiss junk rows here, or resolve on the admin
+         Missing Students queue.
+         ═══════════════════════════════════════════════════════════════ -->
+    <div ng-if="vm.flight_debriefs.length > 0">
+
+      <div class="snazzy-page__toolbar" style="margin-top: 28px;">
+        <div class="snazzy-page__meta">
+          <h3 class="msq-subheading"><i class="fa fa-file-import"></i> Flights without a student record</h3>
+          <span class="snazzy-page__count-badge">{{ vm.flight_debriefs.length }}</span> imported / unlogged flight<span ng-if="vm.flight_debriefs.length !== 1">s</span>
+        </div>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="snazzy-page__table-card snazzy-desktop-table">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>Flight</th>
+                <th>Student</th>
+                <th>Aircraft</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="log in vm.flight_debriefs | limitTo: vm.fd_limit"
+                  ng-class="{'msq-row--dismissed': log._dismissed}">
+                <td class="snazzy-table__date">
+                  {{ log.flight_date | asDate | date:"dd MMM yyyy" }}<br>
+                  <span class="snazzy-table__muted">{{ log.brakes_off_rounded | brakesTime }} – {{ log.brakes_on_rounded | brakesTime }}</span>
+                </td>
+                <td>
+                  <span ng-if="log.missing_student != 1">
+                    <span class="snazzy-table__name">{{ log.first_name }} {{ log.last_name }}</span>
+                    <span class="msq-chip msq-chip--temp" ng-if="log.imported_user == 1"
+                          uib-tooltip="A temporary member — records saved now will follow their account when it is converted.">temporary member</span>
+                  </span>
+                  <span ng-if="log.missing_student == 1">
+                    <span class="msq-chip msq-chip--missing"><i class="fa fa-question-circle"></i> not identified</span>
+                    <span class="snazzy-table__muted" ng-if="vm.fd_sheet_name(log)"> sheet says: <strong>{{ vm.fd_sheet_name(log) }}</strong></span>
+                  </span>
+                </td>
+                <td>
+                  <span class="snazzy-table__badge" uib-tooltip="{{ log.plane_type }}">{{ log.registration }}</span>
+                </td>
+                <td class="snazzy-table__td-actions">
+                  <span ng-if="!log._dismissed">
+                    <a class="snazzy-table__action-btn" ng-if="log.missing_student != 1"
+                       ui-sref="dashboard.manage_user.debriefing({booking_id: 0, plane_log_sheet_id: log.plane_log_sheet_id, action: 'debrief'})"
+                       uib-tooltip="Complete The Debrief">
+                      <i class="fa fa-angle-double-right"></i>
+                    </a>
+                    <a class="snazzy-table__action-btn" ng-if="log.missing_student == 1"
+                       ng-click="vm.fd_resolve(log)"
+                       uib-tooltip="Add / match the student for this flight">
+                      <i class="fa fa-user-plus"></i>
+                    </a>
+                    <button type="button" class="msq-linkbtn msq-linkbtn--muted" ng-if="log.missing_student == 1"
+                            ng-click="vm.fd_dismiss(log)" ng-disabled="log._busy"
+                            uib-tooltip="No student record will ever be needed for this flight">
+                      No record needed
+                    </button>
+                  </span>
+                  <span ng-if="log._dismissed" class="msq-dismissed">
+                    Dismissed —
+                    <button type="button" class="msq-linkbtn" ng-click="vm.fd_restore(log)" ng-disabled="log._busy">Undo</button>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="snazzy-mobile-cards">
+        <div class="snazzy-mobile-card" ng-repeat="log in vm.flight_debriefs | limitTo: vm.fd_limit"
+             ng-class="{'msq-row--dismissed': log._dismissed}">
+          <div class="snazzy-mobile-card__header">
+            <i class="fa fa-file-import"></i>
+            <span ng-if="log.missing_student != 1">{{ log.first_name }} {{ log.last_name }}</span>
+            <span ng-if="log.missing_student == 1">Student not identified</span>
+          </div>
+          <div class="snazzy-mobile-card__body">
+            <div class="snazzy-mobile-card__row" ng-if="log.missing_student != 1 && log.imported_user == 1">
+              <span class="snazzy-mobile-card__label">Status</span>
+              <span class="snazzy-mobile-card__value"><span class="msq-chip msq-chip--temp">temporary member</span></span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="log.missing_student == 1">
+              <span class="snazzy-mobile-card__label">Sheet says</span>
+              <span class="snazzy-mobile-card__value">{{ vm.fd_sheet_name(log) || '—' }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Flight</span>
+              <span class="snazzy-mobile-card__value">
+                {{ log.flight_date | asDate | date:"dd MMM yyyy" }} &middot; {{ log.brakes_off_rounded | brakesTime }} – {{ log.brakes_on_rounded | brakesTime }}
+              </span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">Aircraft</span>
+              <span class="snazzy-mobile-card__value">{{ log.registration }} <span class="snazzy-table__muted">{{ log.plane_type }}</span></span>
+            </div>
+          </div>
+          <div class="snazzy-mobile-card__actions" ng-if="!log._dismissed">
+            <a class="snazzy-page__btn snazzy-page__btn--primary" ng-if="log.missing_student != 1"
+               ui-sref="dashboard.manage_user.debriefing({booking_id: 0, plane_log_sheet_id: log.plane_log_sheet_id, action: 'debrief'})">
+              <i class="fa fa-angle-double-right"></i> Debrief Now
+            </a>
+            <a class="snazzy-page__btn snazzy-page__btn--outline" ng-if="log.missing_student == 1"
+               ng-click="vm.fd_resolve(log)">
+              <i class="fa fa-user-plus"></i> Resolve student…
+            </a>
+            <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-if="log.missing_student == 1"
+                    ng-click="vm.fd_dismiss(log)" ng-disabled="log._busy">
+              No record needed
+            </button>
+          </div>
+          <div class="snazzy-mobile-card__actions" ng-if="log._dismissed">
+            <span class="msq-dismissed">Dismissed —
+              <button type="button" class="msq-linkbtn" ng-click="vm.fd_restore(log)" ng-disabled="log._busy">Undo</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client-side pagination -->
+      <div class="snazzy-page__load-more" ng-if="vm.flight_debriefs.length > vm.fd_limit">
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.fd_show_more()">
+          Show more ({{ vm.flight_debriefs.length - vm.fd_limit }} remaining)
+        </button>
+      </div>
+
     </div>
 
   </div>

@@ -1,0 +1,226 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin.tracker_orders">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-cart-plus"></i> Place an Order for a Club</h2>
+        <p>Order trackers on a club's behalf — the order and invoice are raised exactly as if the club had ordered them.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <!-- Step 1: pick the club -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-users"></i> Club</h4>
+        <p class="trk-card__hint">The order, invoice and monthly billing all belong to this club. They'll receive the confirmation emails and pay the invoice from their own billing page (or you can mark it paid by bank transfer from the order).</p>
+        <div class="trk-loading" ng-if="vm.clubs_loading" style="padding: 12px;">
+          <div class="trk-spinner"></div> Loading clubs…
+        </div>
+        <div class="trk-form-grid" ng-if="!vm.clubs_loading">
+          <div class="trk-field">
+            <label>Order on behalf of <span class="trk-req">*</span></label>
+            <ui-select ng-model="vm.club_pick" theme="bootstrap" title="Choose a club"
+                       on-select="vm.onClubPicked()" on-remove="vm.onClubPicked()">
+              <ui-select-match placeholder="Search for a club…" allow-clear="true">{{ $select.selected.title }}</ui-select-match>
+              <ui-select-choices repeat="c in vm.clubs | filter: $select.search">
+                <div>{{ c.title }}</div>
+              </ui-select-choices>
+            </ui-select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: catalogue + basket (appears once a club is picked) -->
+      <div ng-if="vm.club_pick">
+
+        <div class="trk-loading" ng-if="vm.catalogue_loading">
+          <div class="trk-spinner"></div> Loading the catalogue…
+        </div>
+
+        <div ng-if="!vm.catalogue_loading && vm.catalogue">
+
+          <div class="trk-empty" ng-if="!vm.catalogue.length">
+            <i class="fa fa-box-open"></i>
+            <p>No versions are orderable right now — check the versions manager for pricing and stock.</p>
+          </div>
+
+          <div class="trk-shop" ng-if="vm.catalogue.length">
+
+            <!-- Catalogue -->
+            <div>
+              <div class="trk-catalogue">
+                <div class="trk-product" ng-repeat="p in vm.catalogue" ng-class="{'trk-product--oos': p.out_of_stock}">
+                  <div class="trk-product__stock">
+                    <span class="trk-badge trk-badge--red" ng-if="p.out_of_stock">Out of stock</span>
+                    <span class="trk-badge trk-badge--amber" ng-if="!p.out_of_stock && p.available_stock != null && p.available_stock <= 5">Only {{ p.available_stock }} left</span>
+                  </div>
+                  <div class="trk-product__icon"><i class="fa fa-map-marker-alt"></i></div>
+                  <h3 class="trk-product__name">{{ p.name }}</h3>
+                  <div class="trk-product__code">{{ p.code }}</div>
+                  <p class="trk-product__desc">{{ p.description }}</p>
+                  <div class="trk-product__price">{{ vm.cur(p.currency) }}{{ p.unit_price | number:2 }} <small>one-off</small></div>
+                  <div class="trk-product__monthly">+ {{ vm.cur(p.currency) }}{{ p.monthly_price | number:2 }} / month per tracker</div>
+                  <div class="trk-product__qty">
+                    <button class="trk-qty-btn" ng-click="vm.removeFromBasket(p)" ng-disabled="!vm.qtyOf(p)" aria-label="Remove one"><i class="fa fa-minus"></i></button>
+                    <span class="trk-product__qty-num">{{ vm.qtyOf(p) }}</span>
+                    <button class="trk-qty-btn" ng-click="vm.addToBasket(p)" ng-disabled="!vm.canAddMore(p)" aria-label="Add one"><i class="fa fa-plus"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Basket / quote -->
+            <div class="trk-basket">
+              <div class="trk-card">
+                <h4 class="trk-card__title"><i class="fa fa-shopping-basket"></i> Basket for {{ vm.club_pick.title }}</h4>
+
+                <div class="trk-empty" ng-if="!vm.basketCount()" style="padding: 24px 12px;">
+                  <i class="fa fa-shopping-basket"></i>
+                  <p>Add trackers to see a live quote.</p>
+                </div>
+
+                <div ng-if="vm.basketCount()">
+                  <div class="trk-basket__line" ng-repeat="(id, qty) in vm.basket">
+                    <span>{{ qty }}× {{ vm.basketLine(id).name }}</span>
+                    <span>{{ vm.cur(vm.basketLine(id).currency) }}{{ (qty * vm.basketLine(id).unit_price) | number:2 }}</span>
+                  </div>
+
+                  <div ng-if="vm.quote_loading" class="trk-basket__line trk-basket__line--muted">
+                    <span><span class="trk-spinner trk-spinner--inline"></span> Updating quote…</span>
+                  </div>
+
+                  <div ng-if="vm.quote && !vm.quote_loading">
+                    <hr class="trk-basket__divider">
+                    <div class="trk-basket__line trk-basket__line--muted">
+                      <span>Subtotal</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.subtotal | number:2 }}</span>
+                    </div>
+                    <div class="trk-basket__line trk-basket__line--muted">
+                      <span>Shipping</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.shipping_total | number:2 }}</span>
+                    </div>
+                    <div class="trk-basket__line trk-basket__line--muted">
+                      <span>VAT</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.vat_total | number:2 }}</span>
+                    </div>
+                    <hr class="trk-basket__divider">
+                    <div class="trk-basket__total">
+                      <span>Total today</span><span>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.total | number:2 }}</span>
+                    </div>
+                    <div class="trk-basket__monthly">
+                      <strong>{{ vm.cur(vm.quote.currency) }}{{ vm.quote.monthly_total | number:2 }} / month</strong>
+                      {{ vm.quote.monthly_note || 'Monthly billing starts on the 1st of the month after delivery.' }}
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 16px;">
+                    <button class="trk-btn trk-btn--primary trk-btn--lg trk-btn--block" ng-click="vm.openCheckout()" ng-if="!vm.checkout_open">
+                      <i class="fa fa-arrow-right"></i> Checkout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: checkout -->
+          <div class="trk-card" id="trk-checkout" ng-if="vm.checkout_open && vm.basketCount()">
+            <h4 class="trk-card__title"><i class="fa fa-truck"></i> Delivery details</h4>
+            <div class="trk-form-grid">
+              <div class="trk-field">
+                <label for="field-trk-ship-name">Recipient name <span class="trk-req">*</span></label>
+                <input id="field-trk-ship-name" class="trk-input" type="text" ng-model="vm.shipping.name" placeholder="Who should the parcel be addressed to?">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-address1">Address line 1 <span class="trk-req">*</span></label>
+                <input id="field-trk-ship-address1" class="trk-input" type="text" ng-model="vm.shipping.address_line1">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-address2">Address line 2</label>
+                <input id="field-trk-ship-address2" class="trk-input" type="text" ng-model="vm.shipping.address_line2">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-city">City <span class="trk-req">*</span></label>
+                <input id="field-trk-ship-city" class="trk-input" type="text" ng-model="vm.shipping.city">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-county">County</label>
+                <input id="field-trk-ship-county" class="trk-input" type="text" ng-model="vm.shipping.county">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-postcode">Postcode <span class="trk-req">*</span></label>
+                <input id="field-trk-ship-postcode" class="trk-input" type="text" ng-model="vm.shipping.postcode">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-country">Country <span class="trk-req">*</span></label>
+                <input id="field-trk-ship-country" class="trk-input" type="text" ng-model="vm.shipping.country">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-phone">Phone</label>
+                <input id="field-trk-ship-phone" class="trk-input" type="text" ng-model="vm.shipping.phone">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-ship-email">Email</label>
+                <input id="field-trk-ship-email" class="trk-input" type="email" ng-model="vm.shipping.email">
+              </div>
+              <div class="trk-field trk-field--full">
+                <label for="field-trk-ship-notes">Order notes</label>
+                <textarea id="field-trk-ship-notes" class="trk-textarea" ng-model="vm.notes" placeholder="Anything worth recording against this order?"></textarea>
+              </div>
+            </div>
+            <!-- How the club will pay -->
+            <h4 class="trk-card__title" style="margin-top: 22px;"><i class="fa fa-credit-card"></i> How {{ vm.club_pick.title }} will pay</h4>
+            <div class="trk-loading" ng-if="vm.place_profile_loading" style="padding: 10px;">
+              <div class="trk-spinner"></div>
+            </div>
+            <div ng-if="!vm.place_profile_loading">
+              <div class="trk-banner trk-banner--warn" ng-if="vm.place_profile.payment_mode === 'sandbox'">
+                <i class="fa fa-flask"></i>
+                <div class="trk-banner__body">
+                  <strong>This club is in SANDBOX payment mode</strong>
+                  Collections are test-mode only — no real money moves. You can switch the club to live from the Invoices tab (club billing profile).
+                </div>
+              </div>
+              <div class="trk-banner trk-banner--info" ng-if="vm.placeDefaultMethod()">
+                <i class="fa" ng-class="vm.placeDefaultMethod() === 'card' ? 'fa-credit-card' : 'fa-university'"></i>
+                <div class="trk-banner__body">
+                  <strong>{{ vm.placePayMethodLabel() }}</strong>
+                  You can collect the invoice from their saved method in the same click, or place the order and let the club pay it themselves.
+                </div>
+              </div>
+              <div class="trk-banner trk-banner--warn" ng-if="!vm.placeDefaultMethod()">
+                <i class="fa fa-exclamation-triangle"></i>
+                <div class="trk-banner__body">
+                  <strong>The club has no payment method saved</strong>
+                  They'll be emailed the invoice to pay from their billing page or by bank transfer — you can also mark the order paid (bank transfer) from the order detail.
+                </div>
+              </div>
+            </div>
+
+            <div class="trk-form-actions">
+              <button class="trk-btn trk-btn--ghost" ng-click="vm.checkout_open = false">Back to basket</button>
+              <button class="trk-btn trk-btn--lg" ng-click="vm.placeOrder(false)" ng-disabled="vm.placing"
+                      ng-class="vm.placeDefaultMethod() ? 'trk-btn--ghost' : 'trk-btn--success'">
+                <span ng-if="vm.placing" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-check" ng-if="!vm.placing"></i> Place order for {{ vm.club_pick.title }}
+              </button>
+              <button class="trk-btn trk-btn--success trk-btn--lg" ng-if="vm.placeDefaultMethod()"
+                      ng-click="vm.placeOrder(true)" ng-disabled="vm.placing">
+                <span ng-if="vm.placing" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-bolt" ng-if="!vm.placing"></i> Place order & collect payment
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

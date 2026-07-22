@@ -1,0 +1,206 @@
+<!-- Template for <flight-weather-panel> — see flightWeatherPanel.js.
+     Styles in css/flight-weather.css (fw-* BEM). -->
+<div class="fw">
+
+    <!-- ══ Loading — skeleton of the final two-card layout (the on-demand
+         fetch path can take a few seconds; never a spinner-only state) ══ -->
+    <div class="fw__skeleton" ng-show="state == 'loading'" aria-hidden="true">
+        <div class="fw-skel" ng-repeat="i in [0,1]">
+            <div class="fw-skel__head">
+                <span class="fw-skel__ghost fw-skel__ghost--glyph"></span>
+                <span class="fw-skel__ghost fw-skel__ghost--title"></span>
+                <span class="fw-skel__ghost fw-skel__ghost--time"></span>
+            </div>
+            <div class="fw-skel__meta">
+                <span class="fw-skel__ghost fw-skel__ghost--pill"></span>
+                <span class="fw-skel__ghost fw-skel__ghost--line"></span>
+            </div>
+            <div class="fw-skel__grid">
+                <span class="fw-skel__ghost fw-skel__ghost--cell" ng-repeat="c in [0,1,2,3]"></span>
+            </div>
+        </div>
+        <div class="fw__skeleton-note"><span class="fw__spinner"></span> Fetching the weather for this flight…</div>
+    </div>
+
+    <!-- ══ Fetch failure — retry affordance ══ -->
+    <div class="fw__empty fw__empty--error" ng-show="state == 'error'">
+        <div class="fw__empty-icon"><i class="fa fa-cloud"></i></div>
+        <p>Couldn't load the weather for this flight.</p>
+        <button type="button" class="fw__retry" ng-click="load(true)"><i class="fa fa-sync-alt"></i> Try again</button>
+    </div>
+
+    <!-- ══ No weather stored at all (pre-feature flight, not backfilled) ══ -->
+    <div class="fw__empty" ng-show="state == 'empty'">
+        <div class="fw__empty-icon"><i class="fa fa-cloud"></i></div>
+        <p>No weather is stored for this flight.</p>
+    </div>
+
+    <!-- ══ Ready — one PhaseCard per phase (Departure / Arrival) ══ -->
+    <div class="fw__phases" ng-show="state == 'ready'">
+        <div class="fw-phase" ng-repeat="phase in phases" ng-style="{'animation-delay': ($index * 60) + 'ms'}">
+
+            <!-- Header: WHERE (flight's airfield) + WHEN (actual event time) -->
+            <div class="fw-phase__head">
+                <div class="fw-phase__where">
+                    <span class="fw-phase__glyph" ng-class="'fw-phase__glyph--' + phase.key"><i class="fa fa-plane"></i></span>
+                    <span class="fw-phase__label">{{ phase.label }}</span>
+                    <span class="fw-phase__airfield">{{ phase.placeName }}<span class="fw-phase__code" ng-if="phase.codeSuffix"> ({{ phase.codeSuffix }})</span></span>
+                </div>
+                <div class="fw-phase__when" ng-if="phase.timeZ">
+                    <span class="fw-phase__when-time">{{ phase.timeZ }}</span>
+                    <span class="fw-phase__when-sub">actual {{ phase.key == 'takeoff' ? 't/o' : 'ldg' }}</span>
+                </div>
+            </div>
+
+            <!-- Two nearby stations → segmented toggle, nearest first -->
+            <div class="fw-phase__stations" ng-if="phase.okRows.length > 1" role="tablist" aria-label="Weather stations">
+                <button type="button" class="fw-phase__station-btn" ng-repeat="r in phase.okRows" role="tab"
+                        ng-class="{'is-active': phase.active === $index}" aria-selected="{{ phase.active === $index }}"
+                        ng-click="setStation(phase, $index)">
+                    {{ r.station_icao }} · {{ r.station_distance_nm }} nm
+                </button>
+            </div>
+
+            <!-- No usable observation for this phase -->
+            <div class="fw__empty fw__empty--phase" ng-if="!phase.okRows.length">
+                <div class="fw__empty-icon"><i class="fa fa-cloud"></i></div>
+                <p>{{ phase.emptyMsg }}</p>
+            </div>
+
+            <!-- Active station report (single-element ng-repeat so a station
+                 switch recreates the DOM → CSS cross-fade re-runs) -->
+            <div class="fw-report" ng-repeat="row in phase.activeRow">
+
+                <!-- Category + station provenance + observation time -->
+                <div class="fw-report__meta">
+                    <span class="fw-pill" ng-class="catClass(row)" role="img"
+                          aria-label="Flight category {{ row.flight_category || 'unknown' }}">{{ row.flight_category || '—' }}</span>
+                    <div class="fw-report__station">
+                        <div class="fw-report__station-line">
+                            METAR from <strong>{{ stationLabel(row, phase) }}</strong><span ng-if="!row.is_exact_station"> · {{ row.station_distance_nm }} nm from {{ phase.placeShort }}</span>
+                            <span class="fw-badge-archive" ng-if="row.source == 'iem'"
+                                  uib-tooltip="From the historical weather archive — decoded by our parser">archive</span>
+                        </div>
+                        <div class="fw-report__obs-line">observed {{ fmtZ(row.obs_time) }} — {{ deltaLabel(row, phase) }}</div>
+                    </div>
+                    <button type="button" class="fw-raw-toggle" ng-click="row._raw = !row._raw"
+                            ng-class="{'is-on': row._raw}" aria-label="Toggle raw report text">
+                        <i class="fa fa-code"></i> {{ row._raw ? 'Decoded' : 'Raw' }}
+                    </button>
+                </div>
+
+                <!-- Decoded ⇄ raw flip (height-animated, no layout jump) -->
+                <div class="fw-flip" ng-class="{'fw-flip--raw': row._raw}">
+
+                    <!-- Decoded grid — a definition list -->
+                    <div class="fw-flip__pane fw-flip__pane--decoded" aria-hidden="{{ !!row._raw }}">
+                        <div class="fw-flip__inner">
+                            <dl class="fw-grid">
+                                <div class="fw-grid__cell fw-grid__cell--wind">
+                                    <dt>Wind</dt>
+                                    <dd>
+                                        <span class="fw-wind">
+                                            <svg class="fw-wind__rose" ng-class="{'fw-wind__rose--vrb': row.wind_dir == 'VRB'}"
+                                                 viewBox="0 0 44 44" aria-hidden="true">
+                                                <circle class="fw-wind__ring" cx="22" cy="22" r="19"></circle>
+                                                <line class="fw-wind__tick" x1="22" y1="1" x2="22" y2="6"></line>
+                                                <line class="fw-wind__tick" x1="22" y1="38" x2="22" y2="43"></line>
+                                                <line class="fw-wind__tick" x1="1" y1="22" x2="6" y2="22"></line>
+                                                <line class="fw-wind__tick" x1="38" y1="22" x2="43" y2="22"></line>
+                                                <g class="fw-wind__needle" ng-style="needleStyle(row)">
+                                                    <path d="M22 5 L26 27 L22 23.5 L18 27 Z"></path>
+                                                </g>
+                                                <circle class="fw-wind__hub" cx="22" cy="22" r="2.4"></circle>
+                                            </svg>
+                                            <!-- text twin of the glyph -->
+                                            <span class="fw-wind__text" ng-if="hasWind(row)">
+                                                <span class="fw-wind__dir">{{ windDirLabel(row) }}</span>
+                                                <span class="fw-wind__spd"><span fw-ticker="row.wind_speed"></span> kt</span>
+                                                <span class="fw-wind__gust" ng-if="row.wind_gust">G {{ row.wind_gust }}</span>
+                                            </span>
+                                            <span class="fw-wind__text fw-wind__text--calm" ng-if="!hasWind(row)">{{ row.wind_speed === 0 ? 'Calm' : '–' }}</span>
+                                        </span>
+                                    </dd>
+                                </div>
+                                <div class="fw-grid__cell">
+                                    <dt>Visibility</dt>
+                                    <dd>{{ visLabel(row) }}</dd>
+                                </div>
+                                <div class="fw-grid__cell">
+                                    <dt>Cloud base</dt>
+                                    <dd>
+                                        <div class="fw-clouds" ng-if="row._clouds.length">
+                                            <div class="fw-clouds__layer" ng-repeat="c in row._clouds"
+                                                 ng-class="{'fw-clouds__layer--base': c.isCeiling}">
+                                                <span class="fw-clouds__cover">{{ c.label }}</span>
+                                                <span class="fw-clouds__ft" ng-if="c.base != null">{{ c.baseLabel }} ft</span>
+                                            </div>
+                                        </div>
+                                        <span class="fw-grid__soft" ng-if="!row._clouds.length">{{ row._cloudsNote }}</span>
+                                    </dd>
+                                </div>
+                                <div class="fw-grid__cell">
+                                    <dt>Temp / Dewpoint</dt>
+                                    <dd ng-if="row.temp_c != null"><span fw-ticker="row.temp_c"></span>° / <span ng-if="row.dewpoint_c != null"><span fw-ticker="row.dewpoint_c"></span>°</span><span ng-if="row.dewpoint_c == null">–</span></dd>
+                                    <dd class="fw-grid__soft" ng-if="row.temp_c == null">–</dd>
+                                </div>
+                                <div class="fw-grid__cell">
+                                    <dt>QNH</dt>
+                                    <dd ng-if="row.qnh_hpa"><span fw-ticker="row.qnh_hpa"></span> hPa</dd>
+                                    <dd class="fw-grid__soft" ng-if="!row.qnh_hpa">–</dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Raw report(s) — monospace, copy on click -->
+                    <div class="fw-flip__pane fw-flip__pane--raw" aria-hidden="{{ !row._raw }}">
+                        <div class="fw-flip__inner">
+                            <code class="fw-raw" ng-click="copyRaw(row.raw_metar)" uib-tooltip="Click to copy">{{ row.raw_metar }}</code>
+                            <code class="fw-raw" ng-if="row.raw_taf" ng-click="copyRaw(row.raw_taf)" uib-tooltip="Click to copy">{{ row.raw_taf }}</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ TAF — validity timeline (only when a TAF exists) ══ -->
+                <div class="fw-taf" ng-if="row._taf" ng-show="!row._raw">
+                    <div class="fw-taf__head">
+                        <span class="fw-taf__title"><i class="fa fa-clock"></i> TAF {{ row.station_icao }}</span>
+                        <span class="fw-taf__meta">issued {{ fmtZ(row.taf_issue_time) }} · valid {{ fmtDayZ(row.taf_valid_from) }} → {{ fmtDayZ(row.taf_valid_to) }}</span>
+                        <span class="fw-taf__inforce"><i class="fa fa-check-circle"></i> forecast in force at {{ phase.word }}</span>
+                    </div>
+                    <div class="fw-taf__lane-wrap">
+                        <div class="fw-taf__lane">
+                            <div class="fw-taf__seg" ng-repeat="seg in row._taf.segments"
+                                 ng-class="[seg.tempo ? 'fw-taf__seg--tempo' : '', seg.active ? 'is-active ' + catClass(row) : '', row._taf.selected === seg ? 'is-selected' : '']"
+                                 ng-style="{left: seg.left + '%', width: seg.width + '%'}"
+                                 ng-click="selectSeg(row, seg)"
+                                 uib-tooltip="{{ seg.label }} {{ seg.timeLabel }}">
+                                <span class="fw-taf__seg-label">{{ seg.label }}</span>
+                            </div>
+                            <div class="fw-taf__pin" ng-style="{left: row._taf.pinLeft + '%'}"
+                                 uib-tooltip="{{ phase.word }} {{ phase.timeZ }}"><i class="fa fa-plane"></i></div>
+                        </div>
+                        <div class="fw-taf__axis">
+                            <span>{{ fmtDayZ(row.taf_valid_from) }}</span>
+                            <span>{{ fmtDayZ(row.taf_valid_to) }}</span>
+                        </div>
+                    </div>
+                    <!-- Selected period detail (tap a segment) -->
+                    <div class="fw-taf__detail" ng-if="row._taf.selected">
+                        <div class="fw-taf__detail-head">
+                            <span class="fw-taf__detail-kind">{{ row._taf.selected.label }}</span>
+                            <span class="fw-taf__detail-time">{{ row._taf.selected.timeLabel }}</span>
+                            <span class="fw-taf__detail-flag" ng-if="row._taf.selected.active"><i class="fa fa-plane"></i> in force at {{ phase.word }}</span>
+                        </div>
+                        <div class="fw-taf__detail-chips">
+                            <span class="fw-taf__chip" ng-repeat="part in row._taf.selected.parts">{{ part }}</span>
+                            <span class="fw-taf__chip fw-taf__chip--soft" ng-if="!row._taf.selected.parts.length">No significant change detailed</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /fw-report -->
+        </div><!-- /fw-phase -->
+    </div>
+</div>

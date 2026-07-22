@@ -1163,12 +1163,27 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                         // the address is sent as "email" in the convert body.
                         needs_email:   !u.original_email,
                         _email:        '',
-                        booking_count: u.booking_count
+                        booking_count: u.booking_count,
+                        // Where the stub came from + how much history will
+                        // follow the account when it is converted.
+                        source:                u.source,   // 'bookedscheduler' | 'training_import' | 'manual'
+                        flight_count:          u.flight_count,
+                        training_record_count: u.training_record_count
                     };
                 });
             }, function() {
                 vm.loading.imported = false;
             });
+        };
+
+        // Human label for where an imported stub came from.
+        vm.sourceLabel = function(u) {
+            switch (u.source) {
+                case 'training_import': return 'Training records import';
+                case 'manual':          return 'Manually created';
+                case 'bookedscheduler': return 'BookedScheduler import';
+                default:                return null;
+            }
         };
 
         // ── Convert: membership tier + term dates ──────────────────────────

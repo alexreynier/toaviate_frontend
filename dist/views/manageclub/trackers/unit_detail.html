@@ -1,0 +1,173 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.trackers">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-map-marker-alt"></i> Tracker {{ vm.unit.serial || '' }}</h2>
+        <p>{{ vm.unit.version_name }}<span ng-if="vm.unit.order_number"> · from order {{ vm.unit.order_number }}</span></p>
+      </div>
+      <div class="trk-page__header-actions">
+        <button class="trk-btn trk-btn--white" ng-if="vm.unit.has_fitting_pdf" ng-click="vm.downloadFittingPdf(vm.unit)">
+          <i class="fa" ng-class="vm.unit.downloading ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'"></i> Fitting PDF
+        </button>
+        <button class="trk-btn trk-btn--white" ng-click="vm.reportProblem(vm.unit)">
+          <i class="fa fa-exclamation-triangle"></i> Report a problem
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading the tracker…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.unit">
+
+      <!-- Unit info -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-info-circle"></i> Details
+          <span class="trk-badge" ng-class="vm.unitBadge(vm.unit.status)">{{ vm.pretty(vm.unit.status) }}</span>
+        </h4>
+        <dl class="trk-kv"><dt>Serial</dt><dd class="trk-table__ref">{{ vm.unit.serial || 'Awaiting allocation' }}</dd></dl>
+        <dl class="trk-kv"><dt>Version</dt><dd>{{ vm.unit.version_name }}</dd></dl>
+        <dl class="trk-kv"><dt>Monthly price</dt><dd>{{ vm.cur() }}{{ vm.unit.monthly_price | number:2 }}</dd></dl>
+        <dl class="trk-kv"><dt>Billing</dt><dd>
+          <span ng-if="vm.unit.billing_starts_on">from {{ vm.unit.billing_starts_on | asDate | date:'dd MMM yyyy' }}</span>
+          <span ng-if="vm.unit.billing_ends_on"> until {{ vm.unit.billing_ends_on | asDate | date:'dd MMM yyyy' }}</span>
+          <span ng-if="!vm.unit.billing_starts_on">not started yet</span>
+        </dd></dl>
+        <dl class="trk-kv" ng-if="vm.unit.fox_tracker"><dt>Device registry</dt>
+          <dd>{{ vm.unit.fox_tracker.label || vm.unit.fox_tracker.imei }} <span class="trk-table__muted" ng-if="vm.unit.fox_tracker.label">({{ vm.unit.fox_tracker.imei }})</span></dd></dl>
+        <dl class="trk-kv" ng-if="vm.unit.open_rma_number"><dt>Open case</dt>
+          <dd><span class="trk-badge trk-badge--amber">{{ vm.unit.open_rma_number }}</span></dd></dl>
+      </div>
+
+      <!-- Maintenance access -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-tools"></i> Maintenance access</h4>
+        <p class="trk-card__hint">Linked organisations can download the fitting pack for this tracker.</p>
+
+        <div ng-if="vm.unit.maintenance_orgs.length" style="margin-bottom: 16px;">
+          <div class="trk-banner trk-banner--success" ng-repeat="link in vm.unit.maintenance_orgs" style="margin-bottom: 10px;">
+            <i class="fa fa-building"></i>
+            <div class="trk-banner__body">
+              <strong>{{ link.title || link.maintenance_org_title }}</strong>
+              <span ng-if="link.linked_at">Linked {{ link.linked_at | asDate | date:'dd MMM yyyy' }}</span>
+            </div>
+            <div class="trk-banner__actions">
+              <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.unlinkOrg(link)" ng-disabled="link.unlinking">
+                <span ng-if="link.unlinking" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-unlink" ng-if="!link.unlinking"></i> Unlink
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="trk-empty" ng-if="!vm.unit.maintenance_orgs.length" style="padding: 18px;">
+          <p>No maintenance organisation has access yet.</p>
+        </div>
+
+        <div class="trk-section">
+          <h5 class="trk-section-title">Link an organisation on ToAviate</h5>
+          <div class="trk-form-grid">
+            <div class="trk-field">
+              <label>Organisation</label>
+              <ui-select ng-model="vm.link_pick" theme="bootstrap" append-to-body="true" title="Choose maintenance organisation">
+                <ui-select-match placeholder="Choose organisation…">{{ $select.selected.title }}</ui-select-match>
+                <ui-select-choices repeat="o in vm.maintenance_orgs | filter: $select.search">
+                  <div ng-bind-html="o.title | highlight: $select.search"></div>
+                </ui-select-choices>
+              </ui-select>
+            </div>
+            <div class="trk-field">
+              <label for="field-trk-link-notes">Notes (optional)</label>
+              <input id="field-trk-link-notes" class="trk-input" type="text" ng-model="vm.link_notes" placeholder="e.g. which aircraft it's going on">
+            </div>
+          </div>
+          <div class="trk-form-actions">
+            <button class="trk-btn trk-btn--primary" ng-click="vm.linkOrg()" ng-disabled="vm.linking">
+              <span ng-if="vm.linking" class="trk-spinner trk-spinner--inline"></span>
+              <i class="fa fa-link" ng-if="!vm.linking"></i> Link organisation
+            </button>
+          </div>
+        </div>
+
+        <div class="trk-section">
+          <h5 class="trk-section-title">Can't find them? Invite by email</h5>
+          <a href="" ng-click="vm.invite_open = !vm.invite_open" style="font-size: 13px; font-weight: 700;">
+            <i class="fa fa-paper-plane"></i> {{ vm.invite_open ? 'Hide the invite form' : 'Invite an organisation that isn\'t on ToAviate yet' }}
+          </a>
+          <div ng-if="vm.invite_open" style="margin-top: 14px;">
+            <div class="trk-form-grid">
+              <div class="trk-field">
+                <label for="field-trk-invite-email">Email <span class="trk-req">*</span></label>
+                <input id="field-trk-invite-email" class="trk-input" type="email" ng-model="vm.invite.email" placeholder="engineer@example.com">
+              </div>
+              <div class="trk-field">
+                <label for="field-trk-invite-org">Organisation name</label>
+                <input id="field-trk-invite-org" class="trk-input" type="text" ng-model="vm.invite.organisation_name">
+              </div>
+              <div class="trk-field trk-field--full">
+                <label for="field-trk-invite-message">Message</label>
+                <textarea id="field-trk-invite-message" class="trk-textarea" ng-model="vm.invite.message" placeholder="A note to include in the invitation email"></textarea>
+              </div>
+            </div>
+            <div class="trk-form-actions">
+              <button class="trk-btn trk-btn--primary" ng-click="vm.sendInvite()" ng-disabled="vm.inviting">
+                <span ng-if="vm.inviting" class="trk-spinner trk-spinner--inline"></span>
+                <i class="fa fa-paper-plane" ng-if="!vm.inviting"></i> Send invite
+              </button>
+            </div>
+          </div>
+
+          <div ng-if="vm.pending_invites.length" style="margin-top: 14px;">
+            <h5 class="trk-section-title">Pending invites</h5>
+            <div class="trk-banner trk-banner--warn" ng-repeat="inv in vm.pending_invites" style="margin-bottom: 10px;">
+              <i class="fa fa-hourglass-half"></i>
+              <div class="trk-banner__body">
+                <strong>{{ inv.email }}</strong>
+                <span ng-if="inv.organisation_name">{{ inv.organisation_name }} · </span>
+                <span ng-if="inv.created_at">sent {{ inv.created_at | asDate | date:'dd MMM yyyy' }}</span>
+              </div>
+              <div class="trk-banner__actions">
+                <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.revokeInvite(inv)" ng-disabled="inv.revoking">
+                  <span ng-if="inv.revoking" class="trk-spinner trk-spinner--inline"></span> Revoke
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Returns history -->
+      <div class="trk-card" ng-if="vm.unit.returns.length">
+        <h4 class="trk-card__title"><i class="fa fa-undo"></i> Returns & problem history</h4>
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr><th>Reference</th><th>Type</th><th>Status</th><th>Reported</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr class="trk-table__row-click" ng-repeat="r in vm.unit.returns" ng-click="vm.openReturn(r)">
+                <td data-label="Reference"><span class="trk-table__ref">{{ r.rma_number }}</span></td>
+                <td data-label="Type" style="text-transform: capitalize;">{{ r.type }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.returnBadge(r.status)">{{ vm.pretty(r.status) }}</span></td>
+                <td data-label="Reported" class="trk-table__muted">{{ r.created_at | asDate | date:'dd MMM yyyy' }}</td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" ng-click="$event.stopPropagation(); vm.openReturn(r)"><i class="fa fa-chevron-right"></i></a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

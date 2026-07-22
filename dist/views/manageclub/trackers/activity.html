@@ -1,0 +1,61 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-history"></i> Tracker Activity</h2>
+        <p>Everything that has happened to your club's trackers, orders and invoices.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <div class="trk-empty" ng-if="!vm.audit_loading && !vm.entries.length">
+        <i class="fa fa-history"></i>
+        <p>No activity yet.</p>
+      </div>
+
+      <div class="trk-audit-entry" ng-repeat="e in vm.entries">
+        <div class="trk-audit-entry__head" ng-click="e.show_diff = !e.show_diff">
+          <span class="trk-badge trk-badge--grey">{{ vm.pretty(e.entity_type) }}</span>
+          <span class="trk-audit-entry__summary">{{ e.changes_summary || vm.pretty(e.action) }}</span>
+          <span class="trk-audit-entry__meta">
+            {{ e.first_name }} {{ e.last_name }} · {{ e.created_at | asDate | date:'dd MMM yyyy HH:mm' }}
+            <i class="fa" ng-class="e.show_diff ? 'fa-chevron-up' : 'fa-chevron-down'" ng-if="e.snapshot_before || e.snapshot_after"></i>
+          </span>
+        </div>
+        <div class="trk-audit-entry__diff" ng-if="e.show_diff && (e.snapshot_before || e.snapshot_after)">
+          <div>
+            <h5>Before</h5>
+            <pre>{{ vm.snapshot(e.snapshot_before) || '—' }}</pre>
+          </div>
+          <div>
+            <h5>After</h5>
+            <pre>{{ vm.snapshot(e.snapshot_after) || '—' }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.audit_loading">
+        <div class="trk-spinner"></div> Loading activity…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.audit_loading && vm.audit_has_more && vm.entries.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreActivity()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+      <div class="trk-all-loaded" ng-if="!vm.audit_loading && !vm.audit_has_more && vm.entries.length">
+        <i class="fa fa-check-circle"></i> All activity loaded
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,93 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-box-open"></i> Tracker Orders</h2>
+        <p>Every tracker order your club has placed, from checkout to delivery.</p>
+      </div>
+      <div class="trk-page__header-actions">
+        <button class="trk-btn trk-btn--white" ui-sref="dashboard.manage_club.trackers_shop">
+          <i class="fa fa-shopping-cart"></i> Order more
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Loading orders…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading">
+
+      <div class="trk-toolbar">
+        <div class="trk-search">
+          <i class="fa fa-search"></i>
+          <input type="text" placeholder="Search orders…" ng-model="vm.search">
+        </div>
+        <span class="trk-count-badge">{{ (vm.orders | filter:{status: vm.statusFilter} | filter:vm.search).length }}</span>
+      </div>
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.statusFilter}" ng-click="vm.statusFilter = ''">All</div>
+        <div class="trk-chip"
+             ng-repeat="st in vm.enums.orderStatus"
+             ng-class="{'trk-chip--active': vm.statusFilter === st}"
+             ng-click="vm.statusFilter = st">
+          {{ vm.pretty(st) }}
+        </div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.orders.length">
+        <i class="fa fa-box-open"></i>
+        <p>No orders yet — head to the shop to order your first trackers.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.orders.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Invoice</th>
+                <th>Placed</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="trk-table__row-click"
+                  ng-repeat="o in vm.orders | filter:{status: vm.statusFilter} | filter:vm.search"
+                  ng-click="vm.openOrder(o)">
+                <td data-label="Order"><span class="trk-table__ref">{{ o.order_number }}</span></td>
+                <td data-label="Items">{{ vm.orderItemsSummary(o) || '—' }}</td>
+                <td data-label="Total" class="trk-table__money">{{ vm.cur(o.currency) }}{{ o.total | number:2 }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.orderBadge(o.status)">{{ vm.pretty(o.status) }}</span></td>
+                <td data-label="Invoice">
+                  <span class="trk-badge" ng-if="o.invoice_status" ng-class="vm.invoiceBadge(o.invoice_status)">{{ vm.pretty(o.invoice_status) }}</span>
+                  <span class="trk-table__muted" ng-if="!o.invoice_status">—</span>
+                </td>
+                <td data-label="Placed" class="trk-table__muted">{{ o.created_at | asDate | date:'dd MMM yyyy' }}</td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" uib-tooltip="View order" ng-click="$event.stopPropagation(); vm.openOrder(o)">
+                    <i class="fa fa-chevron-right"></i>
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

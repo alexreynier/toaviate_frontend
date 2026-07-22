@@ -1,0 +1,277 @@
+<!-- ══════════════════════════════════════════════════════════
+     FOX TRACKER MANAGEMENT — Unmatched flights worklist
+     Reported flights with no tech-log sheet; one-click matching.
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page">
+
+  <div ng-if="!vm.authorised" class="fox-tracker__unauthorised">
+    <div class="fox-tracker__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is restricted to ToAviate management users.</p>
+  </div>
+
+  <div ng-if="vm.authorised">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ui-sref="dashboard.super_admin">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-plane-slash"></i> Unmatched Flights</h2>
+          <p>Reported flights that never reached a tech log</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tabs ── -->
+    <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
+      <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
+    </div>
+
+    <div class="snazzy-page__body">
+
+      <!-- ── Filters ── -->
+      <div class="fxu__filters">
+        <select class="fox-tracker__filter-select" ng-model="vm.filters.club_id"
+                ng-options="club.id as club.title for club in vm.clubs">
+          <option value="">All clubs</option>
+        </select>
+        <input type="text" class="fox-tracker__filter-select fxu__imei-input fxh__mono" placeholder="IMEI…" ng-model="vm.filters.imei">
+        <input type="date" class="fox-tracker__filter-select" ng-model="vm.filters.from" uib-tooltip="From">
+        <input type="date" class="fox-tracker__filter-select" ng-model="vm.filters.to" uib-tooltip="To">
+        <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.load()" ng-disabled="vm.loading">
+          <i class="fas fa-filter"></i> Apply
+        </button>
+        <button class="fox-tracker__clear-btn" ng-click="vm.clearFilters()"
+                ng-show="vm.filters.club_id || vm.filters.imei || vm.filters.from || vm.filters.to">
+          <i class="fas fa-times"></i> Clear
+        </button>
+      </div>
+
+      <div ng-if="vm.loading" class="snazzy-page__loading">
+        <div class="snazzy-page__spinner"></div> Loading unmatched flights…
+      </div>
+
+      <div ng-if="!vm.loading" class="snazzy-reveal">
+
+        <!-- Email deep-link landed on an entry that's already been matched -->
+        <div class="fxu__spot-note" ng-if="vm.spot_note">
+          <i class="fas fa-check-circle"></i> {{ vm.spot_note }}
+        </div>
+
+        <!-- ── Triage: reasons summary + noise toggle ──
+             `reason` is computed per fetched page — chips reflect the fetched
+             set, not the total. -->
+        <div class="fxu__triage" ng-if="vm.entries.length > 0">
+          <label class="snazzy-toggle snazzy-toggle--sm fxu__noise-toggle" uib-tooltip="Already-logged duplicates and sub-5-minute blips — the backend would refuse matching them anyway">
+            <input type="checkbox" ng-model="vm.hide_noise">
+            <span class="snazzy-toggle__slider"></span>
+          </label>
+          <span class="fxu__noise-label" ng-click="vm.hide_noise = !vm.hide_noise">Hide already-logged &amp; non-flights</span>
+          <span class="fxu__triage-chips">
+            <a class="fxu__reason fxu__reason--{{ rc.meta.cls }} fxu__reason--chip" ng-repeat="rc in vm.reason_counts"
+               ng-class="{'fxu__reason--filtering': vm.reason_filter === rc.reason}"
+               ng-click="vm.setReasonFilter(rc.reason)">
+              <strong>{{ rc.count }}</strong> {{ rc.meta.label }}
+            </a>
+          </span>
+        </div>
+
+        <div class="snazzy-page__toolbar">
+          <div class="snazzy-page__meta">
+            <span class="snazzy-page__count-badge">{{ vm.total }}</span> unmatched flight{{ vm.total === 1 ? '' : 's' }}
+            <span class="fxu__limit-note" ng-if="vm.total > vm.entries.length">
+              — showing the first {{ vm.entries.length }}; narrow the filters
+            </span>
+            <span ng-if="vm.visibleCount() < vm.entries.length">
+              &middot; <strong>{{ vm.visibleCount() }}</strong> need{{ vm.visibleCount() === 1 ? 's' : '' }} attention after triage
+            </span>
+          </div>
+        </div>
+
+        <!-- Empty states -->
+        <div class="snazzy-page__empty" ng-if="vm.entries.length === 0">
+          <div class="snazzy-page__empty-icon"><i class="fas fa-clipboard-check"></i></div>
+          <p>Every reported flight is in a tech log 🎉</p>
+        </div>
+        <div class="snazzy-page__empty" ng-if="vm.entries.length > 0 && vm.visibleCount() === 0">
+          <div class="snazzy-page__empty-icon"><i class="fas fa-mug-hot"></i></div>
+          <p>Nothing here needs a human — the {{ vm.entries.length }} fetched entries are already logged or aren't real flights.</p>
+        </div>
+
+        <!-- ══ Rows (cards on all widths — each flight is a work item) ══ -->
+        <div class="fxu__list" ng-if="vm.entries.length > 0">
+          <!-- ng-show, not ng-if: ng-if is inert alongside ng-repeat on Angular 1.4 -->
+          <div class="fxu__row" ng-repeat="entry in vm.entries" id="fxu-entry-{{ entry.id }}"
+               ng-show="vm.entryVisible(entry)"
+               ng-class="{'fxu__row--matched': entry._matched, 'fxu__row--spot': entry._spot}">
+            <div class="fxu__row-main">
+              <div class="fxu__row-top">
+                <span class="fxu__entry-id fxh__mono" ng-click="vm.copy('ENTRY #' + entry.id)" uib-tooltip="Matches the ENTRY ID in the admin emails — tap to copy">ENTRY #{{ entry.id }}</span>
+                <span class="fxu__times">{{ vm.times(entry) }}</span>
+                <span class="fxu__fact"><i class="fas fa-stopwatch"></i> {{ vm.duration(entry.airborne_seconds) }}</span>
+                <span class="fxu__fact"><i class="fas fa-plane-arrival"></i> {{ entry.number_landings || 0 }} landing{{ entry.number_landings == 1 ? '' : 's' }}</span>
+                <a class="fxu__flight-toggle" ng-click="vm.toggleFlight(entry)">
+                  <i class="fas" ng-class="entry._showFlight ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  {{ entry._showFlight ? 'hide' : 'flight details' }}
+                </a>
+
+                <!-- The triage headline: why this flight never reached the tech log -->
+                <span class="fxu__reason fxu__reason--{{ vm.reasonMeta(entry).cls }}" ng-if="entry.reason"
+                      ng-click="vm.toggleDetail(entry)" uib-tooltip="{{ entry.reason_detail }}">
+                  <i class="fas {{ vm.reasonMeta(entry).icon }}"></i> {{ vm.reasonMeta(entry).label }}
+                  <i class="fas fxu__reason-chev" ng-class="entry._showDetail ? 'fa-chevron-up' : 'fa-chevron-down'" ng-if="entry.reason_detail"></i>
+                </span>
+                <a class="fxu__reason-action" ng-show="entry.reason && vm.reasonMeta(entry).health" ng-click="vm.toHealth()"
+                   uib-tooltip="Fixing the tracker backfills all of its flights at once — prefer that over matching one by one.">
+                  fix on the health board <i class="fas fa-arrow-right"></i>
+                </a>
+              </div>
+
+              <!-- ── Flight details: the full story of the leg ── -->
+              <div class="fxu__flight" ng-if="entry._showFlight">
+                <div class="fxu__flight-route">
+                  <span class="fxu__flight-date"><i class="fas fa-calendar-day"></i> {{ vm.flightDate(entry) }}</span>
+                  <span class="fxu__flight-leg">
+                    <strong>{{ vm.airfieldLabel(entry, 'start') }}</strong>
+                    <i class="fas fa-long-arrow-alt-right"></i>
+                    <strong>{{ vm.airfieldLabel(entry, 'end') }}</strong>
+                  </span>
+                  <span class="fxu__flight-num" ng-if="entry.flight_number">flight #{{ entry.flight_number }} that day</span>
+                </div>
+                <div class="fxu__flight-strip">
+                  <div class="fxu__flight-cell">
+                    <label>Brakes off</label>
+                    <span class="fxh__mono">{{ vm.timeOf(entry.brakes_off) }}</span>
+                  </div>
+                  <div class="fxu__flight-sep"><i class="fas fa-plane-departure"></i></div>
+                  <div class="fxu__flight-cell">
+                    <label>Takeoff</label>
+                    <span class="fxh__mono">{{ vm.timeOf(entry.takeoff_time) }}</span>
+                  </div>
+                  <div class="fxu__flight-airborne">
+                    <label>Airborne</label>
+                    <span>{{ vm.duration(entry.airborne_seconds) }}</span>
+                  </div>
+                  <div class="fxu__flight-cell">
+                    <label>Landing</label>
+                    <span class="fxh__mono">{{ vm.timeOf(entry.landing_time) }}</span>
+                  </div>
+                  <div class="fxu__flight-sep"><i class="fas fa-plane-arrival"></i></div>
+                  <div class="fxu__flight-cell">
+                    <label>Brakes on</label>
+                    <span class="fxh__mono">{{ vm.timeOf(entry.brakes_on) }}</span>
+                  </div>
+                </div>
+                <div class="fxu__flight-stats">
+                  <span class="fxu__flight-stat"><label>Block time</label> {{ vm.blockTime(entry) }}</span>
+                  <span class="fxu__flight-stat"><label>Airborne</label> {{ vm.duration(entry.airborne_seconds) }}</span>
+                  <span class="fxu__flight-stat"><label>Landings</label> {{ entry.number_landings || 0 }}</span>
+                </div>
+              </div>
+
+              <!-- Ready-to-display sentence; duplicates link to the named sheet -->
+              <div class="fxu__reason-detail" ng-if="entry._showDetail && entry.reason_detail">
+                {{ entry.reason_detail }}
+                <a class="fxu__sheet-link" ng-if="vm.duplicateSheetId(entry)" ng-click="vm.openSheet(vm.duplicateSheetId(entry))">
+                  <i class="fas fa-external-link-alt"></i> view sheet #{{ vm.duplicateSheetId(entry) }}
+                </a>
+              </div>
+
+              <div class="fxu__row-sub">
+                <span class="fxh__mono fxu__device" ng-click="vm.copy(entry.imei)" uib-tooltip="IMEI — tap to copy">{{ entry.imei }}</span>
+                <span class="fxh__mono fxu__device" ng-click="vm.copy(entry.ccid)" uib-tooltip="CCID — tap to copy">{{ entry.ccid }}</span>
+                <!-- Legacy fallback when the backend doesn't send `reason` yet -->
+                <a class="fxu__mismatch-tag" ng-show="entry.ccid_mismatch && !entry.reason" ng-click="vm.toHealth()"
+                   uib-tooltip="Fixing the tracker backfills all of its flights at once — prefer that over matching one by one.">
+                  <i class="fas fa-exclamation-triangle"></i> tracker CCID mismatch
+                </a>
+              </div>
+            </div>
+            <div class="fxu__row-side">
+              <span class="fxu__suggestion" ng-if="entry.suggested_registration"
+                    uib-tooltip="Best candidate derived from the registry">
+                <i class="fas fa-plane"></i> {{ entry.suggested_registration }}
+              </span>
+              <span class="fxu__suggestion fxu__suggestion--none" ng-if="!entry.suggested_registration">no candidate</span>
+              <!-- De-emphasised on duplicates/blips — the backend would refuse them -->
+              <button class="snazzy-page__btn" ng-class="vm.matchDiscouraged(entry) ? 'snazzy-page__btn--outline' : 'snazzy-page__btn--success'"
+                      ng-click="vm.openMatch(entry)">
+                <i class="fas fa-link"></i> Match
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- body -->
+
+    <!-- ══ Match dialog ══ -->
+    <div class="fox-tracker__overlay" ng-if="vm.match" ng-click="vm.closeMatch()">
+      <div class="fox-tracker__confirm-dialog fxu__match-dialog" ng-click="$event.stopPropagation()">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-link"></i></div>
+          <div class="fox-tracker__confirm-title">Match flight to an aircraft</div>
+        </div>
+        <div class="fox-tracker__confirm-body">
+
+          <div class="fxu__match-summary">
+            <span class="fxu__entry-id fxh__mono">ENTRY #{{ vm.match.entry.id }}</span>
+            <span>{{ vm.times(vm.match.entry) }}</span>
+            <span><i class="fas fa-stopwatch"></i> {{ vm.duration(vm.match.entry.airborne_seconds) }}</span>
+            <span><i class="fas fa-plane-arrival"></i> {{ vm.match.entry.number_landings || 0 }}</span>
+          </div>
+
+          <div class="fxu__match-caution" ng-if="vm.matchDiscouraged(vm.match.entry)">
+            <i class="fas fa-hand-paper"></i>
+            {{ vm.match.entry.reason === 'likely_duplicate'
+               ? 'This flight looks already logged — the backend will refuse a duplicate sheet.'
+               : 'This looks like an engine run / power blip, not a flight — matching it is rarely right.' }}
+          </div>
+
+          <!-- Suggested candidate -->
+          <div ng-if="vm.match.use_suggestion" class="fxu__match-suggested">
+            Creates a tech-log sheet on
+            <span class="fxu__suggestion"><i class="fas fa-plane"></i> {{ vm.match.entry.suggested_registration }}</span>
+            <a class="fxu__change-link" ng-click="vm.matchPickManually()">change aircraft</a>
+          </div>
+
+          <!-- Manual aircraft pick (club follows the plane list) -->
+          <div ng-if="vm.match.picking" class="fxu__match-pick">
+            <div class="fox-tracker__form-group">
+              <label class="fox-tracker__form-label">Club</label>
+              <select class="fox-tracker__form-input" ng-model="vm.match.club_id" ng-change="vm.matchClubChanged()"
+                      ng-options="club.id as club.title for club in vm.clubs">
+                <option value="">Choose a club…</option>
+              </select>
+            </div>
+            <div class="fox-tracker__form-group">
+              <label class="fox-tracker__form-label">Aircraft</label>
+              <select class="fox-tracker__form-input" ng-model="vm.match.plane_id" ng-disabled="vm.match.planes_loading || !vm.match.club_id"
+                      ng-options="plane.id as (plane.registration + (plane.name ? ' — ' + plane.name : '')) for plane in vm.match.planes">
+                <option value="">{{ vm.match.planes_loading ? 'Loading aircraft…' : 'Choose the aircraft…' }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="fxh__fix-error" ng-if="vm.match.error">
+            <i class="fas fa-exclamation-triangle"></i> {{ vm.match.error }}
+          </div>
+
+        </div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeMatch()" ng-disabled="vm.match.busy">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.confirmMatch()" ng-disabled="vm.match.busy">
+            <i class="fas" ng-class="vm.match.busy ? 'fa-spinner fa-spin' : 'fa-link'"></i>
+            {{ vm.match.busy ? 'Matching…' : 'Match flight' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- authorised -->
+</div>

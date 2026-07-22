@@ -1,0 +1,381 @@
+<div class="af-admin">
+
+    <div class="af-admin__denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>The airfield database is managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── HEADER ── -->
+        <div class="af-admin__header">
+            <div class="af-admin__header-inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.super_admin">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="af-admin__title">
+                        <h2><i class="fas fa-sliders-h"></i> Manage airfields</h2>
+                        <p>Search the database, then add, edit or retire individual airfields</p>
+                    </div>
+                </div>
+
+                <div class="af-admin__header-controls">
+                    <button class="af-btn af-btn--white" ng-click="vm.openAdd()">
+                        <i class="fas fa-plus"></i> <span>Add airfield</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="af-admin__nav">
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields">
+                    <i class="fas fa-chart-pie"></i> <span>Overview</span>
+                </a>
+                <a class="af-admin__nav-item" ui-sref="dashboard.super_admin.airfields_review">
+                    <i class="fas fa-clipboard-check"></i> <span>Review</span>
+                </a>
+                <a class="af-admin__nav-item af-admin__nav-item--active"
+                   ui-sref="dashboard.super_admin.airfields_manage">
+                    <i class="fas fa-sliders-h"></i> <span>Manage</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             ADD / EDIT FORM
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card af-form-card" id="airfield-form-card" ng-if="vm.form">
+
+            <div class="af-card__header">
+                <span class="af-card__title">
+                    <i class="fas" ng-class="vm.form_mode === 'add' ? 'fa-plus-circle' : 'fa-edit'"></i>
+                    {{ vm.form_mode === 'add' ? 'Add a new airfield' : 'Edit ' + vm.form.code }}
+                </span>
+                <button class="af-card__close" ng-click="vm.closeForm()" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="af-card__body">
+                <div class="af-form-grid">
+
+                    <div class="af-field af-field--wide">
+                        <label for="field-af-title">Airfield name <span class="af-req">*</span></label>
+                        <input id="field-af-title" class="af-input" type="text"
+                               placeholder="e.g. Reykjavík Airport" ng-model="vm.form.title" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-code">Code <span class="af-req">*</span></label>
+                        <input id="field-af-code" class="af-input af-input--code" type="text"
+                               placeholder="ICAO / ident" ng-model="vm.form.code" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-iata">IATA code</label>
+                        <input id="field-af-iata" class="af-input af-input--code" type="text"
+                               placeholder="optional" ng-model="vm.form.iata_code" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-type">Type</label>
+                        <select id="field-af-type" class="af-input" ng-model="vm.form.af_type"
+                                ng-options="t.value as t.label for t in vm.af_types">
+                            <option value="">Unspecified</option>
+                        </select>
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-country">Country</label>
+                        <select id="field-af-country" class="af-input"
+                                ng-model="vm.form.country_code" ng-change="vm.onCountryPicked()"
+                                ng-options="c.code as (c.flag + '  ' + c.name) for c in vm.countries">
+                            <option value="">Choose a country…</option>
+                        </select>
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-municipality">Municipality</label>
+                        <input id="field-af-municipality" class="af-input" type="text"
+                               placeholder="Nearest town" ng-model="vm.form.municipality" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-lat">Latitude</label>
+                        <input id="field-af-lat" class="af-input" type="number" step="any"
+                               placeholder="e.g. 64.1300" ng-model="vm.form.wgs_n" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-lon">Longitude</label>
+                        <input id="field-af-lon" class="af-input" type="number" step="any"
+                               placeholder="e.g. -21.9406" ng-model="vm.form.wgs_e" />
+                    </div>
+
+                    <div class="af-field">
+                        <label for="field-af-elev">
+                            Elevation (ft)
+                            <span class="af-elev-pill" ng-if="vm.elevSource(vm.form).show"
+                                  ng-class="vm.elevSource(vm.form).cls">
+                                {{ vm.elevSource(vm.form).label }}
+                            </span>
+                        </label>
+                        <input id="field-af-elev" class="af-input" type="number"
+                               placeholder="AMSL" ng-model="vm.form.elevation" />
+                        <p class="af-field__hint" ng-if="vm.form.elevation_source === 'terrain'">
+                            Estimated from a terrain model (~±5 ft) — not a surveyed figure.
+                            Typing a value here marks it <strong>manual</strong>, and the
+                            automatic filler will never overwrite it.
+                        </p>
+                    </div>
+
+                    <div class="af-field af-field--wide">
+                        <label>Status</label>
+                        <div class="af-switch-row">
+                            <label class="af-switch">
+                                <input type="checkbox" ng-model="vm.form.active"
+                                       ng-true-value="1" ng-false-value="0" />
+                                <span class="af-switch__track"><span class="af-switch__thumb"></span></span>
+                                <span class="af-switch__label">
+                                    {{ vm.form.active ? 'Active — offered to pilots' : 'Inactive — hidden from selection' }}
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Live position preview -->
+                <a class="af-form-maplink"
+                   ng-if="vm.form.wgs_n && vm.form.wgs_e"
+                   ng-href="https://www.google.com/maps/search/?api=1&query={{ vm.form.wgs_n }},{{ vm.form.wgs_e }}"
+                   target="_blank" rel="noopener">
+                    <i class="fas fa-map-marked-alt"></i>
+                    Check {{ vm.form.wgs_n }}, {{ vm.form.wgs_e }} on the map
+                    <i class="fas fa-external-link-alt"></i>
+                </a>
+            </div>
+
+            <div class="af-card__footer">
+                <button class="af-btn af-btn--outline" ng-click="vm.closeForm()" ng-disabled="vm.saving">
+                    Cancel
+                </button>
+                <button class="af-btn af-btn--primary" ng-click="vm.saveAirfield()" ng-disabled="vm.saving">
+                    <i class="fas fa-circle-notch af-spin" ng-if="vm.saving"></i>
+                    <i class="fas fa-check" ng-if="!vm.saving"></i>
+                    <span>{{ vm.form_mode === 'add' ? 'Add airfield' : 'Save changes' }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             SEARCH + RESULTS
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-card">
+
+            <div class="af-card__header">
+                <span class="af-card__title"><i class="fas fa-search"></i> Find an airfield</span>
+                <span class="af-card__hint" ng-if="vm.results.length">
+                    {{ vm.results.length }} result{{ vm.results.length === 1 ? '' : 's' }}
+                </span>
+            </div>
+
+            <div class="af-card__body">
+                <div class="af-search-wrap af-search-wrap--big">
+                    <i class="fas fa-search"></i>
+                    <input class="af-input af-input--search" type="text"
+                           placeholder="Search by code or name — e.g. EGKK or Gatwick"
+                           ng-model="vm.query" ng-change="vm.search()" />
+                    <button class="af-search-wrap__clear" ng-if="vm.query" ng-click="vm.clearSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <i class="fas fa-circle-notch af-spin af-search-wrap__spin" ng-if="vm.searching"></i>
+                </div>
+                <p class="af-field__hint">Type at least two characters. Matches on both code and name.</p>
+            </div>
+
+            <!-- Idle -->
+            <div class="af-empty" ng-if="!vm.searched && !vm.searching">
+                <i class="fas fa-map-marked-alt"></i>
+                <p>Search above to find an airfield, or add a new one.</p>
+            </div>
+
+            <!-- No results -->
+            <div class="af-empty" ng-if="vm.searched && !vm.searching && !vm.results.length">
+                <i class="fas fa-search-minus"></i>
+                <h3>No airfields match “{{ vm.query }}”</h3>
+                <p>It may be missing from the database.</p>
+                <button class="af-btn af-btn--primary" ng-click="vm.openAdd()">
+                    <i class="fas fa-plus"></i> Add it manually
+                </button>
+                <a class="af-empty__link" ui-sref="dashboard.super_admin.airfields">
+                    or import the whole country <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <!-- Results (desktop table) -->
+            <div class="af-table-scroll af-desktop-only" ng-if="vm.results.length">
+                <table class="af-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Airfield</th>
+                            <th class="af-col--hide-mobile">Country</th>
+                            <th class="af-col--hide-mobile">Type</th>
+                            <th class="af-col--hide-mobile">Elevation</th>
+                            <th>Status</th>
+                            <th class="af-col--hide-mobile">Source</th>
+                            <th class="af-num">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="af-row" ng-repeat="af in vm.results track by af.id"
+                            ng-class="{'af-row--inactive': !vm.isActive(af)}">
+                            <td><span class="af-code">{{ af.code }}</span></td>
+                            <td>
+                                <div class="af-name">{{ af.title }}</div>
+                                <div class="af-sub" ng-if="af.municipality">{{ af.municipality }}</div>
+                            </td>
+                            <td class="af-col--hide-mobile">
+                                <span class="af-flag">{{ vm.countryFlag(af.country_code) }}</span>
+                                {{ vm.countryName(af.country_code) || af.country }}
+                            </td>
+                            <td class="af-col--hide-mobile">
+                                <i class="fas af-type-icon" ng-class="vm.typeIcon(af.af_type)"></i>
+                                {{ vm.typeLabel(af.af_type) }}
+                            </td>
+                            <td class="af-col--hide-mobile">
+                                <span ng-if="af.elevation !== null && af.elevation !== ''">
+                                    {{ af.elevation }} ft
+                                    <span class="af-elev-pill" ng-if="vm.elevSource(af).show"
+                                          ng-class="vm.elevSource(af).cls">
+                                        {{ vm.elevSource(af).label }}
+                                    </span>
+                                </span>
+                                <span class="af-elev__missing"
+                                      ng-if="af.elevation === null || af.elevation === ''"
+                                      title="Flight replay falls back to raw GPS altitude without this">
+                                    <i class="fas fa-exclamation-triangle"></i> none
+                                </span>
+                            </td>
+                            <td>
+                                <span class="af-pill af-pill--active" ng-if="vm.isActive(af)">
+                                    <span class="af-dot"></span> Active
+                                </span>
+                                <span class="af-pill af-pill--inactive" ng-if="!vm.isActive(af)">
+                                    <span class="af-dot"></span> Inactive
+                                </span>
+                                <span class="af-pill af-pill--verify" ng-if="af.to_be_verified == 1">
+                                    <i class="fas fa-exclamation"></i> Needs review
+                                </span>
+                            </td>
+                            <td class="af-col--hide-mobile">
+                                <span class="af-badge" ng-class="vm.sourceClass(af)">{{ vm.sourceLabel(af) }}</span>
+                            </td>
+                            <td class="af-num">
+                                <button class="af-icon-btn" ng-click="vm.openEdit(af)" title="Edit">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                                <button class="af-icon-btn af-icon-btn--danger" ng-click="vm.askDelete(af)" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Results (mobile cards) -->
+            <div class="af-mobile-cards af-mobile-only" ng-if="vm.results.length">
+                <div class="af-mcard" ng-repeat="af in vm.results track by af.id"
+                     ng-class="{'af-mcard--inactive': !vm.isActive(af)}">
+                    <div class="af-mcard__head">
+                        <span class="af-code">{{ af.code }}</span>
+                        <span class="af-pill af-pill--active" ng-if="vm.isActive(af)">
+                            <span class="af-dot"></span> Active
+                        </span>
+                        <span class="af-pill af-pill--inactive" ng-if="!vm.isActive(af)">
+                            <span class="af-dot"></span> Inactive
+                        </span>
+                    </div>
+                    <div class="af-mcard__title">{{ af.title }}</div>
+                    <div class="af-mcard__meta">
+                        <span>{{ vm.countryFlag(af.country_code) }} {{ vm.countryName(af.country_code) || af.country }}</span>
+                        <span><i class="fas af-type-icon" ng-class="vm.typeIcon(af.af_type)"></i> {{ vm.typeLabel(af.af_type) }}</span>
+                        <span ng-if="af.elevation !== null && af.elevation !== ''">
+                            {{ af.elevation }} ft
+                            <span class="af-elev-pill" ng-if="vm.elevSource(af).show"
+                                  ng-class="vm.elevSource(af).cls">{{ vm.elevSource(af).label }}</span>
+                        </span>
+                        <span class="af-elev__missing" ng-if="af.elevation === null || af.elevation === ''">
+                            <i class="fas fa-exclamation-triangle"></i> no elevation
+                        </span>
+                        <span class="af-badge" ng-class="vm.sourceClass(af)">{{ vm.sourceLabel(af) }}</span>
+                        <span class="af-pill af-pill--verify" ng-if="af.to_be_verified == 1">
+                            <i class="fas fa-exclamation"></i> Needs review
+                        </span>
+                    </div>
+                    <div class="af-mcard__actions">
+                        <button class="af-btn af-btn--outline af-btn--sm" ng-click="vm.openEdit(af)">
+                            <i class="fas fa-pen"></i> Edit
+                        </button>
+                        <button class="af-btn af-btn--danger-ghost af-btn--sm" ng-click="vm.askDelete(af)">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             DELETE CONFIRMATION
+             ════════════════════════════════════════════════════════ -->
+        <div class="af-modal-backdrop" ng-if="vm.confirm" ng-click="vm.cancelDelete()"></div>
+        <div class="af-modal" ng-if="vm.confirm">
+
+            <div class="af-modal__icon" ng-class="{'af-modal__icon--blocked': vm.delete_blocked}">
+                <i class="fas" ng-class="vm.delete_blocked ? 'fa-link' : 'fa-trash'"></i>
+            </div>
+
+            <!-- Normal confirm -->
+            <div ng-if="!vm.delete_blocked">
+                <h3 class="af-modal__title">Delete {{ vm.confirm.code }}?</h3>
+                <p class="af-modal__text">
+                    <strong>{{ vm.confirm.title }}</strong> will be removed from the global airfield
+                    database. This cannot be undone.
+                </p>
+            </div>
+
+            <!-- Refused: still referenced -->
+            <div ng-if="vm.delete_blocked">
+                <h3 class="af-modal__title">Can’t delete {{ vm.confirm.code }}</h3>
+                <p class="af-modal__text">{{ vm.delete_blocked }}</p>
+                <p class="af-modal__text af-modal__text--muted">
+                    Set it inactive instead — it stays attached to those records but is no longer
+                    offered to pilots.
+                </p>
+            </div>
+
+            <div class="af-modal__actions">
+                <button class="af-btn af-btn--outline" ng-click="vm.cancelDelete()" ng-disabled="vm.deleting">
+                    Cancel
+                </button>
+                <button class="af-btn af-btn--danger" ng-if="!vm.delete_blocked"
+                        ng-click="vm.confirmDelete()" ng-disabled="vm.deleting">
+                    <i class="fas fa-circle-notch af-spin" ng-if="vm.deleting"></i>
+                    <i class="fas fa-trash" ng-if="!vm.deleting"></i>
+                    <span>Delete airfield</span>
+                </button>
+                <button class="af-btn af-btn--primary" ng-if="vm.delete_blocked"
+                        ng-click="vm.setInactive()" ng-disabled="vm.deleting">
+                    <i class="fas fa-circle-notch af-spin" ng-if="vm.deleting"></i>
+                    <i class="fas fa-eye-slash" ng-if="!vm.deleting"></i>
+                    <span>Set inactive</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>

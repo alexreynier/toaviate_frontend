@@ -1,0 +1,90 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-undo"></i> Returns Queue</h2>
+        <p>Problem reports and RMAs from every club.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': vm.statusFilter === 'open'}" ng-click="vm.setReturnFilter('open')">Open</div>
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.statusFilter}" ng-click="vm.setReturnFilter('')">All</div>
+        <div class="trk-chip"
+             ng-repeat="st in vm.enums.returnStatus"
+             ng-class="{'trk-chip--active': vm.statusFilter === st}"
+             ng-click="vm.setReturnFilter(st)">
+          {{ vm.pretty(st) }}<span class="trk-chip__count" ng-if="vm.status_counts[st]">{{ vm.status_counts[st] }}</span>
+        </div>
+      </div>
+
+      <div class="trk-toolbar">
+        <div class="trk-search">
+          <i class="fa fa-search"></i>
+          <input type="text" placeholder="Filter loaded returns by club, serial or reference…" ng-model="vm.search">
+        </div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.loading && !vm.returns.length">
+        <i class="fa fa-undo"></i>
+        <p>No returns match this filter.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.returns.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Club</th>
+                <th>Tracker</th>
+                <th>Type</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Reported</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="trk-table__row-click"
+                  ng-repeat="r in vm.returns | filter:vm.search"
+                  ng-click="vm.openAdminReturn(r)">
+                <td data-label="Reference"><span class="trk-table__ref">{{ r.rma_number }}</span></td>
+                <td data-label="Club">{{ r.club_title }}</td>
+                <td data-label="Tracker">{{ r.serial }} <span class="trk-table__muted">{{ r.version_name }}</span></td>
+                <td data-label="Type" style="text-transform: capitalize;">{{ r.type }}</td>
+                <td data-label="Reason" style="text-transform: capitalize;">{{ vm.pretty(r.reason) }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.returnBadge(r.status)">{{ vm.pretty(r.status) }}</span></td>
+                <td data-label="Reported" class="trk-table__muted">{{ r.created_at | asDate | date:'dd MMM yyyy' }}</td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" ng-click="$event.stopPropagation(); vm.openAdminReturn(r)"><i class="fa fa-chevron-right"></i></a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading returns…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.loading && vm.has_more && vm.returns.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreReturns()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

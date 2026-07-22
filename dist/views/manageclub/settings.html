@@ -1,17 +1,16 @@
 <div class="centre_align_boxes2 settings_page">
 
-  <div class="home_upper">
-    <div class="back-box" ui-sref="dashboard.manage_club">
-              <i class="fa fa-arrow-circle-left"></i> BACK
+  <div class="snazzy-page__header">
+            <div class="snazzy-page__header-inner">
+              <div class="back-box" ui-sref="dashboard.manage_club">
+                <i class="fa fa-arrow-circle-left"></i> BACK
+              </div>
+              <div class="snazzy-page__title">
+                <h2><i class="fas fa-th-large"></i> Company Details</h2>
+                <p>Manage your company details</p>
+              </div>
             </div>
-        <div class="welcome_title">
-          <h2>Company Details</h2> 
-          <h4 class="capitalise">
-            Manage your company details
-          </h4>
-          <!-- {{ vm.welcome_message }} -->
-      </div>
-    </div>
+          </div>
         <form>
 
     <div class="club_docs_all">
@@ -259,6 +258,32 @@
               </div>
             </div>
 
+            <!-- ── Pilot Checks Book-out Policy ── -->
+            <div class="snazzy-setting-row">
+              <div class="snazzy-setting-info">
+                <label for="pilot-checks-bookout-policy" class="snazzy-setting-label">
+                  <i class="fas fa-user-check"></i>
+                  Pilot Checks Book-out Policy
+                </label>
+                <p class="snazzy-setting-description">
+                  Re-validates the pilot at the moment the aircraft is booked out —
+                  membership, certificates, currency, solo permission, and (for student
+                  solos) your club's pre-solo requirements. Lapsed currency can be
+                  self-certified by the pilot; managers can force through any block.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <select class="form-control inputtext"
+                        id="pilot-checks-bookout-policy"
+                        ng-model="vm.club.settings.pilot_checks_bookout_policy"
+                        style="min-width: 320px;">
+                  <option value="allow">Don't check pilots at book-out</option>
+                  <option value="warn">Warn — checks run, warnings shown, never blocks</option>
+                  <option value="force">Block — pilot self-certify for currency, managers can force</option>
+                </select>
+              </div>
+            </div>
+
             <!-- ── Airworthiness Flight Reminder Warnings ── -->
             <div class="snazzy-setting-row">
               <div class="snazzy-setting-info">
@@ -282,6 +307,260 @@
               </div>
             </div>
 
+          </div>
+        </div>
+
+
+        <!-- ── Pre-Solo Requirements (pilot checks / student solo) ── -->
+        <div class="club_docs_all">
+          <h2><i class="fas fa-user-graduate" style="margin-right:8px;color:#2563eb;"></i> Pre-Solo Requirements</h2>
+          <p class="help-block">
+            Your club's checklist a student must satisfy before flying solo. Requirements can apply to
+            <em>every</em> student or only to one course, and are either signed off by an instructor or
+            verified automatically — from the student's medical records, a questionnaire reviewed by an
+            instructor, or a ground exam result. Checked at book-out when the Pilot Checks policy above
+            is set to Warn or Block.
+          </p>
+
+          <div class="solo-req">
+            <!-- Loading -->
+            <div class="solo-req__loading" ng-if="vm.solo.loading">
+              <div class="solo-req__spinner"></div> Loading requirements&hellip;
+            </div>
+
+            <!-- Empty → seed -->
+            <div class="solo-req__empty" ng-if="!vm.solo.loading && vm.solo.items.length === 0 && !vm.solo.editor">
+              <i class="fas fa-clipboard-list"></i>
+              <p>No pre-solo requirements yet.</p>
+              <button type="button" class="solo-btn solo-btn--primary" ng-click="vm.soloSeedDefaults()" ng-disabled="vm.solo.seeding">
+                <i class="fas" ng-class="vm.solo.seeding ? 'fa-spinner fa-spin' : 'fa-magic'"></i>
+                Add the recommended defaults
+              </button>
+              <span class="solo-req__empty-or">or add your own below</span>
+            </div>
+
+            <!-- Course filter chips -->
+            <div class="solo-req__filters" ng-if="!vm.solo.loading && vm.solo.groups.length > 1">
+              <a class="solo-req__filter-chip" ng-class="{'solo-req__filter-chip--on': vm.solo.filter === null}"
+                 ng-click="vm.solo.filter = null">Everything</a>
+              <a class="solo-req__filter-chip" ng-class="{'solo-req__filter-chip--on': vm.solo.filter === 0}"
+                 ng-click="vm.soloSetFilter(0)"><i class="fas fa-globe-europe"></i> All courses</a>
+              <!-- ng-show, not ng-if: ng-if is inert alongside ng-repeat on Angular 1.4 -->
+              <a class="solo-req__filter-chip" ng-repeat="group in vm.solo.groups" ng-show="group.course_id"
+                 ng-class="{'solo-req__filter-chip--on': vm.solo.filter === group.course_id}"
+                 ng-click="vm.soloSetFilter(group.course_id)"><i class="fas fa-graduation-cap"></i> {{ group.title }}</a>
+            </div>
+
+            <!-- Course groups -->
+            <div ng-if="!vm.solo.loading && vm.solo.items.length > 0" class="snazzy-reveal">
+              <!-- ng-show, not ng-if: ng-if is inert alongside ng-repeat on Angular 1.4 -->
+              <div class="solo-req__group" ng-repeat="group in vm.solo.groups"
+                   ng-show="vm.soloGroupVisible(group) && (group.items.length > 0 || group.course_id === null)">
+
+                <a class="solo-req__group-head" ng-click="vm.soloToggleGroup(group)">
+                  <i class="fas fa-chevron-down solo-req__group-chev" ng-class="{'solo-req__group-chev--closed': vm.solo.collapsed[group.key]}"></i>
+                  <span class="solo-req__group-title">
+                    <i class="fas" ng-class="group.course_id ? 'fa-graduation-cap' : 'fa-globe-europe'"></i>
+                    {{ group.title }}
+                  </span>
+                  <span class="solo-req__group-count">{{ group.items.length }}</span>
+                  <span class="solo-req__group-hint" ng-if="!group.course_id">apply to every student</span>
+                  <span class="solo-req__group-hint" ng-if="group.course_id">+ the all-courses items</span>
+                </a>
+
+                <div class="solo-req__group-body" ng-if="!vm.solo.collapsed[group.key]">
+                  <div class="solo-req__row" ng-repeat="item in group.items"
+                       ng-class="{'solo-req__row--inactive': item.active != 1, 'solo-req__row--busy': vm.solo.busy[item.id], 'solo-req__row--editing': item._editing}">
+
+                    <div class="solo-req__order">
+                      <button type="button" ng-click="vm.soloMove(group, item, -1)" ng-disabled="$first" title="Move up"><i class="fas fa-chevron-up"></i></button>
+                      <button type="button" ng-click="vm.soloMove(group, item, 1)" ng-disabled="$last" title="Move down"><i class="fas fa-chevron-down"></i></button>
+                    </div>
+
+                    <div class="solo-req__main">
+                      <div class="solo-req__name">
+                        {{ item.name }}
+                        <span class="solo-req__badge solo-req__badge--auto" ng-if="item.auto_type === 'medical'"
+                              uib-tooltip="Verified automatically from the student's medical records — cannot be signed off manually and never goes stale.">
+                          <i class="fas fa-magic"></i> auto&nbsp;&middot;&nbsp;medical
+                        </span>
+                        <span class="solo-req__badge solo-req__badge--auto" ng-if="item.auto_type === 'questionnaire'"
+                              uib-tooltip="Verified automatically from the student's questionnaire attempt — cannot be signed off manually.">
+                          <i class="fas fa-magic"></i> auto&nbsp;&middot;&nbsp;questionnaire
+                        </span>
+                        <span class="solo-req__badge solo-req__badge--auto" ng-if="item.auto_type === 'exam'"
+                              uib-tooltip="Verified automatically from the student's ground-exam results — cannot be signed off manually.">
+                          <i class="fas fa-magic"></i> auto&nbsp;&middot;&nbsp;exam
+                        </span>
+                        <span class="solo-req__badge solo-req__badge--inactive" ng-if="item.active != 1">inactive</span>
+                      </div>
+                      <div class="solo-req__desc" ng-if="item.description">{{ item.description }}</div>
+
+                      <!-- Criteria sub-chips -->
+                      <div class="solo-req__subchips" ng-if="item.auto_type === 'medical'">
+                        <span class="solo-req__subchip" ng-if="!item.medical_component_ids">any certificate class</span>
+                        <span class="solo-req__subchip" ng-repeat="name in vm.soloMedNames(item)">{{ name }}</span>
+                      </div>
+                      <div class="solo-req__subchips" ng-if="item.auto_type === 'questionnaire'">
+                        <span class="solo-req__subchip solo-req__subchip--link"><i class="fas fa-clipboard-list"></i> {{ item.questionnaire_title || 'Questionnaire missing' }}</span>
+                        <span class="solo-req__subchip" ng-if="item.require_review == 1"><i class="fas fa-user-check"></i> instructor-reviewed</span>
+                        <span class="solo-req__subchip" ng-if="item.min_score_percent">&ge; {{ item.min_score_percent * 1 }}%</span>
+                      </div>
+                      <div class="solo-req__subchips" ng-if="item.auto_type === 'exam'">
+                        <span class="solo-req__subchip solo-req__subchip--link"><i class="fas fa-file-signature"></i> {{ item.exam_title || 'Exam missing' }}</span>
+                        <span class="solo-req__subchip" ng-if="item.min_score_percent">&ge; {{ item.min_score_percent * 1 }}%</span>
+                        <span class="solo-req__subchip" ng-if="!item.min_score_percent">pass required</span>
+                      </div>
+                    </div>
+
+                    <div class="solo-req__actions" ng-if="!item._confirmDelete">
+                      <label class="snazzy-toggle snazzy-toggle--sm" uib-tooltip="{{ item.active == 1 ? 'Active — checked before solo' : 'Inactive — ignored' }}">
+                        <input type="checkbox" ng-checked="item.active == 1" ng-click="vm.soloToggleActive(item)" ng-disabled="vm.solo.busy[item.id]">
+                        <span class="snazzy-toggle__slider"></span>
+                      </label>
+                      <a class="solo-req__icon-btn" ng-click="vm.soloStartEdit(item)" title="Edit"><i class="fas fa-pen"></i></a>
+                      <a class="solo-req__icon-btn solo-req__icon-btn--danger" ng-click="vm.soloAskDelete(item)" title="Delete"><i class="fas fa-trash-alt"></i></a>
+                    </div>
+
+                    <div class="solo-req__actions solo-req__confirm" ng-if="item._confirmDelete">
+                      <span>Delete "{{ item.name }}"?</span>
+                      <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.soloDelete(item)" ng-disabled="vm.solo.busy[item.id]">Delete</button>
+                      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.soloCancelDelete(item)">Keep</button>
+                    </div>
+                  </div>
+
+                  <div class="solo-req__group-empty" ng-if="group.items.length === 0">
+                    Every requirement here applies to all students — add course-specific ones below.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Add -->
+            <div class="solo-req__addbar" ng-if="!vm.solo.loading && !vm.solo.editor">
+              <button type="button" class="solo-btn solo-btn--outline" ng-click="vm.soloOpenAdd()">
+                <i class="fas fa-plus"></i> Add a requirement
+              </button>
+            </div>
+
+            <!-- Editor (add + edit) -->
+            <div class="solo-req__editor" ng-if="vm.solo.editor">
+              <div class="solo-req__editor-head">
+                <i class="fas" ng-class="vm.solo.editor.id ? 'fa-pen' : 'fa-plus'"></i>
+                {{ vm.solo.editor.id ? 'Edit requirement' : 'New requirement' }}
+              </div>
+
+              <input type="text" class="solo-req__input" ng-model="vm.solo.editor.name" placeholder="Name — e.g. Medical (NPPL)" maxlength="120">
+              <input type="text" class="solo-req__input" ng-model="vm.solo.editor.description" placeholder="Description (optional)" maxlength="255">
+
+              <div class="solo-req__field">
+                <label class="solo-req__field-label">Course</label>
+                <select class="solo-req__input solo-req__select" ng-model="vm.solo.editor.course_id" ng-change="vm.soloEditorCourseChanged()"
+                        ng-options="course.id as course.title for course in vm.solo.lookups.courses">
+                  <option value="">All courses — every student</option>
+                </select>
+                <p class="solo-req__field-hint">Students only need to meet the requirements of the course they are flying under, plus the all-courses items.</p>
+              </div>
+
+              <div class="solo-req__field">
+                <label class="solo-req__field-label">Verification</label>
+                <div class="solo-req__vtypes">
+                  <a class="solo-req__vtype" ng-class="{'solo-req__vtype--on': vm.solo.editor.vtype === 'manual'}" ng-click="vm.solo.editor.vtype = 'manual'">
+                    <i class="fas fa-pen-fancy"></i>
+                    <strong>Manual sign-off</strong>
+                    <span>An instructor signs it off on the student's record, with an optional expiry.</span>
+                  </a>
+                  <a class="solo-req__vtype" ng-class="{'solo-req__vtype--on': vm.solo.editor.vtype === 'medical'}" ng-click="vm.solo.editor.vtype = 'medical'">
+                    <i class="fas fa-notes-medical"></i>
+                    <strong>Medical <em>auto</em></strong>
+                    <span>Verified from the student's medical records — in date, accepted class.</span>
+                  </a>
+                  <a class="solo-req__vtype" ng-class="{'solo-req__vtype--on': vm.solo.editor.vtype === 'questionnaire'}" ng-click="vm.solo.editor.vtype = 'questionnaire'">
+                    <i class="fas fa-clipboard-list"></i>
+                    <strong>Questionnaire <em>auto</em></strong>
+                    <span>Verified from the student's attempt at a club questionnaire.</span>
+                  </a>
+                  <a class="solo-req__vtype" ng-class="{'solo-req__vtype--on': vm.solo.editor.vtype === 'exam'}" ng-click="vm.solo.editor.vtype = 'exam'">
+                    <i class="fas fa-file-signature"></i>
+                    <strong>Ground exam <em>auto</em></strong>
+                    <span>Verified from the student's exam results, optionally at a pass mark.</span>
+                  </a>
+                </div>
+              </div>
+
+              <!-- Medical: accepted certificate classes -->
+              <div class="solo-req__field" ng-if="vm.solo.editor.vtype === 'medical'">
+                <label class="solo-req__field-label">Accepted medical classes</label>
+                <div class="solo-req__classpick">
+                  <a class="solo-req__class-chip" ng-repeat="cls in vm.solo.lookups.medicalClasses"
+                     ng-class="{'solo-req__class-chip--on': vm.solo.editor.med_ids[cls.id]}"
+                     ng-click="vm.soloToggleMedClass(cls.id)">
+                    <i class="fas" ng-class="vm.solo.editor.med_ids[cls.id] ? 'fa-check-circle' : 'fa-circle'"></i> {{ cls.title }}
+                  </a>
+                </div>
+                <p class="solo-req__field-hint">Leave every class unticked to accept <strong>any</strong> medical certificate class. Date trackers (ECG, audiogram) never count.</p>
+              </div>
+
+              <!-- Questionnaire: picker + review toggle + pass mark -->
+              <div ng-if="vm.solo.editor.vtype === 'questionnaire'">
+                <div class="solo-req__field">
+                  <label class="solo-req__field-label">Questionnaire</label>
+                  <select class="solo-req__input solo-req__select" ng-model="vm.solo.editor.questionnaire_id"
+                          ng-options="q.id as q.title for q in vm.solo.lookups.questionnaires">
+                    <option value="">Choose a questionnaire&hellip;</option>
+                  </select>
+                </div>
+                <label class="solo-req__check">
+                  <input type="checkbox" ng-model="vm.solo.editor.require_review">
+                  <span>Must be <strong>reviewed by an instructor</strong> — a submitted-but-unreviewed attempt doesn't count and prompts a review.</span>
+                </label>
+                <div class="solo-req__field">
+                  <label class="solo-req__field-label">Pass mark (optional)</label>
+                  <div class="solo-req__score">
+                    <input type="number" class="solo-req__input solo-req__input--score" ng-model="vm.solo.editor.min_score_percent" min="0" max="100" step="1" placeholder="—">
+                    <span class="solo-req__score-unit">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Exam: picker + pass mark -->
+              <div ng-if="vm.solo.editor.vtype === 'exam'">
+                <div class="solo-req__field">
+                  <label class="solo-req__field-label">Ground exam</label>
+                  <select class="solo-req__input solo-req__select" ng-model="vm.solo.editor.exam_id"
+                          ng-options="exam.id as exam.title for exam in vm.soloEditorExams()">
+                    <option value="">Choose an exam&hellip;</option>
+                  </select>
+                  <p class="solo-req__field-hint" ng-if="vm.solo.editor.course_id">Showing the exams of the selected course.</p>
+                </div>
+                <div class="solo-req__field">
+                  <label class="solo-req__field-label">Pass mark (optional)</label>
+                  <div class="solo-req__score">
+                    <input type="number" class="solo-req__input solo-req__input--score" ng-model="vm.solo.editor.min_score_percent" min="0" max="100" step="1" placeholder="—">
+                    <span class="solo-req__score-unit">%</span>
+                  </div>
+                  <p class="solo-req__field-hint">Leave blank to accept any recorded pass.</p>
+                </div>
+              </div>
+
+              <div class="solo-req__editor-btns">
+                <button type="button" class="solo-btn solo-btn--primary" ng-click="vm.soloEditorSave()" ng-disabled="vm.solo.saving">
+                  <i class="fas" ng-class="vm.solo.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                  {{ vm.solo.editor.id ? 'Save changes' : 'Add requirement' }}
+                </button>
+                <button type="button" class="solo-btn solo-btn--ghost" ng-click="vm.soloCloseEditor()">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- ── Data Import ── -->
+        <div class="club_docs_all">
+          <h2><i class="fas fa-file-import" style="margin-right:8px;color:#2563eb;"></i> Data Import</h2>
+          <div class="tpc">
+            <h3 class="tpc__card-title">The Pilot Centre style import</h3>
+            <div ng-include="'views/manageclub/tpc_import_home.html'"></div>
           </div>
         </div>
 
@@ -457,7 +736,7 @@
                     </div>
                     <div class="fu-doc-actions">
                         <a class="fu-doc-action fu-doc-download" ng-click="downloadClubDocument(vm.club.settings.membership_terms)" title="Download"><i class="fa fa-download"></i></a>
-                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-refresh"></i></a>
+                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-sync-alt"></i></a>
                         <a class="fu-doc-action fu-doc-delete" ng-click="delete_file('membership')" title="Delete"><i class="fa fa-trash"></i></a>
                     </div>
                 </div>
@@ -477,7 +756,7 @@
 
                 <!-- Empty state — drop zone -->
                 <div class="fu-doc-empty" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.club.settings.membership_terms && $flow.files.length < 1">
-                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf-o"></i></div>
+                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf"></i></div>
                     <span class="fu-doc-empty-label">Upload Membership Terms</span>
                     <span class="fu-doc-empty-hint">PDF format &middot; Click or drag to upload</span>
                 </div>
@@ -508,7 +787,7 @@
                     </div>
                     <div class="fu-doc-actions">
                         <a class="fu-doc-action fu-doc-download" ng-click="downloadClubDocument(vm.club.settings.passenger_terms)" title="Download"><i class="fa fa-download"></i></a>
-                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-refresh"></i></a>
+                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-sync-alt"></i></a>
                         <a class="fu-doc-action fu-doc-delete" ng-click="delete_file('passenger')" title="Delete"><i class="fa fa-trash"></i></a>
                     </div>
                 </div>
@@ -528,7 +807,7 @@
 
                 <!-- Empty state — drop zone -->
                 <div class="fu-doc-empty" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.club.settings.passenger_terms && $flow.files.length < 1">
-                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf-o"></i></div>
+                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf"></i></div>
                     <span class="fu-doc-empty-label">Upload Passenger Terms</span>
                     <span class="fu-doc-empty-hint">PDF format &middot; Click or drag to upload</span>
                 </div>
@@ -559,7 +838,7 @@
                     </div>
                     <div class="fu-doc-actions">
                         <a class="fu-doc-action fu-doc-download" ng-click="downloadClubDocument(vm.club.settings.privacy_terms)" title="Download"><i class="fa fa-download"></i></a>
-                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-refresh"></i></a>
+                        <a class="fu-doc-action fu-doc-replace" flow-btn title="Replace"><i class="fa fa-sync-alt"></i></a>
                         <a class="fu-doc-action fu-doc-delete" ng-click="delete_file('privacy')" title="Delete"><i class="fa fa-trash"></i></a>
                     </div>
                 </div>
@@ -579,7 +858,7 @@
 
                 <!-- Empty state — drop zone -->
                 <div class="fu-doc-empty" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.club.settings.privacy_terms && $flow.files.length < 1">
-                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf-o"></i></div>
+                    <div class="fu-doc-empty-icon"><i class="fa fa-file-pdf"></i></div>
                     <span class="fu-doc-empty-label">Upload Privacy Policy</span>
                     <span class="fu-doc-empty-hint">PDF format &middot; Click or drag to upload</span>
                 </div>
@@ -633,7 +912,7 @@
             </div>
 
             <!-- List of existing check types -->
-            <div ng-if="!vm.check_types_loading && vm.check_types && vm.check_types.length > 0">
+            <div ng-if="!vm.check_types_loading && vm.check_types && vm.check_types.length > 0" class="snazzy-reveal">
               <div class="card">
                 <table class="table responsive_table">
                   <thead>
@@ -752,7 +1031,7 @@
             </div>
 
             <!-- Has active token -->
-            <div ng-if="!vm.display_loading && vm.display_token" class="sd-token-display">
+            <div ng-if="!vm.display_loading && vm.display_token" class="sd-token-display snazzy-reveal">
 
               <label>Display URL</label>
               <div class="sd-token-url-group">
@@ -765,7 +1044,7 @@
 
               <div class="sd-token-actions">
                 <button class="sd-open-btn" ng-click="vm.openDisplayInNewTab()">
-                  <i class="fa fa-external-link"></i> Preview in New Tab
+                  <i class="fa fa-external-link-alt"></i> Preview in New Tab
                 </button>
                 <button class="sd-revoke-btn" ng-click="vm.revokeDisplayToken()">
                   <i class="fa fa-ban"></i> Revoke Access
@@ -817,7 +1096,7 @@
             </div>
 
             <!-- No active token -->
-            <div ng-if="!vm.display_loading && !vm.display_token">
+            <div ng-if="!vm.display_loading && !vm.display_token" class="snazzy-reveal">
               <p class="sd-generate-text">
                 Generate a special link that shows today's schedule on any screen — no login needed. Perfect for a clubhouse TV, reception monitor, or briefing room display. The schedule auto-refreshes when bookings change.
               </p>
@@ -926,7 +1205,7 @@
             </div>
 
             <!-- Main panel -->
-            <div ng-if="!vm.das.loading && vm.das.settings" class="das-panel">
+            <div ng-if="!vm.das.loading && vm.das.settings" class="das-panel snazzy-reveal">
 
               <!-- Enable toggle -->
               <div class="das-toggle-row">
@@ -1022,7 +1301,7 @@
                        ng-class="{
                          'fa-check-circle':       vm.das.settings.last_run_status === 'success',
                          'fa-exclamation-circle': vm.das.settings.last_run_status === 'partial',
-                         'fa-clock-o':            vm.das.settings.last_run_status === 'skipped',
+                         'fa-clock':            vm.das.settings.last_run_status === 'skipped',
                          'fa-times-circle':       vm.das.settings.last_run_status === 'failure'
                        }"></i>
                     {{ vm.dasStatusLabel(vm.das.settings.last_run_status) }}
@@ -1037,17 +1316,17 @@
                   <button type="button" class="das-download-btn"
                           ng-disabled="!vm.das.settings.last_aircraft_pdf"
                           ng-click="vm.dasDownload('aircraft', vm.das.settings.last_aircraft_pdf)">
-                    <i class="fa fa-file-pdf-o"></i> Aircraft
+                    <i class="fa fa-file-pdf"></i> Aircraft
                   </button>
                   <button type="button" class="das-download-btn"
                           ng-disabled="!vm.das.settings.last_offline_pdf"
                           ng-click="vm.dasDownload('offline', vm.das.settings.last_offline_pdf)">
-                    <i class="fa fa-file-pdf-o"></i> Offline forms
+                    <i class="fa fa-file-pdf"></i> Offline forms
                   </button>
                   <button type="button" class="das-download-btn"
                           ng-disabled="!vm.das.settings.last_students_pdf"
                           ng-click="vm.dasDownload('students', vm.das.settings.last_students_pdf)">
-                    <i class="fa fa-file-pdf-o"></i> Students
+                    <i class="fa fa-file-pdf"></i> Students
                   </button>
                 </div>
               </div>
@@ -1179,17 +1458,17 @@
                         <span class="das-file-link"
                               ng-class="{'das-file-link--disabled': !r.aircraft_pdf || !$first}"
                               ng-click="$first && r.aircraft_pdf && vm.dasDownload('aircraft', r.aircraft_pdf)">
-                          <i class="fa fa-file-pdf-o"></i> Aircraft
+                          <i class="fa fa-file-pdf"></i> Aircraft
                         </span>
                         <span class="das-file-link"
                               ng-class="{'das-file-link--disabled': !r.offline_pdf || !$first}"
                               ng-click="$first && r.offline_pdf && vm.dasDownload('offline', r.offline_pdf)">
-                          <i class="fa fa-file-pdf-o"></i> Offline
+                          <i class="fa fa-file-pdf"></i> Offline
                         </span>
                         <span class="das-file-link"
                               ng-class="{'das-file-link--disabled': !r.students_pdf || !$first}"
                               ng-click="$first && r.students_pdf && vm.dasDownload('students', r.students_pdf)">
-                          <i class="fa fa-file-pdf-o"></i> Students
+                          <i class="fa fa-file-pdf"></i> Students
                         </span>
                       </div>
                     </div>

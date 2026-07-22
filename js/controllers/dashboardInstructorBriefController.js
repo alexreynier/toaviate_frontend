@@ -1,7 +1,7 @@
  app.controller('DashboardInstructorBriefController', DashboardInstructorBriefController);
 
-    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService'];
-    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService) {
+    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService'];
+    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService) {
         var vm = this;
 
         // ── Pre-lesson questionnaire flag (shown on the briefing screen) ──
@@ -149,12 +149,17 @@
             break;
             case "debrief_list":
                 //console.log("view list of existing courses");
-                
+
                 BookingService.GetBookingsToDebrief(vm.user.id)
                     .then(function(data){
 
-                        vm.briefings = data.briefings;   
-                        
+                        vm.briefings = data.briefings;
+                        // Imported / tracker-claimed flights with no booking that
+                        // still need a student record (see
+                        // FRONTEND_MISSING_STUDENT_RECORDS_GUIDE.md). Sorted
+                        // newest-first by the API; can be long after an import.
+                        vm.flight_debriefs = data.flight_debriefs || [];
+
                     });
 
 
@@ -264,6 +269,79 @@
                 //console.log("none of the above... redirect somewhere?");
             break;
         }  
+
+        // ── Imported / unlogged flight debriefs (debrief_list screen) ──
+        // Rows are plane_log_sheet flights with no booking. missing_student:1
+        // rows can't be debriefed yet — the student must be resolved first
+        // (inline dismiss here; assign/create lives on the admin queue page).
+        vm.flight_debriefs = [];
+        vm.fd_limit = 25;   // client-side pagination — the list can be hundreds of rows
+        vm.fd_show_more = function(){ vm.fd_limit += 50; };
+
+        // The name the paper sheet had for an unidentified student
+        // ("Ben ANDERSON" — may be surname-only, or nothing at all).
+        vm.fd_sheet_name = function(log){
+            if(!log || !log.suggested_student){ return null; }
+            return ((log.suggested_student.first_name || '') + ' ' +
+                    (log.suggested_student.last_name || '')).trim() || null;
+        };
+
+        // "Resolve student…" — inline modal for THIS flight: quick-pick/search a
+        // member or create a temporary one, then (in its confirmation step)
+        // optionally fix the other unknown flights carrying the same sheet name.
+        vm.fd_resolve = function(log){
+            var modal = $uibModal.open({
+                templateUrl: 'views/modals/missing_student_resolve.html',
+                controller: 'MissingStudentResolveModalController',
+                controllerAs: 'vm',
+                size: 'md',
+                backdrop: 'static',
+                windowClass: 'msq-modal-window',   // clears the fixed top nav
+                resolve: {
+                    log: function(){ return log; },
+                    club_id: function(){ return log.club_id; }
+                }
+            });
+            modal.result.then(function(res){
+                if(res && res.fixed){
+                    // The student is now attached (possibly to sibling rows too) —
+                    // reload so every fixed row flips to debrief-able.
+                    BookingService.GetBookingsToDebrief(vm.user.id)
+                        .then(function(data){
+                            vm.briefings = data.briefings;
+                            vm.flight_debriefs = data.flight_debriefs || [];
+                        });
+                }
+            }, function(){});
+        };
+
+        // "No record needed" — e.g. a corporate/junk row. Kept on screen with an
+        // Undo so a mis-tap is recoverable without reloading.
+        vm.fd_dismiss = function(log){
+            log._busy = true;
+            MissingStudentsService.Dismiss(log.club_id, { plane_log_sheet_ids: [log.plane_log_sheet_id] })
+                .then(function(data){
+                    log._busy = false;
+                    if(data.success){
+                        log._dismissed = true;
+                    } else {
+                        ToastService.error('Not Dismissed', data.message || 'The flight could not be dismissed.');
+                    }
+                });
+        };
+
+        vm.fd_restore = function(log){
+            log._busy = true;
+            MissingStudentsService.Dismiss(log.club_id, { plane_log_sheet_ids: [log.plane_log_sheet_id], restore: true })
+                .then(function(data){
+                    log._busy = false;
+                    if(data.success){
+                        log._dismissed = false;
+                    } else {
+                        ToastService.error('Not Restored', data.message || 'The flight could not be restored.');
+                    }
+                });
+        };
 
         vm.show_all_lessons = false;
         vm.tag_full_flight = true;
@@ -422,6 +500,14 @@
                 return false;
             }
 
+            // Imported log-sheet flights can arrive with no student attached —
+            // the record has nobody to belong to, so it must be resolved on the
+            // Missing Students queue before it can be debriefed.
+            if(!vm.student || !vm.student.id){
+                ToastService.error('No Student', 'This flight has no student attached yet — resolve the student first (Missing Students).');
+                return false;
+            }
+
             var next_lesson = vm.lesson.id;
 
             if(vm.lesson_completed == 1 && vm.next_lesson && vm.next_lesson.id > 0){
@@ -437,7 +523,9 @@
                 lesson_id: vm.lesson.id,
                 course_id: vm.course_id,
                 user_id: vm.student.id,
-                instructor_id: vm.instructor.id,
+                // Imported flights may have no instructor on the sheet — the
+                // person completing the debrief is the instructor of record.
+                instructor_id: (vm.instructor && vm.instructor.id) ? vm.instructor.id : vm.user.id,
                 completed_by: vm.user.id,
                 plane_log_sheet_id: vm.plane_log_sheet.id,
                 next_lesson_id: next_lesson,

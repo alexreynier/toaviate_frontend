@@ -7,11 +7,11 @@
         <i class="fa fa-arrow-circle-left"></i> BACK
       </div>
       <div class="fr-page__title">
-        <h2><i class="fa fa-video-camera"></i> Flight Replay</h2>
+        <h2><i class="fa fa-video"></i> Flight Replay</h2>
         <p ng-if="vm.flight">
           {{ vm.flight.registration }} &middot;
           {{ vm.flight.departure_airport_code || vm.flight.departure_airport }}
-          <i class="fa fa-long-arrow-right"></i>
+          <i class="fa fa-long-arrow-alt-right"></i>
           {{ vm.flight.destination_airport_code || vm.flight.destination_airport }}
           &middot; {{ vm.flight.flight_date | asDate | date:'dd MMM yyyy' }}
         </p>
@@ -19,7 +19,7 @@
       <div class="fr-page__crew" ng-if="vm.flight">
         <span class="fr-crew-chip" ng-if="vm.flight.pic"><i class="fa fa-user"></i> {{ vm.flight.pic }}</span>
         <span class="fr-crew-chip fr-crew-chip--instructor" ng-if="vm.flight.instructor"><i class="fa fa-graduation-cap"></i> {{ vm.flight.instructor }}</span>
-        <span class="fr-crew-chip" ng-if="vm.flight.put"><i class="fa fa-user-o"></i> {{ vm.flight.put }}</span>
+        <span class="fr-crew-chip" ng-if="vm.flight.put"><i class="fa fa-user"></i> {{ vm.flight.put }}</span>
       </div>
     </div>
   </div>
@@ -30,7 +30,7 @@
   </div>
 
   <!-- ═══ Error ═══ -->
-  <div class="fr-empty fr-empty--error" ng-if="!vm.loading && vm.error">
+  <div class="fr-empty fr-empty--error snazzy-reveal" ng-if="!vm.loading && vm.error">
     <i class="fa" ng-class="vm.error === 'forbidden' ? 'fa-lock' : 'fa-exclamation-triangle'"></i>
     <h3 ng-if="vm.error === 'forbidden'">This isn't your flight</h3>
     <h3 ng-if="vm.error !== 'forbidden'">Couldn't load this flight</h3>
@@ -42,7 +42,7 @@
   <div class="fr-page__body" ng-if="!vm.loading && !vm.error">
 
     <!-- ═══ Summary strip ═══ -->
-    <div class="fr-summary" ng-if="vm.summary">
+    <div class="fr-summary snazzy-reveal snazzy-reveal--stagger" ng-if="vm.summary">
       <div class="fr-summary__stat"><span class="fr-summary__label">Duration</span><span class="fr-summary__value">{{ (vm.summary.duration_seconds / 60) | number:0 }}<small>min</small></span></div>
       <div class="fr-summary__stat"><span class="fr-summary__label">Distance</span><span class="fr-summary__value">{{ vm.summary.distance_nm | number:1 }}<small>nm</small></span></div>
       <div class="fr-summary__stat fr-summary__stat--clickable" ng-click="vm.seekToExtreme('alt')" uib-tooltip="Jump to this moment" tabindex="0">
@@ -66,9 +66,16 @@
       </div>
     </div>
 
+    <!-- ═══ Weather at takeoff & landing (METAR/TAF snapshots) ═══ -->
+    <div class="fw-replay-mount">
+      <flight-weather-panel flight-id="vm.flight_id"
+                            dep-name="vm.flight.departure_airport"
+                            arr-name="vm.flight.destination_airport"></flight-weather-panel>
+    </div>
+
     <!-- ═══ No-track empty state (still allow photos/notes) ═══ -->
-    <div class="fr-empty fr-empty--notrack" ng-if="!vm.hasTrack">
-      <i class="fa fa-map-o"></i>
+    <div class="fr-empty fr-empty--notrack snazzy-reveal" ng-if="!vm.hasTrack">
+      <i class="fa fa-map"></i>
       <h3>No flight track recorded</h3>
       <p>{{ vm.trackNote || 'No flight-data device recorded this flight. You can still add photos and debrief notes below.' }}</p>
     </div>
@@ -79,7 +86,7 @@
       <div class="fr-stage__map-card">
         <div id="fr-map" class="fr-map" ng-if="vm.mapAvailable"></div>
         <div class="fr-map fr-map--fallback" ng-if="!vm.mapAvailable">
-          <i class="fa fa-map-o"></i>
+          <i class="fa fa-map"></i>
           <p>Map unavailable — the instruments and height profile below still work.</p>
         </div>
 
@@ -205,7 +212,7 @@
           <input type="range" class="fr-scrub" min="0" max="{{ vm.scrubMax }}" step="1"
                  ng-model="vm.currentIndex" ng-change="vm.onScrub()" />
           <div class="fr-transport__meta">
-            <span><i class="fa fa-clock-o"></i> {{ vm.fmtElapsed() }}</span>
+            <span><i class="fa fa-clock"></i> {{ vm.fmtElapsed() }}</span>
             <span ng-if="vm.currentPoint">{{ vm.currentPoint.t | limitTo: 8 : 11 }} UTC</span>
             <span class="fr-phase-mini" ng-if="vm.currentPoint">{{ vm.currentPoint.phase }}</span>
           </div>
@@ -239,7 +246,7 @@
              flow-complete="vm.onPhotoStaged($flow.files)">
           <input type="text" class="fr-input" ng-model="vm.newPhotoCaption" placeholder="Caption (optional)…" />
           <div class="fr-drop" flow-btn flow-drop ng-class="{'fr-drop--busy': vm.uploadingPhoto}">
-            <i class="fa" ng-class="vm.uploadingPhoto ? 'fa-spinner fa-spin' : 'fa-cloud-upload'"></i>
+            <i class="fa" ng-class="vm.uploadingPhoto ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'"></i>
             <span ng-if="!vm.uploadingPhoto">Add a photo<small ng-if="vm.currentPoint"> — pins at {{ vm.fmtElapsed() }}</small></span>
             <span ng-if="vm.uploadingPhoto">Uploading…</span>
           </div>

@@ -1,0 +1,247 @@
+<!-- ══════════════════════════════════════════════════════════
+     FOX TRACKER MANAGEMENT — Health board
+     Registry vs transmitted identity; one-tap fix with backfill.
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page">
+
+  <div ng-if="!vm.authorised" class="fox-tracker__unauthorised">
+    <div class="fox-tracker__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is restricted to ToAviate management users.</p>
+  </div>
+
+  <div ng-if="vm.authorised">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ui-sref="dashboard.super_admin">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-heartbeat"></i> Tracker Health</h2>
+          <p>Registry identity vs what each device actually transmits</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tabs ── -->
+    <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
+      <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-heartbeat"></i> Health</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_unmatched"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
+    </div>
+
+    <div ng-if="vm.loading" class="snazzy-page__loading">
+      <div class="snazzy-page__spinner"></div> Checking device identities…
+    </div>
+
+    <div ng-if="!vm.loading" class="snazzy-page__body snazzy-reveal snazzy-reveal--stagger">
+
+      <!-- ── Summary chips ── -->
+      <div class="fxh__summary">
+        <div class="fxh__chip fxh__chip--bad" ng-class="{'fxh__chip--zero': vm.summary.mismatches === 0}">
+          <span class="fxh__chip-num">{{ vm.summary.mismatches }}</span> CCID mismatch{{ vm.summary.mismatches === 1 ? '' : 'es' }}
+        </div>
+        <div class="fxh__chip fxh__chip--muted" ng-class="{'fxh__chip--zero': vm.summary.never_seen === 0}">
+          <span class="fxh__chip-num">{{ vm.summary.never_seen }}</span> never seen
+        </div>
+        <div class="fxh__chip fxh__chip--amber" ng-class="{'fxh__chip--zero': vm.summary.unknown === 0}">
+          <span class="fxh__chip-num">{{ vm.summary.unknown }}</span> unknown device{{ vm.summary.unknown === 1 ? '' : 's' }}
+        </div>
+        <a class="fxh__chip fxh__chip--info" ng-class="{'fxh__chip--zero': vm.summary.unmatched === 0}" ui-sref="dashboard.super_admin.fox_unmatched">
+          <span class="fxh__chip-num">{{ vm.summary.unmatched }}</span> unmatched flight{{ vm.summary.unmatched === 1 ? '' : 's' }}
+        </a>
+      </div>
+
+      <!-- ══ Desktop table ══ -->
+      <div class="snazzy-page__table-card fox-tracker__desktop-table" ng-if="vm.trackers.length > 0">
+        <div class="snazzy-page__table-scroll">
+          <table class="snazzy-table">
+            <thead>
+              <tr>
+                <th>Tracker</th>
+                <th>Aircraft</th>
+                <th>IMEI</th>
+                <th>CCID (stored vs transmitted)</th>
+                <th>Last seen</th>
+                <th>Unmatched</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="t in vm.trackers"
+                  class="fxh__row" id="fxh-tracker-{{ t.tracker_id }}"
+                  ng-class="{'fxh__row--mismatch': t.ccid_mismatch, 'fxh__row--never': t.never_seen, 'fxh__row--fixed': t._fixed, 'fxh__row--spot': t._spot}">
+                <td>
+                  <span class="snazzy-table__name">{{ t.label || t.fox_id || ('Tracker ' + t.tracker_id) }}</span>
+                  <span class="snazzy-table__muted" ng-if="t.label && t.fox_id" style="display:block;">{{ t.fox_id }}</span>
+                  <span class="snazzy-table__badge" ng-class="t.status === 'active' ? 'snazzy-table__badge--success' : 'snazzy-table__badge--warning'">{{ t.status }}</span>
+                </td>
+                <td>
+                  <span class="fxh__reg" ng-if="t.registration">{{ t.registration }}</span>
+                  <span class="snazzy-table__muted" ng-if="!t.registration">— unassigned —</span>
+                </td>
+                <td><span class="fox-tracker__imei fxh__mono" ng-click="vm.copy(t.imei)" uib-tooltip="Tap to copy">{{ t.imei }}</span></td>
+                <td>
+                  <!-- The visual diff is the whole point -->
+                  <div ng-if="!t.ccid_mismatch"><span class="fxh__mono" ng-click="vm.copy(t.stored_ccid)" uib-tooltip="Tap to copy">{{ t.stored_ccid }}</span></div>
+                  <div ng-if="t.ccid_mismatch" class="fxh__diff">
+                    <span class="fxh__mono fxh__diff-old" ng-click="vm.copy(t.stored_ccid)" uib-tooltip="Stored in the registry — tap to copy">{{ t.stored_ccid }}</span>
+                    <span class="fxh__mono fxh__diff-new" ng-click="vm.copy(t.transmitted_ccid)" uib-tooltip="What the device transmits — tap to copy"><i class="fas fa-broadcast-tower"></i> {{ t.transmitted_ccid }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span ng-if="!t.never_seen" uib-tooltip="{{ t.last_seen_at }}">{{ vm.ago(t.last_seen_at) }}</span>
+                  <span class="snazzy-table__muted" ng-if="t.never_seen">never</span>
+                </td>
+                <td>
+                  <a class="fxh__badge" ng-if="t.unmatched_entries > 0" ng-click="vm.openUnmatched(t)"
+                     uib-tooltip="View this tracker's unmatched flights">{{ t.unmatched_entries }}</a>
+                  <span class="snazzy-table__muted" ng-if="!t.unmatched_entries">0</span>
+                </td>
+                <td class="snazzy-table__td-actions">
+                  <button class="snazzy-page__btn snazzy-page__btn--danger fxh__fix-btn" ng-if="t.ccid_mismatch" ng-click="vm.openFix(t)">
+                    <i class="fas fa-wrench"></i> Fix identity
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ Mobile cards ══ -->
+      <div class="fox-tracker__mobile-cards">
+        <div class="fox-tracker__card fxh__card" ng-repeat="t in vm.trackers" id="fxh-tracker-m-{{ t.tracker_id }}"
+             ng-class="{'fxh__row--mismatch': t.ccid_mismatch, 'fxh__row--never': t.never_seen, 'fxh__row--fixed': t._fixed, 'fxh__row--spot': t._spot}">
+          <div class="fox-tracker__card-header">
+            <div>
+              <div class="fox-tracker__card-label">{{ t.label || t.fox_id || ('Tracker ' + t.tracker_id) }}</div>
+              <div class="fox-tracker__card-imei" ng-click="vm.copy(t.imei)">{{ t.imei }}</div>
+            </div>
+            <span class="fxh__reg" ng-if="t.registration">{{ t.registration }}</span>
+            <span class="snazzy-table__muted" ng-if="!t.registration">unassigned</span>
+          </div>
+          <div class="fox-tracker__card-body">
+            <div class="fox-tracker__card-field" style="grid-column: 1 / -1;">
+              <div class="fox-tracker__card-field-label">CCID</div>
+              <div class="fox-tracker__card-field-value">
+                <div ng-if="!t.ccid_mismatch"><span class="fxh__mono" ng-click="vm.copy(t.stored_ccid)">{{ t.stored_ccid }}</span></div>
+                <div ng-if="t.ccid_mismatch" class="fxh__diff">
+                  <span class="fxh__mono fxh__diff-old" ng-click="vm.copy(t.stored_ccid)">{{ t.stored_ccid }}</span>
+                  <span class="fxh__mono fxh__diff-new" ng-click="vm.copy(t.transmitted_ccid)"><i class="fas fa-broadcast-tower"></i> {{ t.transmitted_ccid }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="fox-tracker__card-field">
+              <div class="fox-tracker__card-field-label">Last seen</div>
+              <div class="fox-tracker__card-field-value">{{ t.never_seen ? 'never' : vm.ago(t.last_seen_at) }}</div>
+            </div>
+            <div class="fox-tracker__card-field">
+              <div class="fox-tracker__card-field-label">Unmatched</div>
+              <div class="fox-tracker__card-field-value">
+                <a class="fxh__badge" ng-if="t.unmatched_entries > 0" ng-click="vm.openUnmatched(t)">{{ t.unmatched_entries }}</a>
+                <span ng-if="!t.unmatched_entries">0</span>
+              </div>
+            </div>
+          </div>
+          <button class="snazzy-page__btn snazzy-page__btn--danger fxh__fix-btn" style="width:100%; justify-content:center;"
+                  ng-if="t.ccid_mismatch" ng-click="vm.openFix(t)">
+            <i class="fas fa-wrench"></i> Fix identity
+          </button>
+        </div>
+      </div>
+
+      <div class="snazzy-page__empty" ng-if="vm.trackers.length === 0">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-heartbeat"></i></div>
+        <p>No trackers in the registry yet.</p>
+      </div>
+
+      <!-- ── Unknown devices ── -->
+      <div class="fxh__unknown" ng-if="vm.unknown_devices.length > 0">
+        <h3 class="fxh__unknown-title"><i class="fas fa-question-circle"></i> Unknown devices transmitting</h3>
+        <p class="fxh__unknown-sub">These IMEIs are sending data but aren't in the registry — register them to start attributing their flights.</p>
+        <div class="fxh__unknown-row" ng-repeat="device in vm.unknown_devices">
+          <div class="fxh__unknown-main">
+            <span class="fxh__mono" ng-click="vm.copy(device.imei)" uib-tooltip="IMEI — tap to copy">{{ device.imei }}</span>
+            <span class="fxh__mono fxh__unknown-ccid" ng-click="vm.copy(device.ccid)" uib-tooltip="Transmitted CCID — tap to copy">{{ device.ccid }}</span>
+          </div>
+          <span class="fxh__unknown-meta">{{ device.log_rows }} log rows &middot; last seen {{ vm.ago(device.last_seen_at) }}</span>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.registerUnknown(device)">
+            <i class="fas fa-plus"></i> Register tracker
+          </button>
+        </div>
+      </div>
+
+    </div><!-- body -->
+
+    <!-- ══ Fix identity dialog ══ -->
+    <div class="fox-tracker__overlay" ng-if="vm.fix" ng-click="vm.closeFix()">
+      <div class="fox-tracker__confirm-dialog fxh__fix-dialog" ng-click="$event.stopPropagation()">
+        <div class="fox-tracker__confirm-header">
+          <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-wrench"></i></div>
+          <div class="fox-tracker__confirm-title">Fix tracker identity</div>
+        </div>
+        <div class="fox-tracker__confirm-body">
+
+          <p class="fxh__fix-intro">
+            <strong>{{ vm.fix.tracker.label || vm.fix.tracker.fox_id }}</strong>
+            <span ng-if="vm.fix.tracker.registration"> on <strong>{{ vm.fix.tracker.registration }}</strong></span>
+            is transmitting a different CCID to the one stored. Adopting the transmitted value re-syncs the
+            registry and <strong>backfills every dropped flight</strong> into the tech log.
+          </p>
+
+          <div class="fxh__diff fxh__diff--dialog" ng-if="!vm.fix.advanced">
+            <span class="fxh__mono fxh__diff-old">{{ vm.fix.tracker.stored_ccid }}</span>
+            <i class="fas fa-long-arrow-alt-down fxh__diff-arrow"></i>
+            <span class="fxh__mono fxh__diff-new"><i class="fas fa-broadcast-tower"></i> {{ vm.fix.tracker.transmitted_ccid }}</span>
+          </div>
+
+          <!-- Advanced: manual identity entry -->
+          <div ng-if="vm.fix.advanced" class="fxh__advanced">
+            <div class="fox-tracker__form-group">
+              <label class="fox-tracker__form-label">IMEI</label>
+              <input type="text" class="fox-tracker__form-input fxh__mono" ng-model="vm.fix.manual_imei" maxlength="15">
+            </div>
+            <div class="fox-tracker__form-group">
+              <label class="fox-tracker__form-label">CCID</label>
+              <input type="text" class="fox-tracker__form-input fxh__mono" ng-model="vm.fix.manual_ccid">
+            </div>
+            <label class="fxh__force-check" ng-if="vm.fix.conflict">
+              <input type="checkbox" ng-model="vm.fix.allow_mismatch">
+              <span>I know this contradicts observed traffic — apply it anyway.</span>
+            </label>
+          </div>
+
+          <div class="fox-tracker__form-group">
+            <label class="fox-tracker__form-label">Reason <span class="snazzy-table__muted">(recorded in the change log)</span></label>
+            <textarea class="fox-tracker__form-textarea" rows="2" ng-model="vm.fix.reason"
+                      placeholder="e.g. CCID mistyped at attach — adopting the value the device transmits"></textarea>
+          </div>
+
+          <!-- ccid_mismatch refusal from a manual value -->
+          <div class="fxh__fix-error" ng-if="vm.fix.error">
+            <i class="fas fa-exclamation-triangle"></i> {{ vm.fix.error }}
+            <button type="button" class="snazzy-page__btn snazzy-page__btn--success" ng-if="vm.fix.conflict" ng-click="vm.fixUseTransmitted()">
+              <i class="fas fa-broadcast-tower"></i> Use transmitted ({{ vm.fix.conflict }})
+            </button>
+          </div>
+
+          <a class="fxh__advanced-toggle" ng-click="vm.fix.advanced = !vm.fix.advanced">
+            <i class="fas" ng-class="vm.fix.advanced ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            {{ vm.fix.advanced ? 'Back to adopt-transmitted' : 'Advanced — enter the identity manually' }}
+          </a>
+        </div>
+        <div class="fox-tracker__confirm-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeFix()" ng-disabled="vm.fix.busy">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.confirmFix()" ng-disabled="vm.fix.busy">
+            <i class="fas" ng-class="vm.fix.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            {{ vm.fix.busy ? 'Correcting…' : (vm.fix.advanced ? 'Apply identity' : 'Adopt transmitted CCID') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- authorised -->
+</div>

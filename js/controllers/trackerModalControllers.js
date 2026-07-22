@@ -50,7 +50,11 @@ app.controller('TrackerAllocateModalController', TrackerAllocateModalController)
 
         // One row per unit on the order that has no serial yet
         m.rows = ((order && order.units) || []).filter(function(u) { return !u.serial; }).map(function(u) {
-            return { tracker_unit_id: u.id || u.tracker_unit_id, version_name: u.version_name, serial: '', fox_pick: null };
+            return {
+                tracker_unit_id: u.id || u.tracker_unit_id, version_name: u.version_name,
+                serial: '', fox_pick: null,
+                register_open: false, new_device: { imei: '', ccid: '', label: '' }, ccid_conflict: null
+            };
         });
 
         // Optional link into the fox_trackers device registry
@@ -60,6 +64,63 @@ app.controller('TrackerAllocateModalController', TrackerAllocateModalController)
         m.trackerLabel = function(t) {
             if (!t) { return ''; }
             return t.imei + (t.label ? (' — ' + t.label) : '');
+        };
+        // A device can only go on one unit — hide picks made on other rows
+        m.availableTrackers = function(row) {
+            return m.trackers.filter(function(t) {
+                for (var i = 0; i < m.rows.length; i++) {
+                    if (m.rows[i] !== row && m.rows[i].fox_pick && m.rows[i].fox_pick.id === t.id) { return false; }
+                }
+                return true;
+            });
+        };
+
+        // Register a device that isn't in the registry yet, inline, and select it
+        m.toggleRegister = function(row) {
+            row.register_open = !row.register_open;
+            row.ccid_conflict = null;
+        };
+        m.registerDevice = function(row, force) {
+            var idx = m.rows.indexOf(row);
+            var ok = ToastService.validateForm([
+                { ok: /^\d{15}$/.test(row.new_device.imei || ''), field: 'field-trk-alloc-imei-' + idx, label: 'A 15-digit IMEI' },
+                { ok: !!row.new_device.ccid,                      field: 'field-trk-alloc-ccid-' + idx, label: 'The SIM CCID' }
+            ]);
+            if (!ok) { return; }
+            var payload = {
+                imei: row.new_device.imei,
+                ccid: row.new_device.ccid,
+                label: row.new_device.label || null
+            };
+            if (force) { payload.allow_ccid_mismatch = true; }
+            row.registering = true;
+            FoxTrackerService.Create(payload).then(function(data) {
+                row.registering = false;
+                if (data.success) {
+                    var tracker = { id: data.tracker_id, imei: payload.imei, label: payload.label };
+                    m.trackers.push(tracker);
+                    row.fox_pick = tracker;
+                    row.register_open = false;
+                    row.ccid_conflict = null;
+                    row.new_device = { imei: '', ccid: '', label: '' };
+                    ToastService.success('Device registered', tracker.imei + ' is in the registry and linked to this unit.');
+                } else if (data.reason === 'ccid_mismatch') {
+                    row.ccid_conflict = { message: data.message, transmitted_ccid: data.transmitted_ccid };
+                } else {
+                    row.ccid_conflict = null;
+                    ToastService.error('Could not register the device', data.message || 'Please try again.');
+                }
+            });
+        };
+        m.useTransmittedCcid = function(row) {
+            if (!row.ccid_conflict) { return; }
+            row.new_device.ccid = row.ccid_conflict.transmitted_ccid;
+            row.ccid_conflict = null;
+            m.registerDevice(row);
+        };
+        m.forceRegisterAnyway = function(row) {
+            row.ccid_conflict = null;
+            m.registerDevice(row, true);
         };
 
         m.submit = function() {
@@ -128,9 +189,15 @@ app.controller('TrackerResolveReturnModalController', TrackerResolveReturnModalC
         m.rma = rma;
         m.resolutions = TrackerCommerceService.enums.resolution;
         m.pretty = function(str) { return str ? String(str).replace(/_/g, ' ') : ''; };
-        m.form = { resolution: 'billing_stopped', resolution_notes: '', replacement_serial: '', fox_pick: null };
+        m.form = { resolution: 'billing_stopped', resolution_notes: '', replacement_serial: '', fox_pick: null, restock: false };
         m.saving = false;
         m.trackers = [];
+
+        // Restock only makes sense when the unit came back and isn't going
+        // back into service — repaired / no-fault-found stay with the club.
+        m.offerRestock = function() {
+            return m.form.resolution !== 'repaired' && m.form.resolution !== 'no_fault_found';
+        };
 
         FoxTrackerService.GetAll().then(function(data) {
             m.trackers = (data && data.trackers) || [];
@@ -154,10 +221,16 @@ app.controller('TrackerResolveReturnModalController', TrackerResolveReturnModalC
                 payload.replacement_serial = m.form.replacement_serial;
                 if (m.form.fox_pick) { payload.replacement_fox_tracker_id = m.form.fox_pick.id; }
             }
+            if (m.offerRestock() && m.form.restock) { payload.restock = true; }
             m.saving = true;
             TrackerCommerceService.ResolveReturn(rma.id, payload).then(function(data) {
                 m.saving = false;
                 if (data && data.success === false) {
+                    if (data.out_of_stock) {
+                        // 'replaced' draws the new unit from stock — none left
+                        ToastService.warning('No stock for a replacement', data.message || 'This version has no stock — receive a batch on the version page first.');
+                        return;
+                    }
                     ToastService.error('Could not resolve the return', data.message || 'Please try again.');
                     return;
                 }

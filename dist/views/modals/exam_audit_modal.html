@@ -1,0 +1,60 @@
+<div class="exres-modal exres-modal--audit">
+
+  <div class="exres-modal__header">
+    <div class="exres-modal__header-icon"><i class="fas fa-history"></i></div>
+    <div>
+      <h3 class="exres-modal__title">Result History</h3>
+      <p class="exres-modal__sub">{{ vm.heading }}</p>
+    </div>
+    <a class="exres-modal__close" ng-click="vm.close()"><i class="fas fa-times"></i></a>
+  </div>
+
+  <div class="exres-modal__body">
+
+    <div class="exaudit__loading" ng-if="vm.loading">
+      <div class="solo-req__spinner"></div> Loading history&hellip;
+    </div>
+
+    <div class="exaudit__empty snazzy-reveal" ng-if="!vm.loading && vm.trail.length === 0">
+      <i class="fas fa-history"></i>
+      <p>No history recorded for this result.</p>
+    </div>
+
+    <div class="exaudit" ng-if="!vm.loading && vm.trail.length > 0">
+      <div class="exaudit__entry" ng-repeat="entry in vm.trail" ng-style="{'animation-delay': ($index < 12 ? $index * 45 : 500) + 'ms'}">
+        <div class="exaudit__dot exaudit__dot--{{ entry.action }}"></div>
+        <div class="exaudit__card">
+          <div class="exaudit__head">
+            <span class="exaudit__action exaudit__action--{{ entry.action }}">{{ vm.actionLabel(entry.action) }}</span>
+            <span class="exaudit__actor"><i class="fas fa-user"></i> {{ entry.actor_first_name }} {{ entry.actor_last_name }}</span>
+            <span class="exaudit__when" uib-tooltip="{{ entry.created_at }}">{{ vm.ago(entry.created_at) }}</span>
+          </div>
+          <div class="exaudit__reason" ng-if="entry.reason"><i class="fas fa-quote-left"></i> {{ entry.reason }}</div>
+          <div class="exaudit__chips" ng-if="vm.changeChips(entry).length">
+            <span class="exaudit__chip" ng-repeat="chip in vm.changeChips(entry) track by $index">{{ chip }}</span>
+          </div>
+          <a class="exaudit__raw-toggle" ng-if="entry.snapshot_before || entry.snapshot_after" ng-click="vm.toggleRaw(entry)">
+            <i class="fas" ng-class="entry._showRaw ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            {{ entry._showRaw ? 'Hide' : 'Show' }} snapshots
+          </a>
+          <div class="exaudit__raw" ng-if="entry._showRaw">
+            <div class="exaudit__raw-col" ng-if="entry.snapshot_before">
+              <label>Before</label>
+              <pre>{{ entry.snapshot_before | json }}</pre>
+            </div>
+            <div class="exaudit__raw-col" ng-if="entry.snapshot_after">
+              <label>After</label>
+              <pre>{{ entry.snapshot_after | json }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="exres-modal__footer">
+    <button type="button" class="solo-btn solo-btn--ghost" ng-click="vm.close()">Close</button>
+  </div>
+
+</div>

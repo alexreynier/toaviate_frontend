@@ -84,10 +84,57 @@ app.controller('TrackerClubController', TrackerClubController);
                 if (data && data.success === false) { toastFail('Could not load the catalogue', data); return; }
                 vm.catalogue = (data && data.catalogue) || [];
             });
+            loadProfile();   // so the checkout can show how the invoice will be paid
+        }
+        // The saved method the one-click "place & pay" will charge. The club's
+        // explicit preference wins; otherwise Direct Debit before card.
+        vm.defaultPayMethod = function() {
+            if (!vm.profile) { return null; }
+            if (vm.profile.payment_method === 'card' && vm.profile.has_card) { return 'card'; }
+            if (vm.profile.payment_method === 'direct_debit' && vm.profile.has_mandate) { return 'direct_debit'; }
+            if (vm.profile.has_mandate) { return 'direct_debit'; }
+            if (vm.profile.has_card) { return 'card'; }
+            return null;
+        };
+        vm.payMethodLabel = function() {
+            var m = vm.defaultPayMethod();
+            if (m === 'card') { return (vm.profile.card_brand || 'Card') + ' ending ' + (vm.profile.card_last4 || '····'); }
+            if (m === 'direct_debit') { return 'Direct Debit' + (vm.profile.mandate_reference ? ' (' + vm.profile.mandate_reference + ')' : ''); }
+            return '';
+        };
+        // Re-fetch stock levels after an out-of-stock refusal and drop basket
+        // lines that no longer fit (someone else may have taken the last units)
+        function reloadCatalogue() {
+            TrackerCommerceService.GetCatalogue(vm.club_id).then(function(data) {
+                if (data && data.success === false) { return; }
+                vm.catalogue = (data && data.catalogue) || [];
+                vm.catalogue.forEach(function(p) {
+                    if (!vm.basket[p.id]) { return; }
+                    if (p.out_of_stock) { delete vm.basket[p.id]; return; }
+                    if (p.available_stock != null && vm.basket[p.id] > p.available_stock) {
+                        vm.basket[p.id] = p.available_stock;
+                    }
+                });
+                refreshQuote();
+            });
+        }
+        function handleOutOfStock(data) {
+            vm.quote = null;
+            ToastService.warning('Not enough stock', (data && data.message) || 'There is not enough stock for that quantity.');
+            reloadCatalogue();
         }
 
         vm.qtyOf = function(version) { return vm.basket[version.id] || 0; };
-        vm.addToBasket = function(version) { vm.basket[version.id] = (vm.basket[version.id] || 0) + 1; refreshQuote(); };
+        vm.canAddMore = function(version) {
+            if (version.out_of_stock) { return false; }
+            if (version.available_stock == null) { return true; }
+            return vm.qtyOf(version) < version.available_stock;
+        };
+        vm.addToBasket = function(version) {
+            if (!vm.canAddMore(version)) { return; }
+            vm.basket[version.id] = (vm.basket[version.id] || 0) + 1;
+            refreshQuote();
+        };
         vm.removeFromBasket = function(version) {
             if (!vm.basket[version.id]) { return; }
             vm.basket[version.id]--;
@@ -123,7 +170,11 @@ app.controller('TrackerClubController', TrackerClubController);
             quoteTimer = $timeout(function() {
                 TrackerCommerceService.QuoteOrder({ club_id: vm.club_id, items: items }).then(function(data) {
                     vm.quote_loading = false;
-                    if (data && data.success === false) { toastFail('Could not price your basket', data); return; }
+                    if (data && data.success === false) {
+                        if (data.out_of_stock) { handleOutOfStock(data); return; }
+                        toastFail('Could not price your basket', data);
+                        return;
+                    }
                     vm.quote = data.quote;
                 });
             }, 400);
@@ -137,7 +188,9 @@ app.controller('TrackerClubController', TrackerClubController);
             }, 100);
         };
 
-        vm.placeOrder = function() {
+        // payNow: also charge the saved method in the same click (the invoice
+        // only exists once the order is placed, so this is place → pay chained)
+        vm.placeOrder = function(payNow) {
             var sh = vm.shipping;
             var ok = ToastService.validateForm([
                 { ok: !!sh.name,          field: 'field-trk-ship-name',     label: 'Recipient name' },
@@ -149,12 +202,33 @@ app.controller('TrackerClubController', TrackerClubController);
             if (!ok) { return; }
             var items = vm.basketItems();
             if (!items.length) { ToastService.warning('Basket is empty', 'Add at least one tracker before checking out.'); return; }
+            var method = payNow ? vm.defaultPayMethod() : null;
             vm.placing = true;
             TrackerCommerceService.PlaceOrder({ club_id: vm.club_id, items: items, shipping: sh, notes: vm.notes || null }).then(function(data) {
-                vm.placing = false;
-                if (data && data.success === false) { toastFail('Could not place the order', data); return; }
-                ToastService.success('Order placed', 'Order ' + data.order_number + ' has been created — the invoice is ready to pay.');
-                $state.go('dashboard.manage_club.trackers_order_detail', { id: data.order_id });
+                if (data && data.success === false) {
+                    vm.placing = false;
+                    if (data.out_of_stock) { handleOutOfStock(data); return; }
+                    toastFail('Could not place the order', data);
+                    return;
+                }
+                if (!method || !data.invoice_id) {
+                    vm.placing = false;
+                    ToastService.success('Order placed', 'Order ' + data.order_number + ' has been created — the invoice is ready to pay.');
+                    $state.go('dashboard.manage_club.trackers_order_detail', { id: data.order_id });
+                    return;
+                }
+                TrackerCommerceService.PayInvoice(data.invoice_id, method).then(function(pay) {
+                    vm.placing = false;
+                    if (pay && pay.success === false) {
+                        // The order exists — send them to it so they can retry
+                        ToastService.warning('Order placed, but payment failed', pay.message || 'You can retry the payment from the order.');
+                    } else if (pay.status === 'payment_pending') {
+                        ToastService.success('Order placed — collection started', 'Order ' + data.order_number + " is in. The Direct Debit collection is in flight — we'll email you when it completes.");
+                    } else {
+                        ToastService.success('Order placed & paid', 'Order ' + data.order_number + ' is paid — thank you!');
+                    }
+                    $state.go('dashboard.manage_club.trackers_order_detail', { id: data.order_id });
+                });
             });
         };
 

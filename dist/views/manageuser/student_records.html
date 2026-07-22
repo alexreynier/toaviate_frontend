@@ -1,903 +1,1075 @@
-<div class="centre_align_boxes2 courses">
+<div class="sr-page">
 
-    <div class="home_upper">
-          <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
-              <i class="fa fa-arrow-circle-left"></i> BACK
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
+                <i class="fa fa-arrow-circle-left"></i> BACK
             </div>
-          <div class="welcome_title">
-            <h2>STUDENT RECORDS</h2> 
-            <h4 class="capitalise">
-              View records <span ng-if="vm.student.first_name">for {{ vm.student.first_name }} {{ vm.student.last_name }}</span>
-            </h4>
-          </div>
-    </div>
-
-
-    <!-- Club selector for instructors at multiple clubs -->
-    <div class="club-select-wrapper" ng-if="vm.instructor_clubs.length > 1" style="margin-bottom: 12px;">
-      <ui-select ng-model="vm.selected_club" on-select="vm.onInstructorClubSelected($item)" theme="bootstrap" ng-disabled="disabled" title="Switch club" append-to-body="true" id="club_select">
-        <ui-select-match placeholder="Select club\u2026">
-          {{ vm.selected_club.title }}
-        </ui-select-match>
-        <ui-select-choices repeat="club in vm.instructor_clubs | propsFilterA: {title: $select.search, id: $select.search}">
-          <div ng-bind-html="club.title | highlight: $select.search"></div>
-        </ui-select-choices>
-      </ui-select>
-    </div>
-
-    
-<div class="bookingout_wrapper no_padding">
-
-    <div class="club_docs_all">
-        <h2>Select Student</h2>
-        <div class="card centre_me">    
-            <div class="form-group">
-              <label for="card-number">Member</label>
-              <ui-select ng-model="vm.member" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the member" append-to-body="true">
-                <ui-select-match placeholder="Please select the member">
-                  {{ vm.member.first_name }} {{ vm.member.last_name }}
-                </ui-select-match>
-                <ui-select-choices repeat="pic in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}" refresh="vm.refreshStudentMembers($select.search)" refresh-delay="300">
-                  <div ng-bind-html="pic.first_name+' '+pic.last_name | highlight: $select.search"></div>
-                  <small ng-bind-html="pic.email | highlight: $select.search"></small>
-                </ui-select-choices>
-              </ui-select>
+            <div class="snazzy-page__title">
+                <h2><i class="fas fa-user-graduate"></i> STUDENT RECORDS</h2>
+                <p>View and edit a student's training record</p>
             </div>
-
-             <div class="form-group">
-              <label for="card-number">Course</label>
-              <ui-select ng-model="vm.course" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the course" append-to-body="true">
-                <ui-select-match placeholder="Please select the course">
-                  {{ vm.course.title }} 
-                </ui-select-match>
-                <ui-select-choices repeat="pic in vm.courses | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
-                  <div ng-bind-html="pic.title | highlight: $select.search"></div>
-                </ui-select-choices>
-              </ui-select>
-            </div>
-             <div class="form-group">
-                <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.load_records()" value="LOAD RECORDS" />
-             </div>
-      
         </div>
     </div>
 
-</div>
 
+    <!-- ── Pick the student + course ──────────────────────────── -->
+    <div class="sr-picker">
+        <h3 class="sr-picker__title"><i class="fas fa-search"></i> Find a training record</h3>
 
+        <div class="sr-picker__grid">
 
-
-<div class="club_docs_all" ng-if="vm.show_record">
-        <div class="training-record-header">
-          <h2>{{ vm.student.first_name }} {{ vm.student.last_name }}' Training Records For {{ vm.course.title }}
-            <a class="btn-export-pdf-icon" ng-click="vm.exportCourseRecord()" ng-disabled="vm.exporting_pdf" title="Export PDF">
-              <i class="fa fa-file-pdf" ng-hide="vm.exporting_pdf"></i>
-              <i class="fa fa-spinner fa-spin" ng-show="vm.exporting_pdf"></i>
-            </a>
-          </h2>
-        </div>
-          
-            <div class="card centre_me" ng-if="vm.all_items.length == 0">
-             There are no student training records
+            <div class="sr-field" ng-show="vm.instructor_clubs.length > 1">
+                <label class="sr-field__label">Club</label>
+                <ui-select ng-model="vm.selected_club" on-select="vm.onInstructorClubSelected($item)" theme="bootstrap" title="Switch club" append-to-body="true">
+                    <ui-select-match placeholder="Select club">{{ vm.selected_club.title }}</ui-select-match>
+                    <ui-select-choices repeat="club in vm.instructor_clubs | propsFilterA: {title: $select.search, id: $select.search}">
+                        <div ng-bind-html="club.title | highlight: $select.search"></div>
+                    </ui-select-choices>
+                </ui-select>
             </div>
 
-            <div class="card" ng-if="vm.all_items.length !== 0">
+            <div class="sr-field">
+                <label class="sr-field__label">Student</label>
+                <ui-select ng-model="vm.member" theme="bootstrap" title="Please select the member" append-to-body="true">
+                    <ui-select-match placeholder="Search for a student">{{ vm.member.first_name }} {{ vm.member.last_name }}</ui-select-match>
+                    <ui-select-choices repeat="pic in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}" refresh="vm.refreshStudentMembers($select.search)" refresh-delay="300">
+                        <div ng-bind-html="pic.first_name+' '+pic.last_name | highlight: $select.search"></div>
+                        <small ng-bind-html="pic.email | highlight: $select.search"></small>
+                    </ui-select-choices>
+                </ui-select>
+            </div>
+
+            <div class="sr-field">
+                <label class="sr-field__label">Course</label>
+                <ui-select ng-model="vm.course" theme="bootstrap" title="Please select the course" append-to-body="true">
+                    <ui-select-match placeholder="Search for a course">{{ vm.course.title }}</ui-select-match>
+                    <ui-select-choices repeat="pic in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
+                        <div ng-bind-html="pic.title | highlight: $select.search"></div>
+                    </ui-select-choices>
+                </ui-select>
+            </div>
+
+            <div class="sr-picker__actions">
+                <button type="button" class="sr-btn sr-btn--primary" ng-click="vm.load_records()">
+                    <i class="fas fa-folder-open"></i> Load records
+                </button>
+            </div>
+
+        </div>
+    </div>
 
 
-                <!-- TOTALS ? //-->
+    <div ng-if="vm.show_record">
 
-                <div class="club_docs bookingout_wrapper">
-                    <div class="centre_me total_flex">
-
-                      <div class="cardstotal fixed_height">
-                        <h4>Course Totals</h4>
-                        <br />
-                        <span class="upcoming_title">TOTAL:</span> 
-                        <span class="upcoming_value">{{ vm.get_hours_from_decimal(vm.course_totals.course_total) || "0:00" }}</span>
-                        <br />
-                        <span class="upcoming_title">PIC:</span> 
-                        <span class="upcoming_value"> {{ vm.get_hours_from_decimal(vm.course_totals.course_pic) || "0:00" }}</span>
-                        <br />
-                        <span class="upcoming_title">PUT:</span> 
-                        <span class="upcoming_value"> {{ vm.get_hours_from_decimal(vm.course_totals.course_put) || "0:00" }}</span>
-                        <br />
-
-                        <div ng-if="vm.user_totals.picus_total > 0">
-                            <span class="upcoming_title">PICUS:</span> 
-                            <span class="upcoming_value"> {{ vm.get_hours_from_decimal(vm.course_totals.course_picus) || "0:00" }}</span>
-                            <br />
-                        </div>
-
-                      <!--   <div ng-if="vm.user_totals.instructor_total > 0">
-                            <span class="upcoming_title">INSTRUCTOR TOTAL:</span> 
-                            <span class="upcoming_value"> {{ vm.get_hours_from_decimal(vm.user_totals.instructor_total) || "0:00" }}</span>
-                        </div>
- -->
-                      </div>
-
-
-                      <div class="cardstotal fixed_height" ng-if="vm.course_totals.custom_tags !== ''">
-                        <h4>Tags Totals</h4>
-                        <br />
-                        <div ng-repeat="(tag, value) in vm.course_totals.custom_tags">
-                            <span class="upcoming_title">{{tag}}</span> 
-                            <span class="upcoming_value">{{ vm.get_hours_from_decimal(value) || "0:00" }}</span>
-                            <br />
-                        </div>
-                    
-                      </div>
-
-
-
-                  </div>
+        <!-- ── Who / what / export ────────────────────────────── -->
+        <div class="sr-record-head">
+            <div class="sr-record-head__who">
+                <div class="sr-record-head__avatar">{{ vm.get_initial(vm.student.first_name) }}{{ vm.get_initial(vm.student.last_name) }}</div>
+                <div>
+                    <h2 class="sr-record-head__name">{{ vm.student.first_name }} {{ vm.student.last_name }}</h2>
+                    <p class="sr-record-head__course">{{ vm.course.title }}</p>
                 </div>
-
-
-
-<!--                 <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
- -->                <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search" class="form-control searchbar smaller_search" uib-tooltip="Search will only search the record's items" />
             </div>
-
-            <div class="card" ng-if="vm.all_items.length > 0">
-                <table class="competence-table competence-table-highlight-all" >
-                    <thead>
-                        <tr>
-                            <th>Key Learning Objective</th>
-                            <th class="competences_header competence_same_width">
-                                Achievement
-                            </th>
-                            <!-- <th class="competences_header competence_same_width" ng-repeat="training in vm.training_records">
-                                {{ training.created_at | asDate | date:"dd MMM yyyy 'at' HH:mm" }}
-                            </th> -->
-                            <!-- <th class="competences_header">
-                                Remarks
-                            </th>
-                            <th class="competences_header">
-                                Date
-                            </th> -->
-
-                        </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, id: vm.my_search}">
-                        <td class="competence_title">
-                            <!-- uib-tooltip="{{ item.description }}" -->
-<!--                             <span uib-popover="{{ item.description }}" popover-trigger="mouseenter" popover-placement="right" >{{ item.title }}</span> 
- -->                            <span uib-tooltip="{{ item.description }}" tooltip-placement="right" >{{ item.title }}</span> 
-
-                        </td>
-                         <!--  <td class="competences_marking competence_same_width" ng-repeat="training in vm.training_records">
-                                
-                                <div uib-tooltip="{{ vm.get_result(item.id, training) }}" ng-bind-html="vm.get_competence(item.id, training)"></div>
- -->
-                               <!--  <span uib-tooltip="{{ vm.get_remarks(item.id, training) }}">
-                                {{ vm.get_result(item.id, training) }}
-                                </span> -->
-                              <!--    <br />
-                                <span uib-tooltip-html="vm.get_record_details(item.id, training)">{{ vm.get_flight_date(item.id, training) | asDate | date:"dd MMM yyyy" || '' }}</span>
-                               
-                                
-
-                          </td>
- -->
-
-                        <td class="competences_marking competence_same_width">
-                                <!-- RETURN LAST COMPETENCE? //-->
-
-                                <div uib-tooltip="{{ item.last_entry.grade_name }}" ng-bind-html="vm.get_competence2(item.last_entry)" uib-tooltip-placement="auto" tooltip-append-to-body="true" tooltip-placement="auto"></div>
-
-                               <!--  <span uib-tooltip="{{ vm.get_remarks(item.id, training) }}">
-                                {{ vm.get_result(item.id, training) }}
-                                </span> -->
-                                 <br />
-                                <span uib-tooltip-html="vm.get_record_details2(item.last_entry)" uib-tooltip-placement="auto" tooltip-placement="auto" container="body" tooltip-append-to-body="true">{{ item.last_entry.flight_date | asDate | date:"dd MMM yyyy" || 'N/A' }}</span>
-                               
-                                
-
-                          </td>
-
-
-
-                         <!--  <td class="competences_marking remarks">
-                            <textarea class="form-control inputtext" ng-model="item.remarks"></textarea>
-                          </td>
-                          <td class="competences_marking">
-                            {{ item.created_at | asDate | date:"dd MMM yyyy" }}
-                          </td> -->
-
-                        
-                      </tr>
-                      <!--  <tr>
-                            <td>
-                                General Remarks
-                            </td>
-                            <td class="competences_marking competence_same_width" ng-repeat="training in vm.training_records">
-                                {{ training.general_remarks }}
-                            </td>
-                           
-                       </tr> -->
-                    </tbody>
-                </table>
-
+            <div class="sr-record-head__actions">
+                <a class="sr-record-head__btn" ng-click="vm.exportCourseRecord()" title="Export this course record as a PDF">
+                    <i class="fa fa-file-pdf" ng-hide="vm.exporting_pdf"></i>
+                    <i class="fa fa-spinner fa-spin" ng-show="vm.exporting_pdf"></i>
+                    {{ vm.exporting_pdf ? 'Exporting…' : 'Export PDF' }}
+                </a>
             </div>
-
-<!--         <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.add_training_record()" value="ADD TRAINING RECORD" />
-                NO ADDING OF TRAINING RECORDS YET
- -->
-      </div>
-     <div class="club_docs_all" ng-if="vm.show_record">
-        <h2>Exams</h2>
-        <div class="card centre_me">
-
-
-             <div class="card centre_me" ng-if="vm.exams.length == 0">
-             There are no student exam records for this course
-            </div>
-
-            <div class="card" ng-if="vm.exams.length !== 0">
-<!--                 <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
- -->                <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search2" class="form-control searchbar smaller_search" uib-tooltip="Search will only search the record's items" />
-            </div>
-
-            <div class="card" ng-if="vm.exams.length > 0">
-                <table class="competence-table competence-table-highlight-all" >
-                    <thead>
-                        <tr>
-                            <th>Exam Title</th>
-                            <th class="competences_header">Date</th>
-                            <th class="competences_header">Sitting</th>
-                            <th class="competences_header">Set No</th>
-                            <th class="competences_header">Result</th>
-                            <th class="competences_header">Pass / Fail</th>
-                            <th class="competences_header">Examiner</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="item in vm.exams | propsFilterA: {title: vm.my_search2, id: vm.my_search2}">
-                          <td class="competence_title">
-
-                            <span uib-tooltip="{{ item.description }}" tooltip-placement="right" >{{ item.title }}</span> 
-
-                          </td>
-                          <td class="competences_marking">
-                            <span ng-if="vm.get_exam(item.id).date">{{ vm.get_exam(item.id).date | asDate | date:"dd MMM yyyy" }}</span>
-                          </td>
-                          <td class="competences_marking">
-                            {{ vm.get_exam(item.id).sitting }}
-                          </td>
-                          <td class="competences_marking">
-                            {{ vm.get_exam(item.id).set_no  }}
-                          </td>
-                          <td class="competences_marking">
-                            <span ng-if="vm.get_exam(item.id).result">{{ vm.get_exam(item.id).result }}%</span>
-                          </td>
-                          <td class="competences_marking">
-                            <span ng-if="vm.get_exam(item.id).pass_fail == 1">PASS</span>
-                            <span ng-if="vm.get_exam(item.id).pass_fail == 0">FAIL</span>
-                            <span ng-if="!vm.get_exam(item.id).pass_fail"></span>
-                          </td>
-                          <td class="competences_marking">
-                            {{ vm.get_exam(item.id).examiner }}
-                          </td>
-                        
-                      </tr>
-                    </tbody>
-                </table>
-
-            </div>
-
-
-
-
-
         </div>
-        <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_add_exam = true" value="ADD EXAM RECORD" />
-    </div>
 
 
- <div class="club_docs_all" ng-if="vm.show_record">
-        <h2>Flights</h2>
-        <div class="card centre_me">
-
-
-            <div class="card centre_me" ng-if="vm.log_sheets.length == 0">
-                There are no flights for this course
+        <!-- ── Course totals ──────────────────────────────────── -->
+        <div class="sr-stats" ng-if="vm.all_items.length">
+            <div class="sr-stat sr-stat--accent">
+                <span class="sr-stat__label">Total</span>
+                <span class="sr-stat__value">{{ vm.get_hours_from_decimal(vm.course_totals.course_total) || "0:00" }}</span>
             </div>
-
-            <div class="card" ng-if="vm.log_sheets.length !== 0">
-<!--                 <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
- -->                <input type="search" placeholder="Search Flights" ng-model="vm.my_search3" class="form-control searchbar smaller_search" uib-tooltip="Search will only search the flights" />
+            <div class="sr-stat">
+                <span class="sr-stat__label">PIC</span>
+                <span class="sr-stat__value">{{ vm.get_hours_from_decimal(vm.course_totals.course_pic) || "0:00" }}</span>
             </div>
-
-            <div class="card" ng-if="vm.log_sheets.length > 0">
-                
-
-                <table>
-                            <tr>
-                                <td class="bold_text">
-                                    Date
-                                </td>
-                                <td class="bold_text">
-                                    Aircraft
-                                </td>
-                                <td class="bold_text">
-                                    Type
-                                </td>
-                                <td class="bold_text">
-                                    Pilot
-                                </td>
-                                <td class="bold_text centre_me">
-                                    From
-                                </td>
-                                <td class="bold_text centre_me">
-                                    To
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes Off
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes On
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Brakes Time
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Lesson
-                                </td>
-                                <td class="bold_text centre_me">
-                                    Function
-                                </td>
-                            </tr>
-                            <tr ng-repeat="log in vm.log_sheets | filter: vm.my_search3
-" vertical-align="middle">
-                            
-                                <td class="log_no_break">
-                                    {{ log.flight_date | asDate | date:"dd MMM yyyy" }}
-                                </td>
-                                <td class="centre_me">
-                                    <span>{{ log.registration }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.type_name}}">{{ log.plane_type }}</span>
-                                </td>
-                                <td class="log_no_break">
-                                    <!-- <span uib-tooltip="{{log.first_name}} {{log.last_name}}">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span> -->
-                                    <span>{{ vm.get_pic(log) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.departure_airport}}">{{ log.departure_airport_code }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{log.destination_airport}}">{{ log.destination_airport_code }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <!-- {{ vm.clean_times(log.brakes_off) | roundFive }} -->
-                                    <!-- {{ vm.round_brake_times_start( vm.clean_times(log.brakes_off), vm.clean_times(log.takeoff_time) ) | roundFive }}
-
-                                    rounding == > --> 
-                                    {{ vm.clean_times(log.brakes_off_rounded) }}
-                                </td>
-                                <td class="centre_me">
-                                    <!-- {{ vm.clean_times(log.brakes_on) | roundFive }} -->
-                                    <!-- {{ vm.round_brake_times_end( vm.clean_times(log.brakes_on), vm.clean_times(log.landing_time)) | roundFive }}
-                                    rounding == > --> 
-                                    {{ vm.clean_times(log.brakes_on_rounded) }}
-                                </td>
-                                <td class="centre_me">
-                                    {{ vm.get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.lesson_title }}">{{ log.lesson_reference }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span class="fr-replay-link" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="View flight replay" style="margin-right: 10px;"><i class="fa fa-play-circle"></i></span>
-                                    <span style="cursor: pointer;" uib-tooltip="Click to view the training details of this flight!" ng-click="vm.open_training_detail(log.id, log)"><i class="fa fa-info-circle"></i></span>
-                                </td>
-
-                            </tr>
-                        </table>
-
-
-
-
+            <div class="sr-stat">
+                <span class="sr-stat__label">PUT</span>
+                <span class="sr-stat__value">{{ vm.get_hours_from_decimal(vm.course_totals.course_put) || "0:00" }}</span>
             </div>
-
+            <div class="sr-stat" ng-if="vm.course_totals.course_picus > 0">
+                <span class="sr-stat__label">PICUS</span>
+                <span class="sr-stat__value">{{ vm.get_hours_from_decimal(vm.course_totals.course_picus) || "0:00" }}</span>
+            </div>
+            <div class="sr-stat sr-stat--tag" ng-repeat="(tag, value) in vm.course_totals.custom_tags">
+                <span class="sr-stat__label">{{ tag }}</span>
+                <span class="sr-stat__value">{{ vm.get_hours_from_decimal(value) || "0:00" }}</span>
+            </div>
         </div>
-<!--         <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_add_exam = true" value="ADD EXAM RECORD" />
- -->    </div>
 
 
-
-
-
-
-
-
-   <div class="club_docs">
-
-<!--             <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.save_progress()" value="SAVE PROGRESS" />
- -->
-        </div>
-</div>
-
-
-
-
-
-
-
-<!-- OVERLAY TO SHOW THE DETAILS ABOUT A SPECIFIC FLIGHT?? -->
-<div class="popup_bg" ng-if="vm.show_popup" ng-click="vm.close_popup()">
-</div>
-
-    <div class="popup_box3" ng-if="vm.show_popup && vm.show_popup_name == 'see_records' && !vm.show_edit_training_record">
-
-        <h3>Check Flight Student Records</h3>
-       
-        <br />
-        <div ng-if="!vm.show_edit_training_record">
-            
-            <div class="form-group fgtwo2">
-
-                <div class="card centre_me" ng-if="vm.selected_record.length == 0">
-                 There are is student training records for this flight
+        <!-- ── Solo readiness (pre-solo requirements + sign-offs) ──
+             Course-scoped: all-courses items + the viewed course's items.
+             Each row renders its backend `state` as a status chip; amber
+             pending_review rows deep-link into the questionnaire review. -->
+        <div class="solo-ready" ng-if="vm.solo.status">
+            <div class="solo-ready__banner" ng-class="vm.solo.status.all_satisfied ? 'solo-ready__banner--go' : 'solo-ready__banner--wait'">
+                <i class="fas" ng-class="vm.solo.status.all_satisfied ? 'fa-plane-departure' : 'fa-hourglass-half'"></i>
+                <div>
+                    <strong ng-if="vm.solo.status.all_satisfied">All clear for solo</strong>
+                    <strong ng-if="!vm.solo.status.all_satisfied">Not yet solo-ready</strong>
+                    <span ng-if="vm.solo.status.all_satisfied">{{ vm.student.first_name }} satisfies every pre-solo requirement for {{ vm.course.title }}.</span>
+                    <span ng-if="!vm.solo.status.all_satisfied">Outstanding items below need attention before {{ vm.student.first_name }} can fly solo on {{ vm.course.title }}.</span>
                 </div>
+            </div>
 
-                <div class="card" ng-if="vm.selected_record.length !== 0">
-
-
-                    <div>
-                        <table>
-                            <tr>
-                                <tr>
-                                    <td class="bold_text">
-                                        Date
-                                    </td>
-                                    <td class="bold_text">
-                                        Aircraft
-                                    </td>
-                                    <td class="bold_text">
-                                        Type
-                                    </td>
-                                    <td class="bold_text">
-                                        Pilot
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        From
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        To
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        Brakes Off
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        Brakes On
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        Brakes Time
-                                    </td>
-                                    <td class="bold_text centre_me">
-                                        Lesson
-                                    </td>
-                                    
-                                </tr>
-                                    <td class="log_no_break">
-                                        {{ vm.selected_flight.flight_date | asDate | date:"dd MMM yyyy" }}
-                                    </td>
-                                    <td class="centre_me">
-                                        <span>{{ vm.selected_flight.registration }}</span>
-                                    </td>
-                                    <td class="centre_me">
-                                        <span uib-tooltip="{{vm.selected_flight.type_name}}">{{ vm.selected_flight.plane_type }}</span>
-                                    </td>
-                                    <td class="log_no_break">
-                                        <!-- <span uib-tooltip="{{log.first_name}} {{log.last_name}}">{{ vm.get_initial(log.first_name) }}. {{ log.last_name }}</span> -->
-                                        <span>{{ vm.get_pic(vm.selected_flight) }}</span>
-                                    </td>
-                                    <td class="centre_me">
-                                        <span uib-tooltip="{{vm.selected_flight.departure_airport}}">{{ vm.selected_flight.departure_airport_code }}</span>
-                                    </td>
-                                    <td class="centre_me">
-                                        <span uib-tooltip="{{vm.selected_flight.destination_airport}}">{{ vm.selected_flight.destination_airport_code }}</span>
-                                    </td>
-                                    <td class="centre_me">
-                                        
-                                        {{ vm.clean_times(vm.selected_flight.brakes_off_rounded) }}
-                                    </td>
-                                    <td class="centre_me">
-                                        
-                                        {{ vm.clean_times(vm.selected_flight.brakes_on_rounded) }}
-                                    </td>
-                                    <td class="centre_me">
-                                        {{ vm.get_hours_from_decimal(vm.selected_flight.brakes_times_rounded) || "0:00" }}
-                                    </td>
-                                    <td class="centre_me">
-                                        <span uib-tooltip="{{ vm.selected_flight.lesson_title }}">{{ vm.selected_flight.lesson_reference }}</span>
-                                    </td>
-                                </tr>
-                        </table>
-
+            <div class="solo-ready__row" ng-repeat="req in vm.solo.status.requirements"
+                 ng-class="{'solo-ready__row--ok': req.satisfied, 'solo-ready__row--busy': vm.solo.busy[req.id]}">
+                <div class="solo-ready__state solo-ready__state--{{ vm.soloStateKind(req) }}">
+                    <i class="fas" ng-class="{ 'fa-check-circle': vm.soloStateKind(req) === 'ok',
+                                               'fa-hourglass-half': vm.soloStateKind(req) === 'review',
+                                               'fa-times-circle': vm.soloStateKind(req) === 'fail',
+                                               'fa-circle-notch': vm.soloStateKind(req) === 'todo' }"></i>
+                </div>
+                <div class="solo-ready__main">
+                    <div class="solo-ready__name">
+                        {{ req.name }}
+                        <span class="solo-req__badge solo-req__badge--auto" ng-if="req.auto_type"
+                              uib-tooltip="Verified automatically — cannot be signed off manually and never goes stale.">
+                            <i class="fas fa-magic"></i> auto&nbsp;&middot;&nbsp;{{ req.auto_type }}
+                        </span>
+                        <span class="solo-req__badge solo-req__badge--course" ng-if="req.course_id">
+                            <i class="fas fa-graduation-cap"></i> {{ req.course_title || 'course' }}
+                        </span>
+                        <span class="solo-chip solo-chip--review" ng-if="req.state === 'pending_review'">awaiting review</span>
                     </div>
 
-                <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search4" class="form-control searchbar smaller_search" uib-tooltip="Search will only find this flight's achievements" />
-                </div>
-
-                <div class="card" ng-if="vm.selected_record.length > 0">
-                    <table class="competence-table competence-table-highlight-all" >
-                        <thead>
-                            <tr>
-                                <th>Key Learning Objective</th>
-                                <th class="competences_header competence_same_width">
-                                    Achievement
-                                </th>
-                                
-                                <th class="competences_header">
-                                    Remarks
-                                </th>
-                                
-
-                            </tr>
-                        </thead>
-                        <tbody>
-                          <tr ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search4, id: vm.my_search4}">
-                            <td class="competence_title">
-                               <span uib-tooltip="{{ item.description }}" tooltip-placement="right" >{{ item.title }}</span> 
-
-                            </td>
-                             
-
-                            <td class="competences_marking competence_same_width">
-                                    <!-- RETURN LAST COMPETENCE? //-->
-
-                                    <div uib-tooltip="{{ item.this_entry.grade_name }}" ng-bind-html="vm.get_competence2(item.this_entry)" uib-tooltip-placement="auto" tooltip-placement="auto"></div>
-                                  
-                                    
-                                   
-                            </td>
-
-                            <td class="competences_marking remarks">
-                                {{ item.this_entry.remarks }}
-                            </td>
-                            
-                           </tr>
-                           <tr>
-                                <td>
-                                    General Remarks
-                                </td>
-                                <td class="competences_marking competence_same_width" colspan="2">
-                                    {{ vm.selected_record_remarks }}
-                                </td>
-                               
-                           </tr>
-                        </tbody>
-                    </table>
-
-                    <br />
-                    <span>Record completed by: {{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</span>
-                    <br />
-                    <span>Record created at: {{ vm.this_entry.created_at | asDate | date:"dd MMM yyyy" || "no date"}}</span>
-
-                    <div ng-if="vm.this_entry.edited_by > 0 || vm.this_entry.updated_at !== vm.this_entry.created_at">
-                        <br />
-                        <span uib-tooltip="Edit reason given by editor: {{ vm.this_entry.edit_reason }}">Record updated on: {{ vm.this_entry.updated_at | asDate | date:"dd MMM yyyy" || "no date"}} by: {{ vm.this_entry.edited_by_first_name }} {{ vm.this_entry.edited_by_last_name }}</span>
-
+                    <!-- The backend's ready-to-display sentence (score, expiry, class…) -->
+                    <div class="solo-ready__meta"
+                         ng-class="{'solo-ready__meta--todo': !req.satisfied && vm.soloStateKind(req) !== 'fail', 'solo-ready__meta--fail': vm.soloStateKind(req) === 'fail'}"
+                         ng-if="req.detail">{{ req.detail }}</div>
+                    <div class="solo-ready__meta" ng-if="!req.detail && req.satisfied && req.via === 'medical'">Verified from medical records</div>
+                    <div class="solo-ready__meta solo-ready__meta--todo" ng-if="!req.detail && !req.satisfied">{{ req.auto_type ? 'Verified automatically — not yet met' : 'Awaiting instructor sign-off' }}</div>
+                    <div class="solo-ready__meta" ng-if="req.satisfied && req.via === 'sign_off' && req.sign_off">
+                        Signed off {{ req.sign_off.signed_off_at | asDate | date:'dd MMM yyyy' }}<span ng-if="req.sign_off.expires_at"> &middot; expires {{ req.sign_off.expires_at | asDate | date:'dd MMM yyyy' }}</span><span ng-if="req.sign_off.notes"> &middot; {{ req.sign_off.notes }}</span>
                     </div>
 
+                    <!-- Inline sign-off form (manual items only) -->
+                    <div class="solo-ready__signform" ng-if="vm.solo.signing === req.id">
+                        <input type="date" ng-model="vm.solo.form.expires_at" uib-tooltip="Optional expiry — leave blank if the sign-off doesn't lapse">
+                        <input type="text" ng-model="vm.solo.form.notes" placeholder="Notes (optional)" maxlength="255">
+                        <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.soloSignOff(req)" ng-disabled="vm.solo.busy[req.id]">
+                            <i class="fas" ng-class="vm.solo.busy[req.id] ? 'fa-spinner fa-spin' : 'fa-check'"></i> Confirm sign-off
+                        </button>
+                        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.soloCancelSignOff()">Cancel</button>
+                    </div>
+                </div>
+                <div class="solo-ready__actions">
+                    <!-- Submitted questionnaire awaiting instructor review — review it now, with the student -->
+                    <button type="button" class="solo-btn solo-btn--primary solo-btn--sm solo-btn--pulse"
+                            ng-if="req.state === 'pending_review' && req.evidence.id"
+                            ng-click="vm.soloReviewAttempt(req)">
+                        <i class="fas fa-clipboard-check"></i> Review now
+                    </button>
+                    <button type="button" class="solo-btn solo-btn--outline solo-btn--sm"
+                            ng-if="!req.satisfied && !req.auto_type && vm.solo.signing !== req.id"
+                            ng-click="vm.soloStartSignOff(req)">
+                        <i class="fas fa-pen"></i> Sign off
+                    </button>
+                    <span ng-if="req.satisfied && req.via === 'sign_off' && req.sign_off">
+                        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-if="!req._confirmRevoke" ng-click="vm.soloAskRevoke(req)">
+                            Revoke
+                        </button>
+                        <span class="solo-ready__confirm" ng-if="req._confirmRevoke">
+                            Revoke this sign-off?
+                            <button type="button" class="solo-btn solo-btn--danger solo-btn--sm" ng-click="vm.soloRevoke(req)" ng-disabled="vm.solo.busy[req.id]">Revoke</button>
+                            <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.soloCancelRevoke(req)">Keep</button>
+                        </span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ── Progress: objectives grouped into lesson accordions ── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-tasks"></i> Progress</h3>
+                <span class="sr-section__count" ng-if="vm.lessons.length">{{ vm.lessons.length }} lessons</span>
+                <div class="sr-section__tools" ng-if="vm.all_items.length">
+                    <div class="sr-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search objectives" ng-model="vm.my_search" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="sr-grade-legend" ng-if="vm.grade_legend.length">
+                <span class="sr-grade-legend__label">Grades</span>
+                <span class="sr-grade" ng-repeat="g in vm.grade_legend" ng-style="{color: g.colour, 'border-color': g.colour}">
+                    <i ng-if="g.icon" class="fa fa-{{ g.icon }}"></i> {{ g.name }}
+                </span>
+            </div>
+
+            <div class="sr-section__body">
+
+                <div class="sr-empty" ng-if="!vm.all_items.length">
+                    <div class="sr-empty__icon"><i class="fas fa-clipboard-list"></i></div>
+                    <p class="sr-empty__text">There are no training records for this course yet.</p>
                 </div>
 
-        
-            </div>
+                <div class="sr-lesson" ng-repeat="lesson in vm.lessons"
+                     ng-class="{'sr-lesson--open': !lesson.collapsed || vm.my_search, 'sr-lesson--done': lesson.is_completed}">
 
+                    <div class="sr-lesson__head" ng-click="vm.toggle_lesson(lesson)">
+                        <i class="fa fa-chevron-right sr-lesson__chevron"></i>
+                        <span class="sr-lesson__num" ng-if="lesson.lesson_number">{{ lesson.lesson_number }}</span>
+                        <span class="sr-lesson__title">{{ lesson.lesson_title }}</span>
+                        <span class="sr-lesson__tick" ng-if="lesson.is_completed" uib-tooltip="Lesson signed off by instructor">
+                            <i class="fa fa-check-circle"></i> Completed
+                        </span>
+                        <span class="sr-lesson__count">{{ lesson.graded_count }} / {{ lesson.total_count }} graded</span>
+                    </div>
 
-            <div class="bottom_btn btns_bottom">
+                    <div class="sr-lesson__body" ng-if="!lesson.collapsed || vm.my_search">
 
-              <button ng-click="vm.close_popup()" class="btn btn-danger">Close</button>
-
-              <button ng-if="vm.user_can_edit" ng-click="vm.show_edit_record()" class="btn btn-info">EDIT RECORD</button>
-
-            </div>
-
-        </div>
-    </div>
-
-
-
-
-    <div class="popup_box3" ng-if="vm.show_popup && vm.show_popup_name == 'see_records' && vm.show_edit_training_record">
-
-    <div class="club_docs_all">
-        <h2>EDIT Student Progress</h2>
-          
-            <div class="card centre_me" ng-if="vm.lesson.length == 0">
-             There are no student progress tasks for this lesson
-            </div>
-
-            <div class="card" ng-if="vm.lesson.length !== 0">
-                <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.show_whole_course()" value="{{ (vm.show_all_lessons) ? 'SHOW THIS LESSON ONLY': 'SHOW WHOLE COURSE ITEMS'}}" />
-                <input type="search" placeholder="Search Student Progress" ng-model="vm.my_search2" ng-change="vm.set_updated_search()" class="form-control searchbar smaller_search" uib-tooltip="Using the search function will automatically search the whole course, and not just the lesson already shown, to return to show only this lesson, remove any searched items" />
-            </div>
-
-            <div class="card" ng-if="vm.lesson.length > 0">
-                <table class="competence-table competence-table-highlight-all" >
-                    <thead>
-                        <tr>
-                            <th>Key Learning Objective</th>
-                            <th class="competences_header competence_same_width" ng-repeat="competence in vm.competences">
-                                {{ competence.title }}
-                            </th>
-                            <th class="competences_header">
-                                Remarks
-                            </th>
-
-                        </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }">
-                          <td class="competence_title">
-                         <span uib-tooltip="{{ item.description }}" tooltip-placement="right" >{{ item.title }}</span> 
-
-                          </td>
-                          <td class="competences_marking competence_same_width" ng-repeat="competence in vm.competences">
-
-                                <input class="form-control" type="radio" name="{{ item.id }}" value="{{competence.id}}" ng-model="item.this_entry.result" />
-
-                          </td>
-                          <td class="competences_marking remarks">
-                            <textarea class="form-control inputtext" ng-model="item.this_entry.remarks"></textarea>
-
-                          </td>
-
-                        
-                      </tr>
-                    </tbody>
-                </table>
-
-            </div>
-
-           
-
-    </div>
-    <div class="club_docs_all">
-        <h2>General Remarks</h2>
-        <div class="card centre_me">
-            <textarea class="form-control inputtext gen_remarks" ng-model="vm.this_entry.general_remarks" uib-tooltip="Type any general remarks that may be useful or required to be kept in the student records."></textarea>
-        </div>
-
-
-    </div>
-
-
-    <div class="bookingout_wrapper no_padding">
-
-
-           <div class="club_docs_all">
-                    <h2>Lesson Tagging</h2>
-                  <div class="center_if_large2 left_al">
-
-                        <!-- <div class="form-group">
-                          <label for="card-number">This flight included times that need to coun</label>
-                          <div class="check_box_in_form">
-                            <input type="checkbox" class="form-control inputtext" ng-model="vm.lesson_completed">
-                          </div>
-                        </div> -->
-
-                        <div class="form-group">
-                            <div class="card centre_me" ng-if="vm.selected_flight_tags.length == 0">
-                              There are no tags for this lesson (yet)
-                            </div>
-
-                        <div class="card" ng-if="vm.selected_flight_tags.length > 0">
-                            <table>
-                                <tr>
-                                    <th>Tag name</th>
-                                    <th>Tag Logged Time</th>
-                                    <th>Functions</th>
-                                </tr>
-                                  <tr ng-repeat="tag in vm.selected_flight_tags">
-                                    <td>
-                                      <span>{{ tag.title | myToUpperCase }}</span> 
-                                    </td>
-                                    <td>
-                                      <span>{{ tag.logging_time }} [mins]</span> 
-                                    </td>
-                                    <td>
-                                      <a ng-click="vm.delete_tag(tag, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a>
-                                    </td>
-                                </tr>
-                                 
+                        <div class="sr-table-wrap">
+                            <table class="sr-table">
+                                <thead>
+                                    <tr>
+                                        <th>Key Learning Objective</th>
+                                        <th style="width: 210px;">Achievement</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr ng-repeat="item in lesson.items | propsFilterA: {title: vm.my_search, id: vm.my_search}">
+                                        <td>
+                                            <span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="sr-grade" ng-if="vm.has_grade(item.last_entry)" ng-style="vm.grade_style(item.last_entry)">
+                                                <i ng-if="item.last_entry.grade_icon" ng-class="vm.grade_icon_class(item.last_entry)"></i>
+                                                {{ item.last_entry.grade_name }}
+                                            </span>
+                                            <span class="sr-grade sr-grade--none" ng-if="!vm.has_grade(item.last_entry)">Not graded</span>
+                                            <span class="sr-table__date" ng-if="item.last_entry.flight_date"
+                                                  uib-tooltip-html="vm.get_record_details2(item.last_entry)" tooltip-placement="auto" tooltip-append-to-body="true">
+                                                {{ item.last_entry.flight_date | asDate | date:"dd MMM yyyy" }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
 
-                        <div class="form-group">
-                            <label for="instructor">Add Flight Tag</label>
-                            <ui-select ng-model="vm.flight_tag" theme="bootstrap" ng-disabled="disabled" title="Please select the flight tag for this flight" append-to-body="true" ng-change="vm.update_flight_tag()">
-                                <ui-select-match placeholder="Please select the flight tag for this flight">
-                                   {{ vm.flight_tag.title | myToUpperCase }} 
-                                </ui-select-match>
-                                <ui-select-choices repeat="tag in vm.all_tags | propsFilterA: {title: $select.search, id: $select.search}">
-                                  <!-- {{ tag.title }} --> 
-                                  <div ng-bind-html="tag.title | myToUpperCase | highlight: $select.search"></div>
-                                </ui-select-choices>
-                            </ui-select>
-
-                            <div class="form-group" ng-if="vm.flight_tag">
-                              <label for="card-number">This tag is for full flight time</label>
-                              <div class="check_box_in_form">
-                                <input type="checkbox" class="form-control inputtext" ng-model="vm.tag_full_flight" ng-change="vm.update_flight_full_flight()">
-                              </div>
+                        <div class="sr-cards">
+                            <div class="sr-card" ng-repeat="item in lesson.items | propsFilterA: {title: vm.my_search, id: vm.my_search}">
+                                <div class="sr-card__head">
+                                    <span class="sr-card__title">{{ item.title }}</span>
+                                    <span class="sr-grade" ng-if="vm.has_grade(item.last_entry)" ng-style="vm.grade_style(item.last_entry)">
+                                        <i ng-if="item.last_entry.grade_icon" ng-class="vm.grade_icon_class(item.last_entry)"></i>
+                                        {{ item.last_entry.grade_name }}
+                                    </span>
+                                    <span class="sr-grade sr-grade--none" ng-if="!vm.has_grade(item.last_entry)">Not graded</span>
+                                </div>
+                                <div class="sr-card__sub" ng-if="item.last_entry.flight_date">
+                                    Flown {{ item.last_entry.flight_date | asDate | date:"dd MMM yyyy" }}
+                                </div>
                             </div>
-
-                            <div class="form-group" ng-if="vm.flight_tag && !vm.tag_full_flight">
-                              <label for="card-number">{{ vm.flight_tag.title }} Tag Flight Time:</label>
-                              <div class="check_box_in_form">
-                                <input type="number" class="form-control inputtext" step="5" ng-keyup="vm.tag_time_to_five()" ng-model="vm.tag_flight_time">
-                              </div>
-                            </div>
-
-
-
                         </div>
-                        <div class="form-group">
-                             <input type="button" class="btn btn-primary btn_centre_card" ng-click="vm.add_tag()" value="ADD FLIGHT TAG" />
-                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── Exams ──────────────────────────────────────────── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-file-alt"></i> Exams</h3>
+                <span class="sr-section__count" ng-if="vm.exams.length">{{ vm.exams.length }}</span>
+                <div class="sr-section__tools">
+                    <div class="sr-search" ng-if="vm.exams.length">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search exams" ng-model="vm.my_search2" />
+                    </div>
+                    <button type="button" class="sr-btn sr-btn--outline sr-btn--sm" ng-click="vm.show_add_exam = true">
+                        <i class="fas fa-plus"></i> Add result
+                    </button>
+                </div>
+            </div>
+
+            <div class="sr-section__body sr-section__body--flush">
+
+                <div class="sr-empty" ng-if="!vm.exams.length">
+                    <div class="sr-empty__icon"><i class="fas fa-file-alt"></i></div>
+                    <p class="sr-empty__text">There are no exam records for this course.</p>
+                </div>
+
+                <div ng-if="vm.exams.length">
+                    <div class="sr-table-wrap">
+                        <table class="sr-table">
+                            <thead>
+                                <tr>
+                                    <th>Exam</th>
+                                    <th>Date</th>
+                                    <th>Sitting</th>
+                                    <th>Set No</th>
+                                    <th class="sr-table__num">Result</th>
+                                    <th>Outcome</th>
+                                    <th>Examiner</th>
+                                    <th class="sr-table__actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="item in vm.exams | propsFilterA: {title: vm.my_search2, id: vm.my_search2}">
+                                    <td><span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span></td>
+                                    <td><span ng-if="vm.get_exam(item.id).date">{{ vm.get_exam(item.id).date | asDate | date:"dd MMM yyyy" }}</span></td>
+                                    <td>{{ vm.get_exam(item.id).sitting }}</td>
+                                    <td>{{ vm.get_exam(item.id).set_no }}</td>
+                                    <td class="sr-table__num"><span ng-if="vm.get_exam(item.id).result">{{ vm.get_exam(item.id).result }}%</span></td>
+                                    <td>
+                                        <span class="sr-pill sr-pill--pass" ng-if="vm.get_exam(item.id).pass_fail == 1"><i class="fas fa-check"></i> Pass</span>
+                                        <span class="sr-pill sr-pill--fail" ng-if="vm.get_exam(item.id).pass_fail == 0"><i class="fas fa-times"></i> Fail</span>
+                                    </td>
+                                    <td>{{ vm.get_exam(item.id).examiner }}</td>
+                                    <td class="sr-table__actions">
+                                        <!-- Edit / history / delete on an entered result (audited — BACKEND_EXAM_SALES_GUIDE.md §5.4) -->
+                                        <span ng-if="vm.get_exam(item.id).id && !vm.get_exam(item.id)._confirmDelete">
+                                            <a class="sr-iconbtn" ng-click="vm.exam_edit(item)" uib-tooltip="Edit result"><i class="fas fa-pen"></i></a>
+                                            <a class="sr-iconbtn" ng-click="vm.exam_history(item)" uib-tooltip="History"><i class="fas fa-history"></i></a>
+                                            <a class="sr-iconbtn sr-iconbtn--danger" ng-if="vm.is_manager()" ng-click="vm.exam_ask_delete(item)" uib-tooltip="Delete result"><i class="fas fa-trash-alt"></i></a>
+                                        </span>
+                                        <span class="sr-confirm" ng-if="vm.get_exam(item.id)._confirmDelete">
+                                            Delete?
+                                            <button type="button" class="sr-btn sr-btn--danger sr-btn--sm" ng-click="vm.exam_delete(item)">Delete</button>
+                                            <button type="button" class="sr-btn sr-btn--ghost sr-btn--sm" ng-click="vm.exam_cancel_delete(item)">Keep</button>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="item in vm.exams | propsFilterA: {title: vm.my_search2, id: vm.my_search2}">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ item.title }}</span>
+                                <span class="sr-pill sr-pill--pass" ng-if="vm.get_exam(item.id).pass_fail == 1">Pass</span>
+                                <span class="sr-pill sr-pill--fail" ng-if="vm.get_exam(item.id).pass_fail == 0">Fail</span>
+                            </div>
+                            <div class="sr-card__sub" ng-if="vm.get_exam(item.id).date">{{ vm.get_exam(item.id).date | asDate | date:"dd MMM yyyy" }}</div>
+                            <div class="sr-card__grid">
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Sitting</span>
+                                    <span class="sr-card__value">{{ vm.get_exam(item.id).sitting || '-' }}</span>
+                                </div>
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Set No</span>
+                                    <span class="sr-card__value">{{ vm.get_exam(item.id).set_no || '-' }}</span>
+                                </div>
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Result</span>
+                                    <span class="sr-card__value"><span ng-if="vm.get_exam(item.id).result">{{ vm.get_exam(item.id).result }}%</span><span ng-if="!vm.get_exam(item.id).result">-</span></span>
+                                </div>
+                                <div class="sr-card__stat" ng-if="vm.get_exam(item.id).examiner">
+                                    <span class="sr-card__label">Examiner</span>
+                                    <span class="sr-card__value">{{ vm.get_exam(item.id).examiner }}</span>
+                                </div>
+                            </div>
+                            <div class="sr-card__actions" ng-if="vm.get_exam(item.id).id && !vm.get_exam(item.id)._confirmDelete">
+                                <button type="button" class="sr-btn sr-btn--outline sr-btn--sm" ng-click="vm.exam_edit(item)"><i class="fas fa-pen"></i> Edit</button>
+                                <button type="button" class="sr-btn sr-btn--outline sr-btn--sm" ng-click="vm.exam_history(item)"><i class="fas fa-history"></i> History</button>
+                                <button type="button" class="sr-btn sr-btn--danger sr-btn--sm" ng-if="vm.is_manager()" ng-click="vm.exam_ask_delete(item)"><i class="fas fa-trash-alt"></i> Delete</button>
+                            </div>
+                            <div class="sr-card__actions" ng-if="vm.get_exam(item.id)._confirmDelete">
+                                <span class="sr-confirm">Delete this result?</span>
+                                <button type="button" class="sr-btn sr-btn--danger sr-btn--sm" ng-click="vm.exam_delete(item)">Delete</button>
+                                <button type="button" class="sr-btn sr-btn--ghost sr-btn--sm" ng-click="vm.exam_cancel_delete(item)">Keep</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── Flights ────────────────────────────────────────── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-plane"></i> Flights</h3>
+                <span class="sr-section__count" ng-if="vm.log_sheets.length">{{ vm.log_sheets.length }}</span>
+                <div class="sr-section__tools" ng-if="vm.log_sheets.length">
+                    <div class="sr-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search flights" ng-model="vm.my_search3" />
+                    </div>
                 </div>
             </div>
 
-        
+            <div class="sr-section__body sr-section__body--flush">
 
-
-    <div class="bookingout_wrapper no_padding">
-
-        <div class="club_docs_all">
-            <h2>Lesson Status</h2>
-          <div class="center_if_large2 left_al">
-
-                <div class="form-group">
-                  <label for="card-number">This lesson was completed</label>
-                  <div class="check_box_in_form">
-                    <input type="checkbox" class="form-control inputtext" ng-model="vm.is_lesson_completed">
-                  </div>
+                <div class="sr-empty" ng-if="!vm.log_sheets.length">
+                    <div class="sr-empty__icon"><i class="fas fa-plane-slash"></i></div>
+                    <p class="sr-empty__text">There are no flights for this course.</p>
                 </div>
 
-                        <!-- {{ vm.this_entry | json }} -->
+                <div ng-if="vm.log_sheets.length">
+                    <div class="sr-table-wrap">
+                        <table class="sr-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Aircraft</th>
+                                    <th>Type</th>
+                                    <th>Pilot</th>
+                                    <th class="sr-table__num">From</th>
+                                    <th class="sr-table__num">To</th>
+                                    <th class="sr-table__num">Brakes Off</th>
+                                    <th class="sr-table__num">Brakes On</th>
+                                    <th class="sr-table__num">Time</th>
+                                    <th>Lesson</th>
+                                    <th class="sr-table__actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="log in vm.log_sheets | filter: vm.my_search3">
+                                    <td style="white-space: nowrap;">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</td>
+                                    <td>{{ log.registration }}</td>
+                                    <td><span uib-tooltip="{{ log.type_name }}">{{ log.plane_type }}</span></td>
+                                    <td style="white-space: nowrap;">{{ vm.get_pic(log) }}</td>
+                                    <td class="sr-table__num"><span uib-tooltip="{{ log.departure_airport }}">{{ log.departure_airport_code }}</span></td>
+                                    <td class="sr-table__num"><span uib-tooltip="{{ log.destination_airport }}">{{ log.destination_airport_code }}</span></td>
+                                    <td class="sr-table__num">{{ vm.clean_times(log.brakes_off_rounded) }}</td>
+                                    <td class="sr-table__num">{{ vm.clean_times(log.brakes_on_rounded) }}</td>
+                                    <td class="sr-table__num">{{ vm.get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</td>
+                                    <td><span uib-tooltip="{{ log.lesson_title }}">{{ vm.lesson_ref(log) }}</span></td>
+                                    <td class="sr-table__actions">
+                                        <a class="sr-iconbtn sr-iconbtn--play" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="View flight replay"><i class="fa fa-play-circle"></i></a>
+                                        <a class="sr-iconbtn" ng-click="vm.open_training_detail(log.id, log)" uib-tooltip="View the training record for this flight"><i class="fa fa-info-circle"></i></a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-
-                <div class="form-group" ng-if="vm.lesson_completed">
-                <label for="instructor">Select Next Lesson</label>
-                <ui-select ng-model="vm.next_lesson" theme="bootstrap" ng-disabled="disabled" title="Please select the next lesson" append-to-body="true">
-                    <ui-select-match placeholder="Please select the next lesson">
-                      Lesson {{ vm.next_lesson.organise }} - {{ vm.next_lesson.title }}
-                    </ui-select-match>
-                    <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
-                      Lesson {{ lesson.organise }} 
-                      <div ng-bind-html="lesson.title | highlight: $select.search"></div>
-                    </ui-select-choices>
-                </ui-select>
-
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="log in vm.log_sheets | filter: vm.my_search3">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ log.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+                                <span>
+                                    <a class="sr-iconbtn sr-iconbtn--play" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)"><i class="fa fa-play-circle"></i></a>
+                                    <a class="sr-iconbtn" ng-click="vm.open_training_detail(log.id, log)"><i class="fa fa-info-circle"></i></a>
+                                </span>
+                            </div>
+                            <div class="sr-card__sub">{{ log.registration }} &middot; {{ log.plane_type }} &middot; {{ vm.get_pic(log) }}</div>
+                            <div class="sr-card__route">
+                                <span uib-tooltip="{{ log.departure_airport }}">{{ log.departure_airport_code }}</span>
+                                <i class="fa fa-long-arrow-alt-right"></i>
+                                <span uib-tooltip="{{ log.destination_airport }}">{{ log.destination_airport_code }}</span>
+                            </div>
+                            <div class="sr-card__grid">
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Brakes Off</span>
+                                    <span class="sr-card__value">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                                </div>
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Brakes On</span>
+                                    <span class="sr-card__value">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
+                                </div>
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Time</span>
+                                    <span class="sr-card__value">{{ vm.get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                                </div>
+                                <div class="sr-card__stat" ng-if="vm.lesson_ref(log)">
+                                    <span class="sr-card__label">Lesson</span>
+                                    <span class="sr-card__value">{{ vm.lesson_ref(log) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
+        </div>
 
+    </div>
+</div>
+
+
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     DRAWER 1 — view the training record for one flight
+     ══════════════════════════════════════════════════════════════ -->
+<div class="sr-modal__bg" ng-if="vm.show_popup" ng-click="vm.close_popup()"></div>
+
+<div class="sr-modal" ng-if="vm.show_popup && vm.show_popup_name == 'see_records' && !vm.show_edit_training_record">
+
+    <div class="sr-modal__head">
+        <div>
+            <h3 class="sr-modal__title"><i class="fas fa-clipboard-check"></i> Flight training record</h3>
+            <p class="sr-modal__sub">{{ vm.selected_flight.flight_date | asDate | date:"dd MMM yyyy" }} &middot; {{ vm.selected_flight.registration }} &middot; {{ vm.selected_flight.lesson_title }}</p>
+        </div>
+        <button type="button" class="sr-modal__close" ng-click="vm.close_popup()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="sr-modal__body">
+
+        <div class="sr-flightbar">
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">Aircraft</span>
+                <span class="sr-flightbar__value" uib-tooltip="{{ vm.selected_flight.type_name }}">{{ vm.selected_flight.registration }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">Pilot</span>
+                <span class="sr-flightbar__value">{{ vm.get_pic(vm.selected_flight) }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">From</span>
+                <span class="sr-flightbar__value" uib-tooltip="{{ vm.selected_flight.departure_airport }}">{{ vm.selected_flight.departure_airport_code }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">To</span>
+                <span class="sr-flightbar__value" uib-tooltip="{{ vm.selected_flight.destination_airport }}">{{ vm.selected_flight.destination_airport_code }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">Brakes Off</span>
+                <span class="sr-flightbar__value">{{ vm.clean_times(vm.selected_flight.brakes_off_rounded) }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">Brakes On</span>
+                <span class="sr-flightbar__value">{{ vm.clean_times(vm.selected_flight.brakes_on_rounded) }}</span>
+            </div>
+            <div class="sr-flightbar__item">
+                <span class="sr-flightbar__label">Time</span>
+                <span class="sr-flightbar__value">{{ vm.get_hours_from_decimal(vm.selected_flight.brakes_times_rounded) || "0:00" }}</span>
+            </div>
+        </div>
+
+        <!-- Weather at takeoff & landing for this flight (lazy — drawer is ng-if'd) -->
+        <div class="fw-popup-mount" ng-if="vm.selected_flight.id">
+            <flight-weather-panel flight-id="vm.selected_flight.id"
+                                  dep-name="vm.selected_flight.departure_airport"
+                                  arr-name="vm.selected_flight.destination_airport"></flight-weather-panel>
+        </div>
+
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-tasks"></i> Objectives flown</h3>
+                <div class="sr-section__tools" ng-if="vm.selected_record.length">
+                    <div class="sr-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search objectives" ng-model="vm.my_search4" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="sr-section__body sr-section__body--flush">
+
+                <div class="sr-empty" ng-if="!vm.selected_record.length">
+                    <div class="sr-empty__icon"><i class="fas fa-clipboard"></i></div>
+                    <p class="sr-empty__text">There is no training record for this flight.</p>
+                </div>
+
+                <div ng-if="vm.selected_record.length">
+                    <div class="sr-table-wrap">
+                        <table class="sr-table">
+                            <thead>
+                                <tr>
+                                    <th>Key Learning Objective</th>
+                                    <th style="width: 190px;">Achievement</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search4, id: vm.my_search4}">
+                                    <td><span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span></td>
+                                    <td>
+                                        <span class="sr-grade" ng-if="vm.has_grade(item.this_entry)" ng-style="vm.grade_style(item.this_entry)">
+                                            <i ng-if="item.this_entry.grade_icon" ng-class="vm.grade_icon_class(item.this_entry)"></i>
+                                            {{ item.this_entry.grade_name }}
+                                        </span>
+                                        <span class="sr-grade sr-grade--none" ng-if="!vm.has_grade(item.this_entry)">Not graded</span>
+                                    </td>
+                                    <td>{{ item.this_entry.remarks }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search4, id: vm.my_search4}">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ item.title }}</span>
+                                <span class="sr-grade" ng-if="vm.has_grade(item.this_entry)" ng-style="vm.grade_style(item.this_entry)">
+                                    <i ng-if="item.this_entry.grade_icon" ng-class="vm.grade_icon_class(item.this_entry)"></i>
+                                    {{ item.this_entry.grade_name }}
+                                </span>
+                                <span class="sr-grade sr-grade--none" ng-if="!vm.has_grade(item.this_entry)">Not graded</span>
+                            </div>
+                            <div class="sr-card__sub" ng-if="item.this_entry.remarks">{{ item.this_entry.remarks }}</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="sr-section" ng-if="vm.selected_record.length">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-comment-dots"></i> General remarks</h3>
+            </div>
+            <div class="sr-section__body">
+                <div class="sr-remarks" ng-if="vm.selected_record_remarks">{{ vm.selected_record_remarks }}</div>
+                <div class="sr-remarks sr-remarks--empty" ng-if="!vm.selected_record_remarks">No general remarks were left for this flight.</div>
+
+                <div class="sr-audit">
+                    <span>Recorded by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
+                    <span>Created <strong>{{ vm.this_entry.created_at | asDate | date:"dd MMM yyyy" || "no date" }}</strong></span>
+                    <span ng-if="vm.this_entry.edited_by > 0"
+                          uib-tooltip="Reason given: {{ vm.this_entry.edit_reason }}">
+                        Edited <strong>{{ vm.this_entry.updated_at | asDate | date:"dd MMM yyyy" }}</strong> by <strong>{{ vm.this_entry.edited_by_first_name }} {{ vm.this_entry.edited_by_last_name }}</strong>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="sr-modal__foot">
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_popup()">Close</button>
+        <button type="button" class="sr-btn sr-btn--primary" ng-if="vm.user_can_edit" ng-click="vm.show_edit_record()">
+            <i class="fas fa-pen"></i> Edit record
+        </button>
+    </div>
+
+</div>
+
+
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     DRAWER 2 — edit the training record
+     ══════════════════════════════════════════════════════════════ -->
+<div class="sr-modal" ng-if="vm.show_popup && vm.show_popup_name == 'see_records' && vm.show_edit_training_record">
+
+    <div class="sr-modal__head">
+        <div>
+            <h3 class="sr-modal__title"><i class="fas fa-pen"></i> Edit training record</h3>
+            <p class="sr-modal__sub">{{ vm.student.first_name }} {{ vm.student.last_name }} &middot; {{ vm.selected_flight.flight_date | asDate | date:"dd MMM yyyy" }} &middot; {{ vm.selected_flight.registration }}</p>
+        </div>
+        <button type="button" class="sr-modal__close" ng-click="vm.close_popup()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="sr-modal__body">
+
+        <!-- ── The lesson this record is filed under ──────────── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-chalkboard-teacher"></i> Lesson</h3>
+            </div>
+            <div class="sr-section__body">
+
+                <div class="sr-form-group">
+                    <label class="sr-form-group__label">This record's lesson</label>
+                    <ui-select ng-model="vm.lesson_choice" theme="bootstrap" title="Search for the lesson this record belongs to" append-to-body="true">
+                        <ui-select-match placeholder="Search for a lesson…">{{ vm.lesson_label(vm.lesson_choice) }}</ui-select-match>
+                        <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
+                            <div ng-bind-html="vm.lesson_label(lesson) | highlight: $select.search"></div>
+                        </ui-select-choices>
+                    </ui-select>
+                    <div class="sr-form-group__hint">Type to search — e.g. "straight and level".</div>
+
+                    <div class="sr-warning" ng-if="vm.lesson_was_changed()">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            You are moving this record from <strong>{{ vm.original_lesson_label() }}</strong> to
+                            <strong>{{ vm.lesson_label(vm.lesson_choice) }}</strong>.
+                            The objectives already graded below were graded against the original lesson and will stay
+                            attached to this record. A reason for the edit is required.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sr-form-group">
+                    <label class="sr-toggle" ng-class="{'sr-toggle--on': vm.lesson_completed}">
+                        <input type="checkbox" ng-model="vm.lesson_completed">
+                        <span class="sr-toggle__text">
+                            <span class="sr-toggle__title">This lesson was completed</span>
+                            <span class="sr-toggle__sub">Signs the lesson off and lets you set what the student flies next.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="sr-form-group" ng-if="vm.lesson_completed">
+                    <label class="sr-form-group__label">Next lesson for the student</label>
+                    <ui-select ng-model="vm.next_lesson" theme="bootstrap" title="Search for the student's next lesson" append-to-body="true">
+                        <ui-select-match placeholder="Search for the next lesson…">{{ vm.lesson_label(vm.next_lesson) }}</ui-select-match>
+                        <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
+                            <div ng-bind-html="vm.lesson_label(lesson) | highlight: $select.search"></div>
+                        </ui-select-choices>
+                    </ui-select>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── Grade the objectives ───────────────────────────── -->
+        <div class="sr-section sr-section--stickyhead">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-tasks"></i> Objectives</h3>
+                <div class="sr-section__tools" ng-if="vm.selected_record.length">
+                    <div class="sr-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Search objectives" ng-model="vm.my_search4" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Non-blocking nudge: shows exactly how many objectives still need a
+                 grade. A partial debrief is legitimate, so this never stops a save. -->
+            <div class="sr-grade-progress" ng-if="vm.selected_record.length"
+                 ng-class="vm.graded_count(vm.selected_record) === vm.selected_record.length ? 'sr-grade-progress--done' : 'sr-grade-progress--todo'">
+                <i class="fas" ng-class="vm.graded_count(vm.selected_record) === vm.selected_record.length ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span>{{ vm.graded_count(vm.selected_record) }} of {{ vm.selected_record.length }} objectives graded</span>
+                <span class="sr-grade-progress__bar">
+                    <span class="sr-grade-progress__fill" ng-style="{width: vm.grade_percent(vm.selected_record) + '%'}"></span>
+                </span>
+            </div>
+
+            <div class="sr-section__body sr-section__body--flush">
+
+                <div class="sr-empty" ng-if="!vm.selected_record.length">
+                    <div class="sr-empty__icon"><i class="fas fa-clipboard"></i></div>
+                    <p class="sr-empty__text">There are no objectives to grade for this lesson.</p>
+                </div>
+
+                <div ng-if="vm.selected_record.length">
+                    <!-- Header pins while the objectives scroll, so the grade columns stay labelled -->
+                    <div class="sr-table-wrap sr-table-wrap--stickyhead">
+                        <table class="sr-table sr-table--stickyhead">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">Key Learning Objective</th>
+                                    <th style="width: 40%;">
+                                        <!-- Grade names live here, so each row is just the control -->
+                                        <span class="sr-grade-head">
+                                            <span class="sr-grade-head__cell" ng-repeat="competence in vm.competences">{{ competence.title }}</span>
+                                        </span>
+                                    </th>
+                                    <th style="width: 30%;">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search4, id: vm.my_search4}"
+                                    ng-class="{'sr-obj-row--ungraded': !vm.is_graded(item.this_entry)}">
+                                    <td>
+                                        <span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span>
+                                        <span class="sr-ungraded-flag" ng-if="!vm.is_graded(item.this_entry)">
+                                            <i class="fas fa-exclamation-circle"></i> Not graded
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="sr-grade-pick" ng-class="{'sr-grade-pick--empty': !vm.is_graded(item.this_entry)}">
+                                            <label class="sr-grade-opt" ng-repeat="competence in vm.competences"
+                                                   ng-class="{'sr-grade-opt--on': vm.is_graded_as(item.this_entry, competence)}"
+                                                   ng-style="vm.competence_style(competence, item.this_entry)"
+                                                   uib-tooltip="{{ competence.title }}">
+                                                <input type="radio" name="grade_{{ item.id }}" value="{{ competence.id }}" ng-model="item.this_entry.result" />
+                                                <span class="sr-grade-opt__label">
+                                                    <i class="fas fa-check sr-grade-opt__tick"></i>
+                                                    <i ng-if="vm.competence_icon(competence)" class="{{ vm.competence_icon(competence) }}"></i>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <textarea class="sr-textarea" style="min-height: 44px;" ng-model="item.this_entry.remarks" placeholder="Remarks…"></textarea>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="item in vm.selected_record | propsFilterA: {title: vm.my_search4, id: vm.my_search4}">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ item.title }}</span>
+                                <span class="sr-ungraded-flag" ng-if="!vm.is_graded(item.this_entry)">
+                                    <i class="fas fa-exclamation-circle"></i> Not graded
+                                </span>
+                            </div>
+                            <div class="sr-card__sub" ng-if="item.description">{{ item.description }}</div>
+                            <div class="sr-grade-pick" style="margin-bottom: 10px;"
+                                 ng-class="{'sr-grade-pick--empty': !vm.is_graded(item.this_entry)}">
+                                <label class="sr-grade-opt" ng-repeat="competence in vm.competences"
+                                       ng-class="{'sr-grade-opt--on': vm.is_graded_as(item.this_entry, competence)}"
+                                       ng-style="vm.competence_style(competence, item.this_entry)">
+                                    <input type="radio" name="grade_m_{{ item.id }}" value="{{ competence.id }}" ng-model="item.this_entry.result" />
+                                    <i class="fas fa-check sr-grade-opt__tick"></i>
+                                    <i ng-if="vm.competence_icon(competence)" class="{{ vm.competence_icon(competence) }}"></i>
+                                    {{ competence.title }}
+                                </label>
+                            </div>
+                            <textarea class="sr-textarea" style="min-height: 44px;" ng-model="item.this_entry.remarks" placeholder="Remarks…"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── General remarks ────────────────────────────────── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-comment-dots"></i> General remarks</h3>
+            </div>
+            <div class="sr-section__body">
+                <textarea class="sr-textarea" ng-model="vm.this_entry.general_remarks"
+                          placeholder="Any general remarks worth keeping in the student's records…"></textarea>
+            </div>
+        </div>
+
+
+        <!-- ── Flight tagging ─────────────────────────────────── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-tags"></i> Flight tagging</h3>
+                <span class="sr-section__count" ng-if="vm.selected_flight_tags.length">{{ vm.selected_flight_tags.length }}</span>
+            </div>
+            <div class="sr-section__body">
+
+                <!-- Only says "no tags" when nothing is on the record AND nothing is
+                     being composed — otherwise it contradicts the draft below it. -->
+                <div class="sr-empty" ng-if="!vm.selected_flight_tags.length && !vm.flight_tag" style="padding: 18px 12px;">
+                    <p class="sr-empty__text">No tags on this flight yet.</p>
+                </div>
+
+                <div ng-if="vm.selected_flight_tags.length" style="margin-bottom: 14px;">
+                    <div class="sr-tag-row" ng-repeat="tag in vm.selected_flight_tags">
+                        <span class="sr-tag-row__name">{{ tag.title | myToUpperCase }}</span>
+                        <span class="sr-tag-row__time">{{ tag.logging_time }} mins</span>
+                        <a class="sr-iconbtn sr-iconbtn--danger" ng-click="vm.delete_tag(tag, $index)" uib-tooltip="Remove tag"><i class="fa fa-trash-alt"></i></a>
+                    </div>
+                </div>
+
+                <div class="sr-form-group">
+                    <label class="sr-form-group__label">Add a flight tag</label>
+                    <ui-select ng-model="vm.flight_tag" theme="bootstrap" title="Select a flight tag" append-to-body="true" ng-change="vm.update_flight_tag()">
+                        <ui-select-match placeholder="Search for a tag…">{{ vm.flight_tag.title | myToUpperCase }}</ui-select-match>
+                        <ui-select-choices repeat="tag in vm.all_tags | propsFilterA: {title: $select.search, id: $select.search}">
+                            <div ng-bind-html="tag.title | myToUpperCase | highlight: $select.search"></div>
+                        </ui-select-choices>
+                    </ui-select>
+                </div>
+
+                <!-- Selected-but-not-yet-added: an explicitly unfinished draft -->
+                <div class="sr-tag-draft" ng-if="vm.flight_tag">
+                    <span class="sr-tag-draft__flag">
+                        <i class="fas fa-exclamation-circle"></i> Not added yet
+                    </span>
+
+                    <div class="sr-form-group">
+                        <label class="sr-toggle" ng-class="{'sr-toggle--on': vm.tag_full_flight}">
+                            <input type="checkbox" ng-model="vm.tag_full_flight" ng-change="vm.update_flight_full_flight()">
+                            <span class="sr-toggle__text">
+                                <span class="sr-toggle__title">This tag covers the full flight time</span>
+                                <span class="sr-toggle__sub">Untick to log only part of the flight against this tag.</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="sr-form-group" ng-if="!vm.tag_full_flight">
+                        <label class="sr-form-group__label">{{ vm.flight_tag.title | myToUpperCase }} time (minutes)</label>
+                        <input type="number" class="sr-input" step="5" ng-keyup="vm.tag_time_to_five()" ng-model="vm.tag_flight_time" />
+                    </div>
+
+                    <div class="sr-form-group">
+                        <button type="button" class="sr-btn sr-btn--primary sr-tag-draft__commit" ng-click="vm.add_tag()">
+                            <i class="fas fa-plus"></i> Add {{ vm.flight_tag.title | myToUpperCase }} to this flight
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── Reason for the edit (mandatory when the lesson changed) ── -->
+        <div class="sr-section">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-history"></i> Reason for this edit</h3>
+                <span class="sr-pill sr-pill--warn" ng-if="vm.lesson_was_changed()">Required</span>
+            </div>
+            <div class="sr-section__body">
+                <textarea class="sr-textarea" id="field-edit-reason"
+                          ng-class="{'sr-textarea--error': vm.edit_reason_error}"
+                          ng-model="vm.edit_reason"
+                          ng-change="vm.edit_reason_error = false"
+                          placeholder="Why is this record being changed? This is kept in the record's history."></textarea>
+                <span class="sr-field-error" ng-if="vm.edit_reason_error">
+                    You changed this record's lesson — please give a reason for the edit.
+                </span>
+                <div class="sr-form-group__hint" ng-if="!vm.edit_reason_error">Stored against the record so the change can be audited later.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Sticky action bar — always reachable, never scroll to save -->
+    <div class="sr-modal__foot">
+        <span class="sr-modal__foot-note" ng-if="vm.lesson_was_changed()">
+            <i class="fas fa-exclamation-triangle" style="color: #d97706;"></i> Lesson changed — a reason is required.
+        </span>
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_popup()">Cancel</button>
+        <button type="button" class="sr-btn sr-btn--success" ng-if="vm.user_can_edit"
+                ng-click="vm.save_edit_record()" ng-disabled="vm.saving_record">
+            <i class="fas" ng-class="vm.saving_record ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            {{ vm.saving_record ? 'Saving…' : 'Save update' }}
+        </button>
+    </div>
+
+</div>
+
+
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     Backend confirmation (CONFIRM_REQUIRED) — nothing has been written yet.
+     Confirming re-sends the SAME payload with the matching confirm flag.
+     ══════════════════════════════════════════════════════════════ -->
+<!-- Backdrop is inert: these choices are deliberate, so a stray click must not
+     pick one for you. -->
+<div class="sr-modal__bg sr-modal__bg--confirm" ng-if="vm.confirm_dialog"></div>
+
+<div class="sr-modal sr-modal--confirm" ng-if="vm.confirm_dialog" style="max-width: 560px;">
+
+    <div class="sr-modal__head sr-modal__head--warn">
+        <div>
+            <h3 class="sr-modal__title">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span ng-if="vm.confirm_dialog.kind === 'identity_change'">Move this record?</span>
+                <span ng-if="vm.confirm_dialog.kind === 'item_removal'">Remove graded objectives?</span>
+                <span ng-if="vm.confirm_dialog.kind === 'pending_tag'">Tag not added</span>
+            </h3>
+            <p class="sr-modal__sub">Nothing has been saved yet.</p>
         </div>
     </div>
 
-
-
-    <div class="bookingout_wrapper no_padding">
-
-        <div class="club_docs_all">
-            <h2>EDIT REASON</h2>
-          <div class="center_if_large2 left_al">
-
-                <div class="form-group">
-                  <label for="card-number">Please enter the reason for the edit</label>
-                  <div class="check_box_in_form">
-                    <textarea class="form-control inputtext" ng-model="vm.edit_reason"></textarea>
-                  </div>
-
-              </div>
-          </div>
-          <div class="center_if_large2 left_al">
-
-              <div class="bottom_btn btns_bottom">
-
-                  <button ng-click="vm.close_popup()" class="btn btn-danger">Close</button>
-
-
-                  <!-- this could be the edit buttton later on if logged in as instructor and the instructor on this flight!! <button ng-if="error.button !== ''" ng-click="vm.approve_receipt_final(vm.current_receipt)" class="btn btn-info" ng-click="">Approve Receipt</button> -->
-
-
-                  <button ng-if="vm.user_can_edit" ng-click="vm.save_edit_record()" class="btn btn-info">SAVE UPDATE</button>
-
-
-
-
-              </div> 
-
-          </div>
-
-
-
-      </div>
-    </div>
-
-
-
-</div>
-
-
-
-
-
-
-
-
-
-
-
-</div>
-
-
-
-
-
-
-<div class="popup_bg" ng-if="vm.show_add_exam" > 
-    <div class="popup_box3">
-    <div class="bookingout_wrapper no_padding">
-
-        <h3> Add Examination Attempt</h3>
-        <br>
-
-        <div class="form-group">
-          <label for="card-number">Exam</label>
-          <select class="form-control inputtext" ng-model="vm.new_exam.exam_id">
-            <option ng-repeat="exam in vm.exams" value="{{exam.id}}">{{ exam.title }}</option>
-          </select>  
-            
+    <div class="sr-modal__body">
+        <div class="sr-warning" style="margin-top: 0;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>{{ vm.confirm_dialog.message }}</div>
         </div>
-    
-    <div class="form-group">
-        <label>Date</label> <input type="date" class="form-control inputtext" ng-model="vm.new_exam.date" />
-    </div>
-    <div class="form-group">
-        <label>Sitting</label> <input type="text" class="form-control inputtext" ng-model="vm.new_exam.sitting" />
-    </div>
-    <div class="form-group">
-        <label>Set Number</label> <input type="text" class="form-control inputtext" ng-model="vm.new_exam.set_no" />
-    </div>
-    <div class="form-group">
-        <label>Result (%)</label> <input type="number" class="form-control inputtext" ng-model="vm.new_exam.result" />
-    </div>
-    <div class="form-group">
-        <label>PASSED</label>           
-        <div class="check_box_in_form">
-            <input type="checkbox" class="form-control inputtext" ng-model="vm.new_exam.pass_fail" />
+
+        <!-- Field-by-field from/to, when the backend supplies it -->
+        <div class="sr-section" ng-if="vm.confirm_dialog.changes.length" style="margin-top: 16px; margin-bottom: 0;">
+            <div class="sr-section__body sr-section__body--flush">
+                <table class="sr-table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>From</th>
+                            <th>To</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="c in vm.confirm_dialog.changes">
+                            <td><span class="sr-table__objective">{{ c.field }}</span></td>
+                            <td>{{ c.from_name || c.from }}</td>
+                            <td><strong>{{ c.to_name || c.to }}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-    <div class="form-group">
-        <label>Examiner</label> <input type="text" class="form-control inputtext" ng-model="vm.new_exam.examiner" />
+
+    <div class="sr-modal__foot">
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.cancel_confirm_dialog()">
+            {{ vm.confirm_dialog.cancelLabel || 'Cancel' }}
+        </button>
+        <button type="button" class="sr-btn"
+                ng-class="vm.confirm_dialog.kind === 'pending_tag' ? 'sr-btn--primary' : 'sr-btn--danger'"
+                ng-click="vm.confirm_dialog.onConfirm()" ng-disabled="vm.saving_record">
+            <i class="fas" ng-class="vm.saving_record ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            {{ vm.confirm_dialog.confirmLabel || 'Yes, I mean it' }}
+        </button>
     </div>
 
-
-      <div class="bottom_btn">
-
-        <button ng-click="vm.show_add_exam = false" class="btn btn-danger">CANCEL</button>
-       
-        <button ng-click="vm.add_exam_record()" class="btn btn-primary">ADD EXAMINATION</button>
-
-    </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     Add an exam result
+     ══════════════════════════════════════════════════════════════ -->
+<div class="sr-modal__bg" ng-if="vm.show_add_exam" ng-click="vm.show_add_exam = false"></div>
+
+<div class="sr-modal" ng-if="vm.show_add_exam" style="max-width: 560px;">
+
+    <div class="sr-modal__head">
+        <div>
+            <h3 class="sr-modal__title"><i class="fas fa-file-alt"></i> Add examination attempt</h3>
+            <p class="sr-modal__sub">{{ vm.student.first_name }} {{ vm.student.last_name }} &middot; {{ vm.course.title }}</p>
+        </div>
+        <button type="button" class="sr-modal__close" ng-click="vm.show_add_exam = false"><i class="fas fa-times"></i></button>
     </div>
+
+    <div class="sr-modal__body">
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Exam</label>
+            <select class="sr-input" ng-model="vm.new_exam.exam_id">
+                <option ng-repeat="exam in vm.exams" value="{{ exam.id }}">{{ exam.title }}</option>
+            </select>
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Date</label>
+            <input type="date" class="sr-input" ng-model="vm.new_exam.date" />
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Sitting</label>
+            <input type="text" class="sr-input" ng-model="vm.new_exam.sitting" />
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Set number</label>
+            <input type="text" class="sr-input" ng-model="vm.new_exam.set_no" />
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Result (%)</label>
+            <input type="number" class="sr-input" ng-model="vm.new_exam.result" />
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-toggle" ng-class="{'sr-toggle--on': vm.new_exam.pass_fail}">
+                <input type="checkbox" ng-model="vm.new_exam.pass_fail" />
+                <span class="sr-toggle__text">
+                    <span class="sr-toggle__title">Passed</span>
+                    <span class="sr-toggle__sub">Tick if the student passed this sitting.</span>
+                </span>
+            </label>
+        </div>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label">Examiner</label>
+            <input type="text" class="sr-input" ng-model="vm.new_exam.examiner" />
+        </div>
+
+    </div>
+
+    <div class="sr-modal__foot">
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.show_add_exam = false">Cancel</button>
+        <button type="button" class="sr-btn sr-btn--primary" ng-click="vm.add_exam_record()">
+            <i class="fas fa-plus"></i> Add examination
+        </button>
+    </div>
+
 </div>
-
-
-
-
-
-
-
