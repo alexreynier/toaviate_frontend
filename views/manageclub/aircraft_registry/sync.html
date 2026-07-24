@@ -1,0 +1,224 @@
+<div class="trk-page areg">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-plane"></i> Aircraft Registry</h2>
+        <p>Keeps the UK aircraft reference / autocomplete database in step with the CAA G-INFO register.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/aircraft_registry/_nav.html'"></div>
+
+    <div class="trk-banner trk-banner--danger" ng-if="vm.forbidden">
+      <i class="fa fa-lock"></i>
+      <div class="trk-banner__body"><strong>ToAviate admins only</strong> Your account doesn't have access to the registry tools.</div>
+    </div>
+
+    <div class="trk-loading" ng-if="vm.loading && !vm.forbidden">
+      <div class="trk-spinner"></div> Checking the register…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.status && !vm.forbidden">
+
+      <!-- ── Reference-data header cards ── -->
+      <div class="areg-cards">
+
+        <div class="areg-card">
+          <div class="areg-card__icon areg-card__icon--brand"><i class="fa fa-database"></i></div>
+          <div class="areg-card__body">
+            <div class="areg-card__value">{{ vm.status.reference.rows | number }}</div>
+            <div class="areg-card__label">UK register aircraft</div>
+            <div class="areg-card__meta">
+              <span class="areg-dot areg-dot--green"></span>{{ vm.status.reference.registered | number }} registered
+              <span class="areg-dot areg-dot--grey"></span>{{ vm.status.reference.deregistered | number }} deregistered
+            </div>
+          </div>
+        </div>
+
+        <div class="areg-card" ng-class="{'areg-card--warn': vm.stalenessLevel() !== 'fresh'}">
+          <div class="areg-card__icon" ng-class="vm.stalenessLevel() === 'fresh' ? 'areg-card__icon--green' : 'areg-card__icon--red'">
+            <i class="fa" ng-class="vm.stalenessLevel() === 'fresh' ? 'fa-check' : 'fa-hourglass-end'"></i>
+          </div>
+          <div class="areg-card__body">
+            <div class="areg-card__value" ng-if="vm.stalenessLevel() === 'never'">Never</div>
+            <div class="areg-card__value" ng-if="vm.stalenessLevel() !== 'never'">{{ vm.stalenessDays() }}<span class="areg-card__unit">days</span></div>
+            <div class="areg-card__label">{{ vm.stalenessLevel() === 'never' ? 'synced with the CAA' : 'since last sync' }}</div>
+            <div class="areg-card__meta" ng-if="vm.stalenessLevel() !== 'fresh'">
+              The CAA changes ~35% of records per year — time for a sync.
+            </div>
+          </div>
+        </div>
+
+        <div class="areg-card areg-card--click" ng-class="{'areg-card--warn': vm.pending_advisories}"
+             ui-sref="dashboard.super_admin.aircraft_registry_advisories">
+          <div class="areg-card__icon" ng-class="vm.pending_advisories ? 'areg-card__icon--amber' : 'areg-card__icon--grey'">
+            <i class="fa fa-clipboard-check"></i>
+          </div>
+          <div class="areg-card__body">
+            <div class="areg-card__value">{{ vm.pending_advisories }}</div>
+            <div class="areg-card__label">advisories to review</div>
+            <div class="areg-card__meta">Held changes for club-assigned registrations <i class="fa fa-chevron-right areg-card__go"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Idle: start a sync ══ -->
+      <div class="trk-card areg-start" ng-if="!vm.run">
+        <div class="areg-start__art"><i class="fa fa-plane"></i></div>
+        <h4 class="areg-start__title">Refresh the UK register</h4>
+        <p class="areg-start__text">
+          Sweeps G-INFO for every registration AA–ZZ, adds new aircraft, enriches the ones we hold and marks
+          vanished ones as deregistered. <strong>Nothing is ever deleted</strong>, and registrations assigned to a
+          club fleet are <strong>never auto-updated</strong> — they're held for your review as advisories.
+        </p>
+        <p class="areg-start__hint">
+          G-INFO is public data — run this at a civil cadence (monthly is plenty), not continuously.
+        </p>
+
+        <button class="trk-btn trk-btn--primary areg-start__btn" ng-click="vm.startSync()" ng-disabled="vm.starting">
+          <span ng-if="vm.starting" class="trk-spinner trk-spinner--inline"></span>
+          <i class="fa fa-play" ng-if="!vm.starting"></i> Start a sync
+        </button>
+
+        <div class="areg-advanced">
+          <a href="" class="areg-advanced__toggle" ng-click="vm.show_advanced = !vm.show_advanced">
+            <i class="fa" ng-class="vm.show_advanced ? 'fa-chevron-up' : 'fa-chevron-down'"></i> Advanced
+          </a>
+          <div class="areg-advanced__body" ng-if="vm.show_advanced">
+            <label for="field-areg-keys">reCAPTCHA keys <span class="areg-advanced__optional">(optional)</span></label>
+            <textarea id="field-areg-keys" class="areg-advanced__textarea" rows="3"
+                      ng-model="vm.recaptcha_keys"
+                      placeholder="One token per line"></textarea>
+            <div class="areg-advanced__hint">
+              Leave blank — the CAA API currently needs no token. Only paste keys if a sync starts failing
+              with an auth error.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Active / finished run panel ══ -->
+      <div class="trk-card areg-run" ng-if="vm.run">
+
+        <div class="areg-run__head">
+          <h4 class="trk-card__title" style="margin-bottom: 0;">
+            <i class="fa fa-sync-alt" ng-class="{'fa-spin': vm.run.state === 'running'}"></i>
+            Sync #{{ vm.run.id }}
+            <span class="trk-badge" ng-class="vm.runBadge(vm.run.state)">{{ vm.pretty(vm.run.state) }}</span>
+          </h4>
+          <span class="areg-run__updated" uib-tooltip="{{ vm.abs(vm.run.updated_at) }}">updated {{ vm.ago(vm.run.updated_at) }}</span>
+        </div>
+
+        <!-- error state -->
+        <div class="trk-banner trk-banner--danger" ng-if="vm.run.state === 'error'">
+          <i class="fa fa-exclamation-triangle"></i>
+          <div class="trk-banner__body">
+            <strong>The sync hit an error</strong> {{ vm.run.last_error || 'Unknown error.' }}
+            <span ng-if="!vm.run.has_recaptcha_keys"> If this looks like an auth error, try again with freshly harvested reCAPTCHA keys (Advanced).</span>
+          </div>
+        </div>
+
+        <!-- phase stepper -->
+        <div class="areg-steps">
+          <div class="areg-step" ng-repeat="s in vm.phaseSteps" ng-class="'areg-step--' + vm.phaseState(vm.run, s.key)">
+            <div class="areg-step__bubble"><i class="fa" ng-class="vm.phaseState(vm.run, s.key) === 'done' ? 'fa-check' : s.icon"></i></div>
+            <div class="areg-step__label">{{ s.label }}</div>
+          </div>
+          <div class="areg-steps__bar">
+            <div class="areg-steps__fill" ng-style="{width: vm.overallPercent(vm.run) + '%'}"
+                 ng-class="{'areg-steps__fill--shimmer': vm.run.state === 'running'}"></div>
+          </div>
+        </div>
+
+        <p class="areg-run__copy" ng-if="vm.runActive(vm.run)">{{ vm.phaseCopy(vm.run) }}</p>
+        <p class="areg-run__copy areg-run__copy--done" ng-if="vm.run.state === 'done'">
+          <i class="fa fa-check-circle"></i> All three phases complete — the reference database is up to date.
+        </p>
+
+        <!-- live counters -->
+        <div class="areg-counters">
+          <div class="areg-counter" ng-class="{'areg-counter--bump': vm.bumped.found_new}">
+            <div class="areg-counter__value">{{ vm.run.found_new | number }}</div>
+            <div class="areg-counter__label">New found</div>
+          </div>
+          <div class="areg-counter" ng-class="{'areg-counter--bump': vm.bumped.updated_ref}">
+            <div class="areg-counter__value">{{ vm.run.updated_ref | number }}</div>
+            <div class="areg-counter__label">Updated</div>
+          </div>
+          <div class="areg-counter areg-counter--amber" ng-class="{'areg-counter--bump': vm.bumped.advisories_raised}">
+            <div class="areg-counter__value">{{ vm.run.advisories_raised | number }}</div>
+            <div class="areg-counter__label">Held for review</div>
+          </div>
+          <div class="areg-counter" ng-class="{'areg-counter--bump': vm.bumped.deregistered}">
+            <div class="areg-counter__value">{{ vm.run.deregistered | number }}</div>
+            <div class="areg-counter__label">Deregistered</div>
+            <div class="areg-counter__caption">marked deregistered — nothing is ever deleted</div>
+          </div>
+          <div class="areg-counter" ng-class="{'areg-counter--bump': vm.bumped.errors, 'areg-counter--red': vm.run.errors > 0}">
+            <div class="areg-counter__value">{{ vm.run.errors | number }}</div>
+            <div class="areg-counter__label">Errors</div>
+          </div>
+        </div>
+
+        <!-- controls -->
+        <div class="areg-run__actions" ng-if="vm.runActive(vm.run)">
+          <button class="trk-btn trk-btn--primary" ng-if="vm.run.state === 'staged'" ng-click="vm.resumeRun()" ng-disabled="vm.resuming">
+            <span ng-if="vm.resuming" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-play" ng-if="!vm.resuming"></i> Start
+          </button>
+          <button class="trk-btn trk-btn--primary" ng-if="vm.run.state === 'paused'" ng-click="vm.resumeRun()" ng-disabled="vm.resuming">
+            <span ng-if="vm.resuming" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-play" ng-if="!vm.resuming"></i> Resume
+          </button>
+          <button class="trk-btn trk-btn--ghost" ng-if="vm.run.state === 'running'" ng-click="vm.pauseRun()" ng-disabled="vm.pausing">
+            <span ng-if="vm.pausing" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-pause" ng-if="!vm.pausing"></i> Pause
+          </button>
+
+          <button class="trk-btn trk-btn--ghost areg-boost" ng-if="vm.run.state === 'running'"
+                  ng-class="{'areg-boost--on': vm.boost}" ng-click="vm.toggleBoost()"
+                  uib-tooltip="Advances a batch every few seconds while this tab is open — the background cron keeps going either way.">
+            <i class="fa fa-bolt"></i> {{ vm.boost ? 'Boosting…' : 'Speed up in this tab' }}
+          </button>
+
+          <button class="trk-btn trk-btn--ghost" ng-if="!vm.cancel_open" ng-click="vm.cancel_open = true">
+            <i class="fa fa-stop"></i> Cancel
+          </button>
+        </div>
+
+        <div class="trk-confirm trk-confirm--danger" ng-if="vm.cancel_open && vm.runActive(vm.run)">
+          <p>Cancel this sync? Everything already applied stays (nothing rolls back) — a rerun later is idempotent.</p>
+          <div class="trk-confirm__actions">
+            <button class="trk-btn trk-btn--danger trk-btn--sm" ng-click="vm.cancelRun()" ng-disabled="vm.cancelling">
+              <span ng-if="vm.cancelling" class="trk-spinner trk-spinner--inline"></span> Yes, cancel it
+            </button>
+            <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.cancel_open = false">Keep going</button>
+          </div>
+        </div>
+
+        <div class="areg-run__note" ng-if="vm.runActive(vm.run)">
+          <i class="fa fa-moon"></i>
+          You can close this page — the sync continues in the background and finishes within the hour.
+        </div>
+
+        <div class="areg-run__actions" ng-if="!vm.runActive(vm.run)">
+          <button class="trk-btn trk-btn--primary" ng-click="vm.reload()">
+            <i class="fa fa-check"></i> Done — back to the overview
+          </button>
+          <a href="" class="trk-btn trk-btn--ghost" ng-if="vm.run.advisories_raised > 0" ui-sref="dashboard.super_admin.aircraft_registry_advisories">
+            <i class="fa fa-clipboard-check"></i> Review the {{ vm.run.advisories_raised }} held change{{ vm.run.advisories_raised == 1 ? '' : 's' }}
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>

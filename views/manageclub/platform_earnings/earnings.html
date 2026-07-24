@@ -1,0 +1,221 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-coins"></i> Platform Earnings</h2>
+        <p>Stripe + GoCardless fee income — which clubs are supporting us best.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/platform_earnings/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <!-- ── Filter bar ── -->
+      <div class="trk-card gclm-filterbar">
+        <div class="gclm-filterbar__top">
+          <div class="trk-chips gclm-filterbar__presets">
+            <div class="trk-chip"
+                 ng-repeat="p in vm.presets"
+                 ng-class="{'trk-chip--active': vm.preset === p.key}"
+                 ng-click="vm.applyPreset(p.key)">{{ p.label }}</div>
+            <div class="trk-chip" ng-class="{'trk-chip--active': vm.preset === 'custom'}">Custom</div>
+          </div>
+          <div class="gclm-sync">
+            <span class="gclm-sync__progress" ng-if="vm.sync_progress">{{ vm.sync_progress }}</span>
+            <button class="trk-btn trk-btn--ghost" ng-click="vm.syncFees()" ng-disabled="vm.syncing"
+                    tooltip-popup-delay="300" uib-tooltip="Import GoCardless costs from the payout API — a daily cron keeps them current; this is the manual trigger. Safe to re-run.">
+              <i class="fa fa-sync-alt" ng-class="{'fa-spin': vm.syncing}"></i>
+              {{ vm.syncing ? 'Syncing' : 'Sync GoCardless fees' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="gclm-filterbar__row">
+          <div class="trk-field">
+            <label>From</label>
+            <input type="date" class="trk-input" ng-model="vm.f.from" ng-change="vm.customRangeChanged()" id="field-gclm-earn-from">
+          </div>
+          <div class="trk-field">
+            <label>To</label>
+            <input type="date" class="trk-input" ng-model="vm.f.to" ng-change="vm.customRangeChanged()" id="field-gclm-earn-to">
+          </div>
+          <div class="trk-field">
+            <label>Granularity</label>
+            <div class="gclm-seg">
+              <button class="gclm-seg__btn"
+                      ng-repeat="g in vm.enums.granularities"
+                      ng-class="{'gclm-seg__btn--active': vm.f.granularity === g}"
+                      ng-click="vm.setGranularity(g)">{{ g }}</button>
+            </div>
+          </div>
+          <div class="trk-field">
+            <label>Money</label>
+            <div class="gclm-seg">
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.mode === 'live'}" ng-click="vm.setMode('live')">Live</button>
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.mode === 'sandbox'}" ng-click="vm.setMode('sandbox')">Test</button>
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.mode === 'all'}" ng-click="vm.setMode('all')">All</button>
+            </div>
+          </div>
+          <div class="trk-field">
+            <label>Gateway</label>
+            <div class="gclm-seg">
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.gateway === 'all'}" ng-click="vm.setGateway('all')">Both</button>
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.gateway === 'gocardless'}" ng-click="vm.setGateway('gocardless')">GoCardless</button>
+              <button class="gclm-seg__btn" ng-class="{'gclm-seg__btn--active': vm.f.gateway === 'stripe'}" ng-click="vm.setGateway('stripe')">Stripe</button>
+            </div>
+          </div>
+          <div class="trk-field gclm-filterbar__club">
+            <label>Club</label>
+            <select class="trk-select" ng-model="vm.f.club_id" ng-change="vm.clubChanged()"
+                    ng-options="c.id as c.title for c in vm.clubs">
+              <option value="">All clubs</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="gclm-drill-chip" ng-if="vm.f.club_id">
+          <i class="fa fa-filter"></i> Showing {{ vm.clubTitle() }} only
+          <a href="" ng-click="vm.clearClub()"><i class="fa fa-times"></i> clear</a>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Counting the takings…
+      </div>
+
+      <div ng-if="!vm.loading && vm.earnings">
+
+        <div class="trk-empty" ng-if="!vm.earn_tiles.length && !vm.mode_hidden">
+          <i class="fa fa-coins"></i>
+          <p>No gateway payments in this range.</p>
+        </div>
+
+        <!-- Empty only because of the mode toggle — say so, with a one-click way out -->
+        <div class="trk-empty gclm-mode-hidden" ng-if="vm.mode_hidden">
+          <i class="fa fa-toggle-off"></i>
+          <p>{{ vm.mode_hidden.message }}</p>
+          <button class="trk-btn trk-btn--primary" ng-click="vm.showHiddenMode()">
+            <i class="fa fa-eye"></i> {{ vm.mode_hidden.targetLabel }}
+          </button>
+        </div>
+
+        <!-- ── Headline tiles, one row per currency ── -->
+        <div class="gclm-earn-row" ng-repeat="t in vm.earn_tiles">
+          <div class="gclm-rev-tile gclm-rev-tile--fees">
+            <div class="gclm-rev-tile__label">Platform fees earned · {{ t.currency }}</div>
+            <div class="gclm-rev-tile__value">{{ vm.cur(t.currency) }}{{ t.fees | number:2 }}</div>
+            <div class="gclm-rev-tile__sub" ng-if="vm.f.mode === 'all'">live money only — test shown hatched in the chart</div>
+            <div class="gclm-rev-tile__lines" ng-if="vm.f.mode === 'all' && (t.test_fees || t.unknown_fees)">
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--test" ng-if="t.test_fees">test {{ vm.cur(t.currency) }}{{ t.test_fees | number:2 }}</span>
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--unknown" ng-if="t.unknown_fees">unknown mode {{ vm.cur(t.currency) }}{{ t.unknown_fees | number:2 }}</span>
+            </div>
+          </div>
+          <div class="gclm-rev-tile gclm-rev-tile--volume">
+            <div class="gclm-rev-tile__label">Volume processed · {{ t.currency }}</div>
+            <div class="gclm-rev-tile__value">{{ vm.cur(t.currency) }}{{ t.gross | number:2 }}</div>
+            <div class="gclm-rev-tile__sub">{{ t.payments }} payment{{ t.payments == 1 ? '' : 's' }}<span ng-if="t.refunded"> · {{ vm.cur(t.currency) }}{{ t.refunded | number:2 }} refunded</span></div>
+          </div>
+          <div class="gclm-rev-tile gclm-rev-tile--costs">
+            <div class="gclm-rev-tile__label">Gateway costs · {{ t.currency }}</div>
+            <div class="gclm-rev-tile__value">{{ vm.cur(t.currency) }}{{ t.gateway_fees | number:2 }}</div>
+            <div class="gclm-rev-tile__sub">Stripe at charge time · GoCardless via payout sync</div>
+          </div>
+          <div class="gclm-rev-tile gclm-rev-tile--risk">
+            <div class="gclm-rev-tile__label">Pending / lost fees · {{ t.currency }}</div>
+            <div class="gclm-rev-tile__lines gclm-rev-tile__lines--stack">
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--pending">pending {{ vm.cur(t.currency) }}{{ t.pending | number:2 }}</span>
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--lost">lost {{ vm.cur(t.currency) }}{{ t.lost | number:2 }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Earnings chart ── -->
+        <div class="trk-card" ng-if="vm.earn_chart.length">
+          <h4 class="trk-card__title">
+            <i class="fa fa-chart-bar"></i> Earnings by {{ vm.f.granularity }}
+            <span class="gclm-chart-hint" ng-if="vm.f.granularity !== 'day'">click a bar to zoom in</span>
+          </h4>
+          <div class="trk-chips" ng-if="vm.earn_currencies.length > 1">
+            <div class="trk-chip"
+                 ng-repeat="c in vm.earn_currencies"
+                 ng-class="{'trk-chip--active': vm.earn_currency === c}"
+                 ng-click="vm.setEarnCurrency(c)">{{ c }}</div>
+          </div>
+          <div class="gclm-chart">
+            <div class="gclm-chart__col"
+                 ng-repeat="c in vm.earn_chart"
+                 ng-class="{'gclm-chart__col--drill': vm.f.granularity !== 'day'}"
+                 ng-click="vm.drillPeriod(c)"
+                 tooltip-popup-delay="300" uib-tooltip="{{ c.label }} — {{ c.tip }}">
+              <div class="gclm-chart__stack">
+                <div class="gclm-chart__seg"
+                     ng-repeat="s in c.segs"
+                     ng-class="'gclm-chart__seg--' + s.cls"
+                     ng-style="{ height: s.pct + '%', 'animation-delay': c.delay + 'ms' }"></div>
+              </div>
+              <div class="gclm-chart__label">{{ c.label }}</div>
+            </div>
+          </div>
+          <div class="gclm-legend">
+            <span class="gclm-legend__item" ng-repeat="s in vm.earn_legend">
+              <span class="gclm-legend__swatch" ng-class="'gclm-legend__swatch--' + s.cls"></span> {{ s.label }}
+            </span>
+          </div>
+        </div>
+
+        <!-- ── Clubs supporting us ── -->
+        <div class="trk-card" ng-if="vm.earnClubs().length">
+          <h4 class="trk-card__title"><i class="fa fa-users"></i> Clubs supporting us</h4>
+          <p class="trk-card__hint" ng-if="!vm.f.club_id">Collected money only — click a club to drill the whole screen down to it.</p>
+          <div class="trk-table-scroll">
+            <table class="trk-table trk-table--stack">
+              <thead>
+                <tr>
+                  <th>Club</th>
+                  <th>Mode</th>
+                  <th>Payments</th>
+                  <th>Volume</th>
+                  <th>Platform fees</th>
+                  <th>via GoCardless</th>
+                  <th>via Stripe</th>
+                  <th>Gateway costs</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="trk-table__row-click" ng-repeat="r in vm.earnClubs()" ng-click="vm.drillClub(r)">
+                  <td data-label="Club">{{ r.club_title || ('Club #' + r.club_id) }}</td>
+                  <td data-label="Mode"><span class="trk-badge" ng-class="vm.modeBadge(r.mode)">{{ r.mode }}</span></td>
+                  <td data-label="Payments" class="trk-table__muted">{{ r.payments }}</td>
+                  <td data-label="Volume" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.gross) | number:2 }}</td>
+                  <td data-label="Platform fees" class="trk-table__money"><strong>{{ vm.cur(r.currency) }}{{ vm.num(r.platform_fees) | number:2 }}</strong></td>
+                  <td data-label="via GoCardless" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.gocardless_platform_fees) | number:2 }}</td>
+                  <td data-label="via Stripe" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.stripe_platform_fees) | number:2 }}</td>
+                  <td data-label="Gateway costs" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.gateway_fees) | number:2 }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Notes ── -->
+        <div class="trk-banner trk-banner--info gclm-notes" ng-if="vm.earnings.notes.length">
+          <i class="fa fa-info-circle"></i>
+          <div class="trk-banner__body">
+            <strong>Reading these numbers</strong>
+            <div class="gclm-notes__line" ng-repeat="n in vm.earnings.notes">{{ n }}</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>

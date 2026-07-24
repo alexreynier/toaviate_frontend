@@ -374,10 +374,15 @@
             stripe = Stripe(stripeKey);
             elements = stripe.elements();
             card = elements.create('card', card_options);
-        }).catch(function(){
-            // No usable publishable key for this club — don't mount the card element.
+        }).catch(function(err){
+            // No usable publishable key for this club, or Stripe.js never loaded
+            // (CDN blocked) — don't mount the card element.
             $scope.stripe_not_configured = true;
-            ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact ToAviate.");
+            if(err && err.code === 'stripe_js_unavailable'){
+                ToastService.error('Card Form Not Loaded', "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again.");
+            } else {
+                ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact ToAviate.");
+            }
         });
 
         var run = false;

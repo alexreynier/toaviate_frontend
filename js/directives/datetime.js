@@ -507,7 +507,11 @@ app.directive('collapsible', ['$timeout', function($timeout){
                     const {error, paymentIntent} = await stripe.confirmPayment({
                       elements,
                       confirmParams: {
-                       // return_url: 'https://example.com/order/confirmation',
+                        // Only used if the payment method forces a redirect (none
+                        // of the currently enabled ones do) — without it,
+                        // confirmPayment throws an IntegrationError for such
+                        // methods instead of failing gracefully.
+                        return_url: window.location.href,
                       },
                       redirect: 'if_required', // Only redirect if absolutely necessary
                     });
@@ -559,12 +563,15 @@ app.directive('collapsible', ['$timeout', function($timeout){
                     }
                   });
                 }
-              }).catch(function(){
+              }).catch(function(err){
                 // No usable publishable key for this club (e.g. switched to live
-                // before live keys were configured). Don't mount Stripe — explain.
-                $scope.$apply(function(){
+                // before live keys were configured), or Stripe.js itself never
+                // loaded (CDN blocked). Don't mount Stripe — explain.
+                $scope.$applyAsync(function(){
                   vm.paymentNo = true;
-                  vm.payment_status_message = "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
+                  vm.payment_status_message = (err && err.code === 'stripe_js_unavailable')
+                    ? "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again."
+                    : "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
                 });
               }); // end GetClubStripeKey().then for new-card flow
 
@@ -915,7 +922,8 @@ app.directive('collapsible', ['$timeout', function($timeout){
 
                             } else {
 
-                              alert("We had an issue talking to the card machine - please try again by using the buttons below");
+                              vm.paymentNo = true;
+                              vm.payment_status_message = "We had an issue talking to the card machine - please try again by using the buttons below";
                               vm.show_loading = false;
                               vm.show_cardmachine = true;
 
@@ -1028,11 +1036,13 @@ app.directive('collapsible', ['$timeout', function($timeout){
 
                                   vm.show_loading = false;
                                 });
-                              }).catch(function(){
-                                $scope.$apply(function(){
+                              }).catch(function(err){
+                                $scope.$applyAsync(function(){
                                   vm.paymentNo = true;
                                   vm.show_loading = false;
-                                  vm.payment_status_message = "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
+                                  vm.payment_status_message = (err && err.code === 'stripe_js_unavailable')
+                                    ? "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again."
+                                    : "Card payments aren't set up for this club yet. Please contact the club or try another payment method.";
                                 });
                               }); // end GetClubStripeKey().then for saved-card 3DS
 

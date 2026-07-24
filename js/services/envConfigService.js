@@ -19,10 +19,11 @@
 
         var configs = {
 
+            // NOTE: no Stripe keys here. Stripe publishable keys are per-club AND
+            // per payment mode, fetched at runtime via
+            // PaymentService.GetClubStripeKey(club_id) — never hard-coded.
             development: {
                 api_base_url: 'https://local-api.toaviate.com',
-                stripe_publishable_key: 'pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd',
-                stripe_publishable_key_legacy: 'pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2',
                 api_key: 'eW91a25vd25vdGhpbmdqb25zbm93',
                 // Flight replay map provider: 'maplibre' (free, no key) | 'google'.
                 map_provider: 'maplibre',
@@ -37,8 +38,6 @@
 
             staging: {
                 api_base_url: 'https://v1.toaviate.com',
-                stripe_publishable_key: 'pk_test_51QttFFG8WiGSRCORyxkdZTO8oajcqz9OUsvcDJFpr9FB2PAdbzJc0tS7WNnfzKYsTiqHN1YDZi5UtXk4K52SeD4h00YWXuChNd',
-                stripe_publishable_key_legacy: 'pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2',
                 api_key: 'eW91a25vd25vdGhpbmdqb25zbm93',
                 map_provider: 'maplibre',
                 google_maps_key: 'REPLACE_WITH_GOOGLE_MAPS_KEY',
@@ -48,8 +47,6 @@
 
             production: {
                 api_base_url: 'https://api.toaviate.com',
-                stripe_publishable_key: 'REPLACE_WITH_LIVE_STRIPE_KEY',
-                stripe_publishable_key_legacy: 'REPLACE_WITH_LIVE_STRIPE_KEY_LEGACY',
                 api_key: 'eW91a25vd25vdGhpbmdqb25zbm93',
                 map_provider: 'maplibre',
                 google_maps_key: 'REPLACE_WITH_GOOGLE_MAPS_KEY',
@@ -72,12 +69,6 @@
             },
             isDebug: function() {
                 return active.debug;
-            },
-            getStripeKey: function() {
-                return active.stripe_publishable_key;
-            },
-            getStripeKeyLegacy: function() {
-                return active.stripe_publishable_key_legacy;
             },
             getApiKey: function() {
                 return active.api_key;

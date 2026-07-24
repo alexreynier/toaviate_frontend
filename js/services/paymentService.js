@@ -1,13 +1,18 @@
 app.factory('PaymentService', PaymentService);
 
-    PaymentService.$inject = ['$http', '$location', '$q'];
-    function PaymentService($http, $location, $q) {
+    PaymentService.$inject = ['$http', '$location', '$q', '$timeout'];
+    function PaymentService($http, $location, $q, $timeout) {
         var service = {};
 
         // Per-club Stripe publishable key cache. The key is club- AND mode-specific
         // (a club may be sandbox while another is live), so it must be fetched from
-        // payment_mode/{club_id}/config — never hard-coded. Cached per session.
+        // payment_mode/{club_id}/config — never hard-coded. Entries expire after
+        // KEY_CACHE_TTL_MS so a session that was open across a payment-mode switch
+        // picks up the new mode's key within minutes instead of holding the stale
+        // one until reload (a stale key pairs old-mode Elements with new-mode
+        // intents and fails at confirm).
         var _stripeKeyCache = {};
+        var KEY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 
         service.GetAddresses = GetAddresses;
@@ -54,39 +59,68 @@ app.factory('PaymentService', PaymentService);
 
         service.GetClubStripeKey = GetClubStripeKey;
         service.ClearClubStripeKey = ClearClubStripeKey;
+        service.WaitForStripeJs = WaitForStripeJs;
+        service.ConfirmSetup = ConfirmSetup;
 
         return service;
 
-        // Resolve a club's Stripe publishable key (per-club, per payment mode).
-        // Returns a promise that resolves to the publishable key string. Cached so
-        // repeated payment flows in a session only hit the network once per club.
-        // Call ClearClubStripeKey after a mode switch so the new mode's key is
-        // fetched fresh.
-        //
-        // REJECTS with { code: 'not_configured' } when the club has no usable
-        // publishable key — e.g. a club flipped to live before that server's live
-        // keys were filled in (stripe_publishable_key_present === false). Card-mount
-        // flows should .catch this and show a "card payments aren't configured yet"
-        // message rather than letting Stripe.js throw on an empty key.
-        function GetClubStripeKey(club_id) {
-            if (_stripeKeyCache[club_id]) {
-                return $q.when(_stripeKeyCache[club_id]);
+        // Stripe.js is loaded async from the CDN in index.html, so it may not be
+        // available yet (slow network) or ever (js.stripe.com blocked by a content
+        // blocker). Resolves once the global Stripe constructor exists; rejects
+        // with { code: 'stripe_js_unavailable' } after ~10s so payment flows can
+        // show a helpful message instead of throwing 'Stripe is not defined'.
+        function WaitForStripeJs() {
+            var deferred = $q.defer();
+            var waited = 0;
+            check();
+            return deferred.promise;
+
+            function check() {
+                if (typeof Stripe !== 'undefined') { deferred.resolve(true); return; }
+                if (waited >= 10000) { deferred.reject({ code: 'stripe_js_unavailable' }); return; }
+                waited += 300;
+                $timeout(check, 300);
             }
-            return $http.get('/api/v1/payment_mode/' + club_id + '/config').then(function(res){
-                var data = res.data || {};
-                var key = data.stripe_publishable_key;
-                // present flag is authoritative; fall back to a truthy key if absent.
-                var present = (typeof data.stripe_publishable_key_present !== 'undefined')
-                    ? data.stripe_publishable_key_present
-                    : !!key;
-                if (!present || !key) {
-                    return $q.reject({ code: 'not_configured', payment_mode: data.payment_mode });
-                }
-                _stripeKeyCache[club_id] = key;
-                return key;
-            }, function(res){
-                if (res && res.status == 401) { $location.path('/login'); }
-                return $q.reject({ code: 'fetch_failed', status: res && res.status });
+        }
+
+        // Resolve a club's Stripe publishable key (per-club, per payment mode).
+        // Returns a promise that resolves to the publishable key string — and only
+        // once Stripe.js itself has loaded, so callers can safely call Stripe(key)
+        // in their .then without their own load guard. Cached (with TTL) so
+        // repeated payment flows in a session rarely hit the network. Call
+        // ClearClubStripeKey after a mode switch so the new mode's key is fetched
+        // fresh.
+        //
+        // REJECTS with:
+        //   { code: 'not_configured' }        — club has no usable publishable key,
+        //     e.g. flipped to live before that server's live keys were filled in
+        //     (stripe_publishable_key_present === false). Show "card payments
+        //     aren't configured for this club yet".
+        //   { code: 'stripe_js_unavailable' } — Stripe.js never loaded (CDN slow
+        //     or blocked). Show "couldn't load the secure card form".
+        //   { code: 'fetch_failed' }          — config endpoint errored.
+        function GetClubStripeKey(club_id) {
+            var cached = _stripeKeyCache[club_id];
+            if (cached && (Date.now() - cached.at) < KEY_CACHE_TTL_MS) {
+                return WaitForStripeJs().then(function(){ return cached.key; });
+            }
+            return WaitForStripeJs().then(function(){
+                return $http.get('/api/v1/payment_mode/' + club_id + '/config').then(function(res){
+                    var data = res.data || {};
+                    var key = data.stripe_publishable_key;
+                    // present flag is authoritative; fall back to a truthy key if absent.
+                    var present = (typeof data.stripe_publishable_key_present !== 'undefined')
+                        ? data.stripe_publishable_key_present
+                        : !!key;
+                    if (!present || !key) {
+                        return $q.reject({ code: 'not_configured', payment_mode: data.payment_mode });
+                    }
+                    _stripeKeyCache[club_id] = { key: key, at: Date.now() };
+                    return key;
+                }, function(res){
+                    if (res && res.status == 401) { $location.path('/login'); }
+                    return $q.reject({ code: 'fetch_failed', status: res && res.status });
+                });
             });
         }
 
@@ -113,6 +147,13 @@ app.factory('PaymentService', PaymentService);
         //create_new_customer
         function CreateNewCustomer(send){
             return $http.post('/api/v1/cards/create_new_customer', send).then(handleSuccess, handleError2);
+        }
+
+        // Finalises a succeeded SetupIntent: backend verifies it with Stripe, sets
+        // the new card as the customer's default and links the customer to the
+        // member record. send = { setup_intent_id, user_id, club_id }.
+        function ConfirmSetup(send){
+            return $http.post('/api/v1/cards/confirm_setup', send).then(handleSuccess, handleError2);
         }
 
         //create_cardmachine_intent_booking

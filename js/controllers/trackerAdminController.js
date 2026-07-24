@@ -26,6 +26,7 @@ app.controller('TrackerAdminController', TrackerAdminController);
             { screen: 'orders',    state: 'dashboard.super_admin.tracker_orders',          label: 'Orders',   icon: 'fa-box-open' },
             { screen: 'units',     state: 'dashboard.super_admin.tracker_units',           label: 'Units',    icon: 'fa-map-marker-alt' },
             { screen: 'invoices',  state: 'dashboard.super_admin.tracker_invoices',        label: 'Invoices', icon: 'fa-file-invoice-dollar' },
+            { screen: 'payment_errors', state: 'dashboard.super_admin.tracker_payment_errors', label: 'Payment Errors', icon: 'fa-exclamation-triangle' },
             { screen: 'returns',   state: 'dashboard.super_admin.tracker_returns',         label: 'Returns',  icon: 'fa-undo' },
             { screen: 'versions',  state: 'dashboard.super_admin.tracker_versions',        label: 'Versions', icon: 'fa-microchip' },
             { screen: 'audit',     state: 'dashboard.super_admin.tracker_audit',           label: 'Audit',    icon: 'fa-history' }
@@ -46,6 +47,7 @@ app.controller('TrackerAdminController', TrackerAdminController);
         vm.invoiceBadge = function(st) { return TrackerCommerceService.badges.invoice[st] || 'trk-badge--grey'; };
         vm.unitBadge    = function(st) { return TrackerCommerceService.badges.unit[st]    || 'trk-badge--grey'; };
         vm.returnBadge  = function(st) { return TrackerCommerceService.badges.return[st]  || 'trk-badge--grey'; };
+        vm.eventOutcomeBadge = function(o) { return TrackerCommerceService.badges.event_outcome[o] || 'trk-badge--grey'; };
 
         function toastFail(title, data) {
             ToastService.error(title, (data && data.message) || 'Something went wrong. Please try again.');
@@ -68,6 +70,7 @@ app.controller('TrackerAdminController', TrackerAdminController);
                 case 'order_detail':   initOrderDetail(); break;
                 case 'units':          initUnits(); break;
                 case 'invoices':       initInvoices(); break;
+                case 'payment_errors': initPaymentErrors(); break;
                 case 'returns':        initReturns(); break;
                 case 'return_detail':  initReturnDetail(); break;
                 case 'audit':          initAudit(); break;
@@ -604,6 +607,13 @@ app.controller('TrackerAdminController', TrackerAdminController);
             vm.event_type_filter = '';
             vm.event_club_pick = null;
             vm.event_clubs = [];
+            // Stripe event log — twin section (collapsed until opened)
+            vm.sevents_open = false;
+            vm.sevents_loaded = false;
+            vm.sevents = [];
+            vm.sevents_page = 1;
+            vm.sevent_type_filter = '';
+            vm.sevent_club_pick = null;
             loadAdminInvoices(true);
         }
         function loadAdminInvoices(reset) {
@@ -638,17 +648,30 @@ app.controller('TrackerAdminController', TrackerAdminController);
                 if (res && res.success === false) { toastFail('Download failed', res); }
             });
         };
+        // Reload whichever invoice list the current screen shows (the invoice
+        // actions are shared between the Invoices and Payment Errors screens)
+        function reloadInvoiceContext() {
+            if (vm.screen === 'payment_errors') { loadPaymentErrors(); }
+            else { loadAdminInvoices(true); }
+        }
         vm.retryPayment = function(inv) {
             inv.paying = true;
             TrackerCommerceService.PayInvoice(inv.id).then(function(data) {
                 inv.paying = false;
-                if (data && data.success === false) { toastFail('Collection failed', data); loadAdminInvoices(true); return; }
+                // 3DS challenges can only be answered by the cardholder — an
+                // admin retry can surface one but never complete it.
+                if (data && data.requires_action) {
+                    ToastService.warning('Cardholder authentication required', "The bank wants the club's cardholder to authenticate (3D Secure) — nothing has been charged. The club has been emailed a link to complete it from their billing page.");
+                    reloadInvoiceContext();
+                    return;
+                }
+                if (data && data.success === false) { toastFail('Collection failed', data); reloadInvoiceContext(); return; }
                 if (data.status === 'payment_pending') {
-                    ToastService.success('Collection started', 'The Direct Debit collection is in flight.');
+                    ToastService.success('Collection started', 'The collection is in flight.');
                 } else {
                     ToastService.success('Invoice paid', 'The payment went through.');
                 }
-                loadAdminInvoices(true);
+                reloadInvoiceContext();
             });
         };
         vm.openInvoiceStatus = function(inv) {
@@ -657,7 +680,7 @@ app.controller('TrackerAdminController', TrackerAdminController);
                 templateUrl: 'views/manageclub/trackers/modals/invoice_status.html',
                 controller: 'TrackerInvoiceStatusModalController', controllerAs: 'm',
                 resolve: { invoice: function() { return inv; } }
-            }).result.then(function(changed) { if (changed) { loadAdminInvoices(true); } }, function() {});
+            }).result.then(function(changed) { if (changed) { reloadInvoiceContext(); } }, function() {});
         };
         // Per-club auto-billing toggle (admins only)
         vm.loadClubProfile = function(inv) {
@@ -767,6 +790,74 @@ app.controller('TrackerAdminController', TrackerAdminController);
             if (!match) {
                 ToastService.warning('Not in the loaded list', ev.invoice_number + ' is not on the current page — the list above is now filtered to it; clear a status/type filter or load more if it does not appear.');
             }
+        };
+
+        // ── Stripe event log — twin of the GoCardless section: "did Stripe
+        //    tell us about this payment?" without opening the dashboard ─────
+        vm.toggleStripeEvents = function() {
+            vm.sevents_open = !vm.sevents_open;
+            if (vm.sevents_open && !vm.sevents_loaded) {
+                vm.sevents_loaded = true;
+                if (!vm.event_clubs.length) {
+                    ClubService.GetAll().then(function(data) {
+                        if (data && data.success === false) { return; }
+                        vm.event_clubs = (data && data.clubs) || [];
+                    });
+                }
+                loadStripeEvents(true);
+            }
+        };
+        vm.refreshStripeEvents = function() { loadStripeEvents(true); };
+        $scope.$watch('vm.sevent_club_pick', function(next, prev) {
+            if (next === prev || !vm.sevents_loaded) { return; }
+            loadStripeEvents(true);
+        });
+        function loadStripeEvents(reset) {
+            if (reset) { vm.sevents_page = 1; }
+            vm.sevents_loading = true;
+            TrackerCommerceService.AdminStripeEvents({
+                club_id: vm.sevent_club_pick ? vm.sevent_club_pick.id : null,
+                event_type: vm.sevent_type_filter || null,
+                page: vm.sevents_page
+            }).then(function(data) {
+                vm.sevents_loading = false;
+                if (data && data.success === false) { toastFail('Could not load the Stripe events', data); return; }
+                var rows = (data && data.events) || [];
+                vm.sevents = reset ? rows : (vm.sevents || []).concat(rows);
+                vm.sevents_has_more = rows.length > 0;
+            });
+        }
+        vm.applyStripeEventType = function() { loadStripeEvents(true); };
+        vm.loadMoreStripeEvents = function() { vm.sevents_page++; loadStripeEvents(false); };
+
+        // ══════════════════════════════════════════════════════════════════
+        // PAYMENT ERRORS — every tracker collection problem across all clubs
+        // without opening the Stripe/GoCardless dashboards
+        // ══════════════════════════════════════════════════════════════════
+        function initPaymentErrors() {
+            vm.search = '';
+            vm.pe = null;
+            loadPaymentErrors();
+        }
+        function loadPaymentErrors() {
+            vm.pe_loading = true;
+            TrackerCommerceService.AdminPaymentErrors().then(function(data) {
+                vm.pe_loading = false;
+                if (data && data.success === false) { toastFail('Could not load the payment errors', data); return; }
+                vm.pe = data;
+            });
+        }
+        vm.reloadPaymentErrors = loadPaymentErrors;
+        vm.peAllClear = function() {
+            return vm.pe && !(vm.pe.invoices || []).length &&
+                   !(vm.pe.gcl_event_errors || []).length &&
+                   !(vm.pe.stripe_event_errors || []).length;
+        };
+        vm.peStatColour = function(status) {
+            if (status === 'failed') { return 'trk-stat--red'; }
+            if (status === 'requires_action') { return 'trk-stat--amber'; }
+            if (status === 'payment_pending') { return 'trk-stat--violet'; }
+            return '';   // collecting → default brand tile
         };
 
         // ══════════════════════════════════════════════════════════════════

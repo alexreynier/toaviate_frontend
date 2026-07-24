@@ -23,7 +23,7 @@
     <div class="snazzy-reveal" ng-if="!vm.loading && vm.order">
 
       <!-- Pay banner -->
-      <div class="trk-banner trk-banner--warn" ng-if="vm.orderIsPayable()">
+      <div class="trk-banner trk-banner--warn" ng-if="vm.orderIsPayable() && !vm.orderNeedsAuth()">
         <i class="fa fa-file-invoice-dollar"></i>
         <div class="trk-banner__body">
           <strong>Invoice {{ vm.order.invoice_number }} is ready to pay</strong>
@@ -46,6 +46,40 @@
           <button class="trk-btn trk-btn--ghost" ng-if="!vm.hasPaymentMethod()" ui-sref="dashboard.manage_club.trackers_billing">
             <i class="fa fa-cog"></i> Set up payments
           </button>
+        </div>
+      </div>
+
+      <!-- 3DS-needed banner: the bank wants the cardholder to authenticate
+           before we can take the payment — nothing has been charged yet -->
+      <div class="trk-banner trk-banner--warn" ng-if="vm.orderNeedsAuth()">
+        <i class="fa fa-shield-alt"></i>
+        <div class="trk-banner__body">
+          <strong>Your bank asked for extra authentication</strong>
+          Invoice {{ vm.order.invoice_number }} is waiting for authentication before we can take the payment.
+          Nothing has been charged yet — press the button and your bank will verify it's you.
+        </div>
+        <div class="trk-banner__actions" ng-if="vm.order.invoice_id">
+          <button class="trk-btn trk-btn--primary"
+                  ng-disabled="vm.order_paying"
+                  ng-click="vm.payOrderInvoice()">
+            <span ng-if="vm.order_paying" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-shield-alt" ng-if="!vm.order_paying"></i> Authenticate payment
+          </button>
+          <button class="trk-btn trk-btn--ghost" ng-if="vm.profile.has_mandate"
+                  ng-disabled="vm.order_paying"
+                  ng-click="vm.payOrderInvoice('direct_debit')">
+            <span ng-if="vm.order_paying" class="trk-spinner trk-spinner--inline"></span>
+            <i class="fa fa-university" ng-if="!vm.order_paying"></i> Pay by Direct Debit instead
+          </button>
+        </div>
+      </div>
+
+      <!-- Collection in flight (transient — a refresh will show the outcome) -->
+      <div class="trk-banner trk-banner--info" ng-if="vm.order.invoice_status === 'collecting'">
+        <i class="fa fa-circle-notch fa-spin"></i>
+        <div class="trk-banner__body">
+          <strong>Payment in progress</strong>
+          A payment attempt for invoice {{ vm.order.invoice_number }} is running right now — refresh in a moment to see the outcome.
         </div>
       </div>
 

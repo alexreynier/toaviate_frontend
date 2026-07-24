@@ -218,12 +218,22 @@ app.controller('TrackerClubController', TrackerClubController);
                     return;
                 }
                 TrackerCommerceService.PayInvoice(data.invoice_id, method).then(function(pay) {
+                    // The bank wants 3DS before the charge — run the challenge
+                    // here, then land on the order either way (it shows an
+                    // "Authenticate payment" banner if it didn't complete).
+                    if (pay && pay.requires_action && pay.client_secret) {
+                        complete3ds(data.invoice_id, pay, function() {
+                            vm.placing = false;
+                            $state.go('dashboard.manage_club.trackers_order_detail', { id: data.order_id });
+                        });
+                        return;
+                    }
                     vm.placing = false;
                     if (pay && pay.success === false) {
                         // The order exists — send them to it so they can retry
                         ToastService.warning('Order placed, but payment failed', pay.message || 'You can retry the payment from the order.');
                     } else if (pay.status === 'payment_pending') {
-                        ToastService.success('Order placed — collection started', 'Order ' + data.order_number + " is in. The Direct Debit collection is in flight — we'll email you when it completes.");
+                        ToastService.success('Order placed — payment in progress', 'Order ' + data.order_number + " is in. The payment is in flight — we'll email you when it completes.");
                     } else {
                         ToastService.success('Order placed & paid', 'Order ' + data.order_number + ' is paid — thank you!');
                     }
@@ -268,7 +278,10 @@ app.controller('TrackerClubController', TrackerClubController);
             });
         }
         vm.orderIsPayable = function() {
-            return vm.order && (vm.order.invoice_status === 'issued' || vm.order.invoice_status === 'failed');
+            return vm.order && (vm.order.invoice_status === 'issued' || vm.order.invoice_status === 'failed' || vm.order.invoice_status === 'requires_action');
+        };
+        vm.orderNeedsAuth = function() {
+            return vm.order && vm.order.invoice_status === 'requires_action';
         };
         vm.orderCancellable = function() {
             return vm.order && (vm.order.status === 'pending' || vm.order.status === 'awaiting_payment');
@@ -365,15 +378,59 @@ app.controller('TrackerClubController', TrackerClubController);
 
         // ── Add a card (Stripe Payment Element, setup mode) ───────────────
         var stripeCtx = null;
-        function withStripe(cb, attempt) {
+        function withStripe(cb, attempt, onFail) {
             // stripe.js is loaded async in index.html — poll until it's there
             if (typeof Stripe !== 'undefined') { cb(); return; }
             if ((attempt || 0) > 25) {
                 vm.card_setup_loading = false;
                 ToastService.error('Payments unavailable', 'The payment library failed to load. Please refresh the page and try again.');
+                if (onFail) { onFail(); }
                 return;
             }
-            $timeout(function() { withStripe(cb, (attempt || 0) + 1); }, 300);
+            $timeout(function() { withStripe(cb, (attempt || 0) + 1, onFail); }, 300);
+        }
+
+        // ── On-session 3D Secure completion ───────────────────────────────
+        // The card is charged off-session, so normally there's no card form at
+        // pay time. When POST pay returns requires_action, the bank wants the
+        // cardholder to authenticate: Stripe.js pops the 3DS challenge, then
+        // pay_complete finalises the SAME PaymentIntent (no second charge).
+        // done(ok) always fires so callers can clear spinners + refresh.
+        function complete3ds(invoiceId, payload, done) {
+            withStripe(function() {
+                var stripe = Stripe(payload.stripe_publishable);
+                stripe.confirmCardPayment(payload.client_secret).then(function(result) {
+                    $timeout(function() {   // re-enter the digest from the Stripe promise
+                        if (result.error) {
+                            // Not a decline — nothing has been charged; they can
+                            // hit "Authenticate payment" again.
+                            ToastService.warning('Authentication not completed', (result.error.message || 'The authentication was not completed.') + " Nothing has been charged — you can try again from the invoice.");
+                            done(false);
+                            return;
+                        }
+                        if (!result.paymentIntent || result.paymentIntent.status !== 'succeeded') {
+                            ToastService.warning('Authentication not completed', "The bank did not confirm the payment. Nothing has been charged — you can try again from the invoice.");
+                            done(false);
+                            return;
+                        }
+                        TrackerCommerceService.PayComplete(invoiceId, result.paymentIntent.id).then(function(res) {
+                            if (res && res.success === false) {
+                                // e.g. invoice voided while authentication was
+                                // pending — show the backend message verbatim.
+                                ToastService.error('Payment not confirmed', res.message || 'The payment could not be confirmed. Please contact ToAviate.');
+                                done(false);
+                                return;
+                            }
+                            if (res && res.status === 'payment_pending') {
+                                ToastService.success('Payment processing', "Your bank approved the payment — it's completing now and we'll email you the receipt.");
+                            } else {
+                                ToastService.success('Invoice paid', 'Thank you — the payment went through.');
+                            }
+                            done(true);
+                        });
+                    });
+                });
+            }, 0, function() { done(false); });
         }
         vm.startCardSetup = function() {
             vm.card_setup_loading = true;
@@ -479,7 +536,14 @@ app.controller('TrackerClubController', TrackerClubController);
         }
 
         // ── Invoices ──────────────────────────────────────────────────────
-        vm.invoicePayable = function(inv) { return inv && (inv.status === 'issued' || inv.status === 'failed'); };
+        // requires_action is payable too: "Pay"/"Authenticate" resumes the
+        // pending authentication (same endpoint, same PaymentIntent).
+        // collecting is deliberately NOT payable — an attempt is in flight.
+        vm.invoicePayable = function(inv) { return inv && (inv.status === 'issued' || inv.status === 'failed' || inv.status === 'requires_action'); };
+        vm.invoiceNeedsAuth = function(inv) { return inv && inv.status === 'requires_action'; };
+        vm.invoicesNeedingAuth = function() {
+            return (vm.invoices || []).filter(function(inv) { return inv.status === 'requires_action'; });
+        };
         vm.toggleInvoice = function(inv) {
             inv.show_more = !inv.show_more;
             if (inv.show_more && !inv.detail && !inv.detail_loading) {
@@ -501,10 +565,18 @@ app.controller('TrackerClubController', TrackerClubController);
         vm.payInvoice = function(inv, method) {
             inv.paying = true;
             TrackerCommerceService.PayInvoice(inv.id, method).then(function(data) {
+                // The bank wants 3DS — never treat this as a failure: nothing
+                // has been charged or declined yet.
+                if (data && data.requires_action && data.client_secret) {
+                    complete3ds(inv.id, data, function() { inv.paying = false; refreshAfterPay(); });
+                    return;
+                }
                 inv.paying = false;
                 if (data && data.success === false) { toastFail('Payment failed', data); refreshAfterPay(); return; }
                 if (data.status === 'payment_pending') {
-                    ToastService.success('Collection in progress', "The Direct Debit collection has started — we'll email you when it completes.");
+                    ToastService.success('Payment in progress', method === 'direct_debit'
+                        ? "The Direct Debit collection has started — we'll email you when it completes."
+                        : "The payment is processing — we'll email you when it completes.");
                 } else {
                     ToastService.success('Invoice paid', 'Thank you — the payment went through.');
                 }
@@ -523,10 +595,16 @@ app.controller('TrackerClubController', TrackerClubController);
             if (!vm.order || !vm.order.invoice_id) { return; }
             vm.order_paying = true;
             TrackerCommerceService.PayInvoice(vm.order.invoice_id, method).then(function(data) {
+                if (data && data.requires_action && data.client_secret) {
+                    complete3ds(vm.order.invoice_id, data, function() { vm.order_paying = false; loadOrder(); });
+                    return;
+                }
                 vm.order_paying = false;
                 if (data && data.success === false) { toastFail('Payment failed', data); loadOrder(); return; }
                 if (data.status === 'payment_pending') {
-                    ToastService.success('Collection in progress', "The Direct Debit collection has started — we'll email you when it completes.");
+                    ToastService.success('Payment in progress', method === 'direct_debit'
+                        ? "The Direct Debit collection has started — we'll email you when it completes."
+                        : "The payment is processing — we'll email you when it completes.");
                 } else {
                     ToastService.success('Invoice paid', 'Thank you — the payment went through.');
                 }

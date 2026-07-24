@@ -1729,9 +1729,14 @@ vm.selected_phone;
 
 		    		// Store for later use during submission
 		    		invStripeElements = { stripe: stripe, elements: elements, clientSecret: data.secret };
-		    	  }).catch(function(){
-		    	    // No usable publishable key for this club — leave the card form unmounted.
-		    	    ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club.");
+		    	  }).catch(function(err){
+		    	    // No usable publishable key for this club, or Stripe.js never
+		    	    // loaded (CDN blocked) — leave the card form unmounted.
+		    	    if(err && err.code === 'stripe_js_unavailable'){
+		    	        ToastService.error('Card Form Not Loaded', "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again.");
+		    	    } else {
+		    	        ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club.");
+		    	    }
 		    	  }); // end GetClubStripeKey().then for invitation signup card
 		    	});
 		    }

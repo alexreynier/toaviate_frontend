@@ -250,8 +250,6 @@ Catalogued here so agents don't trip over them. These are pre-existing; the app
 **Security (highest priority for a future hardening pass):**
 - **API key shipped in client JS** for all environments —
   [envConfigService.js](js/services/envConfigService.js) (`api_key` = base64 of a plaintext string).
-- **Production Stripe key is a placeholder** (`REPLACE_WITH_LIVE_STRIPE_KEY`) — payments
-  would break in a prod build that uses it as-is.
 - **Custom Base64 "auth"** (session+credential base64-encoded in request body) — encoding,
   not encryption; relies entirely on the server + HTTPS.
 - **Client-side route guard** — the `$locationChangeStart` handler in [js/app.js](js/app.js)
@@ -262,6 +260,25 @@ Catalogued here so agents don't trip over them. These are pre-existing; the app
 - **Auth token scheme** — the Base64 in `authenticationService.js` encodes a single-use
   server-generated token (not the account username/password), so it is *not* a credential-
   exposure issue. Leave it as-is.
+
+**Stripe (how card payments are wired — updated 2026-07):**
+- **Publishable keys are per-club AND per payment mode, fetched at runtime** via
+  `PaymentService.GetClubStripeKey(club_id)` (`GET /payment_mode/{club_id}/config`).
+  There are **no Stripe keys in [envConfigService.js](js/services/envConfigService.js)** — don't add one.
+  The helper also waits for Stripe.js itself to load (it's an `async` CDN script), caches
+  the key with a 10-minute TTL (bounds staleness after a payment-mode switch), and rejects
+  with `{code:'not_configured'}` / `{code:'stripe_js_unavailable'}` — always `.catch` and
+  show the matching message (see existing call sites).
+- **Modern flows** (payment accordion in [datetime.js](js/directives/datetime.js), booking 3DS,
+  membership/my-account add-card, invitation signup) use PaymentIntents/SetupIntents +
+  Payment Element. Saved cards live on a **per-club Stripe customer** (`cards/get_member_cards`,
+  `update_default_card`, `delete_member_card`); add-card = `cards/create_new_customer`
+  (returns a SetupIntent secret) → `confirmSetup` → `cards/confirm_setup` to finalise.
+- **Legacy Tokens API still live in two flows** — voucher add
+  ([dashboardClubVouchersAddController.js](js/controllers/dashboardClubVouchersAddController.js)) and the
+  new-charge modal ([newChargeModalInstanceController.js](js/controllers/newChargeModalInstanceController.js))
+  use a card Element + `stripe.createToken`, and their backend endpoints expect token ids.
+  Migrating them to PaymentIntents **requires backend changes** — don't attempt it frontend-only.
 
 **Correctness / maintainability:**
 - `CheckLoggedIn` compares objects with `==` (reference compare → effectively always false) —

@@ -641,6 +641,15 @@ var app = angular
                 controllerAs: 'vm',
                 data: { screen: 'invoices' }
             })
+            // Payment errors dashboard — failed / requires_action / collecting /
+            // stuck collections + webhook event errors on both rails
+            .state('dashboard.super_admin.tracker_payment_errors', {
+                url: '/tracker_payment_errors',
+                controller: 'TrackerAdminController',
+                templateUrl: 'views/manageclub/trackers/admin/payment_errors.html',
+                controllerAs: 'vm',
+                data: { screen: 'payment_errors' }
+            })
             .state('dashboard.super_admin.tracker_returns', {
                 url: '/tracker_returns',
                 controller: 'TrackerAdminController',
@@ -669,6 +678,82 @@ var app = angular
                 templateUrl: 'views/manageclub/trackers/admin/audit.html',
                 controllerAs: 'vm',
                 data: { screen: 'audit' }
+            })
+
+            // ── GOCARDLESS MONITOR (ToAviate admin, read-only) ──
+            // Webhook health, deliveries, event outcomes and platform revenue.
+            // One controller (GclMonitorController) serves the four tabs,
+            // dispatched by data.screen — same pattern as tracker commerce.
+            // Backend contract: FRONTEND_GCL_MONITOR_GUIDE.md.
+            .state('dashboard.super_admin.gcl_monitor', {
+                url: '/gcl_monitor',
+                controller: 'GclMonitorController',
+                templateUrl: 'views/manageclub/gcl_monitor/overview.html',
+                controllerAs: 'vm',
+                data: { screen: 'overview' }
+            })
+            // ?open= pins one delivery's detail (deep-linked from Overview's
+            // needs-attention panel); ?source/?status pre-filter the list.
+            .state('dashboard.super_admin.gcl_monitor_deliveries', {
+                url: '/gcl_monitor/deliveries?source&status&open',
+                controller: 'GclMonitorController',
+                templateUrl: 'views/manageclub/gcl_monitor/deliveries.html',
+                controllerAs: 'vm',
+                data: { screen: 'deliveries' }
+            })
+            .state('dashboard.super_admin.gcl_monitor_events', {
+                url: '/gcl_monitor/events?source&outcome',
+                controller: 'GclMonitorController',
+                templateUrl: 'views/manageclub/gcl_monitor/events.html',
+                controllerAs: 'vm',
+                data: { screen: 'events' }
+            })
+
+            // ── AIRCRAFT REGISTRY SYNC (ToAviate admin) ──
+            // Refreshes the UK aircraft REFERENCE/autocomplete table from the
+            // CAA G-INFO register. Never touches club fleet rows (planes) and
+            // never deletes. One controller, dispatched by data.screen — same
+            // pattern as the GoCardless monitor.
+            // Backend contract: FRONTEND_AIRCRAFT_REGISTRY_SYNC_GUIDE.md.
+            .state('dashboard.super_admin.aircraft_registry', {
+                url: '/aircraft_registry',
+                controller: 'AircraftRegistryController',
+                templateUrl: 'views/manageclub/aircraft_registry/sync.html',
+                controllerAs: 'vm',
+                data: { screen: 'sync' }
+            })
+            .state('dashboard.super_admin.aircraft_registry_advisories', {
+                url: '/aircraft_registry/advisories',
+                controller: 'AircraftRegistryController',
+                templateUrl: 'views/manageclub/aircraft_registry/advisories.html',
+                controllerAs: 'vm',
+                data: { screen: 'advisories' }
+            })
+            .state('dashboard.super_admin.aircraft_registry_history', {
+                url: '/aircraft_registry/history',
+                controller: 'AircraftRegistryController',
+                templateUrl: 'views/manageclub/aircraft_registry/history.html',
+                controllerAs: 'vm',
+                data: { screen: 'history' }
+            })
+            // ── PLATFORM EARNINGS (ToAviate admin, read-only) ──
+            // The money side, kept separate from the webhook-health monitor:
+            // Earnings = Stripe + GoCardless fee drill-down with live/test
+            // split (FRONTEND_PLATFORM_FEES_GUIDE.md); Revenue = monthly
+            // platform fees + tracker invoices (FRONTEND_GCL_MONITOR_GUIDE §4).
+            .state('dashboard.super_admin.platform_earnings', {
+                url: '/platform_earnings',
+                controller: 'PlatformEarningsController',
+                templateUrl: 'views/manageclub/platform_earnings/earnings.html',
+                controllerAs: 'vm',
+                data: { screen: 'earnings' }
+            })
+            .state('dashboard.super_admin.platform_earnings_revenue', {
+                url: '/platform_earnings/revenue',
+                controller: 'PlatformEarningsController',
+                templateUrl: 'views/manageclub/platform_earnings/revenue.html',
+                controllerAs: 'vm',
+                data: { screen: 'revenue' }
             })
 
 
@@ -2350,16 +2435,23 @@ var app = angular
 
         //PAYMENT METHODS STRIPY
         .state('dashboard.my_account.payment_methods', {
-            url: '/payment_methods',
+            // setup_intent / redirect_status / setup_intent_client_secret are
+            // appended by Stripe when a redirect-based card setup returns here;
+            // club_id scopes the page to one of the member's clubs.
+            url: '/payment_methods?club_id&setup_intent&setup_intent_client_secret&redirect_status',
             templateUrl: 'views/my_account/payments.html',
             controller: 'ManagePaymentsController',
             controllerAs: 'vm',
+            // the controller strips Stripe's return params off the URL after
+            // finalising a card setup — don't re-instantiate when that happens
+            reloadOnSearch: false,
                 data: {
                     action: 'list'
                 }
         })
 
         .state('dashboard.my_account.payment_methods.add', {
+            // club_id is inherited from the parent state's query params
             url: '/add',
             templateUrl: 'views/my_account/payments_form.html',
             controller: 'ManagePaymentsAddController',

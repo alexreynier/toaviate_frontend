@@ -124,6 +124,8 @@ module.exports = function (grunt) {
                     'css/maintenance-org.css',
                     'css/sms.css',
                     'css/trackers.css',
+                    'css/gcl-monitor.css',
+                    'css/aircraft-registry.css',
                     'css/reminders.css',
                     'css/solo-checks.css',
                     'css/payment-mode.css',
@@ -135,6 +137,7 @@ module.exports = function (grunt) {
                     'css/airfield-admin.css',
                     'css/student-records.css',
                     'css/membership-payments.css',
+                    'css/payment-methods.css',
                     'css/missing-students.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a

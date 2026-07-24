@@ -597,10 +597,15 @@
                         // site first to authorize the payment, then redirected to the `return_url`.
                       }
                     });
-                  }).catch(function(){
-                    // No usable publishable key for this club — don't mount the card form.
+                  }).catch(function(err){
+                    // No usable publishable key for this club, or Stripe.js never
+                    // loaded (CDN blocked) — don't mount the card form.
                     vm.show_add_card = false;
-                    ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club.");
+                    if(err && err.code === 'stripe_js_unavailable'){
+                        ToastService.error('Card Form Not Loaded', "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again.");
+                    } else {
+                        ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club.");
+                    }
                   }); // end GetClubStripeKey().then for membership add-card
 
 

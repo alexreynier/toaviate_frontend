@@ -1,262 +1,191 @@
  app.controller('ManagePaymentsAddController', ManagePaymentsAddController);
 
-    ManagePaymentsAddController.$inject = ['UserService', '$sce', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'PaymentService', 'PoidService', 'ToastService'];
-    function ManagePaymentsAddController(UserService, $sce, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, PaymentService, PoidService, ToastService) {
-        
-        var vm = this;        
+    ManagePaymentsAddController.$inject = ['MemberService', '$rootScope', '$scope', '$state', '$stateParams', '$timeout', 'PaymentService', 'ToastService'];
+    function ManagePaymentsAddController(MemberService, $rootScope, $scope, $state, $stateParams, $timeout, PaymentService, ToastService) {
 
-        vm.poid_images = [];
-        vm.poid = {
-                images: []
-        };
-
+        var vm = this;
 
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
 
-        vm.customer_token = "";
-        $scope.iframe_url = "";
+        // Cards are saved against a per-club Stripe customer, so a club must be
+        // chosen before the card form can mount. When the user only belongs to
+        // one club (or arrived with ?club_id from the list page) it auto-starts.
+        vm.clubs = [];
+        vm.clubs_loading = true;
+        vm.selected_club = null;
 
+        vm.setup_loading = false;   //creating the SetupIntent / mounting Elements
+        vm.card_ready = false;      //Payment Element is mounted
+        vm.submitting = false;
+        vm.setup_error = "";
 
-        // Create a token when the form is submitted.
-        
-        $scope.get_addresses = function(){
+        var stripe = null;
+        var elements = null;
+        var paymentElement = null;
 
-            //  trial key
-            //  auth: api-key: BP-8KOdw8ka3F2eDU-Zz-g5865   
-            //  https://api.getAddress.io/v2/uk/{postcode}
-            // PaymentService.getAddress()
-
-            PaymentService.GetAddresses(vm.postcode)
-                .then(function (data) {
-                    if(data.success){
-
-                        //console.log("addresses: "+data.addresses);
-                        vm.addresses = data.addresses;
-                        //fill the drop down menu
-
-                    } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-
-                    }
-                });
-
+        vm.select_club = function(club){
+            if(vm.setup_loading || vm.submitting){ return; }
+            if(vm.selected_club && club.club_id == vm.selected_club.club_id){ return; }
+            vm.selected_club = club;
+            start_setup();
         }
 
-
-        function prefill_details(){
-
-            // UserService
-
-            document.getElementById('name').value = "";
-            document.getElementById('address-line1').value = "";
-            document.getElementById('address-line2').value = "";
-            document.getElementById('address-city').value = "";
-            document.getElementById('address-postcode').value = "";
-            document.getElementById('address-country').value = "";
+        vm.cancel = function(){
+            $state.go('dashboard.my_account.payment_methods', vm.selected_club ? { club_id: vm.selected_club.club_id } : {});
         }
 
+        //ng-submit on the card form
+        vm.submit_card = function(){
+            if(!vm.card_ready || vm.submitting || !stripe || !elements){ return; }
+            vm.submitting = true;
+            vm.setup_error = "";
 
-        $scope.add_card = function () {
-            
-
-            createToken();
-
-
-            // //console.log("CLICK");   
-
-            //     var $form = $('#payment-form');
-            //     $form.submit(function(event) {
-            //     // Disable the submit button to prevent repeated clicks:
-            //     $form.find('.submit').prop('disabled', true);
-
-            //     // Request a token from Stripe:
-            //     //stripe.card.createToken($form, stripeResponseHandler);
-            //     //pk_test_Ers4ZfdIMZ59ac4wKy6FDAH2
-
-
-            //     stripe.createToken($form).then(function(result) {
-            //       // Handle result.error or result.token
-            //       //console.log(result);
-            //     });
-
-            //     // Prevent the form from being submitted:
-            //     return false;
-            //   });
-
-
-        };
-
-
-        $scope.delete_card = function(id){
-            //console.log("ID", id);
-            var b = prompt("Please write YES to confirm you wish to delete the card");
-            if(b == "YES"){
-                ////console.log("yes");
-                PaymentService.Delete(id, vm.user.id)
-                .then(function (data) {
-
-                        ////console.log("delete: ", data);
-                        //fill the drop down menu
-                        PaymentService.GetByUserId(vm.user.id)
-                            .then(function (data) {
-                                //console.log(data);
-                                if(data.success){
-                                    vm.cards = data.cards;
-                                    ////console.log("CARDS", vm.cards);
-                                } else {
-                                   // //console.log("WOOOPSIES...");
-                                    //this should be very very rare...
-                                }
-                            });
-                  
-                });
-            }
-            
+            stripe.confirmSetup({
+                elements: elements,
+                confirmParams: {
+                    // Only used if the card requires a redirect (e.g. some 3DS
+                    // flows) - the list page finalises the setup on return.
+                    return_url: return_url()
+                },
+                redirect: 'if_required'
+            }).then(function(result){
+                //Stripe.js returns a native Promise - bring the result back into a digest
+                $scope.$applyAsync(function(){ handle_confirm_result(result); });
+            });
         }
 
-
-
-
-
-
-                    //vm.selected_component = vm.components[0];
-                    //vm.selected_component = 
-        function get_paybase_token(){
-
-
-                
-                    // //console.log("AA", vm.selected_component);
-                PaymentService.GetUserForPayment(vm.user.id)
-                .then(function (data) {
-                    //console.log(data);
-                    if(data.success){
-                        //console.log("CAT DATA", data);
-                        vm.cards = data.cards;
-                        vm.customer_token = data.token;
-
-                        $scope.iframe_url = $sce.trustAsResourceUrl("https://hosted.sandbox.paybase.io/card?t="+vm.customer_token);
-                        var i = 0;
-
-                        // alert("URL ADDED");
-                        // $scope.$apply();
-
-                        //console.log("URL", vm.iframe_url);
-
-                    } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-                    }
-
-                });
-
+        function handle_confirm_result(result){
+            if(result.error){
+                vm.submitting = false;
+                vm.setup_error = result.error.message || "Your card could not be saved - please check the details and try again.";
+                return;
             }
 
+            var intent = result.setupIntent;
+            if(!intent || intent.status !== 'succeeded'){
+                vm.submitting = false;
+                vm.setup_error = "Card setup did not complete - please try again.";
+                return;
+            }
 
-            //paybase integration
+            //finalise server-side: verifies with Stripe, sets the card as default
+            //and links the Stripe customer to the member record
+            var send = {
+                setup_intent_id: intent.id,
+                user_id: vm.user_id,
+                club_id: vm.selected_club.club_id
+            };
+            PaymentService.ConfirmSetup(send)
+            .then(function (data) {
+                vm.submitting = false;
+                //the card is attached at Stripe even if the finalise call hiccups,
+                //so return to the list either way - it reads straight from Stripe
+                ToastService.success('Card Added', 'Your new card has been saved.');
+                $state.go('dashboard.my_account.payment_methods', { club_id: vm.selected_club.club_id });
+            });
+        }
 
-              var errors = document.querySelector('.errors');
-              var success = document.querySelector('.success');
+        function return_url(){
+            return $state.href('dashboard.my_account.payment_methods', { club_id: vm.selected_club.club_id }, { absolute: true });
+        }
 
-              window.addEventListener('message', function(ev) {
-                var data = ev.data;
-                //console.log("received data", data);
+        function start_setup(){
+            vm.setup_error = "";
+            vm.card_ready = false;
+            vm.setup_loading = true;
+            teardown_element();
 
-                //angular.element(paybase_response(data));
-                switch (data.type) {
-                  case 'success': {
-                    ////console.log("received data", data);
-                    //success.innerText = data.id;
+            var club_id = vm.selected_club.club_id;
 
-                    //add card into our own system....
+            PaymentService.CreateNewCustomer({ club_id: club_id, user_id: vm.user_id })
+            .then(function (data) {
+                if(!data.success || !data.secret){
+                    vm.setup_loading = false;
+                    vm.setup_error = data.error || "Card payments aren't available for this club yet - please contact the club.";
+                    return;
+                }
 
+                //GetClubStripeKey also waits for Stripe.js itself to load
+                PaymentService.GetClubStripeKey(club_id).then(function(stripeKey){
+                    stripe = Stripe(stripeKey);
+                    elements = stripe.elements({ clientSecret: data.secret, appearance: {} });
+                    paymentElement = elements.create('payment', { layout: 'tabs' });
 
-                    //the response is no longer the full card object that I require - so I will send the card_id and the customer_id to the backend for it to do its magic
-                    //and when it has querried Paybase, and added the card on our system, THEN we can throw them back onto the ALL CARDS page.
-
-                    PaymentService.Create2(vm.user.id, data.id)
-                    .then(function (data2) {
-
-                        if(data2.success){
-
-                            //card was successfully added to the system... Time to boot them back to the previous page...
-
-                            $state.go('dashboard.my_account.payment_methods', {}, { reload: true });
-
-
-
-
-
-                        } else {
-                            //console.log("There was a ToAviate error in adding your card into our system. Please try again later.");
-                        }
-                           
-                      
+                    //e.g. the SetupIntent expired before the form rendered
+                    paymentElement.on('loaderror', function(){
+                        $scope.$applyAsync(function(){
+                            vm.card_ready = false;
+                            vm.setup_error = "The card form couldn't be loaded - please go back and try again.";
+                        });
                     });
 
-
-
-
-
-                  }
-                  break;
-                  case 'error': {
-                    //errors.innerText = data.message;  
-                    //alert(data.message);
-
-
-                    // if(data.code == "5002"){
-                    //     alert("Please check your card details are correct and match your billing address.");
-                    //     $scope.iframe_url = $sce.trustAsResourceUrl("https://hosted.sandbox.paybase.io/card?t="+vm.customer_token);
-                    // } else {
-                    // }
-
-
-                    switch(data.code){
-
-                        case "5002":
-                            //card declined / incorrect details
-                            ToastService.error('Card Declined', 'Your card was declined, please verify your details or contact your card provider. Should this problem persist, please contact: info@toaviate.com');
-
-                        break;
-                        case "4060":
-                            //card used to exist....?
-                            ToastService.warning('Duplicate Card', 'It appears that you are adding a card that has already been added to your account');
-
-                        break;
-                        default:
-                            ToastService.error('Card Error', 'Please check your card details are correct and match your billing address.');
-
-                        break;
-
-
-
+                    //let the current digest render the (ng-show) container first
+                    $timeout(function(){
+                        paymentElement.mount('#payment-element');
+                        vm.setup_loading = false;
+                        vm.card_ready = true;
+                    });
+                }).catch(function(err){
+                    vm.setup_loading = false;
+                    if(err && err.code === 'stripe_js_unavailable'){
+                        vm.setup_error = "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com - please allow it and try again.";
+                    } else {
+                        vm.setup_error = "Card payments aren't set up for this club yet. Please contact the club.";
                     }
-
-
-
-
-
-
-
-
-                    get_paybase_token();
-
-
-                    //location.reload();
-                  }
-                  break;
-                        }
+                }); // end GetClubStripeKey().then for add-card page
             });
+        }
 
+        function teardown_element(){
+            if(paymentElement){
+                try { paymentElement.destroy(); } catch(e) {}
+                paymentElement = null;
+            }
+            elements = null;
+            stripe = null;
+        }
 
-                            
-                
-          
+        function load_clubs(){
+            MemberService.GetUserMemberships(vm.user_id)
+            .then(function (data) {
+                vm.clubs_loading = false;
+                if(!data.success){
+                    vm.setup_error = "We couldn't load your clubs - please try again shortly.";
+                    return;
+                }
 
+                //one entry per club (a member can hold several memberships in one club)
+                var seen = {};
+                var clubs = [];
+                (data.memberships || []).forEach(function(m){
+                    if(m.club_id && !seen[m.club_id]){
+                        seen[m.club_id] = true;
+                        clubs.push({ club_id: m.club_id, club_name: m.club_name });
+                    }
+                });
+                vm.clubs = clubs;
 
-            get_paybase_token();
+                if(clubs.length == 0){
+                    vm.setup_error = "You need a club membership before you can add a card.";
+                    return;
+                }
 
+                //auto-start when the club is already known
+                if($stateParams.club_id){
+                    for(var i = 0; i < clubs.length; i++){
+                        if(clubs[i].club_id == $stateParams.club_id){ vm.select_club(clubs[i]); return; }
+                    }
+                }
+                if(clubs.length == 1){
+                    vm.select_club(clubs[0]);
+                }
+                //otherwise wait for the user to pick a club
+            });
+        }
+
+        $scope.$on('$destroy', teardown_element);
+
+        load_clubs();
 
     }

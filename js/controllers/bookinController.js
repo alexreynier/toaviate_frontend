@@ -3475,10 +3475,15 @@
 
 
                         });
-                      }).catch(function(){
-                        // No usable publishable key for this club — can't complete 3DS.
+                      }).catch(function(err){
+                        // No usable publishable key for this club, or Stripe.js
+                        // never loaded (CDN blocked) — can't complete 3DS.
                         vm.show_loading = false;
-                        ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club or try another payment method.");
+                        if(err && err.code === 'stripe_js_unavailable'){
+                            ToastService.error('Card Form Not Loaded', "We couldn't load the secure card form. Your network or a browser extension may be blocking js.stripe.com — please allow it and try again.");
+                        } else {
+                            ToastService.error('Card Payments Unavailable', "Card payments aren't set up for this club yet. Please contact the club or try another payment method.");
+                        }
                       }); // end GetClubStripeKey().then for booking 3DS auth
 
 

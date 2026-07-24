@@ -63,10 +63,20 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
         s.ListClubInvoices     = function(club_id)          { return $http.get(base + '/tracker_billing/invoices/' + club_id).then(handleSuccess, handleError); };
         s.GetInvoice           = function(id)               { return $http.get(base + '/tracker_billing/invoice/' + id).then(handleSuccess, handleError); };
         s.PayInvoice           = function(invoice_id, method) { return $http.post(base + '/tracker_billing/pay/' + invoice_id, method ? { method: method } : {}).then(handleSuccess, handleError); };
+        // Finalises an on-session 3D Secure challenge: called after
+        // stripe.confirmCardPayment succeeds (idempotent; the Stripe webhook is
+        // the backstop if the tab closes first).
+        s.PayComplete          = function(invoice_id, payment_intent_id) { return $http.post(base + '/tracker_billing/pay_complete/' + invoice_id, { payment_intent_id: payment_intent_id }).then(handleSuccess, handleError); };
         s.AdminOverview        = function()                 { return $http.get(base + '/tracker_billing/admin/overview').then(handleSuccess, handleError); };
         s.AdminListInvoices    = function(filters)          { return $http.get(base + '/tracker_billing/admin/invoices' + qs(filters)).then(handleSuccess, handleError); };
         s.SetInvoiceStatus     = function(id, payload)      { return $http.put(base + '/tracker_billing/invoice_status/' + id, payload).then(handleSuccess, handleError); };
         s.ListWebhookEvents    = function(filters)          { return $http.get(base + '/tracker_billing/admin/webhook_events' + qs(filters)).then(handleSuccess, handleError); };
+        // Every tracker collection problem across all clubs (failed /
+        // requires_action / collecting / stuck payment_pending + webhook
+        // event errors on both rails).
+        s.AdminPaymentErrors   = function()                 { return $http.get(base + '/tracker_billing/admin/payment_errors').then(handleSuccess, handleError); };
+        // Stripe event log — twin of ListWebhookEvents (GoCardless).
+        s.AdminStripeEvents    = function(filters)          { return $http.get(base + '/tracker_billing/admin/stripe_events' + qs(filters)).then(handleSuccess, handleError); };
 
         // ── Units (A4 / B4) ───────────────────────────────────────────────
         s.ListClubUnits    = function(club_id)     { return $http.get(base + '/tracker_units/club/' + club_id).then(handleSuccess, handleError); };
@@ -141,7 +151,10 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
         // ── Shared reference data (dropdowns + badge colour maps) ─────────
         s.enums = {
             orderStatus:    ['pending', 'awaiting_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled'],
-            invoiceStatus:  ['issued', 'payment_pending', 'paid', 'failed', 'cancelled', 'refunded'],
+            // collecting = a collection attempt is running right now (transient);
+            // requires_action = the card's bank wants the cardholder to 3DS-
+            // authenticate — nothing has been charged yet.
+            invoiceStatus:  ['issued', 'collecting', 'payment_pending', 'requires_action', 'paid', 'failed', 'cancelled', 'refunded'],
             invoiceType:    ['order', 'recurring', 'adhoc'],
             unitStatus:     ['pending', 'allocated', 'active', 'billing_paused', 'returned', 'retired'],
             returnStatus:   ['reported', 'acknowledged', 'approved', 'awaiting_shipment', 'in_transit', 'received', 'resolved', 'rejected', 'cancelled'],
@@ -162,7 +175,13 @@ app.factory('TrackerCommerceService', TrackerCommerceService);
             },
             invoice: {
                 issued: 'trk-badge--blue', payment_pending: 'trk-badge--violet', paid: 'trk-badge--green',
-                failed: 'trk-badge--red', cancelled: 'trk-badge--grey', refunded: 'trk-badge--amber'
+                failed: 'trk-badge--red', cancelled: 'trk-badge--grey', refunded: 'trk-badge--amber',
+                collecting: 'trk-badge--blue', requires_action: 'trk-badge--amber'
+            },
+            // Webhook/event-log processing outcomes (Stripe + GoCardless logs)
+            event_outcome: {
+                processed: 'trk-badge--green', duplicate: 'trk-badge--grey', unmatched: 'trk-badge--amber',
+                unhandled: 'trk-badge--violet', error: 'trk-badge--red'
             },
             unit: {
                 pending: 'trk-badge--grey', allocated: 'trk-badge--blue', active: 'trk-badge--green',
