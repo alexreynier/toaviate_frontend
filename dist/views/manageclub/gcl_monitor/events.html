@@ -1,0 +1,107 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-exchange-alt"></i> Webhook Events</h2>
+        <p>Every GoCardless event and how we processed it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/gcl_monitor/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <!-- ── Source sub-tabs (the two logs have different shapes) ── -->
+      <div class="trk-chips">
+        <div class="trk-chip"
+             ng-repeat="s in vm.enums.sources"
+             ng-class="{'trk-chip--active': vm.eventSource === s}"
+             ng-click="vm.setEventSource(s)">{{ vm.sourceLabels[s] }}</div>
+      </div>
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.outcomeFilter}" ng-click="vm.setOutcome('')">All outcomes</div>
+        <div class="trk-chip"
+             ng-repeat="o in vm.enums.eventOutcomes"
+             ng-class="{'trk-chip--active': vm.outcomeFilter === o}"
+             ng-click="vm.setOutcome(o)">{{ o }}</div>
+        <div class="trk-count-badge" ng-show="vm.total !== null">{{ vm.events.length }} of {{ vm.total }}</div>
+      </div>
+
+      <div class="trk-banner trk-banner--info" ng-if="vm.outcomeFilter === 'unmatched'">
+        <i class="fa fa-info-circle"></i>
+        <div class="trk-banner__body">
+          <strong>What "unmatched" means</strong>
+          A GoCardless event for a payment/mandate this system didn't create — usually fine (the club
+          uses GoCardless outside ToAviate), worth a glance if unexpected.
+        </div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.loading && !vm.events.length">
+        <i class="fa fa-exchange-alt"></i>
+        <p ng-if="vm.outcomeFilter === 'error'">No erroring events — all good ✓</p>
+        <p ng-if="vm.outcomeFilter !== 'error'">No events match this filter.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.events.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Event id</th>
+                <th>Type / Action</th>
+                <th>Club</th>
+                <th ng-if="vm.eventSource === 'tracker'">Invoice</th>
+                <th>Outcome</th>
+                <th>Attempts</th>
+                <th>Last error</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="e in vm.events">
+                <td data-label="When" class="trk-table__muted"><span uib-tooltip="{{ vm.abs(e.created_at) }}">{{ vm.ago(e.created_at) }}</span></td>
+                <td data-label="Event id"><span class="trk-table__ref">{{ e.event_id }}</span></td>
+                <td data-label="Type / Action">{{ e.resource_type }}/{{ e.action }}</td>
+                <td data-label="Club">{{ e.club_title || '—' }}</td>
+                <td data-label="Invoice" ng-if="vm.eventSource === 'tracker'">
+                  <span class="trk-table__ref" ng-if="e.invoice_number">{{ e.invoice_number }}</span>
+                  <span class="trk-table__muted" ng-if="!e.invoice_number">—</span>
+                </td>
+                <td data-label="Outcome"><span class="trk-badge" ng-class="vm.outcomeBadge(e.outcome)">{{ e.outcome }}</span></td>
+                <td data-label="Attempts">
+                  <span ng-class="{'gclm-error-count': e.attempts >= 3}"
+                        uib-tooltip="{{ e.attempts >= 3 ? 'Counts up as GoCardless redeliveries retry — admins are emailed at 3.' : '' }}">{{ e.attempts }}</span>
+                </td>
+                <td data-label="Last error" class="gclm-error-cell">
+                  <span class="trk-table__muted" ng-if="!e.last_error">—</span>
+                  <span ng-if="e.last_error"
+                        class="gclm-error-text"
+                        ng-class="{'gclm-error-text--expanded': e.error_open}"
+                        ng-click="e.error_open = !e.error_open; $event.stopPropagation()">{{ e.last_error }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading events…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.loading && vm.has_more && vm.events.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreEvents()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

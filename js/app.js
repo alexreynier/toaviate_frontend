@@ -344,7 +344,9 @@ var app = angular
             // Shared detail page reachable from My Logbook, the aircraft journey
             // log and student records. :flight_id is a plane_log_sheets.id.
             .state('dashboard.flight_replay', {
-                url: '/flight_replay/:flight_id',
+                // ?src=sd → a SkyDemon track behind a personal-logbook manual
+                // entry (flight_id = manual entry id, fed by the SD track endpoint)
+                url: '/flight_replay/:flight_id?src',
                 controller: 'FlightReplayController',
                 templateUrl: 'views/flight_replay.html',
                 controllerAs: 'vm'
@@ -561,6 +563,29 @@ var app = angular
                 controllerAs: 'vm',
                 data: {
                     screen: 'manage'
+                }
+            })
+
+            // PLATFORM API KEYS — server-to-server keys for external
+            // platforms (airshows.toaviate, …). One controller, dispatched
+            // on data.screen. Create/edit/rotate happen in $uibModal.
+            .state('dashboard.super_admin.platform_keys', {
+                url: '/platform_keys',
+                controller: 'PlatformKeysController',
+                templateUrl: 'views/manageclub/platform_keys.html',
+                controllerAs: 'vm',
+                data: {
+                    screen: 'list'
+                }
+            })
+
+            .state('dashboard.super_admin.platform_key_detail', {
+                url: '/platform_keys/:id',
+                controller: 'PlatformKeysController',
+                templateUrl: 'views/manageclub/platform_key_detail.html',
+                controllerAs: 'vm',
+                data: {
+                    screen: 'detail'
                 }
             })
 
@@ -2362,6 +2387,13 @@ var app = angular
             controller: 'PersonalLogbookController',
             controllerAs: 'vm',
             data: { screen: 'import' }
+        })
+        .state('dashboard.my_account.logbook_skydemon', {
+            url: '/logbook/skydemon',
+            templateUrl: 'views/my_account/logbook/skydemon.html',
+            controller: 'PersonalLogbookController',
+            controllerAs: 'vm',
+            data: { screen: 'skydemon' }
         })
 
         //ALL CLUB / PLANE DOCUMENTS

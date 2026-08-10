@@ -243,6 +243,93 @@
         </div>
       </div>
 
+      <!-- Stripe event log — twin of the GoCardless section above -->
+      <div class="trk-card" style="margin-top: 24px;">
+        <div class="trk-events-head" ng-click="vm.toggleStripeEvents()">
+          <h4 class="trk-card__title" style="margin-bottom: 0;">
+            <i class="fab fa-stripe-s"></i> Payment events (Stripe)
+          </h4>
+          <i class="fa" ng-class="vm.sevents_open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </div>
+
+        <div ng-if="vm.sevents_open" style="margin-top: 16px;">
+          <p class="trk-card__hint">
+            Every webhook Stripe has sent us about tracker payments, newest first.
+            "Unmatched" means the event matched none of our invoices; "error" rows need attention.
+          </p>
+
+          <div class="trk-events-filters">
+            <div class="trk-search" style="flex: 1 1 260px;">
+              <i class="fa fa-search"></i>
+              <input type="text" placeholder="Filter by event type (e.g. payment_intent.succeeded)…"
+                     ng-model="vm.sevent_type_filter"
+                     ng-model-options="{ debounce: 500 }"
+                     ng-change="vm.applyStripeEventType()">
+            </div>
+            <div class="trk-events-filters__club">
+              <ui-select ng-model="vm.sevent_club_pick" theme="bootstrap" title="Filter by club">
+                <ui-select-match placeholder="All clubs — filter by club…" allow-clear="true">{{ $select.selected.title }}</ui-select-match>
+                <ui-select-choices repeat="c in vm.event_clubs | filter: $select.search">
+                  <div>{{ c.title }}</div>
+                </ui-select-choices>
+              </ui-select>
+            </div>
+          </div>
+
+          <div class="trk-empty" ng-if="!vm.sevents_loading && !vm.sevents.length" style="padding: 24px;">
+            <i class="fab fa-stripe-s"></i>
+            <p>No Stripe events match this filter.</p>
+          </div>
+
+          <div class="trk-table-scroll" ng-if="vm.sevents.length">
+            <table class="trk-table trk-table--stack">
+              <thead>
+                <tr>
+                  <th>Received</th>
+                  <th>Event</th>
+                  <th>Reference</th>
+                  <th>Invoice</th>
+                  <th>Club</th>
+                  <th>Attempts</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="ev in vm.sevents">
+                  <td data-label="Received" class="trk-table__muted" uib-tooltip="Stripe created: {{ ev.stripe_created_at | asDate | date:'dd MMM yyyy HH:mm' }}">
+                    {{ ev.created_at | asDate | date:'dd MMM HH:mm' }}
+                  </td>
+                  <td data-label="Event"><span class="trk-table__ref">{{ ev.event_type }}</span></td>
+                  <td data-label="Reference">
+                    <div class="trk-events-ids">{{ ev.payment_intent_id || ev.charge_id || ev.event_id }}</div>
+                  </td>
+                  <td data-label="Invoice">
+                    <a href="" class="trk-events-invoice" ng-if="ev.invoice_number" ng-click="vm.openEventInvoice(ev)">{{ ev.invoice_number }}</a>
+                    <span class="trk-table__muted" ng-if="!ev.invoice_number">—</span>
+                  </td>
+                  <td data-label="Club">{{ ev.club_title || '—' }}</td>
+                  <td data-label="Attempts" class="trk-table__muted">{{ ev.attempts || 1 }}</td>
+                  <td data-label="Outcome">
+                    <span class="trk-badge" ng-class="vm.eventOutcomeBadge(ev.outcome)"
+                          uib-tooltip="{{ ev.outcome === 'error' ? (ev.last_error || ev.error_code) : (ev.error_code || '') }}"
+                          tooltip-append-to-body="true">{{ ev.outcome }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="trk-loading" ng-if="vm.sevents_loading" style="padding: 18px;">
+            <div class="trk-spinner"></div> Loading events…
+          </div>
+          <div class="trk-load-more" ng-if="!vm.sevents_loading && vm.sevents_has_more && vm.sevents.length">
+            <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.loadMoreStripeEvents()">
+              <i class="fa fa-chevron-down"></i> Load more events
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>

@@ -16,14 +16,59 @@ app.filter('myToUpperCase', function(){
   }
 });
 
+// Round an "HH:mm:ss" time to the nearest minute ("11:32:55" → "11:33").
+// Plain "HH:mm" values pass through unchanged; anything unparseable is returned as-is.
+// Shared by the brakesTime/roundMinute filters and the controllers' clean_times helpers.
+function roundTimeToMinute(input) {
+    if (!input) { return input; }
+    var m = String(input).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) { return input; }
+    var h = parseInt(m[1], 10);
+    var min = parseInt(m[2], 10);
+    var sec = parseInt(m[3] || '0', 10);
+    if (sec >= 30) {
+        min++;
+        if (min === 60) {
+            min = 0;
+            h = (h + 1) % 24;
+        }
+    }
+    return ('0' + h).slice(-2) + ':' + ('0' + min).slice(-2);
+}
+
 app.filter('brakesTime', function() {
     return function(input) {
       if(input){
-        var split = input.split(":");
-        return (!!input) ? split[0]+":"+split[1] : '';
+        return roundTimeToMinute(input);
       } else {
         return '';
       }
+    }
+});
+
+app.filter('roundMinute', function() {
+    return function(input) {
+      return (!!input) ? roundTimeToMinute(input) : '';
+    }
+});
+
+// Tooltip text explaining how a displayed time was rounded.
+// Usage:  {{ raw | timeRounding : 'Takeoff' }}                                  → nearest minute
+//         {{ raw | timeRounding : 'Brakes off' : rounded_value : '5 minutes' }} → nearest 5 (backend-rounded)
+// Returns just the label (or '') when no rounding actually changed the value,
+// so the tooltip never claims a time was rounded when it wasn't.
+app.filter('timeRounding', function() {
+    return function(raw, label, displayed, nearest) {
+      label = label || '';
+      if (!raw || raw === '00:00:00') { return label; }
+      var m = String(raw).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!m) { return label; }
+      var rawHHMM = ('0' + m[1]).slice(-2) + ':' + m[2];
+      var rawFull = rawHHMM + ':' + (m[3] || '00');
+      var shown = displayed ? String(displayed).substring(0, 5) : roundTimeToMinute(raw);
+      if (shown === rawHHMM && (!m[3] || m[3] === '00')) { return label; }
+      return (label ? label + ' — actual' : 'Actual') + ' time ' + rawFull +
+             ', rounded to ' + shown + ' (nearest ' + (nearest || 'minute') + ')';
     }
 });
 
@@ -69,6 +114,75 @@ app.filter('roundFive', function(){
           }
 });
 
+
+// Minutes since midnight for an "HH:mm[:ss]" time (nearest-minute rounded); null if unparseable.
+function timeToMinutes(input) {
+    var t = roundTimeToMinute(input);
+    if (!t) { return null; }
+    var m = String(t).match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) { return null; }
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+// Duration in whole minutes between two clock times; wraps past midnight. null if either is missing.
+function minutesBetween(from, to) {
+    var f = timeToMinutes(from);
+    var t = timeToMinutes(to);
+    if (f === null || t === null) { return null; }
+    var d = t - f;
+    if (d < 0) { d += 24 * 60; }
+    return d;
+}
+
+// "H:MM" duration between two clock times, e.g. {{ takeoff | durationHM : landing }} → "1:05".
+app.filter('durationHM', function() {
+    return function(from, to) {
+      var d = minutesBetween(from, to);
+      if (d === null) { return ''; }
+      return Math.floor(d / 60) + ':' + ('0' + (d % 60)).slice(-2);
+    }
+});
+
+// Taxi allowance in minutes for a TPC-charged flight: (charged window) − (airborne window).
+// Derived per flight — never hardcoded — because split-flight legs have asymmetric buffers.
+app.filter('taxiMinutes', function() {
+    return function(details) {
+      if (!details) { return null; }
+      var charged = minutesBetween(details.tpc_brakes_off, details.tpc_brakes_on);
+      var airborne = minutesBetween(details.takeoff_rounded, details.landing_rounded);
+      if (charged === null || airborne === null) { return null; }
+      return charged - airborne;
+    }
+});
+
+// Seconds-precision recorded times for a flight, e.g. "brakes off & takeoff 10:31:35, landing 12:41:03, brakes on 12:44:41".
+// Skips missing / 00:00:00 sentinel values and collapses consecutive identical times
+// (SkyDemon-sourced flights legitimately start logging at the takeoff roll).
+app.filter('recordedTimes', function() {
+    return function(details) {
+      if (!details) { return ''; }
+      var fields = [
+          ['brakes off', details.brakes_off],
+          ['takeoff', details.takeoff_time],
+          ['landing', details.landing_time],
+          ['brakes on', details.brakes_on]
+      ];
+      var out = [];
+      for (var i = 0; i < fields.length; i++) {
+          var label = fields[i][0];
+          var val = fields[i][1];
+          if (!val || val === '00:00:00') { continue; }
+          if (out.length && out[out.length - 1].time === val) {
+              out[out.length - 1].label += ' & ' + label;
+          } else {
+              out.push({ label: label, time: val });
+          }
+      }
+      var parts = [];
+      for (var j = 0; j < out.length; j++) { parts.push(out[j].label + ' ' + out[j].time); }
+      return parts.join(', ');
+    }
+});
 
 app.filter('myTimeUTC', function() {
     return function(input) {

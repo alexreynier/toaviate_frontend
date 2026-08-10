@@ -161,7 +161,7 @@
                 if(time == "00:00:00"){
                     return " - ";
                 }
-                return time.substring(0,5);
+                return roundTimeToMinute(time);
             }
 
             // ── Maintenance entry helpers ──

@@ -17,6 +17,10 @@ app.controller('FlightReplayController', FlightReplayController);
         var vm = this;
 
         vm.flight_id = $stateParams.flight_id;
+        // ?src=sd → SkyDemon track behind a personal-logbook manual entry:
+        // GPS-only (no instruments/G/temp/baro), no photos/notes/weather/airspace,
+        // and flight_id is the manual entry id fed to the SD track endpoint.
+        vm.isSD = ($stateParams.src === 'sd');
         vm.user = $rootScope.globals.currentUser;
         vm.loading = true;
         vm.error = null;            // 'forbidden' | 'notfound' | 'generic'
@@ -78,7 +82,10 @@ app.controller('FlightReplayController', FlightReplayController);
         // ════════════════════════════════════════════════
         function load() {
             vm.loading = true;
-            FlightReplayService.GetReplay(vm.flight_id).then(function (data) {
+            var loadPromise = vm.isSD
+                ? FlightReplayService.GetSkydemonReplay(vm.flight_id)
+                : FlightReplayService.GetReplay(vm.flight_id);
+            loadPromise.then(function (data) {
                 vm.loading = false;
                 if (!data || data.success === false) {
                     vm.error = (data && data.error === 'FORBIDDEN') ? 'forbidden' : 'generic';
@@ -708,7 +715,7 @@ app.controller('FlightReplayController', FlightReplayController);
         };
 
         vm.altSourceLabel = function () {
-            if (!vm.baro) return '';
+            if (!vm.baro) return vm.isSD ? 'GPS (SkyDemon)' : '';
             if (vm.baro.working) {
                 return 'Baro' + (vm.baro.datum_ft != null ? ' (cal. ' + Math.round(vm.baro.datum_ft) + ' ft)' : '');
             }

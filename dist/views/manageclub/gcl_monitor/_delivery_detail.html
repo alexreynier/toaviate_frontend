@@ -1,0 +1,47 @@
+<!-- Full delivery detail (fields + stored payload). Included with ng-init="row = <object with .detail>". -->
+<div ng-if="row.detail">
+
+  <div class="gclm-detail-grid">
+    <dl class="trk-kv"><dt>Received</dt><dd><span uib-tooltip="{{ vm.abs(row.detail.created_at) }}">{{ vm.ago(row.detail.created_at) }}</span></dd></dl>
+    <dl class="trk-kv"><dt>Source</dt><dd>{{ vm.sourceLabels[row.detail.source] }}</dd></dl>
+    <dl class="trk-kv"><dt>Status answered</dt><dd><span class="trk-badge" ng-class="vm.statusBadge(row.detail.http_status)">{{ row.detail.http_status }}</span></dd></dl>
+    <dl class="trk-kv">
+      <dt>Outcome</dt>
+      <dd>
+        <span uib-tooltip="{{ vm.deliveryOutcomeHint(row.detail.outcome) }}">
+          {{ vm.pretty(row.detail.outcome) }}
+          <i class="fa fa-exclamation-triangle gclm-warn-icon" ng-if="row.detail.outcome === 'gate_rejected'"></i>
+        </span>
+      </dd>
+    </dl>
+    <dl class="trk-kv"><dt>Message</dt><dd>{{ row.detail.message || '—' }}</dd></dl>
+    <dl class="trk-kv"><dt>Remote IP</dt><dd>{{ row.detail.remote_ip || '—' }}</dd></dl>
+    <dl class="trk-kv"><dt>Signature present</dt><dd>{{ row.detail.signature_present ? 'Yes' : 'No' }}</dd></dl>
+    <dl class="trk-kv"><dt>Processing time</dt><dd>{{ row.detail.processing_ms }} ms</dd></dl>
+    <dl class="trk-kv">
+      <dt>Events</dt>
+      <dd>
+        {{ row.detail.events_received }} received
+        · {{ row.detail.handled }} handled
+        · {{ row.detail.duplicates }} duplicate{{ row.detail.duplicates == 1 ? '' : 's' }}
+        · {{ row.detail.unmatched }} unmatched
+        · {{ row.detail.unhandled }} unhandled
+        · {{ row.detail.errors }} error{{ row.detail.errors == 1 ? '' : 's' }}
+      </dd>
+    </dl>
+  </div>
+
+  <div class="gclm-payload" ng-if="row.detail.body">
+    <div class="gclm-payload__head">
+      <span><i class="fa fa-file-code"></i> Payload — replay or debug against this</span>
+      <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.copyPayload(row.detail.body, $event)">
+        <i class="fa fa-copy"></i> Copy
+      </button>
+    </div>
+    <pre class="gclm-payload__body">{{ vm.prettyJson(row.detail.body) }}</pre>
+  </div>
+  <p class="trk-table__muted gclm-payload-note" ng-if="!row.detail.body">
+    <i class="fa fa-info-circle"></i> Payload not retained for successful deliveries.
+  </p>
+
+</div>

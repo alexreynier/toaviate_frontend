@@ -1,139 +1,108 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page payment-methods">
 
+  <ui-view>
 
-     <div class="snazzy-page__header">
-            <div class="snazzy-page__header-inner">
-              <div class="back-box" ui-sref="dashboard.my_account">
-                <i class="fa fa-arrow-circle-left"></i> BACK
-              </div>
-              <div class="snazzy-page__title">
-                <h2><i class="fas fa-credit-card"></i> PAYMENT METHODS</h2>
-                <p>Manage your preferred payment methods</p>
-              </div>
-            </div>
+    <!-- ══ Default (list) content — replaced by the add-card child state ══ -->
+
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ui-sref="dashboard.my_account">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-credit-card"></i> PAYMENT METHODS</h2>
+          <p>Your saved cards, per club</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- club selector (only shown when the member belongs to several clubs) -->
+    <div class="payment-methods__clubs" ng-show="vm.clubs.length > 1">
+      <button type="button"
+              class="payment-methods__club-btn"
+              ng-repeat="club in vm.clubs track by club.club_id"
+              ng-class="{'payment-methods__club-btn--active': vm.selected_club.club_id == club.club_id}"
+              ng-click="vm.select_club(club)">
+        {{ club.club_name }}
+      </button>
+    </div>
+
+    <div class="payment-methods__toolbar" ng-show="vm.selected_club">
+      <a class="payment-methods__add-btn"
+         ui-sref="dashboard.my_account.payment_methods.add({club_id: vm.selected_club.club_id})">
+        <i class="fas fa-plus"></i> Add a Card
+      </a>
+    </div>
+
+    <!-- loading -->
+    <div class="payment-methods__loading" ng-show="vm.clubs_loading || vm.cards_loading">
+      <div class="payment-methods__spinner"></div>
+      <span>Loading your cards&hellip;</span>
+    </div>
+
+    <!-- error -->
+    <div class="payment-methods__error" ng-show="vm.cards_error && !vm.clubs_loading && !vm.cards_loading">
+      <i class="fas fa-exclamation-triangle"></i> {{ vm.cards_error }}
+    </div>
+
+    <!-- no clubs at all -->
+    <div class="payment-methods__empty" ng-show="!vm.clubs_loading && vm.clubs.length == 0 && !vm.cards_error">
+      <div class="payment-methods__empty-icon"><i class="far fa-credit-card"></i></div>
+      <p>You need a club membership before you can save a card.</p>
+    </div>
+
+    <!-- card list -->
+    <div class="payment-methods__grid" ng-show="!vm.cards_loading && vm.cards.length > 0">
+      <div class="payment-methods__card" ng-repeat="card in vm.cards track by card.stripe_id">
+
+        <div class="payment-methods__card-top">
+          <span class="payment-methods__card-brand"><i class="{{ vm.card_icon(card.brand) }}"></i></span>
+          <span class="payment-methods__card-default" ng-show="card.stripe_id == vm.default_card">
+            <i class="fas fa-check"></i> Default
+          </span>
+        </div>
+
+        <div class="payment-methods__card-number">&bull;&bull;&bull;&bull; {{ card.last4 }}</div>
+        <div class="payment-methods__card-meta">
+          Expires {{ card.exp_month }}/{{ card.exp_year }}
+          <span class="payment-methods__card-funding">{{ card.funding }}</span>
+        </div>
+
+        <div class="payment-methods__card-actions" ng-show="vm.card_pending_delete != card.stripe_id">
+          <button type="button" class="payment-methods__btn payment-methods__btn--outline"
+                  ng-show="card.stripe_id != vm.default_card"
+                  ng-disabled="vm.setting_default"
+                  ng-click="vm.make_default(card)">
+            Make Default
+          </button>
+          <button type="button" class="payment-methods__btn payment-methods__btn--danger-outline"
+                  ng-click="vm.request_delete(card)">
+            <i class="far fa-trash-alt"></i> Remove
+          </button>
+        </div>
+
+        <!-- two-step inline delete confirmation -->
+        <div class="payment-methods__card-confirm" ng-show="vm.card_pending_delete == card.stripe_id">
+          <span>Remove the card ending {{ card.last4 }}?</span>
+          <div class="payment-methods__card-confirm-btns">
+            <button type="button" class="payment-methods__btn payment-methods__btn--danger" ng-click="vm.confirm_delete(card)">Remove</button>
+            <button type="button" class="payment-methods__btn payment-methods__btn--outline" ng-click="vm.cancel_delete()">Keep</button>
           </div>
+        </div>
 
+      </div>
+    </div>
 
+    <!-- empty state for the selected club -->
+    <div class="payment-methods__empty" ng-show="vm.selected_club && !vm.cards_loading && vm.cards.length == 0 && !vm.cards_error">
+      <div class="payment-methods__empty-icon"><i class="far fa-credit-card"></i></div>
+      <p>No cards saved with {{ vm.selected_club.club_name }} yet.</p>
+      <small>
+        A saved card is required before you can book an aircraft. Add one above and
+        it will be offered whenever you pay for memberships, items or flights.
+      </small>
+    </div>
 
-    <ui-view class="sub_section2">
-        <button ui-sref="dashboard.my_account.payment_methods.add" class="btn btn-primary add_btn_margin">ADD PAYMENT METHOD</button>
-
-
-          <table ng-if="vm.cards.length > 0">
-            <tr class="bold_text">
-            <!--   <td>
-                Name
-              </td> -->
-              <td>
-                Card Type
-              </td>
-              <td>
-                Card Ending
-              </td>
-              <td>
-                Expiry Date
-              </td>
-              <td>
-                Primary
-              </td>
-              <td class="right_text_align">
-                Management
-              </td>
-            </tr>
-
-            <tr ng-repeat="card in vm.cards">
-             <!--  <td>
-                {{ card.name }}
-              </td> -->
-              <td>
-                {{ card.brand }} ({{ card.funding }})
-              </td>
-              <td>
-                {{ card.last4 }}
-              </td>
-              <td>
-                {{ card.exp_month }}/{{ card.exp_year }}
-              </td>
-              <td>
-                <input type="radio" class="" ng-click="changePrimary(card.id)" name="primary_card" ng-if="card.primary_card == 1" checked /> 
-                <input type="radio" class="" ng-click="changePrimary(card.id)" name="primary_card" ng-if="card.primary_card == 0" />
-              </td>
-              <td class="right_text_align">
-                
-                <button class="btn btn-primary" ng-click="change_address(card.hash)">CHANGE ADDRESS</button>
-                <button class="btn btn-danger" ng-click="delete_card(card.id)">DELETE</button>
-
-              </td>
-            </tr>
-            
-          </table>
-
-          <div ng-if="vm.cards.length == 0">
-              Please add a preferred payment method
-
-                <small>
-                  This is required prior to allowing you to book an aircraft. ToAviate offers a full encompassing solution which includes the billing and aircraft management, in order to ensure that you are fully setup - please add a payment method above, you will be prompted to confirm which payment method you wish to use before paying for the membership, items and flights.
-                </small>
-
-          </div>
-
-         
-          <div class="popup_bg" ng-if="vm.change_address"  ng-click="decline_change()">
-          </div>
-
-              <div class="popup_box" ng-if="vm.change_address">
-
-                  <h3> Change Billing Address </h3>
-                  <br />
-
-
-
-                  <!-- STOLEN FROM USER PAGE //-->
-
-                  <div class="form-group fgtwo">
-                    <label for="line1">Flat Number</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.flatNumber">
-                  </div>
-                  <div class="form-group fgtwo">
-                    <label for="line2">House Name / Number</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.houseNameNumber">
-                  </div>
-                  <div class="form-group fgtwo">
-                    <label for="line3"  >Street</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.street">
-                  </div>
-
-                  <div class="form-group fgtwo">
-                    <label for="address_city">Town / City</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.townCity">
-
-                  </div>
-                  <div class="form-group fgtwo">
-
-                    <label for="address_locality">County</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.region">
-
-                  </div>
-                  <div class="form-group fgtwo">
-
-                    <label for="address_postcode">Postcode</label>
-                    <input type="text" class="form-control" ng-model="vm.billing_address.postalCode">
-
-                  </div>
-
-
-
-                
-
-                <div class="bottom_btn btns_bottom">
-
-                  <button ng-click="decline_change()" class="btn btn-danger">Cancel Change</button>
-                  <button ng-if="error.button !== ''" ng-click="save_address()" class="btn btn-info" ng-click="">Change Address</button>
-
-
-              </div>
-          </div>
-
-    </ui-view>
+  </ui-view>
 
 </div>

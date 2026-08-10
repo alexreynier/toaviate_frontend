@@ -1,0 +1,89 @@
+<div class="trk-page areg">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-clipboard-check"></i> Registry Advisories</h2>
+        <p>Register changes held for review because the registration is assigned to a club fleet.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/aircraft_registry/_nav.html'"></div>
+
+    <div class="trk-banner trk-banner--danger" ng-if="vm.forbidden">
+      <i class="fa fa-lock"></i>
+      <div class="trk-banner__body"><strong>ToAviate admins only</strong> Your account doesn't have access to the registry tools.</div>
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.forbidden">
+
+      <div class="trk-chips">
+        <div class="trk-chip" ng-repeat="st in vm.enums.advisoryStatuses"
+             ng-class="{'trk-chip--active': vm.advisory_filter === st}"
+             ng-click="vm.setAdvisoryFilter(st)">
+          {{ st }}<span class="trk-chip__count" ng-if="st === 'pending' && vm.pending_advisories">{{ vm.pending_advisories }}</span>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading advisories…
+      </div>
+
+      <div class="trk-empty trk-empty--positive" ng-if="!vm.loading && !vm.advisories.length && vm.advisory_filter === 'pending'">
+        <i class="fa fa-check-circle"></i>
+        <p>Nothing to review — no held changes for club-assigned aircraft.</p>
+      </div>
+      <div class="trk-empty" ng-if="!vm.loading && !vm.advisories.length && vm.advisory_filter !== 'pending'">
+        <i class="fa fa-clipboard-check"></i>
+        <p>No {{ vm.advisory_filter }} advisories yet.</p>
+      </div>
+
+      <div class="areg-advisories" ng-if="!vm.loading && vm.advisories.length">
+        <div class="areg-advisory" ng-repeat="adv in vm.advisories" ng-class="{'areg-advisory--leaving': adv.leaving}">
+
+          <div class="areg-advisory__head">
+            <div class="areg-advisory__reg"><i class="fa fa-plane"></i> {{ adv.registration }}</div>
+            <div class="areg-advisory__club">{{ adv.club_name }}</div>
+            <span class="trk-badge" ng-class="vm.advisoryBadge(adv.status)">{{ adv.status }}</span>
+          </div>
+
+          <div class="areg-advisory__note">
+            <i class="fa fa-info-circle"></i>
+            This registration is assigned to a club fleet. Applying updates only the reference/autocomplete
+            database — the club's own aircraft record is never touched either way.
+          </div>
+
+          <div class="areg-diff">
+            <div class="areg-diff__row" ng-repeat="field in vm.changeKeys(adv)">
+              <div class="areg-diff__field">{{ vm.pretty(field) }}</div>
+              <div class="areg-diff__values">
+                <span class="areg-diff__from">{{ adv.changes[field].from || '—' }}</span>
+                <i class="fa fa-arrow-right areg-diff__arrow"></i>
+                <span class="areg-diff__to">{{ adv.changes[field].to || '—' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="areg-advisory__actions" ng-if="adv.status === 'pending'">
+            <button class="trk-btn trk-btn--primary trk-btn--sm" ng-click="vm.applyAdvisory(adv)" ng-disabled="adv.busy">
+              <span ng-if="adv.busy === 'apply'" class="trk-spinner trk-spinner--inline"></span>
+              <i class="fa fa-check" ng-if="adv.busy !== 'apply'"></i> Apply this change
+            </button>
+            <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.dismissAdvisory(adv)" ng-disabled="adv.busy">
+              <span ng-if="adv.busy === 'dismiss'" class="trk-spinner trk-spinner--inline"></span>
+              <i class="fa fa-shield-alt" ng-if="adv.busy !== 'dismiss'"></i> Keep ours
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

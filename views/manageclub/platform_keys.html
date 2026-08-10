@@ -1,0 +1,260 @@
+<div class="pk-page">
+
+    <div class="pk-denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>Platform API keys are managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── HEADER ── -->
+        <div class="pk-header">
+            <div class="pk-header__inner">
+                <div>
+                    <div class="back-box" ui-sref="dashboard.super_admin">
+                        <i class="fa fa-arrow-circle-left"></i> BACK TO ADMIN
+                    </div>
+                    <div class="pk-header__title">
+                        <h2><i class="fas fa-key"></i> Platform keys</h2>
+                        <p>API keys for external platforms calling ToAviate server-to-server</p>
+                    </div>
+                </div>
+
+                <div class="pk-header__controls">
+                    <button class="pk-btn pk-btn--white" ng-click="vm.openCreate()">
+                        <i class="fas fa-plus"></i> <span>New platform key</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── LOADING ── -->
+        <div class="snazzy-loading" ng-if="vm.loading">
+            <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+            <div class="snazzy-loading__text">Loading platform keys&hellip;</div>
+        </div>
+
+        <div class="snazzy-reveal" ng-if="!vm.loading">
+
+            <!-- ── SUMMARY STATS ── -->
+            <div class="pk-stats snazzy-reveal snazzy-reveal--stagger">
+                <div class="pk-stat">
+                    <div class="pk-stat__value">{{ vm.stats.total }}</div>
+                    <div class="pk-stat__label">Platform keys</div>
+                </div>
+                <div class="pk-stat">
+                    <div class="pk-stat__value pk-stat__value--good">{{ vm.stats.active }}</div>
+                    <div class="pk-stat__label">Active</div>
+                </div>
+                <div class="pk-stat">
+                    <div class="pk-stat__value">{{ vm.stats.calls | number }}</div>
+                    <div class="pk-stat__label">Total calls</div>
+                </div>
+                <div class="pk-stat">
+                    <div class="pk-stat__value pk-stat__value--time">{{ vm.ago(vm.stats.last_used) }}</div>
+                    <div class="pk-stat__label">Last activity</div>
+                </div>
+            </div>
+
+            <!-- ── TOOLBAR ── -->
+            <div class="pk-toolbar">
+                <div class="pk-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search platform, key or scope&hellip;"
+                           ng-model="vm.search" />
+                </div>
+
+                <div class="pk-filters">
+                    <button class="pk-filter-btn"
+                            ng-class="{'pk-filter-btn--active': vm.status_filter === 'all'}"
+                            ng-click="vm.setStatusFilter('all')">All</button>
+                    <button class="pk-filter-btn"
+                            ng-class="{'pk-filter-btn--active': vm.status_filter === 'active'}"
+                            ng-click="vm.setStatusFilter('active')">Active</button>
+                    <button class="pk-filter-btn"
+                            ng-class="{'pk-filter-btn--active': vm.status_filter === 'revoked'}"
+                            ng-click="vm.setStatusFilter('revoked')">Revoked</button>
+                    <button class="pk-filter-btn"
+                            ng-class="{'pk-filter-btn--active': vm.status_filter === 'disabled'}"
+                            ng-click="vm.setStatusFilter('disabled')">Disabled</button>
+                </div>
+
+                <span class="pk-count">{{ vm.visibleCount() }} of {{ vm.keys.length }}</span>
+            </div>
+
+            <!-- ── EMPTY STATES ── -->
+            <div class="pk-empty" ng-if="!vm.keys.length">
+                <div class="pk-empty__icon"><i class="fas fa-key"></i></div>
+                <h3>No platform keys yet</h3>
+                <p>Create the first key to let an external platform call ToAviate server-to-server.</p>
+                <button class="pk-btn pk-btn--primary" ng-click="vm.openCreate()">
+                    <i class="fas fa-plus"></i> New platform key
+                </button>
+            </div>
+
+            <div class="pk-empty" ng-if="vm.keys.length && !vm.visibleCount()">
+                <div class="pk-empty__icon"><i class="fas fa-search"></i></div>
+                <h3>No keys match</h3>
+                <p>Try a different search or status filter.</p>
+            </div>
+
+            <!-- ── DESKTOP TABLE ── -->
+            <div class="pk-table-card" ng-if="vm.visibleCount()">
+                <table class="pk-table">
+                    <thead>
+                        <tr>
+                            <th>Platform</th>
+                            <th>Key</th>
+                            <th>Scopes</th>
+                            <th>Status</th>
+                            <th>Last used</th>
+                            <th class="pk-table__num">Calls</th>
+                            <th class="pk-table__actions-th">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="key in vm.keys track by key.id"
+                            ng-show="vm.rowVisible(key)"
+                            ng-class="{'pk-row--muted': vm.statusOf(key) !== 'active'}"
+                            ui-sref="dashboard.super_admin.platform_key_detail({ id: key.id })">
+
+                            <td>
+                                <div class="pk-platform">{{ key.platform_name }}</div>
+                                <div class="pk-desc" ng-if="key.description">{{ key.description }}</div>
+                            </td>
+
+                            <td>
+                                <code class="pk-key-prefix">{{ key.key_prefix }}&hellip;</code>
+                            </td>
+
+                            <td>
+                                <div class="pk-scopes">
+                                    <span class="pk-scope" ng-repeat="scope in key.allowed_endpoints track by $index">
+                                        <b>{{ vm.scopeParts(scope).method }}</b>{{ vm.scopeParts(scope).path }}
+                                    </span>
+                                    <span class="pk-scope pk-scope--ip" ng-if="key.allowed_ips.length">
+                                        <i class="fas fa-map-marker-alt"></i> {{ key.allowed_ips.length }} IP{{ key.allowed_ips.length == 1 ? '' : 's' }}
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="pk-status pk-status--{{ vm.statusOf(key) }}">
+                                    <span class="pk-status__dot"></span> {{ vm.statusLabel(key) }}
+                                </span>
+                            </td>
+
+                            <td>
+                                <span class="pk-when" title="{{ key.last_used_at || 'Never used' }}"
+                                      ng-class="{'pk-when--never': !key.last_used_at}">
+                                    {{ vm.ago(key.last_used_at) }}
+                                </span>
+                            </td>
+
+                            <td class="pk-table__num">{{ vm.num(key.use_count) | number }}</td>
+
+                            <td class="pk-table__actions">
+                                <button class="pk-icon-btn" title="View / edit"
+                                        ui-sref="dashboard.super_admin.platform_key_detail({ id: key.id })"
+                                        ng-click="$event.stopPropagation()">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="pk-icon-btn" title="Rotate key"
+                                        ng-click="vm.askRotate(key); $event.stopPropagation()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button class="pk-icon-btn pk-icon-btn--danger" title="Revoke"
+                                        ng-if="vm.statusOf(key) === 'active'"
+                                        ng-click="vm.askRevoke(key); $event.stopPropagation()">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                                <button class="pk-icon-btn pk-icon-btn--good" title="Re-activate"
+                                        ng-if="vm.statusOf(key) !== 'active'"
+                                        ng-click="vm.askReactivate(key); $event.stopPropagation()">
+                                    <i class="fas fa-power-off"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ── MOBILE CARDS ── -->
+            <div class="pk-cards" ng-if="vm.visibleCount()">
+                <div class="pk-card" ng-repeat="key in vm.keys track by key.id"
+                     ng-show="vm.rowVisible(key)"
+                     ng-class="{'pk-row--muted': vm.statusOf(key) !== 'active'}"
+                     ui-sref="dashboard.super_admin.platform_key_detail({ id: key.id })">
+
+                    <div class="pk-card__top">
+                        <div>
+                            <div class="pk-platform">{{ key.platform_name }}</div>
+                            <code class="pk-key-prefix">{{ key.key_prefix }}&hellip;</code>
+                        </div>
+                        <span class="pk-status pk-status--{{ vm.statusOf(key) }}">
+                            <span class="pk-status__dot"></span> {{ vm.statusLabel(key) }}
+                        </span>
+                    </div>
+
+                    <div class="pk-desc" ng-if="key.description">{{ key.description }}</div>
+
+                    <div class="pk-scopes">
+                        <span class="pk-scope" ng-repeat="scope in key.allowed_endpoints track by $index">
+                            <b>{{ vm.scopeParts(scope).method }}</b>{{ vm.scopeParts(scope).path }}
+                        </span>
+                    </div>
+
+                    <div class="pk-card__meta">
+                        <span title="{{ key.last_used_at || 'Never used' }}">
+                            <i class="fas fa-heartbeat"></i> {{ vm.ago(key.last_used_at) }}
+                        </span>
+                        <span><i class="fas fa-exchange-alt"></i> {{ vm.num(key.use_count) | number }} calls</span>
+                    </div>
+
+                    <div class="pk-card__actions">
+                        <button class="pk-btn pk-btn--outline pk-btn--sm"
+                                ng-click="vm.askRotate(key); $event.stopPropagation()">
+                            <i class="fas fa-sync-alt"></i> Rotate
+                        </button>
+                        <button class="pk-btn pk-btn--danger-outline pk-btn--sm"
+                                ng-if="vm.statusOf(key) === 'active'"
+                                ng-click="vm.askRevoke(key); $event.stopPropagation()">
+                            <i class="fas fa-ban"></i> Revoke
+                        </button>
+                        <button class="pk-btn pk-btn--outline pk-btn--sm"
+                                ng-if="vm.statusOf(key) !== 'active'"
+                                ng-click="vm.askReactivate(key); $event.stopPropagation()">
+                            <i class="fas fa-power-off"></i> Re-activate
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── CONFIRM OVERLAY ── -->
+        <div class="pk-confirm-backdrop" ng-if="vm.confirm" ng-click="vm.cancelConfirm()">
+            <div class="pk-confirm" ng-click="$event.stopPropagation()">
+                <div class="pk-confirm__icon"
+                     ng-class="vm.confirm.danger ? 'pk-confirm__icon--danger' : 'pk-confirm__icon--info'">
+                    <i class="fas" ng-class="vm.confirm.danger ? 'fa-exclamation-triangle' : 'fa-question'"></i>
+                </div>
+                <h3 class="pk-confirm__title">{{ vm.confirm.title }}</h3>
+                <p class="pk-confirm__message">{{ vm.confirm.message }}</p>
+                <div class="pk-confirm__actions">
+                    <button class="pk-btn pk-btn--outline" ng-click="vm.cancelConfirm()" ng-disabled="vm.busy">
+                        Cancel
+                    </button>
+                    <button class="pk-btn" ng-disabled="vm.busy"
+                            ng-class="vm.confirm.danger ? 'pk-btn--danger' : 'pk-btn--primary'"
+                            ng-click="vm.runConfirm()">
+                        <i class="fas fa-spinner fa-spin" ng-if="vm.busy"></i>
+                        {{ vm.confirm.label }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

@@ -1,7 +1,7 @@
  app.controller('AircraftJourneyLogsController', AircraftJourneyLogsController);
 
-    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService', 'LogbookExportService'];
-    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService, LogbookExportService) {
+    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService', 'LogbookExportService', 'ManualFlightService'];
+    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService, LogbookExportService, ManualFlightService) {
         
         var vm = this;
 
@@ -37,6 +37,12 @@
                    vm.logs = data.logs;
                    vm.aircraft = data.aircraft;
 
+                   // Server-resolved club (via club_planes, current_plane = 1)
+                   // and manager verdict — see backend get_journey_log (2026-08).
+                   vm.journey_club_id = data.club_id || 0;
+                   vm.viewer_is_club_manager = data.viewer_is_club_manager;
+
+                   setupManualFlightAccess();
 
                 });
 
@@ -61,6 +67,106 @@
 
             }
 
+
+
+            // ═══════════════════════════════════════════════
+            // MANUAL FLIGHT ENTRY — "Add missing flight" (managers only)
+            // ═══════════════════════════════════════════════
+            vm.can_add_flight = false;
+            vm.addFlightUndo = null;   // { pls_id, registration, busy, timer }
+
+            function manualFlightClubId() {
+                if (vm.journey_club_id) {
+                    return vm.journey_club_id;
+                }
+                if (vm.aircraft && vm.aircraft.club_id) {
+                    return vm.aircraft.club_id;
+                }
+                // Old-backend fallback — the journey log payload may not carry club_id
+                return (vm.user.current_club_admin && vm.user.current_club_admin.id) || 0;
+            }
+
+            function setupManualFlightAccess() {
+                // The backend's viewer_is_club_manager verdict is authoritative —
+                // it resolves the plane's current club via club_planes and checks
+                // the viewer's role server-side.
+                if (typeof vm.viewer_is_club_manager !== 'undefined') {
+                    vm.can_add_flight = !!(vm.viewer_is_club_manager && manualFlightClubId());
+                    return;
+                }
+                // Old-backend fallback: client-side role check
+                var club_id = manualFlightClubId();
+                vm.can_add_flight = !!(club_id && vm.user.access && vm.user.access.manager &&
+                    vm.user.access.manager.indexOf(club_id) > -1);
+            }
+
+            vm.openAddFlight = function() {
+                var modalInstance = $uibModal.open({
+                    animation: true,
+                    templateUrl: 'views/modals/manual_flight_form.html',
+                    controller: 'ManualFlightModalController',
+                    size: 'lg',
+                    backdrop: 'static',
+                    keyboard: false,
+                    resolve: {
+                        clubId: function() { return manualFlightClubId(); },
+                        planeId: function() { return $stateParams.plane_id; }
+                    }
+                });
+
+                modalInstance.result.then(function(result) {
+                    if (result && result.success) {
+                        // The undo snackbar is the success confirmation — no toast
+                        // on top of it (they share the bottom-centre position).
+                        refreshJourneyLogs();
+                        showAddFlightUndo(result);
+                    }
+                }, function() {
+                    $log.info('Manual flight modal dismissed');
+                });
+            };
+
+            // Re-fetch everything loaded so far so the new row appears in place
+            function refreshJourneyLogs() {
+                PlaneService.GetAircraftJourneyLogs($stateParams.plane_id, 0, vm.current_offset + vm.loaded_per_batch)
+                    .then(function (data) {
+                        vm.logs = data.logs;
+                    });
+            }
+
+            function showAddFlightUndo(result) {
+                if (vm.addFlightUndo && vm.addFlightUndo.timer) {
+                    $timeout.cancel(vm.addFlightUndo.timer);
+                }
+                vm.addFlightUndo = {
+                    pls_id: result.pls_id,
+                    registration: (result.flight && result.flight.registration) || '',
+                    busy: false,
+                    timer: $timeout(function() { vm.addFlightUndo = null; }, 10000)
+                };
+            }
+
+            vm.dismissAddFlightUndo = function() {
+                if (vm.addFlightUndo && vm.addFlightUndo.timer) {
+                    $timeout.cancel(vm.addFlightUndo.timer);
+                }
+                vm.addFlightUndo = null;
+            };
+
+            vm.undoAddFlight = function() {
+                if (!vm.addFlightUndo || vm.addFlightUndo.busy) { return; }
+                vm.addFlightUndo.busy = true;
+                ManualFlightService.Delete(vm.addFlightUndo.pls_id).then(function(data) {
+                    if (data && data.success) {
+                        ToastService.success('Flight Removed', 'The manually added flight has been undone.', { duration: 3000, confetti: false });
+                        vm.dismissAddFlightUndo();
+                        refreshJourneyLogs();
+                    } else {
+                        vm.addFlightUndo.busy = false;
+                        ToastService.error('Could Not Undo', (data && data.message) || 'This flight can no longer be removed.');
+                    }
+                });
+            };
 
 
             // ── Export (server-generated CSV / Excel / PDF, UK CAA format) ──
@@ -94,7 +200,7 @@
                 if(time == "00:00:00"){
                     return " - ";
                 }
-                return time.substring(0,5);
+                return roundTimeToMinute(time);
             }
 
             vm.round_brake_times = function(first, second, start_end){

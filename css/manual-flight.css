@@ -1,0 +1,993 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MANUAL FLIGHT ENTRY — "Add a missing flight" modal + undo snackbar
+   (manual form + SkyDemon .flightlog upload)
+   Prefix: mf-  (manual flight)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Modal z-index layering (same pattern as fm-modal) ── */
+.modal:has(.mf-modal) { z-index: 99999 !important; }
+.modal-backdrop + .modal:has(.mf-modal) ~ .modal-backdrop,
+.modal:has(.mf-modal) ~ .modal-backdrop { z-index: 99998 !important; }
+
+.mf-modal .modal-header,
+.mf-modal .modal-body,
+.mf-modal .modal-footer { border: none; }
+
+/* ── Header ── */
+.mf-modal__header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    border-radius: 6px 6px 0 0;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.mf-modal__header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.mf-modal__header-icon {
+    font-size: 20px;
+    opacity: 0.8;
+}
+.mf-modal__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #fff;
+}
+.mf-modal__subtitle {
+    font-size: 12px;
+    opacity: 0.75;
+    font-weight: 400;
+    display: block;
+    margin-top: 2px;
+}
+.mf-modal__close {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.mf-modal__close:hover { background: rgba(255,255,255,0.25); }
+
+.mf-modal__body {
+    padding: 20px 24px 24px;
+    max-height: 72vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* ── Step entrance animation ── */
+@keyframes mf-step-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.mf-step {
+    animation: mf-step-in 0.3s ease-out backwards;
+    position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STEP 1 — CHOOSE (dropzone + manual card)
+   ═══════════════════════════════════════════════════════════════════ */
+.mf-choose {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 6px 0;
+}
+
+.mf-dropzone {
+    display: block;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.mf-dropzone:hover {
+    border-color: #2d5a8e;
+    background: #f1f5f9;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(30,58,95,0.10);
+}
+.mf-dropzone--drag {
+    border-color: #2d5a8e;
+    border-style: solid;
+    background: #dbeafe;
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+    animation: mf-drag-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mf-drag-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(59,130,246,0.15); }
+    50%      { box-shadow: 0 0 0 8px rgba(59,130,246,0.08); }
+}
+.mf-dropzone__icon-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    transition: transform 0.2s;
+}
+.mf-dropzone:hover .mf-dropzone__icon-wrap { transform: scale(1.06); }
+.mf-dropzone--drag .mf-dropzone__icon-wrap { animation: mf-bob 0.8s ease-in-out infinite; }
+@keyframes mf-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+}
+.mf-dropzone__icon { font-size: 24px; color: #fff; }
+.mf-dropzone__title {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.mf-dropzone__hint {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+}
+.mf-dropzone__meta {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    background: #e2e8f0;
+    border-radius: 999px;
+    padding: 3px 10px;
+    letter-spacing: 0.3px;
+}
+.mf-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+.mf-choose__divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.mf-choose__divider::before,
+.mf-choose__divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
+.mf-manual-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.mf-manual-card:hover {
+    border-color: #2d5a8e;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(30,58,95,0.10);
+}
+.mf-manual-card__icon-wrap {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 10px;
+    background: #dbeafe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mf-manual-card__icon { font-size: 17px; color: #1e40af; }
+.mf-manual-card__text { flex: 1; min-width: 0; }
+.mf-manual-card__text h5 {
+    margin: 0 0 3px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.mf-manual-card__text p {
+    margin: 0;
+    font-size: 12.5px;
+    color: #64748b;
+}
+.mf-manual-card__chevron {
+    color: #94a3b8;
+    font-size: 13px;
+    transition: transform 0.2s;
+}
+.mf-manual-card:hover .mf-manual-card__chevron { transform: translateX(3px); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STEP 2 — PARSING ANIMATION
+   ═══════════════════════════════════════════════════════════════════ */
+.mf-parsing {
+    text-align: center;
+    padding: 44px 20px 40px;
+}
+.mf-parsing__plane {
+    font-size: 30px;
+    color: #2d5a8e;
+    animation: mf-fly 1.6s ease-in-out infinite;
+    display: inline-block;
+}
+@keyframes mf-fly {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50%      { transform: translateY(-8px) rotate(4deg); }
+}
+.mf-parsing__trail {
+    width: 140px;
+    height: 3px;
+    margin: 14px auto 20px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #e2e8f0 0%, #2d5a8e 50%, #e2e8f0 100%);
+    background-size: 200% 100%;
+    animation: mf-trail 1.2s linear infinite;
+}
+@keyframes mf-trail {
+    from { background-position: 100% 0; }
+    to   { background-position: -100% 0; }
+}
+.mf-parsing__title {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.mf-parsing__file {
+    margin: 0;
+    font-size: 12.5px;
+    color: #64748b;
+}
+.mf-parsing__file .fa { margin-right: 5px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STEP 3 — FORM
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Parsed summary banner ── */
+.mf-parsed {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    animation: mf-step-in 0.35s ease-out 0.05s backwards;
+}
+.mf-parsed__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #166534;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.mf-parsed__head .fa-check-circle { color: #16a34a; font-size: 15px; }
+.mf-parsed__file {
+    margin-left: auto;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #64748b;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: 2px 10px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mf-parsed__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+}
+.mf-parsed__fact {
+    font-size: 12.5px;
+    color: #334155;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.mf-parsed__fact .fa {
+    color: #16a34a;
+    margin-right: 5px;
+    font-size: 11.5px;
+}
+.mf-parsed__note {
+    margin-top: 10px;
+    background: #fef3c7;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    color: #92400e;
+    line-height: 1.45;
+}
+.mf-parsed__note .fa {
+    margin-right: 6px;
+}
+
+/* ── Sections & grid ── */
+.mf-section { margin-bottom: 18px; }
+.mf-section--more { animation: mf-step-in 0.25s ease-out backwards; }
+.mf-section__label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #2d5a8e;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+.mf-section__label-note {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    color: #94a3b8;
+}
+.mf-grid {
+    display: grid;
+    gap: 12px;
+}
+.mf-grid--2 { grid-template-columns: 1fr 1fr; }
+.mf-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+.mf-grid--4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ── Fields ── */
+.mf-field { min-width: 0; }
+.mf-field label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 5px;
+}
+.mf-field__req { color: #dc2626; }
+.mf-field__hint {
+    display: block;
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-top: 6px;
+    line-height: 1.45;
+}
+.mf-field__hint--warn {
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 8px;
+    padding: 7px 10px;
+}
+.mf-field__hint--warn .fa { margin-right: 4px; }
+
+.mf-input {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: #1e293b;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    height: auto;
+}
+select.mf-input {
+    -webkit-appearance: menulist;
+    appearance: menulist;
+}
+.mf-input:focus {
+    outline: none;
+    border-color: #2d5a8e;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.mf-input--time {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+.mf-input--textarea {
+    resize: vertical;
+    min-height: 56px;
+}
+
+/* ── Airfield picker ── */
+.mf-airfield { position: relative; }
+.mf-airfield__list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(15,23,42,0.14);
+    z-index: 30;
+    max-height: 230px;
+    overflow-y: auto;
+    padding: 5px;
+    animation: mf-step-in 0.18s ease-out backwards;
+}
+.mf-airfield__group-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    padding: 7px 10px 4px;
+}
+.mf-airfield__option {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.mf-airfield__option:hover { background: #f1f5f9; }
+.mf-airfield__option-code {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #1e3a5f;
+    min-width: 44px;
+}
+.mf-airfield__option-title {
+    flex: 1;
+    font-size: 13px;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mf-airfield__option-dist {
+    font-size: 11px;
+    font-weight: 600;
+    color: #16a34a;
+    white-space: nowrap;
+}
+
+.mf-airfield-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 8px 10px;
+    animation: mf-step-in 0.2s ease-out backwards;
+}
+.mf-airfield-chip__code {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e40af;
+    letter-spacing: 0.4px;
+}
+.mf-airfield-chip__title {
+    flex: 1;
+    font-size: 13px;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mf-airfield-chip__dist {
+    font-size: 11px;
+    font-weight: 600;
+    color: #16a34a;
+    white-space: nowrap;
+}
+.mf-airfield-chip__clear {
+    background: rgba(30,64,175,0.12);
+    border: none;
+    color: #1e40af;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.mf-airfield-chip__clear:hover { background: rgba(30,64,175,0.22); }
+
+/* ── Landings steppers ── */
+.mf-stepper {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.mf-stepper__btn {
+    background: #f8fafc;
+    border: none;
+    color: #2d5a8e;
+    width: 38px;
+    min-width: 38px;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.mf-stepper__btn:hover { background: #e2e8f0; }
+.mf-stepper__btn:active { background: #cbd5e1; }
+.mf-stepper__value {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    border: none;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    padding: 8px 4px;
+    -moz-appearance: textfield;
+}
+.mf-stepper__value::-webkit-outer-spin-button,
+.mf-stepper__value::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.mf-stepper__value:focus { outline: none; background: #f8fafc; }
+
+/* ── More details toggle ── */
+.mf-more-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d5a8e;
+    cursor: pointer;
+    margin-bottom: 18px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.mf-more-toggle:hover { background: #f1f5f9; border-color: #2d5a8e; }
+.mf-more-toggle__note {
+    margin-left: auto;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+/* ── Footer buttons ── */
+.mf-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 16px;
+}
+.mf-footer__right {
+    display: flex;
+    gap: 10px;
+}
+.mf-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, opacity 0.15s;
+}
+.mf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.mf-btn--primary {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(30,58,95,0.25);
+}
+.mf-btn--primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(30,58,95,0.32);
+}
+.mf-btn--outline {
+    background: #fff;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+.mf-btn--outline:hover:not(:disabled) { background: #f1f5f9; }
+.mf-btn--ghost {
+    background: none;
+    color: #64748b;
+}
+.mf-btn--ghost:hover:not(:disabled) { color: #1e293b; background: #f1f5f9; }
+.mf-btn--warning {
+    background: #d97706;
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(217,119,6,0.25);
+}
+.mf-btn--warning:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(217,119,6,0.32);
+}
+
+/* ── Duplicate confirmation overlay ── */
+.mf-dup {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    padding: 20px;
+    animation: mf-fade 0.2s ease-out backwards;
+}
+@keyframes mf-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.mf-dup__card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(15,23,42,0.35);
+    max-width: 420px;
+    width: 100%;
+    padding: 26px 24px 22px;
+    text-align: center;
+    animation: mf-pop 0.28s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+}
+@keyframes mf-pop {
+    from { opacity: 0; transform: scale(0.9) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.mf-dup__icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #fef3c7;
+    color: #d97706;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+}
+.mf-dup__title {
+    margin: 0 0 8px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #1e293b;
+}
+.mf-dup__text {
+    margin: 0 0 10px;
+    font-size: 13.5px;
+    color: #64748b;
+    line-height: 1.5;
+}
+.mf-dup__details {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    text-align: left;
+}
+.mf-dup__details .fa {
+    color: #2d5a8e;
+    width: 18px;
+    text-align: center;
+    margin-right: 4px;
+}
+.mf-dup__actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HOST PAGES — add button, manual badge, undo snackbar
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* "Manual" chip on flight rows created by this feature */
+.mf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    vertical-align: middle;
+}
+.mf-badge .fa { font-size: 9px; }
+
+/* Add-flight trigger on the journey log page (matches lbx__trigger weight) */
+.mf-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(30,58,95,0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.mf-add-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(30,58,95,0.32);
+    color: #fff;
+}
+/* Sits inline next to the export trigger in the journey-log actions row */
+.mf-add-btn--hero {
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+/* ── Undo snackbar (shown after a flight is added) ── */
+.mf-undo {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15,23,42,0.4);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 18px;
+    z-index: 100001;
+    max-width: calc(100vw - 32px);
+    animation: mf-undo-in 0.35s cubic-bezier(0.34, 1.3, 0.64, 1) backwards;
+    overflow: hidden;
+}
+@keyframes mf-undo-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(24px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.mf-undo__icon {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    border-radius: 50%;
+    background: #16a34a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+.mf-undo__text {
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    min-width: 0;
+}
+.mf-undo__sub {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 400;
+    opacity: 0.7;
+}
+.mf-undo__btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.mf-undo__btn:hover { background: rgba(255,255,255,0.22); }
+.mf-undo__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.mf-undo__close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.15s;
+}
+.mf-undo__close:hover { color: #fff; }
+.mf-undo__progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #22c55e;
+    border-radius: 0 3px 3px 0;
+    /* matches the 10s auto-dismiss $timeout in the host controllers */
+    animation: mf-undo-progress 10s linear forwards;
+    width: 100%;
+    transform-origin: left;
+}
+@keyframes mf-undo-progress {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .mf-grid--4 { grid-template-columns: 1fr 1fr; }
+    .mf-modal__body { max-height: none; }
+}
+
+@media (max-width: 640px) {
+    /* The fixed 50px #main_header2 (z-index above all modals) would cover the
+       modal's own header/close button — start the dialog below it */
+    .modal:has(.mf-modal) .modal-dialog { margin-top: 62px; }
+
+    .mf-modal__header { padding: 14px 16px; }
+    .mf-modal__title { font-size: 16px; }
+    .mf-modal__subtitle { display: none; }
+    .mf-modal__body { padding: 16px 14px 18px; }
+
+    .mf-grid--2,
+    .mf-grid--3 { grid-template-columns: 1fr; }
+    .mf-grid--3 { gap: 10px; }
+    /* keep the 4 time fields two-up so the sequence stays scannable */
+    .mf-grid--4 { grid-template-columns: 1fr 1fr; }
+
+    .mf-dropzone { padding: 24px 14px; }
+    .mf-parsed__file { display: none; }
+    .mf-parsed__facts { gap: 5px 12px; }
+
+    .mf-footer {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+    .mf-footer__right {
+        flex-direction: column-reverse;
+    }
+    .mf-btn { justify-content: center; }
+    .mf-btn--ghost { align-self: center; }
+
+    .mf-dup__actions { flex-direction: column-reverse; }
+    .mf-dup__actions .mf-btn { justify-content: center; }
+
+    .mf-undo {
+        bottom: 14px;
+        gap: 10px;
+        padding: 11px 14px;
+        width: calc(100vw - 24px);
+    }
+    .mf-undo__sub { display: none; }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+    .mf-step,
+    .mf-parsed,
+    .mf-section--more,
+    .mf-airfield__list,
+    .mf-airfield-chip,
+    .mf-dup,
+    .mf-dup__card,
+    .mf-undo {
+        animation: none;
+    }
+    .mf-parsing__plane,
+    .mf-parsing__trail,
+    .mf-dropzone--drag,
+    .mf-dropzone--drag .mf-dropzone__icon-wrap {
+        animation: none;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   NIGHT MODE
+   ═══════════════════════════════════════════════════════════════════ */
+body.night-mode .mf-modal__body,
+body.night-mode .mf-dup__card {
+    background: #1e293b;
+}
+body.night-mode .mf-dropzone,
+body.night-mode .mf-more-toggle,
+body.night-mode .mf-stepper__btn {
+    background: #0f172a;
+    border-color: #334155;
+}
+body.night-mode .mf-manual-card,
+body.night-mode .mf-input,
+body.night-mode .mf-stepper,
+body.night-mode .mf-airfield__list,
+body.night-mode .mf-btn--outline {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+body.night-mode .mf-dropzone__title,
+body.night-mode .mf-manual-card__text h5,
+body.night-mode .mf-parsing__title,
+body.night-mode .mf-dup__title,
+body.night-mode .mf-stepper__value {
+    color: #e2e8f0;
+}
+body.night-mode .mf-field label,
+body.night-mode .mf-airfield__option-title,
+body.night-mode .mf-dup__details {
+    color: #cbd5e1;
+}
+body.night-mode .mf-stepper__value { background: transparent; }
+body.night-mode .mf-airfield__option:hover { background: #1e293b; }
+body.night-mode .mf-dup__details { background: #0f172a; border-color: #334155; }
+body.night-mode .mf-footer { border-top-color: #334155; }
+body.night-mode .mf-parsed {
+    background: rgba(22,163,74,0.12);
+    border-color: rgba(34,197,94,0.35);
+}
+body.night-mode .mf-parsed__fact { color: #cbd5e1; }

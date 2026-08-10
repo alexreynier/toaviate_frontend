@@ -1,0 +1,117 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-inbox"></i> Webhook Deliveries</h2>
+        <p>Every HTTP POST GoCardless made to us, and the status we answered.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/gcl_monitor/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <!-- ── Pinned delivery (deep-linked from the Overview attention panel) ── -->
+      <div class="trk-loading" ng-if="vm.pinned_loading">
+        <div class="trk-spinner"></div> Loading the delivery…
+      </div>
+      <div class="trk-card gclm-pinned" ng-if="vm.pinned_row">
+        <h4 class="trk-card__title">
+          <i class="fa fa-thumbtack"></i> Delivery #{{ vm.pinned_row.detail.id }}
+          <span class="trk-badge" ng-class="vm.statusBadge(vm.pinned_row.detail.http_status)">{{ vm.pinned_row.detail.http_status }}</span>
+        </h4>
+        <div ng-include="'views/manageclub/gcl_monitor/_delivery_detail.html'" ng-init="row = vm.pinned_row"></div>
+      </div>
+
+      <!-- ── Filters ── -->
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.sourceFilter}" ng-click="vm.setSource('')">All sources</div>
+        <div class="trk-chip"
+             ng-repeat="s in vm.enums.sources"
+             ng-class="{'trk-chip--active': vm.sourceFilter === s}"
+             ng-click="vm.setSource(s)">{{ vm.sourceLabels[s] }}</div>
+      </div>
+      <div class="trk-chips">
+        <div class="trk-chip" ng-class="{'trk-chip--active': !vm.statusFilter}" ng-click="vm.setStatus('')">Any status</div>
+        <div class="trk-chip"
+             ng-repeat="st in vm.enums.deliveryStatuses"
+             ng-class="{'trk-chip--active': vm.statusFilter == st}"
+             ng-click="vm.setStatus(st)">{{ st === 'ok' ? 'OK' : (st === 'failed' ? 'Failed' : st) }}</div>
+        <div class="trk-count-badge" ng-show="vm.total !== null">{{ vm.deliveries.length }} of {{ vm.total }}</div>
+      </div>
+
+      <div class="trk-empty" ng-if="!vm.loading && !vm.deliveries.length">
+        <i class="fa fa-inbox"></i>
+        <p ng-if="vm.statusFilter">No {{ vm.statusFilter === 'ok' ? 'successful' : 'failed' }} deliveries match this filter — all good ✓</p>
+        <p ng-if="!vm.statusFilter">Nothing received yet — check the webhook endpoint is configured in the GoCardless dashboard.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.deliveries.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th>Outcome</th>
+                <th>Events</th>
+                <th>Handled</th>
+                <th>Dupes</th>
+                <th>Unmatched</th>
+                <th>Errors</th>
+                <th>ms</th>
+              </tr>
+            </thead>
+            <tbody ng-repeat="d in vm.deliveries">
+              <tr class="trk-table__row-click" ng-click="vm.toggleDelivery(d)" ng-class="{'gclm-row--open': d.open}">
+                <td data-label="When" class="trk-table__muted"><span uib-tooltip="{{ vm.abs(d.created_at) }}">{{ vm.ago(d.created_at) }}</span></td>
+                <td data-label="Source">{{ vm.sourceLabels[d.source] }}</td>
+                <td data-label="Status"><span class="trk-badge" ng-class="vm.statusBadge(d.http_status)">{{ d.http_status }}</span></td>
+                <td data-label="Outcome">
+                  <span uib-tooltip="{{ vm.deliveryOutcomeHint(d.outcome) }}">
+                    {{ vm.pretty(d.outcome) }}
+                    <i class="fa fa-exclamation-triangle gclm-warn-icon" ng-if="d.outcome === 'gate_rejected'"></i>
+                  </span>
+                </td>
+                <td data-label="Events">{{ d.events_received }}</td>
+                <td data-label="Handled">{{ d.handled }}</td>
+                <td data-label="Dupes" class="trk-table__muted">{{ d.duplicates }}</td>
+                <td data-label="Unmatched" class="trk-table__muted">{{ d.unmatched }}</td>
+                <td data-label="Errors"><span ng-class="{'gclm-error-count': d.errors > 0}">{{ d.errors }}</span></td>
+                <td data-label="ms" class="trk-table__muted">{{ d.processing_ms }}</td>
+              </tr>
+              <tr class="trk-table__expand-row" ng-if="d.open">
+                <td colspan="10">
+                  <div class="gclm-drawer">
+                    <div class="trk-loading" ng-if="d.detail_loading">
+                      <div class="trk-spinner"></div> Loading the delivery…
+                    </div>
+                    <div ng-include="'views/manageclub/gcl_monitor/_delivery_detail.html'" ng-init="row = d"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Loading deliveries…
+      </div>
+      <div class="trk-load-more" ng-if="!vm.loading && vm.has_more && vm.deliveries.length">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.loadMoreDeliveries()">
+          <i class="fa fa-chevron-down"></i> Load more
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

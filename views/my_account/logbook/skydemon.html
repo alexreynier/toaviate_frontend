@@ -1,0 +1,246 @@
+<div class="lb-page">
+
+  <div class="lb-page__header">
+    <div class="lb-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account.logbook">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO LOGBOOK
+      </div>
+      <div class="lb-page__title">
+        <h2><i class="fa fa-plane"></i> Add Flights</h2>
+        <p>Upload your SkyDemon .flightlog files — we'll prefill the entries and keep the GPS track so you can replay each flight.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lb-page__body">
+
+    <!-- ── Method switcher (shared across the three add screens) ── -->
+    <div class="lb-method-tabs snazzy-reveal" ng-if="vm.sdStep === 'pick'">
+      <a class="lb-method-tab" ui-sref="dashboard.my_account.logbook_add">
+        <i class="fa fa-pen"></i>
+        <span class="lb-method-tab__text"><strong>Type manually</strong><small>One flight at a time</small></span>
+      </a>
+      <a class="lb-method-tab lb-method-tab--active" ui-sref="dashboard.my_account.logbook_skydemon">
+        <i class="fa fa-location-arrow"></i>
+        <span class="lb-method-tab__text"><strong>SkyDemon logs</strong><small>Prefilled, with replayable GPS tracks</small></span>
+      </a>
+      <a class="lb-method-tab" ui-sref="dashboard.my_account.logbook_import">
+        <i class="fa fa-file-import"></i>
+        <span class="lb-method-tab__text"><strong>Import CSV</strong><small>From a spreadsheet export</small></span>
+      </a>
+    </div>
+
+    <!-- ═══ STEP 1: drop files ═══ -->
+    <div class="snazzy-reveal" ng-if="vm.sdStep === 'pick'">
+      <div class="lb-card">
+        <div class="lb-note">
+          <i class="fa fa-info-circle"></i>
+          In SkyDemon, export your logs as <strong>.flightlog</strong> files — you can upload up to
+          <strong>20 at once</strong>. Each becomes a prefilled logbook entry for you to review before
+          anything is saved, and the GPS track stays attached so the flight can be replayed right here.
+          All times are UTC.
+        </div>
+
+        <label class="sd-dropzone" for="sd-file-input"
+               ng-class="{'sd-dropzone--drag': vm.sdDragOver, 'sd-dropzone--busy': vm.sdUploading}"
+               lcf-dropzone
+               lcf-on-drop="vm.onSdFiles(files)"
+               lcf-on-drag-state="vm.onSdDragState(isDragging)">
+          <span class="sd-dropzone__icon-wrap" ng-if="!vm.sdUploading">
+            <i class="fa fa-cloud-upload-alt"></i>
+          </span>
+          <span class="sd-dropzone__plane" ng-if="vm.sdUploading"><i class="fa fa-plane"></i></span>
+          <span class="sd-dropzone__trail" ng-if="vm.sdUploading"></span>
+          <span class="sd-dropzone__title" ng-if="!vm.sdUploading">Drop your SkyDemon logs here</span>
+          <span class="sd-dropzone__title" ng-if="vm.sdUploading">Reading your flights…</span>
+          <span class="sd-dropzone__hint" ng-if="!vm.sdUploading">or tap to browse &middot; .flightlog &middot; up to 20 files, 20&nbsp;MB each</span>
+          <span class="sd-dropzone__hint" ng-if="vm.sdUploading">Parsing tracks, matching aircraft &amp; airfields</span>
+        </label>
+        <input type="file" accept=".flightlog" multiple class="mf-file-input" id="sd-file-input"
+               lcf-file-select="vm.onSdFiles(files)" />
+      </div>
+    </div>
+
+    <!-- ═══ STEP 2: review cards ═══ -->
+    <div ng-if="vm.sdStep === 'review'">
+
+      <!-- Summary / confirm bar -->
+      <div class="lb-card sd-bar snazzy-reveal">
+        <div class="sd-bar__stats" ng-if="vm.sdSummary">
+          <div><strong class="sd-bar__big">{{ vm.sdSummary.total }}</strong> <span class="lb-table__muted">file(s)</span></div>
+          <span class="lb-badge lb-badge--verified" ng-if="vm.sdSummary.ready > 0">{{ vm.sdSummary.ready }} ready</span>
+          <span class="lb-badge lb-badge--tentative" ng-if="vm.sdSummary.review > 0">{{ vm.sdSummary.review }} need review</span>
+          <span class="lb-badge lb-badge--error" ng-if="vm.sdSummary.error > 0">{{ vm.sdSummary.error }} failed</span>
+        </div>
+        <div class="sd-bar__actions">
+          <button class="lb-btn lb-btn--ghost" ng-click="vm.restartSd()" ng-disabled="vm.sdConfirming">
+            <i class="fa fa-undo"></i> Start over
+          </button>
+          <button class="lb-btn lb-btn--primary" ng-click="vm.confirmSd()"
+                  ng-disabled="vm.sdConfirming || vm.sdIncludedCount() === 0">
+            <i class="fa" ng-class="vm.sdConfirming ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            Add {{ vm.sdIncludedCount() }} flight(s) to my logbook
+          </button>
+        </div>
+      </div>
+
+      <!-- One card per file -->
+      <div class="snazzy-reveal snazzy-reveal--stagger">
+      <div class="sd-card" ng-repeat="c in vm.sdCards"
+           ng-class="{'sd-card--excluded': c.success && !c._include, 'sd-card--failed': !c.success || c._error}">
+
+        <!-- Failed file -->
+        <div class="sd-card__error-only" ng-if="!c.success">
+          <i class="fa fa-exclamation-circle"></i>
+          <div>
+            <strong>{{ c.file_name }}</strong>
+            <p>{{ c.message }}</p>
+          </div>
+        </div>
+
+        <div ng-if="c.success">
+
+          <!-- Card header -->
+          <div class="sd-card__head">
+            <label class="sd-card__include" uib-tooltip="{{ c._include ? 'Will be added' : 'Skipped' }}">
+              <input type="checkbox" ng-model="c._include" />
+              <span class="sd-card__include-box"><i class="fa fa-check"></i></span>
+            </label>
+            <div class="sd-card__headline">
+              <span class="sd-card__route">
+                {{ c.entry.departure_place || '????' }} <i class="fa fa-long-arrow-alt-right"></i> {{ c.entry.arrival_place || '????' }}
+              </span>
+              <span class="sd-card__file"><i class="fa fa-file-alt"></i> {{ c.file_name }}</span>
+            </div>
+            <span class="lb-badge" ng-class="c.status === 'ready' ? 'lb-badge--verified' : 'lb-badge--tentative'">
+              {{ c.status === 'ready' ? 'ready' : 'check details' }}
+            </span>
+          </div>
+
+          <!-- Parsed facts strip (read-only context) -->
+          <div class="sd-card__facts">
+            <span><i class="fa fa-plane"></i> {{ c.parsed.registration }}</span>
+            <span ng-if="c.parsed.pilot_name"><i class="fa fa-user"></i> {{ c.parsed.pilot_name }}</span>
+            <span><i class="fa fa-clock"></i> {{ c.entry.departure_time }}–{{ c.entry.arrival_time }} UTC</span>
+            <span><i class="fa fa-arrow-down"></i> {{ c.parsed.total_landings }} landing{{ c.parsed.total_landings == 1 ? '' : 's' }}</span>
+            <span ng-if="c.parsed.max_altitude_ft"><i class="fa fa-signal"></i> max {{ c.parsed.max_altitude_ft | number:0 }} ft</span>
+            <span class="sd-card__night" ng-if="c.night_estimate !== null">
+              <i class="fa fa-moon"></i> Night (est.): {{ c.night_estimate | number:1 }}
+            </span>
+            <span class="sd-card__track"><i class="fa fa-route"></i> GPS track kept for replay</span>
+          </div>
+
+          <!-- Issues + duplicate warnings -->
+          <div class="sd-card__warn" ng-if="c.issues.length > 0">
+            <i class="fa fa-exclamation-triangle"></i>
+            <span ng-repeat="iss in c.issues">{{ iss }}<span ng-if="!$last"> &middot; </span></span>
+          </div>
+          <div class="sd-card__warn" ng-if="vm.sdHasDuplicate(c)">
+            <i class="fa fa-clone"></i>
+            This flight may already be in your logbook
+            <span ng-if="c.duplicate.club_flight_id">(a ToAviate club flight with the same date &amp; aircraft — club flights already appear here)</span><span ng-if="!c.duplicate.club_flight_id">(a manual entry with the same date &amp; off-blocks time)</span> — untick it if so.
+          </div>
+          <div class="sd-card__warn" ng-if="c.parsed.started_airborne">
+            <i class="fa fa-info-circle"></i>
+            The log starts mid-air — SkyDemon doesn't record taxi time, so check the <strong>off-blocks</strong> time.
+          </div>
+          <div class="sd-card__warn sd-card__warn--error" ng-if="c._error">
+            <i class="fa fa-times-circle"></i> {{ c._error }}
+          </div>
+
+          <!-- Editable entry -->
+          <div class="sd-card__form" ng-class="{'sd-card__form--dim': !c._include}">
+            <div class="sd-grid">
+              <div class="lb-field">
+                <label>Date</label>
+                <input type="date" class="lb-input" ng-model="c.entry.flight_date" ng-disabled="!c._include" />
+              </div>
+              <div class="lb-field">
+                <label>Off blocks <small>UTC</small></label>
+                <input type="text" class="lb-input sd-input--time" placeholder="HH:MM" maxlength="5" inputmode="numeric"
+                       ng-model="c.entry.departure_time" ng-disabled="!c._include" />
+              </div>
+              <div class="lb-field">
+                <label>On blocks <small>UTC</small></label>
+                <input type="text" class="lb-input sd-input--time" placeholder="HH:MM" maxlength="5" inputmode="numeric"
+                       ng-model="c.entry.arrival_time" ng-disabled="!c._include" />
+              </div>
+              <div class="lb-field">
+                <label>Registration</label>
+                <input type="text" class="lb-input" ng-model="c.entry.registration" ng-disabled="!c._include"
+                       style="text-transform:uppercase;" />
+              </div>
+            </div>
+
+            <div class="sd-grid">
+              <div class="lb-field">
+                <label>From</label>
+                <select class="lb-input" ng-model="c._dep" ng-disabled="!c._include"
+                        ng-options="a as (a.code + ' — ' + a.title) for a in c.departure_candidates track by a.id">
+                  <option value="">— Unknown / not listed —</option>
+                </select>
+              </div>
+              <div class="lb-field">
+                <label>To</label>
+                <select class="lb-input" ng-model="c._arr" ng-disabled="!c._include"
+                        ng-options="a as (a.code + ' — ' + a.title) for a in c.arrival_candidates track by a.id">
+                  <option value="">— Unknown / not listed —</option>
+                </select>
+              </div>
+              <div class="lb-field">
+                <label>Capacity</label>
+                <select class="lb-input" ng-model="c.entry.capacity" ng-disabled="!c._include"
+                        ng-options="cap for cap in vm.capacities"></select>
+              </div>
+              <div class="lb-field">
+                <label>Total <small>hours</small></label>
+                <input type="number" step="0.1" min="0" class="lb-input" ng-model="c.entry.total_time" ng-disabled="!c._include" />
+              </div>
+            </div>
+
+            <div class="sd-grid">
+              <div class="lb-field">
+                <label>Day landings</label>
+                <input type="number" min="0" class="lb-input" ng-model="c.entry.day_landings" ng-disabled="!c._include" />
+              </div>
+              <div class="lb-field">
+                <label>Night landings</label>
+                <input type="number" min="0" class="lb-input" ng-model="c.entry.night_landings" ng-disabled="!c._include" />
+              </div>
+              <div class="lb-field">
+                <label>Night <small>hours — blank uses the estimate</small></label>
+                <input type="number" step="0.1" min="0" class="lb-input" ng-model="c.entry.night_time" ng-disabled="!c._include"
+                       placeholder="est. {{ c.night_estimate === null ? '—' : (c.night_estimate | number:1) }}" />
+              </div>
+              <div class="lb-field">
+                <label>Remarks</label>
+                <input type="text" class="lb-input" ng-model="c.entry.remarks" ng-disabled="!c._include"
+                       placeholder="Route, exercise, notes…" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ STEP 3: done ═══ -->
+    <div ng-if="vm.sdStep === 'done'">
+      <div class="lb-card sd-done snazzy-reveal">
+        <span class="sd-done__icon"><i class="fa fa-check"></i></span>
+        <h3>Flights added to your logbook</h3>
+        <p class="lb-table__muted">
+          {{ vm.sdResult.imported }} flight(s) imported with their GPS tracks — look for the
+          <span class="lb-sd-chip">SD</span> badge and the replay button in your logbook.
+        </p>
+        <div class="sd-done__actions">
+          <a class="lb-btn lb-btn--primary" ui-sref="dashboard.my_account.logbook"><i class="fa fa-book"></i> View My Logbook</a>
+          <button class="lb-btn lb-btn--ghost" ng-click="vm.restartSd()"><i class="fa fa-cloud-upload-alt"></i> Upload more logs</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -267,7 +267,7 @@ app.controller('FlightEditModalController', FlightEditModalController);
         // AIRFIELD SEARCH (mirroring booking screens)
         // ═══════════════════════════════════════════════
         $scope.searchAirfields = function(search) {
-            if (search && search.length > 2 && search.length < 5) {
+            if (search && search.length >= 2 && search.length < 5) {
                 BookoutService.GetAirfieldsByCode(search)
                     .then(function(data) {
                         if (data.success) {
@@ -292,16 +292,33 @@ app.controller('FlightEditModalController', FlightEditModalController);
             }
         };
 
-        $scope.onFromAirfieldSelect = function() {
+        // ui-select uses scope:true, so ngModel writes land on a child scope
+        // and $scope.fromAirfield/toAirfield here can be stale — sync from the
+        // $item passed by on-select (same pattern as onTimeChange above).
+        $scope.onFromAirfieldSelect = function($item) {
+            if ($item) { $scope.fromAirfield = $item; }
             if ($scope.fromAirfield) {
                 $scope.form.from_airport_id = $scope.fromAirfield.id;
             }
         };
 
-        $scope.onToAirfieldSelect = function() {
+        $scope.onToAirfieldSelect = function($item) {
+            if ($item) { $scope.toAirfield = $item; }
             if ($scope.toAirfield) {
                 $scope.form.to_airport_id = $scope.toAirfield.id;
             }
+        };
+
+        // Clearing a picker sends 0 — the backend stores it and the lists
+        // render "Unknown" (see FRONTEND_FLIGHT_EDIT_AIRFIELDS_GUIDE.md).
+        $scope.onFromAirfieldRemove = function() {
+            $scope.fromAirfield = null;
+            $scope.form.from_airport_id = 0;
+        };
+
+        $scope.onToAirfieldRemove = function() {
+            $scope.toAirfield = null;
+            $scope.form.to_airport_id = 0;
         };
 
 
@@ -669,9 +686,8 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 $scope.club = data.club || {};
                 $scope.currencySymbol = getCurrencySymbol(data.club ? data.club.currency : 'GBP');
 
-                // ── Booking-only setup: airfields, members, instructors, courses ──
-                if ($scope.hasBooking) {
-
+                // ── Airfield pre-select (both paths — the PLS loader also returns
+                //    from_airport / to_airport objects + code/name fallbacks) ──
                 // Pre-select airfields — try PLS, then booking, then top-level, then code fallback
                 if (pls && pls.from_airport) {
                     $scope.fromAirfield = pls.from_airport;
@@ -739,6 +755,9 @@ app.controller('FlightEditModalController', FlightEditModalController);
                     }
                 }
                 seedAirfieldsArray();
+
+                // ── Booking-only setup: members, instructors, courses ──
+                if ($scope.hasBooking) {
 
                 // Pre-select member
                 if ($scope.currentUser && $scope.currentUser.id) {
@@ -1118,7 +1137,7 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 'remarks', 'route',
                 'pic_id', 'put_id', 'course_id', 'tuition_id'
             ] : [
-                'flight_date',
+                'from_airport_id', 'to_airport_id', 'flight_date',
                 'brakes_off', 'brakes_on', 'takeoff_time', 'landing_time',
                 'tacho_start', 'tacho_end'
             ];

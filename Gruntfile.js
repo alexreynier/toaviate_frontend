@@ -101,6 +101,7 @@ module.exports = function (grunt) {
                     'css/voucher-widget.css',
                     'css/flight-edit.css',
                     'css/flight-merge.css',
+                    'css/manual-flight.css',
                     'css/cancel-claim.css',
                     'css/defect-media.css',
                     'css/defect-report.css',
@@ -139,6 +140,7 @@ module.exports = function (grunt) {
                     'css/membership-payments.css',
                     'css/payment-methods.css',
                     'css/missing-students.css',
+                    'css/platform-keys.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

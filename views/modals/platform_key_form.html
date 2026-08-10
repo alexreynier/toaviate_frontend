@@ -1,0 +1,101 @@
+<div class="pk-modal">
+
+    <div class="pk-modal__header">
+        <i class="fas pk-modal__header-icon" ng-class="vm.mode === 'create' ? 'fa-plus-circle' : 'fa-edit'"></i>
+        <h3 class="pk-modal__title">
+            {{ vm.mode === 'create' ? 'New platform key' : 'Edit ' + vm.form.platform_name }}
+        </h3>
+        <button class="pk-modal__close" ng-click="vm.cancel()" title="Close">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div class="pk-modal__body">
+
+        <div class="pk-form-field" ng-class="{'pk-form-field--error': vm.errors.platform_name}">
+            <label for="field-pk-name">Platform name <span class="pk-req">*</span></label>
+            <input id="field-pk-name" class="pk-input" type="text"
+                   placeholder="e.g. airshows.toaviate" ng-model="vm.form.platform_name" />
+            <div class="field-error" ng-if="vm.errors.platform_name">A platform name is required.</div>
+        </div>
+
+        <div class="pk-form-field">
+            <label for="field-pk-desc">Description</label>
+            <input id="field-pk-desc" class="pk-input" type="text"
+                   placeholder="What this platform is / who owns it"
+                   ng-model="vm.form.description" />
+        </div>
+
+        <div class="pk-form-field" ng-class="{'pk-form-field--error': vm.errors.scopes}">
+            <label>Endpoint scopes <span class="pk-req">*</span></label>
+            <p class="pk-form-hint">
+                <i class="fas fa-exclamation-circle"></i>
+                Scopes should only ever cover platform-specific read endpoints —
+                <b>never club data</b>. Lowercase paths, <code>*</code> wildcards allowed.
+            </p>
+
+            <div class="pk-scope-row" ng-repeat="scope in vm.scopes track by $index">
+                <select class="pk-input pk-scope-row__method" ng-model="scope.method"
+                        ng-options="m as m for m in vm.methods"></select>
+                <input class="pk-input pk-scope-row__path" type="text"
+                       placeholder="airshows/aircraft/*" ng-model="scope.path" />
+                <button class="pk-icon-btn pk-icon-btn--danger" title="Remove scope"
+                        ng-click="vm.removeScope($index)" ng-disabled="vm.scopes.length === 1">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <button class="pk-btn pk-btn--outline pk-btn--sm" ng-click="vm.addScope()">
+                <i class="fas fa-plus"></i> Add scope
+            </button>
+            <div class="field-error" ng-if="vm.errors.scopes">At least one endpoint scope is required.</div>
+        </div>
+
+        <div class="pk-form-field">
+            <label for="field-pk-ip">IP allow-list <span class="pk-form-optional">optional — empty allows any IP</span></label>
+            <div class="pk-ip-row">
+                <input id="field-pk-ip" class="pk-input" type="text"
+                       placeholder="e.g. 203.0.113.10" ng-model="vm.ip_new"
+                       ng-keydown="$event.keyCode === 13 && vm.addIp()" />
+                <button class="pk-btn pk-btn--outline pk-btn--sm" ng-click="vm.addIp()">
+                    <i class="fas fa-plus"></i> Add
+                </button>
+            </div>
+            <div class="pk-scopes" ng-if="vm.ips.length">
+                <span class="pk-scope pk-scope--ip" ng-repeat="ip in vm.ips track by $index">
+                    <i class="fas fa-map-marker-alt"></i> {{ ip }}
+                    <button class="pk-scope__remove" title="Remove IP" ng-click="vm.removeIp($index)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <div class="pk-form-field pk-form-field--toggle" ng-if="vm.mode === 'edit'">
+            <label class="pk-toggle">
+                <input type="checkbox" ng-model="vm.form.active" />
+                <span class="pk-toggle__track"><span class="pk-toggle__thumb"></span></span>
+                <span class="pk-toggle__label">
+                    Key is active
+                    <em>Turning this off disables the key without the "revoked" audit stamp.</em>
+                </span>
+            </label>
+        </div>
+
+        <p class="pk-note" ng-if="vm.mode === 'create'">
+            <i class="fas fa-eye-slash"></i>
+            The full key is shown <b>once</b> after creation — you'll get a copy button on the
+            next screen.
+        </p>
+
+    </div>
+
+    <div class="pk-modal__footer">
+        <button class="pk-btn pk-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.saving">Cancel</button>
+        <button class="pk-btn pk-btn--primary" ng-click="vm.save()" ng-disabled="vm.saving">
+            <i class="fas fa-spinner fa-spin" ng-if="vm.saving"></i>
+            {{ vm.mode === 'create' ? 'Create key' : 'Save changes' }}
+        </button>
+    </div>
+
+</div>

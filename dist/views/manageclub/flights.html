@@ -46,6 +46,11 @@
           <span class="fm-merge-btn__badge" ng-if="vm.mergeCandidateCount > 0">{{ vm.mergeCandidateCount }}</span>
         </button>
       </div>
+      <div class="snazzy-page__filter-group snazzy-page__filter-group--btn">
+        <button class="mf-add-btn" ng-click="vm.openAddFlight()" uib-tooltip="Add a flight the trackers missed — upload a SkyDemon log or enter it manually">
+          <i class="fa fa-plus"></i> Add Flight
+        </button>
+      </div>
     </div>
 
     <!-- ═══ Section label ═══ -->
@@ -87,21 +92,26 @@
           <tbody ng-repeat="flight in vm.flights | filter: my_search">
             <tr>
               <td class="snazzy-table__name">{{ flight.flight_date | asDate | date:'dd MMM yyyy' }}</td>
-              <td>{{ flight.aircraft.registration }}</td>
+              <td>
+                {{ flight.aircraft.registration }}
+                <span class="mf-badge" ng-if="flight.manual_source" uib-tooltip="Added manually ({{ flight.manual_source == 'skydemon' ? 'SkyDemon log upload' : 'typed in' }})">
+                  <i class="fa fa-pencil-alt"></i> Manual
+                </span>
+              </td>
               <td>{{ flight.user.first_name }} {{ flight.user.last_name }}</td>
               <td><span uib-tooltip="{{flight.from_airport.title}}">{{ flight.from_airport.code }}</span></td>
               <td><span uib-tooltip="{{flight.to_airport.title}}">{{ flight.to_airport.code }}</span></td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Brakes Off Time">{{ flight.brakes_off }}</span>
+                <span uib-tooltip="{{ flight.brakes_off | timeRounding : 'Brakes Off Time' }}">{{ flight.brakes_off | roundMinute }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Takeoff Time">{{ flight.takeoff_time }}</span>
+                <span uib-tooltip="{{ flight.takeoff_time | timeRounding : 'Takeoff Time' }}">{{ flight.takeoff_time | roundMinute }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Landing Time">{{ flight.landing_time }}</span>
+                <span uib-tooltip="{{ flight.landing_time | timeRounding : 'Landing Time' }}">{{ flight.landing_time | roundMinute }}</span>
               </td>
               <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="Brakes On Time">{{ flight.brakes_on }}</span>
+                <span uib-tooltip="{{ flight.brakes_on | timeRounding : 'Brakes On Time' }}">{{ flight.brakes_on | roundMinute }}</span>
               </td>
               <td style="text-align:right;">
                 <button class="fe-edit-btn" ng-click="vm.editFlight(flight)" uib-tooltip="Edit this flight">
@@ -123,7 +133,10 @@
     <div class="snazzy-mobile-cards snazzy-reveal" ng-if="vm.flights.length > 0">
       <div class="snazzy-mobile-card" ng-repeat="flight in vm.flights | filter: my_search">
         <div class="snazzy-mobile-card__header">
-          <span class="snazzy-mobile-card__title">{{ flight.aircraft.registration }}</span>
+          <span class="snazzy-mobile-card__title">
+            {{ flight.aircraft.registration }}
+            <span class="mf-badge" ng-if="flight.manual_source"><i class="fa fa-pencil-alt"></i> Manual</span>
+          </span>
           <div style="display:flex; gap:6px;">
             <button class="fe-edit-btn" ng-click="vm.editFlight(flight)">
               <i class="fa fa-pencil-alt"></i> Edit
@@ -149,11 +162,11 @@
           </div>
           <div class="snazzy-mobile-card__row">
             <span class="snazzy-mobile-card__label">Brakes</span>
-            <span>{{ flight.brakes_off }} &mdash; {{ flight.brakes_on }}</span>
+            <span>{{ flight.brakes_off | roundMinute }} &mdash; {{ flight.brakes_on | roundMinute }}</span>
           </div>
           <div class="snazzy-mobile-card__row">
             <span class="snazzy-mobile-card__label">Takeoff / Landing</span>
-            <span>{{ flight.takeoff_time }} / {{ flight.landing_time }}</span>
+            <span>{{ flight.takeoff_time | roundMinute }} / {{ flight.landing_time | roundMinute }}</span>
           </div>
         </div>
       </div>
@@ -215,6 +228,22 @@
 
 </div>
 
+
+<!-- ═══ Undo snackbar — shown just after a manual flight is added ═══ -->
+<div class="mf-undo" ng-if="vm.addFlightUndo" role="status" aria-live="polite">
+  <div class="mf-undo__icon"><i class="fa fa-check"></i></div>
+  <div class="mf-undo__text">
+    Flight added<span ng-if="vm.addFlightUndo.registration"> — {{ vm.addFlightUndo.registration }}</span>
+    <span class="mf-undo__sub">It's waiting in the book-in queue for people &amp; payment</span>
+  </div>
+  <button class="mf-undo__btn" ng-click="vm.undoAddFlight()" ng-disabled="vm.addFlightUndo.busy">
+    <i class="fa" ng-class="vm.addFlightUndo.busy ? 'fa-spinner fa-spin' : 'fa-undo'"></i> Undo
+  </button>
+  <button class="mf-undo__close" ng-click="vm.dismissAddFlightUndo()" aria-label="Dismiss">
+    <i class="fa fa-times"></i>
+  </button>
+  <div class="mf-undo__progress"></div>
+</div>
 
 <!-- ═══ Loading Spinner ═══ -->
 <div ng-if="vm.show_loading" class="positioning-container">

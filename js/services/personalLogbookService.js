@@ -89,6 +89,23 @@ app.factory('PersonalLogbookService', PersonalLogbookService);
             return $http.post(base + '/import/confirm', { rows: rows }).then(handleSuccess, handleError);
         };
 
+        // SkyDemon .flightlog import — same two-step shape as the CSV import.
+        // Preview parses + stages the GPS tracks but saves NOTHING; confirm sends
+        // back { upload_token, entry } pairs for the rows the pilot accepted.
+        // Up to 20 files, 20 MB each — allow a generous timeout for the batch.
+        s.SkydemonPreview = function(files) {
+            var fd = new FormData();
+            for (var i = 0; i < files.length; i++) { fd.append('files[]', files[i]); }
+            return $http.post(base + '/skydemon', fd, {
+                headers: { 'Content-Type': undefined },
+                transformRequest: angular.identity,
+                timeout: 180000
+            }).then(handleSuccess, handleError);
+        };
+        s.SkydemonConfirm = function(rows) {
+            return $http.post(base + '/skydemon/confirm', { rows: rows }).then(handleSuccess, handleError);
+        };
+
         return s;
 
         // ── Helpers ──

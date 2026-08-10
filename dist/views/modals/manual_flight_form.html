@@ -1,0 +1,317 @@
+<div class="mf-modal">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="mf-modal__header">
+    <div class="mf-modal__header-left">
+      <i class="fa fa-plus-circle mf-modal__header-icon"></i>
+      <div>
+        <h4 class="mf-modal__title">Add a Missing Flight</h4>
+        <span class="mf-modal__subtitle">Upload a SkyDemon log or enter the flight by hand — it will join the book-in queue like a tracker flight</span>
+      </div>
+    </div>
+    <button class="mf-modal__close" ng-click="dismiss()" aria-label="Close">
+      <i class="fa fa-times"></i>
+    </button>
+  </div>
+
+  <div class="modal-body mf-modal__body">
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 1 — CHOOSE ENTRY POINT                                    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="mf-step" ng-if="step === 'choose'">
+
+      <div class="mf-choose">
+
+        <!-- Upload / dropzone (label wraps the hidden input so tap = browse) -->
+        <label class="mf-dropzone" for="mf-file-input"
+               ng-class="{'mf-dropzone--drag': dragOver}"
+               lcf-dropzone
+               lcf-on-drop="onFilesPicked(files)"
+               lcf-on-drag-state="onDragState(isDragging)">
+          <div class="mf-dropzone__icon-wrap">
+            <i class="fa fa-cloud-upload-alt mf-dropzone__icon"></i>
+          </div>
+          <h5 class="mf-dropzone__title">Upload a SkyDemon log</h5>
+          <p class="mf-dropzone__hint">Drag &amp; drop your <strong>.flightlog</strong> file here, or tap to browse.<br/>We'll read the times, route and landings for you to review.</p>
+          <span class="mf-dropzone__meta">.flightlog &middot; max 20&nbsp;MB</span>
+        </label>
+        <input type="file" accept=".flightlog" class="mf-file-input" id="mf-file-input"
+               lcf-file-select="onFilesPicked(files)" />
+
+        <div class="mf-choose__divider"><span>or</span></div>
+
+        <!-- Manual entry -->
+        <button type="button" class="mf-manual-card" ng-click="startManual()">
+          <div class="mf-manual-card__icon-wrap">
+            <i class="fa fa-pencil-alt mf-manual-card__icon"></i>
+          </div>
+          <div class="mf-manual-card__text">
+            <h5>Enter manually</h5>
+            <p>Type in the aircraft, route, times and landings yourself</p>
+          </div>
+          <i class="fa fa-chevron-right mf-manual-card__chevron"></i>
+        </button>
+
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 2 — PARSING ANIMATION                                     -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="mf-step mf-parsing" ng-if="step === 'parsing'">
+      <div class="mf-parsing__plane"><i class="fa fa-plane"></i></div>
+      <div class="mf-parsing__trail"></div>
+      <h5 class="mf-parsing__title">Reading your flight log…</h5>
+      <p class="mf-parsing__file"><i class="fa fa-file-alt"></i> {{ parsedFileName }}</p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- STEP 3 — REVIEW / ENTRY FORM                                   -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="mf-step" ng-if="step === 'form'">
+
+      <!-- Parsed summary banner (upload flow only) -->
+      <div class="mf-parsed" ng-if="entryMode === 'upload' && parsed">
+        <div class="mf-parsed__head">
+          <i class="fa fa-check-circle"></i>
+          <span>Log file read — please review before adding</span>
+          <span class="mf-parsed__file">{{ parsedFileName }}</span>
+        </div>
+        <div class="mf-parsed__facts">
+          <span class="mf-parsed__fact"><i class="fa fa-plane"></i> {{ parsed.registration }}</span>
+          <span class="mf-parsed__fact"><i class="fa fa-user"></i> {{ parsed.pilot_name || 'Unknown pilot' }}</span>
+          <span class="mf-parsed__fact"><i class="fa fa-calendar"></i> {{ parsed.flight_date }}</span>
+          <span class="mf-parsed__fact"><i class="fa fa-clock"></i> {{ shortTime(parsed.takeoff_time) }} &rarr; {{ shortTime(parsed.landing_time) }} UTC</span>
+          <span class="mf-parsed__fact"><i class="fa fa-arrow-down"></i> {{ parsed.total_landings }} landing{{ parsed.total_landings == 1 ? '' : 's' }}</span>
+          <span class="mf-parsed__fact" ng-if="parsed.max_altitude_ft"><i class="fa fa-signal"></i> max {{ parsed.max_altitude_ft | number:0 }} ft</span>
+        </div>
+        <div class="mf-parsed__note" ng-if="parsed.started_airborne">
+          <i class="fa fa-exclamation-triangle"></i>
+          The log starts with the aircraft already airborne — SkyDemon doesn't record taxi time, so please adjust the <strong>brakes off</strong> time.
+        </div>
+        <div class="mf-parsed__note" ng-if="possibleDuplicate">
+          <i class="fa fa-exclamation-triangle"></i>
+          A flight with these exact times already exists for this aircraft ({{ possibleDuplicate.flight_date }}, {{ shortTime(possibleDuplicate.brakes_off) }}&ndash;{{ shortTime(possibleDuplicate.brakes_on) }}) — you'll be asked to confirm before it's added again.
+        </div>
+      </div>
+
+      <!-- ── Aircraft & date ── -->
+      <div class="mf-section">
+        <div class="mf-section__label"><i class="fa fa-plane"></i> Aircraft &amp; Date</div>
+        <div class="mf-grid mf-grid--2">
+          <div class="mf-field">
+            <label for="mf-aircraft">Aircraft <span class="mf-field__req">*</span></label>
+            <select id="mf-aircraft" class="mf-input" ng-model="sel.plane"
+                    ng-options="p.registration for p in aircraftList track by p.id">
+              <option value="" disabled>{{ aircraftLoading ? 'Loading fleet…' : 'Select an aircraft' }}</option>
+            </select>
+            <span class="mf-field__hint mf-field__hint--warn" ng-if="unmatchedRegistration && !sel.plane">
+              <i class="fa fa-info-circle"></i> Log file says <strong>{{ unmatchedRegistration }}</strong> — that registration isn't in the fleet, please pick the aircraft.
+            </span>
+          </div>
+          <div class="mf-field">
+            <label for="mf-date">Flight Date <span class="mf-field__req">*</span></label>
+            <input id="mf-date" type="date" class="mf-input" ng-model="flight.flight_date" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Times ── -->
+      <div class="mf-section">
+        <div class="mf-section__label"><i class="fa fa-clock"></i> Times <span class="mf-section__label-note">all UTC, 24-hour HH:MM</span></div>
+        <div class="mf-grid mf-grid--4">
+          <div class="mf-field">
+            <label for="mf-brakes-off">Brakes Off <span class="mf-field__req">*</span></label>
+            <input id="mf-brakes-off" type="text" class="mf-input mf-input--time" placeholder="HH:MM"
+                   inputmode="numeric" maxlength="8" ng-model="flight.brakes_off" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-takeoff">Takeoff</label>
+            <input id="mf-takeoff" type="text" class="mf-input mf-input--time" placeholder="HH:MM"
+                   inputmode="numeric" maxlength="8" ng-model="flight.takeoff_time" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-landing">Landing</label>
+            <input id="mf-landing" type="text" class="mf-input mf-input--time" placeholder="HH:MM"
+                   inputmode="numeric" maxlength="8" ng-model="flight.landing_time" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-brakes-on">Brakes On <span class="mf-field__req">*</span></label>
+            <input id="mf-brakes-on" type="text" class="mf-input mf-input--time" placeholder="HH:MM"
+                   inputmode="numeric" maxlength="8" ng-model="flight.brakes_on" />
+          </div>
+        </div>
+        <span class="mf-field__hint">Takeoff and landing default to the brakes times if left blank. Overnight flights are fine — times may cross midnight.</span>
+      </div>
+
+      <!-- ── Route ── -->
+      <div class="mf-section">
+        <div class="mf-section__label"><i class="fa fa-route"></i> Route <span class="mf-section__label-note">optional — leave blank if unknown</span></div>
+        <div class="mf-grid mf-grid--2">
+
+          <div class="mf-field" ng-repeat="side in ['from', 'to']">
+            <label>{{ side === 'from' ? 'From' : 'To' }}</label>
+
+            <!-- Selected airfield chip -->
+            <div class="mf-airfield-chip" ng-if="airfields[side].selected">
+              <span class="mf-airfield-chip__code">{{ airfields[side].selected.code }}</span>
+              <span class="mf-airfield-chip__title">{{ airfields[side].selected.title }}</span>
+              <span class="mf-airfield-chip__dist" ng-if="airfields[side].selected.distance_nm >= 0">{{ airfields[side].selected.distance_nm }} nm from fix</span>
+              <button type="button" class="mf-airfield-chip__clear" ng-click="clearAirfield(side)" aria-label="Change airfield">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+
+            <!-- Search input + dropdown -->
+            <div class="mf-airfield" ng-if="!airfields[side].selected">
+              <input type="text" class="mf-input"
+                     placeholder="{{ airfields[side].candidates.length ? 'Pick a suggestion or search…' : 'Search airfields (min 3 letters)…' }}"
+                     ng-model="airfields[side].searchText"
+                     ng-model-options="{ debounce: 300 }"
+                     ng-change="searchAirfield(side)"
+                     ng-focus="openAirfieldPicker(side)"
+                     ng-blur="closeAirfieldPicker(side)" />
+              <div class="mf-airfield__list" ng-if="airfields[side].open">
+
+                <!-- Nearest-fix candidates from the log file -->
+                <div ng-if="airfields[side].searchText.length < 3 && airfields[side].candidates.length > 0">
+                  <div class="mf-airfield__group-label">Nearest to the GPS fix</div>
+                  <button type="button" class="mf-airfield__option" ng-repeat="c in airfields[side].candidates"
+                          ng-click="selectAirfield(side, c)">
+                    <span class="mf-airfield__option-code">{{ c.code }}</span>
+                    <span class="mf-airfield__option-title">{{ c.title }}</span>
+                    <span class="mf-airfield__option-dist">{{ c.distance_nm }} nm</span>
+                  </button>
+                </div>
+
+                <!-- Search results -->
+                <div ng-if="airfields[side].searchText.length >= 3">
+                  <div class="mf-airfield__group-label" ng-if="airfields[side].searching"><i class="fa fa-spinner fa-spin"></i> Searching…</div>
+                  <button type="button" class="mf-airfield__option" ng-repeat="r in airfields[side].results | limitTo: 8"
+                          ng-click="selectAirfield(side, r)">
+                    <span class="mf-airfield__option-code">{{ r.code }}</span>
+                    <span class="mf-airfield__option-title">{{ r.title }}</span>
+                  </button>
+                  <div class="mf-airfield__group-label" ng-if="!airfields[side].searching && airfields[side].results.length === 0">No airfields found</div>
+                </div>
+
+                <div class="mf-airfield__group-label" ng-if="airfields[side].searchText.length < 3 && airfields[side].candidates.length === 0">
+                  Type at least 3 letters to search
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Landings ── -->
+      <div class="mf-section" id="mf-landings">
+        <div class="mf-section__label"><i class="fa fa-arrow-down"></i> Landings</div>
+        <div class="mf-grid mf-grid--3">
+          <div class="mf-field">
+            <label>Full Stop</label>
+            <div class="mf-stepper">
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('full_stop_landings', -1)" aria-label="Fewer full-stop landings">&minus;</button>
+              <input type="number" min="0" class="mf-stepper__value" ng-model="flight.full_stop_landings" />
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('full_stop_landings', 1)" aria-label="More full-stop landings">+</button>
+            </div>
+          </div>
+          <div class="mf-field">
+            <label>Touch &amp; Go</label>
+            <div class="mf-stepper">
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('touch_and_go', -1)" aria-label="Fewer touch and gos">&minus;</button>
+              <input type="number" min="0" class="mf-stepper__value" ng-model="flight.touch_and_go" />
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('touch_and_go', 1)" aria-label="More touch and gos">+</button>
+            </div>
+          </div>
+          <div class="mf-field">
+            <label>Away From Base</label>
+            <div class="mf-stepper">
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('remote_landings', -1)" aria-label="Fewer remote landings">&minus;</button>
+              <input type="number" min="0" class="mf-stepper__value" ng-model="flight.remote_landings" />
+              <button type="button" class="mf-stepper__btn" ng-click="bumpLandings('remote_landings', 1)" aria-label="More remote landings">+</button>
+            </div>
+          </div>
+        </div>
+        <span class="mf-field__hint" ng-if="entryMode === 'upload'">Landing counts are estimated from GPS speed &amp; altitude — please double-check them.</span>
+      </div>
+
+      <!-- ── More details (collapsible) ── -->
+      <button type="button" class="mf-more-toggle" ng-click="showMore = !showMore">
+        <i class="fa" ng-class="showMore ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        {{ showMore ? 'Hide extra details' : 'Add extra details' }}
+        <span class="mf-more-toggle__note">tacho, fuel &amp; oil uplift, notes</span>
+      </button>
+
+      <div class="mf-section mf-section--more" ng-if="showMore">
+        <div class="mf-grid mf-grid--4">
+          <div class="mf-field">
+            <label for="mf-tacho-start">Tacho Start</label>
+            <input id="mf-tacho-start" type="number" step="0.1" min="0" class="mf-input" placeholder="e.g. 1234.5" ng-model="flight.tacho_start" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-tacho-end">Tacho End</label>
+            <input id="mf-tacho-end" type="number" step="0.1" min="0" class="mf-input" placeholder="e.g. 1235.4" ng-model="flight.tacho_end" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-fuel">Fuel Uplift (L)</label>
+            <input id="mf-fuel" type="number" step="0.1" min="0" class="mf-input" placeholder="e.g. 40" ng-model="flight.fuel_uplift_litres" />
+          </div>
+          <div class="mf-field">
+            <label for="mf-oil">Oil Uplift (L)</label>
+            <input id="mf-oil" type="number" step="0.1" min="0" class="mf-input" placeholder="e.g. 0.5" ng-model="flight.oil_uplift_litres" />
+          </div>
+        </div>
+        <div class="mf-field">
+          <label for="mf-notes">Flight Notes</label>
+          <textarea id="mf-notes" class="mf-input mf-input--textarea" rows="2" placeholder="Anything worth recording about this flight…" ng-model="flight.flight_notes"></textarea>
+        </div>
+      </div>
+
+      <!-- ── Footer ── -->
+      <div class="mf-footer">
+        <button type="button" class="mf-btn mf-btn--ghost" ng-click="backToChoose()" ng-disabled="saving">
+          <i class="fa fa-arrow-left"></i> Back
+        </button>
+        <div class="mf-footer__right">
+          <button type="button" class="mf-btn mf-btn--outline" ng-click="dismiss()" ng-disabled="saving">Cancel</button>
+          <button type="button" class="mf-btn mf-btn--primary" ng-click="save()" ng-disabled="saving">
+            <i class="fa" ng-class="saving ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
+            {{ saving ? 'Adding…' : 'Add Flight' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Duplicate confirmation overlay ── -->
+      <div class="mf-dup" ng-if="duplicate">
+        <div class="mf-dup__card">
+          <div class="mf-dup__icon"><i class="fa fa-clone"></i></div>
+          <h5 class="mf-dup__title">This flight already exists</h5>
+          <p class="mf-dup__text">
+            A flight with these exact times is already recorded for this aircraft:
+          </p>
+          <div class="mf-dup__details">
+            <span><i class="fa fa-calendar"></i> {{ duplicate.flight_date }}</span>
+            <span><i class="fa fa-clock"></i> {{ shortTime(duplicate.brakes_off) }} &ndash; {{ shortTime(duplicate.brakes_on) }} UTC</span>
+            <span ng-if="duplicate.fox_log_id > 0"><i class="fa fa-satellite-dish"></i> Recorded by a tracker</span>
+            <span ng-if="duplicate.manual_source"><i class="fa fa-pencil-alt"></i> Added manually</span>
+          </div>
+          <p class="mf-dup__text">Add it anyway?</p>
+          <div class="mf-dup__actions">
+            <button type="button" class="mf-btn mf-btn--outline" ng-click="cancelDuplicate()" ng-disabled="saving">No, go back</button>
+            <button type="button" class="mf-btn mf-btn--warning" ng-click="confirmDuplicate()" ng-disabled="saving">
+              <i class="fa" ng-class="saving ? 'fa-spinner fa-spin' : 'fa-clone'"></i>
+              {{ saving ? 'Adding…' : 'Yes, add anyway' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

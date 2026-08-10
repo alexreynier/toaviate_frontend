@@ -1,0 +1,248 @@
+<div class="pk-page">
+
+    <div class="pk-denied" ng-if="!vm.is_staff">
+        <i class="fas fa-lock"></i>
+        <h3>Insufficient Privileges</h3>
+        <p>Platform API keys are managed by ToAviate platform staff only.</p>
+    </div>
+
+    <div ng-if="vm.is_staff">
+
+        <!-- ── LOADING ── -->
+        <div class="snazzy-loading" ng-if="vm.loading">
+            <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+            <div class="snazzy-loading__text">Loading key&hellip;</div>
+        </div>
+
+        <!-- ── NOT FOUND ── -->
+        <div class="pk-empty snazzy-reveal" ng-if="!vm.loading && vm.not_found">
+            <div class="pk-empty__icon"><i class="fas fa-unlink"></i></div>
+            <h3>No such platform key</h3>
+            <p>It may have been deleted by another admin.</p>
+            <button class="pk-btn pk-btn--primary" ui-sref="dashboard.super_admin.platform_keys">
+                <i class="fa fa-arrow-circle-left"></i> Back to platform keys
+            </button>
+        </div>
+
+        <div class="snazzy-reveal" ng-if="!vm.loading && vm.key">
+
+            <!-- ── HEADER ── -->
+            <div class="pk-header">
+                <div class="pk-header__inner">
+                    <div>
+                        <div class="back-box" ui-sref="dashboard.super_admin.platform_keys">
+                            <i class="fa fa-arrow-circle-left"></i> BACK TO PLATFORM KEYS
+                        </div>
+                        <div class="pk-header__title">
+                            <h2><i class="fas fa-key"></i> {{ vm.key.platform_name }}</h2>
+                            <p>
+                                <code class="pk-key-prefix pk-key-prefix--onband">{{ vm.key.key_prefix }}&hellip;</code>
+                                <span class="pk-status pk-status--{{ vm.statusOf(vm.key) }} pk-status--onband">
+                                    <span class="pk-status__dot"></span> {{ vm.statusLabel(vm.key) }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="pk-header__controls">
+                        <button class="pk-btn pk-btn--white" ng-click="vm.openEdit()">
+                            <i class="fas fa-edit"></i> <span>Edit</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── USAGE STATS ── -->
+            <div class="pk-stats snazzy-reveal snazzy-reveal--stagger">
+                <div class="pk-stat">
+                    <div class="pk-stat__value">{{ vm.num(vm.key.use_count) | number }}</div>
+                    <div class="pk-stat__label">Total calls</div>
+                </div>
+                <div class="pk-stat">
+                    <div class="pk-stat__value pk-stat__value--time"
+                         title="{{ vm.key.last_used_at || 'Never used' }}">
+                        {{ vm.ago(vm.key.last_used_at) }}
+                    </div>
+                    <div class="pk-stat__label">Last used</div>
+                </div>
+                <div class="pk-stat">
+                    <div class="pk-stat__value pk-stat__value--time">{{ vm.ago(vm.key.created_at) }}</div>
+                    <div class="pk-stat__label">Created</div>
+                </div>
+            </div>
+
+            <div class="pk-detail-grid">
+
+                <!-- ── ACCESS CARD ── -->
+                <div class="pk-panel">
+                    <div class="pk-panel__header">
+                        <i class="fas fa-shield-alt"></i> Access
+                    </div>
+                    <div class="pk-panel__body">
+
+                        <div class="pk-desc pk-desc--detail" ng-if="vm.key.description">
+                            {{ vm.key.description }}
+                        </div>
+
+                        <div class="pk-field-label">Endpoint scopes</div>
+                        <div class="pk-scopes pk-scopes--detail">
+                            <span class="pk-scope" ng-repeat="scope in vm.key.allowed_endpoints track by $index">
+                                <b>{{ vm.scopeParts(scope).method }}</b>{{ vm.scopeParts(scope).path }}
+                            </span>
+                        </div>
+
+                        <div class="pk-field-label">IP allow-list</div>
+                        <div class="pk-scopes pk-scopes--detail">
+                            <span class="pk-scope pk-scope--ip" ng-if="!vm.key.allowed_ips.length">
+                                <i class="fas fa-globe"></i> Any IP
+                            </span>
+                            <span class="pk-scope pk-scope--ip" ng-repeat="ip in vm.key.allowed_ips track by $index">
+                                <i class="fas fa-map-marker-alt"></i> {{ ip }}
+                            </span>
+                        </div>
+
+                        <p class="pk-note">
+                            <i class="fas fa-info-circle"></i>
+                            The full key cannot be shown again — if the platform has lost it, rotate to
+                            issue a new one.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ── AUDIT CARD ── -->
+                <div class="pk-panel">
+                    <div class="pk-panel__header">
+                        <i class="fas fa-history"></i> Audit
+                    </div>
+                    <div class="pk-panel__body">
+                        <div class="pk-kv">
+                            <div class="pk-kv__row">
+                                <span class="pk-kv__key">Created</span>
+                                <span class="pk-kv__val">{{ vm.key.created_at }}
+                                    <em ng-if="vm.key.created_by">by user #{{ vm.key.created_by }}</em>
+                                </span>
+                            </div>
+                            <div class="pk-kv__row" ng-if="vm.key.updated_at">
+                                <span class="pk-kv__key">Last updated</span>
+                                <span class="pk-kv__val">{{ vm.key.updated_at }}</span>
+                            </div>
+                            <div class="pk-kv__row" ng-if="vm.key.revoked_at">
+                                <span class="pk-kv__key">Revoked</span>
+                                <span class="pk-kv__val pk-kv__val--danger">{{ vm.key.revoked_at }}
+                                    <em ng-if="vm.key.revoked_by">by user #{{ vm.key.revoked_by }}</em>
+                                </span>
+                            </div>
+                            <div class="pk-kv__row">
+                                <span class="pk-kv__key">Key prefix</span>
+                                <span class="pk-kv__val">
+                                    <code class="pk-key-prefix">{{ vm.key.key_prefix }}&hellip;</code>
+                                    <button class="pk-icon-btn" title="Copy prefix"
+                                            ng-click="vm.copyText(vm.key.key_prefix, 'The key prefix')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── INTEGRATION SNIPPET ── -->
+                <div class="pk-panel pk-panel--wide">
+                    <div class="pk-panel__header">
+                        <i class="fas fa-terminal"></i> Integration snippet
+                        <button class="pk-btn pk-btn--outline pk-btn--sm pk-panel__header-btn"
+                                ng-click="vm.copyText(vm.curlSnippet(vm.key), 'The integration snippet')">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <div class="pk-panel__body">
+                        <pre class="pk-snippet">{{ vm.curlSnippet(vm.key) }}</pre>
+                        <p class="pk-note">
+                            <i class="fas fa-server"></i>
+                            Server-to-server only — the key must live in the partner's backend, never in
+                            browser code. Replace <code>{{ vm.key.key_prefix }}&hellip;</code> with the full
+                            key from creation or rotation.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ── ACTIONS ── -->
+                <div class="pk-panel pk-panel--wide">
+                    <div class="pk-panel__header">
+                        <i class="fas fa-tools"></i> Actions
+                    </div>
+                    <div class="pk-panel__body">
+                        <div class="pk-actions-row">
+
+                            <div class="pk-action">
+                                <div class="pk-action__text">
+                                    <b>Rotate the secret</b>
+                                    <span>Issues a new key and instantly breaks the current one.</span>
+                                </div>
+                                <button class="pk-btn pk-btn--outline" ng-click="vm.askRotate(vm.key)">
+                                    <i class="fas fa-sync-alt"></i> Rotate
+                                </button>
+                            </div>
+
+                            <div class="pk-action" ng-if="vm.statusOf(vm.key) === 'active'">
+                                <div class="pk-action__text">
+                                    <b>Revoke</b>
+                                    <span>Emergency stop — blocks the platform immediately, keeps history.</span>
+                                </div>
+                                <button class="pk-btn pk-btn--danger-outline" ng-click="vm.askRevoke(vm.key)">
+                                    <i class="fas fa-ban"></i> Revoke
+                                </button>
+                            </div>
+
+                            <div class="pk-action" ng-if="vm.statusOf(vm.key) !== 'active'">
+                                <div class="pk-action__text">
+                                    <b>Re-activate</b>
+                                    <span>The existing secret starts working again immediately.</span>
+                                </div>
+                                <button class="pk-btn pk-btn--outline" ng-click="vm.askReactivate(vm.key)">
+                                    <i class="fas fa-power-off"></i> Re-activate
+                                </button>
+                            </div>
+
+                            <div class="pk-action pk-action--danger">
+                                <div class="pk-action__text">
+                                    <b>Delete permanently</b>
+                                    <span>Revoked keys keep their audit history; deleting is permanent.</span>
+                                </div>
+                                <button class="pk-btn pk-btn--danger" ng-click="vm.askDelete(vm.key)">
+                                    <i class="fas fa-trash-alt"></i> Delete
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ── CONFIRM OVERLAY ── -->
+        <div class="pk-confirm-backdrop" ng-if="vm.confirm" ng-click="vm.cancelConfirm()">
+            <div class="pk-confirm" ng-click="$event.stopPropagation()">
+                <div class="pk-confirm__icon"
+                     ng-class="vm.confirm.danger ? 'pk-confirm__icon--danger' : 'pk-confirm__icon--info'">
+                    <i class="fas" ng-class="vm.confirm.danger ? 'fa-exclamation-triangle' : 'fa-question'"></i>
+                </div>
+                <h3 class="pk-confirm__title">{{ vm.confirm.title }}</h3>
+                <p class="pk-confirm__message">{{ vm.confirm.message }}</p>
+                <div class="pk-confirm__actions">
+                    <button class="pk-btn pk-btn--outline" ng-click="vm.cancelConfirm()" ng-disabled="vm.busy">
+                        Cancel
+                    </button>
+                    <button class="pk-btn" ng-disabled="vm.busy"
+                            ng-class="vm.confirm.danger ? 'pk-btn--danger' : 'pk-btn--primary'"
+                            ng-click="vm.runConfirm()">
+                        <i class="fas fa-spinner fa-spin" ng-if="vm.busy"></i>
+                        {{ vm.confirm.label }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

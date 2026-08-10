@@ -1676,7 +1676,7 @@
                         //console.log("HELLO DURATION CALC", vm.flight_units.brakes_to_brakes);
 
                         // Compute TPC flight time (takeoff to landing + 10 mins) when no fox data
-                        if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                        if(is_tpc_charging() && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
                             var tpc_end = moment(end_datetime).add(10, 'minutes');
                             var tpc_diff = moment(tpc_end.startOf('minute')).diff(moment(start_datetime).startOf('minute'));
                             vm.bookout.tpc_flight_time = moment.duration(tpc_diff).asHours();
@@ -1717,7 +1717,7 @@
                             //console.log("FLIGHT BRAKES UNITS : ", vm.flight_units.brakes_to_brakes);
 
                             // Compute TPC flight time from brakes times when no fox data and no takeoff/landing times available
-                            if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                            if(is_tpc_charging() && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
                                 // If takeoff/landing times are set, prefer those (already computed in calculate_my_airborne_duration)
                                 if(!vm.bookout.takeoff_time || !vm.bookout.takeoff_time.time || !vm.bookout.landing_time || !vm.bookout.landing_time.time){
                                     // Fallback: use brakes off to brakes on + 10 mins
@@ -1789,7 +1789,7 @@
                         //console.log("HELLO DURATION CALC", vm.flight_units.brakes_to_brakes);
 
                         // Compute TPC flight time from brakes off/on + 10 mins when no fox data
-                        if(vm.bookout.plane_charges && vm.bookout.plane_charges.tpc_aircraft_surchages && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
+                        if(is_tpc_charging() && (!vm.bookout.fox_log_id || vm.bookout.fox_log_id == 0)){
                             var tpc_end = moment(end_datetime).add(10, 'minutes');
                             var tpc_diff = moment(tpc_end.startOf('minute')).diff(moment(start_datetime).startOf('minute'));
                             vm.bookout.tpc_flight_time = moment.duration(tpc_diff).asHours();
@@ -2469,6 +2469,122 @@
          }
 
 
+        // ── Billing-unit helpers (§3 FRONTEND_CHARGE_TYPES_AND_TIMES_GUIDE.md) ──
+        // Mirrors backend PlaneLogSheets::billable_units: whole minutes billed as decimal
+        // hours, durations wrap past midnight, 00:00:00 / empty = unrecorded -> fallback.
+
+        function is_tpc_charging(){
+            return !!(vm.bookout && vm.bookout.plane_charges &&
+                   (vm.bookout.plane_charges.tpc_aircraft_surchages ||
+                    vm.bookout.plane_charges.charge_type == "airborne_plus_allowance"));
+        }
+
+        // Human-readable name for the invoice line title ("Aircraft <label> Charge") and
+        // the book-in summary. "tacho" must stay verbatim — the view's tacho-fields gate
+        // compares plane_charge_type == 'tacho'.
+        function charge_type_label(charge_type){
+            switch(charge_type){
+                case "brakes_exact":            return "brakes off to brakes on (actual)";
+                case "brakes":
+                case "flight":
+                case "brakes_rounded":          return "brakes off to brakes on (rounded)";
+                case "airborne_actual":         return "airborne (recorded)";
+                case "flight_exact":            return "takeoff to landing (actual)";
+                case "airborne":
+                case "flight_rounded":          return "takeoff to landing (rounded)";
+                case "airborne_plus_allowance": return "airborne + taxi allowance";
+                default:                        return charge_type; // tacho, hobbs
+            }
+        }
+
+        function recorded_time(t){
+            if(t && t.time !== undefined){ t = t.time; }
+            if(!t || t === "00:00:00" || t === "00:00"){ return null; }
+            return t;
+        }
+
+        function clock_hours(from, to){
+            var mins = minutesBetween(from, to); // datetime.js global: nearest-minute ends, midnight wrap
+            return (mins === null) ? null : (mins / 60);
+        }
+
+        function nearest_five(t){
+            t = recorded_time(t);
+            if(t === null){ return null; }
+            var mins = minutesBetween("00:00", t);
+            if(mins === null){ return null; }
+            var rounded = ((mins % 5) >= 2.5) ? (Math.floor(mins / 5) * 5 + 5) : (Math.floor(mins / 5) * 5);
+            rounded = rounded % (24 * 60);
+            return ("0" + Math.floor(rounded / 60)).slice(-2) + ":" + ("0" + (rounded % 60)).slice(-2);
+        }
+
+        function billable_units(charge_type){
+            var cf = (vm.claimed_flight && vm.claimed_flight !== null) ? vm.claimed_flight : {};
+            var fu = vm.flight_units || {};
+
+            var brakes_off = recorded_time(cf.brakes_off) || recorded_time(vm.bookout.brakes_off);
+            var brakes_on  = recorded_time(cf.brakes_on)  || recorded_time(vm.bookout.brakes_on);
+            var takeoff    = recorded_time(cf.takeoff_time) || recorded_time(vm.bookout.takeoff_time);
+            var landing    = recorded_time(cf.landing_time) || recorded_time(vm.bookout.landing_time);
+            var takeoff_r  = recorded_time(cf.takeoff_rounded) || recorded_time(vm.bookout.takeoff_rounded) || nearest_five(takeoff);
+            var landing_r  = recorded_time(cf.landing_rounded) || recorded_time(vm.bookout.landing_rounded) || nearest_five(landing);
+
+            var hours;
+
+            switch(charge_type){
+
+                case "brakes_exact":
+                    hours = clock_hours(brakes_off, brakes_on);
+                    if(hours === null){
+                        console.log("brakes_exact: no recorded brakes times - using stored brakes hours");
+                        hours = parseFloat(fu.brakes_to_brakes || cf.brakes_time || vm.bookout.brakes_times) || 0;
+                    }
+                    return hours;
+
+                case "brakes":         // legacy alias
+                case "flight":         // legacy alias - "flight time" = block time (EASA)
+                case "brakes_rounded":
+                    hours = parseFloat(fu.brakes_times_rounded || cf.brakes_times_rounded || vm.bookout.brakes_times_rounded);
+                    if(isNaN(hours) || hours <= 0){
+                        hours = clock_hours(nearest_five(brakes_off), nearest_five(brakes_on));
+                    }
+                    if(hours === null || isNaN(hours)){
+                        console.log("brakes_rounded: no rounded data - falling back to exact brakes hours");
+                        hours = parseFloat(fu.brakes_to_brakes) || 0;
+                    }
+                    return hours;
+
+                case "airborne_actual":
+                    hours = parseFloat(cf.airborne_time !== undefined ? cf.airborne_time : fu.airborne_times);
+                    if(!isNaN(hours) && hours > 0){ return hours; }
+                    hours = clock_hours(takeoff, landing);
+                    return (hours === null) ? 0 : hours;
+
+                case "flight_exact":
+                    hours = clock_hours(takeoff, landing);
+                    if(hours === null){
+                        console.log("flight_exact: no recorded takeoff/landing - using stored airborne hours");
+                        hours = parseFloat(cf.airborne_time || fu.airborne_times) || 0;
+                    }
+                    return hours;
+
+                case "airborne":       // legacy alias
+                case "flight_rounded":
+                    hours = clock_hours(takeoff_r, landing_r); // NEVER the flight_time column (block time)
+                    if(hours === null){
+                        hours = parseFloat(cf.airborne_rounded || vm.bookout.airborne_rounded) || 0;
+                    }
+                    return hours;
+
+                case "airborne_plus_allowance":
+                    // normally handled via the TPC branch before this is called - kept for safety
+                    return parseFloat(vm.bookout.tpc_flight_time) || 0;
+
+                default:               // tacho, hobbs, empty/unknown - meter difference
+                    return (vm.bookout.end_tacho - vm.bookout.start_tacho);
+            }
+        }
+
         vm.calculate_invoice_for_flight = function(){
              console.log("RUN CALCULATION", vm.flight_units);
             //vm.flight_units where the units are stored
@@ -2490,78 +2606,14 @@
                 // rges where th
                 // console.lkogog, tpc_flight_time()e fees are stored
             var plane_units = 0;
-            
 
-            if(vm.claimed_flight && vm.claimed_flight !== null){
-                // console.log("NO SELECTED FLIGHT??");
-
-                //plane units
-                if(vm.bookout.plane_charges.tpc_aircraft_surchages){
-                    console.log("TPC SURCHARGE UNITS");
-                    plane_units = vm.bookout.tpc_flight_time;
-                } else if(vm.bookout.plane_charges.charge_type == "flight"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.airborne_times;
-
-                } else if(vm.bookout.plane_charges.charge_type == "airborne"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.airborne_times;
-
-                } else if(vm.bookout.plane_charges.charge_type == "brakes"){
-                    //then the units relate to the entered numbers:
-                    if((!vm.flight_units.brakes_to_brakes || vm.flight_units.brakes_to_brakes == 0) && vm.bookout.brakes_times && vm.bookout.brakes_times > 0){
-                                            plane_units = vm.bookout.brakes_times;
-                                            vm.flight_units.brakes_to_brakes = vm.bookout.brakes_times;
-
-                    } else {
-                                            plane_units = vm.flight_units.brakes_to_brakes;
-                    }
-
-                } else if(vm.bookout.plane_charges.charge_type == "brakes_rounded"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.brakes_to_brakes;
-                } else {
-                    //hobbs --> to use the tacho area as the item
-                    //then the units we need to calculate relate to the hours between brakes off and on.
-                    plane_units = (vm.bookout.end_tacho - vm.bookout.start_tacho);
-                }
-
-
+            // §3 charging bases - one path for claimed and manual flights; billable_units
+            // reads claimed-flight data first and falls back to the manually entered times.
+            if(is_tpc_charging()){
+                console.log("TPC / airborne_plus_allowance UNITS");
+                plane_units = vm.bookout.tpc_flight_time;
             } else {
-                // console.log("SELECT FLIGHT SO WE CAN USE THE FOLLOWING");
-                //plane units
-                 if(vm.bookout.plane_charges.tpc_aircraft_surchages){
-                    console.log("TPC SURCHARGE UNITS 2");
-                    plane_units = vm.bookout.tpc_flight_time;
-                } else if(vm.bookout.plane_charges.charge_type == "flight"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.flight_time;
-
-                } else if(vm.bookout.plane_charges.charge_type == "airborne"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.airborne_times;
-
-                } else if(vm.bookout.plane_charges.charge_type == "brakes"){
-                    //then the units relate to the entered numbers:
-                    //plane_units = vm.flight_units.brakes_to_brakes;
-
-                    if((!vm.flight_units.brakes_to_brakes || vm.flight_units.brakes_to_brakes == 0) && vm.bookout.brakes_times && vm.bookout.brakes_times > 0){
-                                            plane_units = vm.bookout.brakes_times;
-                                            vm.flight_units.brakes_to_brakes = vm.bookout.brakes_times;
-
-                    } else {
-                                            plane_units = vm.flight_units.brakes_to_brakes;
-                    }
-
-                } else if(vm.bookout.plane_charges.charge_type == "brakes_rounded"){
-                    //then the units relate to the entered numbers:
-                    plane_units = vm.flight_units.brakes_times_rounded;
-                } else {
-                    //hobbs --> to use the tacho area as the item
-                    //then the units we need to calculate relate to the hours between brakes off and on.
-                    plane_units = (vm.bookout.end_tacho - vm.bookout.start_tacho);
-                }
-
+                plane_units = billable_units(vm.bookout.plane_charges.charge_type);
             }
 
             
@@ -2730,7 +2782,7 @@
             vm.send.amount = vm.invoice_totals * 100;
 
             vm.plane_charges = {
-                plane_charge_type: vm.bookout.plane_charges.charge_type,
+                plane_charge_type: charge_type_label(vm.bookout.plane_charges.charge_type),
                 plane_unit_price: vm.bookout.plane_charges.charge_rate_unit,
                 plane_units: plane_units,
                 plane_total: plane_total,
@@ -3262,8 +3314,8 @@
             
             // console.log("TAKEOFF TIME 2 : ", obj.plane_log_sheet.takeoff_time);
 
-            obj.plane_log_sheet.brakes_time = vm.flight_units.brakes_to_brakes;
-            obj.plane_log_sheet.airborne_time = vm.flight_units.airborne_times;
+            // brakes_time / airborne_time are computed server-side at complete_book_in
+            // (§6 FRONTEND_CHARGE_TYPES_AND_TIMES_GUIDE.md) - the backend ignores client values.
 
 
             //THIS IS THE KEY HERE delete this one once selected / complete
@@ -3278,9 +3330,7 @@
                 obj.plane_log_sheet.landing_rounded = vm.split_one.landing_rounded;
                 obj.plane_log_sheet.airborne_rounded = vm.split_one.airborne_rounded;
                 obj.plane_log_sheet.brakes_times_rounded = vm.split_one.brakes_times_rounded;
-                obj.plane_log_sheet.brakes_time = vm.split_one.brakes_time;
                 obj.plane_log_sheet.flight_time = vm.split_one.flight_time;
-                obj.plane_log_sheet.airborne_time = vm.split_one.airborne_time;
                 obj.plane_log_sheet.flight_time = vm.split_one.flight_time;
             }
 

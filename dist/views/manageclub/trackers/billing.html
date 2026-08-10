@@ -165,6 +165,19 @@
       <div class="trk-card">
         <h4 class="trk-card__title"><i class="fa fa-file-invoice"></i> Invoices</h4>
 
+        <!-- The "Action needed" email lands here — surface pending 3DS
+             authentications prominently. Nothing has been charged for these. -->
+        <div class="trk-banner trk-banner--warn" ng-if="!vm.invoices_loading && vm.invoicesNeedingAuth().length">
+          <i class="fa fa-shield-alt"></i>
+          <div class="trk-banner__body">
+            <strong>Your bank needs you to authenticate</strong>
+            {{ vm.invoicesNeedingAuth().length === 1 ? 'One invoice is' : vm.invoicesNeedingAuth().length + ' invoices are' }}
+            waiting for extra authentication before we can take payment. Nothing has been charged yet, and we
+            won't retry automatically until you've authenticated — open the invoice below and press
+            "Authenticate payment".
+          </div>
+        </div>
+
         <div class="trk-loading" ng-if="vm.invoices_loading">
           <div class="trk-spinner"></div> Loading invoices…
         </div>
@@ -196,7 +209,12 @@
                   <span ng-if="!inv.period_start">—</span>
                 </td>
                 <td data-label="Total" class="trk-table__money">{{ vm.cur(inv.currency) }}{{ inv.total | number:2 }}</td>
-                <td data-label="Status"><span class="trk-badge" ng-class="vm.invoiceBadge(inv.status)">{{ vm.pretty(inv.status) }}</span></td>
+                <td data-label="Status">
+                  <span class="trk-badge" ng-class="[vm.invoiceBadge(inv.status), {'trk-badge--pulse': inv.status === 'collecting'}]">
+                    <i class="fa fa-circle-notch fa-spin" ng-if="inv.status === 'collecting'"></i>
+                    {{ inv.status === 'collecting' ? 'payment in progress' : vm.pretty(inv.status) }}
+                  </span>
+                </td>
                 <td data-label="Due" class="trk-table__muted">{{ inv.due_date ? (inv.due_date | asDate | date:'dd MMM yyyy') : '—' }}</td>
                 <td class="trk-table__actions">
                   <a class="trk-table__action-btn" href="" uib-tooltip="Download PDF"
@@ -220,7 +238,19 @@
                     </div>
                     <div class="trk-banner trk-banner--info" ng-if="inv.status === 'payment_pending'" style="margin-bottom: 12px;">
                       <i class="fa fa-hourglass-half"></i>
-                      <div class="trk-banner__body">A Direct Debit collection is in progress — we'll email you when it completes.</div>
+                      <div class="trk-banner__body">The payment is in progress — we'll email you when it completes.</div>
+                    </div>
+                    <div class="trk-banner trk-banner--warn" ng-if="inv.status === 'requires_action'" style="margin-bottom: 12px;">
+                      <i class="fa fa-shield-alt"></i>
+                      <div class="trk-banner__body">
+                        <strong>Your bank asked for extra authentication</strong>
+                        Nothing has been charged yet, and we won't retry automatically until you've
+                        authenticated. Press "Authenticate payment" to finish it — your bank will verify it's you.
+                      </div>
+                    </div>
+                    <div class="trk-banner trk-banner--info" ng-if="inv.status === 'collecting'" style="margin-bottom: 12px;">
+                      <i class="fa fa-circle-notch fa-spin"></i>
+                      <div class="trk-banner__body">A payment attempt is running right now — refresh in a moment to see the outcome.</div>
                     </div>
                     <dl class="trk-kv" ng-if="inv.paid_at"><dt>Paid</dt><dd>{{ inv.paid_at | asDate | date:'dd MMM yyyy HH:mm' }}</dd></dl>
                     <dl class="trk-kv" ng-if="inv.detail.order"><dt>Order</dt><dd>{{ inv.detail.order.order_number }}</dd></dl>
@@ -233,7 +263,7 @@
                         </tr>
                       </tbody>
                     </table>
-                    <div class="trk-form-actions" ng-if="vm.invoicePayable(inv)">
+                    <div class="trk-form-actions" ng-if="vm.invoicePayable(inv) && !vm.invoiceNeedsAuth(inv)">
                       <button class="trk-btn trk-btn--primary" ng-if="vm.profile.has_card" ng-disabled="inv.paying" ng-click="vm.payInvoice(inv, 'card')">
                         <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
                         <i class="fa fa-credit-card" ng-if="!inv.paying"></i> Pay by card
@@ -243,6 +273,18 @@
                         <i class="fa fa-university" ng-if="!inv.paying"></i> Pay by Direct Debit
                       </button>
                       <span class="trk-table__muted" ng-if="!vm.hasPaymentMethod()">Add a payment method above to pay online.</span>
+                    </div>
+                    <!-- requires_action: resume the pending authentication (same
+                         PaymentIntent, no second charge) — or switch rails -->
+                    <div class="trk-form-actions" ng-if="vm.invoiceNeedsAuth(inv)">
+                      <button class="trk-btn trk-btn--primary" ng-disabled="inv.paying" ng-click="vm.payInvoice(inv)">
+                        <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
+                        <i class="fa fa-shield-alt" ng-if="!inv.paying"></i> Authenticate payment
+                      </button>
+                      <button class="trk-btn trk-btn--ghost" ng-if="vm.profile.has_mandate" ng-disabled="inv.paying" ng-click="vm.payInvoice(inv, 'direct_debit')">
+                        <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
+                        <i class="fa fa-university" ng-if="!inv.paying"></i> Pay by Direct Debit instead
+                      </button>
                     </div>
                   </div>
                 </td>

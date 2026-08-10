@@ -1,0 +1,116 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-heartbeat"></i> GoCardless Monitor</h2>
+        <p>Webhook health — every delivery, every event, and what needs fixing.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/gcl_monitor/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.loading">
+      <div class="trk-spinner"></div> Checking the webhooks…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && vm.overview">
+
+      <!-- ── Health cards: one per webhook source ── -->
+      <div class="gclm-health-grid">
+        <div class="gclm-health" ng-repeat="h in vm.health" ng-class="'gclm-health--' + h.state">
+          <div class="gclm-health__head">
+            <span class="gclm-health__dot" ng-class="'gclm-health__dot--' + h.state"></span>
+            <div class="gclm-health__title">
+              {{ h.label }}
+              <span class="gclm-health__last" ng-if="h.last_at" tooltip-popup-delay="300" uib-tooltip="{{ vm.abs(h.last_at) }}">
+                last delivery {{ vm.ago(h.last_at) }}
+              </span>
+            </div>
+          </div>
+          <p class="gclm-health__text">{{ h.text }}</p>
+          <div class="gclm-chip-row" ng-if="h.statuses.length">
+            <div class="gclm-status-chip"
+                 ng-repeat="s in h.statuses"
+                 ng-class="'gclm-status-chip--' + s.http_status"
+                 ng-click="vm.openDeliveries(h.source, s.http_status >= 200 && s.http_status < 300 ? 'ok' : s.http_status)"
+                 tooltip-popup-delay="300" uib-tooltip="Last one {{ vm.ago(s.last_at) }} — click to see these deliveries">
+              {{ s.http_status }} <span class="gclm-status-chip__count">{{ s.deliveries }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Needs attention: the "what should we fix" panel ── -->
+      <div class="trk-card gclm-attn" ng-if="vm.attention_count">
+        <h4 class="trk-card__title"><i class="fa fa-exclamation-triangle"></i> Needs attention</h4>
+
+        <div class="gclm-attn__row"
+             ng-repeat="e in vm.overview.erroring_events"
+             ng-click="vm.openEvents(e.source, 'error')">
+          <span class="trk-badge trk-badge--red">error</span>
+          <div class="gclm-attn__body">
+            <strong>{{ e.event_id }}</strong> ({{ e.resource_type }}/{{ e.action }})
+            · {{ e.attempts }} attempt{{ e.attempts == 1 ? '' : 's' }}
+            <span class="gclm-attn__error" ng-if="e.last_error">— {{ e.last_error }}</span>
+          </div>
+          <div class="gclm-attn__meta">
+            <span class="trk-badge trk-badge--grey">{{ vm.sourceLabels[e.source] }}</span>
+            <span class="gclm-attn__when" tooltip-popup-delay="300" uib-tooltip="{{ vm.abs(e.created_at) }}">{{ vm.ago(e.created_at) }}</span>
+            <i class="fa fa-chevron-right"></i>
+          </div>
+        </div>
+
+        <div class="gclm-attn__row"
+             ng-repeat="d in vm.overview.recent_failed_deliveries"
+             ng-click="vm.openFailedDelivery(d)">
+          <span class="trk-badge" ng-class="vm.statusBadge(d.http_status)">{{ d.http_status }}</span>
+          <div class="gclm-attn__body">
+            <strong>{{ vm.pretty(d.outcome) }}</strong>
+            <span class="gclm-attn__error" ng-if="d.message">— {{ d.message }}</span>
+          </div>
+          <div class="gclm-attn__meta">
+            <span class="trk-badge trk-badge--grey">{{ vm.sourceLabels[d.source] }}</span>
+            <span class="gclm-attn__when" tooltip-popup-delay="300" uib-tooltip="{{ vm.abs(d.created_at) }}">{{ vm.ago(d.created_at) }}</span>
+            <i class="fa fa-chevron-right"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="trk-banner trk-banner--success" ng-if="!vm.attention_count">
+        <i class="fa fa-check-circle"></i>
+        <div class="trk-banner__body">
+          <strong>Nothing needs attention</strong>
+          No erroring events and no failed deliveries — all good ✓
+        </div>
+      </div>
+
+      <!-- ── Events by outcome, per source ── -->
+      <div class="trk-card">
+        <h4 class="trk-card__title"><i class="fa fa-exchange-alt"></i> Events by outcome</h4>
+        <p class="trk-card__hint">Every webhook event and how we processed it — click a chip to inspect those events.</p>
+        <div class="gclm-outcome-group" ng-repeat="source in vm.enums.sources">
+          <div class="gclm-outcome-group__label">{{ vm.sourceLabels[source] }}</div>
+          <div class="gclm-chip-row">
+            <div class="gclm-outcome-chip"
+                 ng-repeat="o in vm.enums.eventOutcomes"
+                 ng-class="'gclm-outcome-chip--' + o"
+                 ng-show="vm.outcomeCount(source, o)"
+                 ng-click="vm.openEvents(source, o)"
+                 tooltip-popup-delay="300" uib-tooltip="{{ vm.outcomeCount(source, o).last_30_days || 0 }} in the last 30 days — click to view">
+              {{ o }} <span class="gclm-outcome-chip__count">{{ vm.outcomeCount(source, o).total }}</span>
+            </div>
+            <span class="trk-table__muted" ng-if="!vm.overview.events_by_outcome[source].length">No events recorded yet.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

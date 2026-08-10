@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlightsController', DashboardClubFlightsController);
 
-    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService', 'CancelClaimService'];
-    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService) {
+    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$timeout', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService', 'CancelClaimService', 'ManualFlightService'];
+    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $timeout, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService, ManualFlightService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -1526,6 +1526,72 @@
                 $log.info('Flight merge modal dismissed');
                 // Refresh count in case user viewed but didn't merge
                 vm.loadMergeCandidateCount();
+            });
+        };
+
+
+        // ═══════════════════════════════════════════════
+        // MANUAL FLIGHT ENTRY — add a flight the trackers missed
+        // ═══════════════════════════════════════════════
+        vm.addFlightUndo = null;   // { pls_id, registration, busy, timer }
+
+        vm.openAddFlight = function() {
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/manual_flight_form.html',
+                controller: 'ManualFlightModalController',
+                size: 'lg',
+                backdrop: 'static',
+                keyboard: false,
+                resolve: {
+                    clubId: function() { return vm.club_id; },
+                    planeId: function() { return null; }
+                }
+            });
+
+            modalInstance.result.then(function(result) {
+                if (result && result.success) {
+                    // The undo snackbar is the success confirmation — no toast
+                    // on top of it (they share the bottom-centre position).
+                    vm.search_for_flights();
+                    showAddFlightUndo(result);
+                }
+            }, function() {
+                $log.info('Manual flight modal dismissed');
+            });
+        };
+
+        function showAddFlightUndo(result) {
+            if (vm.addFlightUndo && vm.addFlightUndo.timer) {
+                $timeout.cancel(vm.addFlightUndo.timer);
+            }
+            vm.addFlightUndo = {
+                pls_id: result.pls_id,
+                registration: (result.flight && result.flight.registration) || '',
+                busy: false,
+                timer: $timeout(function() { vm.addFlightUndo = null; }, 10000)
+            };
+        }
+
+        vm.dismissAddFlightUndo = function() {
+            if (vm.addFlightUndo && vm.addFlightUndo.timer) {
+                $timeout.cancel(vm.addFlightUndo.timer);
+            }
+            vm.addFlightUndo = null;
+        };
+
+        vm.undoAddFlight = function() {
+            if (!vm.addFlightUndo || vm.addFlightUndo.busy) { return; }
+            vm.addFlightUndo.busy = true;
+            ManualFlightService.Delete(vm.addFlightUndo.pls_id).then(function(data) {
+                if (data && data.success) {
+                    ToastService.success('Flight Removed', 'The manually added flight has been undone.', { duration: 3000, confetti: false });
+                    vm.dismissAddFlightUndo();
+                    vm.search_for_flights();
+                } else {
+                    vm.addFlightUndo.busy = false;
+                    ToastService.error('Could Not Undo', (data && data.message) || 'This flight can no longer be removed.');
+                }
             });
         };
 

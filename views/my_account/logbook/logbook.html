@@ -10,21 +10,28 @@
         <p>Your verified club hours and your own manually-added flights, together.</p>
       </div>
       <div class="lb-page__header-actions">
-        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_add">
-          <i class="fa fa-plus"></i> Add Flight
+        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_add"
+           uib-tooltip="Type a flight, upload SkyDemon logs, or import a CSV">
+          <i class="fa fa-plus"></i> Add Flights
         </a>
         <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_stats">
           <i class="fa fa-chart-pie"></i> Stats
         </a>
-        <a class="lb-btn lb-btn--white" ui-sref="dashboard.my_account.logbook_import">
-          <i class="fa fa-file-import"></i> Import
-        </a>
-        <button class="lb-btn lb-btn--white" ng-click="vm.exportLogbook('csv')" ng-disabled="vm.exporting">
-          <i class="fa fa-file-csv"></i> CSV
-        </button>
-        <button class="lb-btn lb-btn--white" ng-click="vm.exportLogbook('excel')" ng-disabled="vm.exporting">
-          <i class="fa fa-file-excel"></i> Excel
-        </button>
+        <div class="lb-export" ng-class="{'lb-export--open': vm.exportOpen}">
+          <button class="lb-btn lb-btn--white" ng-click="vm.exportOpen = !vm.exportOpen" ng-disabled="vm.exporting">
+            <i class="fa" ng-class="vm.exporting ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+            Export <i class="fa fa-chevron-down lb-export__caret"></i>
+          </button>
+          <div class="lb-export__backdrop" ng-if="vm.exportOpen" ng-click="vm.exportOpen = false"></div>
+          <div class="lb-export__menu" ng-if="vm.exportOpen">
+            <button class="lb-export__item" ng-click="vm.exportOpen = false; vm.exportLogbook('csv')">
+              <i class="fa fa-file-csv"></i> CSV file
+            </button>
+            <button class="lb-export__item" ng-click="vm.exportOpen = false; vm.exportLogbook('excel')">
+              <i class="fa fa-file-excel"></i> Excel file
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -145,8 +152,8 @@
             <tbody>
               <tr ng-repeat-start="e in vm.entries" ng-class="{'lb-row--tentative': !e.verified}">
                 <td>{{ e.flight_date }}</td>
-                <td><span uib-tooltip="{{ vm.depPlaceAlt(e) }}">{{ vm.depPlace(e) }}</span><span ng-if="e.departure_time"> {{ e.departure_time }}</span></td>
-                <td><span uib-tooltip="{{ vm.arrPlaceAlt(e) }}">{{ vm.arrPlace(e) }}</span><span ng-if="e.arrival_time"> {{ e.arrival_time }}</span></td>
+                <td><span uib-tooltip="{{ vm.depPlaceAlt(e) }}">{{ vm.depPlace(e) }}</span><span ng-if="e.departure_time" uib-tooltip="{{ e.departure_time | timeRounding : 'Departure' }}"> {{ e.departure_time | roundMinute }}</span></td>
+                <td><span uib-tooltip="{{ vm.arrPlaceAlt(e) }}">{{ vm.arrPlace(e) }}</span><span ng-if="e.arrival_time" uib-tooltip="{{ e.arrival_time | timeRounding : 'Arrival' }}"> {{ e.arrival_time | roundMinute }}</span></td>
                 <td class="lb-table__reg">{{ e.registration }}</td>
                 <td><span uib-tooltip="{{ e.aircraft_make }} {{ e.aircraft_model !== '-' ? e.aircraft_model : '' }}">{{ e.aircraft_type || '—' }}</span></td>
                 <td>{{ e.capacity }}</td>
@@ -163,13 +170,16 @@
                 <td class="lb-table__num">{{ e.night_landings || '' }}</td>
                 <td>
                   <img ng-if="e.verified" src="favicon/favicon-32x32.png" class="lb-source-mark" alt="ToAviate" uib-tooltip="ToAviate-verified flight" />
-                  {{ e.source }}
+                  <span class="lb-sd-chip" ng-if="vm.isSkyDemon(e)" uib-tooltip="Imported from a SkyDemon log — GPS track attached">SD</span>
+                  <span ng-if="!vm.isSkyDemon(e)">{{ e.source }}</span>
                 </td>
                 <td class="lb-table__actions">
                   <!-- Flight replay — only when a recorded track exists -->
                   <button class="lb-table__action-btn lb-table__action-btn--replay" ng-if="vm.canReplay(e)" ng-click="vm.viewReplay(e)" uib-tooltip="Flight replay"><i class="fa fa-play-circle"></i></button>
-                  <!-- Weather at takeoff/landing — club-verified flights carry ref_id (= plane_log_sheets.id) -->
-                  <button class="lb-table__action-btn" ng-if="e.ref_id" ng-click="e._wxOpen = !e._wxOpen"
+                  <!-- Weather at takeoff/landing — CLUB flights only: their ref_id is a
+                       plane_log_sheets.id. Manual rows' ref_id is a manual entry id,
+                       which the weather endpoint doesn't understand. -->
+                  <button class="lb-table__action-btn" ng-if="e.kind !== 'manual' && e.ref_id" ng-click="e._wxOpen = !e._wxOpen"
                           ng-class="{'lb-table__action-btn--replay': e._wxOpen}" uib-tooltip="Flight weather"><i class="fa fa-cloud"></i></button>
                   <!-- Only manual rows are editable/deletable -->
                   <span ng-if="e.kind === 'manual' && !e._confirmDelete">

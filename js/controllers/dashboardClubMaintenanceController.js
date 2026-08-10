@@ -119,7 +119,11 @@
                     vm.this_plane_id = $stateParams.plane_id; 
 
                     if(vm.club.plane && vm.club.plane.maintenance){
-                        vm.obj.hours_remaining = vm.club.plane.maintenance.hours_remaining;
+                        // The API returns decimals as strings ("12.00") — a string
+                        // model on input[type=number] throws ngModel:numfmt and the
+                        // field renders blank, so coerce before binding.
+                        var hours = parseFloat(vm.club.plane.maintenance.hours_remaining);
+                        vm.obj.hours_remaining = isNaN(hours) ? undefined : hours;
                         vm.obj.next_check = new Date(vm.club.plane.maintenance.next_maintenance);
                         vm.obj.check_date = new Date();
                         vm.obj.extension_granted = new Date();
@@ -252,7 +256,10 @@
                         console.log(data);
                         if(data.success){
                             ToastService.success('Reset Complete', 'Logbooks have been re-checked.');
-                        }  
+                            // Re-fetch so the recalculated hours / next-check show
+                            // without a manual page refresh.
+                            loadMaintenanceDetail();
+                        }
                         // //console.log(vm.club.planes);
                     });
                 } else {
@@ -735,9 +742,18 @@
                 PlaneService.AddMaintenance(vm.this_plane_id, send_obj)
                     .then(function (data) {
 
+                        // handleError2 resolves with success:false — stop here so a
+                        // failed save doesn't reload the page as if it worked.
+                        if (!data || data.success === false) {
+                            ToastService.error('Save Failed', (data && data.message) || 'The maintenance update could not be saved.');
+                            return;
+                        }
+
+                        ToastService.success('Maintenance Saved', 'The update has been recorded.');
+
                         // Save CRS alongside (fire and forget alongside workpack)
                         saveCrs();
-e
+
                         // Save logbook links for the new maintenance check (fire and forget)
                         if (data.maintenance_check_id) {
                             vm.saveCreateLogbookLinks(data.maintenance_check_id);
@@ -1601,8 +1617,15 @@ e
 
                 PlaneService.AddDefect(obj)
                     .then(function (data) {
+                        if (!data || !data.item) {
+                            ToastService.error('Defect Error', (data && data.message) || 'The defect could not be saved.');
+                            return;
+                        }
                         data.item.can_delete = true;
                         vm.club.plane.defects.push(data.item);
+                        // Keep the maintenance overlay's "resolve defects" list in
+                        // sync too — it renders vm.reported_defects, not plane.defects.
+                        vm.reported_defects.push(data.item);
                         ToastService.success('Defect Reported', 'The defect has been submitted.');
 
                         if (pendingFiles && pendingFiles.length > 0) {

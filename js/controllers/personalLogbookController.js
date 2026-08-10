@@ -23,10 +23,11 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
         vm.back = function() { $state.go('dashboard.my_account.logbook'); };
 
         switch (vm.screen) {
-            case 'list':   initList(); break;
-            case 'stats':  initStats(); break;
-            case 'import': initImport(); break;
-            default:       initForm(); break;   // add / edit
+            case 'list':     initList(); break;
+            case 'stats':    initStats(); break;
+            case 'import':   initImport(); break;
+            case 'skydemon': initSkydemon(); break;
+            default:         initForm(); break;   // add / edit
         }
 
         // ════════════════════════════════════════════
@@ -132,14 +133,23 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
             $state.go('dashboard.my_account.logbook_edit', { entry_id: e.ref_id });
         };
 
-        // Open the flight replay/debrief for a verified club flight. Only shown
-        // when the backend flags the entry with has_track (a recorded track).
+        // Open the flight replay/debrief when a recorded track exists.
+        // Club flights replay via /flight_replay/{pls_id}; SkyDemon manual
+        // entries (kind 'manual' + has_track) via the SD track endpoint
+        // (src=sd, flight_id = the manual entry id).
         vm.canReplay = function(e) {
             return !!(e && e.has_track && e.ref_id);
         };
         vm.viewReplay = function(e) {
             if (!vm.canReplay(e)) return;
-            $state.go('dashboard.flight_replay', { flight_id: e.ref_id });
+            $state.go('dashboard.flight_replay', {
+                flight_id: e.ref_id,
+                src: (e.kind === 'manual') ? 'sd' : undefined
+            });
+        };
+        // "SD" chip — entries created from a SkyDemon upload.
+        vm.isSkyDemon = function(e) {
+            return !!(e && (e.track_source === 'SD' || e.source === 'SkyDemon'));
         };
 
         vm.deleteEntry = function(e) {
@@ -534,6 +544,169 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
         };
 
         vm.restartImport = function() { initImport(); };
+
+        // ════════════════════════════════════════════
+        // SKYDEMON IMPORT (upload → review cards → confirm)
+        // Mirrors the CSV flow but multi-file, with staged GPS tracks kept
+        // for replay. See FRONTEND_LOGBOOK_SKYDEMON_GUIDE.md.
+        // ════════════════════════════════════════════
+        var SD_MAX_FILES = 20;
+        var SD_MAX_BYTES = 20 * 1024 * 1024;
+
+        function initSkydemon() {
+            vm.sdStep = 'pick';            // 'pick' | 'review' | 'done'
+            vm.sdCards = [];               // one per uploaded file (in upload order)
+            vm.sdSummary = null;
+            vm.sdResult = null;
+            vm.sdUploading = false;
+            vm.sdConfirming = false;
+            vm.sdDragOver = false;
+        }
+
+        vm.onSdDragState = function(isDragging) {
+            vm.sdDragOver = isDragging;
+        };
+
+        // Files from lcf-dropzone / lcf-file-select (already inside a digest).
+        vm.onSdFiles = function(files) {
+            if (!files || !files.length) return;
+            if (files.length > SD_MAX_FILES) {
+                ToastService.warning('Too many files', 'Please upload at most ' + SD_MAX_FILES + ' log files at a time.');
+                return;
+            }
+            var list = [];
+            for (var i = 0; i < files.length; i++) {
+                if (files[i].size > SD_MAX_BYTES) {
+                    ToastService.error('File too large', files[i].name + ' is over 20 MB.');
+                    return;
+                }
+                list.push(files[i]);
+            }
+
+            vm.sdUploading = true;
+            PersonalLogbookService.SkydemonPreview(list).then(function(data) {
+                vm.sdUploading = false;
+                if (!data || data.success === false) {
+                    ToastService.error('Upload failed', (data && data.message) || 'Could not read those files.');
+                    return;
+                }
+                vm.sdSummary = data.summary || null;
+                vm.sdCards = (data.files || []).map(buildSdCard);
+                vm.sdStep = 'review';
+            });
+        };
+
+        function buildSdCard(f) {
+            if (!f.success) {
+                return { success: false, file_name: f.file_name, message: f.message, _include: false };
+            }
+            var card = f;
+            card._include = true;
+            card._error = null;
+            // input[type=date] needs a Date; times edit as HH:MM (seconds trimmed —
+            // the confirm validates like a manual entry, which accepts HH:MM).
+            card.entry.flight_date = fromYMD(card.entry.flight_date);
+            card.entry.departure_time = toHHMM(card.entry.departure_time);
+            card.entry.arrival_time = toHHMM(card.entry.arrival_time);
+            // Pre-select the airfield candidates matching the resolved ids.
+            card._dep = pickSdCandidate(card.departure_candidates, card.entry.departure_airfield_id);
+            card._arr = pickSdCandidate(card.arrival_candidates, card.entry.arrival_airfield_id);
+            return card;
+        }
+
+        function pickSdCandidate(candidates, id) {
+            if (!candidates || !candidates.length) return null;
+            if (id) {
+                for (var i = 0; i < candidates.length; i++) {
+                    if (candidates[i].id == id) return candidates[i];
+                }
+            }
+            return candidates[0];
+        }
+
+        vm.sdIncludedCount = function() {
+            return vm.sdCards.filter(function(c) { return c.success && c._include; }).length;
+        };
+        vm.sdHasDuplicate = function(c) {
+            return !!(c.duplicate && (c.duplicate.manual_entry_id || c.duplicate.club_flight_id));
+        };
+
+        vm.confirmSd = function() {
+            var rows = [];
+            vm.sdCards.forEach(function(c) {
+                if (!c.success || !c._include) return;
+                rows.push({ upload_token: c.upload_token, entry: buildSdEntry(c) });
+            });
+            if (!rows.length) {
+                ToastService.warning('Nothing selected', 'Tick at least one flight to add.');
+                return;
+            }
+            vm.sdConfirming = true;
+            PersonalLogbookService.SkydemonConfirm(rows).then(function(data) {
+                vm.sdConfirming = false;
+                if (!data || data.success === false) {
+                    ToastService.error('Import failed', (data && data.message) || '');
+                    return;
+                }
+                // Annotate cards from the per-row results, keyed by upload_token.
+                var byToken = {};
+                (data.results || []).forEach(function(r) { byToken[r.upload_token] = r; });
+                var stillFailing = [];
+                vm.sdCards.forEach(function(c) {
+                    var r = c.upload_token ? byToken[c.upload_token] : null;
+                    if (!r) return;
+                    if (r.success) { c._imported = true; c._include = false; c._error = null; }
+                    else { c._error = r.message || 'Could not save this entry.'; stillFailing.push(c); }
+                });
+                if (data.failed > 0) {
+                    // Keep the failed cards on screen for fixing; drop the imported ones.
+                    vm.sdCards = vm.sdCards.filter(function(c) { return !c._imported; });
+                    ToastService.warning((data.imported || 0) + ' added, ' + data.failed + ' failed',
+                        'Fix the highlighted flights and confirm again.');
+                } else {
+                    vm.sdResult = data;
+                    vm.sdStep = 'done';
+                    ToastService.success('Flights added', (data.imported || 0) + ' flight(s) with GPS tracks are now in your logbook.');
+                }
+            });
+        };
+
+        // Assemble the entry payload from a card (validated server-side like a
+        // manual entry). Capacity drives the single function-time field.
+        function buildSdEntry(c) {
+            var e = c.entry;
+            var total = parseFloat(e.total_time) || 0;
+            var entry = {
+                flight_date: toYMD(e.flight_date),
+                departure_time: e.departure_time || null,
+                arrival_time: e.arrival_time || null,
+                registration: (e.registration || '').toUpperCase(),
+                aircraft_make: e.aircraft_make || '',
+                aircraft_model: e.aircraft_model || '',
+                aircraft_type: e.aircraft_type || '',
+                aircraft_class: e.aircraft_class || '',
+                engine_type: e.engine_type || 'single',
+                capacity: e.capacity || 'P1',
+                total_time: total,
+                day_landings: parseInt(e.day_landings, 10) || 0,
+                night_landings: parseInt(e.night_landings, 10) || 0,
+                remarks: e.remarks || ''
+            };
+            var capField = CAPACITY_FIELD[entry.capacity];
+            if (capField) entry[capField] = total;
+            // Night is only sent when the pilot typed one — the backend stores the
+            // estimate separately (computed_night_time) and uses it automatically.
+            if (e.night_time !== null && e.night_time !== '' && e.night_time !== undefined) {
+                entry.night_time = parseFloat(e.night_time) || 0;
+            }
+            if (c._dep) { entry.departure_airfield_id = c._dep.id; entry.departure_place = c._dep.code; }
+            else if (e.departure_place) { entry.departure_place = e.departure_place; }
+            if (c._arr) { entry.arrival_airfield_id = c._arr.id; entry.arrival_place = c._arr.code; }
+            else if (e.arrival_place) { entry.arrival_place = e.arrival_place; }
+            return entry;
+        }
+
+        vm.restartSd = function() { initSkydemon(); };
 
         // Normalise a time value to HH:mm (drop any seconds the API tacks on).
         // "14:30:00" → "14:30"; "9:5" → "09:05"; leaves anything unparseable as-is.

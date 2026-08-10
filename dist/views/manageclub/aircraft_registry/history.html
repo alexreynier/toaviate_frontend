@@ -1,0 +1,84 @@
+<div class="trk-page areg">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-history"></i> Registry Sync History</h2>
+        <p>Past register syncs — what they found, who ran them and how long they took.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/aircraft_registry/_nav.html'"></div>
+
+    <div class="trk-banner trk-banner--danger" ng-if="vm.forbidden">
+      <i class="fa fa-lock"></i>
+      <div class="trk-banner__body"><strong>ToAviate admins only</strong> Your account doesn't have access to the registry tools.</div>
+    </div>
+
+    <div class="trk-loading" ng-if="vm.loading && !vm.forbidden">
+      <div class="trk-spinner"></div> Loading run history…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.loading && !vm.forbidden">
+
+      <div class="trk-empty" ng-if="!vm.runs.length">
+        <i class="fa fa-history"></i>
+        <p>No syncs have been run yet.</p>
+      </div>
+
+      <div class="trk-table-card" ng-if="vm.runs.length">
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>State</th>
+                <th>New</th>
+                <th>Updated</th>
+                <th>Held</th>
+                <th>Dereg.</th>
+                <th>Errors</th>
+                <th>Started by</th>
+                <th>When</th>
+                <th>Took</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="r in vm.runs">
+                <td data-label="Run"><span class="trk-table__ref">#{{ r.id }}</span></td>
+                <td data-label="State">
+                  <span class="trk-badge" ng-class="vm.runBadge(r.state)">{{ vm.pretty(r.state) }}</span>
+                  <span class="trk-table__muted" ng-if="vm.runActive(r)" style="margin-left: 6px;">{{ r.phase }}</span>
+                </td>
+                <td data-label="New" class="trk-table__money">{{ r.found_new | number }}</td>
+                <td data-label="Updated" class="trk-table__money">{{ r.updated_ref | number }}</td>
+                <td data-label="Held">
+                  <span ng-class="{'areg-held': r.advisories_raised > 0}">{{ r.advisories_raised | number }}</span>
+                </td>
+                <td data-label="Dereg." class="trk-table__money"
+                    uib-tooltip="Marked deregistered — nothing is ever deleted" tooltip-append-to-body="true">
+                  {{ r.deregistered | number }}
+                </td>
+                <td data-label="Errors">
+                  <span ng-class="{'areg-errors': r.errors > 0}">{{ r.errors | number }}</span>
+                </td>
+                <td data-label="Started by">{{ r.created_by || '—' }}</td>
+                <td data-label="When" class="trk-table__muted" uib-tooltip="{{ vm.abs(r.created_at) }}" tooltip-append-to-body="true">
+                  {{ vm.ago(r.created_at) }}
+                </td>
+                <td data-label="Took" class="trk-table__muted">{{ r.finished_at ? vm.duration(r) : (vm.runActive(r) ? 'in progress' : '—') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -18,6 +18,11 @@
 <div class="sub_section2 superwide">
 
     <div class="logbook-hero-actions logbook-hero-actions--right">
+        <!-- Add a flight the trackers missed (managers only) -->
+        <button class="mf-add-btn mf-add-btn--hero" ng-if="vm.can_add_flight" ng-click="vm.openAddFlight()"
+                uib-tooltip="Add a flight the trackers missed — upload a SkyDemon log or enter it manually">
+            <i class="fa fa-plus"></i> Add Missing Flight
+        </button>
         <!-- Export: dropdown panel with date range + CSV / Excel / PDF (UK CAA format) -->
         <div class="lbx lbx--align-right" ng-class="{'lbx--open': vm.exportPanelOpen}">
             <button class="lbx__trigger" ng-click="vm.toggleExportPanel()" ng-disabled="vm.exporting" aria-haspopup="true" aria-expanded="{{ vm.exportPanelOpen }}">
@@ -116,12 +121,16 @@
                                     <span uib-tooltip="{{log.destination_airport_code}}">{{ log.destination_airport }}</span>
                                 </td>
                                 <td class="centre_me">
-                                    <span uib-tooltip="{{vm.clean_times(log.brakes_off)}} rounded to nearest 5 minute">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                                    <span uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
                                 </td>
-                                <td class="centre_me">{{ vm.clean_times(log.takeoff_time) }}</td>
-                                <td class="centre_me">{{ vm.clean_times(log.landing_time) }}</td>
                                 <td class="centre_me">
-                                    <span uib-tooltip="{{vm.clean_times(log.brakes_on)}} rounded to nearest 5 minute">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
+                                    <span uib-tooltip="{{ log.takeoff_time | timeRounding : 'Takeoff' }}">{{ vm.clean_times(log.takeoff_time) }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{ log.landing_time | timeRounding : 'Landing' }}">{{ vm.clean_times(log.landing_time) }}</span>
+                                </td>
+                                <td class="centre_me">
+                                    <span uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
                                 </td>
                                 <td class="centre_me">{{ get_hours_from_decimal(log.flight_time) || "0:00" }}</td>
                                 <td class="centre_me">
@@ -167,19 +176,19 @@
                             <div class="mc-card-grid mc-card-grid-3">
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Brakes Off</span>
-                                <span>{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                                <span uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
                               </div>
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Takeoff</span>
-                                <span>{{ vm.clean_times(log.takeoff_time) }}</span>
+                                <span uib-tooltip="{{ log.takeoff_time | timeRounding : 'Takeoff' }}">{{ vm.clean_times(log.takeoff_time) }}</span>
                               </div>
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Landing</span>
-                                <span>{{ vm.clean_times(log.landing_time) }}</span>
+                                <span uib-tooltip="{{ log.landing_time | timeRounding : 'Landing' }}">{{ vm.clean_times(log.landing_time) }}</span>
                               </div>
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Brakes On</span>
-                                <span>{{ vm.clean_times(log.brakes_on_rounded) }}</span>
+                                <span uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
                               </div>
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Flight Time</span>
@@ -213,7 +222,7 @@
                           </div>
                         </div>
 
-                        <button class="btn btn-primary view_journey_logs" ng-if="!vm.all_loaded" ng-click="vm.load_more()">LOAD MORE</button>  
+                        <button class="btn btn-primary view_journey_logs" ng-if="!vm.all_loaded" ng-click="vm.load_more()">LOAD MORE</button>
                         <p class="centre_me" ng-if="vm.all_loaded">You have loaded all the aircraft's journey log...</p>
 
                     </div>
@@ -223,4 +232,20 @@
                 </div>
 
 
+</div>
+
+<!-- ═══ Undo snackbar — shown just after a missing flight is added ═══ -->
+<div class="mf-undo" ng-if="vm.addFlightUndo" role="status" aria-live="polite">
+    <div class="mf-undo__icon"><i class="fa fa-check"></i></div>
+    <div class="mf-undo__text">
+        Flight added<span ng-if="vm.addFlightUndo.registration"> — {{ vm.addFlightUndo.registration }}</span>
+        <span class="mf-undo__sub">It's waiting in the book-in queue for people &amp; payment</span>
+    </div>
+    <button class="mf-undo__btn" ng-click="vm.undoAddFlight()" ng-disabled="vm.addFlightUndo.busy">
+        <i class="fa" ng-class="vm.addFlightUndo.busy ? 'fa-spinner fa-spin' : 'fa-undo'"></i> Undo
+    </button>
+    <button class="mf-undo__close" ng-click="vm.dismissAddFlightUndo()" aria-label="Dismiss">
+        <i class="fa fa-times"></i>
+    </button>
+    <div class="mf-undo__progress"></div>
 </div>

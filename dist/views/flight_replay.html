@@ -7,7 +7,10 @@
         <i class="fa fa-arrow-circle-left"></i> BACK
       </div>
       <div class="fr-page__title">
-        <h2><i class="fa fa-video"></i> Flight Replay</h2>
+        <h2>
+          <i class="fa fa-video"></i> Flight Replay
+          <span class="fr-sd-badge" ng-if="vm.isSD" uib-tooltip="{{ vm.trackNote || 'SkyDemon track — GPS only' }}">SD</span>
+        </h2>
         <p ng-if="vm.flight">
           {{ vm.flight.registration }} &middot;
           {{ vm.flight.departure_airport_code || vm.flight.departure_airport }}
@@ -53,7 +56,9 @@
         <span class="fr-summary__label">Max GS <i class="fa fa-crosshairs fr-summary__jump"></i></span>
         <span class="fr-summary__value">{{ vm.summary.max_speed_kt | number:0 }}<small>kt</small></span>
       </div>
-      <div class="fr-summary__stat fr-summary__stat--clickable" ng-click="vm.seekToExtreme('g')" uib-tooltip="Jump to this moment" tabindex="0">
+      <!-- G-force comes from device sensors — SkyDemon (GPS-only) has none -->
+      <div class="fr-summary__stat fr-summary__stat--clickable" ng-if="vm.summary.max_g != null"
+           ng-click="vm.seekToExtreme('g')" uib-tooltip="Jump to this moment" tabindex="0">
         <span class="fr-summary__label">Max G <i class="fa fa-crosshairs fr-summary__jump"></i></span>
         <span class="fr-summary__value">{{ vm.summary.max_g | number:2 }}</span>
       </div>
@@ -66,11 +71,18 @@
       </div>
     </div>
 
-    <!-- ═══ Weather at takeoff & landing (METAR/TAF snapshots) ═══ -->
-    <div class="fw-replay-mount">
+    <!-- ═══ Weather at takeoff & landing (METAR/TAF snapshots) ═══
+         Club flights only — for SD replays flight_id is a manual entry id,
+         which the weather endpoint doesn't understand. -->
+    <div class="fw-replay-mount" ng-if="!vm.isSD">
       <flight-weather-panel flight-id="vm.flight_id"
                             dep-name="vm.flight.departure_airport"
                             arr-name="vm.flight.destination_airport"></flight-weather-panel>
+    </div>
+
+    <!-- ═══ SD note — GPS-only track ═══ -->
+    <div class="fr-sd-note snazzy-reveal" ng-if="vm.isSD && vm.trackNote">
+      <i class="fa fa-location-arrow"></i> {{ vm.trackNote }}
     </div>
 
     <!-- ═══ No-track empty state (still allow photos/notes) ═══ -->
@@ -229,8 +241,8 @@
       </div>
     </div>
 
-    <!-- ═══ Photos + debrief ═══ -->
-    <div class="fr-debrief">
+    <!-- ═══ Photos + debrief (club flights only — not available for SD tracks) ═══ -->
+    <div class="fr-debrief" ng-if="!vm.isSD">
 
       <!-- Photos -->
       <div class="fr-panel fr-panel--photos">

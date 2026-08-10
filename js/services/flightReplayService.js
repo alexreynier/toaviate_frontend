@@ -20,6 +20,13 @@ app.factory('FlightReplayService', FlightReplayService);
             return $http.get(base + '/' + flight_id).then(handleSuccess, handleError2);
         };
 
+        // SkyDemon track behind a personal-logbook manual entry — the response
+        // mirrors the replay shape (GPS only: g/temp/baro come back null).
+        // {entry_id} = the manual entry id (ref_id in the combined logbook).
+        service.GetSkydemonReplay = function(entry_id) {
+            return $http.get('/api/v1/personal_logbook/skydemon/track/' + entry_id).then(handleSuccess, handleError2);
+        };
+
         // Lightweight header + has_track (no CSV parse) — for list hovers.
         service.GetMeta = function(flight_id) {
             return $http.get(base + '/' + flight_id + '/meta').then(handleSuccess, handleError2);

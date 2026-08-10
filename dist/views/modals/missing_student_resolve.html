@@ -1,0 +1,151 @@
+<div class="msq-modal">
+
+  <div class="modal-header msq-modal__header">
+    <h3 class="modal-title"><i class="fa fa-user-plus"></i> Who was the student on this flight?</h3>
+    <button type="button" class="msq-modal__close" ng-click="vm.cancel()"><i class="fa fa-times"></i></button>
+  </div>
+
+  <div class="modal-body">
+
+    <!-- The flight being resolved -->
+    <div class="msq-modal__flight">
+      <span class="msq-modal__flight-date">{{ vm.log.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+      <span class="msq-modal__flight-time">{{ vm.log.brakes_off_rounded | brakesTime }} – {{ vm.log.brakes_on_rounded | brakesTime }}</span>
+      <span class="msq-modal__flight-reg">{{ vm.log.registration }}</span>
+      <span class="msq-chip msq-chip--missing" ng-if="vm.sheetName">sheet says: <strong>{{ vm.sheetName }}</strong></span>
+      <span class="msq-chip msq-chip--missing" ng-if="!vm.sheetName">no name on the sheet</span>
+    </div>
+
+    <div class="msq-panel__searching" ng-if="vm.loading">
+      <i class="fa fa-spinner fa-spin"></i> Checking for other flights with this name…
+    </div>
+
+    <!-- ══ Step 1: pick an existing member (or switch to create) ══ -->
+    <div ng-if="vm.mode === 'pick'">
+
+      <div class="msq-candidates" ng-if="vm.group.candidates.length > 0">
+        <div class="msq-candidates__label">Is this one of these members?</div>
+        <button type="button" class="msq-candidate" ng-repeat="c in vm.group.candidates"
+                ng-click="vm.pick(c)" ng-disabled="vm.busy">
+          <span class="msq-candidate__name">{{ c.first_name }} {{ c.last_name }}</span>
+          <span class="msq-candidate__email" ng-if="c.email">{{ c.email }}</span>
+          <span class="msq-chip msq-chip--temp" ng-if="c.imported_user == 1">temporary member</span>
+          <span class="msq-chip msq-chip--score" ng-if="c.score == 2">same name</span>
+          <span class="msq-chip msq-chip--score" ng-if="c.score == 1">close match</span>
+          <span class="msq-chip msq-chip--score" ng-if="c.score == 0">surname match</span>
+        </button>
+      </div>
+
+      <div class="msq-candidates__label">Search all members</div>
+      <div class="msq-panel__search">
+        <i class="fa fa-search"></i>
+        <input type="text" placeholder="Search members by name or email…"
+               ng-model="vm.search.q" ng-change="vm.doSearch()">
+      </div>
+      <div class="msq-panel__searching" ng-if="vm.search.searching">
+        <i class="fa fa-spinner fa-spin"></i> Searching…
+      </div>
+      <div class="msq-panel__results" ng-if="vm.search.results.length > 0">
+        <button type="button" class="msq-candidate" ng-repeat="p in vm.search.results"
+                ng-click="vm.pick(p)" ng-disabled="vm.busy">
+          <span class="msq-candidate__name">{{ p.first_name }} {{ p.last_name }}</span>
+          <span class="msq-candidate__email" ng-if="p.email">{{ p.email }}</span>
+          <span class="msq-chip msq-chip--temp" ng-if="p.imported_user == 1">temporary member</span>
+          <span class="msq-chip msq-chip--score" ng-if="p.instructor == 1">instructor</span>
+          <span class="msq-chip msq-chip--score" ng-if="p.current_member == 1">current member</span>
+        </button>
+      </div>
+      <div class="msq-panel__none" ng-if="vm.search.searched && !vm.search.searching && vm.search.results.length == 0">
+        No members match "{{ vm.search.q }}".
+      </div>
+
+      <div class="msq-modal__divider"><span>nobody yet?</span></div>
+      <button type="button" class="snazzy-page__btn snazzy-page__btn--outline"
+              ng-click="vm.openCreate()" ng-disabled="vm.busy">
+        <i class="fa fa-user-plus"></i> Create a temporary member…
+      </button>
+
+    </div>
+
+    <!-- ══ Step 2 (assign): confirm scope — this flight, or all unknowns with this name ══ -->
+    <div ng-if="vm.mode === 'confirm'">
+
+      <div class="msq-confirm__who">
+        Assign <strong>{{ vm.selected.first_name }} {{ vm.selected.last_name }}</strong>
+        <span class="msq-candidate__email" ng-if="vm.selected.email">{{ vm.selected.email }}</span>
+        <span class="msq-chip msq-chip--temp" ng-if="vm.selected.imported_user == 1">temporary member</span>
+      </div>
+
+      <div class="msq-confirm__options">
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--primary"
+                ng-click="vm.confirmAssign(false)" ng-disabled="vm.busy">
+          <i class="fa" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+          This flight only
+        </button>
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline"
+                ng-if="vm.othersCount > 0"
+                ng-click="vm.confirmAssign(true)" ng-disabled="vm.busy">
+          <i class="fa" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check-double'"></i>
+          <span>This + the {{ vm.othersCount }} other {{ vm.othersCount === 1 ? 'flight' : 'flights' }} that say "{{ vm.sheetName || vm.group.first_name + ' ' + vm.group.last_name }}"</span>
+        </button>
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline"
+                ng-click="vm.backToPick()" ng-disabled="vm.busy">
+          <i class="fa fa-arrow-left"></i> Back
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ══ Step 2 (create): temporary member — this flight by default; the
+         whole name-group is the secondary option ══ -->
+    <div ng-if="vm.mode === 'create'">
+
+      <p class="msq-panel__intro">
+        Creates a <strong>temporary member</strong> and attaches this flight to them.
+        They'll appear on the <em>Imported Users</em> screen, where you can later convert
+        them to a real account — their flights and records follow automatically.
+        <span ng-if="vm.othersCount > 0">
+          The other {{ vm.othersCount }} {{ vm.othersCount === 1 ? 'flight' : 'flights' }} that say
+          "{{ vm.sheetName || vm.group.first_name + ' ' + vm.group.last_name }}" stay in the queue —
+          this person will be offered as a match for them, or attach them all in one go below.
+        </span>
+      </p>
+
+      <div class="msq-panel__form">
+        <div class="msq-field">
+          <label for="field-msqm-first">First name</label>
+          <input id="field-msqm-first" type="text" ng-model="vm.create_form.first_name" placeholder="First name">
+        </div>
+        <div class="msq-field">
+          <label for="field-msqm-last">Last name</label>
+          <input id="field-msqm-last" type="text" ng-model="vm.create_form.last_name" placeholder="Last name">
+        </div>
+        <div class="msq-field msq-field--wide">
+          <label for="field-msqm-email">Real email (optional)</label>
+          <input id="field-msqm-email" type="email" ng-model="vm.create_form.email"
+                 placeholder="if you know it — used later to invite them to their account">
+        </div>
+      </div>
+      <div class="msq-confirm__options msq-confirm__options--spaced">
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--success"
+                ng-click="vm.submitCreate(false)" ng-disabled="vm.busy">
+          <i class="fa" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+          Create &amp; attach this flight only
+        </button>
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline"
+                ng-if="vm.othersCount > 0"
+                ng-click="vm.submitCreate(true)" ng-disabled="vm.busy">
+          <i class="fa" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check-double'"></i>
+          <span>Create &amp; attach all {{ vm.group.flight_count }} flights that say "{{ vm.sheetName || vm.group.first_name + ' ' + vm.group.last_name }}"</span>
+        </button>
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline"
+                ng-click="vm.backToPick()" ng-disabled="vm.busy">
+          <i class="fa fa-arrow-left"></i> Back
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

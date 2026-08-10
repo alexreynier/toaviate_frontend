@@ -43,7 +43,27 @@
         vm.certificates = [{id: 1, title: "Certificate of Airworthiness", value: "cofa"}, {id: 2, title: "National Certificate of Airworthiness", value: "cofa"}, {id: 2, title: "LAA Permit to Fly", value: "ptf"}];
         vm.classes = ["SEP (land)", "SEP (sea)", "SET (land)", "SET (sea)", "MEP (land)", "MEP (sea)", "ME"];
 
-        vm.charge_type = ["airborne", "brakes", "tacho", "hobbs", "flight", "brakes_rounded"];
+        // §4 FRONTEND_CHARGE_TYPES_AND_TIMES_GUIDE.md — labels spell out each charging basis.
+        // Legacy values (airborne / brakes / flight) keep working on existing rows but are no
+        // longer offered; ensure_charge_type_option() surfaces the stored value when editing.
+        vm.charge_type = [
+            { value: "tacho", label: "Tacho (meter difference)" },
+            { value: "hobbs", label: "Hobbs (meter difference)" },
+            { value: "brakes_exact", label: "Brakes off - brakes on (actual, to the minute)" },
+            { value: "brakes_rounded", label: "Brakes off - brakes on (rounded to nearest 5 min) - EASA flight/block time" },
+            { value: "airborne_actual", label: "Airborne time (tracker-recorded actual)" },
+            { value: "flight_exact", label: "First takeoff - last landing (actual, to the minute)" },
+            { value: "flight_rounded", label: "First takeoff - last landing (rounded to nearest 5 min)" },
+            { value: "airborne_plus_allowance", label: "First takeoff - last landing (rounded) + 10 min taxi allowance (TPC)" }
+        ];
+
+        function ensure_charge_type_option(current){
+            if(!current){ return; }
+            for(var i = 0; i < vm.charge_type.length; i++){
+                if(vm.charge_type[i].value == current){ return; }
+            }
+            vm.charge_type.push({ value: current, label: current + " (legacy)" });
+        }
         vm.surcharge_type = ["none", "flight", "hour", "taxi"];
 
         vm.action = $state.current.data.action;
@@ -125,7 +145,8 @@
                 //console.log("edit an existing plane");
                 PlaneService.GetById($stateParams.plane_id, vm.club_id)
                     .then(function(data){
-                        vm.club.plane = data;   
+                        vm.club.plane = data;
+                        ensure_charge_type_option(vm.club.plane.charge_type);
                         // vm.club.plane.requirements = {
                         //         licence: [],
                         //         medical: [],

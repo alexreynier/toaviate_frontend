@@ -150,7 +150,7 @@
         }
         
         vm.clean_times = function(time){
-                return time.substring(0,5);
+                return roundTimeToMinute(time);
         }
 
         vm.difference_times = function(to, from){

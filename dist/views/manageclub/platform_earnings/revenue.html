@@ -1,0 +1,139 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-chart-bar"></i> Platform Revenue</h2>
+        <p>App fees on member payments plus tracker invoices — always per currency.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/platform_earnings/_nav.html'"></div>
+
+    <div class="snazzy-reveal">
+
+      <!-- ── Date range ── -->
+      <div class="gclm-range">
+        <div class="trk-field">
+          <label>From</label>
+          <input type="date" class="trk-input" ng-model="vm.from" id="field-gclm-from">
+        </div>
+        <div class="trk-field">
+          <label>To</label>
+          <input type="date" class="trk-input" ng-model="vm.to" id="field-gclm-to">
+        </div>
+        <button class="trk-btn trk-btn--primary" ng-click="vm.applyRange()" ng-disabled="vm.loading">
+          <i class="fa fa-sync-alt"></i> Update
+        </button>
+      </div>
+
+      <div class="trk-loading" ng-if="vm.loading">
+        <div class="trk-spinner"></div> Adding up the pennies…
+      </div>
+
+      <div ng-if="!vm.loading && vm.revenue">
+
+        <div class="trk-banner trk-banner--info" ng-if="vm.revenue.platform_fees.note">
+          <i class="fa fa-info-circle"></i>
+          <div class="trk-banner__body">
+            <strong>Older months under-report</strong>
+            {{ vm.revenue.platform_fees.note }}
+          </div>
+        </div>
+
+        <div class="trk-empty" ng-if="!vm.summaries.length">
+          <i class="fa fa-chart-bar"></i>
+          <p>No revenue recorded in this period.</p>
+        </div>
+
+        <!-- ── Headline tiles, one row per currency ── -->
+        <div class="gclm-rev-row" ng-repeat="s in vm.summaries">
+          <div class="gclm-rev-tile gclm-rev-tile--fees">
+            <div class="gclm-rev-tile__label">Platform fees collected · {{ s.currency }}</div>
+            <div class="gclm-rev-tile__value">{{ vm.cur(s.currency) }}{{ s.fees.collected | number:2 }}</div>
+            <div class="gclm-rev-tile__sub">{{ s.fees.payments }} payment{{ s.fees.payments == 1 ? '' : 's' }}</div>
+            <div class="gclm-rev-tile__lines">
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--pending" ng-if="s.fees.pending">pending {{ vm.cur(s.currency) }}{{ s.fees.pending | number:2 }}</span>
+              <span class="gclm-rev-tile__line gclm-rev-tile__line--lost" ng-if="s.fees.lost">lost {{ vm.cur(s.currency) }}{{ s.fees.lost | number:2 }}</span>
+            </div>
+          </div>
+          <div class="gclm-rev-tile gclm-rev-tile--tracker">
+            <div class="gclm-rev-tile__label">Tracker revenue · {{ s.currency }}</div>
+            <div class="gclm-rev-tile__value">{{ vm.cur(s.currency) }}{{ s.tracker.revenue | number:2 }}</div>
+            <div class="gclm-rev-tile__sub">{{ s.tracker.invoices }} paid invoice{{ s.tracker.invoices == 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+
+        <!-- ── Monthly chart (per currency; switcher when more than one) ── -->
+        <div class="trk-card" ng-if="vm.chart.length">
+          <h4 class="trk-card__title"><i class="fa fa-chart-bar"></i> Month by month</h4>
+          <div class="trk-chips" ng-if="vm.currencies.length > 1">
+            <div class="trk-chip"
+                 ng-repeat="c in vm.currencies"
+                 ng-class="{'trk-chip--active': vm.chartCurrency === c}"
+                 ng-click="vm.setChartCurrency(c)">{{ c }}</div>
+          </div>
+          <div class="gclm-chart">
+            <div class="gclm-chart__col"
+                 ng-repeat="c in vm.chart"
+                 uib-tooltip="{{ c.label }} — fees {{ vm.cur(vm.chartCurrency) }}{{ c.fees | number:2 }} · tracker {{ vm.cur(vm.chartCurrency) }}{{ c.tracker | number:2 }}">
+              <div class="gclm-chart__stack">
+                <div class="gclm-chart__seg gclm-chart__seg--tracker"
+                     ng-style="{ height: c.trackerPct + '%', 'animation-delay': c.delay + 'ms' }"></div>
+                <div class="gclm-chart__seg gclm-chart__seg--fees"
+                     ng-style="{ height: c.feesPct + '%', 'animation-delay': c.delay + 'ms' }"></div>
+              </div>
+              <div class="gclm-chart__label">{{ c.label }}</div>
+            </div>
+          </div>
+          <div class="gclm-legend">
+            <span class="gclm-legend__item"><span class="gclm-legend__swatch gclm-legend__swatch--fees"></span> Platform fees (collected)</span>
+            <span class="gclm-legend__item"><span class="gclm-legend__swatch gclm-legend__swatch--tracker"></span> Tracker revenue</span>
+          </div>
+        </div>
+
+        <!-- ── Breakdown tables ── -->
+        <div class="gclm-split">
+          <div class="trk-card" ng-if="vm.byClub().length">
+            <h4 class="trk-card__title"><i class="fa fa-users"></i> Top clubs by collected fees</h4>
+            <div class="trk-table-scroll">
+              <table class="trk-table trk-table--stack">
+                <thead><tr><th>Club</th><th>Payments</th><th>Fees</th></tr></thead>
+                <tbody>
+                  <tr ng-repeat="r in vm.byClub()">
+                    <td data-label="Club">{{ r.club_title }}</td>
+                    <td data-label="Payments" class="trk-table__muted">{{ r.payments }}</td>
+                    <td data-label="Fees" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.fees) | number:2 }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="trk-card" ng-if="vm.byMethod().length">
+            <h4 class="trk-card__title"><i class="fa fa-credit-card"></i> Fees by payment method</h4>
+            <div class="trk-table-scroll">
+              <table class="trk-table trk-table--stack">
+                <thead><tr><th>Method</th><th>Payments</th><th>Fees</th></tr></thead>
+                <tbody>
+                  <tr ng-repeat="r in vm.byMethod()">
+                    <td data-label="Method">{{ r.payment_method }}</td>
+                    <td data-label="Payments" class="trk-table__muted">{{ r.payments }}</td>
+                    <td data-label="Fees" class="trk-table__money">{{ vm.cur(r.currency) }}{{ vm.num(r.fees) | number:2 }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>

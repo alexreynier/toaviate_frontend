@@ -454,7 +454,7 @@
 
             
             vm.clean_times = function(time){
-                return time.substring(0,5);
+                return roundTimeToMinute(time);
             }
 
             vm.add_defect = function(plane_id, club_id){

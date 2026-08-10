@@ -1,0 +1,229 @@
+<div class="trk-page">
+
+  <div class="trk-page__header">
+    <div class="trk-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="trk-page__title">
+        <h2><i class="fa fa-exclamation-triangle"></i> Tracker Payment Errors</h2>
+        <p>Every collection problem across all clubs — no Stripe or GoCardless dashboard needed.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="trk-page__body">
+
+    <div ng-include="'views/manageclub/trackers/admin/_nav.html'"></div>
+
+    <div class="trk-loading" ng-if="vm.pe_loading">
+      <div class="trk-spinner"></div> Checking for payment problems…
+    </div>
+
+    <div class="snazzy-reveal" ng-if="!vm.pe_loading && vm.pe">
+
+      <!-- All clear -->
+      <div class="trk-empty trk-empty--positive" ng-if="vm.peAllClear()">
+        <i class="fa fa-check-circle"></i>
+        <p>All clear — no failed, stuck or waiting collections, and no webhook event errors.</p>
+      </div>
+
+      <!-- Headline tiles -->
+      <div class="trk-stat-grid" ng-if="vm.pe.status_counts.length">
+        <div class="trk-stat" ng-class="vm.peStatColour(sc.status)" ng-repeat="sc in vm.pe.status_counts">
+          <div class="trk-stat__icon"><i class="fa fa-file-invoice-dollar"></i></div>
+          <div class="trk-stat__body">
+            <div class="trk-stat__value">{{ vm.cur(sc.currency) }}{{ sc.amount | number:2 }}</div>
+            <div class="trk-stat__label">{{ sc.invoices }} × {{ vm.pretty(sc.status) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem invoices -->
+      <div class="trk-card" ng-if="vm.pe.invoices.length">
+        <h4 class="trk-card__title"><i class="fa fa-file-invoice"></i> Problem invoices</h4>
+        <p class="trk-card__hint">
+          Rows marked <span class="trk-badge trk-badge--red">gave up</span> have exhausted auto-collection
+          ({{ vm.pe.max_auto_attempts }} attempts, or a dispute/chargeback) and need human follow-up.
+        </p>
+
+        <div class="trk-toolbar">
+          <div class="trk-search">
+            <i class="fa fa-search"></i>
+            <input type="text" placeholder="Filter by club or invoice number…" ng-model="vm.search">
+          </div>
+        </div>
+
+        <div class="trk-table-scroll">
+          <table class="trk-table trk-table--stack">
+            <thead>
+              <tr>
+                <th>Club</th>
+                <th>Invoice</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Rail</th>
+                <th>Attempts</th>
+                <th>Last error</th>
+                <th>Last attempt</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody ng-repeat="inv in vm.pe.invoices | filter:vm.search">
+              <tr class="trk-table__row-click" ng-click="vm.toggleInvoice(inv)">
+                <td data-label="Club">{{ inv.club_title }}</td>
+                <td data-label="Invoice"><span class="trk-table__ref">{{ inv.invoice_number }}</span></td>
+                <td data-label="Status">
+                  <span class="trk-badge" ng-class="[vm.invoiceBadge(inv.status), {'trk-badge--pulse': inv.status === 'collecting'}]">
+                    {{ vm.pretty(inv.status) }}
+                  </span>
+                </td>
+                <td data-label="Total" class="trk-table__money">{{ vm.cur(inv.currency) }}{{ inv.total | number:2 }}</td>
+                <td data-label="Rail" style="text-transform: capitalize;">{{ vm.pretty(inv.payment_method_used) || '—' }}</td>
+                <td data-label="Attempts">
+                  <span class="trk-attempts" ng-class="{'trk-attempts--exhausted': inv.attempts_exhausted == 1}">
+                    {{ inv.collection_attempts || 0 }} / {{ vm.pe.max_auto_attempts }}
+                    <span class="trk-badge trk-badge--red" ng-if="inv.attempts_exhausted == 1">gave up</span>
+                  </span>
+                </td>
+                <td data-label="Last error">
+                  <span class="trk-error-clip" ng-if="inv.last_error" uib-tooltip="{{ inv.last_error }}" tooltip-append-to-body="true">{{ inv.last_error }}</span>
+                  <span class="trk-table__muted" ng-if="!inv.last_error">—</span>
+                </td>
+                <td data-label="Last attempt" class="trk-table__muted">
+                  {{ inv.last_attempt_at ? (inv.last_attempt_at | asDate | date:'dd MMM HH:mm') : '—' }}
+                </td>
+                <td class="trk-table__actions">
+                  <a class="trk-table__action-btn" href="" uib-tooltip="Details" ng-click="$event.stopPropagation(); vm.toggleInvoice(inv)">
+                    <i class="fa" ng-class="inv.show_more ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </a>
+                </td>
+              </tr>
+              <tr class="trk-table__expand-row" ng-if="inv.show_more">
+                <td colspan="9">
+                  <div class="trk-loading" ng-if="inv.detail_loading" style="padding: 16px;">
+                    <div class="trk-spinner"></div> Loading…
+                  </div>
+                  <div ng-if="!inv.detail_loading">
+                    <div class="trk-banner trk-banner--warn" ng-if="inv.status === 'requires_action'" style="margin-bottom: 12px;">
+                      <i class="fa fa-shield-alt"></i>
+                      <div class="trk-banner__body">
+                        <strong>Waiting on the cardholder</strong>
+                        The bank wants the club's cardholder to 3DS-authenticate — nothing has been charged.
+                        Only the club can complete this (they've been emailed); or take payment another way below.
+                      </div>
+                    </div>
+                    <dl class="trk-kv"><dt>Type</dt><dd style="text-transform: capitalize;">{{ inv.type }}</dd></dl>
+                    <dl class="trk-kv" ng-if="inv.due_date"><dt>Due</dt><dd>{{ inv.due_date | asDate | date:'dd MMM yyyy' }}</dd></dl>
+                    <dl class="trk-kv" ng-if="inv.transaction_id"><dt>Transaction</dt><dd><span class="trk-events-ids">{{ inv.transaction_id }}</span></dd></dl>
+                    <table class="trk-table" ng-if="inv.detail.items.length" style="margin: 8px 0 12px;">
+                      <thead><tr><th>Item</th><th>Amount</th></tr></thead>
+                      <tbody>
+                        <tr ng-repeat="it in inv.detail.items">
+                          <td>{{ it.description || it.name }}</td>
+                          <td class="trk-table__money">{{ vm.cur(inv.currency) }}{{ it.total || it.amount | number:2 }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div class="trk-confirm__actions">
+                      <button class="trk-btn trk-btn--primary trk-btn--sm" ng-if="inv.status === 'failed'"
+                              ng-disabled="inv.paying" ng-click="vm.retryPayment(inv)">
+                        <span ng-if="inv.paying" class="trk-spinner trk-spinner--inline"></span>
+                        <i class="fa fa-redo" ng-if="!inv.paying"></i> Retry collection
+                      </button>
+                      <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.openInvoiceStatus(inv)">
+                        <i class="fa fa-pen"></i> Mark paid / cancel / refund
+                      </button>
+                      <button class="trk-btn trk-btn--ghost trk-btn--sm" ng-click="vm.loadClubProfile(inv)">
+                        <i class="fa fa-cog"></i> Club billing profile
+                      </button>
+                    </div>
+                    <div ng-if="inv.show_profile" style="margin-top: 12px;">
+                      <div class="trk-loading" ng-if="inv.profile_loading" style="padding: 10px;">
+                        <div class="trk-spinner"></div>
+                      </div>
+                      <div ng-if="inv.profile">
+                        <dl class="trk-kv"><dt>Billing email</dt><dd>{{ inv.profile.billing_email || '—' }}</dd></dl>
+                        <dl class="trk-kv"><dt>Default method</dt><dd style="text-transform: capitalize;">{{ vm.pretty(inv.profile.payment_method) || 'none' }}</dd></dl>
+                        <dl class="trk-kv"><dt>Auto-billing</dt><dd>
+                          <span class="trk-badge" ng-class="inv.profile.auto_billing_enabled ? 'trk-badge--green' : 'trk-badge--amber'">
+                            {{ inv.profile.auto_billing_enabled ? 'enabled' : 'paused' }}
+                          </span>
+                          <button class="trk-btn trk-btn--ghost trk-btn--sm" style="margin-left: 10px;" ng-click="vm.toggleAutoBilling(inv)">
+                            {{ inv.profile.auto_billing_enabled ? 'Pause auto-billing' : 'Enable auto-billing' }}
+                          </button>
+                        </dd></dl>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Webhook event errors (both rails) — normally empty; anything here
+           means events are failing to process (admins were already emailed) -->
+      <div class="trk-card" ng-if="vm.pe.gcl_event_errors.length || vm.pe.stripe_event_errors.length">
+        <h4 class="trk-card__title"><i class="fa fa-satellite-dish"></i> Webhook event errors</h4>
+        <p class="trk-card__hint">Events we received but failed to process. These block payment state updates and need attention.</p>
+
+        <div ng-if="vm.pe.stripe_event_errors.length">
+          <h5 class="trk-events-subtitle">Stripe</h5>
+          <div class="trk-table-scroll">
+            <table class="trk-table trk-table--stack">
+              <thead>
+                <tr><th>Received</th><th>Event</th><th>Reference</th><th>Invoice</th><th>Club</th><th>Attempts</th><th>Last error</th></tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="ev in vm.pe.stripe_event_errors">
+                  <td data-label="Received" class="trk-table__muted">{{ ev.created_at | asDate | date:'dd MMM HH:mm' }}</td>
+                  <td data-label="Event">{{ ev.event_type }}</td>
+                  <td data-label="Reference"><span class="trk-events-ids">{{ ev.payment_intent_id || ev.event_id }}</span></td>
+                  <td data-label="Invoice">{{ ev.invoice_number || '—' }}</td>
+                  <td data-label="Club">{{ ev.club_title || '—' }}</td>
+                  <td data-label="Attempts">{{ ev.attempts || 1 }}</td>
+                  <td data-label="Last error">
+                    <span class="trk-error-clip" uib-tooltip="{{ ev.last_error }}" tooltip-append-to-body="true">{{ ev.last_error || '—' }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div ng-if="vm.pe.gcl_event_errors.length" style="margin-top: 14px;">
+          <h5 class="trk-events-subtitle">GoCardless</h5>
+          <div class="trk-table-scroll">
+            <table class="trk-table trk-table--stack">
+              <thead>
+                <tr><th>Received</th><th>Event</th><th>Reference</th><th>Invoice</th><th>Club</th><th>Attempts</th><th>Last error</th></tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="ev in vm.pe.gcl_event_errors">
+                  <td data-label="Received" class="trk-table__muted">{{ ev.created_at | asDate | date:'dd MMM HH:mm' }}</td>
+                  <td data-label="Event" style="text-transform: capitalize;">{{ ev.resource_type }} · {{ vm.pretty(ev.action) }}</td>
+                  <td data-label="Reference"><span class="trk-events-ids">{{ ev.payment_id || ev.mandate_id || ev.event_id }}</span></td>
+                  <td data-label="Invoice">{{ ev.invoice_number || '—' }}</td>
+                  <td data-label="Club">{{ ev.club_title || '—' }}</td>
+                  <td data-label="Attempts">{{ ev.attempts || 1 }}</td>
+                  <td data-label="Last error">
+                    <span class="trk-error-clip" uib-tooltip="{{ ev.last_error }}" tooltip-append-to-body="true">{{ ev.last_error || '—' }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="trk-load-more" ng-if="!vm.peAllClear()">
+        <button class="trk-btn trk-btn--ghost" ng-click="vm.reloadPaymentErrors()">
+          <i class="fa fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -14,7 +14,7 @@
         <span ng-if="step === 3">Edit Applied</span>
       </h3>
       <span class="fe-modal__subtitle" ng-if="step === 1 && !hasBooking">
-        <i class="fa fa-info-circle"></i> PLS-only — times editing only
+        <i class="fa fa-info-circle"></i> PLS-only — times, tacho &amp; airfields
       </span>
     </div>
     <button type="button" class="fe-modal__close" ng-click="close()" aria-label="Close">
@@ -283,8 +283,8 @@
       </div>
     </div>
 
-    <!-- ── ROUTE & AIRFIELDS (booking flights only) ── -->
-    <div class="fe-section" ng-if="hasBooking">
+    <!-- ── ROUTE & AIRFIELDS (airfield pickers on all flights; landings/route booking-only) ── -->
+    <div class="fe-section">
       <div class="fe-section__header" ng-click="toggleSection('route')">
         <i class="fa fa-map-marker fe-section__icon"></i>
         <span class="fe-section__title">Route &amp; Airfields</span>
@@ -293,49 +293,59 @@
       <div class="fe-section__body" ng-show="sections.route">
         <div class="fe-field-row">
           <div class="fe-field fe-field--half">
-            <label class="fe-field__label">From</label>
-            <ui-select ng-model="fromAirfield"
-                       on-select="onFromAirfieldSelect()"
-                       theme="bootstrap"
-                       append-to-body="true"
-                       reset-search-input="true">
-              <ui-select-match placeholder="Search airfield…">
-                <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
-              </ui-select-match>
-              <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
-                                refresh="searchAirfields($select.search)"
-                                refresh-delay="300"
-                                minimum-input-length="2">
-                <div>
-                  <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
-                  <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
-                </div>
-              </ui-select-choices>
-            </ui-select>
+            <label class="fe-field__label">Departure Airfield</label>
+            <div class="fe-field__with-clear">
+              <ui-select ng-model="fromAirfield"
+                         on-select="onFromAirfieldSelect($item)"
+                         theme="bootstrap"
+                         append-to-body="true"
+                         reset-search-input="true">
+                <ui-select-match placeholder="Unknown — search to set">
+                  <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
+                </ui-select-match>
+                <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
+                                  refresh="searchAirfields($select.search)"
+                                  refresh-delay="300"
+                                  minimum-input-length="2">
+                  <div>
+                    <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
+                    <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
+                  </div>
+                </ui-select-choices>
+              </ui-select>
+              <button type="button" class="fe-field__clear-btn" ng-if="fromAirfield" ng-click="onFromAirfieldRemove()" title="Clear — set to Unknown">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
           </div>
           <div class="fe-field fe-field--half">
-            <label class="fe-field__label">To</label>
-            <ui-select ng-model="toAirfield"
-                       on-select="onToAirfieldSelect()"
-                       theme="bootstrap"
-                       append-to-body="true"
-                       reset-search-input="true">
-              <ui-select-match placeholder="Search airfield…">
-                <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
-              </ui-select-match>
-              <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
-                                refresh="searchAirfields($select.search)"
-                                refresh-delay="300"
-                                minimum-input-length="2">
-                <div>
-                  <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
-                  <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
-                </div>
-              </ui-select-choices>
-            </ui-select>
+            <label class="fe-field__label">Arrival Airfield</label>
+            <div class="fe-field__with-clear">
+              <ui-select ng-model="toAirfield"
+                         on-select="onToAirfieldSelect($item)"
+                         theme="bootstrap"
+                         append-to-body="true"
+                         reset-search-input="true">
+                <ui-select-match placeholder="Unknown — search to set">
+                  <span ng-if="$select.selected.code && $select.selected.code !== 'ZZZZ'">{{ $select.selected.code }} — </span>{{ $select.selected.title || $select.selected.name }}
+                </ui-select-match>
+                <ui-select-choices repeat="a in airfields | propsFilterA: { title: $select.search, code: $select.search, name: $select.search }"
+                                  refresh="searchAirfields($select.search)"
+                                  refresh-delay="300"
+                                  minimum-input-length="2">
+                  <div>
+                    <strong ng-if="a.code" ng-bind-html="a.code | highlight: $select.search"></strong>
+                    <span ng-bind-html="(a.title || a.name) | highlight: $select.search"></span>
+                  </div>
+                </ui-select-choices>
+              </ui-select>
+              <button type="button" class="fe-field__clear-btn" ng-if="toAirfield" ng-click="onToAirfieldRemove()" title="Clear — set to Unknown">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="fe-field-row">
+        <div class="fe-field-row" ng-if="hasBooking">
           <div class="fe-field fe-field--third">
             <label class="fe-field__label">Landings</label>
             <input type="number" class="fe-field__input" ng-model="form.landings" min="0" />
@@ -349,7 +359,7 @@
             <input type="number" class="fe-field__input" ng-model="form.night_landings" min="0" />
           </div>
         </div>
-        <div class="fe-field-row">
+        <div class="fe-field-row" ng-if="hasBooking">
           <div class="fe-field fe-field--full">
             <label class="fe-field__label">Route</label>
             <input type="text" class="fe-field__input" ng-model="form.route" placeholder="e.g. EGBJ — EGHH — EGBJ" />
