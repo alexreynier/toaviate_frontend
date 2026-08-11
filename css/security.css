@@ -1,0 +1,938 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SECURITY — two-factor authentication + passkeys
+   · .security-page   My Account → Security (member)
+   · .sa-security     Super-admin → Account Security
+   · .sec-*           shared cards / buttons / modals (show-once secrets)
+   · .login-*         additions to the login screen (2FA step, passkey btn)
+   Snazzy design tokens; mobile at 768/480; night-mode at the bottom.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Page wrappers ── */
+
+.security-page,
+.sa-security {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+    text-align: left;              /* hub wrappers centre text — undo it */
+}
+
+.security-page__grid,
+.sa-security__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+/* ── Enrolment-lock banner ── */
+
+.sec-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.sec-banner__icon {
+    font-size: 18px;
+    margin-top: 2px;
+}
+
+/* ── Cards ── */
+
+.sec-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.sec-card__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.sec-card__icon {
+    font-size: 22px;
+    color: #2d5a8e;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.sec-card__head > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.sec-card__title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.sec-card__sub {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: #64748b;
+}
+
+.sec-card__body {
+    padding: 18px 20px 20px;
+}
+
+.sec-card__text {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    color: #334155;
+    line-height: 1.55;
+}
+
+.sec-card__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+/* ── Status pill ── */
+
+.sec-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.sec-pill__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.sec-pill--on {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.sec-pill--off {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* ── Info rows ── */
+
+.sec-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 13.5px;
+}
+
+.sec-row:last-of-type {
+    border-bottom: 0;
+}
+
+.sec-row__label {
+    color: #64748b;
+}
+
+.sec-row__value {
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.sec-row__warn {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+/* ── Buttons ── */
+
+.sec-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.sec-btn:active {
+    transform: scale(0.98);
+}
+
+.sec-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.sec-btn--primary {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+}
+
+.sec-btn--primary:hover:not([disabled]) {
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.3);
+}
+
+.sec-btn--outline {
+    background: #fff;
+    color: #334155;
+    border-color: #e2e8f0;
+}
+
+.sec-btn--outline:hover:not([disabled]) {
+    background: #f1f5f9;
+}
+
+.sec-btn--danger {
+    background: #dc2626;
+    color: #fff;
+}
+
+.sec-btn--danger:hover:not([disabled]) {
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.sec-btn--danger-outline {
+    background: #fff;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.sec-btn--danger-outline:hover:not([disabled]) {
+    background: #fef2f2;
+}
+
+.sec-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.sec-icon-btn:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.sec-icon-btn--danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+/* ── Passkey list ── */
+
+.sec-passkey {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.sec-passkey__icon {
+    font-size: 20px;
+    color: #2d5a8e;
+    width: 26px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.sec-passkey__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sec-passkey__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sec-passkey__meta {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.sec-passkey__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* ── Empty / loading states ── */
+
+.sec-empty {
+    text-align: center;
+    padding: 20px 10px;
+    color: #94a3b8;
+    font-size: 13.5px;
+}
+
+.sec-empty__icon {
+    display: block;
+    font-size: 30px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+}
+
+.sec-loading,
+.sec-waiting {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #64748b;
+    font-size: 13.5px;
+    padding: 14px 0;
+}
+
+.sec-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #2d5a8e;
+    border-radius: 50%;
+    animation: sec-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes sec-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Modals ── */
+
+/* Push the dialog below the fixed top nav (same pattern as
+   .msq-modal-window in missing-students.css). */
+.sec-modal-window .modal-dialog { margin-top: 100px; }
+
+.sec-modal__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 22px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    border-radius: 6px 6px 0 0;   /* uibModal .modal-content clips the rest */
+}
+
+.sec-modal__header--danger {
+    background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
+}
+
+.sec-modal__header-icon {
+    font-size: 20px;
+    color: #fff;
+}
+
+.sec-modal__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    flex: 1;
+}
+
+.sec-modal__steps {
+    display: flex;
+    gap: 6px;
+}
+
+.sec-modal__step {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sec-modal__step--active {
+    background: #fff;
+    color: #1e3a5f;
+}
+
+.sec-modal__body {
+    padding: 20px 22px;
+}
+
+.sec-modal__text {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    color: #334155;
+    line-height: 1.55;
+}
+
+.sec-modal__label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #64748b;
+    margin: 12px 0 5px;
+}
+
+.sec-modal__input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.sec-modal__input:focus {
+    outline: none;
+    border-color: #2d5a8e;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.sec-modal__input--code {
+    font-family: monospace;
+    font-size: 20px;
+    letter-spacing: 6px;
+    text-align: center;
+}
+
+.sec-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* ── QR + manual secret ── */
+
+.sec-qr {
+    text-align: center;
+    margin: 6px 0 14px;
+}
+
+.sec-qr__img {
+    width: 200px;
+    height: 200px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 6px;
+    background: #fff;
+}
+
+.sec-secret {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 6px;
+}
+
+.sec-secret__label {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+
+.sec-secret__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sec-secret__code {
+    flex: 1;
+    font-size: 13px;
+    color: #1e293b;
+    background: transparent;
+    word-break: break-all;
+    padding: 0;
+}
+
+/* ── Show-once warning + recovery codes ── */
+
+.sec-warning {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.sec-warning > i {
+    font-size: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.sec-codes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.sec-codes__code {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13.5px;
+    color: #1e293b;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+.sec-codes__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.sec-checkline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    color: #334155;
+    font-weight: 400;
+    cursor: pointer;
+    margin: 0;
+}
+
+.sec-checkline input {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Login screen additions ── */
+
+.login-passkey {
+    margin-top: 18px;
+}
+
+.login-passkey__divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #94a3b8;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+}
+
+.login-passkey__divider:before,
+.login-passkey__divider:after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
+.login-passkey__btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.login-passkey__btn .fa-fingerprint {
+    font-size: 16px;
+}
+
+.login-2fa__hint {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.login-2fa__input {
+    font-family: monospace;
+    font-size: 20px;
+    letter-spacing: 4px;
+}
+
+.login-2fa__attempts {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* ── Super-admin page specifics ── */
+
+.sa-security--denied {
+    text-align: center;
+    padding: 80px 24px;
+    color: #64748b;
+}
+
+.sa-security--denied i {
+    font-size: 40px;
+    color: #94a3b8;
+    margin-bottom: 12px;
+}
+
+.sa-security__toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.sa-security__toggle-text {
+    font-size: 13.5px;
+    color: #1e293b;
+}
+
+.sa-security__toggle-text span {
+    display: block;
+    color: #64748b;
+    font-size: 12.5px;
+    margin-top: 3px;
+}
+
+.sa-security__lookup {
+    display: flex;
+    gap: 10px;
+}
+
+.sa-security__lookup .sec-modal__input {
+    flex: 1;
+}
+
+.sa-security__user {
+    margin-top: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.sa-security__user-info {
+    font-size: 14px;
+    color: #1e293b;
+    margin-bottom: 12px;
+}
+
+.sa-security__user-info span {
+    display: block;
+    color: #64748b;
+    font-size: 12.5px;
+    margin-top: 2px;
+}
+
+.sa-security__reset-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sa-security__confirm .sec-warning {
+    margin-bottom: 12px;
+}
+
+/* ═══ Mobile ═══ */
+
+@media only screen and (max-width: 768px) {
+
+    .security-page,
+    .sa-security {
+        padding: 0 12px 48px;
+    }
+
+    .security-page__grid,
+    .sa-security__grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .sa-security__toggle-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sa-security__toggle-row .sec-btn {
+        justify-content: center;
+    }
+}
+
+@media only screen and (max-width: 480px) {
+
+    .sec-card__head {
+        padding: 14px 14px;
+    }
+
+    .sec-card__body {
+        padding: 14px 14px 16px;
+    }
+
+    .sec-card__actions,
+    .sec-codes__actions {
+        flex-direction: column;
+    }
+
+    .sec-card__actions .sec-btn,
+    .sec-codes__actions .sec-btn {
+        justify-content: center;
+    }
+
+    .sec-codes {
+        grid-template-columns: 1fr;
+    }
+
+    .sec-modal-window .modal-dialog {
+        margin-top: 78px;
+    }
+
+    .sec-modal__body {
+        padding: 16px 14px;
+    }
+
+    .sec-modal__footer {
+        flex-direction: column-reverse;
+    }
+
+    .sec-modal__footer .sec-btn {
+        justify-content: center;
+    }
+
+    .sec-passkey {
+        flex-wrap: wrap;
+    }
+
+    .sec-passkey__actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .sa-security__lookup {
+        flex-direction: column;
+    }
+
+    .sa-security__reset-actions {
+        flex-direction: column;
+    }
+
+    .sa-security__reset-actions .sec-btn {
+        justify-content: center;
+    }
+}
+
+/* ═══ Session-expired freeze overlay ═══ */
+/* Must cover EVERYTHING — the fixed header uses z-index 9999999999,
+   which browsers clamp to the int32 max, so match that max and rely on
+   the overlay being the last element in <body> (document order breaks
+   the tie between equal stacking contexts). */
+
+.session-freeze {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    animation: session-freeze-in 0.35s ease both;
+}
+
+@keyframes session-freeze-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.session-freeze__card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 34px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+    animation: session-freeze-card-in 0.35s ease both;
+}
+
+@keyframes session-freeze-card-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.session-freeze__icon {
+    font-size: 34px;
+    color: #2d5a8e;
+    margin-bottom: 14px;
+}
+
+.session-freeze__title {
+    margin: 0 0 10px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.session-freeze__text {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.55;
+}
+
+.session-freeze__btn {
+    justify-content: center;
+    min-width: 180px;
+}
+
+/* Idle variant — the whole overlay is the wake target */
+.session-freeze--idle {
+    cursor: pointer;
+}
+
+.session-freeze--idle .session-freeze__card {
+    cursor: default;
+}
+
+@media only screen and (max-width: 480px) {
+    .session-freeze {
+        padding: 16px;
+    }
+
+    .session-freeze__card {
+        padding: 26px 20px;
+    }
+
+    .session-freeze__btn {
+        width: 100%;
+    }
+}
+
+body.night-mode .session-freeze__card {
+    background: #1e293b;
+}
+
+body.night-mode .session-freeze__title {
+    color: #e2e8f0;
+}
+
+body.night-mode .session-freeze__text {
+    color: #94a3b8;
+}
+
+/* ═══ Night mode ═══ */
+
+body.night-mode .sec-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+body.night-mode .sec-card__head {
+    background: #16202e;
+    border-color: #334155;
+}
+
+body.night-mode .sec-card__title,
+body.night-mode .sec-row__value,
+body.night-mode .sec-passkey__label,
+body.night-mode .sa-security__toggle-text,
+body.night-mode .sa-security__user-info {
+    color: #e2e8f0;
+}
+
+body.night-mode .sec-card__text,
+body.night-mode .sec-modal__text {
+    color: #cbd5e1;
+}
+
+body.night-mode .sec-passkey,
+body.night-mode .sa-security__toggle-row,
+body.night-mode .sa-security__user,
+body.night-mode .sec-secret,
+body.night-mode .sec-codes__code {
+    background: #16202e;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+body.night-mode .sec-modal__input {
+    background: #16202e;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+body.night-mode .sec-btn--outline {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+body.night-mode .sec-btn--outline:hover:not([disabled]) {
+    background: #273549;
+}
+
+body.night-mode .sec-icon-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+body.night-mode .sec-secret__code {
+    color: #e2e8f0;
+}

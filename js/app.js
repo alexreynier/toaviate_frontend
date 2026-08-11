@@ -44,9 +44,10 @@ var app = angular
         function isProtectedApiUrl(url) {
             if (!url || url.indexOf('/api/') === -1) { return false; }
             var unauthEndpoints = [
-                '/api/v1/users/login',   // covers login, login0..3
+                '/api/v1/users/login',   // covers login, login0..3 + login_2fa
                 '/api/v1/users/logout',
-                '/api/v1/users/reset_password'
+                '/api/v1/users/reset_password',
+                '/api/v1/webauthn/login' // passkey login_options / login_verify (pre-auth)
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -54,29 +55,29 @@ var app = angular
             return true;
         }
 
-        // Run the one-shot logout: clear creds + bounce to /login. Uses
-        // $injector to avoid a circular dependency ($http -> interceptor ->
-        // services that use $http).
+        // Run the one-shot logout. Uses $injector to avoid a circular
+        // dependency ($http -> interceptor -> services that use $http).
+        // Instead of bouncing straight to /login, FREEZE the app: clear the
+        // credentials, then blur the whole screen under the logged-out
+        // overlay (privacy on shared club machines) and hold every
+        // navigation until whoever comes back acknowledges it. The overlay
+        // button ($rootScope.sessionUnfreeze, defined in the run block)
+        // clears the flag and routes to /login — and THAT navigation stores
+        // the return URL as usual, so login brings them straight back here.
         function handleSessionExpired() {
             if (authGate.isExpired()) { return; }   // already handled — swallow
             authGate.markExpired();
 
             try { $injector.get('AuthenticationService').ClearCredentials(); } catch (e) {}
 
-            // Tell the user WHY they're being bounced — exactly once (the gate
-            // guards this whole block). Controllers' own error toasts for the
-            // same 401 are suppressed by ToastService, so this is the single
-            // voice for the event.
-            try {
-                $injector.get('ToastService').warning('Session Expired',
-                    'You were logged out after being idle — please sign in again.',
-                    { duration: 6000 });
-            } catch (e) {}
-
             var $location = $injector.get('$location');
-            if ($location.path() !== '/login') {
-                $location.path('/login');
-            }
+
+            // Already on the login screen (e.g. a stale in-flight call raced
+            // a manual logout) — nothing to hide, no freeze needed.
+            if ($location.path() === '/login') { return; }
+
+            console.log('Session expired — freezing the app until the user returns.');
+            $injector.get('$rootScope').sessionFrozen = true;
         }
 
         return {
@@ -587,6 +588,16 @@ var app = angular
                 data: {
                     screen: 'detail'
                 }
+            })
+
+            // ACCOUNT SECURITY — per-club 2FA requirement toggle + lockout
+            // reset (lost phone + lost recovery codes). Contract:
+            // FRONTEND_TWO_FACTOR_GUIDE.md §4.
+            .state('dashboard.super_admin.security', {
+                url: '/security',
+                controller: 'SuperAdminSecurityController',
+                templateUrl: 'views/manageclub/super_admin_security.html',
+                controllerAs: 'vm'
             })
 
             // CRON STATUS
@@ -2169,6 +2180,16 @@ var app = angular
             controller: 'ManageAccountController'
         })
 
+        // Two-factor authentication + passkeys. Also the enrolment page the
+        // route guard pins users to when their club mandates 2FA
+        // (two_factor_setup_required at login).
+        .state('dashboard.my_account.security', {
+            url: '/security',
+            templateUrl: 'views/my_account/security.html',
+            controllerAs: 'vm',
+            controller: 'SecuritySettingsController'
+        })
+
 
         // BOOKOUT PAGES
 
@@ -3165,8 +3186,8 @@ var app = angular
 
  	
  	//RUN INJECT
-    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state'];
-    function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state) {
+    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state', '$uibModalStack', 'TwoFactorService'];
+    function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state, $uibModalStack, TwoFactorService) {
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
@@ -3180,6 +3201,73 @@ var app = angular
         $rootScope.isToAviateStaff = function() {
             var u = $rootScope.globals && $rootScope.globals.currentUser;
             return !!(u && u.email && /@toaviate\.com$/i.test(u.email));
+        };
+
+        // ── Session-expired freeze ──
+        // The HTTP interceptor sets $rootScope.sessionFrozen on the first 401
+        // instead of redirecting; the overlay in index.html blurs the screen
+        // and calls this to acknowledge. Clear the flag BEFORE navigating so
+        // the $locationChangeStart guard lets the login navigation through
+        // (which also stores the return URL, as with any → /login hop).
+        $rootScope.sessionUnfreeze = function() {
+            $rootScope.sessionFrozen = false;
+            try { $uibModalStack.dismissAll(); } catch (e) {}   // no stale modals left over on the login screen
+            $location.path('/login');
+        };
+
+        // ── Idle privacy blur ──
+        // After IDLE_BLUR_MS without any user activity, hide the screen
+        // behind the same blur overlay (privacy on shared club machines) —
+        // WITHOUT logging anything out. When someone comes back and clicks
+        // through, a cheap authenticated probe decides what happens next:
+        //   · session still valid  → just unblur and carry on;
+        //   · session timed out    → the probe's 401 trips the interceptor's
+        //     one-shot logout, sessionFrozen takes over, and the logged-out
+        //     overlay (+ its navigation guard) replaces this one.
+        // The window override exists for tests and per-deploy tuning.
+        var IDLE_BLUR_MS = window.TOAVIATE_IDLE_BLUR_MS || (5 * 60 * 1000);
+        var idleTimer = null;
+        var lastArm = 0;
+
+        function armIdleTimer() {
+            if (idleTimer) { clearTimeout(idleTimer); }
+            idleTimer = setTimeout(function () {
+                var u = $rootScope.globals && $rootScope.globals.currentUser;
+                // Only authenticated screens carry anything worth hiding.
+                if (!u || !u.id || $rootScope.sessionFrozen || $rootScope.idleBlurred) { return; }
+                $rootScope.idleBlurred = true;
+                $rootScope.$applyAsync();
+            }, IDLE_BLUR_MS);
+        }
+
+        function onActivity() {
+            // Once blurred (or logged out), activity must NOT auto-dismiss —
+            // waking goes through idleWake()'s session probe.
+            if ($rootScope.idleBlurred || $rootScope.sessionFrozen) { return; }
+            var now = new Date().getTime();
+            if (now - lastArm < 1000) { return; }   // throttle mousemove spam
+            lastArm = now;
+            armIdleTimer();
+        }
+
+        var activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+        for (var ae = 0; ae < activityEvents.length; ae++) {
+            document.addEventListener(activityEvents[ae], onActivity, true);
+        }
+        armIdleTimer();
+
+        $rootScope.idleWake = function() {
+            if ($rootScope.idleChecking) { return; }
+            $rootScope.idleChecking = true;
+            TwoFactorService.GetStatus().then(function () {
+                $rootScope.idleChecking = false;
+                // A 401 probe already flipped sessionFrozen via the
+                // interceptor — the logged-out overlay takes over. Any other
+                // outcome (success, or backend unreachable): don't trap the
+                // user behind a best-effort privacy screen — unblur.
+                $rootScope.idleBlurred = false;
+                if (!$rootScope.sessionFrozen) { armIdleTimer(); }
+            });
         };
 
         // ── Safe back navigation ──
@@ -3225,6 +3313,17 @@ var app = angular
         }
  
         $rootScope.$on('$locationChangeStart', function (event, next, current) {
+            // ── Session-expired freeze ──
+            // While the logged-out overlay is up, hold the app perfectly
+            // still: swallow every navigation — including the services' own
+            // 401 → /login redirects — until the user acknowledges via the
+            // overlay button (sessionUnfreeze clears the flag first, so its
+            // own /login navigation passes this check).
+            if ($rootScope.sessionFrozen) {
+                event.preventDefault();
+                return;
+            }
+
             // redirect to login page if not logged in and trying to access a restricted page
             //console.log($location.path());
             var restrictedPage = $.inArray($location.path(), ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup']) === -1;
@@ -3320,6 +3419,26 @@ var app = angular
             } else {
                 // need to expand on this with regards to access control
                 // $rootScope.globals.currentUser.access_level;
+            }
+
+            // ── 2FA enrolment lock (soft enforcement) ──
+            // login2 returned two_factor_setup_required: the club mandates 2FA
+            // and this user has neither TOTP nor a passkey. The session is
+            // valid, but keep them pinned to the Security enrolment page until
+            // they finish. The flag is set by loginController and cleared by
+            // SecuritySettingsController once a second factor exists. The
+            // backend re-asserts the flag at every login, so this is UX only —
+            // clearing localStorage just defers the wizard to the next login.
+            if (loggedIn && currentPath.indexOf('/dashboard') === 0) {
+                var twoFactorSetupFor = null;
+                try { twoFactorSetupFor = localStorage.getItem('toaviate_2fa_setup_required'); } catch(e) {}
+                var securityPath = '/dashboard/my_account/security';
+                if (twoFactorSetupFor &&
+                    String($rootScope.globals.currentUser.id) === twoFactorSetupFor &&
+                    currentPath !== securityPath) {
+                    event.preventDefault();
+                    $location.path(securityPath);
+                }
             }
 
         });

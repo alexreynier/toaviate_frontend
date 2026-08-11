@@ -79,6 +79,7 @@
     <link rel="stylesheet" href="css/payment-methods.css" />
     <link rel="stylesheet" href="css/missing-students.css" />
     <link rel="stylesheet" href="css/platform-keys.css" />
+    <link rel="stylesheet" href="css/security.css" />
     <link rel="stylesheet" href="libs/css/scheduler.css" />
     <!-- endbuild -->
 
@@ -152,6 +153,8 @@
 
     <script src="libs/js/flow.js"></script>
     <script src="libs/js/ng-flow.js"></script>
+
+    <script src="libs/js/qrcode-generator.js"></script>
 
     <!-- endbuild -->
 
@@ -284,6 +287,8 @@
     <script src="js/services/airfieldAdminService.js"></script>
     <script src="js/services/platformKeyService.js"></script>
     <script src="js/services/missingStudentsService.js"></script>
+    <script src="js/services/twoFactorService.js"></script>
+    <script src="js/services/webauthnService.js"></script>
     <!-- endbuild -->
 
 
@@ -448,6 +453,9 @@
     <script src="js/controllers/shareAssignmentModalController.js"></script>
     <script src="js/controllers/itemSharesModalController.js"></script>
     <script src="js/controllers/assignToStudentModalController.js"></script>
+    <script src="js/controllers/securitySettingsController.js"></script>
+    <script src="js/controllers/securityModalControllers.js"></script>
+    <script src="js/controllers/superAdminSecurityController.js"></script>
     <!-- endbuild -->
 
     <!-- build:js js/directives.min.js -->
@@ -471,7 +479,44 @@
 <!--     <script src="libs/js/angular-timepicker.js"></script>
  -->
 
+    <!-- Session-expired freeze: set by the HTTP interceptor's one-shot
+         logout. Blurs and blocks the whole app (privacy on shared club
+         machines) until whoever comes back acknowledges it. LAST in the
+         body on purpose: the fixed header's z-index clamps to the int32
+         max, so only a later stacking context at the same value can paint
+         over it. -->
+    <div class="session-freeze" ng-if="sessionFrozen">
+        <div class="session-freeze__card">
+            <i class="fas fa-lock session-freeze__icon"></i>
+            <h3 class="session-freeze__title">You've been logged out</h3>
+            <p class="session-freeze__text">
+                Your session expired while you were away, so the screen has
+                been hidden. Sign back in to pick up right where you left off.
+            </p>
+            <button type="button" class="sec-btn sec-btn--primary session-freeze__btn" ng-click="sessionUnfreeze()">
+                <i class="fas fa-sign-in-alt"></i> Log back in
+            </button>
+        </div>
+    </div>
 
+    <!-- Idle privacy blur: after a while with no activity the screen is
+         hidden (nothing is logged out). Clicking through probes the session:
+         still valid → unblur; timed out → the probe's 401 swaps this for the
+         logged-out overlay above. -->
+    <div class="session-freeze session-freeze--idle" ng-if="idleBlurred && !sessionFrozen" ng-click="idleWake()">
+        <div class="session-freeze__card">
+            <i class="fas fa-eye-slash session-freeze__icon"></i>
+            <h3 class="session-freeze__title">Screen hidden</h3>
+            <p class="session-freeze__text">
+                You've been away for a while, so the screen has been hidden
+                for privacy. Click anywhere to continue.
+            </p>
+            <button type="button" class="sec-btn sec-btn--primary session-freeze__btn" ng-disabled="idleChecking">
+                <i class="fas" ng-class="idleChecking ? 'fa-circle-notch fa-spin' : 'fa-unlock'"></i>
+                {{ idleChecking ? 'Checking your session…' : 'Continue' }}
+            </button>
+        </div>
+    </div>
 
 </body>
 </html>

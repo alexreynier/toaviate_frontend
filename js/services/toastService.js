@@ -87,11 +87,17 @@ function ToastService($timeout) {
         return String(subtitle);
     }
 
-    // A 401 body (fail: 'AUTHENTICATION') already produces the single
-    // "Session Expired" notice from the HTTP interceptor — a per-controller
-    // "Load Failed" toast for the same event is just noise on top of it.
+    // A 401 already produces the single logged-out notice (the session-freeze
+    // overlay from the HTTP interceptor) — a per-controller "Load Failed"
+    // toast for the same event is just noise on top of it. Controllers pass
+    // either the raw response object (fail: 'AUTHENTICATION') or just its
+    // extracted message string, so match both. The string is the interceptor's
+    // own synthetic 401 body text, mirrored from the server's.
     function isAuthFailure(subtitle) {
-        return !!(subtitle && typeof subtitle === 'object' && subtitle.fail === 'AUTHENTICATION');
+        if (subtitle && typeof subtitle === 'object' && subtitle.fail === 'AUTHENTICATION') { return true; }
+        var text = (typeof subtitle === 'string') ? subtitle
+                 : ((subtitle && (subtitle.error || subtitle.message)) || '');
+        return typeof text === 'string' && text.indexOf('You have been logged out') > -1;
     }
 
     // ── Success toast (green tick + optional confetti) ──

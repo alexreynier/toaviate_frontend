@@ -1,0 +1,100 @@
+<div class="sec-modal">
+
+    <div class="sec-modal__header">
+        <i class="fas fa-shield-alt sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">Enable Two-Factor Authentication</h3>
+        <div class="sec-modal__steps">
+            <span class="sec-modal__step" ng-class="{'sec-modal__step--active': vm.step === 'password'}">1</span>
+            <span class="sec-modal__step" ng-class="{'sec-modal__step--active': vm.step === 'scan'}">2</span>
+            <span class="sec-modal__step" ng-class="{'sec-modal__step--active': vm.step === 'codes'}">3</span>
+        </div>
+    </div>
+
+    <!-- ── Step 1 — confirm password ── -->
+    <div class="sec-modal__body" ng-show="vm.step === 'password'">
+        <p class="sec-modal__text">First, confirm it's you.</p>
+        <form ng-submit="vm.submitPassword()">
+            <label class="sec-modal__label" for="tfa-enable-password">Your password</label>
+            <input type="password" id="tfa-enable-password" class="sec-modal__input"
+                   ng-model="vm.password" autocomplete="current-password" />
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy">
+                    {{ vm.busy ? 'Checking…' : 'Continue' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Step 2 — scan QR + confirm a code ── -->
+    <div class="sec-modal__body" ng-show="vm.step === 'scan'">
+        <p class="sec-modal__text">
+            Scan this QR code with your authenticator app
+            (Google Authenticator, 1Password, Authy…), then enter the 6-digit
+            code it shows to confirm.
+        </p>
+
+        <div class="sec-qr" ng-if="vm.qrDataUrl">
+            <img ng-src="{{vm.qrDataUrl}}" alt="Scan with your authenticator app" class="sec-qr__img" />
+        </div>
+
+        <div class="sec-secret">
+            <div class="sec-secret__label">Can't scan? Enter this key manually:</div>
+            <div class="sec-secret__row">
+                <code class="sec-secret__code">{{ vm.secret }}</code>
+                <button type="button" class="sec-icon-btn" ng-click="vm.copySecret()" title="Copy">
+                    <i class="fas" ng-class="vm.copiedSecret ? 'fa-check' : 'fa-copy'"></i>
+                </button>
+            </div>
+        </div>
+
+        <form ng-submit="vm.submitCode()">
+            <label class="sec-modal__label" for="tfa-enable-code">6-digit code</label>
+            <input type="text" id="tfa-enable-code" class="sec-modal__input sec-modal__input--code"
+                   ng-model="vm.code" placeholder="123456" maxlength="6"
+                   autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy || !vm.code">
+                    {{ vm.busy ? 'Verifying…' : 'Verify & enable' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Step 3 — recovery codes (shown ONCE, ever) ── -->
+    <div class="sec-modal__body" ng-show="vm.step === 'codes'">
+        <div class="sec-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                <b>Save these recovery codes now — they cannot be shown again.</b>
+                Each one lets you sign in once if you lose your phone.
+            </div>
+        </div>
+
+        <div class="sec-codes">
+            <code class="sec-codes__code" ng-repeat="c in vm.recovery_codes track by $index">{{ c }}</code>
+        </div>
+
+        <div class="sec-codes__actions">
+            <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.copyCodes()">
+                <i class="fas" ng-class="vm.copied ? 'fa-check' : 'fa-copy'"></i> {{ vm.copied ? 'Copied' : 'Copy all' }}
+            </button>
+            <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.downloadCodes()">
+                <i class="fas fa-download"></i> Download
+            </button>
+        </div>
+
+        <label class="sec-checkline">
+            <input type="checkbox" ng-model="vm.codesSaved" />
+            <span>I have saved these codes somewhere safe</span>
+        </label>
+
+        <div class="sec-modal__footer">
+            <button type="button" class="sec-btn sec-btn--primary" ng-click="vm.done()" ng-disabled="!vm.codesSaved">
+                Finish
+            </button>
+        </div>
+    </div>
+
+</div>

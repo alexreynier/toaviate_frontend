@@ -9,6 +9,7 @@
         service.Login0 = Login0;
         service.Login1 = Login1;
         service.Login2 = Login2;
+        service.Login2FA = Login2FA;
         service.Login3 = Login3;
         service.Logout = Logout;
 
@@ -83,6 +84,32 @@
                    callback({ success: false, error: 'Authentication failed. Please try again.' });
             });
 
+
+        }
+
+
+        // Completes a 2FA login after login2 returned two_factor_required.
+        // token = the 64-char two_factor_token from login2; type = 'totp' | 'recovery'.
+        // Success returns the login2 shape {success, user, session}. Wrong-code
+        // responses ({error:'WRONG_CODE', attempts_remaining} etc.) are passed
+        // through to the caller even on non-2xx statuses so the login screen
+        // can show attempts left / expiry.
+        function Login2FA(token, code, type, callback){
+
+            var user = Base64.encode(token + "," + code);
+
+            $http.post('/api/v1/users/login_2fa', { a: user, type: type })
+               .success(function (response) {
+                   callback(response);
+            }).error(function (data, status) {
+                   console.log('Login2FA failed:', status, data);
+                   if (data && data.error) {
+                       data.success = false;
+                       callback(data);
+                   } else {
+                       callback({ success: false, error: 'Verification failed. Please check your connection and try again.' });
+                   }
+            });
 
         }
 

@@ -328,6 +328,53 @@ view. Per-club and role-gated. Backend contract: `FRONTEND_SMS_GUIDE.md` /
   Risk scores are computed server-side — submit only `likelihood`/`severity`. Hazards can be
   anonymous (`is_anonymous:1` → no reporter returned).
 
+## Two-Factor Authentication & Passkeys
+
+Optional TOTP 2FA + WebAuthn passkeys (added 2026-08). Backend contract:
+`FRONTEND_TWO_FACTOR_GUIDE.md`.
+
+- **Services:** [js/services/twoFactorService.js](js/services/twoFactorService.js) (status/setup/confirm/
+  disable/recovery codes + super-admin club requirement & admin reset) and
+  [js/services/webauthnService.js](js/services/webauthnService.js) (owns base64url⇄ArrayBuffer conversion and
+  wraps each full ceremony — options → browser prompt → verify — in one promise).
+  The 2FA *login* step (`users/login_2fa`) is `Login2FA` in
+  [authenticationService.js](js/services/authenticationService.js), using the same `Base64.encode(token + "," + code)`
+  convention as the login ladder.
+- **Login screen** ([loginController.js](js/controllers/loginController.js) / [views/login.html](views/login.html)): `vm.stage`
+  `'password'|'code'`; passkey button shows only when `WebauthnService.isSupported()`.
+  All three entry paths funnel through `completeLogin()`.
+- **Member page:** `dashboard.my_account.security` →
+  [securitySettingsController.js](js/controllers/securitySettingsController.js) + [views/my_account/security.html](views/my_account/security.html);
+  modals (enable wizard, show-once recovery codes, passkey add/rename/delete) in
+  [securityModalControllers.js](js/controllers/securityModalControllers.js) + `views/modals/security_*.html`. CSS:
+  [css/security.css](css/security.css) (`.sec-*` / `.security-page` / `.sa-security` / `.login-*` BEM).
+- **Super-admin:** `dashboard.super_admin.security` → per-club "require 2FA" toggle +
+  lockout reset ([superAdminSecurityController.js](js/controllers/superAdminSecurityController.js)).
+- **Enrolment lock:** when login2 returns `two_factor_setup_required`, loginController
+  sets localStorage `toaviate_2fa_setup_required=<user_id>`; the `$locationChangeStart`
+  guard in app.js pins `/dashboard*` navigation to the Security page until
+  SecuritySettingsController clears the flag (backend re-asserts it every login).
+- **⚠️ Interceptor:** the pre-auth passkey endpoints are exempted via
+  `'/api/v1/webauthn/login'` in the `unauthEndpoints` list in app.js — any new
+  pre-auth auth endpoint must be added there (or named `users/login*`) or a 401
+  from it triggers the global "session expired" logout.
+- **Session freeze + idle blur** (index.html overlays + run block in app.js +
+  interceptor): the first authenticated 401 no longer bounces to /login — it sets
+  `$rootScope.sessionFrozen`, blurs the whole app under a "You've been logged out"
+  overlay, and the `$locationChangeStart` guard swallows ALL navigation until the
+  user clicks through (return-URL then works as usual). Separately, 5 min of
+  inactivity sets `$rootScope.idleBlurred` (privacy blur, nothing logged out);
+  waking probes `two_factor/status` — a 401 converts it into the frozen overlay.
+  ToastService suppresses per-controller 401 toasts (object OR message-string
+  form) so the overlay is the single voice. The overlays are LAST in `<body>`
+  at z-index int32-max on purpose — the fixed header's 9999999999 clamps to the
+  same value and only document order beats it.
+- **QR codes** are rendered client-side (the TOTP secret must not leave the page)
+  with the checked-in [libs/js/qrcode-generator.js](libs/js/qrcode-generator.js) (global `qrcode`), registered in
+  both index.html and the Gruntfile `libs` concat list.
+- Show-once secrets (TOTP secret, recovery codes) use `backdrop:'static'` modals
+  and are never re-fetchable — don't add endpoints or caching that would change that.
+
 ## Style reminders for edits
 
 - Match existing formatting (this codebase uses 4-space indent, `var`, and plain
