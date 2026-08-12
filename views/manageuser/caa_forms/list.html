@@ -1,0 +1,209 @@
+<!-- CAA Forms — instructor hub (FRONTEND_CAA_FORMS_GUIDE.md).
+     Tabs: club forms / my signature queue / HoT desk.
+     The HoT tab only exists for clubs where the backend says this user is
+     the Head of Training or a deputy (caa_forms/hot_queue not FORBIDDEN). -->
+<div class="snazzy-page caa-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-contract"></i> CAA Forms</h2>
+        <p>Digital CAA paperwork — prefilled, signed and delivered as the official PDF</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- Club switcher + primary action -->
+    <div class="caa-toolbar" ng-if="vm.clubs.length">
+      <div class="caa-toolbar__club" ng-show="vm.clubs.length > 1">
+        <label class="caa-toolbar__label">Club</label>
+        <ui-select ng-model="vm.selected_club" on-select="vm.onClubSelected($item)" theme="bootstrap" title="Switch club" append-to-body="true">
+          <ui-select-match placeholder="Select club">{{ vm.selected_club.title }}</ui-select-match>
+          <ui-select-choices repeat="club in vm.clubs | propsFilterA: {title: $select.search, id: $select.search}">
+            <div ng-bind-html="club.title | highlight: $select.search"></div>
+          </ui-select-choices>
+        </ui-select>
+      </div>
+      <div class="caa-toolbar__club-name" ng-show="vm.clubs.length === 1">{{ vm.selected_club.title }}</div>
+      <button class="sec-btn sec-btn--primary caa-toolbar__new" ng-click="vm.newForm()">
+        <i class="fas fa-plus"></i> New form
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="caa-tabs" ng-if="!vm.loading">
+      <div class="caa-tab" ng-class="{'caa-tab--active': vm.tab === 'forms'}" ng-click="vm.setTab('forms')">
+        <i class="fas fa-folder-open"></i> Club forms
+        <span class="caa-tab__count" ng-show="vm.forms.length">{{ vm.forms.length }}</span>
+      </div>
+      <div class="caa-tab" ng-class="{'caa-tab--active': vm.tab === 'queue'}" ng-click="vm.setTab('queue')">
+        <i class="fas fa-file-signature"></i> To sign
+        <span class="caa-tab__count caa-tab__count--hot" ng-show="vm.queue.length">{{ vm.queue.length }}</span>
+      </div>
+      <!-- Only rendered when THIS club's backend confirms HoT/deputy access -->
+      <div class="caa-tab" ng-show="vm.isHot" ng-class="{'caa-tab--active': vm.tab === 'hot'}" ng-click="vm.setTab('hot')">
+        <i class="fas fa-user-shield"></i> HoT desk
+        <span class="caa-tab__count caa-tab__count--hot" ng-show="vm.hotQueue.length">{{ vm.hotQueue.length }}</span>
+      </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Loading forms…</span>
+    </div>
+
+    <!-- ═══ TAB: CLUB FORMS ═══ -->
+    <div ng-if="!vm.loading && vm.tab === 'forms'" class="snazzy-reveal">
+
+      <div class="caa-filter-bar" ng-show="vm.forms.length">
+        <div class="caa-search">
+          <i class="fas fa-search"></i>
+          <input type="text" ng-model="vm.q" placeholder="Search by member or form…" />
+        </div>
+        <div class="caa-chips">
+          <span class="caa-chip" ng-repeat="st in vm.statusChips"
+                ng-class="{'caa-chip--active': vm.statusFilter === st}"
+                ng-click="vm.setStatusFilter(st)">{{ vm.statusInfo(st).label }}</span>
+        </div>
+      </div>
+
+      <div class="snazzy-page__empty" ng-show="!vm.forms.length">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-file-contract"></i></div>
+        <h3>No forms yet</h3>
+        <p>Start a revalidation, skill test report, certified copy or course certificate — the details prefill from your records.</p>
+        <button class="sec-btn sec-btn--primary" ng-click="vm.newForm()"><i class="fas fa-plus"></i> New form</button>
+      </div>
+
+      <div class="caa-table-card" ng-show="vm.forms.length">
+        <div class="caa-table-scroll">
+          <table class="caa-table">
+            <thead>
+              <tr>
+                <th>Form</th>
+                <th>Member</th>
+                <th>Status</th>
+                <th class="caa-hide-mobile">Updated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="f in vm.forms" ng-show="vm.matchesFilters(f)" ng-click="vm.openForm(f)">
+                <td>
+                  <div class="caa-table__form">{{ f.title || vm.typeTitle(f.form_type) }}</div>
+                  <div class="caa-table__sub caa-show-mobile">{{ f.subject_name }}</div>
+                </td>
+                <td class="caa-hide-mobile">{{ f.subject_name }}</td>
+                <td><span class="caa-badge caa-badge--{{ vm.statusInfo(f.status).tone }}">{{ vm.statusInfo(f.status).label }}</span></td>
+                <td class="caa-hide-mobile caa-table__muted">{{ (f.updated_at || f.created_at) | limitTo:10 }}</td>
+                <td class="caa-table__actions">
+                  <button class="caa-table__action-btn" ng-show="f.status === 'completed'"
+                          ng-click="$event.stopPropagation(); vm.downloadPdf(f.id, f.form_type)"
+                          uib-tooltip="Download PDF"><i class="fas fa-file-pdf"></i></button>
+                  <button class="caa-table__action-btn" uib-tooltip="Open"><i class="fas fa-chevron-right"></i></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: TO SIGN ═══ -->
+    <div ng-if="!vm.loading && vm.tab === 'queue'" class="snazzy-reveal">
+      <div class="snazzy-page__empty" ng-show="!vm.queue.length">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-file-signature"></i></div>
+        <h3>All caught up</h3>
+        <p>No CAA forms are waiting for your signature at this club.</p>
+      </div>
+
+      <div class="caa-queue snazzy-reveal--stagger" ng-show="vm.queue.length">
+        <div class="caa-queue-card" ng-repeat="r in vm.queue" ng-click="vm.openForm(r)">
+          <div class="caa-queue-card__icon"><i class="fas fa-file-signature"></i></div>
+          <div class="caa-queue-card__main">
+            <div class="caa-queue-card__title">{{ r.title || vm.typeTitle(r.form_type) }}</div>
+            <div class="caa-queue-card__sub">
+              {{ r.subject_name }} · signing as <b>{{ vm.roleLabel(r.role) }}</b>
+            </div>
+          </div>
+          <button class="sec-btn sec-btn--primary caa-queue-card__go">
+            <i class="fas fa-pen-nib"></i> Review &amp; sign
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: HOT DESK (HoT / deputy at THIS club only) ═══ -->
+    <div ng-if="!vm.loading && vm.tab === 'hot' && vm.isHot" class="snazzy-reveal">
+
+      <div class="snazzy-page__empty" ng-show="!vm.hotQueue.length">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-user-shield"></i></div>
+        <h3>Nothing awaiting countersignature</h3>
+        <p>Forms appear here once every other signature is in place.</p>
+      </div>
+
+      <div class="caa-queue snazzy-reveal--stagger" ng-show="vm.hotQueue.length">
+        <div class="caa-queue-card" ng-repeat="r in vm.hotQueue" ng-click="vm.openForm(r)">
+          <div class="caa-queue-card__icon caa-queue-card__icon--hot"><i class="fas fa-user-shield"></i></div>
+          <div class="caa-queue-card__main">
+            <div class="caa-queue-card__title">{{ r.title || vm.typeTitle(r.form_type) }}</div>
+            <div class="caa-queue-card__sub">{{ r.subject_name }} · Head of Training countersignature</div>
+            <div class="caa-queue-card__signers" ng-show="r.signatures.length">
+              <span class="caa-signer-pill" ng-repeat="sg in r.signatures"
+                    ng-class="{'caa-signer-pill--done': sg.status === 'signed'}">
+                <i class="fas" ng-class="sg.status === 'signed' ? 'fa-check' : 'fa-clock'"></i>
+                {{ vm.roleLabel(sg.role) }}<span ng-show="sg.signer_name"> · {{ sg.signer_name }}</span>
+              </span>
+            </div>
+          </div>
+          <button class="sec-btn sec-btn--primary caa-queue-card__go">
+            <i class="fas fa-stamp"></i> Countersign
+          </button>
+        </div>
+      </div>
+
+      <!-- Deputies -->
+      <div class="caa-card caa-deputies">
+        <div class="caa-card__title"><i class="fas fa-user-friends"></i> Head of Training &amp; deputies</div>
+        <p class="caa-card__hint">
+          Deputies can countersign CAA forms in the Head of Training's place at this club.
+          The principal Head of Training is set on the SMS settings screen.
+        </p>
+
+        <div class="caa-deputies__row caa-deputies__row--principal" ng-show="vm.deputies.head_of_training">
+          <i class="fas fa-user-shield"></i>
+          <span class="caa-deputies__name">{{ vm.deputies.head_of_training.name }}</span>
+          <span class="caa-badge caa-badge--info">Head of Training</span>
+        </div>
+
+        <div class="caa-deputies__row" ng-repeat="dep in vm.deputies.deputies">
+          <i class="fas fa-user-check"></i>
+          <span class="caa-deputies__name">{{ dep.name }}</span>
+          <span class="caa-badge caa-badge--muted">Deputy</span>
+          <button class="caa-table__action-btn caa-deputies__remove" ng-show="vm.canManageDeputies"
+                  ng-click="vm.removeDeputy(dep)" ng-disabled="vm.deputyBusy"
+                  uib-tooltip="Remove deputy"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="caa-deputies__empty" ng-show="vm.deputies && !vm.deputies.deputies.length">
+          No deputies appointed yet.
+        </div>
+
+        <div class="caa-deputies__add" ng-show="vm.canManageDeputies">
+          <ui-select ng-model="vm.newDeputy" theme="bootstrap" title="Choose a member" append-to-body="true">
+            <ui-select-match placeholder="Appoint a deputy…">{{ vm.newDeputy.first_name }} {{ vm.newDeputy.last_name }}</ui-select-match>
+            <ui-select-choices repeat="m in vm.deputyMembers | propsFilterA: {first_name: $select.search, last_name: $select.search}">
+              <div ng-bind-html="m.first_name + ' ' + m.last_name | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+          <button class="sec-btn sec-btn--outline" ng-click="vm.addDeputy()" ng-disabled="vm.deputyBusy">
+            <i class="fas" ng-class="vm.deputyBusy ? 'fa-spinner fa-spin' : 'fa-user-plus'"></i> Appoint
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

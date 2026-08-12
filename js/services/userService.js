@@ -1,7 +1,7 @@
 app.factory('UserService', UserService);
 
-    UserService.$inject = ['$http', '$location'];
-    function UserService($http, $location) {
+    UserService.$inject = ['$http', '$location', '$q'];
+    function UserService($http, $location, $q) {
         var service = {};
 
         service.GetAll = GetAll;
@@ -21,6 +21,7 @@ app.factory('UserService', UserService);
         service.GetInvoices = GetInvoices;
         service.GetAdminClubs = GetAdminClubs;
         service.GetInstructorClubs = GetInstructorClubs;
+        service.GetStaffClubs = GetStaffClubs;
         service.GetUpcoming = GetUpcoming;
         service.GetPayments = GetPayments;
         service.ConfirmPaxInvite = ConfirmPaxInvite;
@@ -46,6 +47,35 @@ app.factory('UserService', UserService);
 
         function GetInstructorClubs(user_id){
             return $http.get('/api/v1/clubs/get_all_instructor_for_user/'+user_id).then(handleSuccess, handleError2);
+        }
+
+        // Clubs where the user is STAFF (instructor OR manager OR CAA
+        // HoT/deputy). Uses the dedicated backend endpoint (live — see
+        // BACKEND_STAFF_CLUBS_GUIDE.md); the client-side union of the
+        // instructor + admin lists remains as a fallback for older API
+        // deploys (it covers everyone except a HoT/deputy who is neither).
+        // NB: GetAdminClubs is is_manager=1 ONLY — never use it alone to
+        // enumerate an instructor's clubs (that lockout bit student records
+        // and the CAA hub).
+        function GetStaffClubs(user_id){
+            return $http.get('/api/v1/clubs/get_all_staff_for_user/'+user_id)
+                .then(handleSuccess, function(){ return { success: false }; })
+                .then(function(data){
+                    if (data && data.success && data.clubs) { return data; }
+                    return $q.all([
+                        GetInstructorClubs(user_id),
+                        GetAdminClubs(user_id)
+                    ]).then(function(res){
+                        var clubs = [];
+                        var seen = {};
+                        res.forEach(function(r){
+                            ((r && r.clubs) || []).forEach(function(c){
+                                if (c && c.id && !seen[c.id]) { seen[c.id] = true; clubs.push(c); }
+                            });
+                        });
+                        return { success: true, clubs: clubs };
+                    });
+                });
         }
 
         function GetInvoices(user_id){

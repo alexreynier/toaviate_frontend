@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService', 'CaaFormsService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService, CaaFormsService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -39,8 +39,10 @@
                 vm.link_student_id = $stateParams.student_id || null;
                 vm.link_course_id = $stateParams.course_id || null;
 
-                // Load the clubs this instructor belongs to
-                UserService.GetAdminClubs(vm.user_id)
+                // Load the clubs this instructor belongs to. GetStaffClubs =
+                // instructor OR manager clubs — GetAdminClubs alone is
+                // is_manager=1 only, which locked out non-manager instructors.
+                UserService.GetStaffClubs(vm.user_id)
                     .then(function(data) {
                         if (data.success && data.clubs && data.clubs.length > 0) {
                             vm.instructor_clubs = data.clubs;
@@ -286,10 +288,44 @@
 
         // The actual records fetch for the instructor screen — called both by
         // the "See records" button and the deep-link restore.
+        // "My documents" — the student's CAA forms at this club (completed =
+        // downloadable). FRONTEND_SEP_REVALIDATION_GUIDE.md §Forms history.
+        vm.caa_documents = [];
+        vm.caa_pdf_busy = null;
+        function load_caa_documents(){
+            vm.caa_documents = [];
+            CaaFormsService.List(vm.club_id, { subject_user_id: vm.student_id }).then(function(data){
+                if (data && data.success === false) { return; }   // not fatal to the record screen
+                var forms = (data && (data.forms || data.items)) || (angular.isArray(data) ? data : []);
+                vm.caa_documents = forms.filter(function(f){ return f.status === 'completed'; });
+            });
+        }
+        vm.openCaaForm = function(f){ $state.go('dashboard.caa_form', { id: f.id }); };
+        vm.downloadCaaPdf = function(f){
+            vm.caa_pdf_busy = f.id;
+            CaaFormsService.GetPdf(f.id, (f.form_type || 'caa_form') + '.pdf').then(function(res){
+                vm.caa_pdf_busy = null;
+                if (res.success === false) {
+                    ToastService.error('PDF Unavailable', res.message || 'The PDF could not be generated.');
+                    return;
+                }
+                var url = URL.createObjectURL(res.blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = res.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(function(){ URL.revokeObjectURL(url); }, 250);
+            });
+        };
+        vm.caaTypeTitle = CaaFormsService.typeTitle;
+
         function fetch_student_records(){
             CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
                 .then(function(data){
                     vm.show_record = true;
+                    load_caa_documents();
                     vm.all_items = data.all_items;
                     vm.student = data.student;
                     vm.training_records = data.training_records;

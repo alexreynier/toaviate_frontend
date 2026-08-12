@@ -1,0 +1,123 @@
+<!-- Shared FCL.740.A revalidation evidence card (SRG1157/SRG1107 reval).
+     FRONTEND_SEP_REVALIDATION_GUIDE.md: evidence panel (12m window +
+     24m validity period, P1/PUT, per-type), meets-minimum cue, training
+     flight evidence/candidates. ADVISORY only — a failing checklist never
+     blocks anything; it forces an override note at instructor sign time.
+     Expects vm.eligibility (live prefill on drafts, the frozen
+     form_data.eligibility snapshot on submitted forms). -->
+<div class="caa-card caa-elig" ng-class="{'caa-elig--pass': vm.eligibility.all_pass, 'caa-elig--fail': !vm.eligibility.all_pass && vm.eligibility.has_rating !== false}">
+  <div class="caa-card__title">
+    <i class="fas" ng-class="vm.eligibility.all_pass ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+    Revalidation by experience — {{ vm.eligibility.rating || 'eligibility' }}
+    <span class="caa-badge" ng-class="vm.eligibility.all_pass ? 'caa-badge--success' : 'caa-badge--warning'" ng-show="vm.eligibility.has_rating !== false">
+      {{ vm.eligibility.all_pass ? 'Meets the minimum' : 'Minimum not met' }}
+    </span>
+  </div>
+  <div class="caa-elig__ref" ng-show="vm.eligibility.requirements_ref">{{ vm.eligibility.requirements_ref }}</div>
+
+  <!-- No current SEP/TMG rating on the profile — form stays hand-fillable -->
+  <div class="caa-elig__norating" ng-if="vm.eligibility.has_rating === false">
+    <i class="fas fa-id-card"></i>
+    <div>
+      {{ vm.eligibility.message || 'No current rating with an expiry date was found on the pilot\'s profile.' }}
+      Add the rating to the pilot's licence profile to compute the evidence — or fill the form in by hand below.
+    </div>
+  </div>
+
+  <div ng-if="vm.eligibility.has_rating !== false">
+
+    <!-- ── Evidence panel: logged hours in both windows, split P1/PUT ── -->
+    <div class="caa-evd" ng-if="vm.eligibility.windows">
+      <div class="caa-evd__block" ng-repeat="blk in vm.evidenceWindows()" ng-init="w = blk.w">
+        <div class="caa-evd__head">
+          <span class="caa-evd__title">{{ blk.label }}</span>
+          <span class="caa-evd__range">{{ w.from }} → {{ w.to }}</span>
+        </div>
+        <div class="caa-evd__totals">
+          <span class="caa-evd__total"><b>{{ w.total_display || w.total }}</b> total</span>
+          <span class="caa-evd__split">{{ w.pic_display || w.pic }} P1 · {{ w.put_display || w.put }} PUT</span>
+        </div>
+        <div class="caa-evd__types" ng-show="w.by_type.length">
+          <div class="caa-evd__type" ng-repeat="t in w.by_type">
+            <span class="caa-evd__type-name">{{ t.type }}</span>
+            <span class="caa-evd__type-total">{{ t.total_display || t.total }}</span>
+            <span class="caa-evd__type-split">{{ t.pic_display || t.pic }} P1 / {{ t.put_display || t.put }} PUT</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caa-elig__window" ng-if="!vm.eligibility.windows && vm.eligibility.window">
+      Counting window: <b>{{ vm.eligibility.window.from }}</b> → <b>{{ vm.eligibility.window.to }}</b>
+      <span ng-show="vm.eligibility.new_expiry_date"> · new expiry <b>{{ vm.eligibility.new_expiry_date }}</b></span>
+    </div>
+
+    <!-- ── Meets-minimum checks ── -->
+    <div class="caa-elig__checks">
+      <div class="caa-elig__check" ng-repeat="c in vm.eligibility.checks"
+           ng-class="{'caa-elig__check--pass': c.pass, 'caa-elig__check--fail': !c.pass}">
+        <i class="fas" ng-class="c.pass ? 'fa-check-circle' : 'fa-times-circle'"></i>
+        <span class="caa-elig__check-label">{{ c.label || vm.pretty(c.id) }}</span>
+        <span class="caa-elig__check-nums" ng-show="c.required !== undefined && c.required !== null">
+          {{ c.computed || 0 }} / {{ c.required }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Training flight: endorsement evidence when met… -->
+    <div class="caa-elig__evidence" ng-if="vm.trainingEvidence()">
+      <i class="fas fa-stamp"></i>
+      <div>
+        Training flight evidenced by <b>{{ vm.trainingEvidence().instructor_name }}</b><span ng-show="vm.trainingEvidence().instructor_number"> (No. {{ vm.trainingEvidence().instructor_number }})</span>
+        on <b>{{ vm.trainingEvidence().flight_date }}</b>
+        <span class="caa-elig__evidence-text" ng-show="vm.trainingEvidence().endorsement_text">— “{{ vm.trainingEvidence().endorsement_text }}”</span>
+      </div>
+    </div>
+
+    <!-- …or copyable candidates when not -->
+    <div class="caa-elig__cands" ng-if="vm.trainingCandidates().length">
+      <div class="caa-elig__cands-label">
+        <i class="fas fa-lightbulb"></i>
+        No endorsed training flight found — these dual flights (≥1 h) could be it. Tap to copy the date into the form;
+        the flight still needs the instructor's logbook endorsement.
+      </div>
+      <button type="button" class="caa-elig__cand" ng-repeat="cand in vm.trainingCandidates()"
+              ng-click="vm.useTrainingDate(cand.flight_date)"
+              ng-disabled="!(vm.screen === 'new' || vm.isDraft)">
+        <i class="fas fa-plus"></i> {{ cand.flight_date }}<span ng-show="cand.registration"> · {{ cand.registration }}</span> · {{ cand.dual_time }} h dual
+      </button>
+    </div>
+
+    <div class="caa-elig__note" ng-show="vm.eligibility.note">
+      <i class="fas fa-info-circle"></i>
+      <span>{{ vm.eligibility.note }}<span class="caa-elig__generated" ng-show="vm.eligibility.generated_at"> (computed {{ vm.eligibility.generated_at }})</span></span>
+    </div>
+    <div class="caa-elig__note caa-elig__note--warn" ng-show="!vm.eligibility.all_pass">
+      <i class="fas fa-pen"></i> Signing is still possible — the instructor will be asked to record why (e.g. evidence in the paper logbook).
+    </div>
+
+    <!-- Flights counted — expander for cross-checking the paper logbook -->
+    <div class="caa-elig__flights" ng-show="vm.eligibility.flights_counted.length">
+      <button type="button" class="caa-elig__flights-toggle" ng-click="vm.eligibility._flightsOpen = !vm.eligibility._flightsOpen">
+        <i class="fas" ng-class="vm.eligibility._flightsOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        {{ vm.eligibility._flightsOpen ? 'Hide' : 'Show' }} the {{ vm.eligibility.flights_counted.length }} flights counted
+      </button>
+      <div class="caa-elig__flights-body" ng-show="vm.eligibility._flightsOpen">
+        <table class="caa-table caa-table--mini">
+          <thead>
+            <tr><th>Date</th><th>Aircraft</th><th class="caa-hide-mobile">Capacity</th><th>PIC</th><th>Dual</th><th class="caa-hide-mobile">Landings</th></tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="fl in vm.eligibility.flights_counted">
+              <td>{{ fl.flight_date }}</td>
+              <td>{{ fl.registration }}<span ng-show="fl.aircraft_model" class="caa-table__muted"> {{ fl.aircraft_model }}</span></td>
+              <td class="caa-hide-mobile">{{ fl.capacity }}</td>
+              <td>{{ fl.pic_time || 0 }}</td>
+              <td>{{ fl.dual_time || 0 }}</td>
+              <td class="caa-hide-mobile">{{ fl.landings || 0 }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

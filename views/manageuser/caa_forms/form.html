@@ -1,0 +1,374 @@
+<!-- CAA form page (FRONTEND_CAA_FORMS_GUIDE.md §2–§5, §8–§9).
+     Draft → full editor; after submit → locked, read-only + signature boxes.
+     Shared by instructors, the HoT and the applicant (dashboard.caa_form). -->
+<div class="snazzy-page caa-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ng-click="vm.back()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-contract"></i> {{ vm.form.title || vm.typeTitle(vm.form.form_type) }}</h2>
+        <p ng-show="vm.form.subject_name">For {{ vm.form.subject_name }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Loading the form…</span>
+    </div>
+
+    <div ng-if="!vm.loading && vm.form">
+
+      <!-- Status + progress -->
+      <div class="caa-statusbar snazzy-reveal">
+        <span class="caa-badge caa-badge--lg caa-badge--{{ vm.statusInfo(vm.form.status).tone }}">
+          {{ vm.statusInfo(vm.form.status).label }}
+        </span>
+        <div class="caa-timeline" ng-show="vm.form.status !== 'declined' && vm.form.status !== 'cancelled'">
+          <div class="caa-timeline__step" ng-repeat="s in vm.steps" ng-class="'caa-timeline__step--' + s.state">
+            <span class="caa-timeline__dot"><i class="fas fa-check" ng-show="s.state === 'done'"></i></span>
+            <span class="caa-timeline__label">{{ s.label }}</span>
+          </div>
+        </div>
+        <div class="caa-statusbar__actions">
+          <button class="sec-btn sec-btn--outline" ng-click="vm.downloadPdf(vm.form.id, vm.form.form_type)" ng-disabled="vm.pdfBusy">
+            <i class="fas" ng-class="vm.pdfBusy ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>
+            {{ vm.form.status === 'completed' ? 'Download PDF' : 'Preview PDF' }}
+          </button>
+          <button class="sec-btn sec-btn--outline" ng-show="vm.canAdmin" ng-click="vm.openAudit()">
+            <i class="fas fa-history"></i> <span class="caa-hide-mobile-inline">Audit trail</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Banners -->
+      <div class="caa-banner caa-banner--danger snazzy-reveal" ng-show="vm.form.form_modified_since_locked">
+        <i class="fas fa-exclamation-triangle"></i>
+        The form contents changed after it was locked for signing — treat existing signatures with caution.
+      </div>
+
+      <div class="caa-banner caa-banner--declined snazzy-reveal" ng-show="vm.form.status === 'declined'">
+        <div class="caa-banner__main">
+          <i class="fas fa-times-circle"></i>
+          <div>
+            <b>This form was declined.</b>
+            <span ng-repeat="sg in vm.form.signatures" ng-show="sg.decline_reason">
+              {{ vm.roleLabel(sg.role) }}: “{{ sg.decline_reason }}”
+            </span>
+          </div>
+        </div>
+        <button class="sec-btn sec-btn--outline" ng-show="vm.canAdmin" ng-click="vm.revert()" ng-disabled="vm.actionBusy">
+          <i class="fas fa-undo"></i> Revert to draft
+        </button>
+      </div>
+
+      <!-- Eligibility (reval, instructors only) -->
+      <div ng-include="'views/manageuser/caa_forms/_eligibility.html'" ng-if="vm.eligibility"></div>
+
+      <!-- ═══════════ DRAFT EDITOR ═══════════ -->
+      <div ng-if="vm.isDraft && vm.canAdmin">
+
+        <div class="caa-card snazzy-reveal" ng-repeat="group in vm.schema">
+          <div class="caa-card__title"><i class="fas" ng-class="group.icon"></i> {{ group.title }}</div>
+          <div class="caa-fields">
+            <div class="caa-field" ng-repeat="f in group.fields" ng-class="{'caa-field--full': f.full, 'caa-field--check': f.type === 'bool'}">
+              <label class="caa-field__label" ng-show="f.type !== 'bool'">{{ f.label }}</label>
+              <div ng-switch="f.type">
+                <input ng-switch-when="text" type="text" class="caa-input" ng-model="vm.formData[f.key]" placeholder="{{ f.ph || '' }}" />
+                <input ng-switch-when="number" type="number" step="any" class="caa-input" ng-model="vm.formData[f.key]" />
+                <input ng-switch-when="date" type="date" class="caa-input" ng-model="vm.formData[f.key]" />
+                <select ng-switch-when="select" class="caa-input" ng-model="vm.formData[f.key]"
+                        ng-options="o as (f.optionLabels[o] || o) for o in f.options">
+                  <option value="">—</option>
+                </select>
+                <textarea ng-switch-when="textarea" class="caa-input caa-input--area" ng-model="vm.formData[f.key]"></textarea>
+                <label ng-switch-when="bool" class="caa-check">
+                  <input type="checkbox" ng-model="vm.formData[f.key]" /><span>{{ f.label }}</span>
+                </label>
+              </div>
+              <div class="caa-field__hint" ng-show="f.hint">{{ f.hint }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manoeuvre grid (dotted forms) -->
+        <div class="caa-card snazzy-reveal" ng-if="vm.grid">
+          <div class="caa-card__title"><i class="fas fa-th"></i> Test items</div>
+          <p class="caa-card__hint">Tap an item to cycle <b>Pass → Fail → N/A → blank</b>. Blank items stay blank on the printed form.</p>
+          <div class="caa-grid">
+            <div class="caa-grid__group" ng-repeat="g in vm.grid">
+              <div class="caa-grid__label">{{ g.label }}</div>
+              <div class="caa-grid__items">
+                <button type="button" class="caa-grid__item" ng-repeat="id in g.items"
+                        ng-class="'caa-grid__item--' + (vm.sectionOf(id) || 'blank')"
+                        ng-click="vm.cycleSection(id)">
+                  <span class="caa-grid__id">{{ id }}</span>
+                  <span class="caa-grid__val">{{ vm.sectionOf(id) === 'na' ? 'N/A' : (vm.sectionOf(id) || '·') }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matrix grid (SRG2128 / SRG2130) -->
+        <div class="caa-card snazzy-reveal" ng-if="vm.matrix">
+          <div class="caa-card__title"><i class="fas fa-th"></i> Sections &amp; items</div>
+          <p class="caa-card__hint">Tap a cell to cycle <b>Pass → Fail → N/A → blank</b>. Cells the printed form doesn't have simply stay blank. The last column is the whole-section result.</p>
+          <div class="caa-table-scroll">
+            <table class="caa-matrix">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th ng-repeat="l in vm.matrix.letters">{{ l }}</th>
+                  <th class="caa-matrix__result-h">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="s in vm.matrix.sections">
+                  <th>Section {{ s }}</th>
+                  <td ng-repeat="l in vm.matrix.letters">
+                    <button type="button" class="caa-matrix__cell"
+                            ng-class="'caa-matrix__cell--' + (vm.sectionOf(s + l) || 'blank')"
+                            ng-click="vm.cycleSection(s + l)">{{ vm.cellMark(s + l) }}</button>
+                  </td>
+                  <td class="caa-matrix__result">
+                    <button type="button" class="caa-matrix__cell caa-matrix__cell--wide"
+                            ng-class="'caa-matrix__cell--' + (vm.sectionOf(s) || 'blank')"
+                            ng-click="vm.cycleSection(s)">{{ vm.sectionOf(s) === 'na' ? 'N/A' : (vm.sectionOf(s) || '·') }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Attached documents (certified true copy, draft only) -->
+        <div class="caa-card snazzy-reveal" ng-if="vm.isTrueCopy">
+          <div class="caa-card__title"><i class="fas fa-paperclip"></i> Documents to certify</div>
+          <p class="caa-card__hint">PNG, JPG or PDF up to 20&nbsp;MB each. They're bound into the certified copy behind the cover sheet.</p>
+
+          <div class="caa-files">
+            <div class="caa-files__row" ng-repeat="f in vm.form.files">
+              <i class="fas fa-file-alt"></i>
+              <span class="caa-files__name">{{ f.document_label || f.label || f.filename || 'Document' }}</span>
+              <button class="caa-table__action-btn" ng-click="vm.previewFile(f)" ng-disabled="f._busy" uib-tooltip="Preview">
+                <i class="fas" ng-class="f._busy ? 'fa-spinner fa-spin' : 'fa-eye'"></i>
+              </button>
+              <button class="caa-table__action-btn caa-table__action-btn--danger" ng-click="vm.deleteFile(f)" ng-disabled="f._busy"
+                      uib-tooltip="{{ f._confirmDelete ? 'Tap again to confirm' : 'Remove' }}">
+                <i class="fas" ng-class="f._confirmDelete ? 'fa-exclamation' : 'fa-trash-alt'"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="caa-files__add">
+            <input type="text" class="caa-input" ng-model="vm.fileLabel" placeholder="Document label (e.g. Passport)" />
+            <label class="sec-btn sec-btn--outline caa-files__pick" ng-class="{'caa-files__pick--busy': vm.uploadBusy}">
+              <input type="file" class="caa-files__input" accept="image/png,image/jpeg,application/pdf"
+                     caa-file-input="vm.filePicked(files)" />
+              <i class="fas" ng-class="vm.uploadBusy ? 'fa-spinner fa-spin' : 'fa-paperclip'"></i>
+              {{ vm.uploadBusy ? 'Uploading…' : 'Attach file' }}
+            </label>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="caa-card caa-submit snazzy-reveal">
+          <div class="caa-card__title"><i class="fas fa-paper-plane"></i> Send for signatures</div>
+          <p class="caa-card__hint" ng-show="vm.otherRole">
+            Naming an {{ vm.otherRole }} addresses their box to them; leaving it blank lets any club instructor claim it when signing.
+            Submitting locks the form — signers are emailed automatically.
+          </p>
+          <p class="caa-card__hint" ng-show="!vm.otherRole">
+            Submitting locks the form and sends it straight to the Head of Training to certify.
+          </p>
+
+          <div class="caa-submit__row">
+            <div class="caa-field" ng-show="vm.otherRole">
+              <label class="caa-field__label">{{ vm.roleLabel(vm.otherRole) }} (optional)</label>
+              <ui-select ng-model="vm.namedSigner" theme="bootstrap" title="Choose a signer" append-to-body="true">
+                <ui-select-match placeholder="Any club instructor" allow-clear="true">{{ vm.namedSigner.first_name || vm.namedSigner.name }} {{ vm.namedSigner.last_name }}</ui-select-match>
+                <ui-select-choices repeat="i in vm.instructors | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search}">
+                  <div>{{ i.first_name || i.name }} {{ i.last_name }}</div>
+                </ui-select-choices>
+              </ui-select>
+            </div>
+          </div>
+
+          <div class="caa-submit__actions">
+            <button class="sec-btn sec-btn--outline" ng-click="vm.saveDraft()" ng-disabled="vm.saving || vm.submitting">
+              <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+              {{ vm.saving ? 'Saving…' : 'Save draft' }}
+            </button>
+            <button class="sec-btn sec-btn--primary" ng-click="vm.submitForm()" ng-disabled="vm.saving || vm.submitting">
+              <i class="fas" ng-class="vm.submitting ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+              {{ vm.submitting ? 'Submitting…' : 'Submit for signatures' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ LOCKED / READ-ONLY VIEW ═══════════ -->
+      <div ng-if="!vm.isDraft || !vm.canAdmin">
+
+        <div class="caa-card snazzy-reveal" ng-repeat="group in vm.displayGroups">
+          <div class="caa-card__title"><i class="fas" ng-class="group.icon"></i> {{ group.title }}</div>
+          <div class="caa-view">
+            <div class="caa-view__row" ng-repeat="row in group.rows">
+              <span class="caa-view__label">{{ row.label }}</span>
+              <span class="caa-view__value">{{ row.value }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grids, read-only -->
+        <div class="caa-card snazzy-reveal" ng-if="vm.grid && vm.form.form_data.sections">
+          <div class="caa-card__title"><i class="fas fa-th"></i> Test items</div>
+          <div class="caa-grid caa-grid--readonly">
+            <div class="caa-grid__group" ng-repeat="g in vm.grid">
+              <div class="caa-grid__label">{{ g.label }}</div>
+              <div class="caa-grid__items">
+                <span class="caa-grid__item" ng-repeat="id in g.items"
+                      ng-class="'caa-grid__item--' + (vm.sectionOf(id) || 'blank')">
+                  <span class="caa-grid__id">{{ id }}</span>
+                  <span class="caa-grid__val">{{ vm.sectionOf(id) === 'na' ? 'N/A' : (vm.sectionOf(id) || '·') }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="caa-card snazzy-reveal" ng-if="vm.matrix && vm.form.form_data.sections">
+          <div class="caa-card__title"><i class="fas fa-th"></i> Sections &amp; items</div>
+          <div class="caa-table-scroll">
+            <table class="caa-matrix caa-matrix--readonly">
+              <thead>
+                <tr><th></th><th ng-repeat="l in vm.matrix.letters">{{ l }}</th><th class="caa-matrix__result-h">Result</th></tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="s in vm.matrix.sections">
+                  <th>Section {{ s }}</th>
+                  <td ng-repeat="l in vm.matrix.letters">
+                    <span class="caa-matrix__cell" ng-class="'caa-matrix__cell--' + (vm.sectionOf(s + l) || 'blank')">{{ vm.cellMark(s + l) }}</span>
+                  </td>
+                  <td class="caa-matrix__result">
+                    <span class="caa-matrix__cell caa-matrix__cell--wide" ng-class="'caa-matrix__cell--' + (vm.sectionOf(s) || 'blank')">{{ vm.sectionOf(s) === 'na' ? 'N/A' : (vm.sectionOf(s) || '·') }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Attached documents, read-only -->
+        <div class="caa-card snazzy-reveal" ng-if="vm.isTrueCopy && vm.form.files.length">
+          <div class="caa-card__title"><i class="fas fa-paperclip"></i> Certified documents</div>
+          <div class="caa-files">
+            <div class="caa-files__row" ng-repeat="f in vm.form.files">
+              <i class="fas fa-file-alt"></i>
+              <span class="caa-files__name">{{ f.document_label || f.label || f.filename || 'Document' }}</span>
+              <button class="caa-table__action-btn" ng-click="vm.previewFile(f)" ng-disabled="f._busy" uib-tooltip="Preview">
+                <i class="fas" ng-class="f._busy ? 'fa-spinner fa-spin' : 'fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ SIGNATURES ═══════════ -->
+      <div class="caa-card snazzy-reveal" ng-if="!vm.isDraft && vm.form.signatures.length">
+        <div class="caa-card__title"><i class="fas fa-file-signature"></i> Signatures</div>
+
+        <div class="caa-sig" ng-repeat="box in vm.form.signatures"
+             ng-class="{'caa-sig--signed': box.status === 'signed', 'caa-sig--declined': box.status === 'declined'}">
+
+          <div class="caa-sig__head">
+            <span class="caa-sig__role">
+              <i class="fas" ng-class="{
+                   'fa-user': box.role === 'applicant',
+                   'fa-chalkboard-teacher': box.role === 'instructor',
+                   'fa-user-tie': box.role === 'examiner',
+                   'fa-user-shield': box.role === 'hot'
+                 }"></i>
+              {{ vm.roleLabel(box.role) }}
+            </span>
+            <span class="caa-badge caa-badge--success" ng-show="box.status === 'signed'"><i class="fas fa-check"></i> Signed</span>
+            <span class="caa-badge caa-badge--danger" ng-show="box.status === 'declined'">Declined</span>
+            <span class="caa-badge caa-badge--info" ng-show="box.status === 'pending' && box.is_external">Sent to {{ box.signer_email }}</span>
+            <span class="caa-badge caa-badge--muted" ng-show="box.status === 'pending' && !box.is_external">Pending</span>
+          </div>
+
+          <div class="caa-sig__body" ng-show="box.status === 'signed'">
+            <img class="caa-sig__img" ng-if="box.signature_image" ng-src="{{ box.signature_image }}" alt="Signature" />
+            <div class="caa-sig__meta">
+              {{ box.signer_display || box.signer_name }}
+              <span ng-show="box.signer_number"> · No. {{ box.signer_number }}</span>
+              <span class="caa-sig__when" ng-show="box.signed_at"> · {{ box.signed_at }}</span>
+            </div>
+          </div>
+
+          <div class="caa-sig__body" ng-show="box.status === 'declined' && box.decline_reason">
+            <div class="caa-sig__reason"><i class="fas fa-comment-alt"></i> “{{ box.decline_reason }}”</div>
+          </div>
+
+          <div class="caa-sig__actions" ng-show="box.status === 'pending'">
+            <button class="sec-btn sec-btn--primary" ng-show="vm.canSign(box)" ng-click="vm.sign(box)">
+              <i class="fas fa-pen-nib"></i> Sign as {{ vm.roleLabel(box.role) }}
+            </button>
+            <button class="sec-btn sec-btn--danger-outline" ng-show="vm.canSign(box) && !box._declineOpen" ng-click="vm.toggleDecline(box)">
+              Decline
+            </button>
+            <button class="sec-btn sec-btn--outline" ng-show="vm.canSendExternal(box)" ng-click="vm.sendExternal(box)">
+              <i class="fas fa-envelope"></i> Send to external {{ box.role }}
+            </button>
+            <button class="sec-btn sec-btn--outline" ng-show="box.is_external && vm.canAdmin" ng-click="vm.resendExternal(box)" ng-disabled="box._busy">
+              <i class="fas" ng-class="box._busy ? 'fa-spinner fa-spin' : 'fa-redo'"></i> Resend link
+            </button>
+          </div>
+
+          <div class="caa-sig__decline" ng-show="box._declineOpen">
+            <input type="text" class="sec-modal__input" ng-model="box._reason"
+                   placeholder="Reason (optional — the initiator will see it)" />
+            <div class="caa-sig__decline-btns">
+              <button class="sec-btn sec-btn--outline" ng-click="vm.toggleDecline(box)" ng-disabled="box._busy">Cancel</button>
+              <button class="sec-btn sec-btn--danger" ng-click="vm.decline(box)" ng-disabled="box._busy">
+                {{ box._busy ? 'Declining…' : 'Decline form' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ ADMIN FOOTER ═══════════ -->
+      <div class="caa-footer snazzy-reveal" ng-show="vm.canAdmin && vm.form.status !== 'completed' && vm.form.status !== 'cancelled'">
+        <div ng-show="!vm.confirmAction" class="caa-footer__btns">
+          <button class="sec-btn sec-btn--outline" ng-show="vm.form.status === 'awaiting_signatures' || vm.form.status === 'awaiting_hot'"
+                  ng-click="vm.askConfirm('revert')">
+            <i class="fas fa-undo"></i> Revert to draft
+          </button>
+          <button class="sec-btn sec-btn--danger-outline" ng-click="vm.askConfirm('cancel')">
+            <i class="fas fa-ban"></i> Cancel form
+          </button>
+        </div>
+        <div ng-show="vm.confirmAction" class="caa-footer__confirm">
+          <span ng-show="vm.confirmAction === 'revert'">Revert to draft? Every signature collected so far is voided.</span>
+          <span ng-show="vm.confirmAction === 'cancel'">Cancel this form? It disappears from the club lists.</span>
+          <div class="caa-footer__btns">
+            <button class="sec-btn sec-btn--outline" ng-click="vm.cancelConfirm()" ng-disabled="vm.actionBusy">Keep it</button>
+            <button class="sec-btn sec-btn--danger" ng-show="vm.confirmAction === 'revert'" ng-click="vm.revert()" ng-disabled="vm.actionBusy">
+              {{ vm.actionBusy ? 'Reverting…' : 'Yes, revert' }}
+            </button>
+            <button class="sec-btn sec-btn--danger" ng-show="vm.confirmAction === 'cancel'" ng-click="vm.cancelForm()" ng-disabled="vm.actionBusy">
+              {{ vm.actionBusy ? 'Cancelling…' : 'Yes, cancel it' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

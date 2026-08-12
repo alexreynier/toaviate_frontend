@@ -1,0 +1,73 @@
+<!-- CAA forms — sign a signature box. Certifying roles (instructor /
+     examiner / HoT) must accept the printed declaration; applicants just
+     sign. Reuses the logbook-endorsements saved stamp + <sig-pad>. -->
+<div class="sec-modal">
+    <div class="sec-modal__header">
+        <i class="fas fa-pen-nib sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">Sign as {{ vm.roleLabel }}</h3>
+    </div>
+
+    <form class="sec-modal__body" ng-submit="vm.submit()" novalidate>
+
+        <p class="sec-modal__text">
+            <b>{{ vm.form.title || vm.form.form_type }}</b>
+            <span ng-show="vm.form.subject_name"> — for {{ vm.form.subject_name }}</span>
+        </p>
+
+        <!-- Declaration (certifying roles) -->
+        <div class="caa-declaration" ng-if="vm.needsDeclaration && vm.declaration">
+            <div class="caa-declaration__text">{{ vm.declaration }}</div>
+            <label class="sec-checkline">
+                <input type="checkbox" ng-model="vm.model.declaration_accepted" />
+                <span>I confirm the declaration above applies</span>
+            </label>
+        </div>
+
+        <!-- Eligibility override (reval + failing checklist) -->
+        <div class="caa-override" ng-if="vm.needsOverride">
+            <label class="sec-modal__label" for="caa-sign-override">
+                <i class="fas fa-exclamation-triangle"></i>
+                The eligibility checklist did not pass — why are you signing anyway?
+            </label>
+            <textarea class="sec-modal__input caa-override__note" id="caa-sign-override"
+                      ng-model="vm.model.eligibility_override_note"
+                      placeholder="e.g. Remaining hours evidenced in the paper logbook"></textarea>
+        </div>
+
+        <div class="acct-fields acct-fields--two" ng-if="vm.needsDeclaration">
+            <div class="acct-field">
+                <label class="sec-modal__label" for="caa-sign-name">Full name</label>
+                <input type="text" class="sec-modal__input" id="caa-sign-name" ng-model="vm.model.name" />
+            </div>
+            <div class="acct-field">
+                <label class="sec-modal__label" for="caa-sign-number">Licence / certificate number</label>
+                <input type="text" class="sec-modal__input" id="caa-sign-number" ng-model="vm.model.number" />
+            </div>
+        </div>
+
+        <!-- Saved stamp -->
+        <div class="end-savedstamp" ng-if="vm.savedStamp">
+            <label class="sec-checkline">
+                <input type="checkbox" ng-model="vm.useSaved" />
+                <span>Use my saved signature</span>
+            </label>
+            <div class="end-savedstamp__preview" ng-if="vm.useSaved">
+                <img ng-src="{{ vm.savedStamp.signature_image }}" alt="Saved signature" />
+            </div>
+        </div>
+
+        <div ng-if="!vm.savedStamp || !vm.useSaved">
+            <label class="sec-modal__label">Your signature</label>
+            <sig-pad ng-model="vm.model.signature_image"></sig-pad>
+        </div>
+
+        <div class="sec-modal__footer">
+            <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+            <button type="submit" class="sec-btn sec-btn--primary"
+                    ng-disabled="vm.busy || (!(vm.useSaved && vm.savedStamp) && !vm.model.signature_image)">
+                <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-stamp'"></i>
+                {{ vm.busy ? 'Signing…' : 'Sign form' }}
+            </button>
+        </div>
+    </form>
+</div>

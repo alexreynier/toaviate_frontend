@@ -1,0 +1,62 @@
+<!-- My Account — CAA forms waiting for MY signature (all my clubs merged). -->
+<div class="snazzy-page caa-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account({reload: true})">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-contract"></i> CAA Forms</h2>
+        <p>Paperwork waiting for your signature</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Checking for forms…</span>
+    </div>
+
+    <div class="snazzy-page__empty" ng-if="!vm.loading && !vm.rows.length && !vm.myForms.length">
+      <div class="snazzy-page__empty-icon"><i class="fas fa-file-contract"></i></div>
+      <h3>Nothing here yet</h3>
+      <p>When an instructor starts a CAA form for you, it appears here to sign — and your completed paperwork stays here to download.</p>
+    </div>
+
+    <div class="caa-queue snazzy-reveal--stagger" ng-if="!vm.loading && vm.rows.length">
+      <div class="caa-queue-card" ng-repeat="r in vm.rows" ng-click="vm.openForm(r)">
+        <div class="caa-queue-card__icon"><i class="fas fa-file-signature"></i></div>
+        <div class="caa-queue-card__main">
+          <div class="caa-queue-card__title">{{ r.title || vm.typeTitle(r.form_type) }}</div>
+          <div class="caa-queue-card__sub">
+            <span ng-show="r._club_title">{{ r._club_title }} · </span>signing as <b>{{ vm.roleLabel(r.role) }}</b>
+          </div>
+        </div>
+        <button class="sec-btn sec-btn--primary caa-queue-card__go">
+          <i class="fas fa-pen-nib"></i> Review &amp; sign
+        </button>
+      </div>
+    </div>
+
+    <!-- Forms history — every form raised for me, completed ones downloadable -->
+    <div class="caa-card snazzy-reveal" ng-if="!vm.loading && vm.myForms.length">
+      <div class="caa-card__title"><i class="fas fa-folder-open"></i> Your forms</div>
+      <div class="caa-files">
+        <div class="caa-files__row caa-files__row--click" ng-repeat="f in vm.myForms" ng-click="vm.openForm(f)">
+          <i class="fas fa-file-contract"></i>
+          <span class="caa-files__name">
+            {{ f.title || vm.typeTitle(f.form_type) }}
+            <span class="caa-table__muted" ng-show="f._club_title"> · {{ f._club_title }}</span>
+          </span>
+          <span class="caa-badge caa-badge--{{ vm.statusInfo(f.status).tone }}">{{ vm.statusInfo(f.status).label }}</span>
+          <button class="caa-table__action-btn" ng-show="f.status === 'completed'"
+                  ng-click="$event.stopPropagation(); vm.downloadPdf(f.id, f.form_type)"
+                  uib-tooltip="Download PDF"><i class="fas fa-file-pdf"></i></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

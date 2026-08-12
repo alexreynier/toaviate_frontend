@@ -1,0 +1,186 @@
+<!-- Public CAA-form signing page (/caa_form_confirm/:token).
+     External instructor/examiner — no account, no app chrome. The token is
+     single-use with a 30-day expiry; outcomes are shown outcome-only. -->
+<div class="caa-pub">
+
+    <div class="caa-pub__topbar">
+        <img src="images/main_logo.png" class="caa-pub__logo" alt="ToAviate" />
+    </div>
+
+    <!-- Loading -->
+    <div class="caa-pub__card caa-pub__card--center" ng-if="vm.state === 'loading'">
+        <div class="sec-spinner"></div>
+        <p>Opening the form…</p>
+    </div>
+
+    <!-- Invalid / unknown token -->
+    <div class="caa-pub__card caa-pub__card--center snazzy-reveal" ng-if="vm.state === 'invalid'">
+        <i class="fas fa-unlink caa-pub__big-icon"></i>
+        <h2>This link isn't valid</h2>
+        <p>It may have expired or already been used. Ask the club to send a fresh link.</p>
+    </div>
+
+    <!-- Already handled -->
+    <div class="caa-pub__card caa-pub__card--center snazzy-reveal" ng-if="vm.state === 'handled'">
+        <i class="fas caa-pub__big-icon"
+           ng-class="{
+             'fa-check-circle caa-pub__big-icon--good': vm.handledStatus === 'signed' || vm.handledStatus === 'completed',
+             'fa-times-circle caa-pub__big-icon--bad': vm.handledStatus === 'declined',
+             'fa-hourglass-end': vm.handledStatus === 'expired'
+           }"></i>
+        <h2 ng-show="vm.handledStatus === 'signed' || vm.handledStatus === 'completed'">Already signed</h2>
+        <h2 ng-show="vm.handledStatus === 'declined'">This form was declined</h2>
+        <h2 ng-show="vm.handledStatus === 'expired'">This link has expired</h2>
+        <h2 ng-show="vm.handledStatus !== 'signed' && vm.handledStatus !== 'completed' && vm.handledStatus !== 'declined' && vm.handledStatus !== 'expired'">Nothing to do here</h2>
+        <p>There's nothing more this link can do. Ask the club for a new one if you still need to sign.</p>
+    </div>
+
+    <!-- Open — review + sign -->
+    <div ng-if="vm.state === 'open'">
+
+        <div class="caa-pub__intro snazzy-reveal">
+            <h1>{{ vm.payload.title }}</h1>
+            <p>
+                {{ vm.payload.initiator_name }} has asked you to sign as
+                <b>{{ vm.roleLabel(vm.payload.role) }}</b>
+                <span ng-show="vm.payload.subject_name"> for <b>{{ vm.payload.subject_name }}</b></span>.
+                Review the details below — they're locked and can't be changed from here.
+            </p>
+        </div>
+
+        <!-- Form contents, read-only -->
+        <div class="caa-pub__card snazzy-reveal" ng-repeat="group in vm.displayGroups">
+            <div class="caa-card__title"><i class="fas" ng-class="group.icon"></i> {{ group.title }}</div>
+            <div class="caa-view">
+                <div class="caa-view__row" ng-repeat="row in group.rows">
+                    <span class="caa-view__label">{{ row.label }}</span>
+                    <span class="caa-view__value">{{ row.value }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grids, read-only -->
+        <div class="caa-pub__card snazzy-reveal" ng-if="vm.grid && vm.payload.form_data.sections">
+            <div class="caa-card__title"><i class="fas fa-th"></i> Test items</div>
+            <div class="caa-grid caa-grid--readonly">
+                <div class="caa-grid__group" ng-repeat="g in vm.grid">
+                    <div class="caa-grid__label">{{ g.label }}</div>
+                    <div class="caa-grid__items">
+                        <span class="caa-grid__item" ng-repeat="id in g.items"
+                              ng-class="'caa-grid__item--' + (vm.sectionOf(id) || 'blank')">
+                            <span class="caa-grid__id">{{ id }}</span>
+                            <span class="caa-grid__val">{{ vm.sectionOf(id) === 'na' ? 'N/A' : (vm.sectionOf(id) || '·') }}</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matrix (SRG2128/2130), read-only -->
+        <div class="caa-pub__card snazzy-reveal" ng-if="vm.matrix && vm.payload.form_data.sections">
+            <div class="caa-card__title"><i class="fas fa-th"></i> Sections &amp; items</div>
+            <div class="caa-table-scroll">
+                <table class="caa-matrix caa-matrix--readonly">
+                    <thead>
+                        <tr><th></th><th ng-repeat="l in vm.matrix.letters">{{ l }}</th><th class="caa-matrix__result-h">Result</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="s in vm.matrix.sections">
+                            <th>Section {{ s }}</th>
+                            <td ng-repeat="l in vm.matrix.letters">
+                                <span class="caa-matrix__cell" ng-class="'caa-matrix__cell--' + (vm.sectionOf(s + l) || 'blank')">{{ vm.cellMark(s + l) }}</span>
+                            </td>
+                            <td class="caa-matrix__result">
+                                <span class="caa-matrix__cell caa-matrix__cell--wide" ng-class="'caa-matrix__cell--' + (vm.sectionOf(s) || 'blank')">{{ vm.sectionOf(s) === 'na' ? 'N/A' : (vm.sectionOf(s) || '·') }}</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Other signatures -->
+        <div class="caa-pub__card snazzy-reveal" ng-if="vm.payload.other_signatures.length">
+            <div class="caa-card__title"><i class="fas fa-file-signature"></i> Other signatures</div>
+            <div class="caa-pub__others">
+                <span class="caa-signer-pill" ng-repeat="sg in vm.payload.other_signatures"
+                      ng-class="{'caa-signer-pill--done': sg.status === 'signed'}">
+                    <i class="fas" ng-class="sg.status === 'signed' ? 'fa-check' : 'fa-clock'"></i>
+                    {{ vm.roleLabel(sg.role) }}<span ng-show="sg.signer_name"> · {{ sg.signer_name }}</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Sign -->
+        <div class="caa-pub__card snazzy-reveal">
+            <div class="caa-card__title"><i class="fas fa-pen-nib"></i> Your signature</div>
+
+            <div class="caa-declaration" ng-if="vm.payload.declaration">
+                <div class="caa-declaration__text">{{ vm.payload.declaration }}</div>
+                <label class="sec-checkline">
+                    <input type="checkbox" ng-model="vm.form.declaration_accepted" />
+                    <span>I confirm the declaration above applies</span>
+                </label>
+            </div>
+
+            <div class="caa-override" ng-if="vm.payload.needs_eligibility_override">
+                <label class="sec-modal__label" for="caa-pub-override">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    The eligibility checklist did not pass — why are you signing anyway?
+                </label>
+                <textarea class="sec-modal__input caa-override__note" id="caa-pub-override"
+                          ng-model="vm.form.eligibility_override_note"
+                          placeholder="e.g. Remaining hours evidenced in the paper logbook"></textarea>
+            </div>
+
+            <div class="acct-fields acct-fields--two">
+                <div class="acct-field">
+                    <label class="sec-modal__label" for="caa-pub-name">Full name</label>
+                    <input type="text" class="sec-modal__input" id="caa-pub-name" ng-model="vm.form.name" />
+                </div>
+                <div class="acct-field">
+                    <label class="sec-modal__label" for="caa-pub-number">Licence / certificate number</label>
+                    <input type="text" class="sec-modal__input" id="caa-pub-number" ng-model="vm.form.number" />
+                </div>
+            </div>
+
+            <label class="sec-modal__label">Draw your signature</label>
+            <sig-pad ng-model="vm.form.signature_image"></sig-pad>
+
+            <div class="caa-pub__actions">
+                <button type="button" class="sec-btn sec-btn--primary caa-pub__sign-btn" ng-click="vm.sign()"
+                        ng-disabled="vm.busy || !vm.form.signature_image">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-stamp'"></i>
+                    {{ vm.busy ? 'Signing…' : 'Sign the form' }}
+                </button>
+                <button type="button" class="caa-pub__decline-link" ng-click="vm.toggleDecline()" ng-show="!vm.declineOpen">
+                    I can't sign this
+                </button>
+            </div>
+
+            <div class="caa-pub__decline" ng-show="vm.declineOpen">
+                <input type="text" class="sec-modal__input" ng-model="vm.declineReason"
+                       placeholder="Reason (optional — the club will see it)" />
+                <div class="caa-pub__decline-btns">
+                    <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.toggleDecline()" ng-disabled="vm.busy">Cancel</button>
+                    <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.decline()" ng-disabled="vm.busy">
+                        {{ vm.busy ? 'Declining…' : 'Decline to sign' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Done / declined -->
+    <div class="caa-pub__card caa-pub__card--center snazzy-reveal" ng-if="vm.state === 'done'">
+        <i class="fas fa-check-circle caa-pub__big-icon caa-pub__big-icon--good"></i>
+        <h2>Signed — thank you</h2>
+        <p>The club has been notified and the form moves on automatically. You can close this page.</p>
+    </div>
+    <div class="caa-pub__card caa-pub__card--center snazzy-reveal" ng-if="vm.state === 'declined'">
+        <i class="fas fa-times-circle caa-pub__big-icon caa-pub__big-icon--bad"></i>
+        <h2>Declined</h2>
+        <p>The club has been notified. You can close this page.</p>
+    </div>
+
+</div>

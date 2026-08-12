@@ -145,6 +145,7 @@ module.exports = function (grunt) {
                     'css/account.css',
                     'css/endorsements.css',
                     'css/address-lookup.css',
+                    'css/caa-forms.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

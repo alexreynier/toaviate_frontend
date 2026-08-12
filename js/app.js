@@ -49,7 +49,8 @@ var app = angular
                 '/api/v1/users/reset_password',
                 '/api/v1/webauthn/login', // passkey login_options / login_verify (pre-auth)
                 '/api/v1/logbook_endorsement_confirm', // public endorsement confirm page
-                '/api/v1/logbook_signup'  // public free-logbook signup + invite landing
+                '/api/v1/logbook_signup', // public free-logbook signup + invite landing
+                '/api/v1/caa_form_confirm' // public CAA-form external signing page (token)
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -345,6 +346,18 @@ var app = angular
                 url: '/endorsement_confirm/:token',
                 controller: 'EndorsementConfirmController',
                 templateUrl: 'views/public/endorsement_confirm.html',
+                controllerAs: 'vm'
+            })
+
+            // ── CAA FORMS — external signing page ──
+            // (FRONTEND_CAA_FORMS_GUIDE.md §5.) PUBLIC — the single-use token
+            // is baked into outgoing emails, so the path can never change.
+            // Also in publicStates + publicPages + the interceptor's
+            // unauthEndpoints ('/api/v1/caa_form_confirm').
+            .state('caa_form_confirm', {
+                url: '/caa_form_confirm/:token',
+                controller: 'CaaFormConfirmController',
+                templateUrl: 'views/public/caa_form_confirm.html',
                 controllerAs: 'vm'
             })
 
@@ -1403,6 +1416,48 @@ var app = angular
                 controller: 'EndorsementQueueController',
                 templateUrl: 'views/manageuser/pending_signatures.html',
                 controllerAs: 'vm'
+            })
+
+            // ── CAA FORMS — digital CAA paperwork ──
+            // (FRONTEND_CAA_FORMS_GUIDE.md.) One controller serves every
+            // screen, dispatched by data.screen (same pattern as SMS).
+            // The HoT tab on the hub is gated PER CLUB by the backend:
+            // caa_forms/hot_queue returning FORBIDDEN hides it.
+            .state('dashboard.manage_user.caa_forms', {
+                // Deep-linkable: club + tab live in the URL.
+                url: '/caa_forms?club_id&tab',
+                controller: 'CaaFormsController',
+                templateUrl: 'views/manageuser/caa_forms/list.html',
+                controllerAs: 'vm',
+                data: { screen: 'list' }
+            })
+
+            .state('dashboard.manage_user.caa_forms_new', {
+                url: '/caa_forms/new?club_id',
+                controller: 'CaaFormsController',
+                templateUrl: 'views/manageuser/caa_forms/new.html',
+                controllerAs: 'vm',
+                data: { screen: 'new' }
+            })
+
+            // Shared form page (draft editor + signing view). A direct child
+            // of dashboard — applicants (plain members) open it from their
+            // My Account queue too, so it must not live under manage_user.
+            .state('dashboard.caa_form', {
+                url: '/caa_form/:id',
+                controller: 'CaaFormsController',
+                templateUrl: 'views/manageuser/caa_forms/form.html',
+                controllerAs: 'vm',
+                data: { screen: 'form' }
+            })
+
+            // Member side — "CAA forms waiting for your signature".
+            .state('dashboard.my_account.caa_forms', {
+                url: '/caa_forms',
+                controller: 'CaaFormsController',
+                templateUrl: 'views/my_account/caa_forms.html',
+                controllerAs: 'vm',
+                data: { screen: 'member' }
             })
 
             .state('dashboard.manage_user.student_records', {
@@ -3320,7 +3375,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3417,7 +3472,8 @@ var app = angular
                 '/bookout-display',             // public airfield board (token)
                 '/free_logbook',                // free digital logbook signup
                 '/logbook_invite',              // invite-a-pilot landing (token, in emails)
-                '/endorsement_confirm'          // endorsement confirmation (token, in emails)
+                '/endorsement_confirm',         // endorsement confirmation (token, in emails)
+                '/caa_form_confirm'             // CAA form external signing (token, in emails)
             ];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {

@@ -1,0 +1,233 @@
+<!-- CAA Forms — new-form wizard: type → member → prefill review.
+     Prefill values come from the club's records (profile, licences,
+     ratings); everything stays editable in the draft editor afterwards. -->
+<div class="snazzy-page caa-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ng-click="vm.back()">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-medical"></i> New CAA Form</h2>
+        <p>Pick the paperwork, pick the member — we prefill the rest</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <!-- Steps -->
+    <div class="caa-steps">
+      <div class="caa-step" ng-class="{'caa-step--active': vm.step === 1, 'caa-step--done': vm.step > 1}">
+        <span class="caa-step__dot">1</span> Form
+      </div>
+      <div class="caa-step__bar" ng-class="{'caa-step__bar--done': vm.step > 1}"></div>
+      <div class="caa-step" ng-class="{'caa-step--active': vm.step === 2, 'caa-step--done': vm.step > 2}">
+        <span class="caa-step__dot">2</span> Member
+      </div>
+      <div class="caa-step__bar" ng-class="{'caa-step__bar--done': vm.step > 2}"></div>
+      <div class="caa-step" ng-class="{'caa-step--active': vm.step === 3}">
+        <span class="caa-step__dot">3</span> Review
+      </div>
+    </div>
+
+    <div class="caa-toolbar" ng-show="vm.clubs.length > 1 && vm.step === 1">
+      <div class="caa-toolbar__club">
+        <label class="caa-toolbar__label">Club</label>
+        <ui-select ng-model="vm.selected_club" on-select="vm.onClubSelected($item)" theme="bootstrap" title="Switch club" append-to-body="true">
+          <ui-select-match placeholder="Select club">{{ vm.selected_club.title }}</ui-select-match>
+          <ui-select-choices repeat="club in vm.clubs | propsFilterA: {title: $select.search, id: $select.search}">
+            <div ng-bind-html="club.title | highlight: $select.search"></div>
+          </ui-select-choices>
+        </ui-select>
+      </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Loading form types…</span>
+    </div>
+
+    <!-- ═══ STEP 1 — pick the form type ═══ -->
+    <div ng-if="!vm.loading && vm.step === 1" class="snazzy-reveal">
+      <div class="caa-typegroup" ng-repeat="group in vm.typeGroups">
+        <div class="caa-typegroup__label">{{ group.label }}</div>
+        <div class="caa-typegrid snazzy-reveal--stagger">
+          <div class="caa-typecard" ng-repeat="t in group.types" ng-click="vm.pickType(t)">
+            <div class="caa-typecard__icon">
+              <i class="fas" ng-class="{
+                   'fa-sync-alt': t.category === 'revalidation',
+                   'fa-clipboard-check': t.category === 'skill_test',
+                   'fa-copy': t.category === 'certification',
+                   'fa-graduation-cap': t.category === 'certificate'
+                 }"></i>
+            </div>
+            <div class="caa-typecard__title">{{ t.title }}</div>
+            <div class="caa-typecard__tags">
+              <span class="caa-badge caa-badge--muted" ng-repeat="role in t.signatures">{{ vm.roleLabel(role) }}</span>
+              <span class="caa-badge caa-badge--info" ng-show="t.hot_countersign">HoT countersign</span>
+              <span class="caa-badge caa-badge--warning" ng-show="t.has_eligibility">Eligibility check</span>
+            </div>
+            <i class="fas fa-chevron-right caa-typecard__go"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 2 — pick the member ═══ -->
+    <div ng-if="vm.step === 2" class="snazzy-reveal">
+      <div class="caa-card">
+        <div class="caa-card__title"><i class="fas fa-user"></i> Who is this form for?</div>
+        <div class="caa-card__picked">{{ vm.typeInfo.title }}</div>
+        <div class="caa-field">
+          <label class="caa-field__label">Member</label>
+          <ui-select ng-model="vm.subject" theme="bootstrap" title="Choose the member" append-to-body="true">
+            <ui-select-match placeholder="Search for the member">{{ vm.subject.first_name }} {{ vm.subject.last_name }}</ui-select-match>
+            <ui-select-choices repeat="m in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search, email: $select.search}">
+              <div ng-bind-html="m.first_name + ' ' + m.last_name | highlight: $select.search"></div>
+              <small ng-bind-html="m.email | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+        <div class="caa-card__footer">
+          <button class="sec-btn sec-btn--outline" ng-click="vm.back()">Back</button>
+          <button class="sec-btn sec-btn--primary" ng-click="vm.toReview()" ng-disabled="!vm.subject">
+            Continue <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 3 — prefill review ═══ -->
+    <div ng-if="vm.step === 3" class="snazzy-reveal">
+
+      <div class="sec-loading" ng-if="!vm.prefill">
+        <div class="sec-spinner"></div><span>Pulling {{ vm.subject.first_name }}'s records…</span>
+      </div>
+
+      <div ng-if="vm.prefill">
+
+        <!-- Eligibility (reval forms) — advisory, never blocking -->
+        <div ng-include="'views/manageuser/caa_forms/_eligibility.html'" ng-if="vm.eligibility"></div>
+
+        <!-- Course picker (certificate forms) — hours are computed from the
+             chosen course's tagged training-record flights -->
+        <div class="caa-card" ng-if="vm.isCertFlow">
+          <div class="caa-card__title"><i class="fas fa-graduation-cap"></i> Which course is this certificate for?</div>
+          <p class="caa-card__hint" ng-show="vm.courses.length">
+            Picking a course computes the hour boxes from its actual flights and their tags —
+            you review and adjust before anything is created.
+          </p>
+
+          <div class="caa-coursepick" ng-show="vm.courses.length">
+            <button type="button" class="caa-coursepick__item" ng-repeat="course in vm.courses"
+                    ng-class="{'caa-coursepick__item--active': vm.selectedCourse.id === course.id}"
+                    ng-click="vm.pickCourse(course)" ng-disabled="vm.prefillBusy">
+              <i class="fas" ng-class="vm.selectedCourse.id === course.id ? 'fa-check-circle' : 'fa-graduation-cap'"></i>
+              {{ course.title }}
+            </button>
+          </div>
+          <div class="caa-deputies__empty" ng-show="!vm.courses.length">
+            {{ vm.subject.first_name }} has no courses at this club — fill the certificate manually below.
+          </div>
+
+          <div class="sec-loading" ng-show="vm.prefillBusy">
+            <div class="sec-spinner"></div><span>Computing the course figures…</span>
+          </div>
+
+          <!-- Re-picking with unsaved edits replaces them — confirm first -->
+          <div class="caa-footer__confirm" ng-show="vm.pendingCourse">
+            <span>Switching course re-prefills the form and replaces your edits. Continue?</span>
+            <div class="caa-footer__btns">
+              <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancelPickCourse()">Keep my edits</button>
+              <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.confirmPickCourse()">Replace with course figures</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tagging-contract nudge (untagged night/instrument course) -->
+        <div class="caa-banner caa-banner--warning" ng-if="vm.tagWarning">
+          <div class="caa-banner__main">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+              {{ vm.tagWarning }}
+              <a ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: vm.subject.user_id || vm.subject.id, course_id: vm.selectedCourse.id})">
+                Open the training records to tag them.
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Course breakdown panel — what the prefilled boxes are checked against -->
+        <div class="caa-card" ng-if="vm.courseHours">
+          <div class="caa-card__title"><i class="fas fa-calculator"></i> Course breakdown — {{ vm.courseHours.course_title }}</div>
+
+          <div class="caa-view" ng-show="vm.courseHours.flights > 0">
+            <div class="caa-view__row"><span class="caa-view__label">Flights</span><span class="caa-view__value">{{ vm.courseHours.flights }}</span></div>
+            <div class="caa-view__row"><span class="caa-view__label">First → last flight</span><span class="caa-view__value">{{ vm.courseHours.first_flight }} → {{ vm.courseHours.last_flight }}</span></div>
+            <div class="caa-view__row"><span class="caa-view__label">Whole-course hours</span><span class="caa-view__value">{{ vm.courseHours.total_hours }} ({{ vm.courseHours.dual_hours }} dual · {{ vm.courseHours.solo_hours }} solo)</span></div>
+            <div class="caa-view__row"><span class="caa-view__label">Landings</span><span class="caa-view__value">{{ vm.courseHours.total_landings }} total · {{ vm.courseHours.solo_landings }} as PIC</span></div>
+            <div class="caa-view__row" ng-show="vm.courseHours.aircraft_types"><span class="caa-view__label">Aircraft</span><span class="caa-view__value">{{ vm.courseHours.aircraft_types }}</span></div>
+          </div>
+          <div class="caa-deputies__empty" ng-show="!vm.courseHours.flights">
+            No linked flights on this course yet — type the hours in below.
+          </div>
+
+          <div class="caa-elig__flights-body" ng-show="vm.tagHourCount() > 0">
+            <table class="caa-table caa-table--mini">
+              <thead><tr><th>Tag</th><th>Total</th><th>Dual</th><th>Solo</th></tr></thead>
+              <tbody>
+                <tr ng-repeat="(tag, hrs) in vm.courseHours.tag_hours">
+                  <td>{{ tag }}</td><td>{{ hrs.total }}</td><td>{{ hrs.dual }}</td><td>{{ hrs.solo }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="caa-elig__note" ng-show="vm.courseHours.note">
+            <i class="fas fa-info-circle"></i> {{ vm.courseHours.note }}
+          </div>
+        </div>
+
+        <div class="caa-card">
+          <div class="caa-card__title"><i class="fas fa-magic"></i> Prefilled details</div>
+          <p class="caa-card__hint">
+            Computed from ToAviate's records for {{ vm.subject.first_name }} — verify each value
+            against the pilot's logbook and adjust anything that's out of date. Everything stays
+            editable in the draft.
+          </p>
+
+          <!-- certificate_for drives the printed tick boxes — never prefilled -->
+          <div class="caa-field" ng-if="vm.certForDef()">
+            <label class="caa-field__label">{{ vm.certForDef().label }}</label>
+            <select class="caa-input" ng-model="vm.draftFields.certificate_for"
+                    ng-options="o as (vm.certForDef().optionLabels[o] || o) for o in vm.certForDef().options">
+              <option value="">— choose —</option>
+            </select>
+          </div>
+
+          <div class="caa-prefill">
+            <div class="caa-prefill__row" ng-repeat="(key, val) in vm.draftFields" ng-show="key !== 'sections' && key !== 'certificate_for'">
+              <label class="caa-prefill__key">{{ vm.fieldLabel(key) }}
+                <span class="caa-source-chip" ng-show="vm.sourceChip(key)">{{ vm.sourceChip(key) }}</span>
+              </label>
+              <input ng-if="vm.fieldDef(key).type === 'number'" type="number" step="any" class="caa-input"
+                     ng-model="vm.draftFields[key]" ng-change="vm.fieldsDirty = true" />
+              <input ng-if="vm.fieldDef(key).type !== 'number'" type="text" class="caa-input"
+                     ng-model="vm.draftFields[key]" ng-change="vm.fieldsDirty = true" />
+            </div>
+          </div>
+
+          <div class="caa-card__footer">
+            <button class="sec-btn sec-btn--outline" ng-click="vm.back()" ng-disabled="vm.creating">Back</button>
+            <button class="sec-btn sec-btn--primary" ng-click="vm.createDraft()" ng-disabled="vm.creating">
+              <i class="fas" ng-class="vm.creating ? 'fa-spinner fa-spin' : 'fa-file-signature'"></i>
+              {{ vm.creating ? 'Creating…' : 'Create draft form' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

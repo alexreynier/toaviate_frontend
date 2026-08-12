@@ -276,7 +276,7 @@ app.controller('LoginController', LoginController);
                  try { returnUrl = localStorage.getItem('toaviate_return_url'); } catch(e) {}
                  // Discard return URLs that point to signup/public flows — users
                  // should never be sent back to a signup form after logging in.
-                 var signupPrefixes = ['/passenger_signup', '/club_signup', '/user_signup', '/invitations', '/register', '/login', '/display', '/password_reset', '/registration_success', '/registration_verification', '/disabled', '/gallery', '/free_logbook', '/logbook_invite', '/endorsement_confirm'];
+                 var signupPrefixes = ['/passenger_signup', '/club_signup', '/user_signup', '/invitations', '/register', '/login', '/display', '/password_reset', '/registration_success', '/registration_verification', '/disabled', '/gallery', '/free_logbook', '/logbook_invite', '/endorsement_confirm', '/caa_form_confirm'];
                  if (returnUrl) {
                      for (var sp = 0; sp < signupPrefixes.length; sp++) {
                          if (returnUrl === signupPrefixes[sp] || returnUrl.indexOf(signupPrefixes[sp] + '/') === 0) {
