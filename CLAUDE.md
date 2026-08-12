@@ -375,6 +375,66 @@ Optional TOTP 2FA + WebAuthn passkeys (added 2026-08). Backend contract:
 - Show-once secrets (TOTP secret, recovery codes) use `backdrop:'static'` modals
   and are never re-fetchable — don't add endpoints or caching that would change that.
 
+## Logbook Endorsements & Free-Logbook Signup Funnel
+
+Instructor countersignatures ("stamps") on personal-logbook lines + the
+growth funnel (added 2026-08). Contracts: `FRONTEND_LOGBOOK_ENDORSEMENTS_GUIDE.md`
+/ `FRONTEND_LOGBOOK_SIGNUP_GUIDE.md`.
+
+- **Services:** [logbookEndorsementsService.js](js/services/logbookEndorsementsService.js) (pilot/instructor/public
+  endpoints + the shared `wordings` picker list) and [logbookSignupService.js](js/services/logbookSignupService.js)
+  (neutral public signup, invites, `AcceptExisting`).
+- **Signature pad:** `<sig-pad ng-model>` ([js/directives/signaturePad.js](js/directives/signaturePad.js), wraps the
+  checked-in [libs/js/signature_pad.js](libs/js/signature_pad.js)). Model = `''` or a `data:image/png` URL
+  (the only format the backend accepts); retina capped at 2×; the drawing is
+  RESTORED on window resize (mobile keyboards fire resize — don't "fix" that
+  back to clearing).
+- **My Logbook:** stamp rosette in the Source cell; endorsements share the
+  weather drawer row (`ng-show="e._wxOpen || e._endOpen"` — the colspan stays 19,
+  no new column). Transient row state uses the `_underscore` convention. Modals in
+  [endorsementModalControllers.js](js/controllers/endorsementModalControllers.js); request-signature is CLUB lines only,
+  external works on both. The instructor picker prefers `entry.club_id` (backend
+  now emits it) with a union-of-pilot-clubs fallback.
+- **Instructor queue:** `dashboard.manage_user.pending_signatures` + SIGNATURES
+  tile; sign modal remembers the instructor number in localStorage.
+- **Public pages** (all three in `publicStates` + `publicPages`, and their API
+  prefixes in the interceptor's `unauthEndpoints`): `/endorsement_confirm/:token`
+  and `/logbook_invite/:token` are baked into emails — paths can never change;
+  `/free_logbook` is the self-serve signup. Public signup responses are NEUTRAL
+  ("check your email") — never branch on account existence.
+- **Login flow:** club-less accounts (empty pilot access) land on My Logbook.
+  The invitation wizard's `existing_account` response stores the token in
+  localStorage `toaviate_accept_invitation`; after login, loginController calls
+  `invitations/accept_existing` (FORBIDDEN keeps the token so re-login with the
+  invited email works).
+- `users/{id}/verify` takes `verify_token` (canonical, per the corrected
+  signup guide); the backend also accepts `verify_link` as an alias.
+
+## Address Lookup
+
+Google-Places autocomplete via our API (added 2026-08; contract:
+`FRONTEND_ADDRESS_LOOKUP_GUIDE.md`). Use the shared component on ANY form that
+takes a postal address:
+
+```html
+<address-lookup on-select="vm.apply(address)" placeholder="Start typing…"></address-lookup>
+```
+
+- [js/directives/addressLookup.js](js/directives/addressLookup.js) + [js/services/addressLookupService.js](js/services/addressLookupService.js) +
+  [css/address-lookup.css](css/address-lookup.css). Debounced 300 ms, min 3 chars, keyboard nav, ONE
+  billing session per attempt (reused across suggestions + details, discarded
+  on pick — that's how Google bills it).
+- `on-select` receives the structured `address` (`line1..line4, locality,
+  city, county, postcode, country, formatted`). Simple fills go inline in the
+  expression; freeform textareas use `address.formatted`.
+- **The lookup is an accelerator, never a gate**: manual fields stay visible
+  and editable; `LOOKUP_UNAVAILABLE` hides the component entirely,
+  `LOOKUP_FAILED` shows a transient message.
+- The old postcode → pick-your-house flow is dead upstream and fully removed
+  (`PaymentService.GetAddresses` deleted) — don't reintroduce it. The only
+  address field deliberately NOT migrated is the voucher form's Stripe billing
+  postcode (raw DOM input for the Tokens flow).
+
 ## Style reminders for edits
 
 - Match existing formatting (this codebase uses 4-space indent, `var`, and plain

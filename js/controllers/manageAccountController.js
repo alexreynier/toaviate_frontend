@@ -7,28 +7,12 @@
         vm.user = $rootScope.globals.currentUser;
         //vm.user_id = vm.user.id;
         vm.avatar = "";
-        vm.address = "Please choose address...";
-        vm.user.address_line1 = "Please choose";
-        vm.addresses = {};
-        vm.show_addresses = false;
-        vm.show_address = false;
-        vm.show_search = false;
-
 
         UserService.GetById(vm.user.id)
                 .then(function (data) {
                     if(data.success){
                         data.user.dob = new Date(data.user.dob);
                         vm.user = data.user;
-
-                        if(vm.user.address_line1 !== ""){
-                            vm.show_address = true;
-                            vm.show_search = false;
-                            vm.show_addresses = false;
-                        }
-
-                        // //console.log("NOK", vm.user);
-
                     } else {
                         //console.log("WOOOPSIES...");
                         //this should be very very rare...
@@ -53,65 +37,19 @@
         }
 
 
-        $scope.show_form = function(){
-            // //console.log("show form");
-            vm.show_address = true;
-        }
-
-        $scope.set_address = function(){
-            // //console.log("set address");
-
-            vm.user.address_line1 = vm.address.line1;
-            vm.user.address_line2 = vm.address.line2;
-            vm.user.address_line3 = vm.address.line3;
-            vm.user.address_line4 = vm.address.line4;
-            vm.user.address_postcode = vm.address.postcode;
-            vm.user.address_locality = vm.address.locality;
-            vm.user.address_city = vm.address.city;
-            vm.user.address_county = vm.address.county;
-            vm.user.address_country = vm.address.country;
-
-            vm.show_address = true;
-
-        }
-
-        $scope.get_addresses = function(){
-
-            vm.address = {};
-
-            //  trial key
-            //  auth: api-key: BP-8KOdw8ka3F2eDU-Zz-g5865   
-            //  https://api.getAddress.io/v2/uk/{postcode}
-            // PaymentService.getAddress()
-
-            PaymentService.GetAddresses(vm.postcode)
-                .then(function (data) {
-                    if(data.success){
-
-                        // //console.log("addresses: "+data.addresses);
-                        vm.addresses = data.addresses;
-
-                        if(vm.addresses && vm.addresses.length > 0){
-                            vm.show_addresses = true;
-                        } else {
-                            ToastService.warning('Address Lookup', "We couldn't find your address from your postcode, please enter it manually");
-                            vm.show_addresses = false;
-                            vm.show_address = true;
-                        }
-                        //fill the drop down menu
-
-                    } else {
-                        // //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-                        ToastService.warning('Address Lookup', "We couldn't find your address from your postcode, please enter it manually");
-                        vm.show_addresses = false;
-                        vm.show_address = true;
-
-                    }
-                });
-
-
-
+        // Autocomplete pick → fill the (always-editable) address fields.
+        // (Replaces the dead postcode→pick-your-house flow; see
+        // FRONTEND_ADDRESS_LOOKUP_GUIDE.md.)
+        $scope.apply_address = function(address){
+            vm.user.address_line1 = address.line1 || '';
+            vm.user.address_line2 = address.line2 || '';
+            vm.user.address_line3 = address.line3 || '';
+            vm.user.address_line4 = address.line4 || '';
+            vm.user.address_postcode = address.postcode || '';
+            vm.user.address_locality = address.locality || '';
+            vm.user.address_city = address.city || '';
+            vm.user.address_county = address.county || '';
+            vm.user.address_country = address.country || '';
         }
 
 

@@ -1,0 +1,554 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MY DETAILS — My Account → manage (views/my_account/account.html)
+   Snazzy redesign: profile / address / password cards + save bar.
+   Reuses .sec-card + .sec-btn from security.css; page-specific bits
+   (.acct-*) live here. Mobile at 900/480; night mode at the bottom.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.acct-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+    text-align: left;              /* my_account hub wrapper centres text */
+}
+
+.acct-page__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+.acct-page__col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ── "My Details" hub — shared page geometry ──
+   One width for all four hub pages (Details / Security / Next of Kin /
+   Reminders) so the header doesn't jump when switching tabs. Applied on
+   each page's root alongside its page-specific class; declared here
+   (loaded last) so it wins over .rem-page's narrower legacy geometry. */
+
+.mdhub-page {
+    /* Explicit width, not just max-width: the my_account ui-view sits in a
+       shrink-wrapping flex wrapper (styles.css .centre_align_boxes2 > div
+       rule), so a max-width-only page sizes to its CONTENT and the header
+       width jumps between tabs. An explicit width makes every tab 1100px;
+       max-width lets it shrink with the viewport. */
+    width: 1100px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+    text-align: left;
+}
+
+/* nok content keeps .myacc-page styling, but its legacy .sub_section2
+   side-padding would indent the table 20px past the header — align it. */
+.mdhub-page .sub_section2 {
+    padding: 0;
+    margin-top: 16px;
+    display: block;
+}
+
+@media only screen and (max-width: 768px) {
+    .mdhub-page {
+        padding: 0 12px 48px;
+    }
+}
+
+/* ── "Training" hub — shared page geometry ──
+   Same trick as .mdhub-page, but 1400px wide (exam tables and training
+   record grids need the room): one explicit width for all four Training
+   tabs (Syllabus / Training Records / Questionnaires / Exams) so the
+   header doesn't jump between them. Declared here (loaded last) so it
+   beats each page's own legacy wrapper geometry. */
+
+.trhub-page {
+    width: 100%;
+    max-width: none;   /* neutralise legacy caps (.cc-page 1100px etc.) — the width ladder below governs */
+    margin: 0 auto;
+    padding: 0 24px 48px;
+    text-align: left;
+}
+
+/* The width ladder MIRRORS the .centre_align_boxes2 ancestor's responsive
+   max-widths (styles.css) exactly — an explicit width larger than that
+   container can't flex-shrink (min-width:auto resolves to it) and
+   overflows the viewport instead. */
+@media (min-width: 769px)  { .trhub-page { width: 800px; } }
+@media (min-width: 1000px) { .trhub-page { width: 950px; } }
+@media (min-width: 1200px) { .trhub-page { width: 1150px; } }
+@media (min-width: 1400px) { .trhub-page { width: 1400px; } }
+
+@media only screen and (max-width: 768px) {
+    .trhub-page {
+        padding: 0 12px 48px;
+    }
+}
+
+/* ── "My Details" hub sub-nav (shared: _details_nav.html) ──
+   Rendered on account / security / next-of-kin / reminders pages. */
+
+.mdnav {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 16px 0 4px;
+    text-align: left;              /* nok page wrapper centres text */
+}
+
+.mdnav__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mdnav__pill:hover,
+.mdnav__pill:focus {
+    background: #f1f5f9;
+    color: #1e293b;
+    text-decoration: none;
+}
+
+.mdnav__pill--active,
+.mdnav__pill--active:hover,
+.mdnav__pill--active:focus {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(30, 58, 95, 0.25);
+}
+
+@media only screen and (max-width: 480px) {
+    .mdnav__pill {
+        padding: 7px 12px;
+        font-size: 12.5px;
+    }
+}
+
+body.night-mode .mdnav__pill {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+body.night-mode .mdnav__pill--active {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+}
+
+/* ── Fields ── */
+
+.acct-field {
+    margin-bottom: 14px;
+}
+
+.acct-field label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0 0 5px;
+}
+
+.acct-fields--two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.acct-fields--two .acct-field {
+    margin-bottom: 14px;
+}
+
+.acct-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.acct-input:focus {
+    outline: none;
+    border-color: #2d5a8e;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.acct-input[disabled] {
+    background: #f8fafc;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.acct-field__hint {
+    font-size: 12px;
+    color: #94a3b8;
+    margin: 6px 0 14px;
+    line-height: 1.5;
+}
+
+/* ── Avatar dropzone (restyle of the legacy flow.js block) ── */
+
+.acct-avatar {
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.acct-avatar .avatar_drop {
+    height: 132px;
+    width: 132px;
+    border-radius: 50%;
+    border: 2px dashed #cbd5e1;
+    background: #f8fafc;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.acct-avatar .avatar_drop:hover {
+    border-color: #2d5a8e;
+    background: #f1f5f9;
+}
+
+.acct-avatar .cover_avatar {
+    position: static;
+    width: 100%;
+    height: 100%;
+}
+
+.acct-avatar .avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.acct-avatar .avatar_upload_text {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.45;
+    padding: 0 14px;
+}
+
+.acct-avatar__icon {
+    display: block;
+    font-size: 20px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+
+.acct-avatar__hint {
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-top: 8px;
+}
+
+/* ── Postcode lookup ── */
+
+.acct-postcode__row {
+    display: flex;
+    gap: 10px;
+}
+
+.acct-postcode__row .acct-input {
+    flex: 1;
+}
+
+.acct-address-select {
+    width: 100%;
+    display: block;
+}
+
+.acct-link-btn {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d5a8e;
+    cursor: pointer;
+}
+
+.acct-link-btn:hover {
+    text-decoration: underline;
+}
+
+/* ── Security cross-link ── */
+
+.acct-security-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    padding: 11px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    font-size: 13px;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.acct-security-link:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.acct-security-link > .fa-lock {
+    color: #2d5a8e;
+}
+
+.acct-security-link > span {
+    flex: 1;
+}
+
+.acct-security-link > .fa-chevron-right {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+/* ── Save bar ── */
+
+.acct-save {
+    margin-top: 20px;
+}
+
+.acct-save__inner {
+    display: flex;
+    align-items: flex-end;
+    gap: 18px;
+    padding: 16px 20px;
+}
+
+.acct-save__confirm {
+    flex: 1;
+    max-width: 420px;
+    margin-bottom: 0;
+}
+
+.acct-save__why {
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.acct-save__btns {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/* ── Next of Kin (list card + form, inside the hub) ── */
+
+.nok-contact {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.nok-contact__icon {
+    font-size: 18px;
+    color: #2d5a8e;
+    width: 26px;
+    text-align: center;
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.nok-contact__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.nok-contact__name {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.nok-contact__rel {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 11.5px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.nok-contact__meta {
+    margin-top: 5px;
+    font-size: 13px;
+    color: #64748b;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+}
+
+.nok-contact__meta i {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-right: 5px;
+}
+
+.nok-contact__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.nok-contact__confirm {
+    margin-top: 12px;
+}
+
+.nok-contact__confirm .sec-warning {
+    margin-bottom: 10px;
+}
+
+.nok-contact__confirm-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.nok-form__btns {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+textarea.acct-input {
+    resize: vertical;
+    min-height: 90px;
+}
+
+/* ═══ Mobile ═══ */
+
+@media only screen and (max-width: 900px) {
+
+    .acct-page {
+        padding: 0 12px 48px;
+    }
+
+    .acct-page__grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .acct-page__col {
+        gap: 14px;
+    }
+
+    .acct-save__inner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .acct-save__confirm {
+        max-width: none;
+    }
+
+    .acct-save__btns {
+        margin-left: 0;
+        justify-content: flex-end;
+    }
+}
+
+@media only screen and (max-width: 480px) {
+
+    .acct-fields--two {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .acct-postcode__row {
+        flex-direction: column;
+    }
+
+    .acct-save__btns {
+        flex-direction: column-reverse;
+    }
+
+    .acct-save__btns .sec-btn {
+        justify-content: center;
+    }
+
+    .nok-contact {
+        flex-wrap: wrap;
+    }
+
+    .nok-contact__actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .nok-form__btns,
+    .nok-contact__confirm-btns {
+        flex-direction: column-reverse;
+    }
+
+    .nok-form__btns .sec-btn,
+    .nok-contact__confirm-btns .sec-btn {
+        justify-content: center;
+    }
+}
+
+/* ═══ Night mode ═══ */
+
+body.night-mode .acct-input {
+    background: #16202e;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+body.night-mode .acct-input[disabled] {
+    background: #101827;
+    color: #94a3b8;
+}
+
+body.night-mode .acct-avatar .avatar_drop {
+    background: #16202e;
+    border-color: #334155;
+}
+
+body.night-mode .acct-security-link {
+    background: #16202e;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+body.night-mode .nok-contact {
+    border-color: #334155;
+}
+
+body.night-mode .nok-contact__name {
+    color: #e2e8f0;
+}

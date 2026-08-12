@@ -47,7 +47,9 @@ var app = angular
                 '/api/v1/users/login',   // covers login, login0..3 + login_2fa
                 '/api/v1/users/logout',
                 '/api/v1/users/reset_password',
-                '/api/v1/webauthn/login' // passkey login_options / login_verify (pre-auth)
+                '/api/v1/webauthn/login', // passkey login_options / login_verify (pre-auth)
+                '/api/v1/logbook_endorsement_confirm', // public endorsement confirm page
+                '/api/v1/logbook_signup'  // public free-logbook signup + invite landing
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -317,7 +319,34 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── FREE DIGITAL LOGBOOK — public growth funnel ──
+            // Contracts: FRONTEND_LOGBOOK_SIGNUP_GUIDE.md /
+            //            FRONTEND_LOGBOOK_ENDORSEMENTS_GUIDE.md §6.
+            // All three are PUBLIC (also in publicStates + publicPages);
+            // /endorsement_confirm/{token} and /logbook_invite/{token} are
+            // baked into outgoing emails — the paths cannot change.
+            .state('free_logbook', {
+                url: '/free_logbook',
+                controller: 'LogbookSignupController',
+                templateUrl: 'views/public/free_logbook.html',
+                controllerAs: 'vm',
+                data: { screen: 'register' }
+            })
 
+            .state('logbook_invite', {
+                url: '/logbook_invite/:token',
+                controller: 'LogbookSignupController',
+                templateUrl: 'views/public/logbook_invite.html',
+                controllerAs: 'vm',
+                data: { screen: 'invite' }
+            })
+
+            .state('endorsement_confirm', {
+                url: '/endorsement_confirm/:token',
+                controller: 'EndorsementConfirmController',
+                templateUrl: 'views/public/endorsement_confirm.html',
+                controllerAs: 'vm'
+            })
 
             .state('registration_success', {
                 url: '/registration_success',
@@ -1367,6 +1396,15 @@ var app = angular
                 }
             })
 
+            // Pending logbook signatures — endorsement requests from pilots
+            // (FRONTEND_LOGBOOK_ENDORSEMENTS_GUIDE.md §5).
+            .state('dashboard.manage_user.pending_signatures', {
+                url: '/pending_signatures',
+                controller: 'EndorsementQueueController',
+                templateUrl: 'views/manageuser/pending_signatures.html',
+                controllerAs: 'vm'
+            })
+
             .state('dashboard.manage_user.student_records', {
                 // Deep-linkable: club/student/course selection lives in the URL so
                 // refresh, back button and shared links land on the same record.
@@ -2178,6 +2216,14 @@ var app = angular
             templateUrl: 'views/my_account/account.html',
             controllerAs: 'vm',
             controller: 'ManageAccountController'
+        })
+
+        // Invite a pilot — the free-logbook referral loop (all users).
+        .state('dashboard.my_account.invite_pilot', {
+            url: '/invite_pilot',
+            templateUrl: 'views/my_account/invite_pilot.html',
+            controllerAs: 'vm',
+            controller: 'InvitePilotController'
         })
 
         // Two-factor authentication + passkeys. Also the enrolment page the
@@ -3274,7 +3320,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3368,7 +3414,10 @@ var app = angular
                 '/invitations',                 // member invitation / BS-import conversion (token)
                 '/signup/maintenance',          // maintenance organisation signup
                 '/bookout',                     // public airfield book-out form (/bookout/:icao)
-                '/bookout-display'              // public airfield board (token)
+                '/bookout-display',             // public airfield board (token)
+                '/free_logbook',                // free digital logbook signup
+                '/logbook_invite',              // invite-a-pilot landing (token, in emails)
+                '/endorsement_confirm'          // endorsement confirmation (token, in emails)
             ];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {

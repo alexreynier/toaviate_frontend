@@ -9,8 +9,8 @@
 // ─────────────────────────────────────────────────────
 app.controller('PersonalLogbookController', PersonalLogbookController);
 
-    PersonalLogbookController.$inject = ['PersonalLogbookService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$timeout'];
-    function PersonalLogbookController(PersonalLogbookService, ToastService, $rootScope, $scope, $state, $stateParams, $timeout) {
+    PersonalLogbookController.$inject = ['PersonalLogbookService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$timeout', '$uibModal', 'LogbookEndorsementsService'];
+    function PersonalLogbookController(PersonalLogbookService, ToastService, $rootScope, $scope, $state, $stateParams, $timeout, $uibModal, LogbookEndorsementsService) {
         var vm = this;
 
         vm.screen = $state.current.data.screen;
@@ -182,6 +182,153 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
                     ToastService.success('Export ready', 'Your logbook is downloading.');
                 } else {
                     ToastService.error('Export failed', (res && res.message) || '');
+                }
+            });
+        };
+
+        // ════════════════════════════════════════════
+        // ENDORSEMENTS — instructor/examiner stamps on a line
+        // Drawer state uses the same _underscore transient-flag
+        // convention as _wxOpen (stripped from save payloads).
+        // ════════════════════════════════════════════
+
+        vm.toggleEndorsements = function(e) {
+            e._endOpen = !e._endOpen;
+            if (e._endOpen && !e._endRows) { reloadEndorsements(e); }
+        };
+
+        function reloadEndorsements(e) {
+            e._endLoading = true;
+            LogbookEndorsementsService.ForLine(e.kind, e.ref_id).then(function(data) {
+                e._endLoading = false;
+                if (data && data.success === false) {
+                    ToastService.error('Could not load endorsements', data.message || '');
+                    e._endRows = e._endRows || [];
+                    return;
+                }
+                e._endRows = data.endorsements || [];
+                // Keep the row badge in sync (server rule: signed || confirmed).
+                e.endorsed = e._endRows.some(function(r) {
+                    return r.status === 'signed' || r.status === 'confirmed';
+                }) ? 1 : 0;
+                e.endorsements = e._endRows;
+            });
+        }
+
+        // Status → label/tone. Only signed/confirmed are real stamps; the
+        // rest are workflow state and render subtly.
+        vm.endStatusLabel = function(r) {
+            switch (r.status) {
+                case 'pending_instructor':    return 'Awaiting instructor';
+                case 'signed':                return 'Signed';
+                case 'pending_email_confirm': return r.has_signature_image ? 'Signed — awaiting email confirmation' : 'Awaiting confirmation';
+                case 'confirmed':             return 'Confirmed';
+                case 'declined':              return 'Declined';
+                default:                      return r.status;
+            }
+        };
+        vm.endStatusTone = function(r) {
+            if (r.status === 'signed' || r.status === 'confirmed') return 'good';
+            if (r.status === 'declined') return 'bad';
+            return 'wait';
+        };
+        vm.endDate = function(r) { return r.confirmed_at || r.signed_at || null; };
+
+        // ── Request an in-app signature (club lines only) ──
+        vm.openRequestSignature = function(e) {
+            if (e.kind !== 'club') { return; }   // manual lines are external-flow only
+            $uibModal.open({
+                templateUrl: 'views/modals/endorsement_request_modal.html',
+                controller: 'EndorsementRequestModalCtrl',
+                controllerAs: 'vm',
+                backdrop: 'static',
+                windowClass: 'sec-modal-window',
+                resolve: { entry: function() { return { ref_id: e.ref_id, club_id: e.club_id, source: e.source,
+                                                        flight_date: e.flight_date, registration: e.registration }; } }
+            }).result.then(function(saved) {
+                if (saved) {
+                    ToastService.success('Signature Requested', 'The instructor will see it in their signing queue.');
+                    reloadEndorsements(e);
+                }
+            }, function() {});
+        };
+
+        // ── Record an external endorsement (any line) ──
+        vm.openAddExternal = function(e) {
+            $uibModal.open({
+                templateUrl: 'views/modals/endorsement_external_modal.html',
+                controller: 'EndorsementExternalModalCtrl',
+                controllerAs: 'vm',
+                backdrop: 'static',
+                size: 'lg',
+                windowClass: 'sec-modal-window',
+                resolve: { entry: function() { return { kind: e.kind, ref_id: e.ref_id,
+                                                        flight_date: e.flight_date, registration: e.registration }; } }
+            }).result.then(function(result) {
+                if (result && result.saved) {
+                    if (result.emailFailed) {
+                        ToastService.warning('Saved — Email Not Sent',
+                            'The endorsement was recorded but the email could not be sent. Check the address and use Resend.');
+                    } else {
+                        ToastService.success('Endorsement Recorded',
+                            'A confirmation email is on its way to the instructor.');
+                    }
+                    reloadEndorsements(e);
+                }
+            }, function() {});
+        };
+
+        // ── Resend the confirmation email (backend: max 5 sends, 10-min gap) ──
+        vm.resendEndorsement = function(e, r) {
+            if (r._resent) { return; }
+            r._resending = true;
+            LogbookEndorsementsService.Resend(r.id).then(function(data) {
+                r._resending = false;
+                if (data && data.success !== false) {
+                    r._resent = true;      // disable until the drawer reloads
+                    ToastService.success('Email Resent', 'The confirmation email was sent again.');
+                } else {
+                    ToastService.error('Could Not Resend', (data && data.message) || '');
+                }
+            });
+        };
+
+        // ── Audit trail — who did what to a stamp, when, from where ──
+        vm.toggleAudit = function(r) {
+            r._auditOpen = !r._auditOpen;
+            if (r._auditOpen && !r._audit) {
+                r._auditLoading = true;
+                LogbookEndorsementsService.Audit(r.id).then(function(data) {
+                    r._auditLoading = false;
+                    if (data && data.success === false) {
+                        ToastService.error('Could not load history', data.message || '');
+                        r._auditOpen = false;
+                        return;
+                    }
+                    r._audit = (data && data.events) || [];
+                });
+            }
+        };
+        vm.auditLabel = function(action) {
+            var map = { created: 'Recorded', requested: 'Requested', signed: 'Signed',
+                        confirmed: 'Confirmed', declined: 'Declined', revoked: 'Revoked',
+                        email_sent: 'Email sent', resent: 'Email resent' };
+            return map[action] || (action || '').replace(/_/g, ' ');
+        };
+
+        // ── Revoke (inline confirm, same pattern as row delete) ──
+        vm.askRevoke = function(r) { r._confirmRevoke = true; };
+        vm.cancelRevoke = function(r) { r._confirmRevoke = false; };
+        vm.confirmRevoke = function(e, r) {
+            r._revoking = true;
+            LogbookEndorsementsService.Revoke(r.id).then(function(data) {
+                r._revoking = false;
+                if (data && data.success !== false) {
+                    ToastService.success('Endorsement Removed', 'The endorsement was withdrawn.');
+                    reloadEndorsements(e);
+                } else {
+                    r._confirmRevoke = false;
+                    ToastService.error('Could Not Remove', (data && data.message) || '');
                 }
             });
         };

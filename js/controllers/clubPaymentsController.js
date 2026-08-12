@@ -43,30 +43,22 @@
         // };
 
 
-        $scope.get_addresses = function(){
-
-            //  trial key
-            //  auth: api-key: BP-8KOdw8ka3F2eDU-Zz-g5865   
-            //  https://api.getAddress.io/v2/uk/{postcode}
-            // PaymentService.getAddress()
-
-            PaymentService.GetAddresses(vm.postcode)
-                .then(function (data) {
-                    if(data.success){
-
-                        //console.log("addresses: "+data.addresses);
-                        vm.addresses = data.addresses;
-                        //fill the drop down menu
-
-                    } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-
-                    }
-                });
-
-
-
+        // Autocomplete pick → fill the billing-address fields (always
+        // editable; consumed by Stripe via the data-stripe attributes).
+        // Replaces the dead postcode→pick flow (FRONTEND_ADDRESS_LOOKUP_GUIDE.md).
+        vm.address = vm.address || {};
+        $scope.apply_address = function(address){
+            vm.address = {
+                line1: address.line1 || '',
+                line2: address.line2 || '',
+                line3: address.line3 || '',
+                line4: address.line4 || '',
+                locality: address.locality || '',
+                city: address.city || '',
+                county: address.county || '',
+                postcode: address.postcode || '',
+                country: address.country || ''
+            };
         }
 
 

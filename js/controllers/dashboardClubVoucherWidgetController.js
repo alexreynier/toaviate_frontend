@@ -1,7 +1,7 @@
 app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidgetController);
 
-    DashboardClubVoucherWidgetController.$inject = ['VoucherWidgetService', 'ClubService', 'PaymentService', '$rootScope', '$scope', '$state', '$sce', 'ToastService'];
-    function DashboardClubVoucherWidgetController(VoucherWidgetService, ClubService, PaymentService, $rootScope, $scope, $state, $sce, ToastService) {
+    DashboardClubVoucherWidgetController.$inject = ['VoucherWidgetService', 'ClubService', 'PaymentService', '$rootScope', '$scope', '$state', '$sce', 'ToastService', '$timeout'];
+    function DashboardClubVoucherWidgetController(VoucherWidgetService, ClubService, PaymentService, $rootScope, $scope, $state, $sce, ToastService, $timeout) {
         var vm = this;
 
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
@@ -25,6 +25,10 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
         // ── Settings state ──
         vm.settings = null;
         vm.settings_dirty = false;
+
+        // ── Selling mode (booking-first) ──
+        vm.mode_saving = false;
+        vm.hold_minute_options = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
         // ── Preview colours ──
         vm.font_options = [
@@ -115,12 +119,20 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                         }
                         // Load notification preferences when token exists
                         vm.loadNotifications();
+                        // Settings carry the selling mode shown on the Setup
+                        // tab — load them up-front, not just on the
+                        // Customise tab.
+                        vm.loadSettings();
                     } else {
                         vm.token = null;
                         vm.embed_code = '';
                     }
                 }, function() {
+                    // Catches a rejection from EITHER leg of the chain (club
+                    // load or token load) — without this a ClubService failure
+                    // left the page spinning forever.
                     vm.loading = false;
+                    ToastService.error('Could Not Load Widget Settings', 'Please refresh the page to try again.');
                 });
         }
 
@@ -181,13 +193,20 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                 });
         };
 
+        // Destructive actions use inline confirms (no native confirm() —
+        // see AGENT_GUIDE_ERROR_HANDLING.md).
+        vm.confirm_action = null;      // null | 'regenerate' | 'revoke'
+        vm.askRegenerate = function() { vm.confirm_action = 'regenerate'; };
+        vm.askRevoke = function() { vm.confirm_action = 'revoke'; };
+        vm.cancelConfirmAction = function() { vm.confirm_action = null; };
+
         vm.regenerateToken = function() {
-            if (!confirm('Are you sure? Regenerating the token will invalidate the old embed code. You will need to update it on your website.')) return;
+            vm.confirm_action = null;
             vm.generateToken();
         };
 
         vm.revokeToken = function() {
-            if (!confirm('Are you sure you want to disable the voucher widget? It will immediately stop working on any website using the embed code.')) return;
+            vm.confirm_action = null;
             vm.loading = true;
             VoucherWidgetService.RevokeToken(vm.club_id)
                 .then(function(data) {
@@ -206,15 +225,27 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
         };
 
         vm.copyEmbedCode = function() {
-            var textarea = document.getElementById('vw_embed_code');
-            if (textarea) {
+            function done(ok) {
+                $timeout(function() {
+                    vm.embed_copied = ok;
+                    if (ok) {
+                        ToastService.success('Copied!', 'Embed code copied to clipboard.');
+                        $timeout(function() { vm.embed_copied = false; }, 2500);
+                    } else {
+                        ToastService.warning('Copy Failed', 'Please select the embed code and copy it manually.');
+                    }
+                });
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(vm.embed_code || '').then(function() { done(true); }, function() { fallback(); });
+            } else { fallback(); }
+            function fallback() {
+                var textarea = document.getElementById('vw_embed_code');
+                if (!textarea) { done(false); return; }
                 textarea.select();
-                document.execCommand('copy');
-                vm.embed_copied = true;
-                ToastService.success('Copied!', 'Embed code copied to clipboard.');
-                setTimeout(function() {
-                    $scope.$apply(function() { vm.embed_copied = false; });
-                }, 2500);
+                var ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) {}
+                done(ok);
             }
         };
 
@@ -326,6 +357,9 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                 .then(function(data) {
                     if (data.success && data.settings) {
                         vm.settings = data.settings;
+                        // API integers can arrive as strings — normalise for the select
+                        vm.settings.slot_hold_minutes = parseInt(vm.settings.slot_hold_minutes, 10) || 5;
+                        vm.settings.widget_mode = vm.settings.widget_mode || 'voucher_only';
                     } else {
                         // Defaults
                         vm.settings = {
@@ -340,7 +374,9 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                             button_text: 'Buy Voucher',
                             success_message: null,
                             dark_mode: 0,
-                            success_redirect_url: null
+                            success_redirect_url: null,
+                            widget_mode: 'voucher_only',
+                            slot_hold_minutes: 5
                         };
                     }
                     vm.settings_dirty = false;
@@ -402,6 +438,35 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
         };
 
         // ═══════════════════════════════════════════════
+        // SELLING MODE (voucher_only / booking_first / both)
+        // ═══════════════════════════════════════════════
+
+        vm.setMode = function(mode) {
+            if (!vm.settings) return;
+            vm.settings.widget_mode = mode;
+        };
+
+        vm.saveMode = function() {
+            if (!vm.settings) return;
+            vm.mode_saving = true;
+
+            VoucherWidgetService.UpdateSettings(vm.club_id, {
+                widget_mode: vm.settings.widget_mode || 'voucher_only',
+                slot_hold_minutes: parseInt(vm.settings.slot_hold_minutes, 10) || 5
+            }).then(function(data) {
+                vm.mode_saving = false;
+                if (data.success) {
+                    ToastService.success('Saved', 'Widget selling mode updated.');
+                } else {
+                    ToastService.error('Error', data.message || 'Failed to save selling mode.');
+                }
+            }, function() {
+                vm.mode_saving = false;
+                ToastService.error('Error', 'Could not connect to the server.');
+            });
+        };
+
+        // ═══════════════════════════════════════════════
         // DARK MODE TOGGLE
         // ═══════════════════════════════════════════════
 
@@ -458,9 +523,12 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                     if (data.success) {
                         vm.purchases = data.purchases || [];
                         vm.purchases_total = data.total || 0;
+                    } else {
+                        ToastService.error('Could Not Load Purchases', data.message || 'Please try again.');
                     }
                 }, function() {
                     vm.purchases_loading = false;
+                    ToastService.error('Could Not Load Purchases', 'Please check your connection and try again.');
                 });
         };
 
@@ -516,7 +584,11 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                         // Update the purchase status locally
                         purchase.payment_status = 'refunded';
                         purchase.refunded_at = new Date().toISOString();
-                        ToastService.success('Refunded', 'The payment of ' + vm.formatCurrency(purchase.amount_paid, purchase.currency) + ' has been refunded via Stripe.');
+                        var refund_sub = 'The payment of ' + vm.formatCurrency(purchase.amount_paid, purchase.currency) + ' has been refunded via Stripe.';
+                        if (data.booking_cancelled) {
+                            refund_sub += ' The booked flight has been cancelled.';
+                        }
+                        ToastService.success('Refunded', refund_sub);
                     } else {
                         ToastService.error('Refund Failed', data.message || 'Failed to process refund. Please try via Stripe dashboard.');
                     }
@@ -562,7 +634,8 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
         };
 
         vm.formatCurrency = function(amount, currency) {
-            if (!amount) return '—';
+            // Only null/undefined/non-numeric are dashes — £0.00 is a real amount.
+            if (amount === null || amount === undefined || amount === '' || isNaN(parseFloat(amount))) return '—';
             var symbols = { GBP: '£', USD: '$', EUR: '€', AUD: 'A$', NZD: 'NZ$', CAD: 'C$', ZAR: 'R' };
             var sym = symbols[(currency || '').toUpperCase()] || (currency || '') + ' ';
             var num = parseFloat(amount);

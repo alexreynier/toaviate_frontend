@@ -148,18 +148,27 @@
             }
         };
 
-        // Check if user has any vouchers (single lightweight call)
+        // Check if user has any vouchers (single lightweight call). A failed
+        // probe used to hide the MY VOUCHERS tile permanently for that visit —
+        // retry once after a short pause so a transient blip doesn't hide a
+        // real voucher.
         vm.hasVouchers = false;
 
-        VoucherService.HasVouchers()
-            .then(function(data) {
-                if (data && data.success && data.has_vouchers) {
-                    vm.hasVouchers = true;
-                }
-            })
-            .catch(function() {
-                // Silently fail — button just stays hidden
-            });
+        probeVouchers(true);
+
+        function probeVouchers(retry) {
+            VoucherService.HasVouchers()
+                .then(function(data) {
+                    if (data && data.success && data.has_vouchers) {
+                        vm.hasVouchers = true;
+                    } else if (retry && (!data || data.success === false)) {
+                        $timeout(function() { probeVouchers(false); }, 3000);
+                    }
+                })
+                .catch(function() {
+                    if (retry) { $timeout(function() { probeVouchers(false); }, 3000); }
+                });
+        }
 
 
     }

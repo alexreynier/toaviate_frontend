@@ -105,37 +105,27 @@
 
 
 
+            // Inline confirm on the contact card (no prompt/confirm dialogs —
+            // see AGENT_GUIDE_ERROR_HANDLING.md).
+            $scope.ask_delete = function(id){ vm.confirm_delete_id = id; };
+            $scope.cancel_delete = function(){ vm.confirm_delete_id = null; };
+
             $scope.delete_nok = function(id){
 
-              
-                var a = prompt("Are you sure you wish to delete this nok? \n\n This change is irreversible! To confirm please type YES in the box below.");
-                if(a == "YES"){
+                NokService.Delete(vm.user.id, id)
+                    .then(function (data) {
+                        //console.log(data);
+                        if(data.success){
+                            ToastService.success('Contact Removed', 'The emergency contact was deleted.');
+                            $state.go('dashboard.my_account.nok', {}, { reload: true });
 
-                    //console.log("WE DELETE IT");
+                        } else {
 
-                    NokService.Delete(vm.user.id, id)
-                        .then(function (data) {
-                            //console.log(data);
-                            if(data.success){
-                                //console.log("HUZZAH", data);
-                                //then we need to remove this from the list of files...
-                                
-                                //refresh?
-                                $state.go('dashboard.my_account.nok', {}, { reload: true });
+                            ToastService.error('Delete Failed', 'Something went terribly wrong: ' + data.message);
 
-                            } else {
+                        }
 
-                                ToastService.error('Delete Failed', 'Something went terribly wrong: ' + data.message);
-
-                            }
-
-                        });
-
-
-                } else {
-                    //console.log("ignore123");
-                }
-
+                    });
 
             }
 

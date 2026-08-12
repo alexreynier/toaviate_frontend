@@ -170,12 +170,17 @@
                 <td class="lb-table__num">{{ e.night_landings || '' }}</td>
                 <td>
                   <img ng-if="e.verified" src="favicon/favicon-32x32.png" class="lb-source-mark" alt="ToAviate" uib-tooltip="ToAviate-verified flight" />
+                  <i class="fas fa-stamp lb-stamp-mark" ng-if="e.endorsed == 1" uib-tooltip="Endorsed — carries an instructor signature"></i>
                   <span class="lb-sd-chip" ng-if="vm.isSkyDemon(e)" uib-tooltip="Imported from a SkyDemon log — GPS track attached">SD</span>
                   <span ng-if="!vm.isSkyDemon(e)">{{ e.source }}</span>
                 </td>
                 <td class="lb-table__actions">
                   <!-- Flight replay — only when a recorded track exists -->
                   <button class="lb-table__action-btn lb-table__action-btn--replay" ng-if="vm.canReplay(e)" ng-click="vm.viewReplay(e)" uib-tooltip="Flight replay"><i class="fa fa-play-circle"></i></button>
+                  <!-- Signatures & endorsements — every line (club AND manual) -->
+                  <button class="lb-table__action-btn" ng-click="vm.toggleEndorsements(e)"
+                          ng-class="{'lb-table__action-btn--replay': e._endOpen, 'lb-table__action-btn--stamped': e.endorsed == 1}"
+                          uib-tooltip="Signatures & endorsements"><i class="fas fa-stamp"></i></button>
                   <!-- Weather at takeoff/landing — CLUB flights only: their ref_id is a
                        plane_log_sheets.id. Manual rows' ref_id is a manual entry id,
                        which the weather endpoint doesn't understand. -->
@@ -193,17 +198,124 @@
                   </span>
                 </td>
               </tr>
-              <!-- Weather drawer. ng-show on the row (ng-if is inert on an
-                   ng-repeat element in this Angular build) but ng-if on the
-                   inner mount, so the panel only fetches when opened. The
-                   .fw-drawer sticky wrapper keeps it in view while the wide
-                   table scrolls sideways. -->
-              <tr ng-repeat-end class="fw-drawer-row" ng-show="e._wxOpen">
+              <!-- Shared drawer row (weather + endorsements). ng-show on the
+                   row (ng-if is inert on an ng-repeat element in this Angular
+                   build) but ng-if on each inner mount, so panels only fetch
+                   when opened. The .fw-drawer sticky wrapper keeps content in
+                   view while the wide table scrolls sideways. -->
+              <tr ng-repeat-end class="fw-drawer-row" ng-show="e._wxOpen || e._endOpen">
                 <td colspan="19">
                   <div class="fw-drawer" fw-drawer-fit ng-if="e._wxOpen">
                     <flight-weather-panel flight-id="e.ref_id"
                                           dep-name="e.departure_airport"
                                           arr-name="e.arrival_airport"></flight-weather-panel>
+                  </div>
+
+                  <!-- ── Signatures & endorsements ── -->
+                  <div class="fw-drawer end-drawer" fw-drawer-fit ng-if="e._endOpen">
+
+                    <div class="end-drawer__head">
+                      <h4 class="end-drawer__title"><i class="fas fa-stamp"></i> Signatures &amp; Endorsements</h4>
+                      <div class="end-drawer__actions">
+                        <button class="lb-btn lb-btn--primary" ng-if="e.kind === 'club'" ng-click="vm.openRequestSignature(e)">
+                          <i class="fas fa-user-check"></i> Request instructor signature
+                        </button>
+                        <button class="lb-btn lb-btn--ghost" ng-click="vm.openAddExternal(e)">
+                          <i class="fas fa-envelope"></i> Add external endorsement
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="end-loading" ng-if="e._endLoading">
+                      <div class="end-spinner"></div> Loading endorsements…
+                    </div>
+
+                    <div class="end-empty" ng-if="!e._endLoading && e._endRows && !e._endRows.length">
+                      <i class="fas fa-stamp"></i>
+                      <p>No endorsements on this line yet. Ask an instructor to sign it, or record one you received elsewhere.</p>
+                    </div>
+
+                    <div class="end-cards" ng-if="!e._endLoading && e._endRows.length">
+                      <div class="end-card" ng-repeat="r in e._endRows"
+                           ng-class="'end-card--' + vm.endStatusTone(r)">
+
+                        <div class="end-card__top">
+                          <span class="end-badge end-badge--{{ vm.endStatusTone(r) }}">
+                            <span class="end-badge__dot"></span>{{ vm.endStatusLabel(r) }}
+                          </span>
+                          <span class="end-card__date" ng-if="vm.endDate(r)">{{ vm.endDate(r) }}</span>
+                        </div>
+
+                        <div class="end-card__text">“{{ r.endorsement_text }}”</div>
+
+                        <div class="end-card__who">
+                          <span class="end-card__name">{{ r.instructor_name }}</span>
+                          <span class="end-card__number" ng-if="r.instructor_number">No. {{ r.instructor_number }}</span>
+                        </div>
+
+                        <div class="end-card__sig" ng-if="r.signature_image">
+                          <img ng-src="{{ r.signature_image }}" alt="Signature" />
+                        </div>
+
+                        <div class="end-card__warn" ng-if="r.line_modified_since_signed">
+                          <i class="fas fa-exclamation-triangle"></i>
+                          This line was edited after it was signed.
+                        </div>
+
+                        <div class="end-card__reason" ng-if="r.status === 'declined' && r.decline_reason">
+                          Reason: {{ r.decline_reason }}
+                        </div>
+
+                        <div class="end-card__actions">
+                          <button class="lb-btn lb-btn--ghost" ng-click="vm.toggleAudit(r)"
+                                  ng-class="{'end-card__history--on': r._auditOpen}">
+                            <i class="fas fa-history"></i> History
+                          </button>
+                          <button class="lb-btn lb-btn--ghost" ng-if="r.status === 'pending_email_confirm'"
+                                  ng-click="vm.resendEndorsement(e, r)" ng-disabled="r._resent || r._resending">
+                            <i class="fas" ng-class="r._resending ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                            {{ r._resent ? 'Email sent' : 'Resend email' }}
+                          </button>
+                          <span ng-if="!r._confirmRevoke">
+                            <button class="lb-btn lb-btn--ghost end-card__remove" ng-click="vm.askRevoke(r)">
+                              <i class="fas fa-trash-alt"></i> Remove
+                            </button>
+                          </span>
+                          <span class="lb-confirm" ng-if="r._confirmRevoke">
+                            <span class="lb-confirm__q">Withdraw this endorsement?</span>
+                            <button class="lb-table__action-btn lb-table__action-btn--danger" ng-click="vm.confirmRevoke(e, r)" ng-disabled="r._revoking">
+                              <i class="fa" ng-class="{'fa-spinner fa-spin': r._revoking, 'fa-check': !r._revoking}"></i>
+                            </button>
+                            <button class="lb-table__action-btn" ng-click="vm.cancelRevoke(r)"><i class="fa fa-times"></i></button>
+                          </span>
+                        </div>
+
+                        <!-- Audit timeline (lazy-loaded) -->
+                        <div class="end-audit" ng-if="r._auditOpen">
+                          <div class="end-loading" ng-if="r._auditLoading">
+                            <div class="end-spinner"></div> Loading history…
+                          </div>
+                          <div class="end-audit__event" ng-repeat="ev in r._audit">
+                            <span class="end-audit__dot"></span>
+                            <div class="end-audit__body">
+                              <b>{{ vm.auditLabel(ev.action) }}</b>
+                              <span ng-if="ev.actor_name"> — {{ ev.actor_name }}</span>
+                              <span ng-if="ev.details.used_saved_signature" class="end-audit__tag">saved stamp</span>
+                              <div class="end-audit__meta">
+                                {{ ev.created_at }}<span ng-if="ev.ip_address"> · {{ ev.ip_address }}</span>
+                              </div>
+                              <div class="end-audit__detail" ng-if="ev.details.reason">Reason: {{ ev.details.reason }}</div>
+                              <div class="end-audit__detail" ng-if="ev.details.send_count">Send #{{ ev.details.send_count }}</div>
+                            </div>
+                          </div>
+                          <div class="end-empty" ng-if="!r._auditLoading && r._audit && !r._audit.length">
+                            <p>No history recorded for this endorsement.</p>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+
                   </div>
                 </td>
               </tr>

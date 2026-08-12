@@ -405,7 +405,9 @@
 		    		guardian: guardian_to_send,
 		    		booking_id: $scope.formData.booking_id,
 		    		token: $scope.formData.token,
-		    		membership_id: 0,
+		    		// Pass through the invitation's membership — the hardcoded 0
+		    		// silently relied on the backend re-deriving it from the token.
+		    		membership_id: $scope.formData.membership_id || 0,
 		    		invited_by: $scope.formData.invited_by,
 		    		voucher_id: $scope.formData.voucher_id || null
 		    	}
@@ -880,8 +882,11 @@
 		       $scope.checkedcode++;
 
 		       if ($scope.checkedcode > 4) {
+		           // Honest message: nothing is invalidated or auto-resent —
+		           // point at the real recovery path (the Resend button).
 		           $scope.codeError = '';
-		           ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		           ToastService.error('Too Many Attempts',
+		               'That code hasn\'t matched after several tries. Use "Resend code" below to get a fresh one, or contact the club.');
 		           return;
 		       }
 

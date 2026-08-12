@@ -16,9 +16,7 @@ app.factory('VoucherService', VoucherService);
         // ── Self-service voucher booking ──
         service.HasVouchers = HasVouchers;
         service.GetMyVouchersAll = GetMyVouchersAll;
-        service.GetMyVouchers = GetMyVouchers;
         service.GetVoucherSlots = GetVoucherSlots;
-        service.GetVoucherBooking = GetVoucherBooking;
         service.BookVoucher = BookVoucher;
         service.CancelVoucherBooking = CancelVoucherBooking;
        
@@ -72,10 +70,6 @@ app.factory('VoucherService', VoucherService);
             return $http.get('/api/v1/vouchers/my_vouchers_all').then(handleSuccess, handleError2);
         }
 
-        function GetMyVouchers(clubId) {
-            return $http.get('/api/v1/vouchers/my_vouchers/' + clubId).then(handleSuccess, handleError2);
-        }
-
         function GetVoucherSlots(voucherId, dateFrom, numDays, params) {
             var url = '/api/v1/vouchers/voucher_slots/' + voucherId + '/' + dateFrom + '/' + numDays;
             var queryParts = [];
@@ -84,10 +78,6 @@ app.factory('VoucherService', VoucherService);
             if (params.per_page) queryParts.push('per_page=' + params.per_page);
             if (queryParts.length) url += '?' + queryParts.join('&');
             return $http.get(url).then(handleSuccess, handleError2);
-        }
-
-        function GetVoucherBooking(voucherId) {
-            return $http.get('/api/v1/vouchers/voucher_booking/' + voucherId).then(handleSuccess, handleError2);
         }
 
         function BookVoucher(data) {

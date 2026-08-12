@@ -1813,12 +1813,27 @@ vm.selected_phone;
 		    				}
 		    				// If no error, user is redirected to return_url
 		    			});
+		    		} else if (handleExistingAccount(data)) {
+		    			return;
 		    		} else {
 		    			$scope.invLoading = false;
 		    			ToastService.error('Signup Error', 'An error occurred: ' + (data.error || 'Unknown error'));
 		    		}
 		    	});
 		    };
+
+		    // ── "You already have a ToAviate account" ──
+		    // Not a dead end: store the token and swap the wizard for the
+		    // log-in-to-accept state (form.html). After login, loginController
+		    // calls invitations/accept_existing with the stored token.
+		    // (FRONTEND_LOGBOOK_SIGNUP_GUIDE.md §5)
+		    function handleExistingAccount(data) {
+		    	if (!data || !data.existing_account) { return false; }
+		    	try { localStorage.setItem('toaviate_accept_invitation', $stateParams.token); } catch (e) {}
+		    	$scope.invLoading = false;
+		    	$scope.invite_existing_account = true;
+		    	return true;
+		    }
 
 		    $scope.validateAndSkipPayment = function() {
 		    	$scope.invErrors = {};
@@ -1889,6 +1904,8 @@ vm.selected_phone;
 		    			$scope.invPaymentResult = 'skipped';
 		    			$scope.invStep = 5;
 		    			$state.go('invitations.direct_debit');
+		    		} else if (handleExistingAccount(data)) {
+		    			return;
 		    		} else {
 		    			var msg = (data && (data.error || data.message)) || 'Unknown error';
 		    			ToastService.error('Signup Error', 'An error occurred: ' + msg);
@@ -1970,6 +1987,8 @@ vm.selected_phone;
 		                    	window.location = data.mandate.link;
 
 
+		                    } else if (handleExistingAccount(data)) {
+		                    	return false;
 		                    } else {
 		                    	$scope.invLoading = false;
 		                    	ToastService.error('Signup Error', 'An error occurred: ' + data.error);
@@ -2496,6 +2515,8 @@ vm.selected_phone;
 	                    	SignupDraftService.Clear(DRAFT_KEY);
 	                    	ToastService.success('Success', 'All good to go!');
 	                    	$state.go("invitations.verified");
+	                    } else if (handleExistingAccount(data)) {
+	                    	return;
 	                    } else {
 	                    	ToastService.error('Signup Failed', 'An error occurred: ' + ((data && (data.error || data.message)) || 'please try again.') + ' Nothing you entered has been lost.');
 	                    }

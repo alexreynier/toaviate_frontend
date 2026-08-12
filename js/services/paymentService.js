@@ -15,7 +15,8 @@ app.factory('PaymentService', PaymentService);
         var KEY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 
-        service.GetAddresses = GetAddresses;
+        // GetAddresses (legacy postcode cache) removed — every form now uses
+        // AddressLookupService autocomplete (FRONTEND_ADDRESS_LOOKUP_GUIDE.md).
 
         service.GetPaymentTypes = GetPaymentTypes;
         service.GetByUserId = GetByUserId;
@@ -199,10 +200,6 @@ app.factory('PaymentService', PaymentService);
             return $http.post('/api/v1/cards/create_onboarding_link', details).then(handleSuccess, handleError2);
         }
 
-
-        function GetAddresses(postcode){
-            return $http.get('/api/v1/addresses/'+postcode).then(handleSuccess, handleError2);
-        }
 
         function GetPaymentTypes() {
             return $http.get('/api/v1/poid_components').then(handleSuccess, handleError2);

@@ -85,6 +85,8 @@ app.factory('UserService', UserService);
 
         function Verify(id, verify_token) {
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
+            // verify_token is the canonical body key (the backend also accepts
+            // verify_link as a legacy alias — see FRONTEND_LOGBOOK_SIGNUP_GUIDE.md).
             return $http.post('/api/v1/users/' + id + '/verify', {"verify_token": verify_token}).then(handleSuccess, handleError2);
         }
 

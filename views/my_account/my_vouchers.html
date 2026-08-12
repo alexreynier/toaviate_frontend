@@ -12,7 +12,6 @@
         <h2><i class="fa fa-ticket-alt"></i> My Vouchers</h2>
         <p ng-if="vm.viewState === 'list'">Manage your experience vouchers</p>
         <p ng-if="vm.viewState === 'slot_search'">Find an available slot for your voucher flight</p>
-        <p ng-if="vm.viewState === 'booking_detail'">Your voucher booking details</p>
       </div>
     </div>
   </div>
@@ -87,8 +86,14 @@
 
             <!-- Available aircraft (hidden from voucher users) -->
 
+            <!-- Expired — defensive client-side check; the backend re-validates on booking anyway -->
+            <div class="voucher-booking__cancel-message" ng-if="vm.isExpired(voucher)">
+              <i class="fa fa-exclamation-triangle"></i>
+              This voucher expired on {{ vm.formatExpiryDate(voucher.expiry_date) }} — please contact the club about extending it.
+            </div>
+
             <!-- Book Now button -->
-            <div class="voucher-booking__voucher-actions">
+            <div class="voucher-booking__voucher-actions" ng-if="!vm.isExpired(voucher)">
               <button class="voucher-booking__book-now-btn" ng-click="vm.startSlotSearch(voucher)">
                 <i class="fa fa-calendar-plus"></i> Book My Flight
               </button>
@@ -152,16 +157,33 @@
               </div>
             </div>
 
-            <!-- Cancel / rebook actions -->
+            <!-- Cancel / rebook actions — inline confirm, no native confirm() -->
             <div class="voucher-booking__booking-actions">
               <button class="voucher-booking__cancel-btn"
-                      ng-if="voucher.can_cancel"
-                      ng-click="vm.cancelBooking(voucher)"
+                      ng-if="voucher.can_cancel && !voucher._confirmCancel"
+                      ng-click="vm.askCancelBooking(voucher)"
                       ng-disabled="vm.cancelInProgress">
-                <i class="fa fa-times-circle" ng-if="!vm.cancelInProgress"></i>
-                <i class="fa fa-spinner fa-spin" ng-if="vm.cancelInProgress"></i>
-                {{ vm.cancelInProgress ? 'Cancelling...' : 'Cancel & Rebook' }}
+                <i class="fa fa-times-circle"></i>
+                Cancel &amp; Rebook
               </button>
+              <div class="voucher-booking__cancel-confirm" ng-if="voucher._confirmCancel">
+                <div class="voucher-booking__cancel-message">
+                  <i class="fa fa-exclamation-triangle"></i>
+                  Cancel this voucher flight? You'll be able to rebook a different slot afterwards.
+                </div>
+                <div class="voucher-booking__cancel-confirm-btns">
+                  <button class="voucher-booking__book-now-btn voucher-booking__keep-btn"
+                          ng-click="vm.dismissCancelBooking(voucher)" ng-disabled="vm.cancelInProgress">
+                    Keep booking
+                  </button>
+                  <button class="voucher-booking__cancel-btn"
+                          ng-click="vm.cancelBooking(voucher)" ng-disabled="vm.cancelInProgress">
+                    <i class="fa fa-times-circle" ng-if="!vm.cancelInProgress"></i>
+                    <i class="fa fa-spinner fa-spin" ng-if="vm.cancelInProgress"></i>
+                    {{ vm.cancelInProgress ? 'Cancelling...' : 'Yes, cancel it' }}
+                  </button>
+                </div>
+              </div>
               <div class="voucher-booking__cancel-message" ng-if="!voucher.can_cancel && voucher.cancel_message">
                 <i class="fa fa-info-circle"></i>
                 {{ voucher.cancel_message }}
@@ -391,55 +413,9 @@
   </div>
 
 
-  <!-- ══════════════════════════════════════════════
-       VIEW: BOOKING DETAIL
-       ══════════════════════════════════════════════ -->
-  <div ng-if="vm.viewState === 'booking_detail' && vm.activeVoucher">
-    <div class="voucher-booking__card voucher-booking__detail-card">
-      <div class="voucher-booking__detail-header">
-        <i class="fa fa-check-circle voucher-booking__detail-icon"></i>
-        <h3>Booking Confirmed</h3>
-      </div>
+  <!-- (dead "booking detail" view removed — nothing ever navigated to it;
+       upcoming-flight cards carry the booking info + cancel action) -->
 
-      <div class="voucher-booking__detail-grid" ng-if="vm.activeVoucher.booking">
-        <div class="voucher-booking__detail-row">
-          <span class="voucher-booking__detail-label"><i class="fa fa-gift"></i> Experience</span>
-          <span class="voucher-booking__detail-value">{{ vm.activeVoucher.experience_title }}</span>
-        </div>
-        <div class="voucher-booking__detail-row">
-          <span class="voucher-booking__detail-label"><i class="fa fa-calendar"></i> Date &amp; Time</span>
-          <span class="voucher-booking__detail-value">{{ vm.formatDateTime(vm.activeVoucher.booking.start) }}</span>
-        </div>
-        <!-- Aircraft and instructor hidden from voucher users -->
-        <div class="voucher-booking__detail-row">
-          <span class="voucher-booking__detail-label"><i class="fa fa-barcode"></i> Voucher Code</span>
-          <span class="voucher-booking__detail-value">{{ vm.activeVoucher.code }}</span>
-        </div>
-      </div>
-
-      <div class="voucher-booking__detail-actions" ng-if="vm.activeVoucher.booking">
-        <button class="voucher-booking__cancel-btn"
-                ng-if="vm.activeVoucher.can_cancel"
-                ng-click="vm.cancelBooking(vm.activeVoucher)"
-                ng-disabled="vm.cancelInProgress">
-          <i class="fa fa-times-circle" ng-if="!vm.cancelInProgress"></i>
-          <i class="fa fa-spinner fa-spin" ng-if="vm.cancelInProgress"></i>
-          {{ vm.cancelInProgress ? 'Cancelling...' : 'Cancel & Rebook' }}
-        </button>
-        <div class="voucher-booking__cancel-message" ng-if="!vm.activeVoucher.can_cancel && vm.activeVoucher.cancel_message">
-          <i class="fa fa-info-circle"></i>
-          {{ vm.activeVoucher.cancel_message }}
-        </div>
-      </div>
-
-      <div ng-if="!vm.activeVoucher.booking" class="voucher-booking__detail-no-booking">
-        <p>No booking found for this voucher.</p>
-        <button class="voucher-booking__book-now-btn" ng-click="vm.startSlotSearch(vm.activeVoucher)">
-          <i class="fa fa-calendar-plus"></i> Book My Flight
-        </button>
-      </div>
-    </div>
-  </div>
 
 </div>
 

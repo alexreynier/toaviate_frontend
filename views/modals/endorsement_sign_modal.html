@@ -1,0 +1,69 @@
+<div class="sec-modal">
+
+    <div class="sec-modal__header">
+        <i class="fas fa-file-signature sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">Sign Logbook Entry</h3>
+    </div>
+
+    <div class="sec-modal__body">
+
+        <div class="end-sign-flight" ng-if="vm.context.line">
+            <b>{{ vm.context.line.flight_date }}</b>
+            · {{ vm.context.line.departure_place }} → {{ vm.context.line.arrival_place }}
+            · {{ vm.context.line.registration }}
+            <span ng-if="vm.context.line.total_time"> · {{ vm.context.line.total_time }}h</span>
+            <span ng-if="vm.context.pilot_name"> — <b>{{ vm.context.pilot_name }}</b>'s logbook</span>
+        </div>
+
+        <form ng-submit="vm.submit()">
+
+            <div class="acct-fields acct-fields--two">
+                <div class="acct-field">
+                    <label class="sec-modal__label" for="end-sign-name">Your full name</label>
+                    <input type="text" id="end-sign-name" class="sec-modal__input" ng-model="vm.stamp.instructor_name" />
+                </div>
+                <div class="acct-field">
+                    <label class="sec-modal__label" for="end-sign-number">Instructor / examiner number</label>
+                    <input type="text" id="end-sign-number" class="sec-modal__input" ng-model="vm.stamp.instructor_number" placeholder="e.g. 501685A" />
+                </div>
+            </div>
+
+            <label class="sec-modal__label" for="end-sign-text">Endorsement wording</label>
+            <div class="end-wordings">
+                <button type="button" class="end-wordings__chip" ng-repeat="w in vm.wordings"
+                        ng-class="{'end-wordings__chip--on': vm.stamp.endorsement_text === w}"
+                        ng-click="vm.pickWording(w)">{{ w }}</button>
+            </div>
+            <textarea id="end-sign-text" class="sec-modal__input" rows="2" ng-model="vm.stamp.endorsement_text"
+                      placeholder="e.g. Training Flight(s) iaw FCL.740.A(b)(1)(ii)"></textarea>
+
+            <div class="end-savedstamp" ng-if="vm.savedStamp">
+                <label class="sec-checkline">
+                    <input type="checkbox" ng-model="vm.useSaved" />
+                    <span>Use my saved signature</span>
+                </label>
+                <div class="end-savedstamp__preview" ng-if="vm.useSaved">
+                    <img ng-src="{{ vm.savedStamp.signature_image }}" alt="Saved signature" />
+                </div>
+            </div>
+
+            <div ng-if="!vm.savedStamp || !vm.useSaved">
+                <label class="sec-modal__label">Your signature</label>
+                <sig-pad ng-model="vm.stamp.signature_image"></sig-pad>
+                <div class="acct-field__hint" ng-if="!vm.savedStamp">
+                    Tip: save a stamp via “My stamp” on the Pending Signatures page and skip the pad next time.
+                </div>
+            </div>
+
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary"
+                        ng-disabled="vm.busy || (!(vm.useSaved && vm.savedStamp) && !vm.stamp.signature_image)">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-stamp'"></i>
+                    {{ vm.busy ? 'Signing…' : 'Sign entry' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>

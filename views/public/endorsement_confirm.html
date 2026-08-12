@@ -1,0 +1,167 @@
+<div class="pubend">
+
+  <div class="pubend__topbar">
+    <img src="images/main_logo.png" alt="ToAviate" class="pubend__logo" />
+  </div>
+
+  <div class="pubend__wrap">
+
+    <!-- ── Loading ── -->
+    <div class="pubend__card pubend__card--center" ng-if="vm.state === 'loading'">
+      <div class="sec-spinner"></div>
+      <p>Loading endorsement…</p>
+    </div>
+
+    <!-- ── Invalid / expired link ── -->
+    <div class="pubend__card pubend__card--center" ng-if="vm.state === 'invalid'">
+      <i class="fas fa-unlink pubend__big-icon"></i>
+      <h2>This link is invalid or has expired.</h2>
+      <p>If you were expecting to confirm a logbook endorsement, ask the pilot to send it again.</p>
+    </div>
+
+    <!-- ── Already handled ── -->
+    <div class="pubend__card pubend__card--center" ng-if="vm.state === 'handled'">
+      <i class="fas pubend__big-icon"
+         ng-class="{'fa-check-circle pubend__big-icon--good': vm.handledStatus === 'confirmed',
+                    'fa-times-circle pubend__big-icon--bad': vm.handledStatus === 'declined',
+                    'fa-hourglass-end': vm.handledStatus !== 'confirmed' && vm.handledStatus !== 'declined'}"></i>
+      <h2 ng-if="vm.handledStatus === 'confirmed'">This endorsement has already been confirmed.</h2>
+      <h2 ng-if="vm.handledStatus === 'declined'">This endorsement was declined.</h2>
+      <h2 ng-if="vm.handledStatus !== 'confirmed' && vm.handledStatus !== 'declined'">This link has expired.</h2>
+      <p>Nothing more to do here — thank you.</p>
+    </div>
+
+    <!-- ── Review (pending confirmation) ── -->
+    <div ng-if="vm.state === 'review'">
+
+      <div class="pubend__intro">
+        <h1>Confirm a logbook endorsement</h1>
+        <p><b>{{ vm.pilot_name }}</b> recorded this endorsement naming you. Please check it and confirm it's genuine.</p>
+      </div>
+
+      <!-- Flight card -->
+      <div class="pubend__card pubend__flight">
+        <h3 class="pubend__card-title"><i class="fas fa-plane"></i> The flight</h3>
+        <div class="pubend__flight-grid">
+          <div class="pubend__fact"><span>Date</span><b>{{ vm.flight.flight_date }}</b></div>
+          <div class="pubend__fact"><span>Route</span><b>{{ vm.flight.departure_place }} → {{ vm.flight.arrival_place }}</b></div>
+          <div class="pubend__fact" ng-if="vm.flight.departure_time"><span>Times</span><b>{{ vm.flight.departure_time }} – {{ vm.flight.arrival_time }}</b></div>
+          <div class="pubend__fact"><span>Aircraft</span><b>{{ vm.flight.registration }} <i ng-if="vm.flight.aircraft_model">({{ vm.flight.aircraft_model }})</i></b></div>
+          <div class="pubend__fact" ng-if="vm.flight.total_time"><span>Hours</span><b>{{ vm.flight.total_time }}</b></div>
+          <div class="pubend__fact" ng-if="vm.flight.capacity"><span>Capacity</span><b>{{ vm.flight.capacity }}</b></div>
+        </div>
+      </div>
+
+      <!-- The endorsement as it will appear -->
+      <div class="pubend__card">
+        <h3 class="pubend__card-title"><i class="fas fa-stamp"></i> The endorsement</h3>
+        <div class="pubend__stamp">
+          <div class="pubend__stamp-text">“{{ vm.endorsement.endorsement_text }}”</div>
+          <div class="acct-fields acct-fields--two">
+            <div class="acct-field">
+              <label class="sec-modal__label" for="pubend-name">Your name</label>
+              <input type="text" id="pubend-name" class="sec-modal__input" ng-model="vm.form.instructor_name" />
+            </div>
+            <div class="acct-field">
+              <label class="sec-modal__label" for="pubend-number">Instructor / examiner number</label>
+              <input type="text" id="pubend-number" class="sec-modal__input" ng-model="vm.form.instructor_number" />
+            </div>
+          </div>
+
+          <div ng-if="!vm.needsSignature" class="pubend__sig-existing">
+            <label class="sec-modal__label">Signature (signed in person)</label>
+            <img ng-if="vm.endorsement.signature_image" ng-src="{{ vm.endorsement.signature_image }}" alt="Signature" />
+            <p ng-if="!vm.endorsement.signature_image" class="pubend__sig-note"><i class="fas fa-check"></i> A signature was drawn in person.</p>
+          </div>
+
+          <div ng-if="vm.needsSignature">
+            <label class="sec-modal__label">Your signature</label>
+            <sig-pad ng-model="vm.form.signature_image"></sig-pad>
+          </div>
+        </div>
+
+        <div class="pubend__actions">
+          <button class="sec-btn sec-btn--primary pubend__confirm-btn" ng-click="vm.confirm()"
+                  ng-disabled="vm.busy || (vm.needsSignature && !vm.form.signature_image)">
+            <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            {{ vm.busy ? 'Confirming…' : 'Confirm endorsement' }}
+          </button>
+          <button class="pubend__decline-link" ng-click="vm.toggleDecline()" ng-disabled="vm.busy">
+            I didn't give this endorsement — decline
+          </button>
+        </div>
+
+        <div class="pubend__decline" ng-if="vm.declineOpen">
+          <input type="text" class="sec-modal__input" ng-model="vm.declineReason" placeholder="Reason (optional)" />
+          <button class="sec-btn sec-btn--danger" ng-click="vm.decline()" ng-disabled="vm.busy">Decline endorsement</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Thank-you states (confirmed / declined just now) ── -->
+    <div class="pubend__card pubend__card--center pubend__thanks" ng-if="vm.state === 'done' || vm.state === 'declined'">
+      <i class="fas pubend__big-icon"
+         ng-class="vm.state === 'done' ? 'fa-check-circle pubend__big-icon--good' : 'fa-times-circle pubend__big-icon--bad'"></i>
+      <h2 ng-if="vm.state === 'done'">Endorsement confirmed — thank you!</h2>
+      <h2 ng-if="vm.state === 'declined'">Endorsement declined.</h2>
+      <p ng-if="vm.state === 'done'">The stamp on {{ vm.pilot_name }}'s digital logbook is now marked as confirmed by you.</p>
+    </div>
+
+    <!-- ── Signup hook (every terminal state) ── -->
+    <div class="pubend__card pubend__signup snazzy-reveal"
+         ng-if="vm.signup && vm.state !== 'loading' && vm.state !== 'review'">
+
+      <div ng-if="vm.signupState === 'offer' && vm.signup.can_signup">
+        <h3 class="pubend__signup-headline">{{ vm.signup.headline || 'Get your own free digital logbook' }}</h3>
+        <p class="pubend__signup-blurb">{{ vm.signup.blurb || 'Log flights, collect signatures like this one digitally, and keep your hours safe — free.' }}</p>
+
+        <div class="acct-fields acct-fields--two">
+          <div class="acct-field">
+            <label class="sec-modal__label" for="pubend-su-first">First name</label>
+            <input type="text" id="pubend-su-first" class="sec-modal__input" ng-model="vm.signupForm.first_name" />
+          </div>
+          <div class="acct-field">
+            <label class="sec-modal__label" for="pubend-su-last">Last name</label>
+            <input type="text" id="pubend-su-last" class="sec-modal__input" ng-model="vm.signupForm.last_name" />
+          </div>
+        </div>
+        <div class="acct-field" ng-if="vm.lockedEmail">
+          <label class="sec-modal__label">Email (your account will be created on it)</label>
+          <input type="email" class="sec-modal__input" ng-value="vm.lockedEmail" disabled />
+        </div>
+        <div class="acct-fields acct-fields--two">
+          <div class="acct-field">
+            <label class="sec-modal__label" for="pubend-su-pw">Choose a password</label>
+            <input type="password" id="pubend-su-pw" class="sec-modal__input" ng-model="vm.signupForm.password" autocomplete="new-password" />
+          </div>
+          <div class="acct-field">
+            <label class="sec-modal__label" for="pubend-su-pw2">Repeat password</label>
+            <input type="password" id="pubend-su-pw2" class="sec-modal__input" ng-model="vm.signupForm.password2" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="acct-field__hint">At least 8 characters with upper &amp; lower case, a number and a symbol.</div>
+
+        <button class="sec-btn sec-btn--primary pubend__signup-btn" ng-click="vm.createAccount()" ng-disabled="vm.signupBusy">
+          <i class="fas" ng-class="vm.signupBusy ? 'fa-spinner fa-spin' : 'fa-book'"></i>
+          {{ vm.signupBusy ? 'Creating your logbook…' : 'Create my free logbook' }}
+        </button>
+      </div>
+
+      <div class="pubend__card--center" ng-if="vm.signupState === 'created'">
+        <i class="fas fa-book-open pubend__big-icon pubend__big-icon--good"></i>
+        <h3>Your logbook is ready!</h3>
+        <p>Your account is verified and waiting — sign in with <b>{{ vm.lockedEmail }}</b>.</p>
+        <button class="sec-btn sec-btn--primary" ng-click="vm.goLogin()"><i class="fas fa-sign-in-alt"></i> Sign in</button>
+      </div>
+
+      <div class="pubend__card--center" ng-if="vm.signupState === 'existing' || (vm.signupState === 'offer' && !vm.signup.can_signup)">
+        <h3>You already have a ToAviate account</h3>
+        <p>Sign in to see your logbook and everything else.</p>
+        <button class="sec-btn sec-btn--primary" ng-click="vm.goLogin()"><i class="fas fa-sign-in-alt"></i> Sign in</button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

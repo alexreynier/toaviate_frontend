@@ -1,7 +1,7 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope', 'authGate', 'WebauthnService'];
-    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope, authGate, WebauthnService) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope', 'authGate', 'WebauthnService', 'LogbookSignupService'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope, authGate, WebauthnService, LogbookSignupService) {
         var vm = this;
 
         vm.login = login;
@@ -225,7 +225,7 @@ app.controller('LoginController', LoginController);
                 ToastService.warning('Recovery Codes Running Low',
                     'You have ' + response.recovery_codes_remaining + ' recovery code' +
                     (response.recovery_codes_remaining === 1 ? '' : 's') +
-                    ' left. Generate a fresh set in My Account → Security.');
+                    ' left. Generate a fresh set in My Details → Security.');
             }
 
             // Timeout fallback: if SetCredentials2 takes too long (e.g., API hanging),
@@ -250,6 +250,20 @@ app.controller('LoginController', LoginController);
                 }
                 loginTimeoutFired = true;
 
+                // A club invitation waiting to be accepted into this existing
+                // account ("log in to accept" — FRONTEND_LOGBOOK_SIGNUP_GUIDE
+                // §5)? Resolve it first, then do the normal redirect.
+                var inviteToken = null;
+                try { inviteToken = localStorage.getItem('toaviate_accept_invitation'); } catch(e) {}
+                if (inviteToken) {
+                    acceptPendingInvitation(inviteToken, function() { doRedirect(response); });
+                } else {
+                    doRedirect(response);
+                }
+            });
+
+            function doRedirect(response) {
+
                 // Enrolment required — go straight to the Security page; the
                 // route guard keeps the rest of the app locked until done.
                 if (setupRequired) {
@@ -262,7 +276,7 @@ app.controller('LoginController', LoginController);
                  try { returnUrl = localStorage.getItem('toaviate_return_url'); } catch(e) {}
                  // Discard return URLs that point to signup/public flows — users
                  // should never be sent back to a signup form after logging in.
-                 var signupPrefixes = ['/passenger_signup', '/club_signup', '/user_signup', '/invitations', '/register', '/login', '/display', '/password_reset', '/registration_success', '/registration_verification', '/disabled', '/gallery'];
+                 var signupPrefixes = ['/passenger_signup', '/club_signup', '/user_signup', '/invitations', '/register', '/login', '/display', '/password_reset', '/registration_success', '/registration_verification', '/disabled', '/gallery', '/free_logbook', '/logbook_invite', '/endorsement_confirm'];
                  if (returnUrl) {
                      for (var sp = 0; sp < signupPrefixes.length; sp++) {
                          if (returnUrl === signupPrefixes[sp] || returnUrl.indexOf(signupPrefixes[sp] + '/') === 0) {
@@ -279,12 +293,42 @@ app.controller('LoginController', LoginController);
                      }, 1000);
                  } else if(response && response.access && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
                      $location.path('/dashboard');
+                 } else if(response && response.access && response.access.pilot && response.access.pilot.length === 0){
+                     // Club-less free-logbook account — land on the logbook,
+                     // not a club dashboard (FRONTEND_LOGBOOK_SIGNUP_GUIDE).
+                     $location.path('/dashboard/my_account/logbook');
                  } else if(response) {
                      $location.path('/dashboard/my_account');
                  } else {
                      // Access level fetch failed but user is authenticated — redirect to dashboard as fallback
                      $location.path('/dashboard');
                  }
+            }
+        }
+
+        // ── Accept a club invitation into this (existing) account ──
+        // The invitation signup flow stored the token when the backend said
+        // "existing account — log in to accept". FORBIDDEN (wrong email)
+        // keeps the token so logging in with the invited email still works.
+        function acceptPendingInvitation(token, done) {
+            LogbookSignupService.AcceptExisting(token).then(function(data) {
+                if (data && data.success) {
+                    try { localStorage.removeItem('toaviate_accept_invitation'); } catch(e) {}
+                    ToastService.success('Welcome to the Club!',
+                        data.already_accepted ? 'This invitation was already accepted — you\'re all set.'
+                                              : 'The club invitation has been accepted on your account.');
+                } else if (data && data.error === 'FORBIDDEN') {
+                    ToastService.error('Different Email',
+                        'This invitation was sent to a different email address — please log in with the invited email to accept it.');
+                } else if (data && data.payment_required) {
+                    try { localStorage.removeItem('toaviate_accept_invitation'); } catch(e) {}
+                    ToastService.warning('Payment Required', data.message ||
+                        'This invitation carries a membership fee. Ask the club to waive the fee on the invitation, or to invoice you directly.');
+                } else {
+                    try { localStorage.removeItem('toaviate_accept_invitation'); } catch(e) {}
+                    if (data && data.message) { ToastService.error('Invitation', data.message); }
+                }
+                done();
             });
         }
 

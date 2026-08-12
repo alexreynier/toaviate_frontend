@@ -399,8 +399,11 @@
 		       $scope.checkedcode++;
 
 		       if ($scope.checkedcode > 4) {
+		           // Honest message: nothing is invalidated or auto-resent —
+		           // point at the real recovery path (the Resend button).
 		           $scope.codeError = '';
-		           ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times, this code is now invalid and a new invitation will be sent to you.');
+		           ToastService.error('Too Many Attempts',
+		               'That code hasn\'t matched after several tries. Use "Resend code" below to get a fresh one, or contact the club.');
 		           return;
 		       }
 
@@ -516,6 +519,11 @@
                 	} else {
                 		ToastService.error('Error', data.message);
                 	}
+                }, function () {
+                	// Network/API rejection — previously silent, leaving the
+                	// user unsure whether their account was created.
+                	ToastService.error('Connection Problem',
+                		'We could not reach the server — please try again. If this keeps happening, your account may not have been created yet.');
                 });
 
 		    }

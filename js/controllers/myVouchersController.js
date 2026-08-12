@@ -12,7 +12,6 @@ app.controller('MyVouchersController', MyVouchersController);
         // ── View states ──
         // 'list'        — showing voucher cards
         // 'slot_search'  — searching for slots for a voucher
-        // 'booking_detail' — viewing a voucher's booking
         vm.viewState = 'list';
 
         // ── Voucher lists (split by status) ──
@@ -27,7 +26,7 @@ app.controller('MyVouchersController', MyVouchersController);
 
         // ── Slot search state ──
         vm.dateFrom = null;
-        vm.numDays = 14;
+        vm.numDays = '14';   // string — matches the <option value="14"> model type
         vm.instructorId = 0;
         vm.currentPage = 1;
         vm.perPage = 8;
@@ -185,8 +184,9 @@ app.controller('MyVouchersController', MyVouchersController);
                     vm.searching = false;
 
                     if (data.success === false) {
-                        // Provide user-friendly message for qualification errors
-                        var msg = data.message || 'Search failed. Please try again.';
+                        // Provide user-friendly message for qualification errors.
+                        // handleError2 can put an OBJECT in message — stringify safely.
+                        var msg = (typeof data.message === 'string' && data.message) || 'Search failed. Please try again.';
                         if (msg.toLowerCase().indexOf('no instructors are qualified') > -1) {
                             msg = 'No instructors are currently available for this experience. Please contact the club to arrange a booking.';
                         }
@@ -310,10 +310,19 @@ app.controller('MyVouchersController', MyVouchersController);
         // ─────────────────────────────────────
 
         vm.selectSlot = function(slot) {
+            // Auto-select first available aircraft and instructor (hidden from
+            // user). Guard the arrays — a slot with neither can't be booked, so
+            // don't open a confirm modal that would only dead-end.
+            var plane = (slot.available_planes && slot.available_planes.length) ? slot.available_planes[0] : null;
+            var instructor = (slot.available_instructors && slot.available_instructors.length) ? slot.available_instructors[0] : null;
+            if (!plane || !instructor) {
+                ToastService.warning('Slot Unavailable',
+                    'That slot has just become unavailable — please pick another, or refresh the search.');
+                return;
+            }
             vm.selectedSlot = slot;
-            // Auto-select first available aircraft and instructor (hidden from user)
-            vm.selectedPlane = slot.available_planes.length > 0 ? slot.available_planes[0] : null;
-            vm.selectedInstructor = slot.available_instructors.length > 0 ? slot.available_instructors[0] : null;
+            vm.selectedPlane = plane;
+            vm.selectedInstructor = instructor;
             vm.showBookingModal = true;
         };
 
@@ -325,8 +334,9 @@ app.controller('MyVouchersController', MyVouchersController);
         };
 
         vm.confirmBooking = function() {
-            if (!vm.selectedSlot) {
+            if (!vm.selectedSlot || !vm.selectedPlane || !vm.selectedInstructor) {
                 ToastService.error('Error', 'Please select a time slot.');
+                vm.closeBookingModal();
                 return;
             }
 
@@ -362,26 +372,23 @@ app.controller('MyVouchersController', MyVouchersController);
 
 
         // ─────────────────────────────────────
-        // View booking detail
+        // Cancel booking — inline confirm on the card (no native confirm())
         // ─────────────────────────────────────
 
-        vm.viewBooking = function(voucher) {
-            vm.activeVoucher = voucher;
-            vm.viewState = 'booking_detail';
-        };
-
-
-        // ─────────────────────────────────────
-        // Cancel booking
-        // ─────────────────────────────────────
-
-        vm.cancelBooking = function(voucher) {
+        vm.askCancelBooking = function(voucher) {
             if (!voucher.can_cancel) {
                 ToastService.warning('Cannot Cancel', voucher.cancel_message || 'This booking cannot be cancelled online.');
                 return;
             }
+            voucher._confirmCancel = true;
+        };
+        vm.dismissCancelBooking = function(voucher) {
+            voucher._confirmCancel = false;
+        };
 
-            if (!confirm('Are you sure you want to cancel this voucher flight?\n\nYou will be able to rebook a different slot afterwards.')) {
+        vm.cancelBooking = function(voucher) {
+            if (!voucher.can_cancel) {
+                ToastService.warning('Cannot Cancel', voucher.cancel_message || 'This booking cannot be cancelled online.');
                 return;
             }
 
@@ -441,6 +448,13 @@ app.controller('MyVouchersController', MyVouchersController);
             return vm.formatDate(dateStr);
         };
 
+        // Defensive display-side expiry check — the backend re-validates on
+        // booking; this just stops an expired card presenting a Book button.
+        vm.isExpired = function(voucher) {
+            if (!voucher || !voucher.expiry_date) return false;
+            return voucher.expiry_date < toDateStr(new Date());
+        };
+
         vm.isToday = function(dateStr) {
             return dateStr === toDateStr(new Date());
         };
@@ -466,7 +480,7 @@ app.controller('MyVouchersController', MyVouchersController);
         };
 
         vm.goBack = function() {
-            if (vm.viewState === 'slot_search' || vm.viewState === 'booking_detail') {
+            if (vm.viewState === 'slot_search') {
                 vm.viewState = 'list';
                 vm.activeVoucher = null;
                 // Reload vouchers in case something changed

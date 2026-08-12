@@ -1,0 +1,78 @@
+<div class="snazzy-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-file-signature"></i> Pending Signatures</h2>
+        <p>Logbook lines your students have asked you to countersign</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body">
+
+    <div class="endq__stampbar" ng-if="!vm.loading">
+      <button class="sec-btn sec-btn--outline" ng-click="vm.openStamp()">
+        <i class="fas fa-stamp"></i> My stamp
+      </button>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Loading your signing queue…</span>
+    </div>
+
+    <div class="snazzy-page__empty" ng-if="!vm.loading && !vm.requests.length">
+      <div class="snazzy-page__empty-icon"><i class="fas fa-file-signature"></i></div>
+      <h3>All caught up</h3>
+      <p>No signature requests waiting for you.</p>
+    </div>
+
+    <div class="endq" ng-if="!vm.loading && vm.requests.length">
+      <div class="snazzy-page__toolbar">
+        <span class="snazzy-page__count-badge">{{ vm.requests.length }}</span>
+        request{{ vm.requests.length === 1 ? '' : 's' }} awaiting your signature
+      </div>
+
+      <div class="endq__card" ng-repeat="r in vm.requests">
+        <div class="endq__main">
+          <div class="endq__pilot"><i class="fas fa-user-graduate"></i> {{ r.pilot_name }}</div>
+          <div class="endq__flight">
+            <b>{{ r.line.flight_date }}</b>
+            · {{ r.line.departure_place }} → {{ r.line.arrival_place }}
+            · {{ r.line.registration }}
+            <span ng-if="r.line.aircraft_model"> · {{ r.line.aircraft_model }}</span>
+            <span ng-if="r.line.total_time"> · {{ r.line.total_time }}h</span>
+            <span ng-if="r.line.capacity"> · {{ r.line.capacity }}</span>
+          </div>
+          <div class="endq__note" ng-if="r.request_note">
+            <i class="fas fa-comment-alt"></i> “{{ r.request_note }}”
+          </div>
+
+          <div class="endq__decline" ng-if="r._declineOpen">
+            <input type="text" class="sec-modal__input" ng-model="r._reason"
+                   placeholder="Reason (optional — the pilot will see it)" />
+            <div class="endq__decline-btns">
+              <button class="sec-btn sec-btn--outline" ng-click="vm.cancelDecline(r)" ng-disabled="r._declining">Cancel</button>
+              <button class="sec-btn sec-btn--danger" ng-click="vm.confirmDecline(r)" ng-disabled="r._declining">
+                {{ r._declining ? 'Declining…' : 'Decline request' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="endq__actions" ng-if="!r._declineOpen">
+          <button class="sec-btn sec-btn--primary" ng-click="vm.openSign(r)">
+            <i class="fas fa-file-signature"></i> Sign
+          </button>
+          <button class="sec-btn sec-btn--danger-outline" ng-click="vm.askDecline(r)">
+            Decline
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
