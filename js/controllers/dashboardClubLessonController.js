@@ -36,8 +36,23 @@
         vm.action = $state.current.data.action;
         vm.user = $rootScope.globals.currentUser;
         // //console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
-        vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
+        // Club-0 alias: default-course library reuses this screen with
+        // data.club0 (see dashboardClubCourseController for the pattern).
+        vm.club0 = !!($state.current.data && $state.current.data.club0);
+        vm.club_id = vm.club0 ? 0 :
+            ($rootScope.globals.currentUser.current_club_admin && $rootScope.globals.currentUser.current_club_admin.id);
         vm.user_id = vm.user.id;
+
+        vm.nav = function(name, params) {
+            var map = vm.club0 ? {
+                edit_course:    'dashboard.super_admin.default_course_edit',
+                course_content: 'dashboard.super_admin.default_course_content'
+            } : {
+                edit_course:    'dashboard.manage_club.edit_course',
+                course_content: 'dashboard.manage_club.course_content'
+            };
+            $state.go(map[name] || name, params || {});
+        };
 
 
         vm.lesson_certificate = {};

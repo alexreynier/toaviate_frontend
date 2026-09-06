@@ -101,6 +101,7 @@ module.exports = function (grunt) {
                     'css/voucher-widget.css',
                     'css/flight-edit.css',
                     'css/flight-merge.css',
+                    'css/flight-needs-review.css',
                     'css/manual-flight.css',
                     'css/cancel-claim.css',
                     'css/defect-media.css',
@@ -111,6 +112,7 @@ module.exports = function (grunt) {
                     'css/bs-sync.css',
                     'css/member-requests.css',
                     'css/airfield-bookout.css',
+                    'css/airfield-hub.css',
                     'css/club-stats.css',
                     'css/cron-status.css',
                     'css/accounting-export.css',
@@ -146,6 +148,9 @@ module.exports = function (grunt) {
                     'css/endorsements.css',
                     'css/address-lookup.css',
                     'css/caa-forms.css',
+                    'css/default-courses.css',
+                    // After trackers.css: overrides .trk-tab for the manage_club hub tab bars.
+                    'css/manage-club-hubs.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

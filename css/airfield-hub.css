@@ -1,0 +1,1223 @@
+/* ═══════════════════════════════════════════════════════════════
+   AIRFIELDHUB integration — .afh-* design system
+   ═══════════════════════════════════════════════════════════════
+   Used by:
+     views/manageclub/airfield_hub_admin.html   (ToAviate staff)
+     views/manageclub/airfield_hub_club.html    (club managers)
+     the PPR strip under the destination picker on both bookout forms
+
+   Prefix choice: .af-* (airfield admin), .ab-/.abd-/.abf-* (airfield
+   bookout) are already taken — .afh-* is AirfieldHub and collides with
+   none of them.
+
+   Snazzy tokens throughout: brand gradient #1e3a5f→#2d5a8e, success
+   #16a34a, danger #dc2626, amber #92400e on #fef3c7, text #1e293b /
+   #64748b, surfaces #fff / #f8fafc, border #e2e8f0, radius 8px controls
+   / 12px cards, focus ring rgba(59,130,246,.12).
+   ═══════════════════════════════════════════════════════════════ */
+
+.afh-page { padding-bottom: 48px; }
+
+
+/* ── Live/active pill in the header ───────────────── */
+
+.afh-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.afh-live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: afh-pulse 2s infinite;
+}
+
+.afh-live--off .afh-live__dot {
+  background: #94a3b8;
+  animation: none;
+}
+
+/* Composited properties only (box-shadow spread is cheap here — one 8px
+   dot, not a list). Stops entirely for reduced-motion users. */
+@keyframes afh-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+
+/* ── Hero explainer ───────────────────────────────── */
+
+.afh-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.05), rgba(45, 90, 142, 0.08));
+  border: 1px solid #e2e8f0;
+}
+
+.afh-hero__icon {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 17px;
+}
+
+.afh-hero__text {
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.afh-hero__text strong { color: #1e293b; }
+
+
+/* ── Environment bar (staff) ──────────────────────── */
+
+.afh-envbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.afh-envbar__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.afh-envbar__list { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.afh-env {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.afh-env:hover:not(:disabled) { background: #f1f5f9; }
+
+.afh-env--active,
+.afh-env--active:hover {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.25);
+}
+
+/* "set up" is an invitation, not an error — an environment without
+   credentials is simply an empty slot waiting to be filled. */
+.afh-env__note {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.afh-env--unset:hover .afh-env__note { background: #dbeafe; color: #1e40af; }
+
+
+/* ── Tabs ─────────────────────────────────────────── */
+
+.afh-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 22px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.afh-tabs::-webkit-scrollbar { display: none; }
+
+.afh-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .15s ease, border-color .2s ease;
+}
+
+.afh-tabs__tab:hover { color: #475569; }
+
+.afh-tabs__tab--active {
+  color: #1e3a5f;
+  border-bottom-color: #2d5a8e;
+}
+
+.afh-tabs__tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  border-radius: 6px 6px 0 0;
+}
+
+/* Dead-letter count rides the Queue tab so it's visible from any tab. */
+.afh-tabs__alert {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ── Cards ────────────────────────────────────────── */
+
+.afh-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.afh-card__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.afh-card__icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 15px;
+}
+
+.afh-card__head h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #1e293b;
+  text-transform: capitalize;
+}
+
+.afh-card__head p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.afh-card__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.afh-card__body { padding: 20px; }
+
+.afh-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.afh-prose {
+  color: #334155;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+
+/* ── Buttons ──────────────────────────────────────── */
+
+.afh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease, transform .12s ease;
+}
+
+.afh-btn:active:not(:disabled) { transform: scale(0.97); }
+
+.afh-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.afh-btn--primary {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.22);
+}
+
+.afh-btn--primary:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(30, 58, 95, 0.3); }
+
+.afh-btn--ghost {
+  background: #fff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.afh-btn--ghost:hover:not(:disabled) { background: #f1f5f9; }
+
+.afh-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+
+/* ── Fields / select / toggle ─────────────────────── */
+
+.afh-field { margin-bottom: 22px; }
+
+.afh-field__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.afh-field__hint {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.afh-field__hint i { margin-right: 5px; color: #94a3b8; }
+
+.afh-select {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.afh-select:focus {
+  outline: none;
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.afh-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 22px;
+}
+
+.afh-toggle-info { flex: 1 1 auto; }
+
+.afh-toggle-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.afh-toggle-desc {
+  display: block;
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.afh-toggle-desc--warn { color: #92400e; }
+
+.afh-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 27px;
+  cursor: pointer;
+}
+
+.afh-switch--disabled { opacity: 0.5; cursor: not-allowed; }
+
+.afh-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+.afh-switch__slider {
+  position: absolute;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 999px;
+  transition: background .2s ease;
+}
+
+.afh-switch__slider::before {
+  content: '';
+  position: absolute;
+  width: 21px;
+  height: 21px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .2s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.afh-switch input:checked + .afh-switch__slider {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+}
+
+.afh-switch input:checked + .afh-switch__slider::before { transform: translateX(21px); }
+
+.afh-switch input:focus-visible + .afh-switch__slider {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+
+/* ── Rollout stages ───────────────────────────────── */
+
+.afh-stages { display: flex; flex-direction: column; gap: 8px; }
+
+.afh-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 13px 15px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  margin: 0;
+  font-weight: 400;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.afh-stage:hover { background: #f8fafc; }
+
+.afh-stage--active {
+  border-color: #2d5a8e;
+  background: #f0f6ff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+}
+
+.afh-stage input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.afh-stage__num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: background .15s ease, color .15s ease;
+}
+
+.afh-stage--active .afh-stage__num {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+}
+
+.afh-stage__body { display: flex; flex-direction: column; gap: 2px; }
+
+.afh-stage__label { font-size: 14px; font-weight: 700; color: #1e293b; }
+
+.afh-stage__help { font-size: 12.5px; color: #64748b; line-height: 1.5; }
+
+
+/* ── Badges ───────────────────────────────────────── */
+
+.afh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.afh-badge--green,
+.afh-badge--success { background: #dcfce7; color: #166534; }
+
+.afh-badge--amber,
+.afh-badge--warning { background: #fef3c7; color: #92400e; }
+
+.afh-badge--red,
+.afh-badge--error   { background: #fee2e2; color: #991b1b; }
+
+.afh-badge--info    { background: #dbeafe; color: #1e40af; }
+
+.afh-badge--grey,
+.afh-badge--muted,
+.afh-badge--neutral { background: #f1f5f9; color: #475569; }
+
+
+/* ── Key/value rows ───────────────────────────────── */
+
+.afh-kv {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.afh-kv:last-child { border-bottom: none; }
+
+.afh-kv__k {
+  flex: 0 0 160px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.afh-kv__v { font-size: 13.5px; color: #1e293b; }
+
+.afh-muted { color: #94a3b8; }
+
+.afh-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+
+/* ── Notes, warnings, dead-letter ─────────────────── */
+
+.afh-note,
+.afh-warn,
+.afh-dead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.afh-note {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.afh-note i { color: #94a3b8; margin-top: 2px; }
+
+.afh-note--amber {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  color: #92400e;
+  margin-bottom: 18px;
+}
+
+.afh-note--amber i { color: #b45309; }
+
+.afh-warn {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  color: #92400e;
+  margin: 0 20px 18px;
+}
+
+.afh-warn--standalone { margin: 20px; }
+
+/* A warning sitting between .afh-card__body and the footer notes needs to
+   line up with the card's own 20px padding, not add to it. */
+.afh-card > .afh-warn { margin: 0 20px 18px; }
+
+.afh-warn i { color: #b45309; margin-top: 2px; }
+
+/* `dead` = flights that gave up after 5 attempts and never reached AFH.
+   The one number an admin must not miss, so it gets the loudest treatment
+   on the page. */
+.afh-dead {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  margin-bottom: 18px;
+}
+
+.afh-dead i { color: #dc2626; margin-top: 2px; font-size: 15px; }
+
+
+/* ── Credential entry (write-only) ────────────────
+   AirfieldHub issues these keys to us, so they are pasted in rather than
+   generated. Stored server-side, never rendered back — the same one-way
+   contract as our own platform keys and the BookedScheduler credentials. */
+
+.afh-card--form { border-color: #2d5a8e; box-shadow: 0 4px 20px rgba(30, 58, 95, 0.1); }
+
+.afh-input {
+  width: 100%;
+  max-width: 520px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.afh-input:focus {
+  outline: none;
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* Secrets are masked and monospaced: pasted keys are long and opaque, and
+   character-level alignment makes a truncated paste obvious. */
+.afh-input--secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+
+.afh-req {
+  margin-left: 7px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.afh-note--inline {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  margin-top: 4px;
+}
+
+.afh-field__hint code {
+  background: #e2e8f0;
+  color: #1e293b;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.afh-field__hint .fa-check-circle { color: #16a34a; }
+
+/* An environment with no credentials yet is an INVITATION, not a dead end —
+   clicking it opens the setup form. Dashed border says "empty slot". */
+.afh-env--unset {
+  border-style: dashed;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.afh-env--unset:hover {
+  border-color: #2d5a8e;
+  color: #1e3a5f;
+  background: #f0f6ff;
+}
+
+.afh-card__foot--split { justify-content: flex-start; gap: 10px; flex-wrap: wrap; }
+
+.afh-foot-spacer { flex: 1 1 auto; }
+
+.afh-btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.afh-btn--danger:hover:not(:disabled) { background: #b91c1c; }
+
+.afh-btn--ghost-danger {
+  background: #fff;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.afh-btn--ghost-danger:hover:not(:disabled) { background: #fef2f2; }
+
+.afh-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.afh-confirm__q {
+  font-size: 13px;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.afh-testresult {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px 18px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  animation: afh-drop .25s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.afh-testresult--ok  { background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; }
+.afh-testresult--bad { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; }
+
+body.night-mode .afh-input {
+  background: #101827;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.night-mode .afh-note--inline { background: #101827; border-color: #334155; }
+body.night-mode .afh-env--unset { border-color: #475569; }
+
+@media only screen and (max-width: 768px) {
+  .afh-card__foot--split { flex-direction: column; align-items: stretch; }
+  .afh-foot-spacer { display: none; }
+  .afh-card__foot--split .afh-btn { justify-content: center; }
+  .afh-confirm { flex-direction: column; align-items: stretch; }
+  .afh-confirm__q { text-align: center; }
+  .afh-testresult { margin-left: 16px; margin-right: 16px; }
+}
+
+
+/* ── Stats ────────────────────────────────────────── */
+
+.afh-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.afh-stat {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+}
+
+.afh-stat__v {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.1;
+}
+
+.afh-stat__k {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.afh-stat--hero {
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.06), rgba(45, 90, 142, 0.1));
+  border-color: #2d5a8e;
+}
+
+.afh-stat--hero .afh-stat__v { color: #1e3a5f; }
+.afh-stat--good  .afh-stat__v { color: #16a34a; }
+.afh-stat--warn  { background: #fffbeb; border-color: #fde68a; }
+.afh-stat--warn  .afh-stat__v { color: #b45309; }
+.afh-stat--bad   { background: #fef2f2; border-color: #fecaca; }
+.afh-stat--bad   .afh-stat__v { color: #dc2626; }
+
+
+/* ── Sync result ──────────────────────────────────── */
+
+.afh-syncresult {
+  position: relative;
+  margin: 0 20px 18px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  animation: afh-drop .3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes afh-drop {
+  from { opacity: 0; transform: translate3d(0, -6px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.afh-syncresult--inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.afh-syncresult__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.afh-syncresult__close:hover { background: #e2e8f0; color: #475569; }
+
+.afh-syncresult__hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+
+/* ── Tables ───────────────────────────────────────── */
+
+.afh-dirhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.afh-count { font-size: 13px; color: #64748b; }
+.afh-count strong { color: #16a34a; }
+
+.afh-search { position: relative; }
+
+.afh-search i {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+.afh-search input {
+  padding: 8px 12px 8px 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 230px;
+}
+
+.afh-search input:focus {
+  outline: none;
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* Wide content scrolls INSIDE its own container — the page body must
+   never scroll horizontally. */
+.afh-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.afh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.afh-table thead th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 11px 14px;
+  white-space: nowrap;
+}
+
+.afh-table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: top;
+}
+
+.afh-table tbody tr:hover { background: #f8fafc; }
+
+.afh-row--muted td { opacity: 0.6; }
+
+.afh-truncnote { margin-top: 10px; font-size: 12.5px; }
+
+.afh-leg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.afh-leg i { color: #64748b; }
+
+.afh-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #334155;
+  margin-top: 4px;
+}
+
+.afh-reason i { margin-top: 2px; color: #94a3b8; }
+.afh-reason--amber { color: #92400e; }
+.afh-reason--amber i { color: #b45309; }
+
+
+/* ── Empty / denied ───────────────────────────────── */
+
+.afh-empty,
+.afh-denied {
+  text-align: center;
+  padding: 48px 24px;
+  color: #64748b;
+}
+
+.afh-empty__icon,
+.afh-denied__icon {
+  font-size: 34px;
+  color: #cbd5e1;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.afh-denied h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.afh-denied p {
+  margin: 0 auto;
+  max-width: 460px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.afh-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.afh-queuehint { margin-top: 14px; font-size: 12.5px; line-height: 1.55; }
+.afh-queuehint i { margin-right: 5px; }
+
+
+/* ═══════════════════════════════════════════════════
+   PPR STRIP — under the destination picker on the
+   bookout forms. This is the pilot-facing surface.
+   ═══════════════════════════════════════════════════ */
+
+.afh-ppr {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 10px;
+  padding: 12px 15px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  animation: afh-drop .28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.afh-ppr i { margin-top: 2px; flex: 0 0 auto; }
+
+/* Confirmed — a real benefit, made visible. */
+.afh-ppr--yes {
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.afh-ppr--yes i { color: #16a34a; }
+
+/* Not on the network — plain, not alarming. The pilot simply arranges it
+   themselves, as they always have. */
+.afh-ppr--no {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.afh-ppr--no i { color: #94a3b8; }
+
+/* We could not check. Must NOT claim the airfield is unsupported. */
+.afh-ppr--unknown {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.afh-ppr--unknown i { color: #b45309; }
+
+.afh-ppr__checking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12.5px;
+  margin-top: 10px;
+}
+
+.afh-ppr strong { font-weight: 700; }
+
+
+/* ═══════════════════════════════════════════════════
+   MOBILE
+   ═══════════════════════════════════════════════════ */
+
+/* Flight list: table on desktop, cards on phones. */
+.afh-cards { display: none; }
+
+@media only screen and (max-width: 768px) {
+  .afh-hide-mobile { display: none !important; }
+  .afh-hide-mobile-table { display: none; }
+  .afh-cards { display: block; }
+
+  .afh-card__head {
+    flex-wrap: wrap;
+    padding: 15px 16px;
+  }
+
+  .afh-card__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .afh-card__actions .afh-btn { flex: 1 1 auto; justify-content: center; }
+
+  .afh-card__body { padding: 16px; }
+
+  .afh-warn,
+  .afh-syncresult { margin-left: 16px; margin-right: 16px; }
+
+  .afh-kv { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .afh-kv__k { flex: 0 0 auto; }
+
+  .afh-dirhead { flex-direction: column; align-items: stretch; }
+  .afh-search input { width: 100%; min-width: 0; }
+
+  .afh-toggle-row { gap: 12px; }
+
+  .afh-card__foot { flex-direction: column-reverse; align-items: stretch; }
+  .afh-card__foot .afh-btn { justify-content: center; }
+  .afh-dirty { justify-content: center; }
+
+  .afh-stat-grid { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+  .afh-stat__v { font-size: 19px; }
+
+  .afh-hero { padding: 15px 16px; gap: 13px; }
+}
+
+@media only screen and (max-width: 480px) {
+  .afh-tabs__tab { padding: 10px 12px; font-size: 12.5px; }
+  .afh-tabs__tab i { display: none; }
+  .afh-envbar { gap: 8px; }
+  .afh-stage { padding: 11px 13px; gap: 11px; }
+}
+
+/* Flight cards (mobile) */
+.afh-fcard {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.afh-fcard--muted { opacity: 0.65; }
+
+.afh-fcard__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.afh-fcard__reg { font-size: 14px; font-weight: 700; color: #1e293b; }
+
+.afh-fcard__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.afh-fcard__row i { color: #94a3b8; }
+
+
+/* ═══════════════════════════════════════════════════
+   NIGHT MODE
+   ═══════════════════════════════════════════════════ */
+
+body.night-mode .afh-card,
+body.night-mode .afh-stat,
+body.night-mode .afh-stage,
+body.night-mode .afh-fcard,
+body.night-mode .afh-env {
+  background: #16202e;
+  border-color: #334155;
+}
+
+body.night-mode .afh-card__head,
+body.night-mode .afh-card__foot { background: #101827; border-color: #334155; }
+
+body.night-mode .afh-card__head h3,
+body.night-mode .afh-stat__v,
+body.night-mode .afh-stage__label,
+body.night-mode .afh-kv__v,
+body.night-mode .afh-fcard__reg { color: #e2e8f0; }
+
+body.night-mode .afh-card__head p,
+body.night-mode .afh-stage__help,
+body.night-mode .afh-field__hint,
+body.night-mode .afh-prose,
+body.night-mode .afh-toggle-desc { color: #94a3b8; }
+
+body.night-mode .afh-toggle-label { color: #e2e8f0; }
+
+body.night-mode .afh-table tbody td { color: #cbd5e1; border-color: #1f2c3d; }
+body.night-mode .afh-table tbody tr:hover { background: #1b2736; }
+
+body.night-mode .afh-select,
+body.night-mode .afh-search input {
+  background: #101827;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.night-mode .afh-tabs { border-bottom-color: #334155; }
+body.night-mode .afh-tabs__tab--active { color: #e2e8f0; border-bottom-color: #4b82c4; }
+
+body.night-mode .afh-hero {
+  background: linear-gradient(135deg, rgba(45, 90, 142, 0.16), rgba(30, 58, 95, 0.22));
+  border-color: #334155;
+}
+
+body.night-mode .afh-hero__text { color: #cbd5e1; }
+body.night-mode .afh-hero__text strong { color: #e2e8f0; }
+
+body.night-mode .afh-note { background: #101827; border-color: #334155; color: #94a3b8; }
+
+body.night-mode .afh-stage--active { background: #14243a; }
+
+body.night-mode .afh-ppr--no {
+  background: #101827;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .afh-live__dot { animation: none; }
+  .afh-syncresult,
+  .afh-ppr { animation: none; }
+  .afh-btn,
+  .afh-tabs__tab,
+  .afh-env,
+  .afh-stage,
+  .afh-switch__slider,
+  .afh-switch__slider::before { transition: none; }
+  .afh-btn:active:not(:disabled) { transform: none; }
+}

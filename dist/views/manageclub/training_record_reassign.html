@@ -1,0 +1,166 @@
+<!-- Reassign training records to another course.
+     BACKEND_TRAINING_RECORD_COURSE_GUIDE.md Part B. Embedded in
+     Settings → Data Import. Manager-gated; collapsed until asked for. -->
+<!-- NB: ng-if must NOT sit on the same element as ng-controller — it is
+     evaluated on the PARENT scope, before the controller exists, so it is
+     always false and the controller never instantiates. Gate inside. -->
+<div ng-controller="TrainingRecordReassignController as trr" ng-show="trr.is_manager">
+
+  <div class="trr">
+    <h4 class="tpc__runs-title trr__heading">
+      <i class="fas fa-exchange-alt"></i> Reassign training records
+    </h4>
+    <p class="tpc__intro trr__lede">
+      Flights filed under the wrong course — IMC, night, type and check flights that the importer
+      defaulted to PPL. Find them and move them in bulk.
+    </p>
+    <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="trr.toggleOpen()" ng-if="!trr.open">
+      <i class="fas fa-search"></i> Find records to reassign
+    </button>
+    <button type="button" class="trr__toggle" ng-click="trr.toggleOpen()" ng-if="trr.open">
+      <i class="fas fa-chevron-down"></i>
+      <span>Hide</span>
+    </button>
+
+    <div class="trr__body" ng-if="trr.open">
+      <p class="tpc__intro">
+        Setting a lesson is optional — leave it blank and the instructor sets it on the record as usual.
+      </p>
+
+      <!-- ── Filters ── -->
+      <div class="trr__filters">
+        <div class="trr__filter">
+          <label>Currently in course</label>
+          <select ng-model="trr.f.course_id" ng-change="trr.search(1)"
+                  ng-options="c.id as c.title for c in trr.courses">
+            <option value="">Any course</option>
+          </select>
+        </div>
+        <div class="trr__filter">
+          <label>Student</label>
+          <ui-select ng-model="trr.pick.student" on-select="trr.onStudentPick($item)"
+                     on-remove="trr.onStudentPick(null)" theme="bootstrap"
+                     title="Search students" append-to-body="true">
+            <ui-select-match placeholder="Any student" allow-clear="true">{{ $select.selected.name }}</ui-select-match>
+            <ui-select-choices repeat="s in trr.students | propsFilterA: {name: $select.search}">
+              <div ng-bind-html="s.name | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+        <div class="trr__filter trr__filter--sm">
+          <label>From</label>
+          <input type="date" ng-model="trr.f.from" ng-change="trr.search(1)">
+        </div>
+        <div class="trr__filter trr__filter--sm">
+          <label>To</label>
+          <input type="date" ng-model="trr.f.to" ng-change="trr.search(1)">
+        </div>
+        <div class="trr__filter">
+          <label>Aircraft</label>
+          <ui-select ng-model="trr.pick.plane" on-select="trr.onPlanePick($item)"
+                     on-remove="trr.onPlanePick(null)" theme="bootstrap"
+                     title="Search aircraft" append-to-body="true">
+            <ui-select-match placeholder="Any aircraft" allow-clear="true">{{ $select.selected.registration }}</ui-select-match>
+            <ui-select-choices repeat="p in trr.planes | propsFilterA: {registration: $select.search, label: $select.search}">
+              <div ng-bind-html="p.label | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+        </div>
+        <div class="trr__filter">
+          <label>Exercise / remarks contain</label>
+          <input type="text" ng-model="trr.f.q" ng-change="trr.searchSoon()" placeholder="e.g. IMC, night, type…">
+        </div>
+      </div>
+      <div class="trr__filter-toggles">
+        <label class="tpcrun__group-toggle">
+          <input type="checkbox" ng-model="trr.f.imported_only" ng-true-value="1" ng-false-value="0" ng-change="trr.search(1)">
+          <span>Imported records only</span>
+        </label>
+        <label class="tpcrun__group-toggle">
+          <input type="checkbox" ng-model="trr.f.lesson_id" ng-true-value="0" ng-false-value="null" ng-change="trr.search(1)">
+          <span>No lesson set</span>
+        </label>
+        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="trr.search(1)" ng-disabled="trr.loading">
+          <i class="fas" ng-class="trr.loading ? 'fa-spinner fa-spin' : 'fa-search'"></i> Search
+        </button>
+      </div>
+
+      <!-- ── Results ── -->
+      <div class="sec-loading" ng-if="trr.loading">
+        <div class="sec-spinner"></div><span>Searching records…</span>
+      </div>
+
+      <div class="trr__empty" ng-if="!trr.loading && trr.searched && !trr.rows.length">
+        <i class="fas fa-check-circle"></i> No training records match those filters.
+      </div>
+
+      <div ng-if="!trr.loading && trr.rows.length">
+        <div class="trr__count">
+          <span class="snazzy-page__count-badge">{{ trr.total }}</span> matching record{{ trr.total === 1 ? '' : 's' }}
+          <a class="trr__selectall" ng-click="trr.toggleAll()">{{ trr.allOnPage() ? 'clear page' : 'select page' }}</a>
+        </div>
+
+        <div class="trr__tablewrap">
+          <table class="trr__table">
+            <thead>
+              <tr>
+                <th class="trr__check-th"></th>
+                <th>Date</th>
+                <th>Student</th>
+                <th class="caa-hide-mobile">Aircraft</th>
+                <th>Exercise / remarks</th>
+                <th>Course</th>
+                <th class="caa-hide-mobile">Lesson</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="r in trr.rows" ng-class="{'trr__row--on': trr.sel[r.id]}" ng-click="trr.sel[r.id] = !trr.sel[r.id]">
+                <td class="trr__check-td"><input type="checkbox" ng-model="trr.sel[r.id]" ng-click="$event.stopPropagation()"></td>
+                <td class="trr__nowrap">{{ r.flight_date }}</td>
+                <td>{{ r.student_name }}</td>
+                <td class="caa-hide-mobile trr__nowrap">{{ r.registration }}</td>
+                <td class="trr__ex">{{ r.exercise || r.general_remarks }}</td>
+                <td><span class="trr__course">{{ r.course_title }}</span></td>
+                <td class="caa-hide-mobile trr__muted">{{ r.lesson_title || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="trr__pager" ng-if="trr.pages() > 1">
+          <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="trr.page <= 1" ng-click="trr.goPage(trr.page - 1)">
+            <i class="fas fa-chevron-left"></i> Prev
+          </button>
+          <span>Page {{ trr.page }} of {{ trr.pages() }}</span>
+          <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-disabled="trr.page >= trr.pages()" ng-click="trr.goPage(trr.page + 1)">
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Move bar — sticks to the bottom once something is selected ── -->
+      <div class="trr__movebar" ng-if="trr.selCount() > 0">
+        <div class="trr__movebar-count"><b>{{ trr.selCount() }}</b> selected</div>
+        <div class="trr__movebar-fields">
+          <select ng-model="trr.target.course_id" ng-change="trr.onTargetCourseChange()"
+                  ng-options="c.id as c.title for c in trr.courses">
+            <option value="">Move to course…</option>
+          </select>
+          <select ng-model="trr.target.lesson_id" ng-disabled="!trr.target.course_id"
+                  ng-options="l.id as l.title for l in trr.lessonsFor(trr.target.course_id)">
+            <option value="">Lesson (optional)</option>
+          </select>
+        </div>
+        <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="trr.move()" ng-disabled="!trr.canMove()">
+          <i class="fas" ng-class="trr.moving ? 'fa-spinner fa-spin' : 'fa-exchange-alt'"></i>
+          {{ trr.moving ? 'Moving…' : 'Move ' + trr.selCount() + ' record(s)' }}
+        </button>
+      </div>
+
+      <div class="trr__done" ng-if="trr.lastResult">
+        <i class="fas fa-check-circle"></i>
+        {{ trr.lastResult.moved }} record(s) moved to <b>{{ trr.lastResult.course }}</b><span ng-if="trr.lastResult.skipped"> · {{ trr.lastResult.skipped }} skipped</span>.
+      </div>
+    </div>
+  </div>
+</div>

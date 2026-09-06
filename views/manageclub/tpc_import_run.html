@@ -22,7 +22,7 @@
         <a class="tpcrun__menu-btn" ng-click="vm.menuOpen = !vm.menuOpen"><i class="fas fa-ellipsis-v"></i></a>
         <div class="tpcrun__menu" ng-if="vm.menuOpen" ng-click="vm.menuOpen = false">
           <a ng-click="vm.openOverlay('revert')" class="tpc__danger"><i class="fas fa-undo"></i> Revert whole import</a>
-          <a ng-click="vm.openOverlay('reprocess')"><i class="fas fa-redo"></i> Re-process</a>
+          <a ng-click="vm.runBusy() || vm.openOverlay('reprocess')" ng-class="{'tpc__menu-disabled': vm.runBusy()}"><i class="fas fa-redo"></i> Re-process</a>
           <a ng-click="vm.openOverlay('delete')"><i class="fas fa-trash-alt"></i> Delete run</a>
         </div>
       </div>
@@ -48,7 +48,7 @@
       <i class="fas fa-times-circle"></i>
       <div>
         <strong>Processing failed</strong> — {{ vm.run.error || 'unknown error' }}
-        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.reprocess()">
+        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="vm.reprocess()" ng-disabled="vm.runBusy()">
           <i class="fas fa-redo"></i> Retry processing
         </button>
       </div>
@@ -107,7 +107,7 @@
     <!-- ── Bulk bar ── -->
     <div class="tpcrun__bulk" ng-if="vm.selCount() > 0">
       <strong>{{ vm.selCount() }}</strong> selected
-      <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.applySelected()" ng-disabled="vm.bulkBusy">
+      <button type="button" class="solo-btn solo-btn--primary solo-btn--sm" ng-click="vm.applySelected()" ng-disabled="vm.bulkBusy || vm.runBusy()">
         <i class="fas" ng-class="vm.bulkBusy ? 'fa-spinner fa-spin' : 'fa-play'"></i> Apply selected
       </button>
       <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.bulkAction('skip')" ng-disabled="vm.bulkBusy">Skip</button>
@@ -412,6 +412,32 @@
         <div class="tpcdrawer__field"><label>Remarks</label>
           <input type="text" ng-model="vm.drawer.edit.remarks" ng-disabled="vm.drawer.row.status !== 'pending'"></div>
 
+        <!-- Course / lesson the training record is filed under. The importer
+             guesses this from the exercise text and falls back to PPL — show
+             the guess + where it came from so a wrong one is obvious here,
+             not months later on the student's record. -->
+        <div class="tpcdrawer__field-pair tpcdrawer__course">
+          <div class="tpcdrawer__field"><label>Course</label>
+            <select ng-model="vm.drawer.edit.course_id" ng-change="vm.onCourseChange()"
+                    ng-disabled="vm.drawer.row.status !== 'pending'"
+                    ng-options="c.id as c.title for c in vm.courses">
+              <option value="">— none —</option>
+            </select>
+            <span class="tpcdrawer__ex-preview" ng-class="{'tpcdrawer__ex-preview--warn': vm.courseNeedsReview()}"
+                  ng-if="vm.courseSourceLabel(vm.drawer.row.course_source)">
+              <i class="fas fa-exclamation-triangle" ng-if="vm.courseNeedsReview()"></i>
+              {{ vm.courseSourceLabel(vm.drawer.row.course_source) }}
+            </span>
+          </div>
+          <div class="tpcdrawer__field"><label>Lesson <span class="tpcdrawer__opt">(optional)</span></label>
+            <select ng-model="vm.drawer.edit.lesson_id"
+                    ng-disabled="vm.drawer.row.status !== 'pending' || !vm.drawer.edit.course_id"
+                    ng-options="l.id as l.title for l in vm.lessonsFor(vm.drawer.edit.course_id)">
+              <option value="">— instructor sets later —</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Save edits -->
         <div class="tpcdrawer__savebar" ng-if="vm.dirtyFields().length">
           <span>{{ vm.dirtyFields().length }} unsaved change{{ vm.dirtyFields().length === 1 ? '' : 's' }}
@@ -462,7 +488,7 @@
         </div>
         <div class="fox-tracker__confirm-footer">
           <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
-          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.applyAll()"><i class="fas fa-play"></i> Apply all</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.applyAll()" ng-disabled="vm.runBusy()"><i class="fas fa-play"></i> Apply all</button>
         </div>
       </div>
 
@@ -496,7 +522,7 @@
         <div class="fox-tracker__confirm-body"><strong>This clears all staged edits.</strong> Rows are rebuilt from the workbook and re-matched; applied rows are re-detected as already imported.</div>
         <div class="fox-tracker__confirm-footer">
           <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeOverlay()">Cancel</button>
-          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.reprocess()"><i class="fas fa-redo"></i> Re-process</button>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.reprocess()" ng-disabled="vm.runBusy()"><i class="fas fa-redo"></i> Re-process</button>
         </div>
       </div>
 

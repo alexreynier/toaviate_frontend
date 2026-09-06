@@ -609,6 +609,18 @@ var app = angular
                 }
             })
 
+            // AIRFIELDHUB — ToAviate-staff half of the partner integration:
+            // environments (which hold a key on THIS server), the mirrored
+            // airfield directory, and dispatch queue health. All three are
+            // server-wide, so they are not a club manager's business — the
+            // per-club settings live at dashboard.manage_club.airfield_hub.
+            .state('dashboard.super_admin.airfield_hub', {
+                url: '/airfield_hub',
+                controller: 'AirfieldHubAdminController',
+                templateUrl: 'views/manageclub/airfield_hub_admin.html',
+                controllerAs: 'vm'
+            })
+
             // PLATFORM API KEYS — server-to-server keys for external
             // platforms (airshows.toaviate, …). One controller, dispatched
             // on data.screen. Create/edit/rotate happen in $uibModal.
@@ -630,6 +642,59 @@ var app = angular
                 data: {
                     screen: 'detail'
                 }
+            })
+
+            // DEFAULT COURSES — the ToAviate base-syllabus library
+            // (FRONTEND_DEFAULT_COURSES_GUIDE.md). A default course is a
+            // normal course with club_id 0; the *_edit/_lesson/_content
+            // states below are club-0 ALIASES of the manage_club course
+            // screens: same controllers + templates, with data.club0 telling
+            // them to resolve club_id as 0 and navigate within this family.
+            .state('dashboard.super_admin.default_courses', {
+                url: '/default_courses',
+                controller: 'DefaultCoursesController',
+                templateUrl: 'views/manageclub/default_courses.html',
+                controllerAs: 'vm'
+            })
+
+            .state('dashboard.super_admin.default_course_edit', {
+                url: '/default_courses/edit/:course_id',
+                controller: 'DashboardClubCourseController',
+                templateUrl: 'views/manageclub/course_form.html',
+                controllerAs: 'vm',
+                data: { action: 'edit', club0: true }
+            })
+
+            .state('dashboard.super_admin.default_course_add_lesson', {
+                url: '/default_courses/edit/:course_id/add_lesson',
+                controller: 'DashboardClubLessonController',
+                templateUrl: 'views/manageclub/lesson_form.html',
+                controllerAs: 'vm',
+                data: { action: 'add', club0: true }
+            })
+
+            .state('dashboard.super_admin.default_course_edit_lesson', {
+                url: '/default_courses/edit/:course_id/edit_lesson/:lesson_id',
+                controller: 'DashboardClubLessonController',
+                templateUrl: 'views/manageclub/lesson_form.html',
+                controllerAs: 'vm',
+                data: { action: 'edit', club0: true }
+            })
+
+            .state('dashboard.super_admin.default_course_content', {
+                url: '/default_courses/course_content/:attach_type/:attach_id?title',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/manage.html',
+                controllerAs: 'vm',
+                data: { screen: 'manage', club0: true }
+            })
+
+            .state('dashboard.super_admin.default_course_questionnaire_builder', {
+                url: '/default_courses/questionnaire/:questionnaire_id/build',
+                controller: 'CourseContentController',
+                templateUrl: 'views/manageclub/course_content/builder.html',
+                controllerAs: 'vm',
+                data: { screen: 'builder', club0: true }
             })
 
             // ACCOUNT SECURITY — per-club 2FA requirement toggle + lockout
@@ -1722,6 +1787,17 @@ var app = angular
                 url: '/airfield_bookout',
                 controller: 'DashboardClubAirfieldBookoutController',
                 templateUrl: 'views/manageclub/airfield_bookout.html',
+                controllerAs: 'vm'
+            })
+
+            // AIRFIELDHUB — per-club settings (managers): enable, environment,
+            // rollout stage, aircraft registration link, PPR status.
+            // The server-wide half (environments / directory / queue) is
+            // ToAviate-staff only — see dashboard.super_admin.airfield_hub.
+            .state('dashboard.manage_club.airfield_hub', {
+                url: '/airfield_hub',
+                controller: 'AirfieldHubClubController',
+                templateUrl: 'views/manageclub/airfield_hub_club.html',
                 controllerAs: 'vm'
             })
 
@@ -3293,6 +3369,17 @@ var app = angular
 
         //console.log("RUNNING");
 
+        // ── Api-Key on EVERY boot ──
+        // $http defaults reset on each hard page load, and historically the
+        // key was only set inside AuthenticationService's constructor (plus
+        // hard-coded copies in the signup controllers) — so a fresh load of
+        // any public page that doesn't happen to instantiate those (logbook
+        // invite/signup, endorsement confirm, CAA form confirm) fired its
+        // API calls with no Api-Key and got "No APP KEY provided … access
+        // DENIED". Setting it here, before any route activates, covers every
+        // page unconditionally.
+        $http.defaults.headers.common['Api-Key'] = EnvConfig.getApiKey();
+
         // ── ToAviate platform staff ──
         // Single source of truth for gating the super-admin hub and its tools.
         // Platform staff are identified by their @toaviate.com email (matches the
@@ -3330,12 +3417,26 @@ var app = angular
         var idleTimer = null;
         var lastArm = 0;
 
+        // Kiosk screens: public, unattended-by-design displays that sit open all
+        // day in a clubhouse or tower for students and instructors to walk up to.
+        // They show nothing private, so the privacy blur is pure obstruction —
+        // exempt them even if someone happens to be logged in on that machine.
+        var idleExemptStates = ['airfield_bookout_form', 'airfield_bookout_display', 'schedule_display'];
+
+        function isIdleExemptState() {
+            return $state.current && idleExemptStates.indexOf($state.current.name) > -1;
+        }
+
         function armIdleTimer() {
             if (idleTimer) { clearTimeout(idleTimer); }
             idleTimer = setTimeout(function () {
                 var u = $rootScope.globals && $rootScope.globals.currentUser;
                 // Only authenticated screens carry anything worth hiding.
                 if (!u || !u.id || $rootScope.sessionFrozen || $rootScope.idleBlurred) { return; }
+                // Re-check on fire, not just on arm: the user may have landed on
+                // (or left) a kiosk screen since this timer was started. Keep the
+                // timer alive so leaving a kiosk page re-protects the app.
+                if (isIdleExemptState()) { armIdleTimer(); return; }
                 $rootScope.idleBlurred = true;
                 $rootScope.$applyAsync();
             }, IDLE_BLUR_MS);

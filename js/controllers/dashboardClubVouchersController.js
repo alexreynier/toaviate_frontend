@@ -3,6 +3,7 @@
     DashboardClubVouchersController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'ExperiencesService', 'VoucherService', 'ToastService'];
     function DashboardClubVouchersController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, ExperiencesService, VoucherService, ToastService) {
         var vm = this;
+        vm.state = $state;   // Vouchers hub tab bar (_vouchers_nav.html) hides itself on the add/edit child states
 
         //console.log("HELLOOOO vouchers");
 

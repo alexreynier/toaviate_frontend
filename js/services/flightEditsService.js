@@ -14,6 +14,8 @@ app.factory('FlightEditsService', FlightEditsService);
         service.GetAuditDetail = GetAuditDetail;
         service.ProcessAdjustmentPayment = ProcessAdjustmentPayment;
         service.WaiveAdjustment = WaiveAdjustment;
+        service.GetNeedsReview = GetNeedsReview;
+        service.GetNeedsReviewCount = GetNeedsReviewCount;
 
         return service;
 
@@ -44,6 +46,30 @@ app.factory('FlightEditsService', FlightEditsService);
         // ── Edit history for one booking ──
         function GetHistory(bookingId) {
             return $http.get('/api/v1/flight_edits/history/' + bookingId)
+                .then(handleSuccess, handleError2);
+        }
+
+        // ── Flights whose RECORDED times are self-contradictory ──
+        //
+        // Most commonly brakes on stored before brakes off. No rounding rule
+        // can recover the real times, so a human has to correct them.
+        //
+        // This list is DERIVED, not a stored flag — there is nothing to mark
+        // as resolved and no dismiss. Once the times are corrected the flight
+        // stops matching and drops off by itself. Manager-only; the backend
+        // returns {success:false, message} otherwise.
+        function GetNeedsReview(clubId, page, perPage) {
+            page = page || 1;
+            perPage = perPage || 20;
+            return $http.get('/api/v1/flight_edits/needs_review/' + clubId +
+                             '?page=' + page + '&per_page=' + perPage)
+                .then(handleSuccess, handleError2);
+        }
+
+        // Just the number, for the badge. Empty is the NORMAL state — most
+        // clubs return 0 and the banner is hidden entirely.
+        function GetNeedsReviewCount(clubId) {
+            return $http.get('/api/v1/flight_edits/needs_review_count/' + clubId)
                 .then(handleSuccess, handleError2);
         }
 

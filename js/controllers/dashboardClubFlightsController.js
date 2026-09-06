@@ -1488,6 +1488,188 @@
 
 
         // ═══════════════════════════════════════════════
+        // NEEDS REVIEW — self-contradictory recorded times
+        //
+        // Flight times are stored to the second and rounded to the nearest
+        // 5 minutes for the logbook window. A rounding bug was fixed and a
+        // migration repaired the historical data, but a few flights have
+        // RECORDED times that contradict themselves — most often brakes on
+        // stored before brakes off. No rounding rule can recover those, so a
+        // human has to correct them.
+        //
+        // The list is DERIVED, not a stored flag: there is nothing to mark
+        // resolved and deliberately NO dismiss action — a dismiss would let
+        // genuinely broken records hide permanently. Correcting the times
+        // makes a flight stop matching, so rows vanish on their own.
+        //
+        // Empty is the NORMAL state. Most clubs have zero; the banner is
+        // hidden entirely rather than showing an empty state.
+        // ═══════════════════════════════════════════════
+        vm.needsReviewCount = 0;
+        vm.showNeedsReview = false;
+        vm.needsReviewFlights = [];
+        vm.needsReviewPage = 1;
+        vm.needsReviewPagination = null;
+        vm.needsReviewLoading = false;
+
+        vm.loadNeedsReviewCount = function() {
+            FlightEditsService.GetNeedsReviewCount(vm.club_id).then(function(data) {
+                // Manager-only endpoint: a non-manager gets success:false and
+                // simply never sees the banner.
+                if (data && data.success) {
+                    vm.needsReviewCount = Number(data.count || 0);
+                }
+            });
+        };
+
+        vm.loadNeedsReviewCount();
+
+        vm.toggleNeedsReview = function() {
+            vm.showNeedsReview = !vm.showNeedsReview;
+            if (vm.showNeedsReview && vm.needsReviewFlights.length === 0) {
+                vm.loadNeedsReview(1);
+            }
+        };
+
+        // Thin wrapper — reloadNeedsReview() below is the single fetch path,
+        // so paging and post-save refresh can never drift apart.
+        vm.loadNeedsReview = function(page) {
+            return reloadNeedsReview(page);
+        };
+
+        // True when this reason points at the given column, so the offending
+        // cell can be highlighted. A flight may carry more than one reason.
+        vm.reviewFieldFlagged = function(flight, field) {
+            if (!flight || !flight.reasons) { return false; }
+            for (var i = 0; i < flight.reasons.length; i++) {
+                if (flight.reasons[i].field === field) { return true; }
+            }
+            return false;
+        };
+
+        // Plain-English gloss for the compact row; the full `message` is
+        // shown in the expanded detail.
+        var REVIEW_REASONS = {
+            implausible_block_span:    'Brakes on appears to be before brakes off',
+            unreadable_times:          'The recorded times can\'t be read',
+            implausible_airborne_time: 'Stored airborne hours are impossible',
+            implausible_brakes_time:   'Stored brakes hours are impossible'
+        };
+
+        vm.reviewReasonLabel = function(code) {
+            return REVIEW_REASONS[code] || 'Recorded times need checking';
+        };
+
+        // Reuses the standard flight editor — same auth, audit trail,
+        // financial impact and recalculation of every derived column. On
+        // success the corrected flight stops matching, so re-fetch and let
+        // the row disappear.
+        vm.editReviewFlight = function(flight) {
+            var modalInstance = $uibModal.open({
+                animation: true,
+                templateUrl: 'views/modals/flightEditModal.html',
+                controller: 'FlightEditModalController',
+                size: 'lg',
+                backdrop: 'static',
+                keyboard: false,
+                resolve: {
+                    bookingId: function() { return flight.booking_id || null; },
+                    plsId: function() { return flight.booking_id ? null : flight.plane_log_sheet_id; },
+                    clubId: function() { return vm.club_id; }
+                }
+            });
+
+            modalInstance.result.then(function(result) {
+                if (!result || !result.success) { return; }
+
+                var fixedId = flight.plane_log_sheet_id;
+
+                // Was THIS flight fixed? Ask the reloaded list, not the total.
+                //
+                // Comparing the club-wide count before/after looks equivalent
+                // but isn't: another admin fixing a flight concurrently, or
+                // this save resolving one row while flagging another, both
+                // make the total misreport what just happened. The row's own
+                // presence is the only reliable answer.
+                //
+                // If the fix emptied the current page, step back a page —
+                // otherwise the admin lands on a blank list with no
+                // explanation.
+                reloadNeedsReview(vm.needsReviewPage).then(function(ok) {
+                    if (!ok) {
+                        // Couldn't re-read. The save DID succeed, so say that
+                        // and nothing more — never claim a fix we can't see.
+                        ToastService.success('Flight updated',
+                            'Saved. Refresh to see whether it still needs review.',
+                            { duration: 4000 });
+                        return;
+                    }
+
+                    if (!vm.needsReviewFlights.length && vm.needsReviewPage > 1) {
+                        vm.loadNeedsReview(vm.needsReviewPage - 1);
+                    }
+
+                    if (stillNeedsReview(fixedId)) {
+                        // Saved, but it still matches — e.g. one field was
+                        // corrected and the record is still contradictory.
+                        // Don't imply success.
+                        ToastService.warning('Still needs review',
+                            'The recorded times for this flight are still inconsistent.');
+                        return;
+                    }
+
+                    ToastService.success('Fixed',
+                        vm.needsReviewCount === 0
+                            ? 'No flights need review.'
+                            : vm.needsReviewCount + ' remaining.',
+                        { duration: 4000 });
+                });
+
+                vm.search_for_flights();
+            }, function() {
+                $log.info('Needs-review edit modal dismissed');
+            });
+        };
+
+        function stillNeedsReview(plsId) {
+            for (var i = 0; i < vm.needsReviewFlights.length; i++) {
+                if (vm.needsReviewFlights[i].plane_log_sheet_id === plsId) { return true; }
+            }
+            return false;
+        }
+
+        // Reloads the list AND the badge together, resolving true only when
+        // the list came back — so the caller can tell "nothing to fix" from
+        // "couldn't check". Sequenced, not parallel: the toast must describe
+        // what the admin is now looking at.
+        //
+        // FlightEditsService always RESOLVES (with {success:false} on
+        // failure) rather than rejecting, so the !success branch is the real
+        // error path — there is no rejection handler to add.
+        function reloadNeedsReview(page) {
+            vm.needsReviewPage = page || 1;
+            vm.needsReviewLoading = true;
+
+            return FlightEditsService.GetNeedsReview(vm.club_id, vm.needsReviewPage, 20)
+                .then(function(data) {
+                    vm.needsReviewLoading = false;
+                    if (!data || !data.success) { return false; }
+
+                    vm.needsReviewFlights = data.flights || [];
+                    vm.needsReviewPagination = data.pagination || null;
+
+                    // The list's own pagination carries the club-wide total,
+                    // so the badge stays in step with the rows on screen
+                    // without a second round trip that could disagree.
+                    if (data.pagination && data.pagination.total !== undefined) {
+                        vm.needsReviewCount = Number(data.pagination.total);
+                    }
+                    return true;
+                });
+        }
+
+
+        // ═══════════════════════════════════════════════
         // FLIGHT MERGE — Duplicate Reconciliation
         // ═══════════════════════════════════════════════
         vm.mergeCandidateCount = 0;

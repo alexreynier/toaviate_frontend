@@ -1,0 +1,348 @@
+<!-- ═══════════════════════════════════════════════════════════
+     AIRFIELDHUB — per-club settings (club managers)
+     Enable / environment / rollout stage, the aircraft registration
+     link, and PPR status for this club's flights.
+
+     Server-wide concerns (which environments hold keys, directory
+     sync, queue health) are ToAviate-staff only and live on
+     airfield_hub_admin.html.
+
+     There is NO key field on this page, by design. The partner key is
+     per-ENVIRONMENT and server-held; clubs are identified inside the
+     request, not by credential (§8.1).
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="snazzy-page afh-page">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club.settings">
+        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-broadcast-tower"></i> AirfieldHub</h2>
+        <p>File PPR automatically when your pilots book out</p>
+      </div>
+      <div class="snazzy-page__header-actions" ng-if="vm.config">
+        <span class="afh-live" ng-if="vm.config.effective">
+          <span class="afh-live__dot"></span> Active
+        </span>
+        <span class="afh-live afh-live--off" ng-if="!vm.config.effective">
+          <span class="afh-live__dot"></span> Not active
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div ng-if="vm.loading" class="snazzy-loading">
+    <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+    <div class="snazzy-loading__text">Loading AirfieldHub settings…</div>
+  </div>
+
+  <div ng-if="!vm.loading && vm.error" class="afh-warn afh-warn--standalone">
+    <i class="fas fa-exclamation-triangle"></i>
+    <div>{{ vm.error }}</div>
+  </div>
+
+  <div ng-if="!vm.loading && vm.config" class="snazzy-page__body snazzy-reveal">
+
+    <!-- ── What this does ──
+         A one-line explanation up front: most managers will never have
+         heard of AirfieldHub. -->
+    <div class="afh-hero">
+      <div class="afh-hero__icon"><i class="fas fa-route"></i></div>
+      <div class="afh-hero__text">
+        <strong>One booking, both ends.</strong>
+        When a pilot books out to an AirfieldHub airfield, we book the aircraft
+        out of your field <em>and</em> file the PPR at the destination. Their
+        decision comes back here — no second system, no phone call.
+      </div>
+    </div>
+
+    <!-- Enabled but not effective is a MISCONFIGURATION, not success.
+         It must read as a warning. -->
+    <div class="afh-warn" ng-if="vm.config.enabled && !vm.config.effective">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>Enabled, but not active.</strong>
+        The integration is switched on but isn't working — usually the chosen
+        environment has no key configured on this server. Contact ToAviate.
+      </div>
+    </div>
+
+    <!-- Stage 0 sends nothing. Say it plainly so nobody waits for flights
+         that will never dispatch. -->
+    <div class="afh-note afh-note--amber"
+         ng-if="vm.config.effective && vm.form.afh_stage == 0">
+      <i class="fas fa-info-circle"></i>
+      <span>
+        Active, but the rollout stage is <strong>Off</strong> — nothing is sent
+        to AirfieldHub yet. Move to <strong>Shadow</strong> when you're ready to start.
+      </span>
+    </div>
+
+    <!-- ── Tabs ── -->
+    <div class="afh-tabs">
+      <button type="button" class="afh-tabs__tab"
+              ng-class="{'afh-tabs__tab--active': vm.active_tab === 'setup'}"
+              ng-click="vm.setTab('setup')">
+        <i class="fas fa-sliders-h"></i> <span>Setup</span>
+      </button>
+      <button type="button" class="afh-tabs__tab"
+              ng-class="{'afh-tabs__tab--active': vm.active_tab === 'aircraft'}"
+              ng-click="vm.setTab('aircraft')">
+        <i class="fas fa-plane"></i> <span>Aircraft</span>
+      </button>
+      <button type="button" class="afh-tabs__tab"
+              ng-class="{'afh-tabs__tab--active': vm.active_tab === 'flights'}"
+              ng-click="vm.setTab('flights')">
+        <i class="fas fa-tasks"></i> <span>PPR status</span>
+      </button>
+    </div>
+
+    <!-- ═══ SETUP ═══ -->
+    <div ng-if="vm.active_tab === 'setup'" class="snazzy-reveal">
+      <div class="afh-card">
+        <div class="afh-card__head">
+          <i class="fas fa-sliders-h afh-card__icon"></i>
+          <div>
+            <h3>Connection</h3>
+            <p>Turn the integration on and choose how far the rollout has gone</p>
+          </div>
+        </div>
+
+        <div class="afh-card__body">
+
+          <!-- Environment -->
+          <div class="afh-field">
+            <label class="afh-field__label" for="afh_env">Environment</label>
+            <select id="afh_env" class="afh-select"
+                    ng-model="vm.form.afh_environment"
+                    ng-options="e.environment as e.environment for e in vm.configuredEnvironments()">
+              <option value="">Choose an environment…</option>
+            </select>
+            <p class="afh-field__hint">
+              Only environments with a key configured on this server are listed.
+              Keys are held by ToAviate and never appear in your browser.
+            </p>
+          </div>
+
+          <!-- Enable -->
+          <div class="afh-toggle-row">
+            <div class="afh-toggle-info">
+              <span class="afh-toggle-label">Enable AirfieldHub</span>
+              <span class="afh-toggle-desc" ng-if="vm.canEnable()">
+                Send this club's flights to AirfieldHub, subject to the stage below.
+              </span>
+              <span class="afh-toggle-desc afh-toggle-desc--warn" ng-if="!vm.canEnable()">
+                Choose an environment first.
+              </span>
+            </div>
+            <label class="afh-switch" ng-class="{'afh-switch--disabled': !vm.canEnable()}">
+              <input type="checkbox"
+                     ng-model="vm.form.afh_enabled"
+                     ng-true-value="1" ng-false-value="0"
+                     ng-disabled="!vm.canEnable()" />
+              <span class="afh-switch__slider"></span>
+            </label>
+          </div>
+
+          <!-- Rollout stage -->
+          <div class="afh-field">
+            <label class="afh-field__label">Rollout stage</label>
+            <div class="afh-stages">
+              <label class="afh-stage"
+                     ng-repeat="s in vm.stages"
+                     ng-class="{'afh-stage--active': vm.form.afh_stage == s.value}">
+                <input type="radio" ng-model="vm.form.afh_stage" ng-value="s.value" />
+                <span class="afh-stage__num">{{ s.value }}</span>
+                <span class="afh-stage__body">
+                  <span class="afh-stage__label">{{ s.label }}</span>
+                  <span class="afh-stage__help">{{ s.help }}</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="afh-card__foot">
+          <span class="afh-dirty" ng-if="vm.isDirty()">
+            <i class="fas fa-pen"></i> Unsaved changes
+          </span>
+          <button type="button" class="afh-btn afh-btn--primary"
+                  ng-click="vm.save()" ng-disabled="vm.saving || !vm.isDirty()">
+            <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+            {{ vm.saving ? 'Saving…' : 'Save settings' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ AIRCRAFT ═══ -->
+    <div ng-if="vm.active_tab === 'aircraft'" class="snazzy-reveal">
+      <div class="afh-card">
+        <div class="afh-card__head">
+          <i class="fas fa-plane afh-card__icon"></i>
+          <div>
+            <h3>Aircraft registrations</h3>
+            <p>Let AirfieldHub mirror tower-created movements for your aircraft</p>
+          </div>
+          <div class="afh-card__actions">
+            <button type="button" class="afh-btn afh-btn--primary"
+                    ng-click="vm.pushClubLink()" ng-disabled="vm.linking">
+              <i class="fas" ng-class="vm.linking ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+              {{ vm.linking ? 'Syncing…' : 'Sync now' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="afh-card__body">
+          <p class="afh-prose">
+            We send AirfieldHub the registrations currently on your fleet. If a
+            controller creates a movement at their end for one of your aircraft,
+            it comes back to you. Aircraft on nobody's list never leave AirfieldHub.
+          </p>
+
+          <div class="afh-kv" ng-if="vm.config.last_synced_at">
+            <span class="afh-kv__k">Last synced</span>
+            <span class="afh-kv__v">{{ vm.config.last_synced_at | asDate | date:'dd MMM yyyy HH:mm' }}</span>
+          </div>
+          <div class="afh-kv" ng-if="!vm.config.last_synced_at">
+            <span class="afh-kv__k">Last synced</span>
+            <span class="afh-kv__v afh-muted">Never — run a sync to get started</span>
+          </div>
+
+          <div class="afh-syncresult afh-syncresult--inline" ng-if="vm.link_result">
+            <i class="fas fa-check-circle"></i>
+            <span>
+              Sent {{ vm.link_result.registrations || vm.link_result.count || 0 }}
+              registration(s) to AirfieldHub.
+            </span>
+          </div>
+
+          <!-- It's a full replace, so re-running is safe AND is the way to
+               keep the list in check. Managers won't assume that. -->
+          <p class="afh-field__hint">
+            <i class="fas fa-info-circle"></i>
+            This replaces the whole list each time, so it's safe to run whenever
+            your fleet changes — and worth re-running periodically.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PPR STATUS ═══ -->
+    <div ng-if="vm.active_tab === 'flights'" class="snazzy-reveal">
+      <div class="afh-card">
+        <div class="afh-card__head">
+          <i class="fas fa-tasks afh-card__icon"></i>
+          <div>
+            <h3>PPR status</h3>
+            <p>Flights sent to AirfieldHub and what the airfields said</p>
+          </div>
+          <div class="afh-card__actions">
+            <button type="button" class="afh-btn afh-btn--ghost"
+                    ng-click="vm.loadFlights()" ng-disabled="vm.flights_loading">
+              <i class="fas fa-sync-alt" ng-class="{'fa-spin': vm.flights_loading}"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="afh-card__body">
+          <div ng-if="vm.flights_loading && !vm.flights.length" class="snazzy-loading">
+            <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+            <div class="snazzy-loading__text">Loading flights…</div>
+          </div>
+
+          <div ng-if="!vm.flights_loading && !vm.flights.length" class="afh-empty">
+            <i class="fas fa-paper-plane afh-empty__icon"></i>
+            <p>No flights have been sent to AirfieldHub yet.</p>
+          </div>
+
+          <!-- Desktop table -->
+          <div class="afh-table-scroll" ng-if="vm.flights.length">
+            <table class="afh-table afh-hide-mobile-table">
+              <thead>
+                <tr>
+                  <th>Aircraft</th>
+                  <th>Leg</th>
+                  <th>Airfield</th>
+                  <th>Status</th>
+                  <th class="afh-hide-mobile">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="f in vm.flights" ng-class="{'afh-row--muted': f.status === 'Cancelled'}">
+                  <td class="afh-mono">{{ f.aircraft_reg }}</td>
+                  <td>
+                    <span class="afh-leg">
+                      <i class="fas" ng-class="f.kind === 'arrival' ? 'fa-plane-arrival' : 'fa-plane-departure'"></i>
+                      {{ f.kind === 'arrival' ? 'Arrival' : 'Departure' }}
+                    </span>
+                  </td>
+                  <td class="afh-mono">{{ f.airfield_icao || f.airfield || '—' }}</td>
+                  <td>
+                    <span class="afh-badge" ng-class="'afh-badge--' + f._d.tone">
+                      <i class="fas" ng-class="f._d.icon"></i> {{ f._d.text }}
+                    </span>
+                  </td>
+                  <td class="afh-hide-mobile">
+                    <!-- A refusal without a reason forces a phone call and
+                         defeats the whole integration. Always show it, verbatim. -->
+                    <div class="afh-reason" ng-if="f.rejection_message">
+                      <i class="fas fa-comment-dots"></i> {{ f.rejection_message }}
+                    </div>
+                    <!-- reopened: a material edit reverted an APPROVED PPR to
+                         New. Silently showing "awaiting" would read as a bug. -->
+                    <div class="afh-reason afh-reason--amber" ng-if="f.reopened">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      Your changes mean this flight needs approving again.
+                    </div>
+                    <div class="afh-reason afh-muted" ng-if="f.cancellation_reason">
+                      <i class="fas fa-ban"></i> {{ f.cancellation_reason }}
+                    </div>
+                    <div class="afh-reason afh-muted" ng-if="f.special_requests_outcome">
+                      <i class="fas fa-concierge-bell"></i> {{ f.special_requests_outcome }}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Mobile cards — the table has too many columns for a phone. -->
+            <div class="afh-cards">
+              <div class="afh-fcard" ng-repeat="f in vm.flights"
+                   ng-class="{'afh-fcard--muted': f.status === 'Cancelled'}">
+                <div class="afh-fcard__top">
+                  <span class="afh-mono afh-fcard__reg">{{ f.aircraft_reg }}</span>
+                  <span class="afh-badge" ng-class="'afh-badge--' + f._d.tone">
+                    <i class="fas" ng-class="f._d.icon"></i> {{ f._d.text }}
+                  </span>
+                </div>
+                <div class="afh-fcard__row">
+                  <i class="fas" ng-class="f.kind === 'arrival' ? 'fa-plane-arrival' : 'fa-plane-departure'"></i>
+                  {{ f.kind === 'arrival' ? 'Arrival at' : 'Departure from' }}
+                  <span class="afh-mono">{{ f.airfield_icao || f.airfield || '—' }}</span>
+                </div>
+                <div class="afh-reason" ng-if="f.rejection_message">
+                  <i class="fas fa-comment-dots"></i> {{ f.rejection_message }}
+                </div>
+                <div class="afh-reason afh-reason--amber" ng-if="f.reopened">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  Your changes mean this flight needs approving again.
+                </div>
+                <div class="afh-reason afh-muted" ng-if="f.cancellation_reason">
+                  <i class="fas fa-ban"></i> {{ f.cancellation_reason }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

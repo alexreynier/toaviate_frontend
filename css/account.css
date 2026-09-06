@@ -552,3 +552,228 @@ body.night-mode .nok-contact {
 body.night-mode .nok-contact__name {
     color: #e2e8f0;
 }
+
+/* ── My Account hub page geometry (shared) ──
+   Same trick as .mdhub-page: one explicit width for every tab in a hub
+   so the header doesn't jump when switching between them.
+     .bilhub-page — Invoices hub   (Invoices / Payments)
+     .dochub-page — My Documents   (Licences / Medicals / Differences / Proof of ID)
+     .cdhub-page  — Club Documents (Documents / Pricelist)
+   Up to 1400px — these tables (invoices, charges, plane docs) need the room. */
+
+.bilhub-page,
+.dochub-page,
+.cdhub-page {
+    width: 100%;
+    max-width: none;   /* neutralise legacy caps — the width ladder below governs */
+    margin: 0 auto;
+    padding: 0 24px 48px;
+    text-align: left;
+}
+
+/* The width ladder MIRRORS the .centre_align_boxes2 ancestor's responsive
+   max-widths (styles.css) exactly — an explicit width larger than that
+   container can't flex-shrink (min-width:auto resolves to it) and
+   overflows the viewport instead. */
+@media (min-width: 769px)  { .bilhub-page, .dochub-page, .cdhub-page { width: 800px; } }
+@media (min-width: 1000px) { .bilhub-page, .dochub-page, .cdhub-page { width: 950px; } }
+@media (min-width: 1200px) { .bilhub-page, .dochub-page, .cdhub-page { width: 1150px; } }
+@media (min-width: 1400px) { .bilhub-page, .dochub-page, .cdhub-page { width: 1400px; } }
+
+@media only screen and (max-width: 768px) {
+    .bilhub-page,
+    .dochub-page,
+    .cdhub-page {
+        padding: 0 12px 48px;
+    }
+}
+
+/* ── ng-include wrapper must not become a flex row ──
+   The hub chrome (header + sub-nav) is ng-included, which inserts a plain
+   wrapper <div> around it. The global styles.css rule
+
+     .centre_align_boxes2 > div:not(.snazzy-page__header):not(...) {
+         display: flex; justify-content: center; }
+
+   exempts a header that is a DIRECT child of .centre_align_boxes2 — which
+   it was before the chrome moved into the partial. Now the wrapper matches
+   that rule instead, turning the header into a shrink-wrapped flex item
+   that sizes to its own text rather than spanning the page (the width
+   "jumps" between tabs as titles differ). Neutralise the wrapper so the
+   header/nav lay out as normal blocks at full hub width.
+
+   The My Documents partial nests one level deeper still (the ng-if state
+   gate wrapping header + nav), so match both levels. */
+.bilhub-page > [ng-include],
+.dochub-page > [ng-include],
+.cdhub-page > [ng-include],
+.dochub-page > [ng-include] > div {
+    display: block;
+    width: 100%;
+}
+
+/* The header itself spans the hub regardless of nesting depth. */
+.bilhub-page .snazzy-page__header,
+.dochub-page .snazzy-page__header,
+.cdhub-page .snazzy-page__header {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* These pages' legacy inner wrappers centre their text and add side padding
+   that would indent content past the header — align them to the hub. */
+.bilhub-page .sub_section2,
+.dochub-page .sub_section2,
+.cdhub-page .sub_section2,
+.dochub-page .club_docs_all,
+.cdhub-page .club_docs_all {
+    padding-left: 0;
+    padding-right: 0;
+    margin-top: 16px;
+    text-align: left;
+}
+
+/* The hub nav is the primary way around these pages, so let it breathe and
+   scroll rather than wrap to three rows on a narrow phone. */
+.bilhub-page .mdnav,
+.dochub-page .mdnav,
+.cdhub-page .mdnav {
+    margin: 16px 0 8px;
+}
+
+@media only screen and (max-width: 520px) {
+    .bilhub-page .mdnav,
+    .dochub-page .mdnav,
+    .cdhub-page .mdnav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        /* full-bleed edge-to-edge scroll so pills aren't clipped mid-glyph */
+        margin-left: -12px;
+        margin-right: -12px;
+        padding: 2px 12px 6px;
+    }
+    .bilhub-page .mdnav::-webkit-scrollbar,
+    .dochub-page .mdnav::-webkit-scrollbar,
+    .cdhub-page .mdnav::-webkit-scrollbar { display: none; }
+    .bilhub-page .mdnav .mdnav__pill,
+    .dochub-page .mdnav .mdnav__pill,
+    .cdhub-page .mdnav .mdnav__pill { flex: 0 0 auto; }
+}
+
+/* Pills get a touch of lift on press — composited transform only. */
+.mdnav__pill { transform: translateZ(0); }
+.mdnav__pill:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+    .mdnav__pill { transition: none; }
+    .mdnav__pill:active { transform: none; }
+}
+
+/* ── "Aircraft documents" link (Club Documents hub) ──
+   all_documents.html used to repeat every aircraft inline — a section per
+   plane with its documents, CRS and an empty-state — which buried the club
+   documents under a long scroll and duplicated the Aircraft Status page.
+   That page shows the same documents PLUS certificates, insurance, radio
+   licence, noise certificate and CRS with expiry dates, so this is a link
+   to the richer view rather than a second copy of it. */
+
+.acdocs-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    text-align: left;
+}
+
+.acdocs-link__text {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.acdocs-link__icon {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    font-size: 16px;
+}
+
+.acdocs-link__text strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.acdocs-link__text span {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.acdocs-link__btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(30, 58, 95, 0.22);
+    transition: box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.acdocs-link__btn:hover,
+.acdocs-link__btn:focus {
+    color: #fff;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(30, 58, 95, 0.3);
+}
+
+.acdocs-link__btn:active { transform: scale(0.97); }
+
+.acdocs-link__btn i { font-size: 11px; }
+
+@media only screen and (max-width: 600px) {
+    .acdocs-link {
+        padding: 16px;
+        gap: 14px;
+    }
+    .acdocs-link__btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+body.night-mode .acdocs-link {
+    background: #16202e;
+    border-color: #334155;
+}
+
+body.night-mode .acdocs-link__text strong { color: #e2e8f0; }
+body.night-mode .acdocs-link__text span   { color: #94a3b8; }
+
+@media (prefers-reduced-motion: reduce) {
+    .acdocs-link__btn { transition: none; }
+    .acdocs-link__btn:active { transform: none; }
+}

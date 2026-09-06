@@ -1,7 +1,7 @@
  app.controller('BookoutController', BookoutController);
 
-    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService', 'AircraftChecksService', 'SoloRequirementsService'];
-    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService, AircraftChecksService, SoloRequirementsService) {
+    BookoutController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'InstructorCharges', 'PlaneService', '$http', '$cookieStore', 'AuthenticationService', 'CourseService', 'ToastService', 'AircraftChecksService', 'SoloRequirementsService', 'AirfieldHubService'];
+    function BookoutController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, InstructorCharges, PlaneService, $http, $cookieStore, AuthenticationService, CourseService, ToastService, AircraftChecksService, SoloRequirementsService, AirfieldHubService) {
         
         var vm = this;
 
@@ -1574,8 +1574,79 @@
         }
 
 
+        // ═══════════════════════════════════════════════════════════
+        //  AirfieldHub — can we file the PPR for this destination?
+        //  §4 of FRONTEND_AIRFIELDHUB_INTEGRATION_GUIDE.md.
+        //
+        //  This is INFORMATION ONLY. It never blocks, never gates the
+        //  save, and never delays the submit: dispatch is queued
+        //  server-side and the PPR decision arrives later by webhook.
+        //  If anything here fails we simply say nothing, and the pilot
+        //  arranges PPR the way they always have.
+        // ═══════════════════════════════════════════════════════════
+
+        vm.afh = { env: null, checking: false, result: null };
+
+        // Resolve the club's AirfieldHub environment once. A club with the
+        // integration off (or not effective) gets env=null, which disables
+        // the whole feature for this form — no requests, no UI.
+        function afhInit() {
+            var club_id = vm.club_id || (vm.bookout && vm.bookout.plane && vm.bookout.plane.club_id);
+            if (!club_id || vm.afh.env) { return; }
+
+            AirfieldHubService.GetConfig(club_id)
+                .then(function (data) {
+                    // `effective` already means enabled AND environment set AND
+                    // that environment has a key. Stage 0 dispatches nothing,
+                    // so promising automatic PPR then would be a lie.
+                    if (data && data.success && data.effective && Number(data.stage) > 0) {
+                        vm.afh.env = data.environment;
+                        // A destination may already be picked (edit / prefilled
+                        // from a booking) — check it now that we know the env.
+                        afhCheckDestination();
+                    }
+                });
+        }
+
+        function afhCheckDestination() {
+            var to = vm.bookout && vm.bookout.to_airfield;
+
+            // No environment, or no destination yet → show nothing.
+            if (!vm.afh.env || !to) {
+                vm.afh.result = null;
+                return;
+            }
+
+            // The picker allows free text, so a destination can be a string
+            // with no airfield record. Take whatever code we can find.
+            var code = to.code || to.icao || (angular.isString(to) ? to : null);
+            if (!code) { vm.afh.result = null; return; }
+
+            vm.afh.checking = true;
+            AirfieldHubService.LookupDestination(vm.afh.env, code)
+                .then(function (res) {
+                    vm.afh.checking = false;
+                    // Guard against a slow response for a destination the
+                    // pilot has since changed away from.
+                    var current = vm.bookout && vm.bookout.to_airfield;
+                    var currentCode = current && (current.code || current.icao);
+                    if (currentCode && String(currentCode).toUpperCase() !== String(code).toUpperCase()) {
+                        return;
+                    }
+                    vm.afh.result = res;
+                });
+        }
+
+        vm.afhCheckDestination = afhCheckDestination;
+
+
         $scope.selected_airfield_check = function(){
             //console.log("airfield has been selected", vm.bookout.from_airfield.id);
+
+            // AirfieldHub PPR availability for the chosen destination.
+            afhInit();
+            afhCheckDestination();
+
             if(vm.bookout.from_airfield.id == 150 || (vm.bookout.to_airfield && vm.bookout.to_airfield.id == 150)){
                 //console.log("extra information required");
                 vm.extra_information_required = true;

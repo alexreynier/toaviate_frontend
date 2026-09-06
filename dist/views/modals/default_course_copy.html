@@ -1,0 +1,132 @@
+<!-- Default courses — "Copy to club…" modal: search club → read-only
+     preview of everything the copy will create → copy (force after an
+     ALREADY_COPIED confirm; COPY_BUSY never auto-retries). -->
+<div class="sec-modal">
+    <div class="sec-modal__header">
+        <i class="fas fa-clone sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">Copy “{{ vm.course.title }}” to a club</h3>
+    </div>
+
+    <div class="sec-modal__body">
+
+        <!-- ── Pick the club ── -->
+        <div ng-if="vm.stage === 'pick'">
+            <p class="sec-modal__text">
+                The copy is completely independent — the club edits its version with the normal
+                screens and never affects this base.
+            </p>
+            <div class="dc-clubsearch">
+                <i class="fas fa-search"></i>
+                <input type="text" ng-model="vm.q" ng-change="vm.search()" placeholder="Search clubs…" />
+            </div>
+            <div class="dc-clubresults">
+                <a class="dc-clubrow" ng-repeat="c in vm.results" ng-click="vm.pick(c)">
+                    <strong>{{ c.title }}</strong>
+                    <span class="dc-clubrow__sub" ng-show="c.member_count">{{ c.member_count }} members</span>
+                </a>
+                <div class="dc-clubempty" ng-if="!vm.searching && !vm.results.length">No matching clubs.</div>
+                <div class="dc-clubempty" ng-if="vm.searching"><i class="fas fa-spinner fa-spin"></i> Searching…</div>
+            </div>
+        </div>
+
+        <!-- ── Preview ── -->
+        <div ng-if="vm.stage === 'preview'">
+            <div class="sec-loading" ng-if="vm.busy">
+                <div class="sec-spinner"></div><span>Sizing up the copy…</span>
+            </div>
+            <div ng-if="!vm.busy && vm.preview">
+                <p class="sec-modal__text">
+                    Copying to <b>{{ vm.preview.club.title }}</b> will create:
+                </p>
+                <div class="dc-counts">
+                    <span class="dc-count" ng-repeat="k in vm.countKeys" ng-show="vm.preview.will_create[k]">
+                        <b>{{ vm.preview.will_create[k] }}</b> {{ vm.countLabels[k] }}
+                    </span>
+                </div>
+                <div class="caa-banner caa-banner--warning" ng-show="vm.preview.already_copied">
+                    <div class="caa-banner__main">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>This base has already been copied to {{ vm.preview.club.title }} — copying again creates a second, separate course.</div>
+                    </div>
+                </div>
+                <div class="caa-banner caa-banner--warning" ng-show="vm.preview.skipped_materials_not_ready > 0">
+                    <div class="caa-banner__main">
+                        <i class="fas fa-film"></i>
+                        <div>{{ vm.preview.skipped_materials_not_ready }} video(s) are still transcoding and will be skipped — copy again later, or re-upload them on the club.</div>
+                    </div>
+                </div>
+                <div class="sec-modal__footer">
+                    <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.backToPick()">Back</button>
+                    <button type="button" class="sec-btn sec-btn--primary" ng-click="vm.doCopy(false)">
+                        <i class="fas fa-clone"></i> Copy course to {{ vm.preview.club.title }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Already copied → explicit force confirm ── -->
+        <div ng-if="vm.stage === 'confirm_force'">
+            <p class="sec-modal__text">
+                <i class="fas fa-exclamation-triangle"></i>
+                Already copied to <b>{{ vm.club.title }}</b><span ng-show="vm.existingCopies.length"> on
+                {{ vm.existingCopies[0].created_at | limitTo:10 }}</span>. Copy again anyway?
+                This creates a second, independent course.
+            </p>
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.backToPick()">Cancel</button>
+                <button type="button" class="sec-btn sec-btn--primary" ng-click="vm.doCopy(true)">
+                    <i class="fas fa-clone"></i> Copy again
+                </button>
+            </div>
+        </div>
+
+        <!-- ── Copying ── -->
+        <div class="sec-loading" ng-if="vm.stage === 'copying'">
+            <div class="sec-spinner"></div><span>Copying the course — lessons, files, questionnaires…</span>
+        </div>
+
+        <!-- ── COPY_BUSY — stop, no auto-retry ── -->
+        <div ng-if="vm.stage === 'busy'">
+            <p class="sec-modal__text"><i class="fas fa-pause-circle"></i> {{ vm.message }}</p>
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.dismiss()">Close</button>
+            </div>
+        </div>
+
+        <!-- ── Done ── -->
+        <div ng-if="vm.stage === 'done'">
+            <p class="sec-modal__text">
+                <i class="fas fa-check-circle dc-done-icon"></i>
+                Created <b>{{ vm.course.title }}</b> in <b>{{ vm.result.club.title || vm.club.title }}</b>.
+                It's now a completely normal club course in their course list.
+            </p>
+            <div class="dc-counts">
+                <span class="dc-count" ng-repeat="k in vm.countKeys" ng-show="vm.result.result[k]">
+                    <b>{{ vm.result.result[k] }}</b> {{ vm.countLabels[k] }}
+                </span>
+            </div>
+            <div class="caa-banner caa-banner--warning" ng-show="vm.result.skipped.length">
+                <div class="caa-banner__main">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        Some rows were skipped (the copy still succeeded):
+                        <div class="dc-skipped" ng-repeat="sk in vm.result.skipped">{{ sk }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="caa-banner caa-banner--warning" ng-show="vm.result.skipped_materials_not_ready > 0">
+                <div class="caa-banner__main">
+                    <i class="fas fa-film"></i>
+                    <div>{{ vm.result.skipped_materials_not_ready }} video(s) were still transcoding and were skipped.</div>
+                </div>
+            </div>
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--primary" ng-click="vm.close(true)">Done</button>
+            </div>
+        </div>
+
+        <div class="sec-modal__footer" ng-if="vm.stage === 'pick'">
+            <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.dismiss()">Cancel</button>
+        </div>
+    </div>
+</div>

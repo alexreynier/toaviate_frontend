@@ -36,8 +36,32 @@
         vm.action = $state.current.data.action;
         vm.user = $rootScope.globals.currentUser;
         // //console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
-        vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
+        // Club-0 alias: the ToAviate default-course library reuses this
+        // screen (dashboard.super_admin.default_course_*) with data.club0 —
+        // club 0 is the reserved template space (FRONTEND_DEFAULT_COURSES_GUIDE.md).
+        vm.club0 = !!($state.current.data && $state.current.data.club0);
+        vm.club_id = vm.club0 ? 0 :
+            ($rootScope.globals.currentUser.current_club_admin && $rootScope.globals.currentUser.current_club_admin.id);
         vm.user_id = vm.user.id;
+
+        // Navigation stays inside whichever family we're in (club screens vs
+        // the super-admin default-course aliases). Used by the templates.
+        vm.nav = function(name, params) {
+            var map = vm.club0 ? {
+                back:           'dashboard.super_admin.default_courses',
+                courses:        'dashboard.super_admin.default_courses',
+                add_lesson:     'dashboard.super_admin.default_course_add_lesson',
+                edit_lesson:    'dashboard.super_admin.default_course_edit_lesson',
+                course_content: 'dashboard.super_admin.default_course_content'
+            } : {
+                back:           'dashboard.manage_club',
+                courses:        'dashboard.manage_club.courses',
+                add_lesson:     'dashboard.manage_club.add_lesson',
+                edit_lesson:    'dashboard.manage_club.edit_lesson',
+                course_content: 'dashboard.manage_club.course_content'
+            };
+            $state.go(map[name] || name, params || {});
+        };
 
 
         vm.course_certificate = {};

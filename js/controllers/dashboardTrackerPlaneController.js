@@ -108,18 +108,80 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
             } else {
                 vm.trackers = [];
             }
+            // MUST follow every assignment to vm.trackers — the card lookup
+            // reads the index, not the array.
+            indexTrackers();
             trackersLoaded = true;
             checkReady();
         });
     }
 
-    vm.getTrackerForPlane = function(plane) {
+    // plane_id → tracker, rebuilt whenever the tracker list changes.
+    // The card template calls getTrackerForPlane several times per plane and
+    // ng-repeat re-evaluates every digest, so a linear scan per call was
+    // O(planes × trackers × calls) on every frame. The map makes it a lookup.
+    var trackerByPlaneId = {};
+
+    function indexTrackers() {
+        trackerByPlaneId = {};
         for (var i = 0; i < vm.trackers.length; i++) {
-            if (vm.trackers[i].current_plane_id == plane.plane_id) {
-                return vm.trackers[i];
+            var t = vm.trackers[i];
+            if (t.current_plane_id !== null && t.current_plane_id !== undefined) {
+                trackerByPlaneId[String(t.current_plane_id)] = t;
             }
         }
-        return null;
+    }
+    vm.indexTrackers = indexTrackers;
+
+    vm.getTrackerForPlane = function(plane) {
+        if (!plane) { return null; }
+        return trackerByPlaneId[String(plane.plane_id)] || null;
+    };
+
+    // ── Last flight ──
+    // `last_seen` says when the TRACKER last reported; `last_flight` says when
+    // the AIRCRAFT last actually flew. They diverge exactly when it matters:
+    // a stale tracker on an aircraft that has been flying means the tracker
+    // has failed, whereas a stale tracker on an aircraft that hasn't flown
+    // for months is expected.
+    //
+    // CAVEAT: the by_club endpoint feeding this list returns last_seen but
+    // NOT last_flight (by_plane, used by the detail page, does). So the row
+    // is gated on the field actually being present — absent data must not
+    // render as "no flight recorded", which claims something false about the
+    // aircraft. If by_club starts returning it, the row appears by itself.
+    vm.hasLastFlight = function(plane) {
+        var t = vm.getTrackerForPlane(plane);
+        return !!(t && t.last_flight);
+    };
+
+    // Full local timestamp incl. time — used for the tooltip.
+    vm.lastFlightLocal = function(plane) {
+        var t = vm.getTrackerForPlane(plane);
+        return (t && t.last_flight) ? TrackerHealthService.tsLocal(t.last_flight) : 'Never';
+    };
+
+    // Date only, for the card line. tsLocal() gives 'DD MMM YYYY HH:mm' —
+    // trim the time so the card stays scannable, matching the plain date the
+    // "Since <assigned>" line above it already shows.
+    vm.lastFlightDate = function(plane) {
+        var full = vm.lastFlightLocal(plane);
+        if (!full || full === 'Never' || full === '—') { return full; }
+        return full.replace(/\s\d{2}:\d{2}$/, '');
+    };
+
+    // Relative form ("3 months ago") for the at-a-glance line; returns null
+    // when there is no timestamp so the template can omit the row entirely
+    // rather than print a dash.
+    //
+    // lastSeenHuman() takes a raw timestamp as well as a tracker object, so
+    // this reuses the service's UTC parsing rather than repeating it here —
+    // one place decides how these timestamps are read.
+    vm.lastFlightHuman = function(plane) {
+        var t = vm.getTrackerForPlane(plane);
+        if (!t || !t.last_flight) { return null; }
+        var human = TrackerHealthService.lastSeenHuman(t.last_flight);
+        return (human === '—') ? null : human;
     };
 
     vm.filteredPlanes = function() {

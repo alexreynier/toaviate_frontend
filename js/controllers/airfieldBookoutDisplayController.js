@@ -67,6 +67,14 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
         vm.show_edit_form     = false;
         vm.editing_bookout    = null;
         vm.edit_saving        = false;
+        vm.edit_filtered_aircraft = [];
+        vm.edit_show_dropdown = false;
+
+        // ── Airfield autocomplete (From / To on both modals) ──
+        // Keyed by '<create|edit>_<from|to>' so one set of handlers serves
+        // all four fields.
+        vm.af_results  = {};
+        vm.af_open     = {};
         vm.edit_form = {
             registration:   '',
             aircraft_type:  '',
@@ -104,6 +112,13 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
         vm.deleteRow            = deleteRow;
         vm.submitEditBookout    = submitEditBookout;
         vm.cancelEditForm       = cancelEditForm;
+        vm.filterEditAircraft   = filterEditAircraft;
+        vm.selectEditAircraft   = selectEditAircraft;
+        vm.onEditRegBlur        = onEditRegBlur;
+        vm.searchAirfield       = searchAirfield;
+        vm.selectAirfield       = selectAirfield;
+        vm.hideAirfieldDropdown = hideAirfieldDropdown;
+        vm.setEditQuick         = setEditQuick;
 
         var pollTimer     = null;
         var clockTimer    = null;
@@ -141,6 +156,7 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
                         vm.selected_date = null;
                         vm.display_date_label = 'Today';
                         loadTodayBookouts();
+                        loadAircraftList();
                     } else {
                         vm.loading = false;
                         vm.error = true;
@@ -312,19 +328,29 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
         //  Tower-Side Bookout Creation
         // ═══════════════════════════════════════════
 
+        // Fleet list for the registration autocomplete (create + edit share it).
+        // Loaded once at page init: the modals are opened and typed into within
+        // a few hundred ms, so a lazy load on open arrives too late to filter.
+        function loadAircraftList() {
+            if (!vm.airfield || !vm.airfield.code) return;
+            if (vm.create_aircraft_list.length > 0) return;
+            AirfieldBookoutService.LoadFormData(vm.airfield.code)
+                .then(function(data) {
+                    if (data.success) {
+                        vm.create_aircraft_list = data.aircraft || [];
+                        // The list may land after the controller has already
+                        // typed — re-run whichever filter is open.
+                        if (vm.show_create_form) filterCreateAircraft();
+                        if (vm.show_edit_form)   filterEditAircraft();
+                    }
+                });
+        }
+
         function toggleCreateForm() {
             vm.show_create_form = !vm.show_create_form;
             if (vm.show_create_form) {
                 resetCreateForm();
-                // Load aircraft list for autocomplete
-                if (vm.airfield && vm.airfield.code && vm.create_aircraft_list.length === 0) {
-                    AirfieldBookoutService.LoadFormData(vm.airfield.code)
-                        .then(function(data) {
-                            if (data.success) {
-                                vm.create_aircraft_list = data.aircraft || [];
-                            }
-                        });
-                }
+                loadAircraftList();
             }
         }
 
@@ -445,22 +471,150 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
                 notes:         bookout.notes || ''
             };
             vm.show_edit_form = true;
-
-            // Load aircraft list for autocomplete if not loaded
-            if (vm.airfield && vm.airfield.code && vm.create_aircraft_list.length === 0) {
-                AirfieldBookoutService.LoadFormData(vm.airfield.code)
-                    .then(function(data) {
-                        if (data.success) {
-                            vm.create_aircraft_list = data.aircraft || [];
-                        }
-                    });
-            }
+            vm.edit_filtered_aircraft = [];
+            vm.edit_show_dropdown = false;
+            loadAircraftList();
         }
 
         function cancelEditForm() {
             vm.show_edit_form = false;
             vm.editing_bookout = null;
             vm.edit_saving = false;
+            vm.edit_filtered_aircraft = [];
+            vm.edit_show_dropdown = false;
+        }
+
+        function filterEditAircraft() {
+            var q = (vm.edit_form.registration || '').toUpperCase();
+            vm.edit_form.registration = q;
+            if (q.length < 1) {
+                vm.edit_filtered_aircraft = [];
+                vm.edit_show_dropdown = false;
+                return;
+            }
+            vm.edit_filtered_aircraft = vm.create_aircraft_list.filter(function(ac) {
+                return (ac.registration || '').toUpperCase().indexOf(q) > -1;
+            }).slice(0, 8);
+            vm.edit_show_dropdown = vm.edit_filtered_aircraft.length > 0;
+        }
+
+        function selectEditAircraft(ac) {
+            vm.edit_form.registration  = ac.registration;
+            vm.edit_form.aircraft_type = ac.plane_type || '';
+            vm.edit_show_dropdown = false;
+        }
+
+        function onEditRegBlur() {
+            $timeout(function() {
+                vm.edit_show_dropdown = false;
+            }, 200);
+            var reg = (vm.edit_form.registration || '').toUpperCase();
+            vm.edit_form.registration = reg;
+            // Registration changed but the type wasn't picked from the list —
+            // ask the server what type this aircraft is.
+            if (reg.length >= 4 && vm.airfield &&
+                reg !== (vm.editing_bookout && vm.editing_bookout.registration || '').toUpperCase()) {
+                AirfieldBookoutService.LookupAircraft(vm.airfield.code, reg)
+                    .then(function(data) {
+                        if (data.success && data.aircraft_type) {
+                            vm.edit_form.aircraft_type = data.aircraft_type;
+                        }
+                    });
+            }
+        }
+
+        function setEditQuick(value) {
+            vm.edit_form.from = value;
+            vm.edit_form.to   = value;
+        }
+
+
+        // ═══════════════════════════════════════════
+        //  Airfield Autocomplete (From / To)
+        // ═══════════════════════════════════════════
+
+        // Always-available shortcuts, plus the tower's own airfield.
+        function presetAirfields() {
+            var presets = [
+                { code: 'LOCAL', title: 'Local Flight' },
+                { code: 'CCTS',  title: 'Circuits' }
+            ];
+            if (vm.airfield && vm.airfield.code) {
+                presets.push({
+                    code:  vm.airfield.code,
+                    title: vm.airfield.title || vm.airfield.code
+                });
+            }
+            return presets;
+        }
+
+        // key = 'create_from' | 'create_to' | 'edit_from' | 'edit_to'
+        function searchAirfield(key) {
+            var parts = key.split('_');
+            var form  = (parts[0] === 'edit') ? vm.edit_form : vm.create_form;
+            var field = parts[1];
+
+            var raw = (form[field] || '').toUpperCase();
+            form[field] = raw;
+
+            if (!raw) {
+                vm.af_results[key] = presetAirfields();
+                vm.af_open[key]    = true;
+                return;
+            }
+
+            var presetMatches = presetAirfields().filter(function(af) {
+                return af.code.toUpperCase().indexOf(raw) > -1 ||
+                       af.title.toUpperCase().indexOf(raw) > -1;
+            });
+            setAirfieldResults(key, presetMatches, []);
+
+            // Short input looks like an ICAO code; longer input is a name.
+            if (raw.length <= 4) {
+                AirfieldBookoutService.SearchAirfieldsByCode(raw)
+                    .then(function(data) {
+                        if ((form[field] || '').toUpperCase() !== raw) return;  // stale
+                        setAirfieldResults(key, presetMatches, (data && data.airfields) || []);
+                    }, function() { /* presets still stand */ });
+            }
+            if (raw.length >= 2) {
+                AirfieldBookoutService.SearchAirfields(raw.replace(/\s/g, '_'))
+                    .then(function(data) {
+                        if ((form[field] || '').toUpperCase() !== raw) return;  // stale
+                        var existing = vm.af_results[key] || presetMatches;
+                        setAirfieldResults(key, existing, (data && data.airfields) || []);
+                    }, function() { /* code results still stand */ });
+            }
+        }
+
+        function setAirfieldResults(key, presets, serverResults) {
+            var seen   = {};
+            var merged = [];
+            presets.forEach(function(p) {
+                if (seen[p.code]) return;
+                seen[p.code] = true;
+                merged.push(p);
+            });
+            serverResults.forEach(function(af) {
+                if (seen[af.code]) return;
+                seen[af.code] = true;
+                merged.push({ code: af.code, title: af.title });
+            });
+            vm.af_results[key] = merged.slice(0, 8);
+            vm.af_open[key]    = vm.af_results[key].length > 0;
+        }
+
+        function selectAirfield(key, af) {
+            var parts = key.split('_');
+            var form  = (parts[0] === 'edit') ? vm.edit_form : vm.create_form;
+            form[parts[1]] = af.code;
+            vm.af_open[key] = false;
+        }
+
+        function hideAirfieldDropdown(key) {
+            $timeout(function() {
+                vm.af_open[key] = false;
+            }, 200);
         }
 
         function submitEditBookout() {
@@ -518,18 +672,37 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
                 });
         }
 
+        // CANCEL, not delete — there is no delete in the AirfieldHub world.
+        // The row keeps its history, drops off the live board, and the
+        // cancellation propagates to AirfieldHub, withdrawing any PPR request.
+        // A cancelled flight can NOT be un-cancelled.
+        //
+        // Native confirm/prompt to match this file's existing convention (the
+        // public tower display uses them throughout and has no ToastService).
         function deleteRow(bookout) {
-            if (!confirm('Remove this bookout for ' + (bookout.registration || 'unknown') + '?')) return;
+            var who = bookout.registration || 'this aircraft';
+            if (!confirm('Cancel the bookout for ' + who + '?\n\n' +
+                         'This will cancel the bookout and withdraw any PPR request. ' +
+                         'It cannot be undone — you would need to create a new bookout.')) {
+                return;
+            }
+
+            // Optional; the airfield sees it in the day's history.
+            var reason = prompt('Reason for cancelling (optional):', '') || '';
 
             bookout._deleting = true;
-            AirfieldBookoutService.DeleteDisplayBookout(vm.token, bookout.id)
+            AirfieldBookoutService.CancelDisplayBookout(vm.token, bookout.id, reason)
                 .then(function(data) {
                     bookout._deleting = false;
                     if (data.success) {
-                        var idx = vm.bookouts.indexOf(bookout);
-                        if (idx > -1) vm.bookouts.splice(idx, 1);
+                        // Do NOT splice it out: a cancelled bookout stays in the
+                        // day's history (greyed), it just leaves the live board.
+                        // The next delta/refresh returns it with
+                        // status='cancelled'; reflect that immediately.
+                        bookout.status = 'cancelled';
+                        bookout.cancel_reason = reason;
                     } else {
-                        alert(data.message || 'Could not delete bookout.');
+                        alert(data.message || 'Could not cancel bookout.');
                     }
                 }, function() {
                     bookout._deleting = false;
@@ -677,6 +850,8 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
                 case 'confirmed':   return 'abd-status--confirmed';
                 case 'closed':      return 'abd-status--closed';
                 case 'provisional': return 'abd-status--provisional';
+                // Cancelled rows stay in the day's history, greyed out.
+                case 'cancelled':   return 'abd-status--cancelled';
                 default:            return '';
             }
         }
@@ -688,6 +863,7 @@ app.controller('AirfieldBookoutDisplayController', AirfieldBookoutDisplayControl
                 case 'confirmed':   return 'CONFIRMED';
                 case 'closed':      return 'CLOSED';
                 case 'provisional': return 'PLANNED';
+                case 'cancelled':   return 'CANCELLED';
                 default:            return status;
             }
         }

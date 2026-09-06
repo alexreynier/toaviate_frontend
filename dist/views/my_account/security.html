@@ -1,0 +1,135 @@
+<div class="security-page mdhub-page">
+
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.my_account"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+            <div class="snazzy-page__title">
+                <h2><i class="fas fa-lock"></i> Security</h2>
+                <p>Two-factor authentication and passkeys for your account</p>
+            </div>
+        </div>
+    </div>
+
+    <div ng-include="'views/my_account/_details_nav.html'"></div>
+
+    <!-- Enrolment lock banner — club mandates 2FA, user has nothing yet -->
+    <div class="sec-banner" ng-if="vm.setupRequired">
+        <i class="fas fa-exclamation-triangle sec-banner__icon"></i>
+        <div class="sec-banner__text">
+            <b>Your club requires two-factor authentication.</b>
+            Enable an authenticator app below, or add a passkey, to continue using ToAviate.
+        </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+        <div class="sec-spinner"></div>
+        <span>Loading security settings…</span>
+    </div>
+
+    <div class="security-page__grid" ng-if="!vm.loading && vm.status">
+
+        <!-- ═══ Two-factor authentication ═══ -->
+        <div class="sec-card">
+            <div class="sec-card__head">
+                <i class="fas fa-mobile-alt sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Two-Factor Authentication</h3>
+                    <p class="sec-card__sub">A 6-digit code from your authenticator app at every login</p>
+                </div>
+                <span class="sec-pill" ng-class="vm.status.enabled ? 'sec-pill--on' : 'sec-pill--off'">
+                    <span class="sec-pill__dot"></span>{{ vm.status.enabled ? 'Enabled' : 'Off' }}
+                </span>
+            </div>
+
+            <div class="sec-card__body" ng-if="!vm.status.enabled">
+                <p class="sec-card__text">
+                    Add an extra layer of protection: after entering your password you'll
+                    confirm a code from an app such as Google Authenticator, 1Password or Authy.
+                </p>
+                <button class="sec-btn sec-btn--primary" ng-click="vm.openEnable()">
+                    <i class="fas fa-shield-alt"></i> Enable two-factor
+                </button>
+            </div>
+
+            <div class="sec-card__body" ng-if="vm.status.enabled">
+                <div class="sec-row">
+                    <span class="sec-row__label">Enabled since</span>
+                    <span class="sec-row__value">{{ vm.fmtDate(vm.status.confirmed_at) }}</span>
+                </div>
+                <div class="sec-row">
+                    <span class="sec-row__label">Recovery codes left</span>
+                    <span class="sec-row__value">
+                        {{ vm.status.recovery_codes_remaining }}
+                        <span class="sec-row__warn" ng-if="vm.status.recovery_codes_remaining < 3">— running low!</span>
+                    </span>
+                </div>
+                <div class="sec-card__actions">
+                    <button class="sec-btn sec-btn--outline" ng-click="vm.openRegenerate()">
+                        <i class="fas fa-sync-alt"></i> New recovery codes
+                    </button>
+                    <button class="sec-btn sec-btn--danger-outline" ng-click="vm.openDisable()">
+                        <i class="fas fa-times"></i> Disable
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ Passkeys ═══ -->
+        <div class="sec-card">
+            <div class="sec-card__head">
+                <i class="fas fa-fingerprint sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Passkeys</h3>
+                    <p class="sec-card__sub">Sign in with Face ID, Touch ID or your device PIN — no password</p>
+                </div>
+                <span class="sec-pill" ng-class="vm.passkeys.length ? 'sec-pill--on' : 'sec-pill--off'"
+                      ng-if="vm.passkeySupported">
+                    <span class="sec-pill__dot"></span>{{ vm.passkeys.length || 'None' }}
+                </span>
+            </div>
+
+            <div class="sec-card__body" ng-if="!vm.passkeySupported">
+                <p class="sec-card__text">
+                    This browser doesn't support passkeys. Try a recent version of
+                    Safari, Chrome or Edge on a device with a screen lock.
+                </p>
+            </div>
+
+            <div class="sec-card__body" ng-if="vm.passkeySupported">
+
+                <div class="sec-empty" ng-if="!vm.passkeys.length">
+                    <i class="fas fa-fingerprint sec-empty__icon"></i>
+                    <p>No passkeys yet. Add one on each device you sign in from.</p>
+                </div>
+
+                <div class="sec-passkey" ng-repeat="pk in vm.passkeys">
+                    <i class="fas sec-passkey__icon"
+                       ng-class="pk.is_discoverable ? 'fa-fingerprint' : 'fa-key'"></i>
+                    <div class="sec-passkey__info">
+                        <div class="sec-passkey__label">{{ pk.label }}</div>
+                        <div class="sec-passkey__meta">
+                            Added {{ vm.fmtDate(pk.created_at) }}
+                            <span ng-show="pk.last_used_at"> · last used {{ vm.fmtDate(pk.last_used_at) }}</span>
+                        </div>
+                    </div>
+                    <div class="sec-passkey__actions">
+                        <button class="sec-icon-btn" title="Rename" ng-click="vm.renamePasskey(pk)">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="sec-icon-btn sec-icon-btn--danger" title="Remove" ng-click="vm.deletePasskey(pk)">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sec-card__actions">
+                    <button class="sec-btn sec-btn--primary" ng-click="vm.addPasskey()">
+                        <i class="fas fa-plus"></i> Add a passkey
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>

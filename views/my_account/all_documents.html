@@ -1,32 +1,25 @@
-<div class="centre_align_boxes2 documents_page">
+<div class="centre_align_boxes2 documents_page cdhub-page">
 
-
-    <div class="snazzy-page__header">
-            <div class="snazzy-page__header-inner">
-              <div class="back-box" ui-sref="dashboard.my_account">
-                <i class="fa fa-arrow-circle-left"></i> BACK
-              </div>
-              <div class="snazzy-page__title">
-                <h2><i class="fas fa-folder-open"></i> DOCUMENTS</h2>
-                <p>See all your aircraft and operational documents</p>
-              </div>
-            </div>
-          </div>
+  <!-- Hub header + sub-nav. -->
+  <div ng-include="'views/my_account/_club_docs_nav.html'"></div>
 
 
 <div class="sub_section2">
+    <!-- The "Search Aircraft" box was removed with the per-aircraft sections:
+         there are no aircraft on this page to filter any more, and it fed a
+         `!my_search2` condition below that would have HIDDEN the club
+         documents the moment anything was typed into it. Aircraft are
+         searched on the Aircraft Status page instead. -->
     <div class="search_bar">
 
         <input type="search" placeholder="Search Documents" ng-model="my_search" class="form-control fifty_wide" />
-
-        <input type="search" placeholder="Search Aircraft" ng-model="my_search2" class="form-control fifty_wide" />
 
     </div>
 
     <div ng-repeat="club in vm.clubs" class="club_docs_all">
 
         <h2>{{ club.title}}</h2>
-        <div ng-if="(club.documents.length > 0 && !my_search2) && (!my_search || (my_search && (getMySearchCount(club) > 0)))" class="plane_docs">
+        <div ng-if="club.documents.length > 0 && (!my_search || getMySearchCount(club) > 0)" class="plane_docs">
             <div class="card">
              <table>
                     <tr>
@@ -84,115 +77,27 @@
 
 
 
-        <div ng-repeat="plane in club.planes | filter: search2" ng-if="!my_search || (my_search && (getMySearchCount(plane) > 0))">
-            <div class="plane_docs">
-                <h3>{{ plane.registration }} - {{ plane.plane_type }}</h3>
-                <a class="status_link" ui-sref="dashboard.my_account.aircraft_status2({registration: plane.registration})">VIEW STATUS</a>
-
-                <div class="plane_docs" ng-if="plane.documents.length > 0">
-                    <table>
-                        <tr>
-                            <td class="bold_text">
-                                File Name
-                            </td>
-                            <td class="centre_text_align bold_text">
-                                Click Icon To Open
-                            </td>
-                            <td class="right_text_align bold_text">
-                                Last Updated 
-                            </td>
-                        </tr>
-                        <tr ng-repeat="plane_doc in plane.documents | filter: search" vertical-align="middle">
-                        
-                            <td vertical-align="middle">{{ plane_doc.title }}</td>
-                            <td class="centre_text_align"> <a ng-click="downloadDocument(plane_doc.document)"><img class="file_icon" src="{{vm.get_icon2(plane_doc.document)}}" /></a></td>
-                            <td class="right_text_align" vertical-align="middle">{{ plane_doc.updated_at | asDate | date:'d MMM y H:mm' }}</td>
-
-                        </tr>
-                    </table>
+        <!-- ── Aircraft documents ──
+             Previously this page repeated every aircraft inline: a section
+             per plane, its documents, its CRS, and an empty-state for planes
+             with none. That buried the club documents above under a long
+             scroll and duplicated the Aircraft Status page, which shows the
+             same documents PLUS the certificate, insurance, radio licence,
+             noise certificate and CRS with their expiry dates.
+             One button now sends people to that richer page instead. -->
+        <div class="acdocs-link" ng-if="club.planes.length > 0">
+            <div class="acdocs-link__text">
+                <i class="fas fa-plane acdocs-link__icon"></i>
+                <div>
+                    <strong>Aircraft documents</strong>
+                    <span>Certificates, insurance, radio licence and paperwork for each aircraft</span>
                 </div>
-
-                <div class="plane_docs_none" ng-if="plane.documents.length < 1">
-                    There are presently no documents for this aircraft.
-                </div>
-
-                <!-- Certificate of Release to Service (read-only). Only shown when the
-                     aircraft has a current CRS uploaded by the maintenance organisation. -->
-                <div class="plane_docs" ng-if="plane.crs && plane.crs.certificate">
-                    <table>
-                        <tr>
-                            <td class="bold_text">
-                                Certificate of Release to Service
-                            </td>
-                            <td class="centre_text_align bold_text">
-                                Click Icon To Open
-                            </td>
-                            <td class="right_text_align bold_text">
-                                Released
-                            </td>
-                        </tr>
-                        <tr vertical-align="middle">
-                            <td vertical-align="middle">Certificate of Release to Service (CRS)</td>
-                            <td class="centre_text_align"><a ng-click="downloadCrs(plane.crs.certificate)"><img class="file_icon" src="{{ vm.get_icon2(plane.crs.certificate) }}" /></a></td>
-                            <td class="right_text_align" vertical-align="middle">{{ plane.crs.release_date | asDate | date:'d MMM y' }}<span ng-if="plane.crs.release_time"> {{ plane.crs.release_time }}</span></td>
-                        </tr>
-                    </table>
-                </div>
-
-
-            <!--     <div class="plane_details">
-                    <h3>{{ plane.registration }} - {{ plane.plane_type }}</h3>
-                    <h5>Charges</h5>
-                    <table>
-                        <tr>
-                            <td>
-                                Item
-                            </td>
-                            <td>
-                                Charge
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Charged per {{ plane.charges.charge_type }} hour
-                            </td>
-                            <td>
-                                £{{ plane.charges.charge_rate_unit }}
-                            </td>
-                        </tr>
-                         <tr ng-if="plane.charges.surcharge_type && plane.charges.surcharge_type !== 'none'">
-                            <td>
-                                Surcharge per {{ plane.charges.surcharge_type }}
-                            </td>
-                            <td>
-                                £{{ plane.charges.surcharge_fee }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Home Touch and Go Fee 
-                            </td>
-                            <td>
-                                £{{ plane.charges.touch_and_go_fee }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Home Landing Fee
-                            </td>
-                            <td>
-                                £{{ plane.charges.landing_fee }}
-                            </td>
-                        </tr>
-                    </table>
-                </div> -->
-
-
             </div>
-
-            
-            
+            <a class="acdocs-link__btn" ui-sref="dashboard.my_account.aircraft_status">
+                View aircraft documents <i class="fas fa-arrow-right"></i>
+            </a>
         </div>
+
 
     </div>
 

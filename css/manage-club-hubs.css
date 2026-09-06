@@ -1,0 +1,152 @@
+/* ═══════════════════════════════════════════════════════════════
+   MANAGE CLUB — consolidated hub sub-navigation
+   ═══════════════════════════════════════════════════════════════
+   The admin landing (views/manage_club.html) had grown to 32 tiles, so
+   related screens were grouped behind four hubs, each sharing one tab
+   bar (the same trick as the My Account hubs, and as SMS / trackers /
+   aircraft-registry on this side of the app):
+
+     _vouchers_nav.html  Vouchers · Air Experiences · Discounts · Widget
+     _invoices_nav.html  Invoices · Payments
+     _members_nav.html   Members · Requests · Instructors · Missing Students
+     _stats_nav.html     Statistics · Accounting Export
+
+   Each partial is ng-include'd directly BELOW the host page's existing
+   header. Those headers are deliberately left alone: unlike the My
+   Account pages (which all shared .snazzy-page__header), these use four
+   different implementations — .snazzy-page__header, .members-page__header,
+   .club-stats__header and .acct-export__header — several carrying
+   page-specific controls (the members add-button, the club-stats date
+   picker). Replacing them would break those layouts for no visual gain,
+   so only the tab bar is shared.
+
+   Visual language is .trk-tabs / .trk-tab from css/trackers.css (already
+   the manage_club sub-nav look). This file only adds hub spacing, the
+   ng-include wrapper reset, and the mobile/night-mode treatment.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── ng-include wrapper must not collapse or re-flex ──
+   ng-include inserts a plain <div> around the partial. On pages whose
+   root is the legacy .centre_align_boxes2 (experiences, discounts,
+   vouchers, payments) the global styles.css rule
+
+     .centre_align_boxes2 > div:not(.snazzy-page__header):not(...) {
+         display: flex; justify-content: center; }
+
+   would turn that wrapper into a centred flex row and shrink-wrap the
+   tab bar to its content. Keep it a full-width block. */
+.mchub-nav-host,
+.centre_align_boxes2 > .mchub-nav-host {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    flex: 1 1 100%;   /* if an ancestor is still a flex row, span it */
+}
+
+/* ── The tab bar itself ──
+   .trk-tabs supplies layout (flex, underline rule, horizontal scroll);
+   these are hub-specific spacing + the anchor reset, since the tracker
+   originals are <div ng-click> and ours are real <a ui-sref> links. */
+.mchub-tabs {
+    margin: 0 0 22px;
+}
+
+.mchub-tabs .trk-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    text-decoration: none;
+    /* .trk-tab is styled for a div; anchors need the colour pinned or
+       the global link colour wins. */
+    color: #94a3b8;
+}
+
+.mchub-tabs .trk-tab:hover,
+.mchub-tabs .trk-tab:focus {
+    color: #475569;
+    text-decoration: none;
+}
+
+.mchub-tabs .trk-tab--active,
+.mchub-tabs .trk-tab--active:hover,
+.mchub-tabs .trk-tab--active:focus {
+    color: #1e3a5f;
+    border-bottom-color: #2d5a8e;
+}
+
+.mchub-tabs .trk-tab i {
+    font-size: 12.5px;
+    opacity: 0.9;
+}
+
+/* Keyboard focus needs a visible ring — the underline alone is too subtle
+   and only shows on the active tab. */
+.mchub-tabs .trk-tab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    border-radius: 6px 6px 0 0;
+}
+
+/* ── Mobile ──
+   .trk-tabs already scrolls horizontally; hide the scrollbar and let the
+   bar run edge-to-edge so tabs aren't clipped mid-glyph, matching the
+   My Account hub pills. */
+@media only screen and (max-width: 768px) {
+    .mchub-tabs {
+        margin-bottom: 16px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .mchub-tabs::-webkit-scrollbar { display: none; }
+
+    .mchub-tabs .trk-tab {
+        padding: 10px 13px;
+        font-size: 12.5px;
+        flex: 0 0 auto;
+    }
+}
+
+@media only screen and (max-width: 420px) {
+    .mchub-tabs .trk-tab {
+        padding: 10px 11px;
+        font-size: 12px;
+    }
+    /* Icons are decorative here; the label carries the meaning and the
+       extra 19px per tab buys a whole tab of visible width. */
+    .mchub-tabs .trk-tab i { display: none; }
+}
+
+/* ── Night mode ── */
+body.night-mode .mchub-tabs {
+    border-bottom-color: #334155;
+}
+
+body.night-mode .mchub-tabs .trk-tab {
+    color: #94a3b8;
+}
+
+body.night-mode .mchub-tabs .trk-tab:hover,
+body.night-mode .mchub-tabs .trk-tab:focus {
+    color: #cbd5e1;
+}
+
+body.night-mode .mchub-tabs .trk-tab--active,
+body.night-mode .mchub-tabs .trk-tab--active:hover,
+body.night-mode .mchub-tabs .trk-tab--active:focus {
+    color: #e2e8f0;
+    border-bottom-color: #4b82c4;
+}
+
+/* ── Motion ──
+   Tab switches ride the global ui-view fade (css/snazzy-pages.css). The
+   underline slide is the only extra: transform/opacity only, and off for
+   users who ask for reduced motion. */
+.mchub-tabs .trk-tab {
+    transition: color 0.15s ease, border-color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mchub-tabs .trk-tab { transition: none; }
+}

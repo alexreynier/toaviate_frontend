@@ -1,0 +1,325 @@
+/* ═══════════════════════════════════════════════════════════════
+   FLIGHTS — "Needs review" (.fnr-*)
+   ═══════════════════════════════════════════════════════════════
+   Flights whose RECORDED times contradict themselves — most often
+   brakes on stored before brakes off. No rounding rule can recover
+   the real times, so a human corrects them here.
+
+   Two things this design is built around:
+
+   1. EMPTY IS THE NORMAL STATE. Most clubs have zero flagged flights,
+      so the banner is absent entirely rather than showing an empty
+      state. Nothing here should look like a permanent fixture.
+
+   2. THE LIST IS DERIVED. Correcting a flight makes it stop matching,
+      so rows vanish on their own — there is no "resolved" flag and
+      deliberately no dismiss button (that would let genuinely broken
+      records hide forever).
+
+   Amber, not red: these are records needing attention, not an outage.
+   ═══════════════════════════════════════════════════════════════ */
+
+.fnr-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 20px;
+  margin-bottom: 16px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: #fffbeb;
+  cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+
+.fnr-banner:hover {
+  background: #fef3c7;
+  box-shadow: 0 2px 10px rgba(180, 83, 9, 0.1);
+}
+
+/* Square off the join when the panel is open, so banner + panel read as
+   one object rather than two stacked cards. */
+.fnr-banner--open {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+
+.fnr-banner__icon {
+  flex: 0 0 auto;
+  font-size: 19px;
+  color: #b45309;
+}
+
+.fnr-banner__text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fnr-banner__text strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.fnr-banner__sub {
+  font-size: 12.5px;
+  color: #b45309;
+}
+
+.fnr-banner__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 8px;
+  background: #92400e;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fnr-banner__toggle i { font-size: 11px; }
+
+
+/* ── Panel ────────────────────────────────────── */
+
+.fnr-panel {
+  border: 1px solid #fde68a;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  background: #fff;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+/* Wide content scrolls inside its own box — the page never scrolls
+   sideways. */
+.fnr-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fnr-table { width: 100%; }
+
+.fnr-table thead th { white-space: nowrap; }
+
+.fnr-reg {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+/* Times are RAW here, to the second. Everywhere else in the app clock
+   times are rounded to the nearest minute for display; on this screen
+   the entire point is showing exactly what was recorded — so they are
+   monospaced for column-accurate comparison and never passed through
+   the rounding filter. */
+.fnr-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* The column a reason names as most likely at fault. */
+.fnr-time--bad {
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+  border-radius: 5px;
+}
+
+.fnr-problem { min-width: 260px; }
+
+.fnr-reason { margin-bottom: 7px; }
+.fnr-reason:last-child { margin-bottom: 0; }
+
+.fnr-reason__label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.fnr-reason__detail {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.fnr-actions { text-align: right; white-space: nowrap; }
+
+.fnr-fix-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow .15s ease, transform .12s ease;
+}
+
+.fnr-fix-btn:hover { box-shadow: 0 4px 14px rgba(30, 58, 95, 0.3); }
+.fnr-fix-btn:active { transform: scale(0.97); }
+
+.fnr-fix-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+
+/* ── Pager ────────────────────────────────────── */
+
+.fnr-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-wrap: wrap;
+}
+
+.fnr-pager__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fnr-pager__btn:hover:not(:disabled) { background: #f1f5f9; }
+.fnr-pager__btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.fnr-pager__label { font-size: 12.5px; color: #64748b; }
+
+
+/* ── Mobile cards ─────────────────────────────── */
+
+.fnr-cards { display: none; }
+
+@media only screen and (max-width: 768px) {
+  .fnr-table-scroll { display: none; }
+  .fnr-cards { display: block; padding: 14px; }
+
+  .fnr-banner { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
+  .fnr-banner__text { flex: 1 1 100%; order: 2; }
+  .fnr-banner__toggle { order: 3; width: 100%; justify-content: center; }
+  .fnr-banner__icon { order: 1; }
+
+  .fnr-pager { justify-content: center; }
+  .fnr-pager__label { order: -1; flex: 1 1 100%; text-align: center; }
+}
+
+.fnr-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.fnr-card:last-child { margin-bottom: 0; }
+
+.fnr-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.fnr-card__date { font-size: 12.5px; color: #64748b; }
+
+.fnr-card__pilot { font-size: 13px; color: #475569; margin-bottom: 10px; }
+
+.fnr-card__times {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fnr-card__t {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: #334155;
+}
+
+.fnr-card__t small {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.fnr-card__t.fnr-time--bad small { color: #b91c1c; }
+
+.fnr-card__problem {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 12px;
+}
+
+.fnr-fix-btn--block { width: 100%; justify-content: center; }
+
+
+/* ── Night mode ───────────────────────────────── */
+
+body.night-mode .fnr-panel { background: #16202e; border-color: #423014; }
+body.night-mode .fnr-banner { background: #2a2010; border-color: #423014; }
+body.night-mode .fnr-banner:hover { background: #33270f; }
+body.night-mode .fnr-banner__text strong { color: #fcd34d; }
+body.night-mode .fnr-banner__sub { color: #d3a54a; }
+body.night-mode .fnr-reg { color: #e2e8f0; }
+body.night-mode .fnr-time { color: #cbd5e1; }
+body.night-mode .fnr-time--bad { background: #4c1d1d; color: #fca5a5; }
+body.night-mode .fnr-reason__label { color: #fcd34d; }
+body.night-mode .fnr-reason__detail { color: #94a3b8; }
+body.night-mode .fnr-card { background: #16202e; border-color: #334155; }
+body.night-mode .fnr-card__t { background: #101827; color: #cbd5e1; }
+body.night-mode .fnr-card__problem { background: #2a2010; border-color: #423014; color: #fcd34d; }
+body.night-mode .fnr-pager { background: #101827; border-color: #334155; }
+body.night-mode .fnr-pager__btn { background: #16202e; border-color: #334155; color: #cbd5e1; }
+
+
+/* ── Reduced motion ───────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fnr-banner,
+  .fnr-fix-btn { transition: none; }
+  .fnr-fix-btn:active { transform: none; }
+}

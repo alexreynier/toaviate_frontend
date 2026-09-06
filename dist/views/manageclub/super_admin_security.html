@@ -1,0 +1,125 @@
+<!-- Access denied (non-staff deep link) -->
+<div class="sa-security sa-security--denied" ng-if="!vm.is_staff">
+    <i class="fas fa-user-shield"></i>
+    <h3>ToAviate staff only</h3>
+    <p>This area is restricted to platform administrators.</p>
+</div>
+
+<div class="sa-security" ng-if="vm.is_staff">
+
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.super_admin"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+            <div class="snazzy-page__title">
+                <h2><i class="fas fa-user-lock"></i> Account Security</h2>
+                <p>Per-club two-factor policy and lockout recovery</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+        <div class="sec-spinner"></div>
+        <span>Loading clubs…</span>
+    </div>
+
+    <div class="sa-security__grid" ng-if="!vm.loading">
+
+        <!-- ═══ Club 2FA requirement ═══ -->
+        <div class="sec-card">
+            <div class="sec-card__head">
+                <i class="fas fa-building sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Club Two-Factor Policy</h3>
+                    <p class="sec-card__sub">Require every member of a club to have 2FA or a passkey</p>
+                </div>
+            </div>
+            <div class="sec-card__body">
+
+                <label class="sec-modal__label" for="sa-sec-club">Club</label>
+                <select id="sa-sec-club" class="sec-modal__input"
+                        ng-model="vm.selectedClub"
+                        ng-options="c as c.name for c in vm.clubs track by c.id"
+                        ng-change="vm.loadRequirement()">
+                    <option value="">— select a club —</option>
+                </select>
+
+                <div class="sec-loading" ng-if="vm.requirementLoading">
+                    <div class="sec-spinner"></div>
+                    <span>Loading setting…</span>
+                </div>
+
+                <div class="sa-security__toggle-row" ng-if="vm.requirement && !vm.requirementLoading">
+                    <div class="sa-security__toggle-text">
+                        <b>Require two-factor authentication</b>
+                        <span>Members with neither TOTP nor a passkey are locked into
+                        the setup wizard at their next login.</span>
+                    </div>
+                    <button class="sec-btn"
+                            ng-class="vm.requirement.require_two_factor ? 'sec-btn--primary' : 'sec-btn--outline'"
+                            ng-click="vm.toggleRequirement()" ng-disabled="vm.requirementSaving">
+                        <i class="fas" ng-class="vm.requirement.require_two_factor ? 'fa-toggle-on' : 'fa-toggle-off'"></i>
+                        {{ vm.requirementSaving ? 'Saving…' : (vm.requirement.require_two_factor ? 'Required' : 'Optional') }}
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ═══ Lockout reset ═══ -->
+        <div class="sec-card">
+            <div class="sec-card__head">
+                <i class="fas fa-unlock-alt sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Lockout Reset</h3>
+                    <p class="sec-card__sub">For users who lost their phone AND their recovery codes</p>
+                </div>
+            </div>
+            <div class="sec-card__body">
+
+                <form class="sa-security__lookup" ng-submit="vm.lookupUser()">
+                    <input type="text" id="sa-sec-user-id" class="sec-modal__input"
+                           ng-model="vm.lookupId" placeholder="User ID" />
+                    <button type="submit" class="sec-btn sec-btn--outline" ng-disabled="vm.lookupBusy">
+                        <i class="fas fa-search"></i> {{ vm.lookupBusy ? 'Looking…' : 'Look up' }}
+                    </button>
+                </form>
+
+                <div class="sa-security__user" ng-if="vm.foundUser">
+                    <div class="sa-security__user-info">
+                        <b>{{ vm.foundUser.first_name }} {{ vm.foundUser.last_name }}</b>
+                        <span>{{ vm.foundUser.email }} · ID {{ vm.foundUser.id }}</span>
+                    </div>
+
+                    <div class="sa-security__reset-actions" ng-if="!vm.resetConfirm">
+                        <button class="sec-btn sec-btn--danger-outline" ng-click="vm.askReset(false)">
+                            Reset 2FA only
+                        </button>
+                        <button class="sec-btn sec-btn--danger" ng-click="vm.askReset(true)">
+                            Reset 2FA + passkeys
+                        </button>
+                    </div>
+
+                    <div class="sa-security__confirm" ng-if="vm.resetConfirm">
+                        <div class="sec-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                Wipe <b>TOTP enrolment{{ vm.resetConfirm.reset_passkeys ? ' AND all passkeys' : '' }}</b>
+                                for this user? Verify their identity first — this
+                                removes their second factor entirely.
+                            </div>
+                        </div>
+                        <div class="sa-security__reset-actions">
+                            <button class="sec-btn sec-btn--outline" ng-click="vm.cancelReset()" ng-disabled="vm.resetBusy">Cancel</button>
+                            <button class="sec-btn sec-btn--danger" ng-click="vm.runReset()" ng-disabled="vm.resetBusy">
+                                {{ vm.resetBusy ? 'Resetting…' : 'Yes, reset' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>

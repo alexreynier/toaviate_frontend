@@ -12,6 +12,7 @@
 
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
+        vm.state = $state;   // My Documents hub sub-nav (_documents_nav.html) hides itself on the add/edit child states
 
         LicenceService.GetLicenceTypes()
                 .then(function (data) {

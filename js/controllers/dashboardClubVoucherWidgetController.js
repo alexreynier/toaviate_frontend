@@ -3,6 +3,7 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
     DashboardClubVoucherWidgetController.$inject = ['VoucherWidgetService', 'ClubService', 'PaymentService', '$rootScope', '$scope', '$state', '$sce', 'ToastService', '$timeout'];
     function DashboardClubVoucherWidgetController(VoucherWidgetService, ClubService, PaymentService, $rootScope, $scope, $state, $sce, ToastService, $timeout) {
         var vm = this;
+        vm.state = $state;   // Vouchers hub tab bar (_vouchers_nav.html) hides itself on the add/edit child states
 
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user_id = $rootScope.globals.currentUser.id;

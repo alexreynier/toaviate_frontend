@@ -1,0 +1,89 @@
+<!-- ToAviate super-admin — Default courses (base-syllabus library).
+     FRONTEND_DEFAULT_COURSES_GUIDE.md. Authoring happens in the normal
+     course screens pointed at club 0 (default_course_* alias states);
+     this screen is the library + copy-to-club entry point. -->
+<div class="dc-page">
+
+  <!-- Not platform staff -->
+  <div class="pk-denied" ng-if="!vm.is_staff">
+    <i class="fas fa-user-shield"></i>
+    <h3>ToAviate staff only</h3>
+    <p>The default-course library is a platform-admin tool.</p>
+  </div>
+
+  <div ng-if="vm.is_staff">
+
+    <div class="dc-header">
+      <div class="dc-header__inner">
+        <div class="back-box" ui-sref="dashboard.super_admin">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="dc-header__title">
+          <h2><i class="fas fa-layer-group"></i> Default Courses</h2>
+          <p>Author a base syllabus once — copy it onto any club as an independent starting point</p>
+        </div>
+        <button class="sec-btn sec-btn--primary dc-header__new" ng-click="vm.startCreate()" ng-show="!vm.creating">
+          <i class="fas fa-plus"></i> New default
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline create -->
+    <div class="dc-card dc-create" ng-if="vm.creating">
+      <div class="caa-card__title"><i class="fas fa-plus-circle"></i> New default course</div>
+      <div class="dc-create__fields">
+        <div class="caa-field">
+          <label class="caa-field__label" for="dc-new-title">Title</label>
+          <input type="text" class="caa-input" id="dc-new-title" ng-model="vm.newCourse.title"
+                 placeholder="e.g. PPL(A) Base Syllabus" />
+        </div>
+        <div class="caa-field caa-field--full">
+          <label class="caa-field__label" for="dc-new-desc">Description (optional)</label>
+          <textarea class="caa-input caa-input--area" id="dc-new-desc" ng-model="vm.newCourse.description"></textarea>
+        </div>
+      </div>
+      <div class="caa-card__footer">
+        <button class="sec-btn sec-btn--outline" ng-click="vm.cancelCreate()" ng-disabled="vm.createBusy">Cancel</button>
+        <button class="sec-btn sec-btn--primary" ng-click="vm.create()" ng-disabled="vm.createBusy">
+          <i class="fas" ng-class="vm.createBusy ? 'fa-spinner fa-spin' : 'fa-arrow-right'"></i>
+          {{ vm.createBusy ? 'Creating…' : 'Create & open editor' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Loading the library…</span>
+    </div>
+
+    <!-- Empty library -->
+    <div class="pk-empty" ng-if="!vm.loading && !vm.items.length && !vm.creating">
+      <div class="pk-empty__icon"><i class="fas fa-layer-group"></i></div>
+      <h3>No default courses yet</h3>
+      <p>Create the first base syllabus — lessons, marking items, questionnaires, materials and exams are all authored with the normal course screens.</p>
+      <button class="sec-btn sec-btn--primary" ng-click="vm.startCreate()"><i class="fas fa-plus"></i> New default</button>
+    </div>
+
+    <!-- Library list -->
+    <div class="dc-list" ng-if="!vm.loading && vm.items.length">
+      <div class="dc-item" ng-repeat="it in vm.items">
+        <div class="dc-item__main">
+          <div class="dc-item__title">{{ it.title }}</div>
+          <div class="dc-item__desc" ng-show="it.description">{{ it.description }}</div>
+          <div class="dc-item__meta">
+            <span class="dc-item__lessons"><i class="fas fa-list-ol"></i> {{ it.lesson_count || 0 }} lessons</span>
+            <span class="dc-item__copies" ng-class="{'dc-item__copies--never': !it.copies.length}">{{ vm.copiesLabel(it) }}</span>
+          </div>
+        </div>
+        <div class="dc-item__actions">
+          <button class="sec-btn sec-btn--outline" ng-click="vm.open(it)">
+            <i class="fas fa-edit"></i> Open / edit
+          </button>
+          <button class="sec-btn sec-btn--primary" ng-click="vm.copy(it)">
+            <i class="fas fa-clone"></i> Copy to club…
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

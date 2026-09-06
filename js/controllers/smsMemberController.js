@@ -51,7 +51,7 @@ app.controller('SmsMemberController', SmsMemberController);
             ClubService.GetAllForUser(vm.user_id).then(function(data) {
                 var list = angular.isArray(data) ? data : (data && data.clubs ? data.clubs : []);
                 vm.clubs = list.filter(function(c) { return myClubIds[String(c.id)] || myClubIds[c.id]; })
-                               .map(function(c) { return { id: String(c.id), name: c.club_name || c.name || ('Club ' + c.id) }; });
+                               .map(function(c) { return { id: String(c.id), name: c.title || c.club_name || c.name || ('Club ' + c.id) }; });
                 // If we couldn't match names, fall back to bare IDs so the picker still works.
                 if (!vm.clubs.length) {
                     vm.clubs = myClubIdList.map(function(id) { return { id: String(id), name: 'Club ' + id }; });

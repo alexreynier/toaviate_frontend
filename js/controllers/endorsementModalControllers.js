@@ -174,7 +174,9 @@ function EndorsementSignModalCtrl($uibModalInstance, LogbookEndorsementsService,
     vm.stamp = {
         instructor_name: ((user.first_name || '') + ' ' + (user.last_name || '')).trim(),
         instructor_number: savedNumber,
-        endorsement_text: '',
+        // Callers can pre-pick the wording (e.g. the CAA reval flow opens
+        // this modal with the FCL.740.A training-flight stamp preselected).
+        endorsement_text: context.prefill_text || '',
         signature_image: ''
     };
     vm.pickWording = function(w) { vm.stamp.endorsement_text = w; };

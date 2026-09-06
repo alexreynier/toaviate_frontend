@@ -14,7 +14,7 @@
     <label class="tpc__dropzone" ng-class="{'tpc__dropzone--over': tpc.drag_over, 'tpc__dropzone--busy': tpc.uploading}"
            lcf-dropzone lcf-on-drop="tpc.onFiles(files)" lcf-on-drag-state="tpc.setDragState(isDragging)">
       <i class="fas" ng-class="tpc.uploading ? 'fa-spinner fa-spin' : 'fa-file-excel'"></i>
-      <span ng-if="!tpc.uploading"><strong>Drag &amp; drop the workbook here</strong>, or tap to choose &mdash; .xlsx only · max 30&nbsp;MB</span>
+      <span ng-if="!tpc.uploading"><strong>Drag &amp; drop the workbook here</strong>, or tap to choose &mdash; .xlsx only · max 100&nbsp;MB</span>
       <span ng-if="tpc.uploading">Uploading the workbook&hellip;</span>
       <input type="file" accept=".xlsx" lcf-file-select="tpc.onFiles(files)" style="display:none;" ng-disabled="tpc.uploading">
     </label>
@@ -54,10 +54,110 @@
           </button>
           <a class="tpc__run-menu" ng-click="run._menu = !run._menu"><i class="fas fa-ellipsis-v"></i></a>
           <div class="tpc__run-menu-pop" ng-if="run._menu" ng-click="run._menu = false">
-            <a ng-click="tpc.askConfirm('reprocess', run)"><i class="fas fa-redo"></i> Re-process</a>
+            <a ng-click="(run.status === 'processing' || run.status === 'applying') || tpc.askConfirm('reprocess', run)" ng-class="{'tpc__menu-disabled': run.status === 'processing' || run.status === 'applying'}"><i class="fas fa-redo"></i> Re-process</a>
             <a class="tpc__danger" ng-click="tpc.askConfirm('delete', run)"><i class="fas fa-trash-alt"></i> Delete run</a>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Duplicate-flights cleanup (one-off recovery tool) ── -->
+    <div class="tpc__cleanup">
+      <h4 class="tpc__runs-title"><i class="fas fa-broom"></i> Duplicate flights cleanup</h4>
+      <p class="tpc__intro">
+        One-off recovery: finds flights the importer duplicated, removes the orphan copy and re-points its
+        training records and split legs at the kept twin. Scanning is read-only — nothing is deleted until
+        you confirm.
+      </p>
+
+      <!-- Idle / nothing found -->
+      <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-if="tpc.cl.stage === 'idle' || tpc.cl.stage === 'clean'"
+              ng-click="tpc.clScan()" ng-disabled="tpc.cl.busy">
+        <i class="fas fa-search"></i> Scan for duplicate flights
+      </button>
+      <span class="tpc__cleanup-clean" ng-if="tpc.cl.stage === 'clean'">
+        <i class="fas fa-check-circle"></i> No duplicate flights found.
+      </span>
+      <span class="tpc__cleanup-clean" ng-if="tpc.cl.stage === 'scanning'">
+        <i class="fas fa-spinner fa-spin"></i> Scanning the club's flights&hellip;
+      </span>
+
+      <!-- Review -->
+      <div ng-if="tpc.cl.stage === 'review'">
+        <div class="tpc__cleanup-counts">
+          <span class="tpc__cleanup-count tpc__cleanup-count--danger">{{ tpc.cl.preview.duplicate_flights }} duplicate flights</span>
+          <span class="tpc__cleanup-count">{{ tpc.cl.preview.duplicate_training_records }} duplicate training records</span>
+          <span class="tpc__cleanup-count tpc__cleanup-count--warn" ng-if="tpc.cl.preview.kept_for_review > 0">{{ tpc.cl.preview.kept_for_review }} kept for manual review</span>
+        </div>
+
+        <div class="tpc__cleanup-tablewrap" ng-if="tpc.cl.preview.sample.length">
+          <table class="tpc__cleanup-table">
+            <thead>
+              <tr><th>Date</th><th>Off &ndash; On</th><th>Duplicate &rarr; kept</th><th class="caa-hide-mobile">Import key</th><th>TRs</th></tr>
+            </thead>
+            <tbody>
+              <tr ng-repeat="s in tpc.cl.preview.sample">
+                <td>{{ s.flight_date }}</td>
+                <td>{{ s.brakes_off }} &ndash; {{ s.brakes_on }}</td>
+                <td>#{{ s.orphan_id }} &rarr; #{{ s.twin_id }}</td>
+                <td class="caa-hide-mobile tpc__cleanup-key">{{ s.import_key }}</td>
+                <td>{{ s.training_records }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="tpc__cleanup-note" ng-if="tpc.cl.preview.duplicate_flights > tpc.cl.preview.sample.length">
+            Showing {{ tpc.cl.preview.sample.length }} of {{ tpc.cl.preview.duplicate_flights }}.
+          </p>
+        </div>
+
+        <div class="tpc__cleanup-actions" ng-if="tpc.cl.preview.duplicate_flights > 0">
+          <button type="button" class="solo-btn solo-btn--sm tpc__cleanup-go" ng-click="tpc.clConfirm()" ng-disabled="tpc.cl.busy">
+            <i class="fas fa-trash-alt"></i> Delete {{ tpc.cl.preview.duplicate_flights }} duplicate flights
+          </button>
+          <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="tpc.clReset()" ng-disabled="tpc.cl.busy">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Running -->
+      <div ng-if="tpc.cl.stage === 'running'">
+        <div class="tpc__cleanup-progress">
+          <div class="tpc__cleanup-progress-bar"><div class="tpc__cleanup-progress-fill" ng-style="{width: tpc.clProgress() + '%'}"></div></div>
+          <span><i class="fas fa-spinner fa-spin"></i>
+            {{ tpc.cl.totals.deleted_flights }} deleted &middot; {{ tpc.cl.remaining }} remaining&hellip;</span>
+        </div>
+      </div>
+
+      <!-- Stopped (busy elsewhere / error) — manual resume only -->
+      <div ng-if="tpc.cl.stage === 'stopped'">
+        <p class="tpc__cleanup-stopped"><i class="fas fa-pause-circle"></i> {{ tpc.cl.message }}</p>
+        <p class="tpc__intro" ng-if="tpc.cl.totals">{{ tpc.cl.totals.deleted_flights }} deleted so far.</p>
+        <button type="button" class="solo-btn solo-btn--outline solo-btn--sm" ng-click="tpc.clResume()" ng-disabled="tpc.cl.busy">
+          <i class="fas fa-play"></i> Resume cleanup
+        </button>
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="tpc.clReset()" ng-disabled="tpc.cl.busy">Close</button>
+      </div>
+
+      <!-- Done -->
+      <div ng-if="tpc.cl.stage === 'done'">
+        <p class="tpc__cleanup-done">
+          <i class="fas fa-check-circle"></i>
+          <strong>{{ tpc.cl.totals.deleted_flights }}</strong> duplicate flights removed &middot;
+          {{ tpc.cl.totals.deleted_training_records }} duplicate training records &middot;
+          {{ tpc.cl.totals.repointed_split_legs }} split legs and {{ tpc.cl.totals.repointed_staging_rows }} staging rows re-pointed.
+        </p>
+
+        <!-- Kept for manual review — informational, not an error -->
+        <div class="tpc__cleanup-kept" ng-if="tpc.cl.preview.kept_for_review > 0">
+          <p class="tpc__cleanup-kept-title">
+            <i class="fas fa-eye"></i> {{ tpc.cl.preview.kept_for_review }} flight(s) need manual review — they weren't deleted:
+          </p>
+          <div class="tpc__cleanup-kept-row" ng-repeat="k in tpc.cl.preview.kept_sample">
+            <span>#{{ k.orphan_id }}<span ng-show="k.flight_date"> &middot; {{ k.flight_date }}</span></span>
+            <span class="tpc__cleanup-kept-reason">{{ tpc.clKeptReason(k.reason) }}</span>
+          </div>
+        </div>
+
+        <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="tpc.clReset()">Close</button>
       </div>
     </div>
 

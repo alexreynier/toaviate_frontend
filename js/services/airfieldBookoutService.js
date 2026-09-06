@@ -50,7 +50,8 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
         service.GetDisplayDate      = GetDisplayDate;
         service.CreateDisplayBookout = CreateDisplayBookout;
         service.EditDisplayBookout  = EditDisplayBookout;
-        service.DeleteDisplayBookout = DeleteDisplayBookout;
+        service.CancelDisplayBookout = CancelDisplayBookout;
+        service.DeleteDisplayBookout = DeleteDisplayBookout;   // legacy alias — see below
 
         return service;
 
@@ -178,6 +179,23 @@ app.factory('AirfieldBookoutService', AirfieldBookoutService);
                 .then(handleSuccess, handleError);
         }
 
+        // CANCEL, not delete. There is no delete in the AirfieldHub world:
+        // the row keeps its history, drops off the live board, and the
+        // cancellation propagates to AirfieldHub (withdrawing any PPR).
+        // A cancelled flight can NOT be un-cancelled.
+        //
+        // The endpoint is named /delete for historical reasons but has always
+        // performed a cancel (get_by_date still returns the row with
+        // status='cancelled'). /cancel is the alias matching the documented
+        // verb; `reason` is forwarded and shown in the day's history.
+        function CancelDisplayBookout(token, bookoutId, reason) {
+            return $http.post('/api/v1/airfield_bookout_display/' + token + '/cancel/' + bookoutId,
+                              { reason: reason || '' })
+                .then(handleSuccess, handleError);
+        }
+
+        // Legacy name kept so nothing that still calls it breaks; it routes to
+        // the same cancel behaviour. Prefer CancelDisplayBookout in new code.
         function DeleteDisplayBookout(token, bookoutId) {
             return $http.post('/api/v1/airfield_bookout_display/' + token + '/delete/' + bookoutId, {})
                 .then(handleSuccess, handleError);

@@ -324,6 +324,14 @@
         function fetch_student_records(){
             CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
                 .then(function(data){
+                    // No usable record (failed call, or no student for this
+                    // user/course pairing — e.g. a stale deep link): stay on
+                    // the picker instead of rendering a half-broken record.
+                    if(!data || data.success === false || !data.student){
+                        vm.show_record = false;
+                        ToastService.warning('No Records Found', (data && data.message) || 'No training records exist yet for this student and course.');
+                        return;
+                    }
                     vm.show_record = true;
                     load_caa_documents();
                     vm.all_items = data.all_items;
@@ -482,7 +490,11 @@
         };
 
         vm.get_initial = function(text){
-                return text.charAt(0);
+                // Null-safe: called from bindings that can legitimately lack a
+                // value (missing student, logs without a PIC/instructor name).
+                // An exception here kills the whole digest and leaves raw
+                // {{ }} bindings on screen.
+                return text ? String(text).charAt(0) : '';
             }
 
             vm.list_pilots = function(row){

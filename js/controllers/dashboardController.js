@@ -48,6 +48,19 @@
         } else if(vm.user && vm.user.access && vm.user.access.instructor){
            vm.force_show_admins = true;
         }
+
+        // Any club association at all? Free-logbook-only accounts (empty
+        // access arrays) get the logbook + personal records (licences,
+        // medicals, differences → reminders) but no club features —
+        // Scheduler / Find a Slot in the header hide on this.
+        vm.hasClub = function() {
+            var a = vm.user && vm.user.access;
+            if (!a) { return false; }
+            return (a.pilot && a.pilot.length > 0) ||
+                   (a.instructor && a.instructor.length > 0) ||
+                   (a.manager && a.manager.length > 0) ||
+                   (a.super_admin && a.super_admin.length > 0);
+        };
         
 
         UserService.GetAdminClubs(vm.user.id)

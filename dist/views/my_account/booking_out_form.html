@@ -240,6 +240,43 @@
               <small ng-bind-html="airfield.code | highlight: $select.search"></small>
             </ui-select-choices>
           </ui-select>
+
+          <!-- ── AirfieldHub PPR availability ──
+               Information only: never blocks the save, never delays it.
+               Renders nothing at all unless the club has the integration
+               live (effective + stage > 0) AND a destination is picked. -->
+          <div class="afh-ppr__checking" ng-if="vm.afh.checking">
+            <i class="fas fa-spinner fa-spin"></i> Checking AirfieldHub…
+          </div>
+
+          <div class="afh-ppr afh-ppr--yes"
+               ng-if="!vm.afh.checking && vm.afh.result.confirmed">
+            <i class="fas fa-check-circle"></i>
+            <span>
+              <strong>PPR can be filed automatically.</strong>
+              {{ vm.bookout.to_airfield.title || vm.bookout.to_airfield.code }} is on
+              AirfieldHub — booking out here also files your PPR, and their
+              decision comes back to you.
+            </span>
+          </div>
+
+          <div class="afh-ppr afh-ppr--no"
+               ng-if="!vm.afh.checking && vm.afh.result && !vm.afh.result.confirmed && vm.afh.result.reason !== 'directory_unavailable'">
+            <i class="fas fa-phone"></i>
+            <span>PPR must be arranged directly with this airfield.</span>
+          </div>
+
+          <!-- We could not check. Must NOT claim the airfield is unsupported —
+               that would send pilots to the phone unnecessarily, or worse,
+               imply a PPR was filed when it wasn't. -->
+          <div class="afh-ppr afh-ppr--unknown"
+               ng-if="!vm.afh.checking && vm.afh.result.reason === 'directory_unavailable'">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>
+              We couldn't check AirfieldHub just now. Please confirm PPR with the
+              airfield directly.
+            </span>
+          </div>
         </div>
 
         <div class="form-group" ng-if="!vm.bookout.pic.current">

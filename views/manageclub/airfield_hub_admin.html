@@ -1,0 +1,477 @@
+<!-- ═══════════════════════════════════════════════════════════
+     AIRFIELDHUB — ToAviate staff screen
+     Server-wide concerns only: environments, directory sync, queue
+     health. Per-club settings live on airfield_hub_club.html.
+     There is NO key field on this page, by design (see §8).
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="snazzy-page afh-page">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-broadcast-tower"></i> AirfieldHub</h2>
+        <p>Environments, airfield directory and dispatch queue</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Not staff ── -->
+  <div ng-if="!vm.is_staff" class="afh-denied snazzy-reveal">
+    <i class="fas fa-lock afh-denied__icon"></i>
+    <h3>ToAviate staff only</h3>
+    <p>
+      Environments and the airfield directory are shared across every club, so
+      they are managed by ToAviate. Your club's own AirfieldHub settings are
+      under <strong>Manage Club → Settings → AirfieldHub</strong>.
+    </p>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div ng-if="vm.is_staff && vm.loading" class="snazzy-loading">
+    <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+    <div class="snazzy-loading__text">Loading AirfieldHub…</div>
+  </div>
+
+  <div ng-if="vm.is_staff && !vm.loading" class="snazzy-page__body snazzy-reveal">
+
+    <!-- ── Environment picker ──
+         Unconfigured environments are shown DISABLED with a reason rather
+         than hidden: an admin wondering where production went deserves an
+         answer. -->
+    <div class="afh-envbar">
+      <span class="afh-envbar__label">Environment</span>
+      <div class="afh-envbar__list">
+        <!-- An unconfigured environment is not a dead end any more: clicking
+             it opens the credentials form so it can be set up here. -->
+        <button type="button"
+                class="afh-env"
+                ng-repeat="env in vm.environments"
+                ng-class="{'afh-env--active': vm.selected_env.environment === env.environment,
+                           'afh-env--unset': !env.configured}"
+                ng-click="env.configured ? vm.selectEnv(env) : vm.openCredentials(env)"
+                title="{{ env.configured ? env.base_url : 'No key yet — click to set one up' }}">
+          <i class="fas" ng-class="env.configured ? 'fa-check-circle' : 'fa-plus-circle'"></i>
+          {{ env.environment }}
+          <span class="afh-env__note" ng-if="!env.configured">set up</span>
+        </button>
+      </div>
+    </div>
+
+    <div ng-if="!vm.selected_env && !vm.cred_form" class="afh-empty">
+      <i class="fas fa-key afh-empty__icon"></i>
+      <p>No environment has credentials yet.</p>
+      <p class="afh-muted">
+        Choose an environment above to paste the partner key and webhook secret
+        AirfieldHub issued you.
+      </p>
+    </div>
+
+    <!-- ═══ CREDENTIALS FORM ═══
+         Write-only. AirfieldHub issues these to us, so they are pasted in,
+         stored server-side (encrypted) and NEVER rendered back — the same
+         one-way contract as our own platform keys. Editing an environment
+         that already has credentials is a ROTATION: blank fields keep their
+         stored value, so the webhook secret can change without re-entering
+         the partner key. -->
+    <div ng-if="vm.cred_form" class="afh-card afh-card--form snazzy-reveal">
+      <div class="afh-card__head">
+        <i class="fas fa-key afh-card__icon"></i>
+        <div>
+          <h3>{{ vm.cred_form.environment }} credentials</h3>
+          <p ng-if="vm.cred_form.had_key">Rotate the key or secret AirfieldHub issued</p>
+          <p ng-if="!vm.cred_form.had_key">Paste the key and secret AirfieldHub issued you</p>
+        </div>
+      </div>
+
+      <div class="afh-card__body">
+
+        <div class="afh-field">
+          <label class="afh-field__label" for="afh_base">Base URL</label>
+          <input id="afh_base" type="text" class="afh-input"
+                 ng-model="vm.cred_form.base_url"
+                 placeholder="https://dev-api.airfieldhub.com/api/partner/v1" />
+          <p class="afh-field__hint">AirfieldHub's API root for this environment.</p>
+        </div>
+
+        <div class="afh-field">
+          <label class="afh-field__label" for="afh_key">
+            Partner key
+            <span class="afh-req" ng-if="!vm.cred_form.had_key">required</span>
+          </label>
+          <input id="afh_key" type="password" class="afh-input afh-input--secret"
+                 ng-model="vm.cred_form.partner_key"
+                 autocomplete="new-password" spellcheck="false"
+                 placeholder="{{ vm.cred_form.had_key ? 'Leave blank to keep the current key' : 'afh_…' }}" />
+          <p class="afh-field__hint" ng-if="vm.cred_form.had_key">
+            <i class="fas fa-check-circle"></i>
+            A key is stored<span ng-if="vm.cred_form.key_hint"> (ends <code>{{ vm.cred_form.key_hint }}</code>)</span>.
+            Enter a new one only to rotate it — the old key stops working immediately.
+          </p>
+          <p class="afh-field__hint" ng-if="!vm.cred_form.had_key">
+            The <code>afh_</code> key AirfieldHub issued for this environment.
+            Keys are per environment — a dev key will not work against production.
+          </p>
+        </div>
+
+        <div class="afh-field">
+          <label class="afh-field__label" for="afh_secret">Webhook secret</label>
+          <input id="afh_secret" type="password" class="afh-input afh-input--secret"
+                 ng-model="vm.cred_form.webhook_secret"
+                 autocomplete="new-password" spellcheck="false"
+                 placeholder="{{ vm.cred_form.had_secret ? 'Leave blank to keep the current secret' : 'tak_…' }}" />
+          <p class="afh-field__hint">
+            AirfieldHub signs its webhooks with this. Without it their approvals
+            and refusals are rejected, so every arrival would sit on
+            “Awaiting PPR” forever.
+          </p>
+        </div>
+
+        <!-- The one-way rule, stated where it matters: at the point of entry,
+             not buried in a footnote. -->
+        <div class="afh-note afh-note--inline">
+          <i class="fas fa-shield-alt"></i>
+          <span>
+            These are stored on the ToAviate server and <strong>can never be read
+            back</strong> — not by you, not by us. Keep your own copy from
+            AirfieldHub; if it is lost, paste a fresh one here.
+          </span>
+        </div>
+      </div>
+
+      <div class="afh-card__foot">
+        <button type="button" class="afh-btn afh-btn--ghost" ng-click="vm.closeCredentials()">
+          Cancel
+        </button>
+        <button type="button" class="afh-btn afh-btn--primary"
+                ng-click="vm.saveCredentials()"
+                ng-disabled="vm.cred_saving || !vm.credsDirty()">
+          <i class="fas" ng-class="vm.cred_saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+          {{ vm.cred_saving ? 'Saving…' : (vm.cred_form.had_key ? 'Save changes' : 'Save credentials') }}
+        </button>
+      </div>
+    </div>
+
+    <div ng-if="vm.selected_env && !vm.cred_form">
+
+      <!-- ── Tabs ── -->
+      <div class="afh-tabs">
+        <button type="button" class="afh-tabs__tab"
+                ng-class="{'afh-tabs__tab--active': vm.active_tab === 'environments'}"
+                ng-click="vm.setTab('environments')">
+          <i class="fas fa-server"></i> <span>Overview</span>
+        </button>
+        <button type="button" class="afh-tabs__tab"
+                ng-class="{'afh-tabs__tab--active': vm.active_tab === 'directory'}"
+                ng-click="vm.setTab('directory')">
+          <i class="fas fa-map-marked-alt"></i> <span>Directory</span>
+        </button>
+        <button type="button" class="afh-tabs__tab"
+                ng-class="{'afh-tabs__tab--active': vm.active_tab === 'queue'}"
+                ng-click="vm.setTab('queue')">
+          <i class="fas fa-paper-plane"></i> <span>Queue</span>
+          <span class="afh-tabs__alert" ng-if="vm.num(vm.outbox.dead) > 0">{{ vm.num(vm.outbox.dead) }}</span>
+        </button>
+      </div>
+
+      <!-- ═══ OVERVIEW ═══ -->
+      <div ng-if="vm.active_tab === 'environments'" class="snazzy-reveal">
+        <div class="afh-card">
+          <div class="afh-card__head">
+            <i class="fas fa-server afh-card__icon"></i>
+            <div>
+              <h3>{{ vm.selected_env.environment }}</h3>
+              <p>{{ vm.selected_env.base_url }}</p>
+            </div>
+          </div>
+          <div class="afh-card__body">
+            <div class="afh-kv">
+              <span class="afh-kv__k">Partner key</span>
+              <span class="afh-kv__v">
+                <span class="afh-badge afh-badge--green" ng-if="vm.selected_env.configured">
+                  <i class="fas fa-check"></i> Configured on server
+                </span>
+              </span>
+            </div>
+            <div class="afh-kv">
+              <span class="afh-kv__k">Webhook secret</span>
+              <span class="afh-kv__v">
+                <span class="afh-badge afh-badge--green" ng-if="vm.selected_env.has_webhook_secret">
+                  <i class="fas fa-check"></i> Set
+                </span>
+                <span class="afh-badge afh-badge--amber" ng-if="!vm.selected_env.has_webhook_secret">
+                  <i class="fas fa-exclamation-triangle"></i> Missing — decisions can't come back
+                </span>
+              </span>
+            </div>
+          </div>
+          <!-- Missing webhook secret is not cosmetic: PPRs go out but no
+               decision ever comes back, so every arrival sits at "Awaiting
+               PPR" forever. Say what breaks, not just what's absent. -->
+          <div class="afh-warn" ng-if="!vm.selected_env.has_webhook_secret">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+              <strong>No webhook secret for {{ vm.selected_env.environment }}.</strong>
+              PPR requests will still be sent, but AirfieldHub's approvals and
+              refusals are signed with this secret — without it they are rejected,
+              so every arrival stays on “Awaiting PPR” indefinitely.
+            </div>
+          </div>
+
+          <!-- The one thing an engineer reading this page must not wonder
+               about. Stated, not implied. -->
+          <div class="afh-note">
+            <i class="fas fa-shield-alt"></i>
+            <span>
+              Credentials are stored on the ToAviate server and are never sent
+              to the browser. This page shows only whether one is present.
+            </span>
+          </div>
+
+          <div class="afh-card__foot afh-card__foot--split">
+            <!-- Removing credentials silently stops dispatch for any club
+                 pointing here, so it is a two-step, and the backend refuses
+                 while clubs are still attached. -->
+            <span ng-if="!vm.confirm_clear">
+              <button type="button" class="afh-btn afh-btn--ghost-danger" ng-click="vm.askClear()">
+                <i class="fas fa-trash"></i> Remove
+              </button>
+            </span>
+            <span class="afh-confirm" ng-if="vm.confirm_clear">
+              <span class="afh-confirm__q">Remove {{ vm.selected_env.environment }} credentials?</span>
+              <button type="button" class="afh-btn afh-btn--ghost" ng-click="vm.cancelClear()">Cancel</button>
+              <button type="button" class="afh-btn afh-btn--danger"
+                      ng-click="vm.clearCredentials()" ng-disabled="vm.cred_saving">
+                <i class="fas" ng-class="vm.cred_saving ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
+                Remove
+              </button>
+            </span>
+
+            <span class="afh-foot-spacer"></span>
+
+            <!-- Proves the STORED key works, so a rotation isn't a leap of
+                 faith. Our server makes the call; the key never comes here. -->
+            <button type="button" class="afh-btn afh-btn--ghost"
+                    ng-click="vm.testEnvironment()" ng-disabled="vm.testing">
+              <i class="fas" ng-class="vm.testing ? 'fa-spinner fa-spin' : 'fa-plug'"></i>
+              {{ vm.testing ? 'Testing…' : 'Test connection' }}
+            </button>
+            <button type="button" class="afh-btn afh-btn--primary"
+                    ng-click="vm.openCredentials(vm.selected_env)">
+              <i class="fas fa-key"></i> Rotate credentials
+            </button>
+          </div>
+
+          <div class="afh-testresult" ng-if="vm.test_result"
+               ng-class="vm.test_result.ok ? 'afh-testresult--ok' : 'afh-testresult--bad'">
+            <i class="fas" ng-class="vm.test_result.ok ? 'fa-check-circle' : 'fa-exclamation-circle'"></i>
+            <span>{{ vm.test_result.message }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ DIRECTORY ═══ -->
+      <div ng-if="vm.active_tab === 'directory'" class="snazzy-reveal">
+
+        <div class="afh-card">
+          <div class="afh-card__head">
+            <i class="fas fa-map-marked-alt afh-card__icon"></i>
+            <div>
+              <h3>Airfield directory</h3>
+              <p>AirfieldHub's airfield list, mirrored for <strong>{{ vm.selected_env.environment }}</strong></p>
+            </div>
+            <div class="afh-card__actions">
+              <button type="button" class="afh-btn afh-btn--primary"
+                      ng-click="vm.runSync()" ng-disabled="vm.syncing">
+                <i class="fas" ng-class="vm.syncing ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                {{ vm.syncing ? 'Syncing…' : 'Sync now' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Must run at least once per environment or nothing is ever
+               eligible and every flight is silently skipped. Say so loudly. -->
+          <div class="afh-warn" ng-if="!vm.directory_loading && vm.directory && !vm.directory.airfields.length">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+              <strong>No AirfieldHub airfields synced yet.</strong>
+              Run a directory sync before enabling the integration for any club —
+              until then no airfield is eligible and every flight is skipped.
+            </div>
+          </div>
+
+          <!-- Sync result -->
+          <div class="afh-syncresult" ng-if="vm.sync_result">
+            <button type="button" class="afh-syncresult__close" ng-click="vm.dismissSync()" aria-label="Dismiss">
+              <i class="fas fa-times"></i>
+            </button>
+            <div class="afh-stat-grid">
+              <div class="afh-stat">
+                <span class="afh-stat__v">{{ vm.num(vm.sync_result.received) }}</span>
+                <span class="afh-stat__k">Received</span>
+              </div>
+              <div class="afh-stat">
+                <span class="afh-stat__v">{{ vm.num(vm.sync_result.added) }}</span>
+                <span class="afh-stat__k">Added</span>
+              </div>
+              <div class="afh-stat">
+                <span class="afh-stat__v">{{ vm.num(vm.sync_result.updated) }}</span>
+                <span class="afh-stat__k">Updated</span>
+              </div>
+              <div class="afh-stat">
+                <span class="afh-stat__v">{{ vm.num(vm.sync_result.matched_local) }}</span>
+                <span class="afh-stat__k">Matched locally</span>
+              </div>
+              <div class="afh-stat afh-stat--hero">
+                <span class="afh-stat__v">{{ vm.num(vm.sync_result.network_confirmed) }}</span>
+                <span class="afh-stat__k">Can receive movements</span>
+              </div>
+            </div>
+            <!-- matched_local < received is NORMAL — pre-empt the support ticket. -->
+            <p class="afh-syncresult__hint">
+              AirfieldHub knows airfields we don't, so “matched locally” is
+              normally lower than “received”. The number that matters is
+              <strong>can receive movements</strong>.
+            </p>
+          </div>
+
+          <div class="afh-card__body">
+            <div ng-if="vm.directory_loading" class="snazzy-loading">
+              <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+              <div class="snazzy-loading__text">Loading directory…</div>
+            </div>
+
+            <div ng-if="!vm.directory_loading && vm.directory.airfields.length">
+              <div class="afh-dirhead">
+                <span class="afh-count">
+                  {{ vm.directory.airfields.length }} airfields ·
+                  <strong>{{ vm.confirmedCount() }}</strong> can receive movements
+                </span>
+                <div class="afh-search">
+                  <i class="fas fa-search"></i>
+                  <input type="search" ng-model="vm.dir_search" placeholder="Filter by name or ICAO…" />
+                </div>
+              </div>
+
+              <div class="afh-table-scroll">
+                <table class="afh-table">
+                  <thead>
+                    <tr>
+                      <th>ICAO</th>
+                      <th>Airfield</th>
+                      <th class="afh-hide-mobile">Local match</th>
+                      <th>Movements</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr ng-repeat="af in vm.directory.airfields | filter:vm.dir_search | limitTo: 200">
+                      <td class="afh-mono">{{ af.icao || af.code }}</td>
+                      <td>{{ af.name || af.title }}</td>
+                      <td class="afh-hide-mobile">
+                        <span class="afh-badge afh-badge--grey" ng-if="af.local_airfield_id">matched</span>
+                        <span class="afh-muted" ng-if="!af.local_airfield_id">—</span>
+                      </td>
+                      <td>
+                        <span class="afh-badge afh-badge--green" ng-if="vm.num(af.network_confirmed) === 1">
+                          <i class="fas fa-check"></i> Yes
+                        </span>
+                        <span class="afh-badge afh-badge--grey" ng-if="vm.num(af.network_confirmed) !== 1">No</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="afh-muted afh-truncnote"
+                 ng-if="(vm.directory.airfields | filter:vm.dir_search).length > 200">
+                Showing the first 200 of
+                {{ (vm.directory.airfields | filter:vm.dir_search).length }} — refine the filter to see more.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ QUEUE ═══ -->
+      <div ng-if="vm.active_tab === 'queue'" class="snazzy-reveal">
+        <div class="afh-card">
+          <div class="afh-card__head">
+            <i class="fas fa-paper-plane afh-card__icon"></i>
+            <div>
+              <h3>Dispatch queue</h3>
+              <p>Flights waiting to reach AirfieldHub</p>
+            </div>
+            <div class="afh-card__actions">
+              <button type="button" class="afh-btn afh-btn--ghost"
+                      ng-click="vm.loadOutbox()" ng-disabled="vm.outbox_loading">
+                <i class="fas fa-sync-alt" ng-class="{'fa-spin': vm.outbox_loading}"></i> Refresh
+              </button>
+              <button type="button" class="afh-btn afh-btn--primary"
+                      ng-click="vm.drainQueue()" ng-disabled="vm.draining">
+                <i class="fas" ng-class="vm.draining ? 'fa-spinner fa-spin' : 'fa-bolt'"></i>
+                {{ vm.draining ? 'Sending…' : 'Send now' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="afh-card__body">
+            <div ng-if="vm.outbox_loading && !vm.outbox" class="snazzy-loading">
+              <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+              <div class="snazzy-loading__text">Reading queue…</div>
+            </div>
+
+            <div ng-if="vm.outbox">
+              <!-- `dead` is the one number an admin must never miss: those
+                   flights gave up after 5 attempts and did NOT reach AFH. -->
+              <div class="afh-dead" ng-if="vm.num(vm.outbox.dead) > 0">
+                <i class="fas fa-exclamation-circle"></i>
+                <div>
+                  <strong>{{ vm.num(vm.outbox.dead) }} flight(s) never reached AirfieldHub.</strong>
+                  They gave up after 5 attempts. These need investigating — the
+                  airfield has not been told about them.
+                </div>
+              </div>
+
+              <div class="afh-stat-grid">
+                <div class="afh-stat">
+                  <span class="afh-stat__v">{{ vm.num(vm.outbox.pending) }}</span>
+                  <span class="afh-stat__k">Pending</span>
+                </div>
+                <div class="afh-stat">
+                  <span class="afh-stat__v">{{ vm.num(vm.outbox.claimed) }}</span>
+                  <span class="afh-stat__k">In flight</span>
+                </div>
+                <div class="afh-stat afh-stat--good">
+                  <span class="afh-stat__v">{{ vm.num(vm.outbox.sent) }}</span>
+                  <span class="afh-stat__k">Sent</span>
+                </div>
+                <div class="afh-stat" ng-class="{'afh-stat--warn': vm.num(vm.outbox.failed) > 0}">
+                  <span class="afh-stat__v">{{ vm.num(vm.outbox.failed) }}</span>
+                  <span class="afh-stat__k">Retrying</span>
+                </div>
+                <div class="afh-stat" ng-class="{'afh-stat--bad': vm.num(vm.outbox.dead) > 0}">
+                  <span class="afh-stat__v">{{ vm.num(vm.outbox.dead) }}</span>
+                  <span class="afh-stat__k">Dead</span>
+                </div>
+              </div>
+
+              <!-- Steadily climbing pending almost always means the cron is
+                   not running — name the likely cause rather than leaving
+                   them to guess. -->
+              <p class="afh-muted afh-queuehint" ng-if="vm.num(vm.outbox.pending) > 0">
+                <i class="fas fa-info-circle"></i>
+                Pending work is drained by the cron. If this number keeps
+                climbing, the cron probably isn't running — “Send now” drains
+                it once, immediately.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

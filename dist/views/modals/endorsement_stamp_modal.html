@@ -1,0 +1,67 @@
+<div class="sec-modal">
+
+    <div class="sec-modal__header">
+        <i class="fas fa-stamp sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">My Stamp</h3>
+    </div>
+
+    <div class="sec-modal__body">
+
+        <div class="sec-loading" ng-if="vm.loading">
+            <div class="sec-spinner"></div><span>Loading your stamp…</span>
+        </div>
+
+        <div ng-if="!vm.loading">
+            <p class="sec-modal__text">
+                Your saved signature is applied with one tap when you sign
+                logbook entries. Saving a new one replaces it.
+            </p>
+
+            <div class="end-savedstamp" ng-if="vm.current">
+                <label class="sec-modal__label">Current stamp</label>
+                <div class="end-savedstamp__preview">
+                    <img ng-src="{{ vm.current.signature_image }}" alt="Current saved signature" />
+                </div>
+                <div class="end-savedstamp__meta">
+                    {{ vm.current.instructor_name }}
+                    <span ng-if="vm.current.instructor_number"> · No. {{ vm.current.instructor_number }}</span>
+                </div>
+            </div>
+
+            <form ng-submit="vm.save()">
+                <div class="acct-fields acct-fields--two">
+                    <div class="acct-field">
+                        <label class="sec-modal__label" for="stamp-name">Name on the stamp</label>
+                        <input type="text" id="stamp-name" class="sec-modal__input" ng-model="vm.form.instructor_name" />
+                    </div>
+                    <div class="acct-field">
+                        <label class="sec-modal__label" for="stamp-number">Instructor / examiner number</label>
+                        <input type="text" id="stamp-number" class="sec-modal__input" ng-model="vm.form.instructor_number" placeholder="e.g. 501685A" />
+                    </div>
+                </div>
+
+                <label class="sec-modal__label">{{ vm.current ? 'Draw a new signature to replace it' : 'Draw your signature' }}</label>
+                <sig-pad ng-model="vm.form.signature_image"></sig-pad>
+
+                <div class="sec-modal__footer">
+                    <span ng-if="vm.current && !vm.confirmDelete">
+                        <button type="button" class="sec-btn sec-btn--danger-outline" ng-click="vm.askDelete()" ng-disabled="vm.busy">
+                            <i class="fas fa-trash-alt"></i> Remove stamp
+                        </button>
+                    </span>
+                    <span class="end-savedstamp__confirm" ng-if="vm.confirmDelete">
+                        <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancelDelete()" ng-disabled="vm.busy">Keep it</button>
+                        <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.remove()" ng-disabled="vm.busy">Yes, remove</button>
+                    </span>
+                    <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                    <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy || !vm.form.signature_image">
+                        <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                        {{ vm.busy ? 'Saving…' : (vm.current ? 'Replace stamp' : 'Save stamp') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+</div>

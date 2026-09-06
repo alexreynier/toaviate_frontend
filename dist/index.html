@@ -14,7 +14,7 @@
     <link rel="manifest" href="favicon/site.webmanifest">
     <link rel="shortcut icon" href="favicon/favicon.ico">
 
-    <link rel="stylesheet" href="css/7e79fe48.compiled.min.css">
+    <link rel="stylesheet" href="css/eb1bc2eb.compiled.min.css">
 
 
 </head>
@@ -39,7 +39,7 @@
    <script src="https://js.stripe.com/clover/stripe.js" async></script>
 
 
-    <script src="js/9930613a.libs.min.js"></script>
+    <script src="js/770cbe86.libs.min.js"></script>
 
     <!-- Chart.js (CDN) — MUST stay outside the build block. usemin concatenates the
          local libs in the block above into js/libs.min.js and replaces the whole block
@@ -66,21 +66,58 @@
 
 
 
-    <script src="js/a776b654.app.min.js"></script>
+    <script src="js/013d2d98.app.min.js"></script>
 
  
-    <script src="js/30509d06.services.min.js"></script>
+    <script src="js/edac16bc.services.min.js"></script>
 
 
 
-    <script src="js/5eda1ca4.controllers.min.js"></script>
+    <script src="js/50a2c8c8.controllers.min.js"></script>
 
-    <script src="js/0869c4f2.directives.min.js"></script>
+    <script src="js/e43a75a0.directives.min.js"></script>
 
 <!--     <script src="libs/js/angular-timepicker.js"></script>
  -->
 
+    <!-- Session-expired freeze: set by the HTTP interceptor's one-shot
+         logout. Blurs and blocks the whole app (privacy on shared club
+         machines) until whoever comes back acknowledges it. LAST in the
+         body on purpose: the fixed header's z-index clamps to the int32
+         max, so only a later stacking context at the same value can paint
+         over it. -->
+    <div class="session-freeze" ng-if="sessionFrozen">
+        <div class="session-freeze__card">
+            <i class="fas fa-lock session-freeze__icon"></i>
+            <h3 class="session-freeze__title">You've been logged out</h3>
+            <p class="session-freeze__text">
+                Your session expired while you were away, so the screen has
+                been hidden. Sign back in to pick up right where you left off.
+            </p>
+            <button type="button" class="sec-btn sec-btn--primary session-freeze__btn" ng-click="sessionUnfreeze()">
+                <i class="fas fa-sign-in-alt"></i> Log back in
+            </button>
+        </div>
+    </div>
 
+    <!-- Idle privacy blur: after a while with no activity the screen is
+         hidden (nothing is logged out). Clicking through probes the session:
+         still valid → unblur; timed out → the probe's 401 swaps this for the
+         logged-out overlay above. -->
+    <div class="session-freeze session-freeze--idle" ng-if="idleBlurred && !sessionFrozen" ng-click="idleWake()">
+        <div class="session-freeze__card">
+            <i class="fas fa-eye-slash session-freeze__icon"></i>
+            <h3 class="session-freeze__title">Screen hidden</h3>
+            <p class="session-freeze__text">
+                You've been away for a while, so the screen has been hidden
+                for privacy. Click anywhere to continue.
+            </p>
+            <button type="button" class="sec-btn sec-btn--primary session-freeze__btn" ng-disabled="idleChecking">
+                <i class="fas" ng-class="idleChecking ? 'fa-circle-notch fa-spin' : 'fa-unlock'"></i>
+                {{ idleChecking ? 'Checking your session…' : 'Continue' }}
+            </button>
+        </div>
+    </div>
 
 </body>
 </html>

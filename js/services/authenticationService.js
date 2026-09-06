@@ -322,7 +322,14 @@
                         
                         $rootScope.globals = {
                             currentUser: {
-                                email: email,
+                                // Prefer the email the SERVER returned. The
+                                // passkey path has no typed email (WebAuthn
+                                // identifies the user by credential), so the
+                                // `email` argument is undefined there — and a
+                                // missing email silently breaks anything keyed
+                                // off it, e.g. isToAviateStaff() → the
+                                // ToAviate Admin menu never renders.
+                                email: (user && user.email) ? user.email : email,
                                 authdata: authdata,
                                 id: user.id,
                                 first_name: user.first_name,
@@ -389,7 +396,14 @@
                         
                         $rootScope.globals = {
                             currentUser: {
-                                email: email,
+                                // Prefer the email the SERVER returned. The
+                                // passkey path has no typed email (WebAuthn
+                                // identifies the user by credential), so the
+                                // `email` argument is undefined there — and a
+                                // missing email silently breaks anything keyed
+                                // off it, e.g. isToAviateStaff() → the
+                                // ToAviate Admin menu never renders.
+                                email: (user && user.email) ? user.email : email,
                                 authdata: authdata,
                                 id: user.id,
                                 first_name: user.first_name,

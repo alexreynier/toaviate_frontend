@@ -14,7 +14,7 @@ app.factory('TpcImportService', TpcImportService);
         var service = {};
 
         // ── Runs ──
-        service.Upload = Upload;               // multipart .xlsx ≤30MB → { run_id, processing }
+        service.Upload = Upload;               // multipart .xlsx ≤100MB → { run_id, processing }
         service.GetRuns = GetRuns;
         service.GetRun = GetRun;               // run + summary — the poll target
         service.Process = Process;             // re-process (clears staged rows/edits)
@@ -31,6 +31,19 @@ app.factory('TpcImportService', TpcImportService);
         service.Revert = Revert;               // undoes every applied row of the run
         service.People = People;               // person picker search
 
+        // ── Duplicate-flights cleanup ──
+        service.CleanupPreview = CleanupPreview;  // GET — read-only scan + confirm_token
+        service.CleanupRun = CleanupRun;          // POST — delete one batch with the token
+
+        // ── Course/lesson pickers + bulk reassignment ──
+        // BACKEND_TRAINING_RECORD_COURSE_GUIDE.md. The importer guesses a
+        // course from the free-text exercise cell and falls back to PPL —
+        // these let a reviewer see/fix it per row, and move already-applied
+        // records in bulk.
+        service.CoursesForClub = CoursesForClub;      // courses + their lessons
+        service.SearchRecords = SearchRecords;        // applied training records
+        service.ReassignRecords = ReassignRecords;    // move to another course
+
         return service;
 
         function Upload(club_id, file) {
@@ -39,7 +52,7 @@ app.factory('TpcImportService', TpcImportService);
             return $http.post(base + '/upload/' + club_id, fd, {
                 headers: { 'Content-Type': undefined },
                 transformRequest: angular.identity,
-                timeout: 180000
+                timeout: 600000   // 10 min — 100MB workbooks on slow uplinks
             }).then(handleSuccess, handleError2);
         }
 
@@ -90,6 +103,40 @@ app.factory('TpcImportService', TpcImportService);
 
         function People(club_id, q) {
             return $http.get(base + '/people/' + club_id + '?q=' + encodeURIComponent(q || '')).then(handleSuccess, handleError2);
+        }
+
+        // ── Duplicate-flights cleanup (one-off recovery) ──
+        // GET is read-only: counts + samples + a confirm_token. POST deletes
+        // one batch (≤limit) using that token; loop GET→POST while
+        // `remaining` > 0. Errors: STATE_CHANGED (re-GET silently),
+        // RUN_BUSY / CLEANUP_BUSY (stop, no auto-retry), TOKEN_REQUIRED.
+        function CleanupPreview(club_id) {
+            return $http.get(base + '/cleanup_duplicates/' + club_id).then(handleSuccess, handleError2);
+        }
+        function CleanupRun(club_id, confirm_token, limit) {
+            return $http.post(base + '/cleanup_duplicates/' + club_id, {
+                confirm_token: confirm_token,
+                limit: limit || 500
+            }).then(handleSuccess, handleError2);
+        }
+
+        function CoursesForClub(club_id) {
+            return $http.get(base + '/courses/' + club_id).then(handleSuccess, handleError2);
+        }
+        function SearchRecords(params) {
+            var qs = Object.keys(params || {})
+                .filter(function(k){ return params[k] !== null && params[k] !== undefined && params[k] !== ''; })
+                .map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); })
+                .join('&');
+            return $http.get('/api/v1/training_records/search' + (qs ? '?' + qs : '')).then(handleSuccess, handleError2);
+        }
+        function ReassignRecords(club_id, record_ids, course_id, lesson_id) {
+            return $http.post('/api/v1/training_records/reassign', {
+                club_id: club_id,
+                record_ids: record_ids,
+                course_id: course_id,
+                lesson_id: lesson_id || null
+            }).then(handleSuccess, handleError2);
         }
 
         function handleSuccess(res) { return res.data; }

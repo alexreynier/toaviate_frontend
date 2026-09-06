@@ -8,8 +8,11 @@
   <!-- ── Header ── -->
   <div class="snazzy-page__header">
     <div class="snazzy-page__header-inner">
-      <div class="back-box" ui-sref="dashboard.manage_club.settings">
-        <i class="fa fa-arrow-circle-left"></i> BACK TO SETTINGS
+      <!-- Was BACK TO SETTINGS (this page used to be reached from Settings).
+           It is now a tab of the Vouchers hub, so BACK returns to the admin
+           landing like every other hub page; Settings is still one hop away. -->
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
       </div>
       <div class="snazzy-page__title">
         <h2><i class="fas fa-code"></i> Voucher Widget</h2>
@@ -17,6 +20,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Vouchers hub tab bar. -->
+  <div class="mchub-nav-host" ng-include="'views/manageclub/_vouchers_nav.html'"></div>
 
   <!-- ── Loading ── -->
   <div ng-if="vm.loading" class="snazzy-page__loading">
@@ -140,6 +146,83 @@
           </div>
         </div>
 
+        <!-- Selling Mode (voucher only / booking first / both) -->
+        <div class="vw-mode-section">
+          <label class="vw-label"><i class="fas fa-store"></i> Widget Selling Mode</label>
+          <p class="vw-help-text">What should customers be able to do on your website?</p>
+
+          <div ng-if="!vm.settings" class="vw-notifications-loading">
+            <div class="snazzy-page__spinner" style="width:20px;height:20px;"></div>
+            <span>Loading…</span>
+          </div>
+
+          <div ng-if="vm.settings">
+            <div class="vw-mode-cards">
+              <div class="vw-mode-card"
+                   ng-class="{'vw-mode-card--active': vm.settings.widget_mode === 'voucher_only'}"
+                   ng-click="vm.setMode('voucher_only')">
+                <div class="vw-mode-card__radio"></div>
+                <div class="vw-mode-card__icon"><i class="fas fa-gift"></i></div>
+                <div class="vw-mode-card__text">
+                  <strong>Voucher only</strong>
+                  <span>Customers buy a voucher and book the flight later</span>
+                </div>
+              </div>
+              <div class="vw-mode-card"
+                   ng-class="{'vw-mode-card--active': vm.settings.widget_mode === 'booking_first'}"
+                   ng-click="vm.setMode('booking_first')">
+                <div class="vw-mode-card__radio"></div>
+                <div class="vw-mode-card__icon"><i class="fas fa-calendar-check"></i></div>
+                <div class="vw-mode-card__text">
+                  <strong>Booking first</strong>
+                  <span>Customers must pick a real flight slot before paying</span>
+                </div>
+              </div>
+              <div class="vw-mode-card"
+                   ng-class="{'vw-mode-card--active': vm.settings.widget_mode === 'both'}"
+                   ng-click="vm.setMode('both')">
+                <div class="vw-mode-card__radio"></div>
+                <div class="vw-mode-card__icon"><i class="fas fa-random"></i></div>
+                <div class="vw-mode-card__text">
+                  <strong>Both</strong>
+                  <span>Customer chooses: gift voucher, or book a flight now</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slot lock time — only relevant when slots can be booked -->
+            <div class="vw-hold-minutes" ng-if="vm.settings.widget_mode !== 'voucher_only'">
+              <label>Slot lock time</label>
+              <select class="vw-select vw-hold-minutes__select"
+                      ng-model="vm.settings.slot_hold_minutes"
+                      ng-options="m as (m + ' minutes') for m in vm.hold_minute_options">
+              </select>
+              <p class="vw-help-text">
+                <i class="fas fa-info-circle"></i>
+                How long a picked slot is reserved while the customer completes checkout
+                (like cinema seat selection).
+              </p>
+            </div>
+
+            <!-- Prerequisites for the booking flow -->
+            <div class="vw-mode-warning" ng-if="vm.settings.widget_mode !== 'voucher_only'">
+              <i class="fas fa-exclamation-triangle"></i>
+              <div>
+                <strong>Booking-first needs:</strong> booking slots configured
+                (Club Settings → Booking Slots), at least one aircraft linked to each
+                purchasable experience, and instructors with availability and permission
+                to instruct on those aircraft. Without these, the widget will show
+                customers no available slots.
+              </div>
+            </div>
+
+            <button class="snazzy-page__btn snazzy-page__btn--primary vw-mode-save"
+                    ng-click="vm.saveMode()" ng-disabled="vm.mode_saving">
+              <i class="fas fa-save"></i> {{ vm.mode_saving ? 'Saving…' : 'Save Selling Mode' }}
+            </button>
+          </div>
+        </div>
+
         <!-- Allowed Domains -->
         <div class="vw-domains-section">
           <label class="vw-label"><i class="fas fa-shield-alt"></i> Allowed Domains <span class="vw-label-optional">(optional)</span></label>
@@ -178,12 +261,36 @@
                   ng-disabled="vm.preview_loading">
             <i class="fas fa-eye"></i> Preview Inline
           </button>
-          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.regenerateToken()">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.askRegenerate()" ng-if="!vm.confirm_action">
             <i class="fas fa-sync-alt"></i> Regenerate Token
           </button>
-          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.revokeToken()">
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.askRevoke()" ng-if="!vm.confirm_action">
             <i class="fas fa-power-off"></i> Disable Widget
           </button>
+        </div>
+
+        <!-- Inline confirms for the destructive actions (no native confirm()) -->
+        <div class="sec-warning vw-confirm" ng-if="vm.confirm_action === 'regenerate'">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <b>Regenerate the token?</b> The old embed code stops working immediately —
+            you'll need to update it on your website.
+            <div class="vw-confirm__btns">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelConfirmAction()">Cancel</button>
+              <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.regenerateToken()">Yes, regenerate</button>
+            </div>
+          </div>
+        </div>
+        <div class="sec-warning vw-confirm" ng-if="vm.confirm_action === 'revoke'">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <b>Disable the voucher widget?</b> It will immediately stop working on any
+            website using the embed code.
+            <div class="vw-confirm__btns">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelConfirmAction()">Cancel</button>
+              <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.revokeToken()">Yes, disable it</button>
+            </div>
+          </div>
         </div>
 
         <!-- Inline preview iframe -->
@@ -469,6 +576,9 @@
                  placeholder="Search by name, email, experience…"
                  ng-model="vm.purchases_search" />
         </div>
+        <span class="vw-search-scope" ng-if="vm.purchases_search && vm.purchases_total > vm.purchases_per_page">
+          <i class="fas fa-info-circle"></i> Searching this page only — use Next/Prev to search other pages.
+        </span>
         <span class="snazzy-page__count" ng-if="vm.purchases_total">
           {{ vm.purchases_total }} purchase{{ vm.purchases_total !== 1 ? 's' : '' }}
         </span>
@@ -507,7 +617,12 @@
                   ng-click="vm.togglePurchaseDetail(p)"
                   class="vw-purchase-row">
                 <td data-label="Date" class="snazzy-table__date">{{ vm.formatDate(p.completed_at || p.created_at) }}</td>
-                <td data-label="Experience">{{ p.experience_title }}</td>
+                <td data-label="Experience">
+                  {{ p.experience_title }}
+                  <span ng-if="p.booking_id" class="vw-flight-badge" title="A flight was booked with this purchase">
+                    <i class="fas fa-plane"></i> Flight booked
+                  </span>
+                </td>
                 <td data-label="Customer">{{ p.first_name }} {{ p.last_name }}</td>
                 <td data-label="Amount"><strong>{{ vm.formatCurrency(p.amount_paid, p.currency) }}</strong></td>
                 <td data-label="Status">
@@ -550,6 +665,14 @@
                         <p ng-if="p.stripe_payment_intent_id" class="vw-detail-mono">PI: {{ p.stripe_payment_intent_id }}</p>
                         <p ng-if="p.refunded_at" class="vw-refund-info">
                           <i class="fas fa-undo"></i> Refunded: {{ vm.formatDate(p.refunded_at) }}
+                        </p>
+                      </div>
+                      <div class="vw-detail-col" ng-if="p.booking_id">
+                        <h5><i class="fas fa-plane"></i> Flight</h5>
+                        <p>A flight was booked with this purchase.</p>
+                        <p>Find it in your <a ui-sref="dashboard.manage_club.flying">club bookings</a> (booking #{{ p.booking_id }}) — it arrives as awaiting approval.</p>
+                        <p ng-if="vm.canRefund(p)" class="vw-help-text" style="margin-top:4px;">
+                          Refunding this purchase will also cancel the booked flight.
                         </p>
                       </div>
                     </div>

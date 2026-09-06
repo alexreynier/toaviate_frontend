@@ -53,6 +53,137 @@
       </div>
     </div>
 
+    <!-- ═══ Needs review ═══
+         Flights whose RECORDED times contradict themselves (most often
+         brakes on before brakes off). Rendered ONLY when there are any —
+         empty is the normal state, so no empty-state on the main page.
+         The list is derived: correcting a flight makes it stop matching,
+         so rows vanish on their own. Deliberately no dismiss action. -->
+    <div class="fnr-banner" ng-if="vm.needsReviewCount > 0"
+         ng-class="{'fnr-banner--open': vm.showNeedsReview}"
+         ng-click="vm.toggleNeedsReview()">
+      <i class="fa fa-exclamation-triangle fnr-banner__icon"></i>
+      <div class="fnr-banner__text">
+        <strong>{{ vm.needsReviewCount }}
+          flight<span ng-if="vm.needsReviewCount !== 1">s</span>
+          <span ng-if="vm.needsReviewCount === 1">has</span><span ng-if="vm.needsReviewCount !== 1">have</span>
+          inconsistent recorded times</strong>
+        <span class="fnr-banner__sub">The times can't be corrected automatically — please review and fix them.</span>
+      </div>
+      <span class="fnr-banner__toggle">
+        {{ vm.showNeedsReview ? 'Hide' : 'Review' }}
+        <i class="fa" ng-class="vm.showNeedsReview ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </span>
+    </div>
+
+    <div ng-if="vm.needsReviewCount > 0 && vm.showNeedsReview" class="fnr-panel snazzy-reveal">
+
+      <div ng-if="vm.needsReviewLoading" class="snazzy-loading">
+        <div class="snazzy-loading__plane"><i class="fas fa-plane"></i></div>
+        <div class="snazzy-loading__text">Loading flights…</div>
+      </div>
+
+      <!-- Desktop table. Times are shown RAW, to the second — everywhere else
+           in the app clock times are rounded to the nearest minute for
+           display, but here the whole point is what was actually recorded. -->
+      <div class="fnr-table-scroll" ng-if="!vm.needsReviewLoading && vm.needsReviewFlights.length">
+        <table class="snazzy-table fnr-table snazzy-desktop-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Aircraft</th>
+              <th class="snazzy-table__hide-mobile">Pilot</th>
+              <th>Brakes off</th>
+              <th>Takeoff</th>
+              <th>Landing</th>
+              <th>Brakes on</th>
+              <th>Problem</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="f in vm.needsReviewFlights">
+              <td>{{ f.flight_date | asDate | date:'dd MMM yyyy' }}</td>
+              <td class="fnr-reg">{{ f.plane_registration }}</td>
+              <td class="snazzy-table__hide-mobile">{{ f.pilot_name || '—' }}</td>
+              <td class="fnr-time" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'brakes_off')}">
+                {{ f.recorded.brakes_off || '—' }}
+              </td>
+              <td class="fnr-time" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'takeoff_time')}">
+                {{ f.recorded.takeoff_time || '—' }}
+              </td>
+              <td class="fnr-time" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'landing_time')}">
+                {{ f.recorded.landing_time || '—' }}
+              </td>
+              <td class="fnr-time" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'brakes_on')}">
+                {{ f.recorded.brakes_on || '—' }}
+              </td>
+              <td class="fnr-problem">
+                <!-- A flight can carry more than one reason — render them all. -->
+                <div class="fnr-reason" ng-repeat="r in f.reasons">
+                  <span class="fnr-reason__label">{{ vm.reviewReasonLabel(r.code) }}</span>
+                  <span class="fnr-reason__detail">{{ r.message }}</span>
+                </div>
+                <div class="fnr-reason" ng-if="!f.reasons.length && f.headline">
+                  <span class="fnr-reason__detail">{{ f.headline }}</span>
+                </div>
+              </td>
+              <td class="fnr-actions">
+                <button class="fnr-fix-btn" ng-click="vm.editReviewFlight(f)">
+                  <i class="fa fa-wrench"></i> Fix
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="fnr-cards" ng-if="!vm.needsReviewLoading && vm.needsReviewFlights.length">
+        <div class="fnr-card" ng-repeat="f in vm.needsReviewFlights">
+          <div class="fnr-card__top">
+            <span class="fnr-reg">{{ f.plane_registration }}</span>
+            <span class="fnr-card__date">{{ f.flight_date | asDate | date:'dd MMM yyyy' }}</span>
+          </div>
+          <div class="fnr-card__pilot" ng-if="f.pilot_name">{{ f.pilot_name }}</div>
+          <div class="fnr-card__times">
+            <span class="fnr-card__t" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'brakes_off')}">
+              <small>Brakes off</small>{{ f.recorded.brakes_off || '—' }}
+            </span>
+            <span class="fnr-card__t" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'takeoff_time')}">
+              <small>Takeoff</small>{{ f.recorded.takeoff_time || '—' }}
+            </span>
+            <span class="fnr-card__t" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'landing_time')}">
+              <small>Landing</small>{{ f.recorded.landing_time || '—' }}
+            </span>
+            <span class="fnr-card__t" ng-class="{'fnr-time--bad': vm.reviewFieldFlagged(f, 'brakes_on')}">
+              <small>Brakes on</small>{{ f.recorded.brakes_on || '—' }}
+            </span>
+          </div>
+          <div class="fnr-card__problem">{{ f.headline }}</div>
+          <button class="fnr-fix-btn fnr-fix-btn--block" ng-click="vm.editReviewFlight(f)">
+            <i class="fa fa-wrench"></i> Fix this flight
+          </button>
+        </div>
+      </div>
+
+      <!-- Pagination exists for safety, not because volume is expected. -->
+      <div class="fnr-pager" ng-if="vm.needsReviewPagination.pages > 1">
+        <button class="fnr-pager__btn" ng-disabled="vm.needsReviewPage <= 1"
+                ng-click="vm.loadNeedsReview(vm.needsReviewPage - 1)">
+          <i class="fa fa-chevron-left"></i> Previous
+        </button>
+        <span class="fnr-pager__label">
+          Page {{ vm.needsReviewPagination.page }} of {{ vm.needsReviewPagination.pages }}
+          · {{ vm.needsReviewPagination.total }} flights
+        </span>
+        <button class="fnr-pager__btn" ng-disabled="vm.needsReviewPage >= vm.needsReviewPagination.pages"
+                ng-click="vm.loadNeedsReview(vm.needsReviewPage + 1)">
+          Next <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- ═══ Section label ═══ -->
     <div class="snazzy-page__summary-card" style="padding:20px 24px;">
       <h3 style="margin:0 0 4px; font-size:16px; font-weight:700; color:#1e293b;">Flights to Manage</h3>

@@ -16,13 +16,24 @@ app.controller('CourseContentController', CourseContentController);
 
         vm.screen = $state.current.data.screen;
         vm.user = $rootScope.globals.currentUser;
+        // Club-0 alias: the ToAviate default-course library reuses the manage
+        // + builder screens (dashboard.super_admin.default_course_*) with
+        // data.club0 — club 0 is the template space, and questionnaire
+        // create REQUIRES an explicit club_id of 0 there
+        // (FRONTEND_DEFAULT_COURSES_GUIDE.md). NB the || chain below would
+        // swallow a 0, hence the explicit branch.
+        vm.club0 = !!($state.current.data && $state.current.data.club0);
         // Admin context first; fall back to the instructor's club (this controller
         // also powers the instructor-facing "student questionnaires" page).
         var _access = vm.user.access || {};
-        vm.club_id = (vm.user.current_club_admin && vm.user.current_club_admin.id) ||
+        vm.club_id = vm.club0 ? 0 :
+                     ((vm.user.current_club_admin && vm.user.current_club_admin.id) ||
                      vm.user.current_club_instructor ||
                      (_access.instructor && _access.instructor[0]) ||
-                     (_access.manager && _access.manager[0]) || null;
+                     (_access.manager && _access.manager[0]) || null);
+        // Builder navigation stays inside whichever family we're in.
+        var builderState = vm.club0 ? 'dashboard.super_admin.default_course_questionnaire_builder'
+                                    : 'dashboard.manage_club.questionnaire_builder';
         vm.loading = false;
         vm.saving = false;
 
@@ -359,12 +370,12 @@ app.controller('CourseContentController', CourseContentController);
                 var qid = data.item.id;
                 QuestionnaireService.AddLink(qid, vm.attachType, vm.attachId, timing).then(function() {
                     vm.saving = false;
-                    $state.go('dashboard.manage_club.questionnaire_builder', { questionnaire_id: qid });
+                    $state.go(builderState, { questionnaire_id: qid });
                 });
             });
         };
         vm.editQuestionnaire = function(q) {
-            $state.go('dashboard.manage_club.questionnaire_builder', { questionnaire_id: q._qid || q.id });
+            $state.go(builderState, { questionnaire_id: q._qid || q.id });
         };
         vm.viewAttempts = function(q) {
             $state.go('dashboard.manage_club.questionnaire_attempts', { questionnaire_id: q._qid || q.id });

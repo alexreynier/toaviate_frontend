@@ -1,0 +1,68 @@
+<div class="sec-modal">
+
+    <div class="sec-modal__header">
+        <i class="fas fa-user-check sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">Request Instructor Signature</h3>
+    </div>
+
+    <div class="sec-modal__body">
+        <p class="sec-modal__text">
+            <b>{{ vm.entry.flight_date }}</b> · {{ vm.entry.registration }} · {{ vm.entry.source }}<br>
+            The instructor will see this flight in their signing queue and can
+            stamp it from there.
+        </p>
+
+        <div class="sec-loading" ng-if="vm.loading">
+            <div class="sec-spinner"></div><span>Loading instructors…</span>
+        </div>
+
+        <form ng-submit="vm.submit()" ng-if="!vm.loading">
+            <label class="sec-modal__label" for="end-req-search">Instructor</label>
+
+            <!-- Type-to-filter picker (a 20-name native dropdown is unusable) -->
+            <div class="endpick" ng-if="!vm.instructor">
+                <div class="endpick__searchwrap">
+                    <i class="fas fa-search endpick__searchicon"></i>
+                    <input type="text" id="end-req-search" class="sec-modal__input endpick__search"
+                           ng-model="vm.filter" placeholder="Search instructors…"
+                           autocomplete="off" autocorrect="off" spellcheck="false" />
+                </div>
+                <div class="endpick__list">
+                    <button type="button" class="endpick__item"
+                            ng-repeat="i in vm.instructors | filter:{name: vm.filter} track by i.user_id"
+                            ng-click="vm.choose(i)">
+                        <span class="endpick__avatar">{{ i.initials }}</span>
+                        <span class="endpick__name">{{ i.name }}</span>
+                        <i class="fas fa-chevron-right endpick__go"></i>
+                    </button>
+                    <div class="endpick__none" ng-if="!(vm.instructors | filter:{name: vm.filter}).length">
+                        <span ng-if="vm.instructors.length">No instructors match “{{ vm.filter }}”.</span>
+                        <span ng-if="!vm.instructors.length">No instructors found for this flight's club.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chosen — collapses to a chip -->
+            <div class="endpick__chosen" ng-if="vm.instructor">
+                <span class="endpick__avatar endpick__avatar--on">{{ vm.instructor.initials }}</span>
+                <span class="endpick__name">{{ vm.instructor.name }}</span>
+                <button type="button" class="sec-icon-btn" ng-click="vm.clearChoice()" title="Choose someone else">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <label class="sec-modal__label" for="end-req-note">Note for the instructor (optional)</label>
+            <textarea id="end-req-note" class="sec-modal__input" rows="2" ng-model="vm.note"
+                      placeholder="e.g. SEP revalidation by experience please"></textarea>
+
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy || !vm.instructor">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                    {{ vm.busy ? 'Sending…' : 'Send request' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>

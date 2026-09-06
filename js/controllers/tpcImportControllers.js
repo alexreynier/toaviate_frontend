@@ -46,8 +46,8 @@ app.controller('TpcImportController', TpcImportController);
                 ToastService.warning('Not An Excel Workbook', 'Save the workbook as .xlsx and try again.');
                 return;
             }
-            if (file.size > 30 * 1024 * 1024) {
-                ToastService.warning('Too Large', 'The workbook is over the 30 MB limit.');
+            if (file.size > 100 * 1024 * 1024) {
+                ToastService.warning('Too Large', 'The workbook is over the 100 MB limit.');
                 return;
             }
             vm.uploading = true;
@@ -59,7 +59,7 @@ app.controller('TpcImportController', TpcImportController);
                 } else if (data && data.error === 'NOT_XLSX') {
                     ToastService.warning('Not An Excel Workbook', 'Save the workbook as .xlsx and try again.');
                 } else if (data && data.error === 'TOO_LARGE') {
-                    ToastService.warning('Too Large', 'The workbook is over the 30 MB limit.');
+                    ToastService.warning('Too Large', 'The workbook is over the 100 MB limit.');
                 } else {
                     ToastService.error('Upload Failed', (data && data.message) || 'The workbook could not be uploaded.');
                 }
@@ -105,11 +105,144 @@ app.controller('TpcImportController', TpcImportController);
                     if (data && data.success) {
                         ToastService.success('Re-processing', 'Staged rows are being rebuilt from the workbook.');
                         $state.go('dashboard.manage_club.tpc_import_run', { run_id: c.run.id });
+                    } else if (data && data.error === 'RUN_BUSY') {
+                        // Already working — don't re-POST; the run page polls it.
+                        ToastService.warning('Run Busy', data.message || 'This run is already working.');
+                        $state.go('dashboard.manage_club.tpc_import_run', { run_id: c.run.id });
                     } else {
                         ToastService.error('Not Started', (data && data.message) || 'Re-processing could not be started.');
                     }
                 });
             }
+        };
+
+        // ── Duplicate-flights cleanup (one-off recovery) ──────────────────
+        // GET = read-only scan (counts + sample + confirm_token) → explicit
+        // confirm → POST loop in ≤500-row batches until `remaining` is 0,
+        // re-GETting a fresh token between batches. STATE_CHANGED re-scans
+        // silently; RUN_BUSY / CLEANUP_BUSY stops the loop (manual resume).
+        var CLEANUP_BATCH = 500;
+        var CLEANUP_MAX_BATCHES = 200;   // runaway backstop
+        var clBatches = 0;
+
+        vm.cl = {
+            stage: 'idle',   // idle | scanning | clean | review | running | stopped | done
+            busy: false,
+            preview: null,   // last GET payload
+            initial: 0,      // duplicate_flights at confirm time (progress base)
+            remaining: 0,
+            message: '',
+            totals: null     // accumulated result counters
+        };
+
+        vm.clScan = function() {
+            vm.cl.busy = true;
+            vm.cl.stage = 'scanning';
+            vm.cl.message = '';
+            TpcImportService.CleanupPreview(vm.club_id).then(function(data) {
+                vm.cl.busy = false;
+                if (!data || data.success === false) {
+                    vm.cl.stage = 'idle';
+                    if (data && (data.error === 'RUN_BUSY' || data.error === 'CLEANUP_BUSY')) {
+                        ToastService.warning('Busy', data.message || 'A run or cleanup is already working — try again shortly.');
+                    } else {
+                        ToastService.error('Scan Failed', (data && data.message) || 'The duplicate scan could not run.');
+                    }
+                    return;
+                }
+                vm.cl.preview = data;
+                vm.cl.stage = (data.duplicate_flights > 0 || data.kept_for_review > 0) ? 'review' : 'clean';
+            });
+        };
+
+        vm.clConfirm = function() {
+            if (!vm.cl.preview || vm.cl.busy) { return; }
+            vm.cl.stage = 'running';
+            vm.cl.initial = vm.cl.preview.duplicate_flights || 0;
+            vm.cl.remaining = vm.cl.initial;
+            vm.cl.totals = { deleted_flights: 0, deleted_training_records: 0, repointed_split_legs: 0, repointed_staging_rows: 0 };
+            clBatches = 0;
+            clPost(vm.cl.preview.confirm_token);
+        };
+
+        // Manual resume after a busy stop — restarts from a fresh scan.
+        vm.clResume = function() { clRescan(); };
+        vm.clReset = function() { if (!vm.cl.busy) { vm.cl.stage = 'idle'; vm.cl.preview = null; vm.cl.message = ''; } };
+
+        function clPost(token) {
+            if (++clBatches > CLEANUP_MAX_BATCHES) {
+                clStop('Stopped after ' + CLEANUP_MAX_BATCHES + ' batches — re-run the scan to continue.');
+                return;
+            }
+            vm.cl.busy = true;
+            TpcImportService.CleanupRun(vm.club_id, token, CLEANUP_BATCH).then(function(data) {
+                if (data && data.success !== false && data.result) {
+                    var r = data.result, t = vm.cl.totals;
+                    t.deleted_flights          += r.deleted_flights || 0;
+                    t.deleted_training_records += r.deleted_training_records || 0;
+                    t.repointed_split_legs     += r.repointed_split_legs || 0;
+                    t.repointed_staging_rows   += r.repointed_staging_rows || 0;
+                    vm.cl.remaining = data.remaining || 0;
+                    if (vm.cl.remaining > 0) { clRescan(); } else { clFinish(); }
+                    return;
+                }
+                var err = data && data.error;
+                if (err === 'STATE_CHANGED') {
+                    clRescan();   // token stale — silently re-scan and continue
+                } else if (err === 'RUN_BUSY' || err === 'CLEANUP_BUSY') {
+                    clStop((data && data.message) || 'Another run or cleanup is working — resume when it finishes.');
+                } else if (err === 'TOKEN_REQUIRED') {
+                    clStop('Internal error: the confirm token went missing — please report this.');
+                } else {
+                    clStop((data && data.message) || 'The cleanup batch failed.');
+                }
+            });
+        }
+
+        function clRescan() {
+            vm.cl.busy = true;
+            vm.cl.stage = 'running';
+            TpcImportService.CleanupPreview(vm.club_id).then(function(data) {
+                if (!data || data.success === false) {
+                    var err = data && data.error;
+                    if (err === 'RUN_BUSY' || err === 'CLEANUP_BUSY') {
+                        clStop((data && data.message) || 'Another run or cleanup is working — resume when it finishes.');
+                    } else {
+                        clStop((data && data.message) || 'The re-scan between batches failed.');
+                    }
+                    return;
+                }
+                vm.cl.preview = data;
+                if ((data.duplicate_flights || 0) > 0 && data.confirm_token) {
+                    vm.cl.remaining = data.duplicate_flights;
+                    clPost(data.confirm_token);
+                } else {
+                    clFinish();
+                }
+            });
+        }
+
+        function clStop(message) {
+            vm.cl.busy = false;
+            vm.cl.stage = 'stopped';
+            vm.cl.message = message;
+        }
+
+        function clFinish() {
+            vm.cl.busy = false;
+            vm.cl.remaining = 0;
+            vm.cl.stage = 'done';
+            var t = vm.cl.totals || {};
+            ToastService.success('Cleanup Finished', (t.deleted_flights || 0) + ' duplicate flights removed.');
+        }
+
+        vm.clProgress = function() {
+            if (!vm.cl.initial) { return 0; }
+            var done = (vm.cl.totals && vm.cl.totals.deleted_flights) || 0;
+            return Math.min(100, Math.round(100 * done / vm.cl.initial));
+        };
+        vm.clKeptReason = function(reason) {
+            return { no_twin: 'No surviving twin flight to keep', blocked_tr: 'A training record could not be re-pointed' }[reason] || reason;
         };
     }
 
@@ -173,6 +306,11 @@ app.controller('TpcImportRunController', TpcImportRunController);
         function stopPoll() {
             if (poll) { $interval.cancel(poll); poll = null; }
         }
+        // Backend rejects concurrent apply/process (RUN_BUSY) — grey out the
+        // Apply / Re-process controls whenever the polled status says busy.
+        vm.runBusy = function() {
+            return !!(vm.run && (vm.run.status === 'processing' || vm.run.status === 'applying'));
+        };
         function tick() {
             pollCount++;
             if (pollCount === 60) {   // 2 min at 2 s → back off
@@ -344,6 +482,11 @@ app.controller('TpcImportRunController', TpcImportRunController);
                     var r = data.result || {};
                     ToastService.success('Applied', (r.applied || 0) + ' applied' + (r.failed ? ' · ' + r.failed + ' failed' : '') + (r.skipped ? ' · ' + r.skipped + ' skipped' : '') + '.');
                     vm.loadRows(); vm.loadRun(true);
+                } else if (data && data.error === 'RUN_BUSY') {
+                    // Already processing/applying (double-click / retry) —
+                    // never re-POST, just watch it finish.
+                    ToastService.warning('Run Busy', data.message || 'This run is already working — progress below.');
+                    vm.loadRun(true); schedulePoll();
                 } else {
                     ToastService.error('Apply Failed', (data && data.message) || 'The rows could not be applied.');
                 }
@@ -380,6 +523,9 @@ app.controller('TpcImportRunController', TpcImportRunController);
                     ToastService.success('Applying', 'Applying every pending row — progress below.');
                     vm.loadRun(true);
                     schedulePoll();
+                } else if (data && data.error === 'RUN_BUSY') {
+                    ToastService.warning('Run Busy', data.message || 'This run is already working — progress below.');
+                    vm.loadRun(true); schedulePoll();
                 } else {
                     ToastService.error('Not Started', (data && data.message) || 'The apply could not be started.');
                 }
@@ -407,6 +553,9 @@ app.controller('TpcImportRunController', TpcImportRunController);
             TpcImportService.Process(vm.run_id).then(function(data) {
                 if (data && data.success) {
                     ToastService.success('Re-processing', 'Staged rows are being rebuilt — all staged edits were cleared.');
+                    vm.loadRun(true); schedulePoll();
+                } else if (data && data.error === 'RUN_BUSY') {
+                    ToastService.warning('Run Busy', data.message || 'This run is already working — progress below.');
                     vm.loadRun(true); schedulePoll();
                 } else {
                     ToastService.error('Not Started', (data && data.message) || 'Re-processing could not be started.');
@@ -494,6 +643,11 @@ app.controller('TpcImportRunController', TpcImportRunController);
                 capacity: r.capacity,
                 exercise: r.exercise,
                 remarks: r.remarks,
+                // Course/lesson the training record will be filed under.
+                // Falls back to the importer's resolution until the reviewer
+                // overrides it (BACKEND_TRAINING_RECORD_COURSE_GUIDE.md).
+                course_id: r.course_id || r.course_resolved || null,
+                lesson_id: r.lesson_id || r.lesson_resolved || null,
                 first_name: r.first_name,
                 last_name: r.last_name,
                 instructor_name: r.instructor_name
@@ -533,6 +687,48 @@ app.controller('TpcImportRunController', TpcImportRunController);
         vm.useSpanHours = function() {
             var h = vm.editSpanHours();
             if (h !== null) { vm.drawer.edit.flight_time_hours = h; }
+        };
+
+        // ── Course / lesson pickers ──────────────────────────────────
+        // The importer guesses the course from the free-text exercise cell
+        // and falls back to PPL when it can't tell — which is how IMC/night/
+        // type flights end up on the PPL course. Show the guess, its source,
+        // and let the reviewer correct it before applying.
+        vm.courses = [];
+        TpcImportService.CoursesForClub(vm.club_id).then(function(data) {
+            vm.courses = (data && data.courses) || [];
+        });
+
+        vm.lessonsFor = function(course_id) {
+            for (var i = 0; i < vm.courses.length; i++) {
+                if (String(vm.courses[i].id) === String(course_id)) { return vm.courses[i].lessons || []; }
+            }
+            return [];
+        };
+        // Changing course invalidates a lesson from the old one.
+        vm.onCourseChange = function() {
+            var e = vm.drawer && vm.drawer.edit;
+            if (!e) { return; }
+            var ok = false;
+            vm.lessonsFor(e.course_id).forEach(function(l) {
+                if (String(l.id) === String(e.lesson_id)) { ok = true; }
+            });
+            if (!ok) { e.lesson_id = null; }
+        };
+        vm.courseSourceLabel = function(src) {
+            return {
+                exercise_number:  'from the exercise number',
+                exercise_keyword: 'from the exercise wording',
+                student_majority: "from this student's other flights",
+                'default':        'defaulted — please check',
+                manual:           'set by you'
+            }[src] || '';
+        };
+        // The default fallback is the case that silently mis-files flights.
+        vm.courseNeedsReview = function() {
+            var r = vm.drawer && vm.drawer.row;
+            if (!r || r.course_id) { return false; }   // reviewer already set it
+            return r.course_source === 'default' || r.course_source === 'student_majority';
         };
 
         vm.saveEdit = function() {

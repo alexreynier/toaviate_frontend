@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService) {
         var vm = this;
 
         vm.user = null;
@@ -41,6 +41,7 @@
 
         // ── Voucher Widget status ──
         vm.voucher_widget_active = false;
+        vm.afh_effective = false;   // AirfieldHub live for this club (badge on the settings card)
 
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user = $rootScope.globals.currentUser;
@@ -955,6 +956,14 @@
                 VoucherWidgetService.GetToken(vm.club_id)
                     .then(function(data) {
                         vm.voucher_widget_active = !!(data.success && data.token && data.token.active);
+                    });
+
+                // AirfieldHub: `effective` already means enabled AND an
+                // environment chosen AND that environment has a key. Stage 0
+                // dispatches nothing, so it is not "Active" to a manager.
+                AirfieldHubService.GetConfig(vm.club_id)
+                    .then(function(data) {
+                        vm.afh_effective = !!(data && data.success && data.effective && Number(data.stage) > 0);
                     });
 
                 // Load daily aircraft status report settings (manager-gated)

@@ -32,8 +32,11 @@ app.factory('CaaFormsService', CaaFormsService);
         // once without it for context.courses, again with it for hour fields
         // computed from the course's tagged training-record flights
         // (FRONTEND_COURSE_CERTIFICATE_PREFILL_GUIDE.md).
+        // expiry_date (optional, YYYY-MM-DD) manually anchors the reval
+        // FCL.740.A windows + checklist when the pilot's profile has no
+        // rating expiry (BACKEND_CAA_MANUAL_EXPIRY_GUIDE.md).
         s.GetTypes   = function(){ return $http.get(base + '/types').then(handleSuccess, handleError); };
-        s.GetPrefill = function(form_type, user_id, club_id, course_id){ return $http.get(base + '/prefill/' + form_type + '/' + user_id + qs({ club_id: club_id, course_id: course_id })).then(handleSuccess, handleError); };
+        s.GetPrefill = function(form_type, user_id, club_id, course_id, expiry_date){ return $http.get(base + '/prefill/' + form_type + '/' + user_id + qs({ club_id: club_id, course_id: course_id, expiry_date: expiry_date })).then(handleSuccess, handleError); };
 
         // ── Forms lifecycle ──
         s.List   = function(club_id, filters){ var f = angular.extend({ club_id: club_id }, filters || {}); return $http.get(base + qs(f)).then(handleSuccess, handleError); };
@@ -199,11 +202,11 @@ app.factory('CaaFormsService', CaaFormsService);
                     { key: 'class_rating',          label: 'Class rating',            type: 'select', options: ['SEP (land)', 'SEP (sea)', 'TMG'] },
                     { key: 'previous_expiry_date',  label: 'Previous expiry date',    type: 'date' },
                     { key: 'new_expiry_date',       label: 'New expiry date',         type: 'date' },
-                    { key: 'total_hours_validity',  label: 'Total hours (validity period)', type: 'number',
+                    { key: 'total_hours_validity',  label: 'Total hours (validity period)', type: 'hours',
                       hint: 'SRG1107 §3.1 first box — total flight time in the 24-month validity period' },
-                    { key: 'total_hours_12m',       label: 'Total hours (12 months)', type: 'number',
+                    { key: 'total_hours_12m',       label: 'Total hours (12 months)', type: 'hours',
                       hint: 'Checklist figure — not printed on SRG1107' },
-                    { key: 'pic_hours_12m',         label: 'PIC hours (12 months)',   type: 'number' },
+                    { key: 'pic_hours_12m',         label: 'PIC hours (12 months)',   type: 'hours' },
                     { key: 'training_flight_dates', label: 'Training flight date(s)', type: 'text' },
                     { key: 'licence_endorsed',      label: 'Licence endorsed',        type: 'bool' },
                     { key: 'notes',                 label: 'Notes',                   type: 'textarea', full: true }
@@ -265,7 +268,7 @@ app.factory('CaaFormsService', CaaFormsService);
                     { key: 'course_title', label: 'Course title',  type: 'text' },
                     { key: 'course_start', label: 'Course start',  type: 'date' },
                     { key: 'course_end',   label: 'Course end',    type: 'date' },
-                    { key: 'course_hours', label: 'Course hours',  type: 'number' },
+                    { key: 'course_hours', label: 'Course hours',  type: 'hours' },
                     { key: 'ato_dto_ref',  label: 'ATO/DTO reference', type: 'text' },
                     { key: 'remarks',      label: 'Remarks',       type: 'textarea', full: true }
                 ]}
@@ -297,11 +300,11 @@ app.factory('CaaFormsService', CaaFormsService);
                     { key: 'ato_dto_ref',   label: 'ATO/DTO reference', type: 'text' }
                 ]},
                 { title: 'Course hours', icon: 'fa-hourglass-half', fields: [
-                    { key: 'total_flight_hours', label: 'Total flight hours', type: 'number' },
-                    { key: 'dual_hours',         label: 'Dual hours',         type: 'number' },
-                    { key: 'solo_hours',         label: 'Solo hours',         type: 'number' },
-                    { key: 'instrument_hours',   label: 'Instrument hours',   type: 'number' },
-                    { key: 'theory_hours',       label: 'Theory hours',       type: 'number' },
+                    { key: 'total_flight_hours', label: 'Total flight hours', type: 'hours' },
+                    { key: 'dual_hours',         label: 'Dual hours',         type: 'hours' },
+                    { key: 'solo_hours',         label: 'Solo hours',         type: 'hours' },
+                    { key: 'instrument_hours',   label: 'Instrument hours',   type: 'hours' },
+                    { key: 'theory_hours',       label: 'Theory hours',       type: 'hours' },
                     { key: 'remarks',            label: 'Remarks',            type: 'textarea', full: true }
                 ]}
             ];
@@ -341,9 +344,36 @@ app.factory('CaaFormsService', CaaFormsService);
             if (field.type === 'date' && window.moment && moment(v, 'YYYY-MM-DD', true).isValid()) {
                 return moment(v, 'YYYY-MM-DD').format('DD MMM YYYY');
             }
+            if (field.type === 'hours') {
+                var hm = s.formatHoursHM(v);
+                return hm ? (v + ' (' + hm + ')') : v;   // decimal is what prints on the PDF
+            }
             if (field.optionLabels && field.optionLabels[v]) { return field.optionLabels[v]; }
             return v;
         }
+
+        // ── Hours entry: accept decimal ("61.5") OR HH:MM-style ("61:30",
+        //    "61h 30m", "61h") — everything normalises to DECIMAL hours,
+        //    which is what the API schema and the printed PDF use. ──
+        s.parseHours = function(v) {
+            if (v === null || v === undefined || v === '') { return null; }
+            if (typeof v === 'number') { return isNaN(v) ? null : v; }
+            var str = String(v).trim().toLowerCase();
+            var m = str.match(/^(\d{1,4})\s*[:h]\s*([0-5]?\d)\s*m?$/);   // 61:30 / 61h30 / 61h 30m
+            if (m) { return Math.round((parseInt(m[1], 10) + parseInt(m[2], 10) / 60) * 100) / 100; }
+            m = str.match(/^(\d{1,4})\s*h$/);                            // "61h"
+            if (m) { return parseInt(m[1], 10); }
+            if (/^\d+([.,]\d+)?$/.test(str)) { return Math.round(parseFloat(str.replace(',', '.')) * 100) / 100; }
+            return null;
+        };
+        s.formatHoursHM = function(dec) {
+            dec = s.parseHours(dec);
+            if (dec === null) { return ''; }
+            var h = Math.floor(dec);
+            var mins = Math.round((dec - h) * 60);
+            if (mins === 60) { h++; mins = 0; }
+            return h + 'h ' + (mins < 10 ? '0' : '') + mins + 'm';
+        };
 
         return s;
 

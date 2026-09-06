@@ -152,15 +152,43 @@
                 <div class="abd-create-row">
                     <div class="abd-create-field abd-create-field--half">
                         <label>Outbound To</label>
-                        <input type="text" class="abd-create-input"
-                               ng-model="vm.create_form.from"
-                               placeholder="ICAO / LOCAL" />
+                        <div class="abd-create-autocomplete">
+                            <input type="text" class="abd-create-input"
+                                   ng-model="vm.create_form.from"
+                                   ng-change="vm.searchAirfield('create_from')"
+                                   ng-focus="vm.searchAirfield('create_from')"
+                                   ng-blur="vm.hideAirfieldDropdown('create_from')"
+                                   placeholder="ICAO / LOCAL"
+                                   autocomplete="off" />
+                            <div class="abd-create-dropdown" ng-if="vm.af_open['create_from']">
+                                <div class="abd-create-dropdown__item"
+                                     ng-repeat="af in vm.af_results['create_from']"
+                                     ng-mousedown="vm.selectAirfield('create_from', af)">
+                                    <span class="abd-create-dropdown__reg">{{ af.code }}</span>
+                                    <span class="abd-create-dropdown__type">{{ af.title }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="abd-create-field abd-create-field--half">
                         <label>Inbound From</label>
-                        <input type="text" class="abd-create-input"
-                               ng-model="vm.create_form.to"
-                               placeholder="ICAO / LOCAL" />
+                        <div class="abd-create-autocomplete">
+                            <input type="text" class="abd-create-input"
+                                   ng-model="vm.create_form.to"
+                                   ng-change="vm.searchAirfield('create_to')"
+                                   ng-focus="vm.searchAirfield('create_to')"
+                                   ng-blur="vm.hideAirfieldDropdown('create_to')"
+                                   placeholder="ICAO / LOCAL"
+                                   autocomplete="off" />
+                            <div class="abd-create-dropdown" ng-if="vm.af_open['create_to']">
+                                <div class="abd-create-dropdown__item"
+                                     ng-repeat="af in vm.af_results['create_to']"
+                                     ng-mousedown="vm.selectAirfield('create_to', af)">
+                                    <span class="abd-create-dropdown__reg">{{ af.code }}</span>
+                                    <span class="abd-create-dropdown__type">{{ af.title }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -215,13 +243,25 @@
                 </button>
             </div>
             <div class="abd-create-modal__body">
-                <!-- Registration -->
+                <!-- Registration with autocomplete -->
                 <div class="abd-create-field">
                     <label>Registration <span class="abd-create-req">*</span></label>
-                    <input type="text" class="abd-create-input"
-                           ng-model="vm.edit_form.registration"
-                           placeholder="e.g. G-BXSE"
-                           autocomplete="off" maxlength="10" />
+                    <div class="abd-create-autocomplete">
+                        <input type="text" class="abd-create-input"
+                               ng-model="vm.edit_form.registration"
+                               ng-change="vm.filterEditAircraft()"
+                               ng-blur="vm.onEditRegBlur()"
+                               placeholder="e.g. G-BXSE"
+                               autocomplete="off" maxlength="10" />
+                        <div class="abd-create-dropdown" ng-if="vm.edit_show_dropdown">
+                            <div class="abd-create-dropdown__item"
+                                 ng-repeat="ac in vm.edit_filtered_aircraft"
+                                 ng-mousedown="vm.selectEditAircraft(ac)">
+                                <span class="abd-create-dropdown__reg">{{ ac.registration }}</span>
+                                <span class="abd-create-dropdown__type">{{ ac.plane_type }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Aircraft Type -->
@@ -240,19 +280,58 @@
                            placeholder="Surname" />
                 </div>
 
-                <!-- Outbound To / Inbound From -->
+                <!-- Quick picks + Outbound To / Inbound From -->
+                <div class="abd-create-quick-bar">
+                    <button class="abd-create-quick" ng-click="vm.setEditQuick('LOCAL')"
+                            ng-class="{'abd-create-quick--active': vm.edit_form.from === 'LOCAL'}">
+                        <i class="fa fa-home"></i> Local
+                    </button>
+                    <button class="abd-create-quick" ng-click="vm.setEditQuick('CCTS')"
+                            ng-class="{'abd-create-quick--active': vm.edit_form.from === 'CCTS'}">
+                        <i class="fa fa-sync-alt"></i> Circuits
+                    </button>
+                </div>
+
                 <div class="abd-create-row">
                     <div class="abd-create-field abd-create-field--half">
                         <label>Outbound To</label>
-                        <input type="text" class="abd-create-input"
-                               ng-model="vm.edit_form.from"
-                               placeholder="ICAO / LOCAL" />
+                        <div class="abd-create-autocomplete">
+                            <input type="text" class="abd-create-input"
+                                   ng-model="vm.edit_form.from"
+                                   ng-change="vm.searchAirfield('edit_from')"
+                                   ng-focus="vm.searchAirfield('edit_from')"
+                                   ng-blur="vm.hideAirfieldDropdown('edit_from')"
+                                   placeholder="ICAO / LOCAL"
+                                   autocomplete="off" />
+                            <div class="abd-create-dropdown" ng-if="vm.af_open['edit_from']">
+                                <div class="abd-create-dropdown__item"
+                                     ng-repeat="af in vm.af_results['edit_from']"
+                                     ng-mousedown="vm.selectAirfield('edit_from', af)">
+                                    <span class="abd-create-dropdown__reg">{{ af.code }}</span>
+                                    <span class="abd-create-dropdown__type">{{ af.title }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="abd-create-field abd-create-field--half">
                         <label>Inbound From</label>
-                        <input type="text" class="abd-create-input"
-                               ng-model="vm.edit_form.to"
-                               placeholder="ICAO / LOCAL" />
+                        <div class="abd-create-autocomplete">
+                            <input type="text" class="abd-create-input"
+                                   ng-model="vm.edit_form.to"
+                                   ng-change="vm.searchAirfield('edit_to')"
+                                   ng-focus="vm.searchAirfield('edit_to')"
+                                   ng-blur="vm.hideAirfieldDropdown('edit_to')"
+                                   placeholder="ICAO / LOCAL"
+                                   autocomplete="off" />
+                            <div class="abd-create-dropdown" ng-if="vm.af_open['edit_to']">
+                                <div class="abd-create-dropdown__item"
+                                     ng-repeat="af in vm.af_results['edit_to']"
+                                     ng-mousedown="vm.selectAirfield('edit_to', af)">
+                                    <span class="abd-create-dropdown__reg">{{ af.code }}</span>
+                                    <span class="abd-create-dropdown__type">{{ af.title }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -391,17 +470,20 @@
                         -->
                         <!-- Public edit: Edit + Delete -->
                         <button class="abd-action-btn abd-action-btn--edit"
-                                ng-if="vm.allow_public_edit && !vm.is_past_date"
+                                ng-if="vm.allow_public_edit && !vm.is_past_date && b.status !== 'cancelled'"
                                 ng-click="vm.editRow(b)"
                                 title="Edit this bookout">
                             <i class="fa fa-pencil-alt"></i>
                         </button>
+                        <!-- Cancel, never delete: the row keeps its history and
+                             the cancellation withdraws any PPR at the far end.
+                             Hidden once already cancelled — it cannot be undone. -->
                         <button class="abd-action-btn abd-action-btn--delete"
-                                ng-if="vm.allow_public_edit && !vm.is_past_date"
+                                ng-if="vm.allow_public_edit && !vm.is_past_date && b.status !== 'cancelled'"
                                 ng-click="vm.deleteRow(b)"
                                 ng-disabled="b._deleting"
-                                title="Delete this bookout">
-                            <i class="fa" ng-class="b._deleting ? 'fa-spinner fa-spin' : 'fa-trash'"></i>
+                                title="Cancel this bookout">
+                            <i class="fa" ng-class="b._deleting ? 'fa-spinner fa-spin' : 'fa-ban'"></i>
                         </button>
                     </td>
                 </tr>
