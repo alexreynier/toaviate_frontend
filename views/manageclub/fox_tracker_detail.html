@@ -175,6 +175,20 @@
             <div style="padding-top: 20px; display: flex; flex-direction: column; gap: 10px;"
                  ng-if="vm.tracker.status !== 'retired'">
 
+              <!-- Allocation is THE primary action on a device: assign it when
+                   free, or jump to its aircraft page (swap/remove) when fitted. -->
+              <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--block"
+                      ng-if="vm.tracker.status === 'active' && (!vm.assignments[0] || vm.assignments[0].assigned_until)"
+                      ng-click="vm.openAssignDialog(vm.tracker)">
+                <i class="fas fa-link"></i> Assign to Aircraft
+              </button>
+
+              <a class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--block"
+                 ng-if="vm.assignments[0] && !vm.assignments[0].assigned_until && vm.assignments[0].plane_id"
+                 ui-sref="dashboard.super_admin.tracker_plane_detail({plane_id: vm.assignments[0].plane_id, club_id: vm.assignments[0].club_id})">
+                <i class="fas fa-exchange-alt"></i> Manage on {{ vm.assignments[0].plane_registration }}
+              </a>
+
               <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--block"
                       ng-if="vm.tracker.status === 'active'"
                       ng-click="vm.showConfirm('deactivate')">
@@ -216,7 +230,14 @@
                   <i class="fas fa-plane"></i>
                 </div>
                 <div class="fox-tracker__assignment-info">
-                  <div class="fox-tracker__assignment-plane">{{ a.plane_registration }}</div>
+                  <div class="fox-tracker__assignment-plane">
+                    <a ng-if="a.plane_id" class="fox-tracker__plane-link"
+                       ui-sref="dashboard.super_admin.tracker_plane_detail({plane_id: a.plane_id, club_id: a.club_id})"
+                       uib-tooltip="Open this aircraft's tracker page">
+                      {{ a.plane_registration }} <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <span ng-if="!a.plane_id">{{ a.plane_registration }}</span>
+                  </div>
                   <div class="fox-tracker__assignment-meta">
                     {{ a.club_name }} · Since {{ a.assigned_from }}
                     <span ng-if="a.assigned_until"> · Ended {{ a.assigned_until }}</span>
@@ -258,7 +279,13 @@
                       <span class="snazzy-table__muted"> → </span>
                       <span class="snazzy-table__date">{{ a.assigned_until || 'present' }}</span>
                     </td>
-                    <td><span class="snazzy-table__name">{{ a.plane_registration }}</span></td>
+                    <td>
+                      <a ng-if="a.plane_id" class="snazzy-table__name fox-tracker__plane-link"
+                         ui-sref="dashboard.super_admin.tracker_plane_detail({plane_id: a.plane_id, club_id: a.club_id})">
+                        {{ a.plane_registration }} <i class="fas fa-external-link-alt"></i>
+                      </a>
+                      <span ng-if="!a.plane_id" class="snazzy-table__name">{{ a.plane_registration }}</span>
+                    </td>
                     <td><span class="snazzy-table__muted">{{ a.club_name }}</span></td>
                     <td><span class="snazzy-table__muted">{{ a.assigned_by_name }}</span></td>
                     <td><span class="snazzy-table__muted">{{ a.notes || '—' }}</span></td>
@@ -398,6 +425,9 @@
 
       </div>
     </div>
+
+    <!-- ══ Assign-to-aircraft dialog (tracker-first, shared partial) ══ -->
+    <div ng-include="'views/manageclub/fox_assign_dialog.html'"></div>
 
   </div><!-- authorised -->
 </div>

@@ -1,127 +1,271 @@
-<div class="centre_align_boxes2">
+<!-- ══════════════════════════════════════════════════════════
+     AIRCRAFT FORM — add / edit (shared by both routes)
+     Snazzy redesign: tabbed sections + sticky save bar.
+     Tabs are PRESENTATION ONLY — every field stays in the one <form>
+     and in the DOM (ng-show, never ng-if on a tab pane), so save()
+     still submits the whole model whichever tab is open.
+     ══════════════════════════════════════════════════════════ -->
+<div class="pf">
 
-    <div class="snazzy-page__header">
-            <div class="snazzy-page__header-inner">
-              <div class="back-box" ui-sref="dashboard.manage_club">
-                <i class="fa fa-arrow-circle-left"></i> BACK
-              </div>
-              <div class="snazzy-page__title">
-                <h2><i class="fas fa-plane"></i> AIRCRAFT</h2>
-                <p>Manage your fleet</p>
-              </div>
+  <!-- ── Header ── -->
+  <div class="pf__header">
+    <div class="pf__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="pf__title">
+        <h2>
+          <i class="fas fa-plane"></i>
+          <span ng-if="vm.editing && vm.club.plane.registration">{{ vm.club.plane.registration }}</span>
+          <span ng-if="!vm.editing || !vm.club.plane.registration">Aircraft</span>
+        </h2>
+        <p ng-if="vm.editing">
+          <span ng-if="vm.club.plane.manufacturer || vm.club.plane.type_name">
+            {{ vm.club.plane.manufacturer }} {{ vm.club.plane.type_name || vm.club.plane.plane_type }}
+          </span>
+          <span ng-if="!vm.club.plane.manufacturer && !vm.club.plane.type_name">Edit aircraft details</span>
+        </p>
+        <p ng-if="!vm.editing">Add a new aircraft to your fleet</p>
+      </div>
+      <div class="pf__header-actions">
+        <button type="button" class="pf__save-btn" ng-click="save()" ng-disabled="vm.saving" ng-class="{'pf__save-btn--saving': vm.saving}">
+          <i class="fa" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+          <span ng-if="!vm.saving">Save</span>
+          <span ng-if="vm.saving">Saving…</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick facts strip (edit mode — once we know the aircraft) -->
+    <div class="pf__facts" ng-if="vm.editing">
+      <span class="pf__fact" ng-if="vm.club.plane.plane_type">
+        <i class="fas fa-fighter-jet"></i> {{ vm.club.plane.plane_type }}
+      </span>
+      <span class="pf__fact" ng-if="vm.club.plane.plane_class">
+        <i class="fas fa-layer-group"></i> {{ vm.club.plane.plane_class }}
+      </span>
+      <span class="pf__fact" ng-if="vm.club.plane.seats">
+        <i class="fas fa-chair"></i> {{ vm.club.plane.seats }} seats
+      </span>
+      <span class="pf__fact" ng-if="vm.club.plane.year_built">
+        <i class="fas fa-calendar"></i> {{ vm.club.plane.year_built }}
+      </span>
+      <span class="pf__badge pf__badge--nav" ng-if="vm.club.plane.nav_only">
+        <i class="fas fa-compass"></i> Nav only
+      </span>
+      <span class="pf__badge pf__badge--dual" ng-if="vm.club.plane.dual_only">
+        <i class="fas fa-user-friends"></i> Dual only
+      </span>
+      <span class="pf__badge pf__badge--hidden" ng-if="vm.club.plane.hidden_from_booking == 1">
+        <i class="fas fa-eye-slash"></i> Hidden from booking
+      </span>
+    </div>
+  </div>
+
+  <!-- ── Tab strip (scrolls horizontally on mobile) ── -->
+  <div class="pf__tabs" id="plane-form-tabs">
+    <div class="pf__tabs-scroll">
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'aircraft'}"
+              ng-click="vm.setTab('aircraft')">
+        <i class="fas fa-plane"></i> Aircraft
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'power'}"
+              ng-click="vm.setTab('power')">
+        <i class="fas fa-cogs"></i> Engines &amp; Props
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'airworthiness'}"
+              ng-click="vm.setTab('airworthiness')" ng-if="!vm.editing">
+        <i class="fas fa-clipboard-check"></i> Airworthiness
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'charges'}"
+              ng-click="vm.setTab('charges')">
+        <i class="fas fa-pound-sign"></i> Charges
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'requirements'}"
+              ng-click="vm.setTab('requirements')">
+        <i class="fas fa-user-check"></i> Requirements
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'documents'}"
+              ng-click="vm.setTab('documents')">
+        <i class="fas fa-folder-open"></i> Documents
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'booking'}"
+              ng-click="vm.setTab('booking')">
+        <i class="fas fa-palette"></i> Booking
+      </button>
+      <button type="button" class="pf__tab" ng-class="{'pf__tab--on': vm.tab === 'checks'}"
+              ng-click="vm.setTab('checks')" ng-if="vm.editing && vm.club.plane.requires_check_a">
+        <i class="fas fa-tasks"></i> Checks
+      </button>
+    </div>
+  </div>
+
+  <form class="pf__form">
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Aircraft
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'aircraft'">
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-id-card pf__section-icon"></i>
+          <div>
+            <h3>Aircraft Details</h3>
+            <p>Identity, type and airframe basics</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+
+            <div class="pf__field" ng-if="vm.editing">
+              <label for="registration"><i class="fas fa-hashtag"></i> Registration</label>
+              <input type="text" class="pf__input" name="registration" id="registration"
+                     ng-model="vm.club.plane.registration" disabled="true" />
+              <span class="pf__hint">Registration can't be changed after the aircraft is created</span>
             </div>
+
+            <div class="pf__field" ng-if="!vm.editing">
+              <label for="registration"><i class="fas fa-hashtag"></i> Registration</label>
+              <ui-select ng-model="vm.plane_search" ng-change="set_aircraft_details()" theme="bootstrap"
+                         ng-disabled="disabled" title="Please type the registration of the aircraft" append-to-body="true">
+                <ui-select-match placeholder="Please type aircraft registration">
+                  {{ vm.plane_search.registration }} [ {{ vm.plane_search.icao_type}} ]
+                </ui-select-match>
+                <ui-select-choices repeat="aircraft in vm.aircraft | propsFilter: {registration: $select.search}"
+                                   refresh="get_aircraft($select.search)" refresh-delay="2">
+                  <div ng-bind-html="aircraft.registration | highlight: $select.search"></div>
+                  <small ng-bind-html="aircraft.icao_type"></small>
+                </ui-select-choices>
+              </ui-select>
+            </div>
+
+            <div class="pf__field">
+              <label for="serial_no"><i class="fas fa-barcode"></i> Serial Number (airframe)</label>
+              <input type="text" class="pf__input" name="serial_no" id="serial_no"
+                     ng-model="vm.club.plane.serial_no" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="manufacturer"><i class="fas fa-industry"></i> Manufacturer</label>
+              <input type="text" class="pf__input" name="manufacturer" id="manufacturer"
+                     ng-model="vm.club.plane.manufacturer" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="plane_type"><i class="fas fa-fighter-jet"></i> ICAO Type</label>
+              <input type="text" class="pf__input" name="plane_type" id="plane_type"
+                     ng-model="vm.club.plane.plane_type" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="type_name"><i class="fas fa-tag"></i> Type Name</label>
+              <input type="text" class="pf__input" name="type_name" id="type_name"
+                     ng-model="vm.club.plane.type_name" />
+            </div>
+
+            <div class="pf__field">
+              <label for="year_built"><i class="fas fa-calendar"></i> Year Built</label>
+              <input type="text" class="pf__input" name="year_built" id="year_built"
+                     ng-model="vm.club.plane.year_built" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="plane_class"><i class="fas fa-layer-group"></i> Aircraft Class</label>
+              <select class="pf__input" id="plane_class" ng-model="vm.club.plane.plane_class"
+                      required ng-focus="vm.clearFieldError($event)">
+                <option value="" disabled>Please Choose</option>
+                <option ng-repeat="x in vm.classes">{{x}}</option>
+              </select>
+            </div>
+
+            <div class="pf__field">
+              <label for="gear_type"><i class="fas fa-life-ring"></i> Undercarriage</label>
+              <select class="pf__input" id="gear_type" ng-model="vm.club.plane.gear_type"
+                      required ng-focus="vm.clearFieldError($event)">
+                <option value="" disabled>Please Choose</option>
+                <option ng-repeat="x in vm.gear_types">{{x}}</option>
+              </select>
+            </div>
+
+            <div class="pf__field">
+              <label for="seats"><i class="fas fa-chair"></i> Total Seats</label>
+              <input type="text" class="pf__input" name="seats" id="seats"
+                     ng-model="vm.club.plane.seats" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="mtow"><i class="fas fa-weight-hanging"></i> MTOW (Kg)</label>
+              <input type="text" class="pf__input" name="mtow" id="mtow"
+                     ng-model="vm.club.plane.mtow" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label for="airframe_hours"
+                     uib-tooltip="The total number of hours on the airframe from the moment you start using ToAviate. This is going to be the starting point for your digital airframe logbook.">
+                <i class="fas fa-stopwatch"></i> Airframe Hours
+              </label>
+              <input type="number" step="0.001" class="pf__input" name="airframe_hours" id="airframe_hours"
+                     ng-model="vm.club.plane.airframe_hours" required ng-focus="vm.clearFieldError($event)" />
+              <span class="pf__hint">Starting point for the digital airframe logbook</span>
+            </div>
+
           </div>
 
-    <div class="center_if_large club_docs bookingout_wrapper">
+          <!-- Airframe capability switches -->
+          <div class="pf__checks">
+            <label class="pf__check">
+              <input type="checkbox" name="vp" id="vp" ng-model="vm.club.plane.vp" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Variable Pitch</strong>
+                <small>Constant-speed / variable-pitch propeller</small>
+              </span>
+            </label>
 
-      <form>
+            <label class="pf__check">
+              <input type="checkbox" name="rg" id="rg" ng-model="vm.club.plane.rg" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Retractable Gear</strong>
+                <small>Undercarriage retracts in flight</small>
+              </span>
+            </label>
 
+            <label class="pf__check">
+              <input type="checkbox" name="tb" id="tb" ng-model="vm.club.plane.tb" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Turbo</strong>
+                <small>Turbocharged or turbo-normalised engine</small>
+              </span>
+            </label>
 
-      <div class="club_docs_all">
-        <h2>Aircraft Details</h2>
-
-        <div class="form-group" ng-if="vm.editing">
-          <label for="registration">Registration</label>
-          <input type="text" class="form-control inputtext" name="registration" id="registration" ng-model="vm.club.plane.registration" disabled="true" />
+            <label class="pf__check">
+              <input type="checkbox" name="requires_check_a" id="requires_check_a"
+                     ng-model="vm.club.plane.requires_check_a" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Requires Pre-Flight Check A</strong>
+                <small>Pilots must complete a Check A (first flight of the day) or Transit Check before booking out</small>
+              </span>
+            </label>
+          </div>
         </div>
-
-        <div class="form-group" ng-if="!vm.editing">
-            <label for="registration">Registration</label>
-            <ui-select ng-model="vm.plane_search" ng-change="set_aircraft_details()" theme="bootstrap" ng-disabled="disabled" title="Please type the registration of the aircraft" append-to-body="true">
-              <ui-select-match placeholder="Please type aircraft registration">
-                {{ vm.plane_search.registration }} [ {{ vm.plane_search.icao_type}} ]
-              </ui-select-match>
-              <ui-select-choices repeat="aircraft in vm.aircraft | propsFilter: {registration: $select.search}" refresh="get_aircraft($select.search)" refresh-delay="2">
-                <div ng-bind-html="aircraft.registration | highlight: $select.search"></div>
-                <small ng-bind-html="aircraft.icao_type"></small>
-              </ui-select-choices>
-            </ui-select>
-        </div>
-
-        <div class="form-group">
-          <label for="serial_no">Serial Number (airframe)</label>
-          <input type="text" class="form-control inputtext" name="serial_no" id="serial_no" ng-model="vm.club.plane.serial_no" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="manufacturer">Manufacturer</label>
-          <input type="text" class="form-control inputtext" name="manufacturer" id="manufacturer" ng-model="vm.club.plane.manufacturer" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_type">ICAO Type</label>
-          <input type="text" class="form-control inputtext" name="plane_type" id="plane_type" ng-model="vm.club.plane.plane_type" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_type">Type Name</label>
-          <input type="text" class="form-control inputtext" name="plane_type" id="plane_type" ng-model="vm.club.plane.type_name" />
-        </div>
-
-        <div class="form-group">
-          <label for="year_built">Year Built</label>
-          <input type="text" class="form-control inputtext" name="year_built" id="year_built" ng-model="vm.club.plane.year_built" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Aircraft Class</label>
-          <select class="form-control inputtext" id="plane_class" ng-model="vm.club.plane.plane_class" required ng-focus="vm.clearFieldError($event)">
-            <option value="" disabled>Please Choose</option>
-            <option ng-repeat="x in vm.classes">{{x}}</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="gear_type">Undercarriage</label>
-          <select class="form-control inputtext" id="gear_type" ng-model="vm.club.plane.gear_type" required ng-focus="vm.clearFieldError($event)">
-            <option value="" disabled>Please Choose</option>
-            <option ng-repeat="x in vm.gear_types">{{x}}</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="plane_type">Total Seats</label>
-          <input type="text" class="form-control inputtext" name="seats" id="seats" ng-model="vm.club.plane.seats" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="mtow">MTOW (Kg)</label>
-          <input type="text" class="form-control inputtext" name="mtow" id="mtow" ng-model="vm.club.plane.mtow" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="airframe_hours" uib-tooltip="The total number of hours on the airframe from the moment you start using ToAviate. This is going to be the starting point for your digital airframe logbook.">Airframe Hours</label>
-          <input type="number" step="0.001" class="form-control inputtext" name="airframe_hours" id="airframe_hours" ng-model="vm.club.plane.airframe_hours" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-
-        <div class="form-group">
-          <label for="vp">Variable Pitch</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="vp" id="vp" ng-model="vm.club.plane.vp" />
-        </div>
-
-        <div class="form-group">
-          <label for="rg">Retractable Gear</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="rg" id="rg" ng-model="vm.club.plane.rg" />
-        </div>
-
-        <div class="form-group">
-          <label for="tb">Turbo</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="tb" id="tb" ng-model="vm.club.plane.tb" />
-        </div>
-
-        <div class="form-group">
-          <label for="requires_check_a" uib-tooltip="When enabled, pilots must complete a Check A (first flight of the day) or Transit Check (subsequent flights) before booking out this aircraft.">Requires Pre-Flight Check A</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="requires_check_a" id="requires_check_a" ng-model="vm.club.plane.requires_check_a" />
-        </div>
-
       </div>
 
       <!-- ═══ Operational Designations ═══ -->
-      <div class="club_docs_all">
-        <h2><i class="fas fa-tags" style="margin-right: 8px; opacity: 0.6;"></i>Operational Designations</h2>
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-tags pf__section-icon"></i>
+          <div>
+            <h3>Operational Designations</h3>
+            <p>Flags shown as badges across the system</p>
+          </div>
+        </div>
 
-        <div class="ac-designation-section">
+        <div class="pf__card">
           <div class="snazzy-setting-row">
             <div class="snazzy-setting-info">
               <label class="snazzy-setting-label">
@@ -162,14 +306,19 @@
             </div>
           </div>
         </div>
-
       </div>
 
-      <!-- ═══ Booking Visibility ═══ -->
-      <div class="club_docs_all" ng-if="vm.editing">
-        <h2><i class="fas fa-eye" style="margin-right: 8px; opacity: 0.6;"></i>Booking Visibility</h2>
+      <!-- ═══ Booking Visibility (edit only) ═══ -->
+      <div class="pf__section" ng-if="vm.editing">
+        <div class="pf__section-head">
+          <i class="fas fa-eye pf__section-icon"></i>
+          <div>
+            <h3>Booking Visibility</h3>
+            <p>Whether members can see this aircraft on the calendar</p>
+          </div>
+        </div>
 
-        <div class="ac-designation-section">
+        <div class="pf__card">
           <div class="snazzy-setting-row">
             <div class="snazzy-setting-info">
               <label class="snazzy-setting-label">
@@ -189,955 +338,1049 @@
                 <span class="snazzy-toggle__slider"></span>
               </label>
               <span class="snazzy-toggle-label" ng-if="vm.club.plane.hidden_from_booking != 1">
-                <i class="fas fa-eye" style="margin-right: 3px; font-size: 11px;"></i> Visible
+                <i class="fas fa-eye"></i> Visible
               </span>
               <span class="snazzy-toggle-label snazzy-toggle-label--off" ng-if="vm.club.plane.hidden_from_booking == 1">
-                <i class="fas fa-eye-slash" style="margin-right: 3px; font-size: 11px;"></i> Hidden
+                <i class="fas fa-eye-slash"></i> Hidden
               </span>
             </div>
           </div>
         </div>
-
       </div>
 
-       <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Engines</h2>
+    </div><!-- /tab: aircraft -->
 
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Engines & Propellers
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'power'">
 
-        <div class="form-group">
-          <label for="engine1_make">Engine Make</label>
-          <input type="text" class="form-control inputtext" name="engine1_make" id="engine1_make" ng-model="vm.plane_engine_1.make" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="engine1_model">Engine Model</label>
-          <input type="text" class="form-control inputtext" name="engine1_model" id="engine1_model" ng-model="vm.plane_engine_1.model" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="engine1_serial_no">Engine Serial Number</label>
-          <input type="text" class="form-control inputtext" name="engine1_serial_no" id="engine1_serial_no" ng-model="vm.plane_engine_1.serial_no" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="engine1_total_hours">Total Hours</label>
-          <input type="number" step="0.01" class="form-control inputtext" name="engine1_total_hours" id="engine1_total_hours" ng-model="vm.plane_engine_1.total_hours_at_start" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Hours Since Overhaul</label>
-          <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_1.steo_hours_at_start" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Engine Cycles</label>
-          <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_1.cycles_at_start" />
-        </div>
-
-        <div class="form-group">
-          <label for="engine1_date_fitted">Date Fitted to Aircraft</label>
-          <input type="date" class="form-control inputtext" name="engine1_date_fitted" id="engine1_date_fitted" ng-model="vm.plane_engine_1.date_fitted" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="engine1_tbo_hours">TBO Hours</label>
-          <input type="number" step="1" class="form-control inputtext" name="engine1_tbo_hours" id="engine1_tbo_hours" ng-model="vm.plane_engine_1.tbo_hours" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">TBO Date</label>
-          <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_1.tbo_date" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Is Engine Running "on condition"?</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="condition" id="condition" ng-model="vm.plane_engine_1.on_condition" />
-        </div>
-
-        <div ng-if="number_of_engine > 1">
-          this aircraft has two engines?
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Total Hours</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_2.total_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Hours Since Overhaul</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_2.steo_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Cycles</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_2.cycles_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 Date Fitted to Aircraft</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_2.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_2.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine 2 TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_2.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Is Engine 2 Running "on condition"?</label>
-            <input type="checkbox" class="form-control inputtext no_top_shadow" name="condition" id="condition" ng-model="vm.plane_engine_2.on_condition" />
+      <!-- ── Engines: NEW aircraft ── -->
+      <div class="pf__section" ng-if="!vm.editing">
+        <div class="pf__section-head">
+          <i class="fas fa-cog pf__section-icon"></i>
+          <div>
+            <h3>Engine</h3>
+            <p>Installed engine and its starting hours</p>
           </div>
         </div>
 
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="engine1_make"><i class="fas fa-industry"></i> Engine Make</label>
+              <input type="text" class="pf__input" name="engine1_make" id="engine1_make"
+                     ng-model="vm.plane_engine_1.make" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="engine1_model"><i class="fas fa-tag"></i> Engine Model</label>
+              <input type="text" class="pf__input" name="engine1_model" id="engine1_model"
+                     ng-model="vm.plane_engine_1.model" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="engine1_serial_no"><i class="fas fa-barcode"></i> Engine Serial Number</label>
+              <input type="text" class="pf__input" name="engine1_serial_no" id="engine1_serial_no"
+                     ng-model="vm.plane_engine_1.serial_no" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="engine1_total_hours"><i class="fas fa-stopwatch"></i> Total Hours</label>
+              <input type="number" step="0.01" class="pf__input" name="engine1_total_hours" id="engine1_total_hours"
+                     ng-model="vm.plane_engine_1.total_hours_at_start" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-history"></i> Hours Since Overhaul</label>
+              <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_1.steo_hours_at_start" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-redo"></i> Engine Cycles</label>
+              <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_1.cycles_at_start" />
+            </div>
+            <div class="pf__field">
+              <label for="engine1_date_fitted"><i class="fas fa-calendar-plus"></i> Date Fitted to Aircraft</label>
+              <input type="date" class="pf__input" name="engine1_date_fitted" id="engine1_date_fitted"
+                     ng-model="vm.plane_engine_1.date_fitted" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="engine1_tbo_hours"><i class="fas fa-hourglass-half"></i> TBO Hours</label>
+              <input type="number" step="1" class="pf__input" name="engine1_tbo_hours" id="engine1_tbo_hours"
+                     ng-model="vm.plane_engine_1.tbo_hours" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-times"></i> TBO Date</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_engine_1.tbo_date" />
+            </div>
+          </div>
+
+          <div class="pf__checks">
+            <label class="pf__check">
+              <input type="checkbox" name="condition" id="condition" ng-model="vm.plane_engine_1.on_condition" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Running "on condition"</strong>
+                <small>Engine is operated on condition rather than to a fixed TBO</small>
+              </span>
+            </label>
+          </div>
+        </div>
       </div>
 
-       <div class="club_docs_all" ng-if="vm.editing">
-        <h2>Edit Engines</h2>
-
-        <div ng-if="!vm.show_replace_engine_1">
-          Currently installed: 
-          {{ vm.plane_engine_1.make }}
-          {{ vm.plane_engine_1.model }}
-          {{ vm.plane_engine_1.serial_no }}
-
-          <button class="btn btn-primary extra_space_top" ng-click="vm.show_replace_engine_1 = true">REPLACE ENGINE 1</button>
-        </div>
-        <div ng-if="vm.show_replace_engine_1">
-          
-          <div class="form-group">
-            <label for="plane_class">DATE OLD ENGINE REMOVED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.date_removed" />
-          </div>
-
-          <hr />
-          <hr />
-
-          <div class="form-group">
-            <label for="plane_class">DATE NEW ENGINE FITTED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Total Hours</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.total_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Hours Since Overhaul</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.steo_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Cycles</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.cycles_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_1_replace.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Is Engine Running "on condition"?</label>
-            <input type="checkbox" class="form-control inputtext no_top_shadow" name="condition" id="condition" ng-model="vm.plane_engine_1_replace.on_condition" />
-          </div>
-          <div class="btns_bottom">
-            <button class="btn btn-danger extra_space_top" ng-click="vm.show_replace_engine_1 = false">CANCEL</button> &nbsp; 
-            <button class="btn btn-primary extra_space_top" ng-click="vm.save_new_aircraft_bit('engine', 1)">SAVE NEW ENGINE 1</button>
+      <!-- ── Engine 2: NEW aircraft ── -->
+      <div class="pf__section" ng-if="!vm.editing && number_of_engine > 1">
+        <div class="pf__section-head">
+          <i class="fas fa-cog pf__section-icon"></i>
+          <div>
+            <h3>Engine 2</h3>
+            <p>Second engine on this aircraft</p>
           </div>
         </div>
 
-
-
-        <div ng-if="number_of_engine > 1">
-
-          <div ng-if="!vm.show_replace_engine_2">
-          Currently installed: 
-          {{ vm.plane_engine_2.make }}
-          {{ vm.plane_engine_2.model }}
-          {{ vm.plane_engine_2.serial_no }}
-
-                  <button class="btn btn-primary extra_space_top" ng-click="vm.show_replace_engine_2 = true">REPLACE ENGINE 2</button>
-
-        </div>
-
-
-          <div ng-if="vm.show_replace_engine_2">
-          
-          <div class="form-group">
-            <label for="plane_class">DATE OLD ENGINE REMOVED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.date_removed" />
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label><i class="fas fa-industry"></i> Engine 2 Make</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_engine_2.make" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-tag"></i> Engine 2 Model</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_engine_2.model" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-barcode"></i> Engine 2 Serial Number</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_engine_2.serial_no" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-stopwatch"></i> Engine 2 Total Hours</label>
+              <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_2.total_hours_at_start" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-history"></i> Engine 2 Hours Since Overhaul</label>
+              <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_2.steo_hours_at_start" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-redo"></i> Engine 2 Cycles</label>
+              <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_2.cycles_at_start" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-plus"></i> Engine 2 Date Fitted</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_engine_2.date_fitted" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-hourglass-half"></i> Engine 2 TBO Hours</label>
+              <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_2.tbo_hours" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-times"></i> Engine 2 TBO Date</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_engine_2.tbo_date" />
+            </div>
           </div>
 
-          <hr />
-          <hr />
-
-          <div class="form-group">
-            <label for="plane_class">DATE NEW ENGINE FITTED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Total Hours</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.total_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Hours Since Overhaul</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.steo_hours_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Engine Cycles</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.cycles_at_start" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_engine_2_replace.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Is Engine Running "on condition"?</label>
-            <input type="checkbox" class="form-control inputtext no_top_shadow" name="condition" id="condition" ng-model="vm.plane_engine_2_replace.on_condition" />
-          </div>
-          <div class="btns_bottom">
-            <button class="btn btn-danger extra_space_top" ng-click="vm.show_replace_engine_2 = false">CANCEL</button> &nbsp; 
-            <button class="btn btn-primary extra_space_top" ng-click="vm.save_new_aircraft_bit('engine', 2)">SAVE NEW ENGINE 2</button>
+          <div class="pf__checks">
+            <label class="pf__check">
+              <input type="checkbox" ng-model="vm.plane_engine_2.on_condition" />
+              <span class="pf__check-box"><i class="fas fa-check"></i></span>
+              <span class="pf__check-text">
+                <strong>Engine 2 running "on condition"</strong>
+                <small>Operated on condition rather than to a fixed TBO</small>
+              </span>
+            </label>
           </div>
         </div>
-
-
-        </div>
-
-
-
       </div>
 
-
-
-      <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Propellers</h2>
-
-        <div class="form-group">
-          <label for="prop1_make">Propeller Make</label>
-          <input type="text" class="form-control inputtext" name="prop1_make" id="prop1_make" ng-model="vm.plane_propeller_1.make" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="prop1_model">Propeller Model</label>
-          <input type="text" class="form-control inputtext" name="prop1_model" id="prop1_model" ng-model="vm.plane_propeller_1.model" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="prop1_serial_no">Propeller Serial Number</label>
-          <input type="text" class="form-control inputtext" name="prop1_serial_no" id="prop1_serial_no" ng-model="vm.plane_propeller_1.serial_no" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Propeller Length</label>
-          <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_1.length" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">Propeller Pitch</label>
-          <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_1.pitch" />
-        </div>
-
-        <div class="form-group">
-          <label for="prop1_date_fitted">Date Fitted</label>
-          <input type="date" class="form-control inputtext" name="prop1_date_fitted" id="prop1_date_fitted" ng-model="vm.plane_propeller_1.date_fitted" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="prop1_tbo_hours">TBO Hours</label>
-          <input type="number" step="1" class="form-control inputtext" name="prop1_tbo_hours" id="prop1_tbo_hours" ng-model="vm.plane_propeller_1.tbo_hours" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="plane_class">TBO Date</label>
-          <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_1.tbo_date" />
-        </div>
-
-        <div class="form-group">
-          <label for="prop1_hours">Propeller Hours (today)</label>
-          <input type="number" step="0.01" class="form-control inputtext" name="prop1_hours" id="prop1_hours" ng-model="vm.plane_propeller_1.total_hours_at_start" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-       <!--  <div class="form-group">
-          <label for="plane_class">Is Propeller Running "on condition"?</label>
-          <input type="checkbox" class="form-control inputtext no_top_shadow" name="condition" id="condition" ng-model="vm.plane_engine_1.on_condition" />
-        </div> -->
-
-        <div ng-if="number_of_engine > 1">
-          this aircraft has two props?
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Length</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_2.length" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Pitch</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_2.pitch" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Date Fitted</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_2.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_propeller_2.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_2.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Propeller Hours (today)</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_propeller_2.total_hours_at_start" />
-          </div>
-        </div>
-        <!-- //we do not presently support more than 2 engines - contact us if you require this and we will add this within our next update run -->
-      </div>
-
-
-      <div class="club_docs_all" ng-if="vm.editing">
-        <h2>Edit Propellers</h2>
-
-
-        <div ng-if="!vm.show_replace_propeller_1">
-          Currently installed: 
-          {{ vm.plane_propeller_1.make }}
-          {{ vm.plane_propeller_1.model }}
-          {{ vm.plane_propeller_1.serial_no }}
-
-          <button class="btn btn-primary extra_space_top" ng-click="vm.show_replace_propeller_1 = true">REPLACE PROP 1</button>
-        </div>
-        <div ng-if="vm.show_replace_propeller_1">
-          
-          <div class="form-group">
-            <label for="plane_class">DATE OLD PROPELLER REMOVED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.date_removed" />
-          </div>
-
-          <hr />
-          <hr />
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Length</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.length" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Pitch</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.pitch" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Date Fitted</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller Hours (today)</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_propeller_1_replace.total_hours_at_start" />
-          </div>
-          
-
-          <div class="btns_bottom">
-            <button class="btn btn-danger extra_space_top" ng-click="vm.show_replace_propeller_1 = false">CANCEL</button> &nbsp; 
-            <button class="btn btn-primary extra_space_top" ng-click="vm.save_new_aircraft_bit('propeller', 1)">SAVE NEW PROP 1</button>
+      <!-- ── Engines: EDIT (replace flow) ── -->
+      <div class="pf__section" ng-if="vm.editing">
+        <div class="pf__section-head">
+          <i class="fas fa-cog pf__section-icon"></i>
+          <div>
+            <h3>Engine</h3>
+            <p>Currently installed engine — replace it when the hardware changes</p>
           </div>
         </div>
 
-
-
-        <div ng-if="number_of_engine > 1">
-
-          <div ng-if="!vm.show_replace_propeller_2">
-          Currently installed: 
-          {{ vm.plane_propeller_2.make }}
-          {{ vm.plane_propeller_2.model }}
-          {{ vm.plane_propeller_2.serial_no }}
-
-          <button class="btn btn-primary extra_space_top" ng-click="vm.show_replace_propeller_2 = true">REPLACE PROP 2</button>
-
-        </div>
-
-
-          <div ng-if="vm.show_replace_propeller_2">
-          
-          <div class="form-group">
-            <label for="plane_class">DATE OLD PROPELLER REMOVED</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.date_removed" />
+        <div class="pf__card">
+          <div class="pf__installed" ng-if="!vm.show_replace_engine_1">
+            <div class="pf__installed-info">
+              <span class="pf__installed-label">Currently installed</span>
+              <span class="pf__installed-name">
+                {{ vm.plane_engine_1.make }} {{ vm.plane_engine_1.model }}
+              </span>
+              <span class="pf__installed-serial" ng-if="vm.plane_engine_1.serial_no">
+                <i class="fas fa-barcode"></i> {{ vm.plane_engine_1.serial_no }}
+              </span>
+            </div>
+            <button type="button" class="pf__btn pf__btn--outline"
+                    ng-click="vm.show_replace_engine_1 = true">
+              <i class="fas fa-exchange-alt"></i> Replace Engine
+            </button>
           </div>
 
-          <hr />
-          <hr />
+          <div ng-if="vm.show_replace_engine_1">
+            <div class="pf__replace-note">
+              <i class="fas fa-info-circle"></i>
+              Replacing the engine closes off the old one's logbook at the removal date and starts a new one from the fitted date.
+            </div>
 
-         <div class="form-group">
-            <label for="plane_class">Propeller 2 Make</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.make" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Model</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.model" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Serial Number</label>
-            <input type="text" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.serial_no" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Length</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.length" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Pitch</label>
-            <input type="number" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.pitch" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Date Fitted</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.date_fitted" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 TBO Hours</label>
-            <input type="number" step="1" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.tbo_hours" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 TBO Date</label>
-            <input type="date" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.tbo_date" />
-          </div>
-
-          <div class="form-group">
-            <label for="plane_class">Propeller 2 Propeller Hours (today)</label>
-            <input type="number" step="0.01" class="form-control inputtext" ng-model="vm.plane_propeller_2_replace.total_hours_at_start" />
-          </div>
-
-
-          <div class="btns_bottom">
-            <button class="btn btn-danger extra_space_top" ng-click="vm.show_replace_propeller_2 = false">CANCEL</button> &nbsp; 
-            <button class="btn btn-primary extra_space_top" ng-click="vm.save_new_aircraft_bit('propeller', 2)">SAVE NEW PROP 2</button>
-          </div>
-        </div>
-
-
-        </div>
-
-
-
-      </div>
-
-
-
-      <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Maintenance</h2>
-
-        <div class="form-group">
-            <span for="licence_type" ng-if="!vm.document.id">Please upload {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "Annual Review Certificate" : "Permit to Fly Certificate" }} in PDF format</span>
-                        <br />
-                      
-                <div class="form-group centre_content_uploader">
-                  <div 
-                     flow-init="{target: '/upload_documents.php', singleFile: true}"
-                   flow-files-submitted="$flow.upload()"
-                   flow-file-success="$file.file_return = $message"
-                   flow-complete="processFile($flow.files, 'cert')"
-                   flow-file-limit="1"
-                   flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                      <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                          Click To Upload 
-                          <br />OR<br /> 
-                          Drag And Drop {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "ARC" : "Permit" }}
-                      </div>
-
-                      <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                          <span class="title">{{file.name}}</span>
-                          <div class="thumbnail">
-                            <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                          </div>
-                      </div>
-
-
-                      <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                        <span class="title">{{file.name}}</span>
-                        <div class="thumbnail" ng-show="$flow.files.length">
-                              <img src="{{get_icon(file.file)}}" />
-                        </div>
-                        <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                          <div class="progress-bar" role="progressbar"
-                               aria-valuenow="{{file.progress() * 100}}"
-                               aria-valuemin="0"
-                               aria-valuemax="100"
-                               ng-style="{width: (file.progress() * 100) + '%'}">
-                            <span class="sr-only">{{file.progress()}}% Complete</span>
-                          </div>
-                        </div>
-                        <div class="btn-group center">
-                          <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                            Delete
-                          </a>
-                        </div>
-                      </div>
-
-
-                <div class="clear"></div>
-                  
+            <div class="pf__grid">
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-minus"></i> Date Old Engine Removed</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_1_replace.date_removed" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-plus"></i> Date New Engine Fitted</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_1_replace.date_fitted" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-industry"></i> Engine Make</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_1_replace.make" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-tag"></i> Engine Model</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_1_replace.model" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-barcode"></i> Engine Serial Number</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_1_replace.serial_no" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-stopwatch"></i> Total Hours</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_1_replace.total_hours_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-history"></i> Hours Since Overhaul</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_1_replace.steo_hours_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-redo"></i> Engine Cycles</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_1_replace.cycles_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-hourglass-half"></i> TBO Hours</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_1_replace.tbo_hours" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-times"></i> TBO Date</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_1_replace.tbo_date" />
               </div>
             </div>
 
-        </div>
+            <div class="pf__checks">
+              <label class="pf__check">
+                <input type="checkbox" name="condition" ng-model="vm.plane_engine_1_replace.on_condition" />
+                <span class="pf__check-box"><i class="fas fa-check"></i></span>
+                <span class="pf__check-text">
+                  <strong>Running "on condition"</strong>
+                  <small>Operated on condition rather than to a fixed TBO</small>
+                </span>
+              </label>
+            </div>
 
-        <div class="form-group">
-          <label for="cert_type">Certificate Type</label>
-          <select class="form-control inputtext" id="cert_type" ng-model="vm.plane_maintenance.cofa_category" required ng-focus="vm.clearFieldError($event)">
-            <option value="" disabled>Please Choose</option>
-            <option ng-repeat="x in vm.certificates">{{x.title}}</option>
-          </select>
+            <div class="pf__card-actions">
+              <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_engine_1 = false">
+                Cancel
+              </button>
+              <button type="button" class="pf__btn pf__btn--primary" ng-click="vm.save_new_aircraft_bit('engine', 1)">
+                <i class="fas fa-save"></i> Save New Engine
+              </button>
+            </div>
+          </div>
         </div>
-
-        <div class="form-group">
-          <label for="cert_expiry">Certificate Expiry</label>
-          <input type="date" class="form-control inputtext" name="cert_expiry" id="cert_expiry" ng-model="vm.plane_maintenance.certificate_expiry" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-        <div class="form-group">
-          <label for="next_maintenance">Next Maintenance</label>
-          <input type="date" class="form-control inputtext" name="next_maintenance" id="next_maintenance" ng-model="vm.plane_maintenance.next_maintenance" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
-         <div class="form-group">
-          <label for="hours_remaining">Hours remaining</label>
-          <input type="number" step="0.01" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.plane_maintenance.hours_remaining" required ng-focus="vm.clearFieldError($event)" />
-        </div>
-
       </div>
 
-      <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Insurance</h2>
-
-        <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload insurance in PDF format</span>
-                        <br />
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                              flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'insurance')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>
-                        
-                    <div class="form-group">
-                      <label for="insurance_expiry">Insurance Expiry</label>
-                      <input type="date" class="form-control inputtext" name="insurance_expiry" id="insurance_expiry" ng-model="vm.plane_insurance.insurance_expiry" />
-                    </div>
-
-      </div>
-    </div>
-
-      <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Radio Licence</h2>
-
-
-        <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload radio licence in PDF format</span>
-                        <br />
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'radio')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>                    
-
-                    <div class="form-group">
-                      <label for="radio_expiry">Radio Licence Expiry</label>
-                      <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.plane_radio.radio_expiry" />
-                    </div>
-
-      </div>
-    </div>
-        
-
-
-
-        <div class="club_docs_all" ng-if="!vm.editing">
-        <h2>Noise Certificate</h2>
-
-
-        <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload noise certificate in PDF format</span>
-                        <br />
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'noise')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Certificate
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>                    
-
-                    <div class="form-group">
-                      <label for="noise_cert_issue">Issue Date</label>
-                      <input type="date" class="form-control inputtext" name="noise_cert_issue" id="noise_cert_issue" ng-model="vm.plane_noise.noise_cert_issue" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="noise_level">Overfly Noise dB</label>
-                      <input type="text" class="form-control inputtext" step="0.01" name="noise_level" id="noise_level" ng-model="vm.plane_noise.noise_level" />
-                    </div>
-
-      </div>
-    </div>
-
-         <!--  <br />
-          <br />
-
-          <label for="hours_between_checks">Normal number of hours between checks</label>
-          <input type="number" class="form-control" name="hours_between_checks" id="hours_between_checks" ng-model="vm.club.plane.hours_between_checks" />
-
-          <br />
-
-          <label for="time_between_checks">Normal number of months between checks (normally 6 months)</label> 
-          <input type="number" class="form-control" name="time_between_checks" id="time_between_checks" ng-model="vm.club.plane.time_between_checks" />
-
-          <br /> -->
-          
-        <!--  <label for="tacho_hour_fuel">Fuel per tacho hours (litres)</label>
-          <input type="number" class="form-control" name="tacho_hour_fuel" id="tacho_hour_fuel" ng-model="vm.club.plane.tacho_hour_fuel" />
-
-          <br />
-
-          <label for="tacho_hour_cost">Cost per tacho hour (to the club)</label>
-          <input type="number" class="form-control" name="tacho_hour_cost" id="tacho_hour_cost" ng-model="vm.club.plane.tacho_hour_cost" />
-
-          <br /> -->
-
-
-
-
-          
-
-
-
-         <!--  <label for="average_tacho_hour_to_real_hour">Average tacho hour to real hour</label>
-          <input type="number" class="form-control" name="average_tacho_hour_to_real_hour" id="average_tacho_hour_to_real_hour" ng-model="vm.club.plane.average_tacho_hour_to_real_hour" />
-
-          <br /> -->
-
-         
-
-         <!--  <label for="in_maintenace">In Maintenance</label>
-          <input type="checkbox" class="form-control" name="in_maintenace" id="in_maintenace" ng-model="vm.club.plane.in_maintenace" />
-
-          <br /> -->
-
-
-      <div class="club_docs_all">
-        <h2>Default Charges</h2>
-
-          <div class="form-group">
-            <label for="charge_type">Charge Type</label>
-            <select class="form-control inputtext" id="charge_type" ng-model="vm.club.plane.charge_type" required ng-focus="vm.clearFieldError($event)">
-              <option value="" disabled>Please Choose</option>
-              <option ng-repeat="x in vm.charge_type" value="{{x.value}}">{{x.label}}</option>
-            </select>
+      <!-- ── Engine 2: EDIT (replace flow) ── -->
+      <div class="pf__section" ng-if="vm.editing && number_of_engine > 1">
+        <div class="pf__section-head">
+          <i class="fas fa-cog pf__section-icon"></i>
+          <div>
+            <h3>Engine 2</h3>
+            <p>Second engine — replace it when the hardware changes</p>
           </div>
-
-
-          <div class="form-group">
-            <label for="tacho_hour_fee">Cost per {{ vm.club.plane.charge_type }} hour</label>
-            <input type="number" class="form-control inputtext" name="tacho_hour_fee" id="tacho_hour_fee" ng-model="vm.club.plane.tacho_hour_fee" required ng-focus="vm.clearFieldError($event)" />
-          </div>
-
-
-          <div class="form-group">
-            <label for="plane_class">Surcharge Type</label>
-            <select class="form-control inputtext" ng-model="vm.club.plane.surcharge_type">
-              <option ng-repeat="x in vm.surcharge_type">{{x}}</option>
-           </select>
-         </div>
-
-
-          <div class="form-group">
-            <label for="tacho_hour_fee" ng-if="vm.club.plane.surcharge_type && vm.club.plane.surcharge_type !== 'none'">Surcharge fee per {{ vm.club.plane.surcharge_type }}</label>
-            <input ng-if="vm.club.plane.surcharge_type && vm.club.plane.surcharge_type !== 'none'" type="number" class="form-control inputtext" name="surcharge_fee" id="surcharge_fee" ng-model="vm.club.plane.surcharge_fee" step="0.01" />
-          </div>
-
-
-          <div class="form-group">
-            <label for="touch_and_go_fee">Home Touch &amp; Go Fee</label>
-            <input type="number" class="form-control inputtext" name="touch_and_go_fee" id="touch_and_go_fee" ng-model="vm.club.plane.touch_and_go_fee" step="0.01" />
-          </div>
-
-          <div class="form-group">
-            <label for="landing_fee">Home Landing Fee</label>
-            <input type="number" class="form-control inputtext" name="landing_fee" id="landing_fee" ng-model="vm.club.plane.landing_fee" step="0.01" />
-          </div>
-
         </div>
 
-
-        <!--   AIRCRAFT FACTS
-          <div class="form-group">
-            <label for="normal_cruise">Normal Cruise Speed (kts)</label>
-            <input type="number" class="form-control inputtext" name="normal_cruise" id="normal_cruise" ng-model="vm.club.plane.normal_cruise" />
+        <div class="pf__card">
+          <div class="pf__installed" ng-if="!vm.show_replace_engine_2">
+            <div class="pf__installed-info">
+              <span class="pf__installed-label">Currently installed</span>
+              <span class="pf__installed-name">
+                {{ vm.plane_engine_2.make }} {{ vm.plane_engine_2.model }}
+              </span>
+              <span class="pf__installed-serial" ng-if="vm.plane_engine_2.serial_no">
+                <i class="fas fa-barcode"></i> {{ vm.plane_engine_2.serial_no }}
+              </span>
+            </div>
+            <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_engine_2 = true">
+              <i class="fas fa-exchange-alt"></i> Replace Engine 2
+            </button>
           </div>
 
-          <div class="form-group">
-            <label for="endurance">Endurance (hours)</label>
-            <input type="number" class="form-control inputtext" name="endurance" id="endurance" ng-model="vm.club.plane.endurance" />
+          <div ng-if="vm.show_replace_engine_2">
+            <div class="pf__replace-note">
+              <i class="fas fa-info-circle"></i>
+              Replacing the engine closes off the old one's logbook at the removal date and starts a new one from the fitted date.
+            </div>
+
+            <div class="pf__grid">
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-minus"></i> Date Old Engine Removed</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_2_replace.date_removed" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-plus"></i> Date New Engine Fitted</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_2_replace.date_fitted" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-industry"></i> Engine Make</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_2_replace.make" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-tag"></i> Engine Model</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_2_replace.model" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-barcode"></i> Engine Serial Number</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_engine_2_replace.serial_no" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-stopwatch"></i> Total Hours</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_2_replace.total_hours_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-history"></i> Hours Since Overhaul</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_engine_2_replace.steo_hours_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-redo"></i> Engine Cycles</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_2_replace.cycles_at_start" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-hourglass-half"></i> TBO Hours</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_engine_2_replace.tbo_hours" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-times"></i> TBO Date</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_engine_2_replace.tbo_date" />
+              </div>
+            </div>
+
+            <div class="pf__checks">
+              <label class="pf__check">
+                <input type="checkbox" name="condition" ng-model="vm.plane_engine_2_replace.on_condition" />
+                <span class="pf__check-box"><i class="fas fa-check"></i></span>
+                <span class="pf__check-text">
+                  <strong>Running "on condition"</strong>
+                  <small>Operated on condition rather than to a fixed TBO</small>
+                </span>
+              </label>
+            </div>
+
+            <div class="pf__card-actions">
+              <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_engine_2 = false">
+                Cancel
+              </button>
+              <button type="button" class="pf__btn pf__btn--primary" ng-click="vm.save_new_aircraft_bit('engine', 2)">
+                <i class="fas fa-save"></i> Save New Engine 2
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Propellers: NEW aircraft ── -->
+      <div class="pf__section" ng-if="!vm.editing">
+        <div class="pf__section-head">
+          <i class="fas fa-fan pf__section-icon"></i>
+          <div>
+            <h3>Propeller</h3>
+            <p>Installed propeller and its starting hours</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="prop1_make"><i class="fas fa-industry"></i> Propeller Make</label>
+              <input type="text" class="pf__input" name="prop1_make" id="prop1_make"
+                     ng-model="vm.plane_propeller_1.make" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="prop1_model"><i class="fas fa-tag"></i> Propeller Model</label>
+              <input type="text" class="pf__input" name="prop1_model" id="prop1_model"
+                     ng-model="vm.plane_propeller_1.model" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="prop1_serial_no"><i class="fas fa-barcode"></i> Propeller Serial Number</label>
+              <input type="text" class="pf__input" name="prop1_serial_no" id="prop1_serial_no"
+                     ng-model="vm.plane_propeller_1.serial_no" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-ruler-horizontal"></i> Propeller Length</label>
+              <input type="number" class="pf__input" ng-model="vm.plane_propeller_1.length" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-angle-double-right"></i> Propeller Pitch</label>
+              <input type="number" class="pf__input" ng-model="vm.plane_propeller_1.pitch" />
+            </div>
+            <div class="pf__field">
+              <label for="prop1_date_fitted"><i class="fas fa-calendar-plus"></i> Date Fitted</label>
+              <input type="date" class="pf__input" name="prop1_date_fitted" id="prop1_date_fitted"
+                     ng-model="vm.plane_propeller_1.date_fitted" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="prop1_tbo_hours"><i class="fas fa-hourglass-half"></i> TBO Hours</label>
+              <input type="number" step="1" class="pf__input" name="prop1_tbo_hours" id="prop1_tbo_hours"
+                     ng-model="vm.plane_propeller_1.tbo_hours" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-times"></i> TBO Date</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_propeller_1.tbo_date" />
+            </div>
+            <div class="pf__field">
+              <label for="prop1_hours"><i class="fas fa-stopwatch"></i> Propeller Hours (today)</label>
+              <input type="number" step="0.01" class="pf__input" name="prop1_hours" id="prop1_hours"
+                     ng-model="vm.plane_propeller_1.total_hours_at_start" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Propeller 2: NEW aircraft ── -->
+      <div class="pf__section" ng-if="!vm.editing && number_of_engine > 1">
+        <div class="pf__section-head">
+          <i class="fas fa-fan pf__section-icon"></i>
+          <div>
+            <h3>Propeller 2</h3>
+            <p>Second propeller on this aircraft</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label><i class="fas fa-industry"></i> Propeller 2 Make</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_propeller_2.make" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-tag"></i> Propeller 2 Model</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_propeller_2.model" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-barcode"></i> Propeller 2 Serial Number</label>
+              <input type="text" class="pf__input" ng-model="vm.plane_propeller_2.serial_no" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-ruler-horizontal"></i> Propeller 2 Length</label>
+              <input type="number" class="pf__input" ng-model="vm.plane_propeller_2.length" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-angle-double-right"></i> Propeller 2 Pitch</label>
+              <input type="number" class="pf__input" ng-model="vm.plane_propeller_2.pitch" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-plus"></i> Propeller 2 Date Fitted</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_propeller_2.date_fitted" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-hourglass-half"></i> Propeller 2 TBO Hours</label>
+              <input type="number" step="1" class="pf__input" ng-model="vm.plane_propeller_2.tbo_hours" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-times"></i> Propeller 2 TBO Date</label>
+              <input type="date" class="pf__input" ng-model="vm.plane_propeller_2.tbo_date" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-stopwatch"></i> Propeller 2 Hours (today)</label>
+              <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_propeller_2.total_hours_at_start" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Propellers: EDIT (replace flow) ── -->
+      <div class="pf__section" ng-if="vm.editing">
+        <div class="pf__section-head">
+          <i class="fas fa-fan pf__section-icon"></i>
+          <div>
+            <h3>Propeller</h3>
+            <p>Currently installed propeller — replace it when the hardware changes</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__installed" ng-if="!vm.show_replace_propeller_1">
+            <div class="pf__installed-info">
+              <span class="pf__installed-label">Currently installed</span>
+              <span class="pf__installed-name">
+                {{ vm.plane_propeller_1.make }} {{ vm.plane_propeller_1.model }}
+              </span>
+              <span class="pf__installed-serial" ng-if="vm.plane_propeller_1.serial_no">
+                <i class="fas fa-barcode"></i> {{ vm.plane_propeller_1.serial_no }}
+              </span>
+            </div>
+            <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_propeller_1 = true">
+              <i class="fas fa-exchange-alt"></i> Replace Prop
+            </button>
           </div>
 
-          <div class="form-group">
-            <label for="fuel_capacity">Fuel Capacity (litres)</label>
-            <input type="number" class="form-control inputtext" name="fuel_capacity" id="fuel_capacity" ng-model="vm.club.plane.fuel_capacity" />
-          </div> -->
+          <div ng-if="vm.show_replace_propeller_1">
+            <div class="pf__replace-note">
+              <i class="fas fa-info-circle"></i>
+              Replacing the propeller closes off the old one's logbook at the removal date and starts a new one from the fitted date.
+            </div>
 
+            <div class="pf__grid">
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-minus"></i> Date Old Propeller Removed</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_1_replace.date_removed" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-plus"></i> Date Fitted</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_1_replace.date_fitted" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-industry"></i> Propeller Make</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_1_replace.make" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-tag"></i> Propeller Model</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_1_replace.model" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-barcode"></i> Propeller Serial Number</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_1_replace.serial_no" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-ruler-horizontal"></i> Propeller Length</label>
+                <input type="number" class="pf__input" ng-model="vm.plane_propeller_1_replace.length" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-angle-double-right"></i> Propeller Pitch</label>
+                <input type="number" class="pf__input" ng-model="vm.plane_propeller_1_replace.pitch" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-hourglass-half"></i> TBO Hours</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_propeller_1_replace.tbo_hours" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-times"></i> TBO Date</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_1_replace.tbo_date" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-stopwatch"></i> Propeller Hours (today)</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_propeller_1_replace.total_hours_at_start" />
+              </div>
+            </div>
 
-        <div class="club_docs_all">
-          <h2>Solo Rental Requirements</h2>
+            <div class="pf__card-actions">
+              <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_propeller_1 = false">
+                Cancel
+              </button>
+              <button type="button" class="pf__btn pf__btn--primary" ng-click="vm.save_new_aircraft_bit('propeller', 1)">
+                <i class="fas fa-save"></i> Save New Prop
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div class="box">
-            <h4> Licence Required</h4>
+      <!-- ── Propeller 2: EDIT (replace flow) ── -->
+      <div class="pf__section" ng-if="vm.editing && number_of_engine > 1">
+        <div class="pf__section-head">
+          <i class="fas fa-fan pf__section-icon"></i>
+          <div>
+            <h3>Propeller 2</h3>
+            <p>Second propeller — replace it when the hardware changes</p>
+          </div>
+        </div>
 
-            <div class="requirement_left">
-              <div class="form-group">
-                <label for="payment_term">Licence</label>
-                <ui-select ng-model="vm.temporary.licence" theme="bootstrap" ng-disabled="disabled" title="Licence" append-to-body="true">
+        <div class="pf__card">
+          <div class="pf__installed" ng-if="!vm.show_replace_propeller_2">
+            <div class="pf__installed-info">
+              <span class="pf__installed-label">Currently installed</span>
+              <span class="pf__installed-name">
+                {{ vm.plane_propeller_2.make }} {{ vm.plane_propeller_2.model }}
+              </span>
+              <span class="pf__installed-serial" ng-if="vm.plane_propeller_2.serial_no">
+                <i class="fas fa-barcode"></i> {{ vm.plane_propeller_2.serial_no }}
+              </span>
+            </div>
+            <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_propeller_2 = true">
+              <i class="fas fa-exchange-alt"></i> Replace Prop 2
+            </button>
+          </div>
+
+          <div ng-if="vm.show_replace_propeller_2">
+            <div class="pf__replace-note">
+              <i class="fas fa-info-circle"></i>
+              Replacing the propeller closes off the old one's logbook at the removal date and starts a new one from the fitted date.
+            </div>
+
+            <div class="pf__grid">
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-minus"></i> Date Old Propeller Removed</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_2_replace.date_removed" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-plus"></i> Propeller 2 Date Fitted</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_2_replace.date_fitted" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-industry"></i> Propeller 2 Make</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_2_replace.make" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-tag"></i> Propeller 2 Model</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_2_replace.model" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-barcode"></i> Propeller 2 Serial Number</label>
+                <input type="text" class="pf__input" ng-model="vm.plane_propeller_2_replace.serial_no" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-ruler-horizontal"></i> Propeller 2 Length</label>
+                <input type="number" class="pf__input" ng-model="vm.plane_propeller_2_replace.length" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-angle-double-right"></i> Propeller 2 Pitch</label>
+                <input type="number" class="pf__input" ng-model="vm.plane_propeller_2_replace.pitch" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-hourglass-half"></i> Propeller 2 TBO Hours</label>
+                <input type="number" step="1" class="pf__input" ng-model="vm.plane_propeller_2_replace.tbo_hours" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-calendar-times"></i> Propeller 2 TBO Date</label>
+                <input type="date" class="pf__input" ng-model="vm.plane_propeller_2_replace.tbo_date" />
+              </div>
+              <div class="pf__field">
+                <label><i class="fas fa-stopwatch"></i> Propeller 2 Hours (today)</label>
+                <input type="number" step="0.01" class="pf__input" ng-model="vm.plane_propeller_2_replace.total_hours_at_start" />
+              </div>
+            </div>
+
+            <div class="pf__card-actions">
+              <button type="button" class="pf__btn pf__btn--outline" ng-click="vm.show_replace_propeller_2 = false">
+                Cancel
+              </button>
+              <button type="button" class="pf__btn pf__btn--primary" ng-click="vm.save_new_aircraft_bit('propeller', 2)">
+                <i class="fas fa-save"></i> Save New Prop 2
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: power -->
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Airworthiness (add mode only — cert / insurance /
+         radio / noise are managed elsewhere once the aircraft exists)
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'airworthiness'" ng-if="!vm.editing">
+
+      <!-- ── Maintenance ── -->
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-clipboard-check pf__section-icon"></i>
+          <div>
+            <h3>Maintenance</h3>
+            <p>Airworthiness certificate and next maintenance</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__upload-intro" ng-if="!vm.document.id">
+            Please upload {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "the Annual Review Certificate" : "the Permit to Fly Certificate" }} in PDF format
+          </div>
+
+          <div flow-init="{target: '/upload_documents.php', singleFile: true}"
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFile($flow.files, 'cert')"
+               flow-file-limit="1"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+            <div class="drop pf__drop" flow-btn flow-drop ng-class="dropClass"
+                 ng-if="!vm.uploaded_document.file && $flow.files.length < 1">
+              <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
+              <span class="pf__drop-title">Click to upload</span>
+              <span class="pf__drop-sub">or drag &amp; drop {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "the ARC" : "the Permit" }}</span>
+            </div>
+
+            <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail">
+                <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+              </div>
+            </div>
+
+            <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail" ng-show="$flow.files.length">
+                <img src="{{get_icon(file.file)}}" />
+              </div>
+              <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                <div class="progress-bar" role="progressbar"
+                     aria-valuenow="{{file.progress() * 100}}"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     ng-style="{width: (file.progress() * 100) + '%'}">
+                  <span class="sr-only">{{file.progress()}}% Complete</span>
+                </div>
+              </div>
+              <div class="btn-group center">
+                <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                  Delete
+                </a>
+              </div>
+            </div>
+
+            <div class="clear"></div>
+          </div>
+
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="cert_type"><i class="fas fa-certificate"></i> Certificate Type</label>
+              <select class="pf__input" id="cert_type" ng-model="vm.plane_maintenance.cofa_category"
+                      required ng-focus="vm.clearFieldError($event)">
+                <option value="" disabled>Please Choose</option>
+                <option ng-repeat="x in vm.certificates">{{x.title}}</option>
+              </select>
+            </div>
+            <div class="pf__field">
+              <label for="cert_expiry"><i class="fas fa-calendar-times"></i> Certificate Expiry</label>
+              <input type="date" class="pf__input" name="cert_expiry" id="cert_expiry"
+                     ng-model="vm.plane_maintenance.certificate_expiry" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="next_maintenance"><i class="fas fa-wrench"></i> Next Maintenance</label>
+              <input type="date" class="pf__input" name="next_maintenance" id="next_maintenance"
+                     ng-model="vm.plane_maintenance.next_maintenance" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+            <div class="pf__field">
+              <label for="hours_remaining"><i class="fas fa-hourglass-half"></i> Hours Remaining</label>
+              <input type="number" step="0.01" class="pf__input" name="hours_remaining" id="hours_remaining"
+                     ng-model="vm.plane_maintenance.hours_remaining" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Insurance ── -->
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-shield-alt pf__section-icon"></i>
+          <div>
+            <h3>Insurance</h3>
+            <p>Insurance document and expiry</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__upload-intro" ng-if="!vm.document.id">
+            Please upload the insurance document in PDF format
+          </div>
+
+          <div flow-init="{target: '/upload_documents.php', singleFile: true}"
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFile($flow.files, 'insurance')"
+               flow-file-limit="1"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+            <div class="drop pf__drop" flow-btn flow-drop ng-class="dropClass"
+                 ng-if="!vm.uploaded_document.file && $flow.files.length < 1">
+              <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
+              <span class="pf__drop-title">Click to upload</span>
+              <span class="pf__drop-sub">or drag &amp; drop your document</span>
+            </div>
+
+            <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail">
+                <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+              </div>
+            </div>
+
+            <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail" ng-show="$flow.files.length">
+                <img src="{{get_icon(file.file)}}" />
+              </div>
+              <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                <div class="progress-bar" role="progressbar"
+                     aria-valuenow="{{file.progress() * 100}}"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     ng-style="{width: (file.progress() * 100) + '%'}">
+                  <span class="sr-only">{{file.progress()}}% Complete</span>
+                </div>
+              </div>
+              <div class="btn-group center">
+                <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                  Delete
+                </a>
+              </div>
+            </div>
+
+            <div class="clear"></div>
+          </div>
+
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="insurance_expiry"><i class="fas fa-calendar-times"></i> Insurance Expiry</label>
+              <input type="date" class="pf__input" name="insurance_expiry" id="insurance_expiry"
+                     ng-model="vm.plane_insurance.insurance_expiry" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Radio Licence ── -->
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-broadcast-tower pf__section-icon"></i>
+          <div>
+            <h3>Radio Licence</h3>
+            <p>Radio licence document and expiry</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__upload-intro" ng-if="!vm.document.id">
+            Please upload the radio licence in PDF format
+          </div>
+
+          <div flow-init="{target: '/upload_documents.php', singleFile: true}"
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFile($flow.files, 'radio')"
+               flow-file-limit="1"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+            <div class="drop pf__drop" flow-btn flow-drop ng-class="dropClass"
+                 ng-if="!vm.uploaded_document.file && $flow.files.length < 1">
+              <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
+              <span class="pf__drop-title">Click to upload</span>
+              <span class="pf__drop-sub">or drag &amp; drop your document</span>
+            </div>
+
+            <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail">
+                <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+              </div>
+            </div>
+
+            <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail" ng-show="$flow.files.length">
+                <img src="{{get_icon(file.file)}}" />
+              </div>
+              <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                <div class="progress-bar" role="progressbar"
+                     aria-valuenow="{{file.progress() * 100}}"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     ng-style="{width: (file.progress() * 100) + '%'}">
+                  <span class="sr-only">{{file.progress()}}% Complete</span>
+                </div>
+              </div>
+              <div class="btn-group center">
+                <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                  Delete
+                </a>
+              </div>
+            </div>
+
+            <div class="clear"></div>
+          </div>
+
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="radio_expiry"><i class="fas fa-calendar-times"></i> Radio Licence Expiry</label>
+              <input type="date" class="pf__input" name="radio_expiry" id="radio_expiry"
+                     ng-model="vm.plane_radio.radio_expiry" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Noise Certificate ── -->
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-volume-up pf__section-icon"></i>
+          <div>
+            <h3>Noise Certificate</h3>
+            <p>Noise certificate and overfly level</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__upload-intro" ng-if="!vm.document.id">
+            Please upload the noise certificate in PDF format
+          </div>
+
+          <div flow-init="{target: '/upload_documents.php', singleFile: true}"
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFile($flow.files, 'noise')"
+               flow-file-limit="1"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+            <div class="drop pf__drop" flow-btn flow-drop ng-class="dropClass"
+                 ng-if="!vm.uploaded_document.file && $flow.files.length < 1">
+              <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
+              <span class="pf__drop-title">Click to upload</span>
+              <span class="pf__drop-sub">or drag &amp; drop your certificate</span>
+            </div>
+
+            <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail">
+                <img src="{{get_icon2(vm.uploaded_document.file)}}" />
+              </div>
+            </div>
+
+            <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
+              <span class="title">{{file.name}}</span>
+              <div class="thumbnail" ng-show="$flow.files.length">
+                <img src="{{get_icon(file.file)}}" />
+              </div>
+              <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                <div class="progress-bar" role="progressbar"
+                     aria-valuenow="{{file.progress() * 100}}"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     ng-style="{width: (file.progress() * 100) + '%'}">
+                  <span class="sr-only">{{file.progress()}}% Complete</span>
+                </div>
+              </div>
+              <div class="btn-group center">
+                <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                  Delete
+                </a>
+              </div>
+            </div>
+
+            <div class="clear"></div>
+          </div>
+
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="noise_cert_issue"><i class="fas fa-calendar-plus"></i> Issue Date</label>
+              <input type="date" class="pf__input" name="noise_cert_issue" id="noise_cert_issue"
+                     ng-model="vm.plane_noise.noise_cert_issue" />
+            </div>
+            <div class="pf__field">
+              <label for="noise_level"><i class="fas fa-volume-up"></i> Overfly Noise dB</label>
+              <input type="text" class="pf__input" step="0.01" name="noise_level" id="noise_level"
+                     ng-model="vm.plane_noise.noise_level" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: airworthiness -->
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Charges
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'charges'">
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-pound-sign pf__section-icon"></i>
+          <div>
+            <h3>Default Charges</h3>
+            <p>How this aircraft is charged to members</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="charge_type"><i class="fas fa-tachometer-alt"></i> Charge Type</label>
+              <select class="pf__input" id="charge_type" ng-model="vm.club.plane.charge_type"
+                      required ng-focus="vm.clearFieldError($event)">
+                <option value="" disabled>Please Choose</option>
+                <option ng-repeat="x in vm.charge_type" value="{{x.value}}">{{x.label}}</option>
+              </select>
+            </div>
+
+            <div class="pf__field">
+              <label for="tacho_hour_fee"><i class="fas fa-coins"></i> Cost per {{ vm.club.plane.charge_type }} hour</label>
+              <input type="number" class="pf__input" name="tacho_hour_fee" id="tacho_hour_fee"
+                     ng-model="vm.club.plane.tacho_hour_fee" required ng-focus="vm.clearFieldError($event)" />
+            </div>
+
+            <div class="pf__field">
+              <label><i class="fas fa-plus-circle"></i> Surcharge Type</label>
+              <select class="pf__input" ng-model="vm.club.plane.surcharge_type">
+                <option ng-repeat="x in vm.surcharge_type">{{x}}</option>
+              </select>
+            </div>
+
+            <div class="pf__field" ng-if="vm.club.plane.surcharge_type && vm.club.plane.surcharge_type !== 'none'">
+              <label for="surcharge_fee"><i class="fas fa-coins"></i> Surcharge fee per {{ vm.club.plane.surcharge_type }}</label>
+              <input type="number" class="pf__input" name="surcharge_fee" id="surcharge_fee"
+                     ng-model="vm.club.plane.surcharge_fee" step="0.01" />
+            </div>
+
+            <div class="pf__field">
+              <label for="touch_and_go_fee"><i class="fas fa-plane-departure"></i> Home Touch &amp; Go Fee</label>
+              <input type="number" class="pf__input" name="touch_and_go_fee" id="touch_and_go_fee"
+                     ng-model="vm.club.plane.touch_and_go_fee" step="0.01" />
+            </div>
+
+            <div class="pf__field">
+              <label for="landing_fee"><i class="fas fa-plane-arrival"></i> Home Landing Fee</label>
+              <input type="number" class="pf__input" name="landing_fee" id="landing_fee"
+                     ng-model="vm.club.plane.landing_fee" step="0.01" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-calculator pf__section-icon"></i>
+          <div>
+            <h3>Accounting</h3>
+            <p>Reference used by your accounting export</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="accounting_ref"><i class="fas fa-hashtag"></i> Accounting Ref</label>
+              <input type="text" class="pf__input" name="accounting_ref" id="accounting_ref"
+                     ng-model="vm.club.plane.accounting_ref" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: charges -->
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Solo Rental Requirements
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'requirements'">
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-user-check pf__section-icon"></i>
+          <div>
+            <h3>Solo Rental Requirements</h3>
+            <p>What a pilot must hold before booking this aircraft solo</p>
+          </div>
+        </div>
+
+        <!-- ── Licence ── -->
+        <div class="pf__card pf__req">
+          <h4 class="pf__req-title"><i class="fas fa-id-badge"></i> Licence Required</h4>
+          <div class="pf__req-body">
+            <div class="pf__req-form">
+              <div class="pf__field">
+                <label><i class="fas fa-id-card"></i> Licence</label>
+                <ui-select ng-model="vm.temporary.licence" theme="bootstrap" ng-disabled="disabled"
+                           title="Licence" append-to-body="true">
                   <ui-select-match placeholder="Please select the licence">
                     {{ vm.temporary.licence.abbreviation }}
                   </ui-select-match>
@@ -1148,410 +1391,431 @@
                 </ui-select>
               </div>
 
-
-              <div class="form-group">
-                  <label for="payment_term">Rating</label>
-                  <ui-select ng-model="vm.temporary.rating" theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
-                    <ui-select-match placeholder="Please select the rating">
-                      {{ vm.temporary.rating.abbreviation }}
-                    </ui-select-match>
-                    <ui-select-choices repeat="rating in vm.ratings | propsFilterA: {title: $select.search, abbreviation: $select.search, id: $select.search}">
-                      <div ng-bind-html="rating.abbreviation | highlight: $select.search"></div>
-                      <small ng-bind-html="rating.title | highlight: $select.search"></small>
-                    </ui-select-choices>
-                  </ui-select>
+              <div class="pf__field">
+                <label><i class="fas fa-award"></i> Rating</label>
+                <ui-select ng-model="vm.temporary.rating" theme="bootstrap" ng-disabled="disabled"
+                           title="Rating" append-to-body="true">
+                  <ui-select-match placeholder="Please select the rating">
+                    {{ vm.temporary.rating.abbreviation }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="rating in vm.ratings | propsFilterA: {title: $select.search, abbreviation: $select.search, id: $select.search}">
+                    <div ng-bind-html="rating.abbreviation | highlight: $select.search"></div>
+                    <small ng-bind-html="rating.title | highlight: $select.search"></small>
+                  </ui-select-choices>
+                </ui-select>
               </div>
 
-              <button type="btn btn-primary extra_space_top" ng-click="add_item('licence')">ADD</button>
-
-
+              <button type="button" class="pf__btn pf__btn--primary pf__btn--add" ng-click="add_item('licence')">
+                <i class="fas fa-plus"></i> Add
+              </button>
             </div>
-                     
-            <div class="requirement_right">
-               <p ng-if="vm.club.plane.requirements.licence.length == 0">
-                    Please add a licence requirement
-                </p>
-                <div class="card">
-                  <table>
-                    <tr ng-repeat="licence in vm.club.plane.requirements.licence">
-                      <td>
-                        {{ licence.licence_title }} with {{ licence.rating_title }} 
-                      </td>
-                      <td>
-                        <button ng-click="remove_item('licence',$index)" class="btn-danger require_btn">X</button>
-                      </td>
-                    </tr>
-                  </table>
-                </div>
-             <!--  <div class="require_me" ></div> -->
-            </div>
-          </div>
 
-                   
-          <div class="box">
-            <h4> Medical Required</h4>
-
-            <div class="requirement_left">
-
-              <div class="form-group">
-                  <label for="payment_term">Issuing Authority</label>
-                  <ui-select ng-model="vm.temporary.medical_authority" on-select="select_medical($item, $model)" theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
-
-                    <ui-select-match placeholder="Please select an Issuing Authority">
-                      {{ vm.temporary.medical_authority.abbreviation }}
-                    </ui-select-match>
-                    <ui-select-choices repeat="medical in vm.medical_authorities | propsFilterA: {title: $select.search, abbreviation: $select.search, country: $select.search, id: $select.search}">
-                      <div ng-bind-html="medical.abbreviation | highlight: $select.search"></div>
-                      <small ng-bind-html="medical.title | highlight: $select.search"></small>
-                    </ui-select-choices>
-                  </ui-select>
-              </div>
-
-
-              <div class="form-group">
-                  <label for="payment_term">Component</label>
-                  <ui-select ng-model="vm.temporary.medical_component" on-select="select_medical_type($item, $model)" theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
-                    <ui-select-match placeholder="Please select a Medical Component">
-                      {{ vm.temporary.medical_component.title }}
-                    </ui-select-match>
-                    <ui-select-choices repeat="medical_component in vm.medical_components | propsFilterA: {title: $select.search, id: $select.search}">
-                      <div ng-bind-html="medical_component.abbreviation | highlight: $select.search"></div>
-                      <small ng-bind-html="medical_component.title | highlight: $select.search"></small>
-                    </ui-select-choices>
-                  </ui-select>
-              </div>
-
-              <button type="button" ng-click="add_item('medical')">ADD</button>
-
-            </div>
-            <div class="requirement_right">
-
-              <p ng-if="vm.club.plane.requirements.medical.length == 0">
-                Please add a medical requirement
+            <div class="pf__req-list">
+              <p class="pf__req-empty" ng-if="vm.club.plane.requirements.licence.length == 0">
+                <i class="fas fa-inbox"></i> Please add a licence requirement
               </p>
-                   
-            <!--   <div ng-repeat="medical in vm.club.plane.requirements.medical">
-                  {{ medical.authority_title }} with {{ medical.medical_component_title }} <button ng-click="remove_item('medical',$index)" class="btn-danger">X</button>
-              </div> -->
-              <div class="card">
-                  <table>
-                    <tr ng-repeat="medical in vm.club.plane.requirements.medical">
-                      <td>
-                        {{ medical.authority_title }} with {{ medical.medical_component_title }}
-                      </td>
-                      <td>
-                        <button ng-click="remove_item('medical',$index)" class="btn-danger require_btn">X</button>
-                      </td>
-                    </tr>
-                  </table>
-                </div>
-
-            </div>         
-
-          </div>     
-
-          <div class="box">
-            <h4> Differences Signoff Required</h4>
-
-            <div class="requirement_left">
-
-                <div class="form-group">
-                    <label for="payment_term">Select a Difference</label>
-                    <ui-select ng-model="vm.temporary.difference" on-select="select_rating($item, $model)" theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
-                      <ui-select-match placeholder="Please select the rating">
-                        {{ vm.temporary.difference.title }}
-                      </ui-select-match>
-                      <ui-select-choices repeat="difference in vm.differences | propsFilterA: {title: $select.search, id: $select.search}">
-                        <div ng-bind-html="difference.title | highlight: $select.search"></div>
-                      </ui-select-choices>
-                    </ui-select>
-                </div>
-
-                <button type="button" ng-click="add_item('differences')">ADD</button>
-            </div>
-            <div class="requirement_right">
-
-              <p ng-if="vm.club.plane.requirements.differences.length == 0">
-                    Please add differences requirement
-                </p>
-
-                <!--   <div ng-repeat="difference in vm.club.plane.requirements.differences">
-                          {{ difference.difference_title }} 
-                          <button ng-click="remove_item('differences',$index)" class="btn-danger">X</button>
-                  </div>
- -->
-
-                  <div class="card">
-                    <table>
-                      <tr ng-repeat="difference in vm.club.plane.requirements.differences">
-                        <td>
-                           {{ difference.difference_title }} 
-                        </td>
-                        <td>
-                          <button ng-click="remove_item('differences',$index)" class="btn-danger require_btn">X</button>
-                        </td>
-                      </tr>
-                    </table>
-                  </div>
-
+              <div class="pf__req-item" ng-repeat="licence in vm.club.plane.requirements.licence">
+                <span><i class="fas fa-check-circle"></i> {{ licence.licence_title }} with {{ licence.rating_title }}</span>
+                <button type="button" class="pf__req-remove" ng-click="remove_item('licence',$index)"
+                        uib-tooltip="Remove this requirement">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
             </div>
           </div>
-
-
-          <div class="box">
-            <h4>Minimum Hours Required</h4>
-                <div class="form-group">
-                    <label>Minimum Total Hours</label>
-                    <input type="number" ng-model="vm.club.plane.min_total_hours" placeholder="0" class="form-control inputtext" />
-                 </div>
-                <div class="form-group">
-                    <label>Minimum Hours On Type</label> 
-                    <input type="number" ng-model="vm.club.plane.min_hours_on_type" placeholder="0" class="form-control inputtext" />
-                </div>
-                <div class="form-group">
-                     <label>Minimum Hours Complex</label>
-                     <input type="number" ng-model="vm.club.plane.min_hours_complex" placeholder="0" class="form-control inputtext" />
-                </div>
-          </div>
-
-         <div class="box">
-            <h4> Currency Required</h4>
-                  
-                 <div class="form-group">
-                   <label>Currency on the same</label>
-                   <select class="form-control inputtext" ng-model="vm.club.plane.currency_type">
-                      <option ng-repeat="x in vm.currency_types">{{x}}</option>
-                   </select>
-                 </div>
-                 
-                 <div class="form-group">
-                    <label>Within the previous days</label>
-                    <input type="number" ng-model="vm.club.plane.currency_days" placeholder="0" class="form-control inputtext" />
-                 </div>
-          </div>
-                      
-
-
         </div>
 
-            <div class="club_docs_all">
-                <h2>Aircraft Documents</h2>
-
-               
-              <div flow-init="{target: '/upload_documents.php'}"
-                 flow-files-submitted="$flow.upload()"
-                 flow-file-success="$file.file_return = $message"
-                 flow-complete="processFiles($flow.files)"
-                 flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
-                 >
-              <div class="drop" flow-btn flow-drop ng-class="dropClass">     
-                  Click To Upload 
-                  <br />OR<br /> 
-                  Drag And Drop Your Documents
+        <!-- ── Medical ── -->
+        <div class="pf__card pf__req">
+          <h4 class="pf__req-title"><i class="fas fa-heartbeat"></i> Medical Required</h4>
+          <div class="pf__req-body">
+            <div class="pf__req-form">
+              <div class="pf__field">
+                <label><i class="fas fa-landmark"></i> Issuing Authority</label>
+                <ui-select ng-model="vm.temporary.medical_authority" on-select="select_medical($item, $model)"
+                           theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
+                  <ui-select-match placeholder="Please select an Issuing Authority">
+                    {{ vm.temporary.medical_authority.abbreviation }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="medical in vm.medical_authorities | propsFilterA: {title: $select.search, abbreviation: $select.search, country: $select.search, id: $select.search}">
+                    <div ng-bind-html="medical.abbreviation | highlight: $select.search"></div>
+                    <small ng-bind-html="medical.title | highlight: $select.search"></small>
+                  </ui-select-choices>
+                </ui-select>
               </div>
 
-              <br/>
-
-              <div>
-
-
-                  <div ng-repeat="file in vm.club.plane.plane_documents" class="gallery-box plane_documents">
-                      <span class="title">
-                          <input type="text" ng-change="update_this_file(file)" ng-model="file.title" />
-                      </span>
-                      <div class="thumbnail">
-                        <img src="{{get_icon2(file.document)}}" />
-                      </div>
-                      <div class="btn-group center">
-                        <a class="btn btn-xs btn-danger" ng-click="remove_real_file(file);">
-                          Delete
-                        </a>
-                      </div>
-                  </div>
-
-
-                <div ng-repeat="file in $flow.files" class="gallery-box">
-                  <span class="title">
-                      <input type="text" set-name="{{ file.save_name = (file.save_name) ? file.save_name : set_title(file.file)  }}" ng-model="file.file.save_name" ng-change="change_file_name(file.file)" value="" />
-                  </span>
-                  <div class="thumbnail" ng-show="$flow.files.length">
-                        <img src="{{get_icon(file)}}" />
-                  </div>
-                  <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                    <div class="progress-bar" role="progressbar"
-                         aria-valuenow="{{file.progress() * 100}}"
-                         aria-valuemin="0"
-                         aria-valuemax="100"
-                         ng-style="{width: (file.progress() * 100) + '%'}">
-                      <span class="sr-only">{{file.progress()}}% Complete</span>
-                    </div>
-                  </div>
-                  <div class="btn-group center">
-                    <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                      Delete
-                    </a>
-                  </div>
-                </div>
-
-
-                <div class="clear"></div>
+              <div class="pf__field">
+                <label><i class="fas fa-notes-medical"></i> Component</label>
+                <ui-select ng-model="vm.temporary.medical_component" on-select="select_medical_type($item, $model)"
+                           theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
+                  <ui-select-match placeholder="Please select a Medical Component">
+                    {{ vm.temporary.medical_component.title }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="medical_component in vm.medical_components | propsFilterA: {title: $select.search, id: $select.search}">
+                    <div ng-bind-html="medical_component.abbreviation | highlight: $select.search"></div>
+                    <small ng-bind-html="medical_component.title | highlight: $select.search"></small>
+                  </ui-select-choices>
+                </ui-select>
               </div>
 
-
+              <button type="button" class="pf__btn pf__btn--primary pf__btn--add" ng-click="add_item('medical')">
+                <i class="fas fa-plus"></i> Add
+              </button>
             </div>
-                     
-            <div ng-repeat="document in vm.club.plane.documents">
-                          {{ document.title }} <button ng-click="open_document($index)" class="btn-success">OPEN</button><button ng-click="remove_document($index)" class="btn-danger">X</button>
+
+            <div class="pf__req-list">
+              <p class="pf__req-empty" ng-if="vm.club.plane.requirements.medical.length == 0">
+                <i class="fas fa-inbox"></i> Please add a medical requirement
+              </p>
+              <div class="pf__req-item" ng-repeat="medical in vm.club.plane.requirements.medical">
+                <span><i class="fas fa-check-circle"></i> {{ medical.authority_title }} with {{ medical.medical_component_title }}</span>
+                <button type="button" class="pf__req-remove" ng-click="remove_item('medical',$index)"
+                        uib-tooltip="Remove this requirement">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
             </div>
-                      
-
-
-
-    
-
-
           </div>
+        </div>
 
-          <div class="club_docs_all">
-            <h2>Booking Page Customisation</h2>
-
-              <div class="form-group">
-                <label for="plane_class">Aircraft Colour</label>
-                <input type="color" class="form-control inputtext" name="colour" id="colour" ng-model="vm.club.plane.colour" />
-                {{ vm.club.plane.colour }}
-               <!--  <select class="form-control inputtext" ng-model="vm.club.plane.charge_type">
-                  <option ng-repeat="x in vm.charge_type">{{x}}</option>
-                </select> -->
+        <!-- ── Differences ── -->
+        <div class="pf__card pf__req">
+          <h4 class="pf__req-title"><i class="fas fa-sliders-h"></i> Differences Signoff Required</h4>
+          <div class="pf__req-body">
+            <div class="pf__req-form">
+              <div class="pf__field">
+                <label><i class="fas fa-random"></i> Select a Difference</label>
+                <ui-select ng-model="vm.temporary.difference" on-select="select_rating($item, $model)"
+                           theme="bootstrap" ng-disabled="disabled" title="Rating" append-to-body="true">
+                  <ui-select-match placeholder="Please select the rating">
+                    {{ vm.temporary.difference.title }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="difference in vm.differences | propsFilterA: {title: $select.search, id: $select.search}">
+                    <div ng-bind-html="difference.title | highlight: $select.search"></div>
+                  </ui-select-choices>
+                </ui-select>
               </div>
 
-              <div class="form-group">
-                <label for="plane_class">Booking Background Colour</label>
-                <input type="color" class="form-control inputtext" name="bg_colour" id="bg_colour" ng-model="vm.club.plane.bg_colour" />
-                {{ vm.club.plane.bg_colour }}
-               <!--  <select class="form-control inputtext" ng-model="vm.club.plane.charge_type">
-                  <option ng-repeat="x in vm.charge_type">{{x}}</option>
-                </select> -->
-              </div>
-
-
-              
-
-              
-
+              <button type="button" class="pf__btn pf__btn--primary pf__btn--add" ng-click="add_item('differences')">
+                <i class="fas fa-plus"></i> Add
+              </button>
             </div>
 
-
-            <div class="club_docs_all">
-              <h2>Accounting</h2>
-
-              <div class="form-group">
-                <label for="plane_class">Accounting Ref</label>
-                <input type="text" class="form-control inputtext" name="accounting_ref" id="accounting_ref" ng-model="vm.club.plane.accounting_ref" />
-              </div>
-
-            </div>
-
-
-            <!-- ── Aircraft Checks History (edit mode only) ── -->
-            <div class="club_docs_all" ng-if="vm.editing && vm.club.plane.requires_check_a">
-              <h2>Aircraft Checks History</h2>
-
-              <div ng-if="vm.aircraft_checks_loading" class="text-center">
-                <i class="fa fa-spinner fa-spin"></i> Loading checks...
-              </div>
-
-              <div ng-if="!vm.aircraft_checks_loading" class="snazzy-reveal">
-
-                <!-- Filter by date -->
-                <div class="form-group" style="max-width: 300px;">
-                  <label for="checks_filter_date">Filter by Date</label>
-                  <input type="date" class="form-control inputtext" id="checks_filter_date" ng-model="vm.checks_filter_date" ng-change="vm.filterChecksByDate()" />
-                </div>
-
-                <div class="no_defects" ng-if="!vm.aircraft_checks || vm.aircraft_checks.length == 0">
-                  No checks have been recorded for this aircraft yet.
-                </div>
-
-                <div class="card" ng-if="vm.aircraft_checks && vm.aircraft_checks.length > 0">
-                  <table class="table responsive_table">
-                    <thead>
-                      <tr>
-                        <th>Date / Time</th>
-                        <th>Check Type</th>
-                        <th>Performed By</th>
-                        <th class="hide_on_mobile">Fuel (gal)</th>
-                        <th class="hide_on_mobile">Oil (qt)</th>
-                        <th class="hide_on_mobile">Notes</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="check in vm.aircraft_checks">
-                        <td data-label="Date/Time">{{ check.checked_at | myDateTime }}</td>
-                        <td data-label="Type">
-                          <span class="badge" ng-class="{'badge-success': check.check_type == 'check_a', 'badge-info': check.check_type == 'transit_check', 'badge-default': check.check_type != 'check_a' && check.check_type != 'transit_check'}">
-                            {{ check.check_type_name || check.check_type }}
-                          </span>
-                        </td>
-                        <td data-label="Performed By">{{ check.first_name }} {{ check.last_name }}</td>
-                        <td data-label="Fuel" class="hide_on_mobile">{{ check.fuel_us_gallons }}</td>
-                        <td data-label="Oil" class="hide_on_mobile">{{ check.oil_quarts }}</td>
-                        <td data-label="Notes" class="hide_on_mobile">{{ check.notes | limitTo:40 }}{{ check.notes.length > 40 ? '...' : '' }}</td>
-                        <td data-label="Actions">
-                          <button class="btn btn-xs btn-info" ng-click="vm.viewCheckAudit(check)"><i class="fa fa-history"></i> Audit</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Audit Trail Modal/Inline -->
-                <div class="card" ng-if="vm.show_audit_trail && vm.audit_log && vm.audit_log.length > 0">
-                  <h4>Audit Trail <button class="btn btn-xs btn-danger" ng-click="vm.show_audit_trail = false">Close</button></h4>
-                  <table class="table responsive_table">
-                    <thead>
-                      <tr>
-                        <th>Date/Time</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th class="hide_on_mobile">Field</th>
-                        <th class="hide_on_mobile">Old Value</th>
-                        <th class="hide_on_mobile">New Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr ng-repeat="entry in vm.audit_log">
-                        <td data-label="Date/Time">{{ entry.created_at | myDateTime }}</td>
-                        <td data-label="User">{{ entry.first_name }} {{ entry.last_name }}</td>
-                        <td data-label="Action">{{ entry.action }}</td>
-                        <td data-label="Field" class="hide_on_mobile">{{ entry.field_name || '—' }}</td>
-                        <td data-label="Old" class="hide_on_mobile">{{ entry.old_value || '—' }}</td>
-                        <td data-label="New" class="hide_on_mobile">{{ entry.new_value || '—' }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
+            <div class="pf__req-list">
+              <p class="pf__req-empty" ng-if="vm.club.plane.requirements.differences.length == 0">
+                <i class="fas fa-inbox"></i> Please add a differences requirement
+              </p>
+              <div class="pf__req-item" ng-repeat="difference in vm.club.plane.requirements.differences">
+                <span><i class="fas fa-check-circle"></i> {{ difference.difference_title }}</span>
+                <button type="button" class="pf__req-remove" ng-click="remove_item('differences',$index)"
+                        uib-tooltip="Remove this requirement">
+                  <i class="fas fa-times"></i>
+                </button>
               </div>
             </div>
-            <!-- ── End Aircraft Checks History ── -->
-
-
-          <div class="btns_bottom">
-            <button class="btn btn-info" ng-click="back()">Back</button>
-            <button class="btn btn-danger" ng-click="save()">Save</button>
           </div>
+        </div>
+
+        <!-- ── Minimum hours + currency ── -->
+        <div class="pf__card">
+          <h4 class="pf__req-title"><i class="fas fa-stopwatch"></i> Minimum Hours Required</h4>
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label><i class="fas fa-clock"></i> Minimum Total Hours</label>
+              <input type="number" ng-model="vm.club.plane.min_total_hours" placeholder="0" class="pf__input" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-plane"></i> Minimum Hours On Type</label>
+              <input type="number" ng-model="vm.club.plane.min_hours_on_type" placeholder="0" class="pf__input" />
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-cogs"></i> Minimum Hours Complex</label>
+              <input type="number" ng-model="vm.club.plane.min_hours_complex" placeholder="0" class="pf__input" />
+            </div>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <h4 class="pf__req-title"><i class="fas fa-calendar-check"></i> Currency Required</h4>
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label><i class="fas fa-layer-group"></i> Currency on the same</label>
+              <select class="pf__input" ng-model="vm.club.plane.currency_type">
+                <option ng-repeat="x in vm.currency_types">{{x}}</option>
+              </select>
+            </div>
+            <div class="pf__field">
+              <label><i class="fas fa-calendar-day"></i> Within the previous days</label>
+              <input type="number" ng-model="vm.club.plane.currency_days" placeholder="0" class="pf__input" />
+            </div>
+          </div>
+        </div>
 
       </div>
+    </div><!-- /tab: requirements -->
 
-   
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Documents
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'documents'">
 
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-folder-open pf__section-icon"></i>
+          <div>
+            <h3>Aircraft Documents</h3>
+            <p>Manuals, weight &amp; balance, and anything else worth keeping</p>
+          </div>
+        </div>
 
+        <div class="pf__card">
+          <div flow-init="{target: '/upload_documents.php'}"
+               flow-files-submitted="$flow.upload()"
+               flow-file-success="$file.file_return = $message"
+               flow-complete="processFiles($flow.files)"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
+            <div class="drop pf__drop" flow-btn flow-drop ng-class="dropClass">
+              <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
+              <span class="pf__drop-title">Click to upload</span>
+              <span class="pf__drop-sub">or drag &amp; drop your documents</span>
+            </div>
 
-<!--       {{ vm.club.plane | json }}
- -->       
+            <div class="pf__gallery">
+              <div ng-repeat="file in vm.club.plane.plane_documents" class="gallery-box plane_documents">
+                <span class="title">
+                  <input type="text" ng-change="update_this_file(file)" ng-model="file.title" />
+                </span>
+                <div class="thumbnail">
+                  <img src="{{get_icon2(file.document)}}" />
+                </div>
+                <div class="btn-group center">
+                  <a class="btn btn-xs btn-danger" ng-click="remove_real_file(file);">
+                    Delete
+                  </a>
+                </div>
+              </div>
 
+              <div ng-repeat="file in $flow.files" class="gallery-box">
+                <span class="title">
+                  <input type="text" set-name="{{ file.save_name = (file.save_name) ? file.save_name : set_title(file.file)  }}"
+                         ng-model="file.file.save_name" ng-change="change_file_name(file.file)" value="" />
+                </span>
+                <div class="thumbnail" ng-show="$flow.files.length">
+                  <img src="{{get_icon(file)}}" />
+                </div>
+                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
+                  <div class="progress-bar" role="progressbar"
+                       aria-valuenow="{{file.progress() * 100}}"
+                       aria-valuemin="0"
+                       aria-valuemax="100"
+                       ng-style="{width: (file.progress() * 100) + '%'}">
+                    <span class="sr-only">{{file.progress()}}% Complete</span>
+                  </div>
+                </div>
+                <div class="btn-group center">
+                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
+                    Delete
+                  </a>
+                </div>
+              </div>
 
+              <div class="clear"></div>
+            </div>
+          </div>
 
-      </form>      <!-- }
-      } -->
+          <div class="pf__doc-list" ng-if="vm.club.plane.documents.length > 0">
+            <div class="pf__doc-row" ng-repeat="document in vm.club.plane.documents">
+              <span class="pf__doc-name"><i class="fas fa-file-alt"></i> {{ document.title }}</span>
+              <span class="pf__doc-actions">
+                <button type="button" class="pf__btn pf__btn--sm pf__btn--outline" ng-click="open_document($index)">
+                  <i class="fas fa-external-link-alt"></i> Open
+                </button>
+                <button type="button" class="pf__req-remove" ng-click="remove_document($index)"
+                        uib-tooltip="Remove this document">
+                  <i class="fas fa-times"></i>
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: documents -->
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Booking page customisation
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'booking'">
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-palette pf__section-icon"></i>
+          <div>
+            <h3>Booking Page Customisation</h3>
+            <p>How this aircraft appears on the booking calendar</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div class="pf__grid">
+            <div class="pf__field">
+              <label for="colour"><i class="fas fa-font"></i> Aircraft Colour</label>
+              <div class="pf__colour">
+                <input type="color" class="pf__colour-input" name="colour" id="colour"
+                       ng-model="vm.club.plane.colour" />
+                <span class="pf__colour-value">{{ vm.club.plane.colour }}</span>
+              </div>
+            </div>
+
+            <div class="pf__field">
+              <label for="bg_colour"><i class="fas fa-fill-drip"></i> Booking Background Colour</label>
+              <div class="pf__colour">
+                <input type="color" class="pf__colour-input" name="bg_colour" id="bg_colour"
+                       ng-model="vm.club.plane.bg_colour" />
+                <span class="pf__colour-value">{{ vm.club.plane.bg_colour }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live preview of the booking chip -->
+          <div class="pf__preview">
+            <span class="pf__preview-label">Preview</span>
+            <div class="pf__preview-chip"
+                 ng-style="{'background': vm.club.plane.bg_colour, 'color': vm.club.plane.colour}">
+              <i class="fas fa-plane"></i>
+              {{ vm.club.plane.registration || 'G-ABCD' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: booking -->
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB: Aircraft Checks History (edit mode, Check A only)
+         ══════════════════════════════════════════════════════ -->
+    <div class="pf__pane" ng-show="vm.tab === 'checks'" ng-if="vm.editing && vm.club.plane.requires_check_a">
+
+      <div class="pf__section">
+        <div class="pf__section-head">
+          <i class="fas fa-tasks pf__section-icon"></i>
+          <div>
+            <h3>Aircraft Checks History</h3>
+            <p>Check A and transit checks recorded against this aircraft</p>
+          </div>
+        </div>
+
+        <div class="pf__card">
+          <div ng-if="vm.aircraft_checks_loading" class="pf__loading">
+            <i class="fa fa-spinner fa-spin"></i> Loading checks…
+          </div>
+
+          <div ng-if="!vm.aircraft_checks_loading" class="snazzy-reveal">
+
+            <div class="pf__field pf__field--filter">
+              <label for="checks_filter_date"><i class="fas fa-filter"></i> Filter by Date</label>
+              <input type="date" class="pf__input" id="checks_filter_date"
+                     ng-model="vm.checks_filter_date" ng-change="vm.filterChecksByDate()" />
+            </div>
+
+            <div class="pf__empty" ng-if="!vm.aircraft_checks || vm.aircraft_checks.length == 0">
+              <i class="fas fa-clipboard pf__empty-icon"></i>
+              <p>No checks have been recorded for this aircraft yet.</p>
+            </div>
+
+            <div class="pf__table-wrap" ng-if="vm.aircraft_checks && vm.aircraft_checks.length > 0">
+              <table class="pf__table">
+                <thead>
+                  <tr>
+                    <th>Date / Time</th>
+                    <th>Check Type</th>
+                    <th>Performed By</th>
+                    <th class="pf__hide-mobile">Fuel (gal)</th>
+                    <th class="pf__hide-mobile">Oil (qt)</th>
+                    <th class="pf__hide-mobile">Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr ng-repeat="check in vm.aircraft_checks">
+                    <td data-label="Date/Time">{{ check.checked_at | myDateTime }}</td>
+                    <td data-label="Type">
+                      <span class="pf__pill"
+                            ng-class="{'pf__pill--ok': check.check_type == 'check_a', 'pf__pill--info': check.check_type == 'transit_check'}">
+                        {{ check.check_type_name || check.check_type }}
+                      </span>
+                    </td>
+                    <td data-label="Performed By">{{ check.first_name }} {{ check.last_name }}</td>
+                    <td data-label="Fuel" class="pf__hide-mobile">{{ check.fuel_us_gallons }}</td>
+                    <td data-label="Oil" class="pf__hide-mobile">{{ check.oil_quarts }}</td>
+                    <td data-label="Notes" class="pf__hide-mobile">{{ check.notes | limitTo:40 }}{{ check.notes.length > 40 ? '...' : '' }}</td>
+                    <td data-label="Actions">
+                      <button type="button" class="pf__btn pf__btn--sm pf__btn--outline" ng-click="vm.viewCheckAudit(check)">
+                        <i class="fa fa-history"></i> Audit
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Audit trail -->
+            <div class="pf__audit" ng-if="vm.show_audit_trail && vm.audit_log && vm.audit_log.length > 0">
+              <h4 class="pf__audit-title">
+                <span><i class="fas fa-history"></i> Audit Trail</span>
+                <button type="button" class="pf__req-remove" ng-click="vm.show_audit_trail = false"
+                        uib-tooltip="Close the audit trail">
+                  <i class="fas fa-times"></i>
+                </button>
+              </h4>
+              <div class="pf__table-wrap">
+                <table class="pf__table">
+                  <thead>
+                    <tr>
+                      <th>Date/Time</th>
+                      <th>User</th>
+                      <th>Action</th>
+                      <th class="pf__hide-mobile">Field</th>
+                      <th class="pf__hide-mobile">Old Value</th>
+                      <th class="pf__hide-mobile">New Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr ng-repeat="entry in vm.audit_log">
+                      <td data-label="Date/Time">{{ entry.created_at | myDateTime }}</td>
+                      <td data-label="User">{{ entry.first_name }} {{ entry.last_name }}</td>
+                      <td data-label="Action">{{ entry.action }}</td>
+                      <td data-label="Field" class="pf__hide-mobile">{{ entry.field_name || '—' }}</td>
+                      <td data-label="Old" class="pf__hide-mobile">{{ entry.old_value || '—' }}</td>
+                      <td data-label="New" class="pf__hide-mobile">{{ entry.new_value || '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab: checks -->
+
+  </form>
+
+  <!-- ── Sticky save bar ── -->
+  <div class="pf__savebar">
+    <div class="pf__savebar-inner">
+      <button type="button" class="pf__btn pf__btn--outline" ng-click="back()">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      <span class="pf__savebar-note" ng-if="!vm.saving">Changes are saved across every tab at once</span>
+      <span class="pf__savebar-note pf__savebar-note--saving" ng-if="vm.saving">Saving your changes, please wait…</span>
+      <button type="button" class="pf__btn pf__btn--primary" ng-click="save()" ng-disabled="vm.saving" ng-class="{'pf__btn--saving': vm.saving}">
+        <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+        <span ng-if="!vm.saving">Save Aircraft</span>
+        <span ng-if="vm.saving">Saving…</span>
+      </button>
+    </div>
+  </div>
+
+</div>

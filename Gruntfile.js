@@ -118,6 +118,7 @@ module.exports = function (grunt) {
                     'css/accounting-export.css',
                     'css/fox-tracker.css',
                     'css/tracker-plane.css',
+                    'css/plane-form.css',
                     'css/booking-audit-trail.css',
                     'css/logbook-hours-correction.css',
                     'css/logbook-export.css',
@@ -151,6 +152,7 @@ module.exports = function (grunt) {
                     'css/default-courses.css',
                     // After trackers.css: overrides .trk-tab for the manage_club hub tab bars.
                     'css/manage-club-hubs.css',
+                    'css/busy-guard.css',
                     'libs/css/scheduler.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

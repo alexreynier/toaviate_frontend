@@ -1,7 +1,7 @@
 app.controller('RemindersController', RemindersController);
 
-    RemindersController.$inject = ['RemindersService', '$rootScope', '$scope', '$timeout', 'ToastService'];
-    function RemindersController(RemindersService, $rootScope, $scope, $timeout, ToastService) {
+    RemindersController.$inject = ['RemindersService', 'MemberService', 'InstructorService', '$rootScope', '$scope', '$timeout', '$q', 'ToastService'];
+    function RemindersController(RemindersService, MemberService, InstructorService, $rootScope, $scope, $timeout, $q, ToastService) {
 
         // Account Settings → Reminders: the user's own expiry-reminder
         // emails (medical, licence, rating, membership, card, proof of ID,
@@ -22,6 +22,15 @@ app.controller('RemindersController', RemindersController);
         vm.historyLoading = false;
         vm.history = null;
 
+        // Booking reminders ("evening before each booking") are a separate
+        // system from the expiry digest above: one mute flag per club
+        // MEMBERSHIP (mute_booking_reminders), saved via the same two
+        // routes the membership edit page uses.
+        vm.bookingLoading = true;
+        vm.bookingMemberships = [];
+        vm.bookingSaving = {};     // 'membershipId:prefKey' → true while saving
+        vm.bookingSaved = {};      // membership id → true briefly after a save
+
         vm.typeIcon = typeIcon;
         vm.typeHint = typeHint;
         vm.toggleType = toggleType;
@@ -30,8 +39,10 @@ app.controller('RemindersController', RemindersController);
         vm.resetToDefault = resetToDefault;
         vm.toggleHistory = toggleHistory;
         vm.historyLabel = historyLabel;
+        vm.toggleBookingReminder = toggleBookingReminder;
 
         activate();
+        loadBookingReminders();
 
         function activate() {
             RemindersService.GetPreferences().then(function (data) {
@@ -125,6 +136,128 @@ app.controller('RemindersController', RemindersController);
         function flashSaved(type) {
             vm.savedFlash[type] = true;
             $timeout(function () { vm.savedFlash[type] = false; }, 1600);
+        }
+
+        // ── Booking emails (per club membership) ──
+        // Mirrors the Email Preferences block on the membership edit page:
+        // every member gets "Booking reminders"; instructors also get
+        // "Booking notifications" and "Daily schedule summary". All three
+        // live on the members row (string "0"/"1" flags — compare loosely).
+
+        var BOOKING_PREFS = [
+            { key: 'reminders',     field: 'mute_booking_reminders',   inverted: true,  instructorOnly: false,
+              icon: 'fa-calendar-check', label: 'Booking reminders',      desc: 'An email the evening before each upcoming booking.' },
+            { key: 'notifications', field: 'mute_booking_emails',      inverted: true,  instructorOnly: true,
+              icon: 'fa-envelope',       label: 'Booking notifications',  desc: 'An email each time a student books a lesson with you.' },
+            { key: 'summary',       field: 'instructor_daily_summary', inverted: false, instructorOnly: true,
+              icon: 'fa-list-alt',       label: 'Daily schedule summary', desc: 'One combined email listing all your bookings for tomorrow.' }
+        ];
+
+        function loadBookingReminders() {
+            MemberService.GetUserMemberships(vm.user.id).then(function (data) {
+                if (!data || !data.success || !data.memberships) {
+                    vm.bookingLoading = false;
+                    return; // section simply stays empty — the expiry cards still work
+                }
+                var rows = [];
+                for (var i = 0; i < data.memberships.length; i++) {
+                    if (data.memberships[i].membership_id > 0) { rows.push(data.memberships[i]); }
+                }
+                // The list endpoint may not carry the email-preference flags
+                // (see FRONTEND_REMINDERS_GUIDE.md §3) — fetch the full
+                // membership for any row that lacks them. NB: never take
+                // `id` from for_user; it is overwritten with the plan id.
+                var fills = [];
+                for (var j = 0; j < rows.length; j++) {
+                    if (typeof rows[j].mute_booking_reminders === 'undefined') {
+                        fills.push(fillMembership(rows[j]));
+                    }
+                }
+                $q.all(fills).then(function () {
+                    for (var k = 0; k < rows.length; k++) {
+                        rows[k]._prefs = prefsFor(rows[k]);
+                    }
+                    vm.bookingMemberships = rows;
+                    vm.bookingLoading = false;
+                });
+            });
+        }
+
+        function fillMembership(row) {
+            return MemberService.GetOneForUser(row.id).then(function (data) {
+                if (data && data.success && data.membership) {
+                    row.instructor               = data.membership.instructor;
+                    row.mute_booking_reminders   = data.membership.mute_booking_reminders;
+                    row.mute_booking_emails      = data.membership.mute_booking_emails;
+                    row.instructor_daily_summary = data.membership.instructor_daily_summary;
+                } else {
+                    row._loadFailed = true;
+                }
+            });
+        }
+
+        // Build the per-row toggle list from the membership's flags.
+        function prefsFor(m) {
+            var out = [];
+            for (var i = 0; i < BOOKING_PREFS.length; i++) {
+                var def = BOOKING_PREFS[i];
+                if (def.instructorOnly && m.instructor != 1) { continue; }
+                out.push({
+                    key: def.key, icon: def.icon, label: def.label, desc: def.desc,
+                    on: isOn(m, def)
+                });
+            }
+            return out;
+        }
+
+        function isOn(m, def) {
+            return def.inverted ? (m[def.field] == 0) : (m[def.field] == 1);
+        }
+
+        function defFor(key) {
+            for (var i = 0; i < BOOKING_PREFS.length; i++) {
+                if (BOOKING_PREFS[i].key === key) { return BOOKING_PREFS[i]; }
+            }
+            return null;
+        }
+
+        function toggleBookingReminder(m, pref) {
+            var def = defFor(pref.key);
+            if (!def) { return; }
+            var wantOn = !pref.on;
+            var newValue = def.inverted ? (wantOn ? 0 : 1) : (wantOn ? 1 : 0);
+            pref.on = wantOn;                           // optimistic — reverted below on failure
+            vm.bookingSaving[m.id + ':' + pref.key] = true;
+
+            var request;
+            if (m.instructor == 1) {
+                // instructor_update writes all three flags at once —
+                // echo the current values of the other two so they aren't reset.
+                var payload = {
+                    id: m.id,
+                    mute_booking_emails:      m.mute_booking_emails,
+                    mute_booking_reminders:   m.mute_booking_reminders,
+                    instructor_daily_summary: m.instructor_daily_summary
+                };
+                payload[def.field] = newValue;
+                request = InstructorService.UpdateInstructor(payload, m.club_id);
+            } else {
+                var obj = {};
+                obj[def.field] = newValue;
+                request = MemberService.UpdateOneByUser(m.id, obj);
+            }
+
+            request.then(function (data) {
+                vm.bookingSaving[m.id + ':' + pref.key] = false;
+                if (data && data.success) {
+                    m[def.field] = newValue;
+                    vm.bookingSaved[m.id] = true;
+                    $timeout(function () { vm.bookingSaved[m.id] = false; }, 1600);
+                } else {
+                    pref.on = isOn(m, def); // revert
+                    ToastService.error('Not Saved', (data && data.message) || 'Could not update your email preference — please try again.');
+                }
+            });
         }
 
         // ── History ──

@@ -166,6 +166,9 @@
         vm.clearFieldError = function(event) { ToastService.clearFieldError(event); };
 
         $scope.save = function(){
+            // Re-entry guard: the card path tokenises with Stripe before the
+            // create request, so a double-tap would otherwise charge twice.
+            if (vm.saving) { return; }
             var checks = [
                 { ok: vm.club.item.experience && vm.club.item.experience.id, field: 'voucher_experience', label: 'Experience' },
                 { ok: vm.club.item.first_name, field: 'first_name', label: 'First Name' },
@@ -234,16 +237,22 @@
                     address_zip: document.getElementById('address-postcode').value,
                   };
 
+                  vm.saving = true;
                   stripe.createToken(card, options).then(function(result) {
                     if (result.error) {
                       // Inform the user if there was an error
                       var errorElement = document.getElementById('card-errors');
                       errorElement.textContent = result.error.message;
+                      $scope.$evalAsync(function () { vm.saving = false; });
                     } else {
                       // Send the token to your server
                       //stripeTokenHandler(result.token);
                       ////console.log("RESULT", result);
 
+                      if(!result.token || !result.token.id){
+                          $scope.$evalAsync(function () { vm.saving = false; });
+                          return;
+                      }
                       if(result.token.id){
                       ////console.log("STUFF", result.token.id);
 
@@ -274,6 +283,12 @@
                         .then(function(data){
                             //console.log(data);
                             //$state.reload();
+                            if (data && data.success === false) {
+                                vm.saving = false;
+                                ToastService.error('Voucher Not Issued', (data.message && data.message.message) || data.message || 'The voucher could not be created. Please try again.');
+                                return;
+                            }
+                            ToastService.success('Voucher Issued', vm.club.item.code || '');
                             $state.go('dashboard.manage_club.vouchers', {}, {reload: true});
 
                         });
@@ -303,10 +318,17 @@
 
                         //return false;
 
+                vm.saving = true;
                 VoucherService.Create(vm.club.item)
                     .then(function(data){
                         //console.log(data);
                         //$state.reload();
+                        if (data && data.success === false) {
+                            vm.saving = false;
+                            ToastService.error('Voucher Not Issued', (data.message && data.message.message) || data.message || 'The voucher could not be created. Please try again.');
+                            return;
+                        }
+                        ToastService.success('Voucher Issued', vm.club.item.code || '');
                         $state.go('dashboard.manage_club.vouchers', {}, {reload: true});
 
                     });

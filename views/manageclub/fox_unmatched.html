@@ -27,6 +27,7 @@
 
     <!-- ── Tabs ── -->
     <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.tracker_planes"><i class="fas fa-plane"></i> Fleet</a>
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
       <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
@@ -81,6 +82,27 @@
           </span>
         </div>
 
+        <!-- ── Select-all + bulk action bar ──
+             Only ever covers rows that are both visible and matchable, so it
+             can't reach through the triage filter. -->
+        <div class="fxu__bulkbar" ng-if="vm.selectableVisible().length > 0">
+          <label class="fxu__bulk-all" uib-tooltip="Selects every visible flight that has a suggested aircraft">
+            <input type="checkbox" ng-checked="vm.allVisibleSelected()" ng-click="vm.toggleSelectAll()">
+            <span>Select all {{ vm.selectableVisible().length }} matchable</span>
+          </label>
+          <span class="fxu__bulk-spacer"></span>
+          <span class="fxu__bulk-count" ng-if="vm.selectedCount() > 0">
+            <strong>{{ vm.selectedCount() }}</strong> selected
+          </span>
+          <a class="fxu__bulk-clear" ng-if="vm.selectedCount() > 0" ng-click="vm.clearSelection()">
+            <i class="fas fa-times"></i> clear
+          </a>
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-if="vm.selectedCount() > 0"
+                  ng-click="vm.openBulk()">
+            <i class="fas fa-link"></i> Match {{ vm.selectedCount() }} flight{{ vm.selectedCount() === 1 ? '' : 's' }}
+          </button>
+        </div>
+
         <div class="snazzy-page__toolbar">
           <div class="snazzy-page__meta">
             <span class="snazzy-page__count-badge">{{ vm.total }}</span> unmatched flight{{ vm.total === 1 ? '' : 's' }}
@@ -108,7 +130,17 @@
           <!-- ng-show, not ng-if: ng-if is inert alongside ng-repeat on Angular 1.4 -->
           <div class="fxu__row" ng-repeat="entry in vm.entries" id="fxu-entry-{{ entry.id }}"
                ng-show="vm.entryVisible(entry)"
-               ng-class="{'fxu__row--matched': entry._matched, 'fxu__row--spot': entry._spot}">
+               ng-class="{'fxu__row--matched': entry._matched, 'fxu__row--spot': entry._spot, 'fxu__row--picked': vm.isSelected(entry)}">
+
+            <!-- Select box — present but disabled on rows bulk can't handle, so
+                 the column stays aligned and the reason is discoverable. -->
+            <label class="fxu__pick" ng-class="{'fxu__pick--off': !vm.selectable(entry)}"
+                   uib-tooltip="{{ vm.selectable(entry) ? 'Select for bulk matching' : (entry.suggested_plane_id ? 'Matching this is discouraged — use the Match button to review it' : 'No suggested aircraft — match this one individually') }}">
+              <input type="checkbox" ng-checked="vm.isSelected(entry)"
+                     ng-disabled="!vm.selectable(entry)"
+                     ng-click="vm.toggleSelect(entry)">
+            </label>
+
             <div class="fxu__row-main">
               <div class="fxu__row-top">
                 <span class="fxu__entry-id fxh__mono" ng-click="vm.copy('ENTRY #' + entry.id)" uib-tooltip="Matches the ENTRY ID in the admin emails — tap to copy">ENTRY #{{ entry.id }}</span>
@@ -182,6 +214,11 @@
                 </a>
               </div>
 
+              <!-- Refused during a bulk run — the row stays put and says why. -->
+              <div class="fxu__bulk-error" ng-show="entry._bulk_error">
+                <i class="fas fa-exclamation-circle"></i> {{ entry._bulk_error }}
+              </div>
+
               <div class="fxu__row-sub">
                 <span class="fxh__mono fxu__device" ng-click="vm.copy(entry.imei)" uib-tooltip="IMEI — tap to copy">{{ entry.imei }}</span>
                 <span class="fxh__mono fxu__device" ng-click="vm.copy(entry.ccid)" uib-tooltip="CCID — tap to copy">{{ entry.ccid }}</span>
@@ -209,6 +246,114 @@
 
       </div>
     </div><!-- body -->
+
+    <!-- ══ Bulk match dialog ══
+         Suggestion-only: every selected flight goes to its OWN suggested
+         aircraft. No single-aircraft override — see the controller note. -->
+    <div class="fox-tracker__overlay" ng-if="vm.bulk" ng-click="vm.closeBulk()">
+      <div class="fox-tracker__confirm-dialog fxu__match-dialog" ng-click="$event.stopPropagation()">
+
+        <!-- ── Stage 1: confirm ── -->
+        <div ng-if="vm.bulk.stage === 'confirm'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-link"></i></div>
+            <div class="fox-tracker__confirm-title">
+              Match {{ vm.bulk.queue.length }} flight{{ vm.bulk.queue.length === 1 ? '' : 's' }}
+            </div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <p class="fxu__bulk-lede">
+              Each flight is matched to its own suggested aircraft, creating a tech-log sheet.
+            </p>
+
+            <div class="fxu__bulk-aircraft">
+              <div class="fxu__bulk-aircraft-row" ng-repeat="ac in vm.bulk.aircraft">
+                <span class="fxu__suggestion"><i class="fas fa-plane"></i> {{ ac.registration }}</span>
+                <span class="fxu__bulk-aircraft-count">{{ ac.count }} flight{{ ac.count === 1 ? '' : 's' }}</span>
+              </div>
+            </div>
+
+            <div class="fxu__bulk-note">
+              <i class="fas fa-info-circle"></i>
+              Flights the backend refuses (already logged, corrupt times) stay in the
+              list with the reason shown on the row.
+            </div>
+          </div>
+          <div class="fox-tracker__confirm-footer">
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeBulk()">Cancel</button>
+            <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.runBulk()">
+              <i class="fas fa-link"></i> Match {{ vm.bulk.queue.length }} flight{{ vm.bulk.queue.length === 1 ? '' : 's' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Stage 2: running ── -->
+        <div ng-if="vm.bulk.stage === 'running'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon fox-tracker__confirm-icon--warn"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="fox-tracker__confirm-title">Matching flights…</div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <div class="fxu__bulk-progress">
+              <div class="fxu__bulk-progress-bar" ng-style="{width: vm.bulkProgressPct() + '%'}"></div>
+            </div>
+            <p class="fxu__bulk-progress-text">
+              {{ vm.bulk.done }} of {{ vm.bulk.total }} processed
+              <span ng-if="vm.bulk.failed.length > 0"> · {{ vm.bulk.failed.length }} refused</span>
+            </p>
+            <p class="fxu__bulk-hold">Each flight writes a tech-log sheet — please don't close this.</p>
+          </div>
+        </div>
+
+        <!-- ── Stage 3: results ── -->
+        <div ng-if="vm.bulk.stage === 'done'">
+          <div class="fox-tracker__confirm-header">
+            <div class="fox-tracker__confirm-icon" ng-class="vm.bulk.failed.length ? 'fox-tracker__confirm-icon--warn' : 'fox-tracker__confirm-icon--ok'">
+              <i class="fas" ng-class="vm.bulk.failed.length ? 'fa-exclamation-triangle' : 'fa-check'"></i>
+            </div>
+            <div class="fox-tracker__confirm-title">
+              {{ vm.bulk.failed.length ? 'Finished with refusals' : 'All flights matched' }}
+            </div>
+          </div>
+          <div class="fox-tracker__confirm-body">
+            <div class="fxu__bulk-tally">
+              <div class="fxu__bulk-tally-cell">
+                <div class="fxu__bulk-tally-num fxu__bulk-tally-num--ok">{{ vm.bulk.matched.length }}</div>
+                <div class="fxu__bulk-tally-label">Matched</div>
+              </div>
+              <div class="fxu__bulk-tally-cell" ng-if="vm.bulk.failed.length > 0">
+                <div class="fxu__bulk-tally-num fxu__bulk-tally-num--bad">{{ vm.bulk.failed.length }}</div>
+                <div class="fxu__bulk-tally-label">Refused</div>
+              </div>
+            </div>
+
+            <div class="fxu__bulk-results" ng-if="vm.bulk.matched.length > 0">
+              <div class="fxu__bulk-results-head">Tech-log sheets created</div>
+              <div class="fxu__bulk-result" ng-repeat="row in vm.bulk.matched">
+                <span class="fxu__entry-id fxh__mono">ENTRY #{{ row.entry.id }}</span>
+                <i class="fas fa-arrow-right fxu__bulk-result-arrow"></i>
+                <a class="fxu__sheet-link" ng-click="vm.openSheet(row.sheet_id)">sheet #{{ row.sheet_id }}</a>
+              </div>
+            </div>
+
+            <div class="fxu__bulk-results" ng-if="vm.bulk.failed.length > 0">
+              <div class="fxu__bulk-results-head">Refused — still on the list</div>
+              <div class="fxu__bulk-result fxu__bulk-result--bad" ng-repeat="row in vm.bulk.failed">
+                <span class="fxu__entry-id fxh__mono">ENTRY #{{ row.entry.id }}</span>
+                <span class="fxu__bulk-result-msg">{{ row.message }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="fox-tracker__confirm-footer">
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.closeBulk()"
+                    style="flex:1; justify-content:center;">
+              <i class="fas fa-check"></i> Done
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
 
     <!-- ══ Match dialog ══ -->
     <div class="fox-tracker__overlay" ng-if="vm.match" ng-click="vm.closeMatch()">

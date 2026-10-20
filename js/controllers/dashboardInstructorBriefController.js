@@ -213,6 +213,15 @@
                     vm.student = data.student;
                     vm.instructor = data.instructor;
                     vm.plane_log_sheet = data.log_sheet;
+                    // Log-sheet rows link here with booking_id 0; the API now tells
+                    // us the booking the flight belongs to, so the record can flag
+                    // it debriefed and it can't be debriefed twice.
+                    if((!vm.booking_id || Number(vm.booking_id) < 1) && data.booking_id && Number(data.booking_id) > 0){
+                        vm.booking_id = Number(data.booking_id);
+                    }
+                    if(!vm.plane_log_sheet || !vm.plane_log_sheet.id){
+                        ToastService.warning('No Flight Yet', 'This booking has not been booked in — book the flight in first, then debrief it.');
+                    }
 
                     var haveLesson = !!(vm.lesson && vm.lesson.id);
                     vm.no_lesson_selected = !haveLesson;   // drives the picker in the view
@@ -456,7 +465,30 @@
         // Only the objectives currently on screen count toward the "x of y graded"
         // banner — when the whole course is shown, that's every item.
         vm.gradable_items = function(){
-            return vm.all_items || [];
+            if(vm.show_all_lessons || !vm.lesson || !vm.lesson.id){ return vm.all_items || []; }
+            return vm.lesson_items();
+        };
+        // Objectives belonging to the lesson being debriefed (exact match — the
+        // old substring filter also matched lessons 112, 120… when on lesson 12).
+        vm.lesson_items = function(){
+            var out = [];
+            if(!vm.lesson || !vm.lesson.id){ return out; }
+            (vm.all_items || []).forEach(function(i){
+                if(String(i.lesson_id) === String(vm.lesson.id)){ out.push(i); }
+            });
+            return out;
+        };
+        // Rows on screen: this lesson only, or (whole course / search) a title match.
+        vm.visible_items = function(){
+            if(!vm.show_all_lessons){ return vm.lesson_items(); }
+            var q = (vm.my_search2 || '').toString().toLowerCase().trim();
+            if(q === ''){ return vm.all_items || []; }
+            return (vm.all_items || []).filter(function(i){
+                return (i.title || '').toLowerCase().indexOf(q) !== -1 || (i.lesson_title || '').toLowerCase().indexOf(q) !== -1;
+            });
+        };
+        vm.clear_grades = function(){
+            (vm.all_items || []).forEach(function(i){ i.result = null; i.remarks = ''; });
         };
         vm.graded_count = function(){
             var n = 0;
@@ -495,8 +527,24 @@
             // //console.log("PROGRESS: ", vm.general_remarks);
             // //console.log("PROGRESS: ", compiled_items.length);
 
-            if(compiled_items.length < 1 && (!vm.general_remarks || vm.general_remarks == "")){
-                ToastService.warning('Validation', 'To save student records, you need to tick at least one student progress record item OR add a general remark');
+            if(vm.saving){ return false; }
+            if(!vm.lesson || !vm.lesson.id){
+                ToastService.warning('No Lesson', 'Pick the lesson you taught before saving the record.');
+                return false;
+            }
+            if(!vm.plane_log_sheet || !vm.plane_log_sheet.id){
+                ToastService.error('No Flight', 'This booking has not been booked in yet, so there is no flight to attach the record to.');
+                return false;
+            }
+
+            // A lesson with no marking items (e.g. Air Experience) can be signed
+            // off as completed with no remark — the API accepts that too.
+            var lesson_has_items = vm.lesson_items().length > 0;
+            var has_remark = !!(vm.general_remarks && String(vm.general_remarks).trim() !== "");
+            if(compiled_items.length < 1 && !has_remark && !(!lesson_has_items && vm.lesson_completed)){
+                ToastService.warning('Validation', lesson_has_items
+                    ? 'To save student records, grade at least one objective OR add a general remark'
+                    : 'This lesson has no objectives — tick "completed" or add a general remark to save it');
                 return false;
             }
 
@@ -508,8 +556,10 @@
                 return false;
             }
 
-            var next_lesson = vm.lesson.id;
-
+            // Only an explicitly chosen next lesson is sent; otherwise the API
+            // works it out from course order (sending the same lesson back made
+            // the next debrief suggest the lesson just completed).
+            var next_lesson = null;
             if(vm.lesson_completed == 1 && vm.next_lesson && vm.next_lesson.id > 0){
                 next_lesson = vm.next_lesson.id;
             }
@@ -530,7 +580,8 @@
                 plane_log_sheet_id: vm.plane_log_sheet.id,
                 next_lesson_id: next_lesson,
                 completed: (vm.lesson_completed) ? 1 : 0,
-                booking_id: vm.booking_id,
+                booking_id: (vm.booking_id && Number(vm.booking_id) > 0) ? Number(vm.booking_id)
+                            : ((vm.plane_log_sheet.booking_id && Number(vm.plane_log_sheet.booking_id) > 0) ? Number(vm.plane_log_sheet.booking_id) : 0),
                 flight_tags: vm.selected_flight_tags
             };
 
@@ -539,9 +590,11 @@
 
             //IF EDIT?? NEED TO CHANGE THIS CALL SURELY?
 
+            vm.saving = true;
             CourseService.CreateTrainingRecord(vm.compiled_save)
                 .then(function(data){
-                    if(data.success){
+                    vm.saving = false;
+                    if(data && data.success){
 
                         ToastService.success('Records Saved', 'Thank you!');
                         if(vm.show_split && vm.split_next_id && vm.split_next_id > 0){
@@ -554,9 +607,13 @@
 
 
                     } else {
-                        ToastService.error('Save Failed', 'We could not save your training records...');
+                        // VALIDATION_ERROR / SAVE_FAILED / DUPLICATE carry the reason
+                        var why = (data && data.message) ? (typeof data.message === 'string' ? data.message : (data.message.message || '')) : '';
+                        ToastService.error('Save Failed', why || 'We could not save your training records...');
                     }
-        
+                }, function(){
+                    vm.saving = false;
+                    ToastService.error('Save Failed', 'We could not reach the server — the flight stays in your debrief list.');
                 });
 
 
@@ -733,6 +790,9 @@
         vm.change_debrief_lesson = function(){
             if (vm.selected_debrief_lesson_obj) {
                 var lesson_id = vm.selected_debrief_lesson_obj.id;
+                vm.clear_grades();
+                vm.lesson_completed = false;
+                vm.next_lesson = null;
 
                 CourseService.GetLessonById(lesson_id)
                     .then(function(data){
@@ -784,9 +844,14 @@
             }
             vm.course_id = vm.pick_course_obj.id;
             vm.need_course_pick = false;
+            vm.all_items = [];
             CourseService.GetLessonsByCourseId(vm.course_id)
                 .then(function(lessonData){
                     vm.all_lessons = lessonData.items || [];
+                    if(!vm.all_lessons.length){
+                        ToastService.warning('No Lessons', 'That course has no lessons yet — pick another course.');
+                        vm.need_course_pick = true;
+                    }
                 });
             CourseService.GetTagsByCourseId(vm.course_id)
                 .then(function(tagData){

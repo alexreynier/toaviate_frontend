@@ -81,6 +81,96 @@ app.controller('DefaultCoursesController', DefaultCoursesController);
             }, function() {});
         };
 
+        // ── Import / export (.tacourse.json packages) ────────────────────
+        // Import: pick a file → parse client-side → POST. IMPORT_EXISTS gets an
+        // inline confirm (no browser dialogs) and a re-POST with force.
+        vm.importBusy = false;
+        vm.importPending = null;      // { pkg, title } while a same-title import awaits confirmation
+        vm.pickImportFile = function() {
+            var input = document.getElementById('dc-import-file');
+            if (input) { input.value = ''; input.click(); }
+        };
+        vm.importFileChosen = function(input) {
+            var file = input && input.files && input.files[0];
+            if (!file) { return; }
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var pkg = null;
+                try { pkg = JSON.parse(e.target.result); } catch (err) { pkg = null; }
+                $rootScope.$applyAsync(function() {
+                    if (!pkg || pkg.format !== 'toaviate-course') {
+                        ToastService.error('Not a Course Package', 'Choose a .tacourse.json file exported from the default-course library.');
+                        return;
+                    }
+                    sendImport(pkg, false);
+                });
+            };
+            reader.readAsText(file);
+        };
+        function sendImport(pkg, force) {
+            vm.importBusy = true;
+            DefaultCoursesService.Import(pkg, force).then(function(data) {
+                vm.importBusy = false;
+                if (data && data.success) {
+                    vm.importPending = null;
+                    var r = data.result || {};
+                    ToastService.success('Course Imported', (pkg.course && pkg.course.title ? pkg.course.title + ': ' : '') +
+                        (r.lessons || 0) + ' lessons, ' + (r.lesson_items || 0) + ' marking items, ' + (r.lesson_tem || 0) + ' TEM rows.');
+                    if (data.not_included && data.not_included.length) {
+                        ToastService.warning('Files Not Included', 'Binary content (lesson files, materials, question images) is not packaged — re-upload it on this server.');
+                    }
+                    load();
+                    return;
+                }
+                if (data && data.error === 'IMPORT_EXISTS') {
+                    vm.importPending = { pkg: pkg, title: (pkg.course && pkg.course.title) || 'this course' };
+                    return;
+                }
+                ToastService.error('Import Failed', (data && data.message) || 'The package could not be imported.');
+            });
+        }
+        vm.confirmImport = function() { if (vm.importPending) { sendImport(vm.importPending.pkg, true); } };
+        vm.cancelImport = function() { vm.importPending = null; };
+
+        // Export: download <title>.tacourse.json.
+        vm.exportCourse = function(it) {
+            it._exporting = true;
+            DefaultCoursesService.Export(it.id).then(function(data) {
+                it._exporting = false;
+                if (!data || !data.success || !data.package) {
+                    ToastService.error('Export Failed', (data && data.message) || 'The package could not be built.');
+                    return;
+                }
+                var name = String(it.title || 'course').replace(/[^A-Za-z0-9 _()-]+/g, '').trim().replace(/\s+/g, '_') + '.tacourse.json';
+                var blob = new Blob([JSON.stringify(data.package, null, 2)], { type: 'application/json' });
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = name;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                window.setTimeout(function() { window.URL.revokeObjectURL(url); }, 1000);
+            });
+        };
+
+        // ── Delete from the library (inline confirm; copies on clubs unaffected) ──
+        vm.deletePending = null;
+        vm.deleteBusy = false;
+        vm.askDelete = function(it) { vm.deletePending = it; };
+        vm.cancelDelete = function() { vm.deletePending = null; };
+        vm.confirmDelete = function() {
+            if (!vm.deletePending) { return; }
+            vm.deleteBusy = true;
+            DefaultCoursesService.Delete(vm.deletePending.id).then(function(data) {
+                vm.deleteBusy = false;
+                if (!data || !data.success) {
+                    ToastService.error('Could Not Delete', (data && data.message) || 'Please try again.');
+                    return;
+                }
+                ToastService.success('Default Course Deleted', data.message || 'Removed from the library.');
+                vm.deletePending = null;
+                load();
+            });
+        };
+
         // "Copied to: The Pilot Centre (12 Aug), …" line.
         vm.copiesLabel = function(it) {
             var copies = it.copies || [];

@@ -32,6 +32,7 @@
 
     <!-- ── Tabs ── -->
     <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.tracker_planes"><i class="fas fa-plane"></i> Fleet</a>
       <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-satellite-dish"></i> Registry</a>
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_unmatched"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
@@ -140,11 +141,18 @@
                     {{ vm.healthLabel(t) }}
                   </span>
                 </td>
-                <td>
-                  <span ng-if="t.current_plane_registration" class="snazzy-table__name">
-                    {{ t.current_plane_registration }}
-                  </span>
-                  <span ng-if="!t.current_plane_registration" class="snazzy-table__muted">
+                <td ng-click="$event.stopPropagation()">
+                  <a ng-if="t.current_plane_registration" class="snazzy-table__name fox-tracker__plane-link"
+                     ui-sref="dashboard.super_admin.tracker_plane_detail({plane_id: t.current_plane_id, club_id: t.current_club_id})"
+                     uib-tooltip="Manage this assignment (swap / remove)">
+                    {{ t.current_plane_registration }} <i class="fas fa-external-link-alt"></i>
+                  </a>
+                  <button ng-if="!t.current_plane_registration && t.status === 'active'"
+                          class="fox-tracker__assign-btn"
+                          ng-click="vm.openAssignDialog(t, $event)">
+                    <i class="fas fa-link"></i> Assign to aircraft
+                  </button>
+                  <span ng-if="!t.current_plane_registration && t.status !== 'active'" class="snazzy-table__muted">
                     — unassigned —
                   </span>
                 </td>
@@ -216,7 +224,18 @@
             </div>
             <div class="fox-tracker__card-field">
               <div class="fox-tracker__card-field-label">Assigned To</div>
-              <div class="fox-tracker__card-field-value">{{ t.current_plane_registration || 'Unassigned' }}</div>
+              <div class="fox-tracker__card-field-value" ng-click="$event.stopPropagation()">
+                <a ng-if="t.current_plane_registration" class="fox-tracker__plane-link"
+                   ui-sref="dashboard.super_admin.tracker_plane_detail({plane_id: t.current_plane_id, club_id: t.current_club_id})">
+                  {{ t.current_plane_registration }} <i class="fas fa-external-link-alt"></i>
+                </a>
+                <button ng-if="!t.current_plane_registration && t.status === 'active'"
+                        class="fox-tracker__assign-btn"
+                        ng-click="vm.openAssignDialog(t, $event)">
+                  <i class="fas fa-link"></i> Assign to aircraft
+                </button>
+                <span ng-if="!t.current_plane_registration && t.status !== 'active'">Unassigned</span>
+              </div>
             </div>
             <div class="fox-tracker__card-field">
               <div class="fox-tracker__card-field-label">Club</div>
@@ -341,6 +360,9 @@
 
       </div>
     </div>
+
+    <!-- ══ Assign-to-aircraft dialog (tracker-first, shared partial) ══ -->
+    <div ng-include="'views/manageclub/fox_assign_dialog.html'"></div>
 
   </div><!-- authorised -->
 </div>

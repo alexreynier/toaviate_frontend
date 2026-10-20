@@ -437,7 +437,7 @@
 
             $scope.update_instructor_email_pref = function() {
                 var update = {
-                    id: vm.membership_now.id,
+                    id: $stateParams.membership_id, // NOT membership_now.id — for_user overwrites it with the joined plan id
                     mute_booking_emails:      vm.receiveNotifications ? 0 : 1,
                     mute_booking_reminders:   vm.receiveBookingReminders ? 0 : 1,
                     instructor_daily_summary: vm.receiveDailySummary ? 1 : 0
@@ -574,27 +574,33 @@
 
                     const form = document.getElementById('payment-form');
 
+                    // Lock the Add Card button while Stripe confirms the SetupIntent (a
+                    // native form submit, so the global busy-guard can't see it). On
+                    // success Stripe redirects to return_url; on error we release it.
+                    var addCardBtn = form.querySelector('button[type="submit"]');
+                    var addCardBusy = false;
                     form.addEventListener('submit', async (event) => {
                       event.preventDefault();
-
+                      if (addCardBusy) { return; }
+                      addCardBusy = true;
+                      if (addCardBtn) {
+                        addCardBtn.disabled = true;
+                        addCardBtn.classList.add('wg-busy', 'wg-busy--spinner');
+                      }
                       const {error} = await stripe.confirmSetup({
-                        //`Elements` instance that was used to create the Payment Element
                         elements,
                         confirmParams: {
                           return_url: window.location.href,
                         }
                       });
-
                       if (error) {
-                        // This point will only be reached if there is an immediate error when
-                        // confirming the payment. Show error to your customer (for example, payment
-                        // details incomplete)
                         const messageContainer = document.querySelector('#error-message');
-                        messageContainer.textContent = error.message;
-                      } else {
-                        // Your customer will be redirected to your `return_url`. For some payment
-                        // methods like iDEAL, your customer will be redirected to an intermediate
-                        // site first to authorize the payment, then redirected to the `return_url`.
+                        if (messageContainer) { messageContainer.textContent = error.message; }
+                        addCardBusy = false;
+                        if (addCardBtn) {
+                          addCardBtn.disabled = false;
+                          addCardBtn.classList.remove('wg-busy', 'wg-busy--spinner');
+                        }
                       }
                     });
                   }).catch(function(err){

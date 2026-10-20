@@ -186,6 +186,11 @@ var app = angular
     });
 
     app.config(['$httpProvider', function($httpProvider) {
+        // writeGuardInterceptor must come FIRST: its request hook tags every
+        // write before apiUrlInterceptor can refuse it, and its responseError
+        // hook then runs last so a refused write still releases the pressed
+        // button (see js/services/writeGuardService.js).
+        $httpProvider.interceptors.push('writeGuardInterceptor');
         $httpProvider.interceptors.push('apiUrlInterceptor');
     }]);
 
@@ -567,8 +572,11 @@ var app = angular
                 }
             })
 
+            // ?club_id lets the fleet list / device registry hand over which club
+            // the plane belongs to (a ToAviate admin isn't tied to one club);
+            // ?assign=1 auto-opens the assign dialog for untracked aircraft.
             .state('dashboard.super_admin.tracker_plane_detail', {
-                url: '/tracker_planes/:plane_id',
+                url: '/tracker_planes/:plane_id?club_id&assign',
                 controller: 'DashboardTrackerPlaneController',
                 templateUrl: 'views/manageclub/tracker_plane_detail.html',
                 controllerAs: 'vm',

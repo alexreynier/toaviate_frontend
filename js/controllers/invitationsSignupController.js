@@ -1742,6 +1742,9 @@ vm.selected_phone;
 		    }
 
 		    $scope.validateAndSetupStripe = function() {
+		    	// Re-entry guard (the button is pointer-events:none while loading,
+		    	// but Stripe's confirmSetup step runs outside the global busy-guard).
+		    	if ($scope.invLoading) return;
 		    	// Validate T&C first
 		    	if (!validateTerms()) return;
 

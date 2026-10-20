@@ -33,6 +33,19 @@ app.factory('DefaultCoursesService', DefaultCoursesService);
             return $http.post(base + '/' + id + '/copy', body).then(handleSuccess, handleError);
         };
 
+        // Environment migration: the course as a portable toaviate-course package.
+        s.Export = function(id){ return $http.get(base + '/' + id + '/export').then(handleSuccess, handleError); };
+
+        // Create a default course from a package. force:true after IMPORT_EXISTS.
+        s.Import = function(pkg, force){
+            var body = { package: pkg };
+            if (force) { body.force = true; }
+            return $http.post(base + '/import', body).then(handleSuccess, handleError);
+        };
+
+        // Retire a default course from the library (club copies untouched).
+        s.Delete = function(id){ return $http.delete(base + '/' + id).then(handleSuccess, handleError); };
+
         return s;
 
         function handleSuccess(res) { return res.data; }

@@ -7,7 +7,7 @@
   <div ng-if="!vm.is_manager" class="tp__unauthorised">
     <div class="tp__unauthorised-icon"><i class="fas fa-lock"></i></div>
     <h2>Access Denied</h2>
-    <p>This page is available to club managers only.</p>
+    <p>This page is restricted to ToAviate management users.</p>
   </div>
 
   <div ng-if="vm.is_manager">
@@ -52,7 +52,14 @@
               <i class="fas fa-satellite"></i>
             </div>
             <div class="tp__current-fields">
-              <div class="tp__current-name">{{ vm.current_tracker.label || 'FoxAvionix Tracker' }}</div>
+              <div class="tp__current-name">
+                <a class="tp__device-link"
+                   ui-sref="dashboard.super_admin.fox_tracker_detail({tracker_id: vm.current_tracker.id})"
+                   uib-tooltip="Open device record">
+                  {{ vm.current_tracker.label || 'FoxAvionix Tracker' }}
+                  <i class="fas fa-external-link-alt tp__device-link-icon"></i>
+                </a>
+              </div>
               <div class="tp__current-imei">IMEI: {{ vm.current_tracker.imei }}</div>
               <div class="tp__current-meta-grid">
                 <div class="tp__current-meta-item" ng-if="vm.current_tracker.fox_id">
@@ -256,7 +263,10 @@
             </ui-select>
             <div ng-if="!vm.available_loading && vm.available_trackers.length === 0"
                  style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px; font-size:13px; color:#92400e;">
-              <i class="fas fa-exclamation-triangle"></i> No unassigned trackers available. Add a new tracker via IoT Tracker Management first.
+              <i class="fas fa-exclamation-triangle"></i> No unassigned trackers available.
+              Register a new device in the
+              <a ui-sref="dashboard.super_admin.fox_trackers" style="color:#92400e; font-weight:700; text-decoration:underline;">tracker registry</a>
+              first.
             </div>
           </div>
 
@@ -277,6 +287,18 @@
             </div>
           </div>
 
+          <!-- Back-dating heads-up: an installation date in the past claims the
+               tracker's floating flights from that date onto this aircraft. -->
+          <div class="tp__backfill-note" ng-if="vm.assignIsBackdated()">
+            <i class="fas fa-history"></i>
+            <div>
+              <strong>This is a back-dated installation.</strong>
+              Flights this tracker recorded from that date onward will be claimed for
+              {{ vm.plane.registration }} and their tech log sheets generated. If the
+              tracker was later moved to another aircraft, the backfill stops at that move.
+            </div>
+          </div>
+
           <!-- Notes -->
           <div class="tp__dialog-field">
             <label class="tp__dialog-label">Notes</label>
@@ -294,8 +316,113 @@
           <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.submitAssign()"
                   ng-disabled="vm.dialog_busy || vm.available_trackers.length === 0">
             <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
-            <i class="fas fa-check" ng-if="!vm.dialog_busy"></i>
-            {{ vm.dialog_busy ? 'Assigning…' : 'Assign Tracker' }}
+            <i class="fas fa-arrow-right" ng-if="!vm.dialog_busy && vm.assignIsBackdated()"></i>
+            <i class="fas fa-check" ng-if="!vm.dialog_busy && !vm.assignIsBackdated()"></i>
+            {{ vm.dialog_busy ? 'Assigning…' : (vm.assignIsBackdated() ? 'Review Assignment' : 'Assign Tracker') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Assign Confirm (back-dated assigns only)
+         A back-dated install claims flights and generates tech log
+         sheets, so it gets the same review step a swap has.
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'assign_confirm'" ng-click="vm.closeDialog()">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--warn">
+            <i class="fas fa-history"></i>
+          </div>
+          <h3 class="tp__dialog-title">Confirm Back-Dated Installation</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <div class="tp__dialog-warning">
+            <strong>This action will:</strong>
+            <ul>
+              <li>Install <strong>{{ vm.assign_data.tracker.label || vm.assign_data.tracker.imei }}</strong> on {{ vm.plane.registration }}
+                  effective <strong>{{ vm.assign_data.assigned_from_date | date:'dd MMM yyyy' }} {{ vm.assign_data.assigned_from_time | date:'HH:mm' }}</strong></li>
+              <li>Claim the tracker's floating flights from that date onward for {{ vm.plane.registration }}</li>
+              <li>Generate the matching tech log sheets</li>
+            </ul>
+            If the tracker was later moved to another aircraft, the backfill stops at that move.
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.dialog = 'assign'"
+                  ng-disabled="vm.dialog_busy">
+            <i class="fas fa-arrow-left"></i> Go Back
+          </button>
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.executeAssign()"
+                  ng-disabled="vm.dialog_busy">
+            <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
+            <i class="fas fa-link" ng-if="!vm.dialog_busy"></i>
+            {{ vm.dialog_busy ? 'Assigning…' : 'Confirm Assignment' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Assign Result (back-dated assigns only)
+         Shown when the assign actually claimed flights, so the admin sees
+         what a date weeks in the past pulled in. A same-day assign claims
+         nothing and closes with a toast instead.
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'assign_result' && vm.assign_result">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--success">
+            <i class="fas fa-check"></i>
+          </div>
+          <h3 class="tp__dialog-title">Tracker Assigned</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <p class="tp__result-lede">
+            Back-dated installation on {{ vm.plane.registration }} pulled in existing flight data.
+          </p>
+
+          <div class="tp__result-metrics">
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.assign_result.metrics.entries_claimed }}</div>
+              <div class="tp__result-metric-label">Flights Claimed</div>
+            </div>
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.assign_result.metrics.pls_created }}</div>
+              <div class="tp__result-metric-label">Log Sheets Created</div>
+            </div>
+          </div>
+
+          <div class="tp__backfill-window">
+            <div class="tp__backfill-window-label">Backfill window</div>
+            <div class="tp__backfill-window-range">
+              <span class="tp__backfill-window-stamp">{{ vm.backfillStamp(vm.assign_result.window.from) }}</span>
+              <i class="fas fa-arrow-right tp__backfill-window-arrow"></i>
+              <span class="tp__backfill-window-stamp" ng-if="!vm.assign_result.window.open_ended">
+                {{ vm.backfillStamp(vm.assign_result.window.until) }}
+              </span>
+              <span class="tp__backfill-window-stamp tp__backfill-window-stamp--open"
+                    ng-if="vm.assign_result.window.open_ended">
+                now
+              </span>
+            </div>
+            <div class="tp__backfill-window-hint" ng-if="vm.assign_result.window.open_ended">
+              Open-ended — the tracker has no later assignment, so everything since then counted.
+            </div>
+            <div class="tp__backfill-window-hint" ng-if="!vm.assign_result.window.open_ended">
+              Closed at the tracker's next assignment — later flights stayed with the aircraft they belong to.
+            </div>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.closeAssignResult()"
+                  style="flex:1; justify-content:center;">
+            <i class="fas fa-check"></i> Done
           </button>
         </div>
       </div>
@@ -537,6 +664,45 @@
             <i class="fas fa-circle-notch fa-spin" ng-if="vm.dialog_busy"></i>
             <i class="fas fa-unlink" ng-if="!vm.dialog_busy"></i>
             {{ vm.dialog_busy ? 'Removing…' : 'Remove Tracker' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         DIALOG: Unassign Result
+         ═══════════════════════════════════════════════════════ -->
+    <div class="tp__overlay" ng-if="vm.dialog === 'unassign_result' && vm.unassign_result">
+      <div class="tp__dialog" ng-click="$event.stopPropagation()">
+        <div class="tp__dialog-header">
+          <div class="tp__dialog-icon tp__dialog-icon--success">
+            <i class="fas fa-check"></i>
+          </div>
+          <h3 class="tp__dialog-title">Tracker Removed</h3>
+        </div>
+
+        <div class="tp__dialog-body">
+          <p class="tp__result-lede">
+            {{ vm.unassign_result.tracker_label }} was removed from {{ vm.plane.registration }}
+            and is now available for other aircraft.
+          </p>
+
+          <div class="tp__result-metrics">
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.unassign_result.entries_floated }}</div>
+              <div class="tp__result-metric-label">Entries Floated</div>
+            </div>
+            <div class="tp__result-metric">
+              <div class="tp__result-metric-num">{{ vm.unassign_result.log_sheets_affected }}</div>
+              <div class="tp__result-metric-label">Log Sheets Affected</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tp__dialog-footer">
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.closeUnassignResult()"
+                  style="flex:1; justify-content:center;">
+            <i class="fas fa-check"></i> Done
           </button>
         </div>
       </div>

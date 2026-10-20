@@ -10,6 +10,9 @@ surfaces to build:
    organisation reminders (ARC, CofA/Permit, maintenance due, hours to
    maintenance, radio licence, insurance), choose **who** receives them,
    and let each recipient tune their own timeline.
+3. **Account Settings → Reminders → Booking reminders** (any user) — a
+   per-club on/off toggle for the "evening before each booking" email.
+   This is NOT part of the `/reminders/` API — see §3.
 
 Backend spec: [BACKEND_REMINDERS_GUIDE.md](BACKEND_REMINDERS_GUIDE.md).
 All endpoints are under `/api/v1/reminders/` with the standard auth
@@ -263,6 +266,67 @@ don't reappear, so an empty preview after a send is normal.
 `GET reminders/club_history/{club_id}?limit=100` — rows like the user
 history plus `first_name`/`last_name` of each recipient. Suitable for a
 "sent log" tab.
+
+---
+
+## 3. Booking reminders (per club membership)
+
+The booking emails are a separate, older system from the expiry digest
+above: on/off flags per **club membership** (on the `members` row), not
+per user. There are no offsets, no `is_default`, no history. The
+Reminders page shows one card per membership with a row per flag that
+applies, mirroring the membership edit page's Email Preferences block
+(both write the same flags, so they stay in agreement):
+
+| Row                     | Field                      | On when | Who          |
+|-------------------------|----------------------------|---------|--------------|
+| Booking reminders       | `mute_booking_reminders`   | `== 0`  | everyone     |
+| Booking notifications   | `mute_booking_emails`      | `== 0`  | instructors  |
+| Daily schedule summary  | `instructor_daily_summary` | `== 1`  | instructors  |
+
+Note the first two are *mute* flags (inverted) and the third is not.
+
+### Load
+
+`GET users/{user_id}/memberships` → `{success, memberships: [...]}`.
+Skip rows with `membership_id` of 0 (pending requests). Each row carries
+`id` (the **members row id** — use this for every save), `club_id`,
+`club_name`, `membership_name`, and — once the backend ships the
+addition — `instructor`, `mute_booking_reminders`, `mute_booking_emails`,
+`instructor_daily_summary`.
+
+If `mute_booking_reminders` is absent from a row, fetch
+`GET members/{id}/for_user` → `{success, membership: {...}}` and copy
+those four fields across. **Copy only those four fields.**
+
+### ⚠️ Two gotchas (from the backend)
+
+- **Values are `"0"`/`"1"` strings**, exactly as `for_user` returns
+  them. Never compare with `=== 0` / `=== 1` — it never matches a
+  string. Use `== 0` or `Number(x) === 0`. (The `offsets_days` /
+  `offset_value` numbers in §1 are real integers; this note is about the
+  membership flags only.)
+- **`for_user` overwrites `membership.id` with the joined plan id.** Take
+  the members row id from the `users/{id}/memberships` rows (or the
+  route's `:membership_id`), never from the `for_user` response. This is
+  a pre-existing quirk of that endpoint and was deliberately left as-is.
+
+### Save
+
+Two routes, chosen by the membership's `instructor` flag:
+
+- Ordinary member: `PUT members/{id}/for_user` with
+  `{mute_booking_reminders: 0|1}` (partial — nothing else is touched).
+  Members never see the other two rows.
+- Instructor (`instructor == 1`): `PUT members/instructor_update` with
+  `{id, mute_booking_emails, mute_booking_reminders,
+  instructor_daily_summary}`. This endpoint writes **all three** flags at
+  once, so echo the other two current values or they are reset.
+
+Both return `{success: true}`; on `success: false` revert the toggle and
+toast. There is no personal-vs-instructor split for reminders — one flag
+per membership covers every booking on it, including lessons students
+book with an instructor.
 
 ---
 

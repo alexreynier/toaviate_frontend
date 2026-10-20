@@ -1,10 +1,10 @@
 app.controller('DashboardFoxTrackersController', DashboardFoxTrackersController);
 
 DashboardFoxTrackersController.$inject = [
-    '$rootScope', '$scope', '$state', '$stateParams', 'FoxTrackerService', 'ToastService', '$timeout', 'TrackerHealthService'
+    '$rootScope', '$scope', '$state', '$stateParams', 'FoxTrackerService', 'ToastService', '$timeout', 'TrackerHealthService', 'TrackerPlaneService', 'PlaneService', 'ClubService'
 ];
 
-function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams, FoxTrackerService, ToastService, $timeout, TrackerHealthService) {
+function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams, FoxTrackerService, ToastService, $timeout, TrackerHealthService, TrackerPlaneService, PlaneService, ClubService) {
 
     var vm = this;
 
@@ -267,6 +267,200 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
         vm.ccid_conflict = null;
         vm.createTracker(true);
     };
+
+    // ═══════════════════════════════════════════
+    // ASSIGN TO AIRCRAFT (tracker-first)
+    // ═══════════════════════════════════════════
+    // The plane-first version of this dialog lives on the Fleet page
+    // (tracker_plane_detail.html). This one starts from a device: pick the
+    // club, pick an untracked aircraft, date it, done. Same endpoint, same
+    // backfill semantics, same result reporting. Shared template:
+    // views/manageclub/fox_assign_dialog.html (ng-included by the registry
+    // list AND the device detail page — both run this controller).
+
+    vm.assign = null;             // { tracker, step:'form'|'confirm'|'result', club_id, plane, ... }
+    vm.assign_clubs = [];
+    vm.assign_planes = [];        // untracked planes of the chosen club
+    vm.assign_planes_loading = false;
+    vm.assign_tracked_count = 0;  // planes hidden because they already have a tracker
+    vm.assign_result = null;
+
+    vm.openAssignDialog = function(tracker, $event) {
+        if ($event) { $event.stopPropagation(); }
+        var now = new Date();
+        now.setSeconds(0, 0); // input[time] renders stray seconds/ms otherwise
+        vm.assign = {
+            tracker: tracker,
+            step: 'form',
+            club_id: vm.user.current_club_admin ? vm.user.current_club_admin.id : null,
+            plane: null,
+            // Date OBJECTS, not strings — Angular 1.4.7's input[date]/input[time]
+            // throw ngModel:datefmt (and render blank) on a string model.
+            // buildDatetime() below handles both shapes.
+            assigned_from_date: new Date(now),
+            assigned_from_time: new Date(now),
+            notes: '',
+            busy: false
+        };
+        vm.assign_result = null;
+        loadAssignClubs();
+    };
+
+    function loadAssignClubs() {
+        if (vm.assign_clubs.length > 0) { assignClubsReady(); return; }
+        ClubService.GetAll().then(function(data) {
+            vm.assign_clubs = (data && (data.clubs || data.items)) || (angular.isArray(data) ? data : []);
+            assignClubsReady();
+        });
+    }
+
+    function assignClubsReady() {
+        if (!vm.assign) return; // dialog closed while loading
+        // Club ids can arrive as strings — re-point the preselected id at the
+        // list's own value so the <select> matches it.
+        if (vm.assign.club_id) {
+            var match = null;
+            for (var i = 0; i < vm.assign_clubs.length; i++) {
+                if (parseInt(vm.assign_clubs[i].id, 10) === parseInt(vm.assign.club_id, 10)) { match = vm.assign_clubs[i]; break; }
+            }
+            vm.assign.club_id = match ? match.id : null;
+        }
+        if (!vm.assign.club_id && vm.assign_clubs.length === 1) {
+            vm.assign.club_id = vm.assign_clubs[0].id;
+        }
+        if (vm.assign.club_id) { vm.assignClubChanged(); }
+    }
+
+    vm.assignClubChanged = function() {
+        vm.assign.plane = null;
+        vm.assign_planes = [];
+        vm.assign_tracked_count = 0;
+        if (!vm.assign.club_id) return;
+        vm.assign_planes_loading = true;
+        var club_id = vm.assign.club_id;
+        var planes = null;
+        var tracked = null;
+
+        function ready() {
+            if (planes === null || tracked === null) return;
+            // Ignore stale responses if the club changed (or dialog closed) mid-flight.
+            if (!vm.assign || vm.assign.club_id !== club_id) return;
+            var trackedIds = {};
+            tracked.forEach(function(t) {
+                if (t.current_plane_id !== null && t.current_plane_id !== undefined) {
+                    trackedIds[String(t.current_plane_id)] = true;
+                }
+            });
+            // Only untracked aircraft are offered — a plane that already has a
+            // tracker needs a SWAP from its own aircraft page, not a second assign.
+            vm.assign_planes = planes.filter(function(p) { return !trackedIds[String(p.plane_id)]; });
+            vm.assign_tracked_count = planes.length - vm.assign_planes.length;
+            vm.assign_planes_loading = false;
+        }
+
+        PlaneService.GetAllByClub(club_id).then(function(data) {
+            planes = angular.isArray(data) ? data : [];
+            ready();
+        });
+        TrackerPlaneService.GetByClub(club_id).then(function(data) {
+            tracked = (data && data.success && data.trackers) ? data.trackers : [];
+            ready();
+        });
+    };
+
+    // True once the admin has typed an installation date earlier than today —
+    // drives the backfill heads-up and the extra confirm step.
+    vm.assignDialogIsBackdated = function() {
+        if (!vm.assign || !vm.assign.assigned_from_date) return false;
+        var chosen = vm.assign.assigned_from_date;
+        var datePart = (chosen instanceof Date) ? formatDateForInput(chosen) : chosen;
+        return datePart < formatDateForInput(new Date());
+    };
+
+    vm.submitAssignDialog = function() {
+        var checks = [
+            { ok: vm.assign.club_id, field: 'fox_assign_club', label: 'Club selection' },
+            { ok: vm.assign.plane, field: 'fox_assign_plane', label: 'Aircraft selection' },
+            { ok: vm.assign.assigned_from_date, field: 'fox_assign_date', label: 'Installation date' }
+        ];
+        if (!ToastService.validateForm(checks)) return;
+
+        // A back-dated install rewrites history (claims flights, generates
+        // tech log sheets) — review it first, matching the Fleet page.
+        if (vm.assignDialogIsBackdated()) {
+            vm.assign.step = 'confirm';
+            return;
+        }
+        vm.executeAssignDialog();
+    };
+
+    vm.executeAssignDialog = function() {
+        vm.assign.busy = true;
+        TrackerPlaneService.Assign({
+            tracker_id: vm.assign.tracker.id,
+            plane_id: vm.assign.plane.plane_id,
+            club_id: vm.assign.club_id,
+            assigned_from: buildDatetime(vm.assign.assigned_from_date, vm.assign.assigned_from_time),
+            notes: vm.assign.notes || null
+        }).then(function(data) {
+            if (!vm.assign) return;
+            vm.assign.busy = false;
+            if (data.success) {
+                var result = TrackerPlaneService.NormalizeAssignResult(data);
+                if (result.claimed_anything) {
+                    // Back-dated assign pulled in existing flights — show what
+                    // it claimed rather than closing on a toast.
+                    vm.assign_result = result;
+                    vm.assign.step = 'result';
+                } else {
+                    var reg = vm.assign.plane.registration;
+                    vm.closeAssignDialog();
+                    ToastService.success('Tracker Assigned', 'Now installed on ' + reg + '.');
+                    reloadAfterAssign();
+                }
+            } else {
+                ToastService.error('Assignment Failed', data.message);
+            }
+        });
+    };
+
+    vm.closeAssignDialogResult = function() {
+        vm.closeAssignDialog();
+        reloadAfterAssign();
+    };
+
+    vm.closeAssignDialog = function() {
+        vm.assign = null;
+        vm.assign_result = null;
+    };
+
+    function reloadAfterAssign() {
+        if (vm.action === 'detail' && vm.tracker) {
+            loadDetail(vm.tracker.id);
+        } else {
+            loadTrackers();
+        }
+    }
+
+    // ── Datetime helpers — same convention as the Fleet page dialogs ──
+    function formatDateForInput(d) {
+        var y = d.getFullYear();
+        var m = ('0' + (d.getMonth() + 1)).slice(-2);
+        var day = ('0' + d.getDate()).slice(-2);
+        return y + '-' + m + '-' + day;
+    }
+
+    function formatTimeForInput(d) {
+        var h = ('0' + d.getHours()).slice(-2);
+        var min = ('0' + d.getMinutes()).slice(-2);
+        return h + ':' + min;
+    }
+
+    function buildDatetime(dateVal, timeVal) {
+        var datePart = (dateVal instanceof Date) ? formatDateForInput(dateVal) : dateVal;
+        var timePart = (timeVal instanceof Date) ? formatTimeForInput(timeVal) : (timeVal || '12:00');
+        return datePart + ' ' + timePart + ':00';
+    }
 
     // ── Navigation ──
     vm.goBack = function() {

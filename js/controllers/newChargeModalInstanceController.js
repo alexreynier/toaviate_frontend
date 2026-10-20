@@ -147,6 +147,10 @@
 
 
           $scope.ok = function () {
+            // Re-entry guard: this flow tokenises the card with Stripe BEFORE
+            // the charge request, so the global busy-guard can't see the press
+            // start a write. A double-tap here would charge the client twice.
+            if ($scope.processing) { return; }
             // Validation
             if (!$scope.items || $scope.items.length < 1) {
                 ToastService.error('No Items', 'Please add at least one item to the invoice.');
@@ -171,6 +175,10 @@
                 }
             }
             var obj = params;
+            $scope.processing = true;
+            function releaseProcessing() {
+                $scope.$evalAsync(function () { $scope.processing = false; });
+            }
 
 
             //let's create all that is required to issue the invoice.
@@ -198,11 +206,16 @@
                   // Inform the user if there was an error
                   var errorElement = document.getElementById('card-errors');
                   errorElement.textContent = result.error.message;
+                  releaseProcessing();
                 } else {
 
                   //stripeTokenHandler(result.token);
                   ////console.log("RESULT", result);
 
+                  if(!result.token || !result.token.id){
+                      releaseProcessing();
+                      return;
+                  }
                   if(result.token.id){
                     ////console.log("STUFF", result.token.id);
 
@@ -237,6 +250,8 @@
                             $uibModalInstance.close(data);
                         } else {
                             //console.log("WOOOPSIES...", data);
+                            $scope.processing = false;
+                            ToastService.error('Charge Failed', (data.message && data.message.message) || data.message || data.error || 'The payment could not be taken. Please try again.');
                             //this should be very very rare...
 
                         }
@@ -278,6 +293,8 @@
                             $uibModalInstance.close(data);
                         } else {
                             //console.log("WOOOPSIES...", data);
+                            $scope.processing = false;
+                            ToastService.error('Charge Failed', (data.message && data.message.message) || data.message || data.error || 'The payment could not be taken. Please try again.');
                             //this should be very very rare...
 
                         }

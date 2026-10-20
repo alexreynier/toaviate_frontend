@@ -49,10 +49,10 @@
           <label for="pick-debrief-lesson">Lesson</label>
           <ui-select id="pick-debrief-lesson" ng-model="vm.pick_lesson_obj" theme="bootstrap" style="width: 100%;" title="Lesson" append-to-body="true">
             <ui-select-match placeholder="Search for a lesson...">
-              Lesson {{ vm.pick_lesson_obj.organise }}: {{ vm.pick_lesson_obj.title }}
+              Lesson {{ vm.pick_lesson_obj.organise + 1 }}: {{ vm.pick_lesson_obj.title }}
             </ui-select-match>
             <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search}">
-              <div ng-bind-html="('Lesson ' + lesson.organise + ': ' + lesson.title) | highlight: $select.search"></div>
+              <div ng-bind-html="('Lesson ' + (lesson.organise + 1) + ': ' + lesson.title) | highlight: $select.search"></div>
             </ui-select-choices>
           </ui-select>
         </div>
@@ -80,10 +80,10 @@
             <label>Select a different lesson</label>
             <ui-select ng-model="vm.pending_debrief_lesson_obj" theme="bootstrap" style="width: 100%;" title="Lesson" append-to-body="true">
               <ui-select-match placeholder="Search for a lesson...">
-                Lesson {{ vm.pending_debrief_lesson_obj.organise }}: {{ vm.pending_debrief_lesson_obj.title }}
+                Lesson {{ vm.pending_debrief_lesson_obj.organise + 1 }}: {{ vm.pending_debrief_lesson_obj.title }}
               </ui-select-match>
               <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search}">
-                <div ng-bind-html="('Lesson ' + lesson.organise + ': ' + lesson.title) | highlight: $select.search"></div>
+                <div ng-bind-html="('Lesson ' + (lesson.organise + 1) + ': ' + lesson.title) | highlight: $select.search"></div>
               </ui-select-choices>
             </ui-select>
           </div>
@@ -97,7 +97,7 @@
     </div>
 
     <div class="club_docs_all" ng-if="vm.show_whole_lesson && !vm.no_lesson_selected">
-        <h2 style="display: flex; align-items: center;">Lesson {{ vm.lesson.organise }}: {{ vm.lesson.title }} <i class="fas fa-exchange-alt pointer" style="font-size: 0.7em; color: #f0ad4e; margin-left: auto; padding: 6px 8px; background: rgba(240,173,78,0.15); border-radius: 6px; transition: background 0.2s;" uib-tooltip="Taught a different lesson?" tooltip-placement="left" ng-click="vm.show_lesson_switcher = true"></i></h2>
+        <h2 style="display: flex; align-items: center;">Lesson {{ vm.lesson.organise + 1 }}: {{ vm.lesson.title }} <i class="fas fa-exchange-alt pointer" style="font-size: 0.7em; color: #f0ad4e; margin-left: auto; padding: 6px 8px; background: rgba(240,173,78,0.15); border-radius: 6px; transition: background 0.2s;" uib-tooltip="Taught a different lesson?" tooltip-placement="left" ng-click="vm.show_lesson_switcher = true"></i></h2>
 
        
         <div class="course_intro">
@@ -306,10 +306,10 @@
 
             <!-- Non-blocking nudge: exactly how many objectives still need a grade.
                  A partial debrief is legitimate, so this never stops a save. -->
-            <div class="sr-grade-progress" ng-if="vm.all_items.length"
-                 ng-class="vm.graded_count() === vm.all_items.length ? 'sr-grade-progress--done' : 'sr-grade-progress--todo'">
-                <i class="fas" ng-class="vm.graded_count() === vm.all_items.length ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
-                <span>{{ vm.graded_count() }} of {{ vm.all_items.length }} objectives graded</span>
+            <div class="sr-grade-progress" ng-if="vm.gradable_items().length"
+                 ng-class="vm.graded_count() === vm.gradable_items().length ? 'sr-grade-progress--done' : 'sr-grade-progress--todo'">
+                <i class="fas" ng-class="vm.graded_count() === vm.gradable_items().length ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span>{{ vm.graded_count() }} of {{ vm.gradable_items().length }} objectives graded</span>
                 <span class="sr-grade-progress__bar">
                     <span class="sr-grade-progress__fill" ng-style="{width: vm.grade_percent() + '%'}"></span>
                 </span>
@@ -340,7 +340,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }"
+                                <tr ng-repeat="item in vm.visible_items()"
                                     ng-class="{'sr-obj-row--ungraded': !vm.is_graded(item)}">
                                     <td>
                                         <span class="sr-table__objective" uib-tooltip="{{ item.description }}" tooltip-placement="right">{{ item.title }}</span>
@@ -371,7 +371,7 @@
                     </div>
 
                     <div class="sr-cards">
-                        <div class="sr-card" ng-repeat="item in vm.all_items | propsFilterA: {title: vm.my_search, lesson_id: vm.my_search }">
+                        <div class="sr-card" ng-repeat="item in vm.visible_items()">
                             <div class="sr-card__head">
                                 <span class="sr-card__title">{{ item.title }}</span>
                                 <span class="sr-ungraded-flag" ng-if="!vm.is_graded(item)">
@@ -501,10 +501,10 @@
                 <label class="sr-form-group__label">Next lesson for the student</label>
                 <ui-select ng-model="vm.next_lesson" theme="bootstrap" title="Search for the student's next lesson" append-to-body="true">
                     <ui-select-match placeholder="Search for the next lesson…">
-                        Lesson {{ vm.next_lesson.organise }} — {{ vm.next_lesson.title }}
+                        Lesson {{ vm.next_lesson.organise + 1 }} — {{ vm.next_lesson.title }}
                     </ui-select-match>
                     <ui-select-choices repeat="lesson in vm.all_lessons | propsFilterA: {title: $select.search, organise: $select.search, id: $select.search}">
-                        <div ng-bind-html="('Lesson ' + lesson.organise + ' — ' + lesson.title) | highlight: $select.search"></div>
+                        <div ng-bind-html="('Lesson ' + (lesson.organise + 1) + ' — ' + lesson.title) | highlight: $select.search"></div>
                     </ui-select-choices>
                 </ui-select>
             </div>
@@ -515,12 +515,12 @@
 
    <div class="club_docs_all">
         <div class="sr-savebar">
-            <span class="sr-savebar__note" ng-if="vm.all_items.length && vm.graded_count() < vm.all_items.length">
+            <span class="sr-savebar__note" ng-if="vm.gradable_items().length && vm.graded_count() < vm.gradable_items().length">
                 <i class="fas fa-exclamation-triangle"></i>
-                {{ vm.all_items.length - vm.graded_count() }} objective(s) still ungraded — you can still save.
+                {{ vm.gradable_items().length - vm.graded_count() }} objective(s) still ungraded — you can still save.
             </span>
-            <button type="button" class="sr-btn sr-btn--success" ng-click="vm.save_progress()">
-                <i class="fas fa-check"></i> Save progress
+            <button type="button" class="sr-btn sr-btn--success" ng-click="vm.save_progress()" ng-disabled="vm.saving || vm.no_lesson_selected">
+                <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ vm.saving ? 'Saving…' : 'Save progress' }}
             </button>
         </div>
     </div>

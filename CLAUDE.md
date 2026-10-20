@@ -126,6 +126,39 @@ pass data via `resolve` (injected into the modal controller), and close with
 `$uibModalInstance.close(data)` / `.dismiss('cancel')`. Template lives in
 [views/modals/](views/modals/). See [flightEditModalController.js](js/controllers/flightEditModalController.js).
 
+### Double-submit guard — app-wide, automatic
+
+Every `ng-click` / `ng-submit` / `ng-change` (discrete controls) / `ng-key*` is
+shadowed by a companion directive ([js/directives/busyGuard.js](js/directives/busyGuard.js)) backed by
+[js/services/writeGuardService.js](js/services/writeGuardService.js) (an `$http` interceptor that
+tracks in-flight POST/PUT/PATCH/DELETE). If a press starts a write, the pressed
+element is disabled, gets `.wg-busy` + a ring spinner ([css/busy-guard.css](css/busy-guard.css)),
+and a second press is swallowed until that write — and any write chained off its
+response — settles. **Don't add per-button `saving` flags just for double-click
+protection**; the guard already covers direct save/edit/delete handlers.
+
+- A press that only validates, navigates or opens a modal never locks.
+- `ng-change`: toggles / checkboxes / radios / selects / ui-select are locked (the
+  wrapping `<label>` too); text-like inputs and textareas are deliberately NOT, so
+  typing is never interrupted. `ng-keydown|keypress|keyup`: nothing is styled, but a
+  repeat of the key that fired the write is swallowed while it's in flight.
+- `ng-disabled` keeps the final say; buttons with their own `.fa-spin` don't get a second spinner.
+- Opt out with the `no-busy-guard` attribute.
+- **Outcome feedback is central too:** when a write fails (HTTP error, or a 2xx body
+  with `success:false`) and no toast appeared within 150 ms, the interceptor shows a
+  generic "Not saved" error toast (`ToastService.lastShownAt` is the de-dup signal).
+  Handlers that toast their own message still win. Backend codes a controller handles
+  with its own UI are in `HANDLED_CODES` (CONFIRM_REQUIRED, FORBIDDEN, requires_action…)
+  and pre-auth endpoints in `SILENT_URLS` — add to those lists rather than suppressing
+  the toast elsewhere.
+- **Not covered:** flows whose write starts after an external step (Stripe.js
+  `createToken`/`confirmSetup`/`confirmPayment`, a preceding GET, `$timeout`) and the
+  three data-changing GET endpoints (`fox/reset_*`, `fox/fix_uncombined`,
+  `plane_log_sheets/update_tuition_book_in`). Those need their own flag + `ng-disabled`
+  — see `$scope.processing` in
+  [newChargeModalInstanceController.js](js/controllers/newChargeModalInstanceController.js) and `vm.saving` in
+  [dashboardClubVouchersAddController.js](js/controllers/dashboardClubVouchersAddController.js).
+
 ### Notifications & errors — **use ToastService, never `alert`/`confirm`/`prompt`**
 
 See [AGENT_GUIDE_ERROR_HANDLING.md](AGENT_GUIDE_ERROR_HANDLING.md) (authoritative).

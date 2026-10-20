@@ -4,6 +4,27 @@
     function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $timeout, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService, ManualFlightService) {
         var vm = this;
 
+        // Who the Student column names. A dual flight's sheet has the
+        // instructor as user/pic and the student as put (pilot under
+        // training) — showing flight.user there named the instructor. The
+        // backend's get_all_for_club already attaches user, put, pic and
+        // instructor objects, so this is view logic only.
+        vm.flightStudent = function(flight){
+            if (!flight) { return null; }
+            if (flight.dual_flight == 1 && flight.put && flight.put.id) { return flight.put; }
+            return flight.user;
+        };
+        // The PIC when they are a different person from the student (the
+        // instructor on a dual flight); null otherwise so nothing is shown.
+        vm.flightPic = function(flight){
+            if (!flight) { return null; }
+            var student = vm.flightStudent(flight);
+            var pic = (flight.pic && flight.pic.id) ? flight.pic : flight.instructor;
+            if (!pic || !pic.id) { return null; }
+            if (student && student.id == pic.id) { return null; }
+            return pic;
+        };
+
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
 
            // var initRecaptcha = function () { 

@@ -1233,6 +1233,11 @@
         vm.all_tags = [];
         vm.show_edit_training_record = false;
         vm.show_edit_record = function(){
+            // A flight with no record cannot be edited (the save would PUT /training_records/undefined)
+            if(!vm.this_entry || !vm.this_entry.id){
+                ToastService.warning('No Record', 'There is no training record on this flight yet — file one from the Debriefings list.');
+                return;
+            }
 
             //OK let's edit some records!!!
             vm.show_edit_training_record = true;

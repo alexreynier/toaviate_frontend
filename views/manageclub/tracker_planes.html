@@ -7,7 +7,7 @@
   <div ng-if="!vm.is_manager" class="tp__unauthorised">
     <div class="tp__unauthorised-icon"><i class="fas fa-lock"></i></div>
     <h2>Access Denied</h2>
-    <p>This page is available to club managers only.</p>
+    <p>This page is restricted to ToAviate management users.</p>
   </div>
 
   <div ng-if="vm.is_manager">
@@ -19,10 +19,18 @@
           <i class="fa fa-arrow-circle-left"></i> BACK
         </div>
         <div class="snazzy-page__title">
-          <h2><i class="fas fa-satellite"></i> Aircraft Trackers</h2>
-          <p>Tracker assignment across your fleet</p>
+          <h2><i class="fas fa-satellite"></i> Fox Trackers — Fleet</h2>
+          <p>Which tracker is fitted to which aircraft</p>
         </div>
       </div>
+    </div>
+
+    <!-- ── Tabs (shared across the Fox Tracker family) ── -->
+    <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-plane"></i> Fleet</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_unmatched"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
     </div>
 
     <!-- ── Loading ── -->
@@ -48,13 +56,27 @@
         </div>
       </div>
 
-      <!-- ── Search ── -->
-      <div class="snazzy-page__filter-bar" style="margin-bottom: 20px;">
+      <!-- ── Club + Search + Tracked filter ── -->
+      <div class="snazzy-page__filter-bar tp__filter-bar" style="margin-bottom: 20px;">
+        <select class="fox-tracker__filter-select tp__club-select" ng-if="vm.clubs.length > 1"
+                ng-model="vm.club_id" ng-change="vm.changeClub()"
+                ng-options="club.id as club.title for club in vm.clubs">
+        </select>
         <div class="snazzy-page__search-wrap" style="flex:1; min-width:200px;">
           <i class="fas fa-search snazzy-page__search-icon"></i>
           <input type="text" class="snazzy-page__search-input"
                  placeholder="Search registration, type, tracker…"
                  ng-model="vm.search_text" />
+        </div>
+        <div class="tp__chip-group">
+          <button class="tp__chip" ng-class="{'tp__chip--on': vm.filter_tracked === 'tracked'}"
+                  ng-click="vm.setTrackedFilter('tracked')">
+            <i class="fas fa-satellite"></i> Tracked
+          </button>
+          <button class="tp__chip" ng-class="{'tp__chip--on': vm.filter_tracked === 'untracked'}"
+                  ng-click="vm.setTrackedFilter('untracked')">
+            <i class="fas fa-plane"></i> Untracked
+          </button>
         </div>
       </div>
 
@@ -90,8 +112,12 @@
               <div class="tp__tracker-label">{{ vm.getTrackerForPlane(plane).label || 'Tracker' }}</div>
               <div class="tp__tracker-imei">{{ vm.getTrackerForPlane(plane).imei }}</div>
             </div>
-            <div ng-if="!vm.getTrackerForPlane(plane)">
+            <div ng-if="!vm.getTrackerForPlane(plane)" class="tp__no-tracker-row">
               <div class="tp__no-tracker">No tracker assigned</div>
+              <button class="snazzy-page__btn snazzy-page__btn--primary tp__card-assign-btn"
+                      ng-click="vm.openPlaneAssign(plane, $event)">
+                <i class="fas fa-link"></i> Assign Tracker
+              </button>
             </div>
             <div ng-if="vm.getTrackerForPlane(plane)" class="tp__tracker-health">
               <span class="snazzy-table__badge fox-tracker__health" ng-class="vm.healthBadgeClass(vm.getTrackerForPlane(plane))"

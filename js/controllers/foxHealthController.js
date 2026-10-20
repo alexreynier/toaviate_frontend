@@ -263,6 +263,175 @@ app.controller('FoxUnmatchedController', FoxUnmatchedController);
             return vm.entries.filter(vm.entryVisible).length;
         };
 
+        // ── Multi-select ──────────────────────────────────────────────
+        // Bulk matching is SUGGESTION-ONLY: each selected flight is matched to
+        // its own suggested aircraft (empty body, same as the single-row
+        // "use the suggestion" path). There is deliberately no "assign all to
+        // one aircraft" — a mixed batch has no single right answer, and one
+        // wrong pick would write tech-log sheets onto the wrong aeroplane for
+        // every selected flight. Anything without a suggestion, or that the
+        // backend would refuse anyway, stays a one-at-a-time job via Match.
+        vm.selection = {};       // entry.id → true
+        vm.bulk = null;          // confirm/progress dialog state
+
+        vm.selectable = function(entry) {
+            return !!entry.suggested_plane_id && !vm.matchDiscouraged(entry) && !entry._matched;
+        };
+
+        vm.toggleSelect = function(entry) {
+            if (!vm.selectable(entry)) { return; }
+            if (vm.selection[entry.id]) { delete vm.selection[entry.id]; }
+            else { vm.selection[entry.id] = true; }
+        };
+
+        vm.isSelected = function(entry) {
+            return !!vm.selection[entry.id];
+        };
+
+        // Only rows the user can actually see AND act on — the header checkbox
+        // must never reach through the triage filter and select hidden rows.
+        function selectableVisible() {
+            return vm.entries.filter(function(entry) {
+                return vm.entryVisible(entry) && vm.selectable(entry);
+            });
+        }
+        vm.selectableVisible = selectableVisible;
+
+        vm.selectedEntries = function() {
+            return vm.entries.filter(function(entry) {
+                return vm.selection[entry.id] && vm.selectable(entry);
+            });
+        };
+
+        vm.selectedCount = function() {
+            return vm.selectedEntries().length;
+        };
+
+        vm.allVisibleSelected = function() {
+            var pool = selectableVisible();
+            if (!pool.length) { return false; }
+            return pool.every(function(entry) { return !!vm.selection[entry.id]; });
+        };
+
+        vm.toggleSelectAll = function() {
+            var pool = selectableVisible();
+            if (vm.allVisibleSelected()) {
+                pool.forEach(function(entry) { delete vm.selection[entry.id]; });
+            } else {
+                pool.forEach(function(entry) { vm.selection[entry.id] = true; });
+            }
+        };
+
+        vm.clearSelection = function() { vm.selection = {}; };
+
+        // Distinct suggested aircraft in a batch — the confirm dialog names them
+        // so "13 flights" can't hide a batch spanning two aeroplanes.
+        // Computed ONCE when the dialog opens, not per digest: ng-repeat compares
+        // by reference, and rebuilding these object literals every cycle would
+        // trip Angular's infinite-$digest guard.
+        function aircraftBreakdown(entries) {
+            var seen = {};
+            entries.forEach(function(entry) {
+                var reg = entry.suggested_registration || 'unknown';
+                seen[reg] = (seen[reg] || 0) + 1;
+            });
+            return Object.keys(seen).sort().map(function(reg) {
+                return { registration: reg, count: seen[reg] };
+            });
+        }
+
+        vm.openBulk = function() {
+            if (!vm.selectedCount()) { return; }
+            var queue = vm.selectedEntries();
+            // Clear any refusal text from an earlier run so a retried row can't
+            // show a stale reason next to a fresh result.
+            queue.forEach(function(entry) { delete entry._bulk_error; });
+            vm.bulk = {
+                stage: 'confirm',           // 'confirm' | 'running' | 'done'
+                queue: queue,
+                aircraft: aircraftBreakdown(queue),
+                done: 0,
+                matched: [],
+                failed: []
+            };
+        };
+
+        vm.closeBulk = function() {
+            // Mid-run cancellation would leave the backend half-applied with no
+            // way to tell the admin where it stopped, so the dialog only closes
+            // from the confirm or done stages.
+            if (vm.bulk && vm.bulk.stage === 'running') { return; }
+            vm.bulk = null;
+        };
+
+        vm.runBulk = function() {
+            var b = vm.bulk;
+            if (!b || b.stage !== 'confirm') { return; }
+            b.stage = 'running';
+            b.total = b.queue.length;
+            matchNext(0);
+        };
+
+        // Sequential, not parallel: each match writes a tech-log sheet and
+        // recalculates logbooks server-side, and the backend's duplicate
+        // detection compares against sheets that already exist. Firing them
+        // concurrently would race that check against itself.
+        function matchNext(index) {
+            var b = vm.bulk;
+            if (!b || index >= b.queue.length) { finishBulk(); return; }
+
+            var entry = b.queue[index];
+            FoxTrackerService.MatchEntry(entry.id, {}).then(function(data) {
+                b.done++;
+                if (data.success) {
+                    b.matched.push({ entry: entry, sheet_id: data.plane_log_sheet_id });
+                    entry._matched = true;
+                } else {
+                    // Keep the row and hang the backend's own words on it —
+                    // "already logged", "corrupt times" and "already matched"
+                    // each need a different human follow-up.
+                    entry._bulk_error = data.message || 'The flight could not be matched.';
+                    b.failed.push({ entry: entry, message: entry._bulk_error });
+                }
+                matchNext(index + 1);
+            });
+        }
+
+        function finishBulk() {
+            var b = vm.bulk;
+            b.stage = 'done';
+
+            // Drop the matched rows after their collapse animation, exactly as
+            // the single-row path does.
+            var matchedEntries = b.matched.map(function(row) { return row.entry; });
+            $timeout(function() {
+                matchedEntries.forEach(function(entry) {
+                    var idx = vm.entries.indexOf(entry);
+                    if (idx > -1) { vm.entries.splice(idx, 1); }
+                    delete vm.selection[entry.id];
+                    vm.total = Math.max(0, vm.total - 1);
+                });
+                buildReasonCounts();
+            }, 450);
+
+            if (b.failed.length === 0) {
+                ToastService.success('Flights Matched',
+                    b.matched.length + ' flight' + (b.matched.length === 1 ? '' : 's') + ' matched to a tech log.');
+            } else if (b.matched.length === 0) {
+                ToastService.error('Nothing Matched',
+                    'All ' + b.failed.length + ' flight' + (b.failed.length === 1 ? '' : 's') + ' were refused — see the reasons on each row.');
+            } else {
+                ToastService.warning('Partly Matched',
+                    b.matched.length + ' matched, ' + b.failed.length + ' refused — the failures are still listed.');
+            }
+        }
+
+        vm.bulkProgressPct = function() {
+            var b = vm.bulk;
+            if (!b || !b.total) { return 0; }
+            return Math.round((b.done / b.total) * 100);
+        };
+
         function buildReasonCounts() {
             var counts = {};
             vm.entries.forEach(function(entry) {
@@ -312,6 +481,9 @@ app.controller('FoxUnmatchedController', FoxUnmatchedController);
                 vm.entries = data.entries || [];
                 vm.total = data.total || vm.entries.length;
                 vm.limit = data.limit || 100;
+                // Entry ids from the previous filter set must not carry over —
+                // a stale tick would silently join the next bulk run.
+                vm.selection = {};
                 buildReasonCounts();
                 spotEntry();
             });
@@ -487,6 +659,7 @@ app.controller('FoxUnmatchedController', FoxUnmatchedController);
                     $timeout(function() {
                         var idx = vm.entries.indexOf(entry);
                         if (idx > -1) { vm.entries.splice(idx, 1); }
+                        delete vm.selection[entry.id];
                         vm.total = Math.max(0, vm.total - 1);
                     }, 450);
                 } else {

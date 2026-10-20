@@ -261,16 +261,121 @@ app.directive('flightWeatherPanel', ['FlightWeatherService', 'ToastService', '$t
                 row._cloudsNote = note;
             }
 
-            // Visibility is reported verbatim ("6+", "9999", "CAVOK", "1 1/2SM").
-            // Only append a unit when the value is bare digits: NOAA reports
-            // statute miles, archive (iem) rows metres.
+            // ── Visibility ──────────────────────────────────────────────
+            // Europe (incl. the UK) reports visibility in METRES/kilometres,
+            // never statute miles. NOAA normalises every station it serves to
+            // SM, so a UK field's "9999" comes back as "6+" — correct in the
+            // wrong unit, and not what a European pilot reads off a METAR.
+            //
+            // The raw METAR is authoritative and already carries the original
+            // group, so for European stations we take the visibility straight
+            // out of it rather than back-converting NOAA's rounded SM value
+            // (6+ SM → "9.7 km" would be both wrong and falsely precise).
+            //
+            // ICAO prefixes: the E* block (northern/western Europe, EG = UK)
+            // and the L* block (southern Europe + the Mediterranean). A couple
+            // of L* members sit outside Europe proper (LL Israel, LT Turkey)
+            // but they report in metres too, so the unit is right regardless.
+            function isEuropeanStation(icao) {
+                return /^[EL][A-Z]/i.test(String(icao || ''));
+            }
+
+            // The visibility group in a METAR sits after the wind group and is
+            // either 4 digits ("9999", "0350"), 4 digits + a direction for the
+            // minimum-visibility variant ("2000NE"), or "CAVOK". Distances of
+            // 10 km or more are always encoded 9999.
+            function metresFromRawMetar(raw) {
+                if (!raw) { return null; }
+                var text = String(raw).toUpperCase();
+                if (/\bCAVOK\b/.test(text)) { return 'CAVOK'; }
+                // Anchor on the wind group so pressure/temperature digits can't
+                // be mistaken for visibility.
+                var m = text.match(/\b(?:\d{3}|VRB)\d{2}(?:G\d{2,3})?(?:KT|MPS|KMH)\s+(\d{4})(?:[NSEW]{1,2})?\b/);
+                if (!m) { return null; }
+                var metres = parseInt(m[1], 10);
+                return isNaN(metres) ? null : metres;
+            }
+
+            // 9999 = "10 km or more". Below 5000 m METARs are read in metres;
+            // at and above that, kilometres are the natural unit.
+            function formatMetres(metres) {
+                if (metres >= 9999) { return '10 km+'; }
+                if (metres >= 5000) {
+                    var km = metres / 1000;
+                    return (km % 1 === 0 ? km : km.toFixed(1)) + ' km';
+                }
+                return groupNum(metres) + ' m';
+            }
+
+            // Values reached by converting a rounded SM figure carry no
+            // metre-level accuracy — "1 1/2SM" is not 2,414 m of real
+            // precision. METARs step visibility in 50 m up to 800 m and
+            // 100 m beyond, so snap to that and don't imply more than we know.
+            function snapMetres(metres) {
+                if (metres >= 9999) { return 9999; }
+                var step = metres < 800 ? 50 : 100;
+                return Math.round(metres / step) * step;
+            }
+
             scope.visLabel = function (row) {
                 var v = row.visibility;
+                var european = isEuropeanStation(row.station_icao);
+
+                if (european) {
+                    var fromRaw = metresFromRawMetar(row.raw_metar);
+                    if (fromRaw === 'CAVOK') { return 'CAVOK'; }
+                    if (fromRaw != null) { return formatMetres(fromRaw); }
+                }
+
                 if (v == null || v === '') { return '–'; }
                 v = String(v);
+
+                // Archive (iem) rows are already metres — a bare number there
+                // needs formatting, not a unit suffix bolted on.
+                if (row.source === 'iem' && /^\d+$/.test(v)) {
+                    return formatMetres(parseInt(v, 10));
+                }
+
+                // A European station whose raw METAR we couldn't parse: the
+                // only value we have is NOAA's SM. Convert rather than print a
+                // unit European pilots don't use. "6+" means "10 km or more"
+                // upstream, so it maps back to the 9999 wording exactly.
+                if (european) {
+                    if (/^\s*6\s*\+\s*$/.test(v)) { return '10 km+'; }
+                    var sm = parseSM(v);
+                    if (sm != null) { return formatMetres(snapMetres(sm * 1609.344)); }
+                }
+
                 if (/[a-zA-Z]/.test(v)) { return v; }
                 return v + (row.source === 'iem' ? ' m' : ' SM');
             };
+
+            // TAF period visibility. Unlike the METAR case there is no single
+            // raw group to read — each period carries its own — so the decoded
+            // value is converted. NOAA emits SM here too; a bare 4-digit value
+            // is already the original metric group (9999 = 10 km or more).
+            function tafVisLabel(visib, row) {
+                var v = String(visib).trim();
+                if (!isEuropeanStation(row && row.station_icao)) { return v; }
+                if (/CAVOK/i.test(v)) { return 'CAVOK'; }
+                if (/^\d{4}$/.test(v)) { return formatMetres(parseInt(v, 10)); }
+                if (/^\s*6\s*\+\s*$/.test(v)) { return '10 km+'; }
+                var sm = parseSM(v);
+                if (sm != null) { return formatMetres(snapMetres(sm * 1609.344)); }
+                return v;
+            }
+
+            // "1 1/2", "1/2", "2.5" → number of statute miles.
+            function parseSM(v) {
+                var text = String(v).replace(/SM/ig, '').trim();
+                var m = text.match(/^(\d+)\s+(\d+)\/(\d+)$/);   // mixed: 1 1/2
+                if (m) { return parseInt(m[1], 10) + parseInt(m[2], 10) / parseInt(m[3], 10); }
+                m = text.match(/^(\d+)\/(\d+)$/);                // fraction: 1/2
+                if (m) { return parseInt(m[1], 10) / parseInt(m[2], 10); }
+                m = text.match(/^(\d+(?:\.\d+)?)$/);             // plain: 2 or 2.5
+                if (m) { return parseFloat(m[1]); }
+                return null;
+            }
 
             // ── Raw text copy ──
 
@@ -328,7 +433,7 @@ app.directive('flightWeatherPanel', ['FlightWeatherService', 'ToastService', '$t
                         tempo: tempo,
                         timeLabel: fmtUnixDayZ(f0 / 1000) + ' → ' + fmtUnixDayZ(f1 / 1000),
                         active: false,
-                        parts: describePeriod(f)
+                        parts: describePeriod(f, row)
                     };
                     // The (base) period in force at the flight time gets the
                     // category highlight + is pre-selected.
@@ -350,7 +455,7 @@ app.directive('flightWeatherPanel', ['FlightWeatherService', 'ToastService', '$t
             // Human summary chips for one decoded TAF period. Field names follow
             // NOAA's parsed element (the iem parser emits the same subset) —
             // everything is optional, render only what's there.
-            function describePeriod(f) {
+            function describePeriod(f, row) {
                 var parts = [];
                 if (f.probability) { parts.push('PROB' + f.probability); }
                 if (f.wdir != null || f.wspd != null) {
@@ -359,7 +464,7 @@ app.directive('flightWeatherPanel', ['FlightWeatherService', 'ToastService', '$t
                             (f.wgst ? ' G ' + f.wgst : '');
                     if (w.trim()) { parts.push('Wind ' + w.trim()); }
                 }
-                if (f.visib != null && f.visib !== '') { parts.push('Vis ' + f.visib); }
+                if (f.visib != null && f.visib !== '') { parts.push('Vis ' + tafVisLabel(f.visib, row)); }
                 if (f.wxString) { parts.push(f.wxString); }
                 angular.forEach(f.clouds || [], function (c) {
                     if (!c || !c.cover) { return; }

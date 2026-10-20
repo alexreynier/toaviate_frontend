@@ -3751,6 +3751,11 @@
 
 
         function after_success_bookin(where_to, data){
+                // A zero-charge (package/free) instructional flight was sent "home"
+                // and never debriefed — the record is owed regardless of payment.
+                if(where_to == "home" && vm.is_instructional_completion()){
+                    where_to = "debrief";
+                }
                 if(where_to == "home"){
                         $state.go('dashboard.my_account', {}, { reload: true });
                     } else if(where_to == "debrief") {
@@ -3811,7 +3816,10 @@
                             booking_id = vm.bookout.booking_id;
                         }
 
-                       if((vm.user.id == vm.bookout.instructor_id || (vm.user.id == vm.bookout.pic_id && vm.bookout.put_id > 0)) && (vm.bookout.booking_id > 0 || vm.bookout.course_id > 0)){
+                       // same gate as the plain debrief branch (claimed instructional
+                       // flights have booking_id/course_id 0 but still need a record)
+                       if(((vm.user.id == vm.bookout.instructor_id || (vm.user.id == vm.bookout.pic_id && vm.bookout.put_id > 0)) && (vm.bookout.booking_id > 0 || vm.bookout.course_id > 0))
+                          || vm.is_instructional_completion()){
                               console.log("SPLIT AND DEBRIEF???");
                           // /debriefing/:booking_id/:plane_log_sheet_id
                               // console.log("SPLIT and success in data obj");
@@ -3822,7 +3830,8 @@
                               // console.log("data.split.booking_id : ", data.split.booking_id);
                               // console.log("split : ", vm.split_two);
                               //  return false;
-                              $state.go('dashboard.manage_user.debriefing', { booking_id: data.split.booking_id, plane_log_sheet_id: vm.bookout.id, split_next_id: data.split.plane_log_sheet_id, split_booking_id: data.split.booking_id }, { reload: true });
+                              // leg 1's record belongs to leg 1's booking (booking_id computed above), not leg 2's
+                              $state.go('dashboard.manage_user.debriefing', { booking_id: booking_id, plane_log_sheet_id: vm.bookout.id, split_next_id: data.split.plane_log_sheet_id, split_booking_id: data.split.booking_id }, { reload: true });
 
                             // $state.go('dashboard.manage_user.debriefing', {booking_id: vm.bookout.booking_id, plane_log_sheet_id: vm.bookout.id, split_flight_id: data.split.plane_log_sheet_id, split_flight_booking_id: data.split.booking_id, split: vm.split_two }, { reload: true });
                         } else {

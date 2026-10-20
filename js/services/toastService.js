@@ -12,6 +12,7 @@ function ToastService($timeout) {
     service.validateForm = validateForm;
     service.clearFieldError = clearFieldError;
     service.highlightField = highlightField;
+    service.lastShownAt = 0;   // epoch ms of the last toast actually rendered (read by writeGuardInterceptor to avoid double-reporting)
     return service;
 
     // ── Form validation helper ──
@@ -108,6 +109,7 @@ function ToastService($timeout) {
 
         subtitle = cleanSubtitle(subtitle);
 
+        service.lastShownAt = new Date().getTime();
         var wrapper = document.createElement('div');
         wrapper.className = 'payok-root';
         wrapper.setAttribute('role', 'status');
@@ -142,6 +144,7 @@ function ToastService($timeout) {
         if (isAuthFailure(subtitle)) { return; }
         subtitle = cleanSubtitle(subtitle);
 
+        service.lastShownAt = new Date().getTime();
         var wrapper = document.createElement('div');
         wrapper.className = 'payfail-root';
         wrapper.setAttribute('role', 'alert');
@@ -162,6 +165,7 @@ function ToastService($timeout) {
         if (isAuthFailure(subtitle)) { return; }
         subtitle = cleanSubtitle(subtitle);
 
+        service.lastShownAt = new Date().getTime();
         var wrapper = document.createElement('div');
         wrapper.className = 'ta-warn-root';
         wrapper.setAttribute('role', 'alert');

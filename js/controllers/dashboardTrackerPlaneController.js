@@ -1,10 +1,10 @@
 app.controller('DashboardTrackerPlaneController', DashboardTrackerPlaneController);
 
 DashboardTrackerPlaneController.$inject = [
-    '$rootScope', '$scope', '$state', '$stateParams', 'TrackerPlaneService', 'PlaneService', 'ToastService', '$timeout', 'TrackerHealthService'
+    '$rootScope', '$scope', '$state', '$stateParams', 'TrackerPlaneService', 'PlaneService', 'ToastService', '$timeout', 'TrackerHealthService', 'ClubService'
 ];
 
-function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParams, TrackerPlaneService, PlaneService, ToastService, $timeout, TrackerHealthService) {
+function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParams, TrackerPlaneService, PlaneService, ToastService, $timeout, TrackerHealthService, ClubService) {
 
     var vm = this;
 
@@ -22,9 +22,20 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     // tab (shared $rootScope.isToAviateStaff helper) rather than the per-club
     // manager check. vm.is_manager is kept as the view's allow/deny flag name.
     vm.user = $rootScope.globals.currentUser;
-    vm.club_id = vm.user.current_club_admin ? vm.user.current_club_admin.id : null;
     vm.is_manager = $rootScope.isToAviateStaff();
     if (!vm.is_manager) return;
+
+    // ── Club scope ──
+    // A ToAviate admin isn't tied to one club, so the fleet list carries its
+    // own club picker (persisted across visits). Priority: the club explicitly
+    // handed over in the URL (detail links from the fleet list / device
+    // registry) → last club picked here → the admin's selected admin club.
+    var CLUB_STORE_KEY = 'toaviate_tracker_fleet_club';
+    var storedClub = parseInt(localStorage.getItem(CLUB_STORE_KEY), 10);
+    vm.club_id = parseInt($stateParams.club_id, 10)
+        || (!isNaN(storedClub) ? storedClub : null)
+        || (vm.user.current_club_admin ? vm.user.current_club_admin.id : null);
+    vm.clubs = [];
 
     // ── Action routing ──
     vm.action = $state.current.data ? $state.current.data.action : 'list';
@@ -34,6 +45,7 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     vm.planes = [];
     vm.loading = false;
     vm.search_text = '';
+    vm.filter_tracked = ''; // '' | 'tracked' | 'untracked'
 
     // ── Per-plane detail ──
     vm.plane = null;
@@ -74,18 +86,66 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     // ── Swap result ──
     vm.swap_result = null;
 
+    // ── Assign result ──
+    // Only populated when a back-dated assign actually claimed something —
+    // a plain "installed today" assign has nothing to report and stays a toast.
+    vm.assign_result = null;
+
+    // ── Unassign result ──
+    vm.unassign_result = null;
+
+    // Guards against a slow response for club A landing after the admin has
+    // already switched the picker to club B. MUST be initialised before the
+    // init block below calls loadFleetSummary().
+    var fleet_load_token = 0;
+
     // ── Init ──
     if (vm.action === 'list') {
-        loadFleetSummary();
+        vm.loading = true;
+        loadClubs();
+        if (vm.club_id) loadFleetSummary();
     } else if (vm.action === 'detail') {
         loadPlaneDetail();
     }
+
+    // ═══════════════════════════════════════════
+    // CLUB PICKER
+    // ═══════════════════════════════════════════
+
+    function loadClubs() {
+        ClubService.GetAll().then(function(data) {
+            vm.clubs = (data && (data.clubs || data.items)) || (angular.isArray(data) ? data : []);
+            // Club ids can arrive as strings — re-point vm.club_id at the
+            // list's own value so the <select> matches it, and fall back to
+            // the first club when the remembered one no longer exists (or
+            // nothing resolved a club at all).
+            var match = null;
+            for (var i = 0; i < vm.clubs.length; i++) {
+                if (parseInt(vm.clubs[i].id, 10) === parseInt(vm.club_id, 10)) { match = vm.clubs[i]; break; }
+            }
+            if (match) {
+                vm.club_id = match.id;
+            } else if (vm.clubs.length > 0) {
+                vm.club_id = vm.clubs[0].id;
+                loadFleetSummary();
+            } else if (!vm.club_id) {
+                vm.loading = false;
+            }
+        });
+    }
+
+    vm.changeClub = function() {
+        if (!vm.club_id) return;
+        try { localStorage.setItem(CLUB_STORE_KEY, String(vm.club_id)); } catch (e) {}
+        loadFleetSummary();
+    };
 
     // ═══════════════════════════════════════════
     // FLEET SUMMARY (LIST)
     // ═══════════════════════════════════════════
 
     function loadFleetSummary() {
+        var token = ++fleet_load_token;
         vm.loading = true;
         var planesLoaded = false;
         var trackersLoaded = false;
@@ -96,6 +156,7 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
 
         // Load all planes for the club
         PlaneService.GetAllByClub(vm.club_id).then(function(data) {
+            if (token !== fleet_load_token) return;
             vm.planes = data || [];
             planesLoaded = true;
             checkReady();
@@ -103,6 +164,7 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
 
         // Load all tracker assignments for the club
         TrackerPlaneService.GetByClub(vm.club_id).then(function(data) {
+            if (token !== fleet_load_token) return;
             if (data.success) {
                 vm.trackers = data.trackers || [];
             } else {
@@ -185,15 +247,25 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     };
 
     vm.filteredPlanes = function() {
-        if (!vm.search_text) return vm.planes;
+        var list = vm.planes;
+        if (vm.filter_tracked === 'tracked') {
+            list = list.filter(function(p) { return !!vm.getTrackerForPlane(p); });
+        } else if (vm.filter_tracked === 'untracked') {
+            list = list.filter(function(p) { return !vm.getTrackerForPlane(p); });
+        }
+        if (!vm.search_text) return list;
         var q = vm.search_text.toLowerCase();
-        return vm.planes.filter(function(p) {
+        return list.filter(function(p) {
             var tracker = vm.getTrackerForPlane(p);
             return (p.registration && p.registration.toLowerCase().indexOf(q) > -1) ||
                    (p.plane_type && p.plane_type.toLowerCase().indexOf(q) > -1) ||
                    (tracker && tracker.label && tracker.label.toLowerCase().indexOf(q) > -1) ||
                    (tracker && tracker.imei && tracker.imei.indexOf(q) > -1);
         });
+    };
+
+    vm.setTrackedFilter = function(value) {
+        vm.filter_tracked = (vm.filter_tracked === value) ? '' : value;
     };
 
     vm.countWithTracker = function() {
@@ -205,12 +277,24 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     };
 
     vm.openPlaneDetail = function(plane) {
-        $state.go('dashboard.super_admin.tracker_plane_detail', { plane_id: plane.plane_id });
+        $state.go('dashboard.super_admin.tracker_plane_detail', { plane_id: plane.plane_id, club_id: vm.club_id });
+    };
+
+    // "Assign" shortcut on an untracked fleet card — lands on the plane's
+    // detail page with the assign dialog already open.
+    vm.openPlaneAssign = function(plane, $event) {
+        if ($event) { $event.stopPropagation(); }
+        $state.go('dashboard.super_admin.tracker_plane_detail', { plane_id: plane.plane_id, club_id: vm.club_id, assign: '1' });
     };
 
     // ═══════════════════════════════════════════
     // PLANE DETAIL
     // ═══════════════════════════════════════════
+
+    // ?assign=1 (fleet card / registry shortcut) opens the assign dialog as
+    // soon as we know the plane really has no tracker — first load only, not
+    // on the reloads that follow an action.
+    var auto_assign_pending = ($stateParams.assign === '1');
 
     function loadPlaneDetail() {
         vm.loading = true;
@@ -219,12 +303,21 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         var logLoaded = false;
 
         function checkReady() {
-            if (planeLoaded && trackerLoaded && logLoaded) vm.loading = false;
+            if (planeLoaded && trackerLoaded && logLoaded) {
+                vm.loading = false;
+                if (auto_assign_pending && !vm.current_tracker) {
+                    auto_assign_pending = false;
+                    vm.openAssign();
+                }
+            }
         }
 
         // Get plane info
-        PlaneService.GetById(vm.plane_id).then(function(data) {
+        PlaneService.GetById(vm.plane_id, vm.club_id).then(function(data) {
             vm.plane = data || {};
+            // The plane's own club is authoritative for the assign/swap
+            // payloads — the URL/stored club is just how we got here.
+            if (vm.plane.club_id) { vm.club_id = parseInt(vm.plane.club_id, 10); }
             planeLoaded = true;
             checkReady();
         });
@@ -263,11 +356,26 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         vm.dialog = 'assign';
         vm.assign_data = {
             tracker: null,
-            assigned_from_date: formatDateForInput(new Date()),
-            assigned_from_time: formatTimeForInput(new Date()),
+            // Date OBJECTS, not strings — Angular 1.4.7's input[date]/input[time]
+            // throw ngModel:datefmt (and render blank) on a string model.
+            // buildDatetime() handles both shapes.
+            assigned_from_date: nowForInputs(),
+            assigned_from_time: nowForInputs(),
             notes: ''
         };
+        vm.assign_result = null;
         loadAvailableTrackers();
+    };
+
+    // True once the admin has typed an installation date earlier than today.
+    // Drives the in-dialog heads-up that this is a backfill, not just a
+    // paperwork date — the assign will pull the tracker's floating flights
+    // from that date onto this aircraft.
+    vm.assignIsBackdated = function() {
+        var chosen = vm.assign_data ? vm.assign_data.assigned_from_date : null;
+        if (!chosen) { return false; }
+        var datePart = (chosen instanceof Date) ? formatDateForInput(chosen) : chosen;
+        return datePart < formatDateForInput(new Date());
     };
 
     vm.submitAssign = function() {
@@ -277,6 +385,17 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         ];
         if (!ToastService.validateForm(checks)) return;
 
+        // A back-dated install rewrites history (claims flights, generates
+        // tech log sheets), so it gets the same review step a swap has.
+        // A "fitted today" assign has nothing to review and goes straight through.
+        if (vm.assignIsBackdated()) {
+            vm.dialog = 'assign_confirm';
+            return;
+        }
+        vm.executeAssign();
+    };
+
+    vm.executeAssign = function() {
         var datetime = buildDatetime(vm.assign_data.assigned_from_date, vm.assign_data.assigned_from_time);
 
         vm.dialog_busy = true;
@@ -289,13 +408,30 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         }).then(function(data) {
             vm.dialog_busy = false;
             if (data.success) {
-                vm.dialog = null;
-                ToastService.success('Tracker Assigned', data.message);
-                loadPlaneDetail();
+                // A back-dated assign claims the tracker's floating flights in
+                // the backfill window. That is a real data change the admin
+                // needs to see, so it gets the same result dialog as a swap
+                // rather than a toast that scrolls away. An assign that pulled
+                // nothing in (the normal "fitted today" case) stays a toast.
+                var result = TrackerPlaneService.NormalizeAssignResult(data);
+                if (result.claimed_anything) {
+                    vm.assign_result = result;
+                    vm.dialog = 'assign_result';
+                } else {
+                    vm.dialog = null;
+                    ToastService.success('Tracker Assigned', data.message);
+                    loadPlaneDetail();
+                }
             } else {
                 ToastService.error('Assignment Failed', data.message);
             }
         });
+    };
+
+    vm.closeAssignResult = function() {
+        vm.dialog = null;
+        vm.assign_result = null;
+        loadPlaneDetail();
     };
 
     // ═══════════════════════════════════════════
@@ -306,8 +442,8 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         vm.dialog = 'swap';
         vm.swap_data = {
             new_tracker: null,
-            effective_at_date: formatDateForInput(new Date()),
-            effective_at_time: formatTimeForInput(new Date()),
+            effective_at_date: nowForInputs(),
+            effective_at_time: nowForInputs(),
             notes: ''
         };
         vm.swap_result = null;
@@ -359,8 +495,8 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     vm.openUnassign = function() {
         vm.dialog = 'unassign';
         vm.unassign_data = {
-            unassigned_at_date: formatDateForInput(new Date()),
-            unassigned_at_time: formatTimeForInput(new Date()),
+            unassigned_at_date: nowForInputs(),
+            unassigned_at_time: nowForInputs(),
             notes: ''
         };
     };
@@ -381,15 +517,25 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
         }).then(function(data) {
             vm.dialog_busy = false;
             if (data.success) {
-                vm.dialog = null;
-                ToastService.success('Tracker Removed',
-                    data.fox_entries_floated + ' entries floated, ' +
-                    data.plane_log_sheets_affected + ' log sheets affected.');
-                loadPlaneDetail();
+                // Removing a tracker floats entries and touches tech log
+                // sheets — real data changes, so show them in a result dialog
+                // like assign/swap do, not a toast that scrolls away.
+                vm.unassign_result = {
+                    tracker_label: vm.current_tracker.label || vm.current_tracker.imei,
+                    entries_floated: toCount(data.fox_entries_floated),
+                    log_sheets_affected: toCount(data.plane_log_sheets_affected)
+                };
+                vm.dialog = 'unassign_result';
             } else {
                 ToastService.error('Unassign Failed', data.message);
             }
         });
+    };
+
+    vm.closeUnassignResult = function() {
+        vm.dialog = null;
+        vm.unassign_result = null;
+        loadPlaneDetail();
     };
 
     // ═══════════════════════════════════════════
@@ -427,6 +573,12 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
     };
 
     // ── Format helpers ──
+    function nowForInputs() {
+        var d = new Date();
+        d.setSeconds(0, 0); // input[time] renders stray seconds/ms otherwise
+        return d;
+    }
+
     function formatDateForInput(d) {
         var y = d.getFullYear();
         var m = ('0' + (d.getMonth() + 1)).slice(-2);
@@ -477,6 +629,23 @@ function DashboardTrackerPlaneController($rootScope, $scope, $state, $stateParam
 
         return payload;
     }
+
+    // (Assign-result normalisation moved to TrackerPlaneService — it is shared
+    // with the tracker-first assign dialog on the registry / device pages.)
+
+    function toCount(value) {
+        if (value === null || value === undefined || value === '') { return 0; }
+        var n = parseInt(value, 10);
+        return isNaN(n) ? 0 : n;
+    }
+
+    // 'YYYY-MM-DD HH:MM:SS' (UTC) → local 'DD MMM YYYY HH:mm', reusing the
+    // tracker health service so these timestamps are parsed in exactly one
+    // place across the tracker pages.
+    vm.backfillStamp = function(ts) {
+        if (!ts) { return '—'; }
+        return TrackerHealthService.tsLocal(ts);
+    };
 
     vm.actionIcon = function(action) {
         var map = {

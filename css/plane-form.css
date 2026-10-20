@@ -1,0 +1,941 @@
+/* ══════════════════════════════════════════════════════════
+   AIRCRAFT FORM (add / edit)  —  views/manageclub/plane_form.html
+   Snazzy design system: .pf__* BEM, brand gradient header,
+   tabbed sections, sticky save bar. Desktop + mobile.
+   ══════════════════════════════════════════════════════════ */
+
+.pf {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px 120px;   /* room for the sticky save bar */
+  text-align: left;
+}
+
+/* ═══════════════ Header ═══════════════ */
+
+.pf__header {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  border-radius: 16px;
+  padding: 26px 28px;
+  margin: 0 0 18px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle depth without an image asset */
+.pf__header::after {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+.pf__header-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.pf__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf__title h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+/* styles.css sets a global `.fa.fa-plane` colour and bolds strong text on
+   dark headers — beat it with matching specificity rather than !important. */
+.pf__header .pf__title h2 i.fa-plane,
+.pf__header .pf__title h2 i.fas {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 22px;
+}
+
+.pf__title p {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.pf__header-actions {
+  flex-shrink: 0;
+}
+
+.pf__save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+.pf__save-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+}
+/* Saving / disabled — lock the button so it can't be double-pressed */
+.pf__save-btn:disabled,
+.pf__save-btn--saving {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+  transform: none;
+}
+
+/* ── Quick facts strip ── */
+.pf__facts {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.pf__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+.pf__facts .pf__fact i {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+
+.pf__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 5px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pf__badge--nav    { background: #dbeafe; color: #1e40af; }
+.pf__badge--dual   { background: #fef3c7; color: #92400e; }
+.pf__badge--hidden { background: #fee2e2; color: #b91c1c; }
+.pf__facts .pf__badge i { font-size: 10px; }
+
+/* ═══════════════ Tabs ═══════════════ */
+
+.pf__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f8fafc;
+  padding: 10px 0 12px;
+  margin-bottom: 4px;
+}
+
+.pf__tabs-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.pf__tabs-scroll::-webkit-scrollbar { height: 4px; }
+.pf__tabs-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.pf__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 9px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.pf__tab:hover {
+  background: #f1f5f9;
+  color: #1e3a5f;
+}
+.pf__tab i { font-size: 12px; opacity: 0.75; }
+
+.pf__tab--on {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.22);
+}
+.pf__tab--on:hover { color: #fff; }
+.pf__tab--on i { opacity: 0.95; }
+
+/* ═══════════════ Sections & cards ═══════════════ */
+
+.pf__pane {
+  animation: pfFade 0.28s ease both;
+}
+
+@keyframes pfFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pf__section {
+  margin-bottom: 22px;
+}
+
+.pf__section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 12px 2px;
+}
+
+.pf__section-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2d5a8e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.pf__section-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.pf__section-head p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.pf__card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+
+/* ═══════════════ Fields ═══════════════ */
+
+.pf__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px 20px;
+}
+
+.pf__field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pf__field label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.pf__field label i {
+  color: #94a3b8;
+  font-size: 11px;
+  width: 13px;
+  text-align: center;
+}
+
+.pf__input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #334155;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.pf__input:focus {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.pf__input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+select.pf__input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px;
+}
+
+.pf__hint {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-top: 5px;
+  line-height: 1.45;
+}
+
+.pf__field--filter { max-width: 280px; margin-bottom: 16px; }
+
+/* ui-select inside a field — match the native input metrics */
+.pf__field .ui-select-bootstrap > .ui-select-match > .btn,
+.pf__field .ui-select-container .ui-select-match .btn {
+  min-height: 40px;
+  border-radius: 8px;
+  border-color: #e2e8f0;
+  font-size: 14px;
+}
+
+/* ═══════════════ Checkbox cards ═══════════════ */
+
+.pf__checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pf__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  cursor: pointer;
+  font-weight: 400;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.pf__check:hover { background: #f1f5f9; }
+
+/* The real input drives state but is visually replaced by .pf__check-box */
+.pf__check input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.pf__check-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.pf__check-box i {
+  font-size: 11px;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.pf__check input[type="checkbox"]:checked + .pf__check-box {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+.pf__check input[type="checkbox"]:checked + .pf__check-box i {
+  opacity: 1;
+  transform: scale(1);
+}
+.pf__check input[type="checkbox"]:focus + .pf__check-box {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.pf__check-text { display: flex; flex-direction: column; min-width: 0; }
+.pf__check-text strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.pf__check-text small {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* ═══════════════ Buttons ═══════════════ */
+
+.pf__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 10px 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.pf__btn:hover { transform: translateY(-1px); }
+
+.pf__btn--primary {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.2);
+}
+.pf__btn--primary:hover { box-shadow: 0 4px 14px rgba(30, 58, 95, 0.28); color: #fff; }
+
+/* Saving / disabled — lock the button so it can't be double-pressed */
+.pf__btn:disabled,
+.pf__btn--saving {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
+}
+.pf__btn--saving .fa-spinner,
+.pf__save-btn--saving .fa-spinner {
+  animation-duration: 0.8s;
+}
+
+.pf__btn--outline {
+  background: #fff;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+.pf__btn--outline:hover { background: #f8fafc; color: #1e3a5f; }
+
+.pf__btn--sm { font-size: 12px; padding: 7px 12px; }
+.pf__btn--add { align-self: flex-start; margin-top: 4px; }
+
+.pf__card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* ═══════════════ Installed component (engine / prop) ═══════════════ */
+
+.pf__installed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.pf__installed-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.pf__installed-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+}
+.pf__installed-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e293b;
+}
+.pf__installed-serial {
+  font-size: 12px;
+  color: #64748b;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.pf__installed-serial i { margin-right: 4px; color: #94a3b8; }
+
+.pf__replace-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 11px 14px;
+  margin-bottom: 18px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #1e40af;
+}
+.pf__replace-note i { margin-top: 2px; flex-shrink: 0; color: #2563eb; }
+
+/* ═══════════════ Requirements ═══════════════ */
+
+.pf__req-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 14px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.pf__req-title i { color: #2d5a8e; margin-right: 7px; }
+
+.pf__req-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+}
+
+.pf__req-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.pf__req-list {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.pf__req-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 6px;
+  font-size: 12.5px;
+  color: #94a3b8;
+  justify-content: center;
+}
+
+.pf__req-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #334155;
+}
+.pf__req-item + .pf__req-item { margin-top: 7px; }
+.pf__req-item i { color: #16a34a; margin-right: 6px; font-size: 12px; }
+
+.pf__req-remove {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s ease;
+}
+.pf__req-remove:hover { background: #fee2e2; }
+.pf__req-item .pf__req-remove i { color: #dc2626; margin: 0; }
+
+/* ═══════════════ Uploads ═══════════════ */
+
+.pf__upload-intro {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+/* .drop is a legacy global; these rules restyle it inside this page only */
+.pf__card .drop.pf__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 130px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  padding: 22px;
+  margin: 0 0 18px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.pf__card .drop.pf__drop:hover {
+  border-color: #2d5a8e;
+  background: #eff6ff;
+}
+
+.pf__drop-icon { font-size: 26px; color: #94a3b8; margin-bottom: 4px; }
+.pf__drop-title { font-size: 14px; font-weight: 700; color: #1e293b; }
+.pf__drop-sub { font-size: 12.5px; color: #64748b; }
+
+.pf__gallery { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.pf__doc-list { margin-top: 16px; }
+
+.pf__doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.pf__doc-row + .pf__doc-row { margin-top: 8px; }
+
+.pf__doc-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+  min-width: 0;
+  word-break: break-word;
+}
+.pf__doc-name i { color: #2d5a8e; margin-right: 8px; }
+
+.pf__doc-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* ═══════════════ Booking colour preview ═══════════════ */
+
+.pf__colour { display: flex; align-items: center; gap: 12px; }
+
+.pf__colour-input {
+  width: 58px;
+  height: 40px;
+  padding: 3px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.pf__colour-value {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.pf__preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pf__preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+}
+
+.pf__preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ═══════════════ Tables (checks + audit) ═══════════════ */
+
+.pf__table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.pf__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pf__table thead th {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  text-align: left;
+  padding: 11px 14px;
+  white-space: nowrap;
+}
+
+.pf__table tbody td {
+  padding: 11px 14px;
+  border-top: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.pf__table tbody tr:hover { background: #f8fafc; }
+
+.pf__pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #f1f5f9;
+  color: #475569;
+}
+.pf__pill--ok   { background: #dcfce7; color: #15803d; }
+.pf__pill--info { background: #dbeafe; color: #1e40af; }
+
+.pf__audit { margin-top: 20px; }
+
+.pf__audit-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+.pf__audit-title i { color: #2d5a8e; margin-right: 7px; }
+
+/* ═══════════════ States ═══════════════ */
+
+.pf__loading {
+  text-align: center;
+  padding: 28px;
+  color: #64748b;
+  font-size: 13.5px;
+}
+
+.pf__empty {
+  text-align: center;
+  padding: 34px 20px;
+  color: #64748b;
+}
+.pf__empty-icon { font-size: 34px; color: #cbd5e1; margin-bottom: 10px; display: block; }
+.pf__empty p { margin: 0; font-size: 13.5px; }
+
+/* ═══════════════ Sticky save bar ═══════════════ */
+
+.pf__savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.97);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.08);
+  padding: 12px 16px;
+  /* Clears the iOS home indicator */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.pf__savebar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pf__savebar-note {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.pf__savebar-note--saving {
+  color: #2d5a8e;
+  font-weight: 600;
+  animation: pfSavingPulse 1.2s ease-in-out infinite;
+}
+@keyframes pfSavingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ═══════════════ Mobile ═══════════════ */
+
+@media (max-width: 768px) {
+  .pf { padding: 0 12px 130px; }
+
+  .pf__header {
+    padding: 20px 18px;
+    border-radius: 14px;
+  }
+  .pf__header-inner { gap: 12px; }
+  .pf__title h2 { font-size: 21px; }
+  .pf__header-actions { width: 100%; }
+  /* The sticky bar already carries Save on mobile — the header copy would
+     be a second identical control competing with it. */
+  .pf__save-btn { display: none; }
+
+  .pf__tabs {
+    /* Bleed to the screen edges so the strip can scroll fully */
+    margin-left: -12px;
+    margin-right: -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .pf__tab { font-size: 12.5px; padding: 8px 14px; }
+
+  .pf__card { padding: 16px; border-radius: 11px; }
+
+  .pf__grid { grid-template-columns: 1fr; gap: 14px; }
+  .pf__checks { grid-template-columns: 1fr; }
+
+  /* Side-by-side form/list would squeeze both — stack them */
+  .pf__req-body { grid-template-columns: 1fr; gap: 16px; }
+
+  .pf__installed { flex-direction: column; align-items: stretch; }
+  .pf__installed .pf__btn { width: 100%; }
+
+  .pf__card-actions { flex-direction: column-reverse; }
+  .pf__card-actions .pf__btn { width: 100%; }
+
+  .pf__savebar-note { display: none; }
+  .pf__savebar-inner .pf__btn { flex: 1; }
+
+  /* Stacked table cards — the header row is meaningless once stacked */
+  .pf__table-wrap { border: 0; border-radius: 0; overflow: visible; }
+  .pf__table, .pf__table tbody, .pf__table tr, .pf__table td { display: block; width: 100%; }
+  .pf__table thead { display: none; }
+  .pf__table tbody tr {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 6px 4px;
+    margin-bottom: 10px;
+  }
+  .pf__table tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 0;
+    padding: 7px 12px;
+    text-align: right;
+  }
+  .pf__table tbody td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #64748b;
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .pf__hide-mobile { display: none !important; }
+}
+
+@media (max-width: 480px) {
+  .pf__title h2 { font-size: 19px; }
+  .pf__facts { gap: 6px; }
+  .pf__fact, .pf__badge { font-size: 11px; padding: 4px 10px; }
+  .pf__section-head { gap: 10px; }
+  .pf__section-icon { width: 30px; height: 30px; font-size: 13px; }
+  .pf__section-head h3 { font-size: 15px; }
+  .pf__savebar-inner { gap: 10px; }
+  .pf__btn { padding: 10px 14px; font-size: 13px; }
+}
+
+/* ═══════════════ Reduced motion ═══════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .pf__pane { animation: none; }
+  .pf__btn:hover, .pf__save-btn:hover { transform: none; }
+  .pf__btn, .pf__save-btn, .pf__tab, .pf__input,
+  .pf__check, .pf__check-box, .pf__check-box i, .pf__req-remove {
+    transition: none !important;
+  }
+}

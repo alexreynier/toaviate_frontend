@@ -89,6 +89,54 @@
 
       </div>
 
+      <!-- ── Booking emails — one card per club membership, one row per preference ── -->
+      <h3 class="rem-section-title"><i class="fa fa-calendar-check"></i> Booking emails</h3>
+      <div class="rem-info">
+        <i class="fa fa-info-circle"></i>
+        <span>These are set <strong>per club</strong>, so you can turn one off for a club and keep it for another. Instructors also see booking notifications and the daily schedule summary here.</span>
+      </div>
+
+      <div class="rem-loading rem-loading--inline" ng-if="vm.bookingLoading">
+        <div class="rem-spinner"></div><span>Loading your clubs&hellip;</span>
+      </div>
+
+      <div class="rem-empty rem-empty--inline" ng-if="!vm.bookingLoading && vm.bookingMemberships.length === 0">
+        <p>You don't have any club memberships yet, so there are no booking emails to set.</p>
+      </div>
+
+      <div class="rem-card" ng-repeat="m in vm.bookingMemberships track by m.id">
+        <div class="rem-card__top">
+          <div class="rem-card__icon"><i class="fa" ng-class="m.instructor == 1 ? 'fa-chalkboard-teacher' : 'fa-plane'"></i></div>
+          <div class="rem-card__heading">
+            <div class="rem-card__label">
+              {{ m.club_name }}
+              <span class="rem-badge rem-badge--unit" ng-if="m.instructor == 1">instructor</span>
+              <span class="rem-saved" ng-if="vm.bookingSaved[m.id]"><i class="fa fa-check-circle"></i> Saved</span>
+            </div>
+            <div class="rem-card__desc">{{ m.membership_name }}</div>
+            <div class="rem-card__hint" ng-if="m._loadFailed">
+              <i class="fa fa-exclamation-triangle"></i> We couldn't load this club's settings — please refresh.
+            </div>
+          </div>
+        </div>
+
+        <div class="rem-person__row" ng-repeat="pref in m._prefs track by pref.key"
+             ng-class="{'rem-person__row--off': !pref.on, 'rem-person__row--busy': vm.bookingSaving[m.id + ':' + pref.key]}">
+          <div class="rem-person__row-main">
+            <div>
+              <div class="rem-person__type"><i class="fa" ng-class="pref.icon"></i>{{ pref.label }}</div>
+              <div class="rem-card__desc">{{ pref.desc }}</div>
+            </div>
+            <div class="rem-person__controls">
+              <label class="snazzy-toggle" ng-class="{'rem-disabled': m._loadFailed}">
+                <input type="checkbox" ng-checked="pref.on" ng-click="vm.toggleBookingReminder(m, pref)" ng-disabled="m._loadFailed || vm.bookingSaving[m.id + ':' + pref.key]">
+                <span class="snazzy-toggle__slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Recently sent ── -->
       <div class="rem-collapse" ng-class="{'rem-collapse--open': vm.historyOpen}">
         <button type="button" class="rem-collapse__head" ng-click="vm.toggleHistory()">

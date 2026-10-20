@@ -94,6 +94,23 @@
         vm.show_replace_prop_1 = false;
         vm.show_replace_prop_2 = false;
 
+        // ── Form tabs ──
+        // The aircraft form carries 15+ sections; as one scroll it was
+        // unusable on a phone. Sections are grouped into tabs, but this is
+        // presentation ONLY — every field stays inside the single <form> and
+        // in the DOM (ng-show, not ng-if), so save() still reads the whole
+        // model in one go no matter which tab is open.
+        vm.tab = 'aircraft';
+        vm.setTab = function(tab){
+            vm.tab = tab;
+            // A tab switch is a new screenful — start it at the top rather
+            // than mid-page where the previous tab's scroll left us.
+            if(typeof window !== 'undefined' && window.scrollTo){
+                var anchor = document.getElementById('plane-form-tabs');
+                if(anchor && anchor.scrollIntoView){ anchor.scrollIntoView(); }
+            }
+        };
+
         // //console.log(vm.action);
         // //console.log($stateParams);
         // //console.log($stateParams.id);
@@ -704,12 +721,18 @@
             checks.push({ ok: vm.club.plane.plane_type, field: 'plane_type', label: 'ICAO Type' });
             if (!ToastService.validateForm(checks)) return;
 
+            // Guard against double-submits: the save buttons are disabled
+            // while vm.saving is true and show a spinner (see plane_form.html).
+            if (vm.saving) return;
+            vm.saving = true;
+
             if(vm.action == "add"){
                 $scope.create();
             } else {
                 $scope.update();
             }
         }
+        vm.saving = false;
         vm.disable_reset = false;
         vm.disable_reset2 = false;
 
@@ -924,6 +947,12 @@
             PlaneService.Create(vm.club.plane)
                 .then(function(data){
                     ////console.log(data);
+                    if (data && data.success === false) {
+                        vm.saving = false;
+                        ToastService.error('Could not add aircraft', (data.message && data.message.message) || data.message || 'Please check the details and try again.');
+                        return;
+                    }
+                    ToastService.success('Aircraft added', vm.club.plane.registration || '');
                     $state.go('dashboard.manage_club.planes', {reload: true});
 
                 });
@@ -980,6 +1009,12 @@
                 .then(function(data){
                     //console.log(data);
                     //console.log("saved");
+                    if (data && data.success === false) {
+                        vm.saving = false;
+                        ToastService.error('Could not save aircraft', (data.message && data.message.message) || data.message || 'Please try again.');
+                        return;
+                    }
+                    ToastService.success('Aircraft saved', vm.club.plane.registration || '');
                     $state.go('dashboard.manage_club.planes');
                 });
         }
