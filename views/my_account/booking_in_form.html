@@ -100,12 +100,11 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
             <label for="card-number">Select Your Flight</label>
             <ui-select ng-model="vm.claimed_flight" theme="bootstrap" title="Please select the flight that you have just flown" append-to-body="true" ng-change="claim_my_flight()">
               <ui-select-match placeholder="Please select the flight">
-                <div ng-if="vm.claimed_flight.flight_date">{{ vm.claimed_flight.flight_date | date:'dd MMM yyyy' }} FLIGHT TIMES: {{ vm.claimed_flight.brakes_off_rounded | brakesTime }} - {{ vm.claimed_flight.brakes_on_rounded | brakesTime }} </div><div ng-if="!vm.claimed_flight.flight_date">Please select the flight</div>
+                <div ng-if="vm.claimed_flight.flight_date">{{ vm.claimed_flight.flight_date | date:'dd MMM yyyy' }} FLIGHT TIMES: <flight-times row="vm.claimed_flight" club-id="vm.bookout.club_id || vm.club_id" part="window" plain></flight-times> </div><div ng-if="!vm.claimed_flight.flight_date">Please select the flight</div>
               </ui-select-match>
               <ui-select-choices repeat="flight in vm.claim_a_flight | propsFilterA: {flight_date: $select.search, brakes_on: $select.search, brakes_off: $select.search, id: $select.search}">
                 <div class="inline_selected" ng-bind-html="flight.flight_date | date:'dd MMM yyyy' | highlight: $select.search"></div> FLIGHT:  
-                <div class="inline_selected" ng-bind-html="flight.brakes_off_rounded | brakesTime | highlight: $select.search"></div> -
-                <div class="inline_selected" ng-bind-html="flight.brakes_on_rounded | brakesTime | highlight: $select.search"></div>
+                <div class="inline_selected"><flight-times row="flight" club-id="vm.bookout.club_id || vm.club_id" part="window" plain></flight-times></div>
                 <div class="inline_selected">{{ flight.from_airport.title }} to {{ flight.to_airport.title }}</div>
                 <div class="inline_selected">{{ flight.stops.length }}</div>
 
@@ -121,7 +120,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
         <div ng-if="vm.claim_a_flight.length == 1">
           <p><b>FLIGHT DATE:</b> {{ vm.claim_a_flight[0].flight_date | date:'dd MMM yyyy' }}
           <br />
-          <b>FLIGHT TIMES:</b> {{ vm.claim_a_flight[0].brakes_off | brakesTime }} - {{ vm.claim_a_flight[0].brakes_on | brakesTime }}</p>
+          <b>FLIGHT TIMES:</b> <flight-times row="vm.claim_a_flight[0]" club-id="vm.bookout.club_id || vm.club_id"></flight-times></p>
           <br />
           <button class="btn btn-primary" ng-if="!vm.different_date_warning && !vm.has_used_claimed_flight" ng-click="vm.claimed_flight = vm.claim_a_flight[0]; claim_my_flight()">CLAIM THIS FLIGHT</button>
         </div>
@@ -158,17 +157,20 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
         </div>
 
 
-        <div class="form-group" ng-if="(vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id) && vm.bookout.pic.instructor == 1">
+        <div class="form-group" ng-if="(vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id) && vm.bookout.pic.user_id > 0">
             <label for="defect">Was this an instructional flight?</label>
             <label for="defaultCheckboxInstructional" class="si si-checkbox">
                 <input type="checkbox" id="defaultCheckboxInstructional" ng-click="vm.this_was_instructional_claim()" ng-checked="vm.this_claim_was_instructional" />
                 <span class="si-label"></span>
             </label>
+            <p class="bi-solo-hint" ng-if="!vm.picIsInstructor()">
+              <i class="fas fa-user-graduate"></i> {{ vm.bookout.pic.first_name }} is not an instructor, so ticking this records an <strong>authorised student solo</strong>: they stay pilot in command, and the instructor you choose below authorised the flight and completes the training record.
+            </p>
         </div>
 
         <div ng-if="vm.this_claim_was_instructional && (vm.bookout.fox_log_id == 0 || !vm.bookout.fox_log_id)">
 
-                      <div class="form-group">
+                      <div class="form-group" ng-if="vm.picIsInstructor()">
                         <label for="defect">Was this a Supervised Solo?</label>
                          <label for="defaultCheckboxSupervised" class="si si-checkbox">
                           <input type="checkbox" id="defaultCheckboxSupervised" ng-click="vm.this_was_a_supervised_solo()" ng-checked="vm.this_was_supervised_solo" />
@@ -203,7 +205,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
                       <div class="form-group" ng-if="vm.this_was_supervised_solo">
                         <label for="ps">
-                          <span>Supervising Instructor</span>
+                          <span>Authorising / Supervising Instructor</span>
                         </label>
                         <!-- <input type="text" class="form-control" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true"> -->
                           <ui-select ng-model="vm.bookout.instructor" theme="bootstrap" ng-disabled="disabled" title="Please select the supervising instructor" append-to-body="true" ng-change="update_instructor()">
@@ -338,18 +340,21 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 } -->
 <!--           <div ng-if="!vm.this_claim_was_instructional"> </div>
  -->             
-                  <div class="form-group" ng-if="vm.bookout.pic.instructor == 1">
+                  <div class="form-group" ng-if="vm.bookout.pic.user_id > 0">
                     <label for="defect">Was this an instructional flight?</label>
                      <label for="defaultCheckboxInstructional" class="si si-checkbox">
                       <input type="checkbox" id="defaultCheckboxInstructional" ng-click="vm.this_was_instructional_claim()" ng-checked="vm.this_claim_was_instructional" />
                     <span class="si-label"></span>
 
                     </label>
+                    <p class="bi-solo-hint" ng-if="!vm.picIsInstructor()">
+                      <i class="fas fa-user-graduate"></i> {{ vm.bookout.pic.first_name }} is not an instructor, so ticking this records an <strong>authorised student solo</strong>: they stay pilot in command, and the instructor you choose below authorised the flight and completes the training record.
+                    </p>
                   </div>
 
                   <div ng-if="vm.this_claim_was_instructional">
 
-                      <div class="form-group">
+                      <div class="form-group" ng-if="vm.picIsInstructor()">
                         <label for="defect">Was this a Supervised Solo?</label>
                          <label for="defaultCheckboxSupervised" class="si si-checkbox">
                           <input type="checkbox" id="defaultCheckboxSupervised" ng-click="vm.this_was_a_supervised_solo()" ng-checked="vm.this_was_supervised_solo" />
@@ -384,7 +389,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
                       <div class="form-group" ng-if="vm.this_was_supervised_solo">
                         <label for="ps">
-                          <span>Supervising Instructor</span>
+                          <span>Authorising / Supervising Instructor</span>
                         </label>
                         <!-- <input type="text" class="form-control" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true"> -->
                           <ui-select ng-model="vm.bookout.instructor" theme="bootstrap" ng-disabled="disabled" title="Please select the supervising instructor" append-to-body="true" ng-change="update_instructor()">
@@ -620,38 +625,19 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
              <!-- {{ vm.claimed_flight | json }} -->
 
               <!-- {{ vm.bookout.plane_charges.charge_type }} -->
-              <table class="centred_timings" ng-if="!vm.split_flight_confirmation">
-                <tr>
-                  <th>
-                    Brakes Off
-                  </th>
-                  <th>
-                    Takeoff
-                  </th>
-                  <th>
-                    Landing
-                  </th>
-                  <th>
-                    Brakes On
-                  </th>
-                </tr>
-                <tr>
-                  <td>
-                    <span uib-tooltip="Rounded time: {{ vm.bookout.brakes_off.time | brakesTime }}">{{ vm.bookout.brakes_off_rounded | brakesTime }}</span>
-                  </td>
-                  <td>
-                    <span ng-if="vm.bookout.plane_charges.charge_type == 'flight'">{{ vm.bookout.takeoff_rounded | brakesTime }}</span>
-                    <span ng-if="vm.bookout.plane_charges.charge_type !== 'flight'">{{ vm.bookout.takeoff_time | brakesTime }}</span>
-                  </td>
-                  <td>
-                    <span ng-if="vm.bookout.plane_charges.charge_type == 'flight'">{{ vm.bookout.landing_rounded | brakesTime }}</span>
-                    <span ng-if="vm.bookout.plane_charges.charge_type !== 'flight'">{{ vm.bookout.landing_time | brakesTime }}</span>
-                  </td>
-                  <td>
-                    <span uib-tooltip="Rounded time: {{ vm.bookout.brakes_on.time | brakesTime }}">{{ vm.bookout.brakes_on_rounded | brakesTime }}</span>
-                  </td>
-                </tr>
-              </table>
+              <!-- Club display convention + every recorded time (nearest minute) -->
+              <div class="bi-times" ng-if="!vm.split_flight_confirmation">
+                <div class="bi-times__main">
+                  <span class="bi-times__label">{{ (vm.bookout.club_id || vm.club_id) | tdLabel : 'window' }}</span>
+                  <flight-times row="vm.bookout" club-id="vm.bookout.club_id || vm.club_id"></flight-times>
+                </div>
+                <div class="bi-times__recorded">
+                  <span class="bi-times__rec"><small>Brakes off</small>{{ vm.bookout.brakes_off.time | roundMinute }}</span>
+                  <span class="bi-times__rec" ng-if="vm.bookout.takeoff_time && vm.bookout.takeoff_time != '00:00:00'"><small>Takeoff</small>{{ vm.bookout.takeoff_time | roundMinute }}</span>
+                  <span class="bi-times__rec" ng-if="vm.bookout.landing_time && vm.bookout.landing_time != '00:00:00'"><small>Landing</small>{{ vm.bookout.landing_time | roundMinute }}</span>
+                  <span class="bi-times__rec"><small>Brakes on</small>{{ vm.bookout.brakes_on.time | roundMinute }}</span>
+                </div>
+              </div>
               <!-- {{ vm.bookout | json}} -->
 
                <div ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0">

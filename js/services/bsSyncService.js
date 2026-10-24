@@ -25,6 +25,7 @@ app.factory('BsSyncService', BsSyncService);
         service.DiscoverUsers      = DiscoverUsers;
         service.DiscoverUsersFromReservations = DiscoverUsersFromReservations;
         service.SaveUserMap        = SaveUserMap;
+        service.CreateTemporaryUser = CreateTemporaryUser;
 
         // ── Setup / Import ──
         service.FullSetup          = FullSetup;
@@ -113,6 +114,19 @@ app.factory('BsSyncService', BsSyncService);
         function SaveUserMap(club_id, bs_user_id, data) {
             return $http.put('/api/v1/bs_sync/users/' + club_id + '/' + bs_user_id, data)
                 .then(handleSuccess, handleError);
+        }
+
+        // Give ONE BookedScheduler user their own temporary (imported-stub) account and
+        // map them to it — for the case where two BS accounts registered with one email
+        // were both matched to the same TA user. Bookings are never moved here; the next
+        // sync re-files that BS user's reservations under the new account.
+        //   body: { first_name?, last_name?, email?, force? }  (defaults from the mapping row;
+        //         force:1 re-sends after an ALREADY_SEPARATE answer)
+        // Errors: ALREADY_SEPARATE | NOT_FOUND | VALIDATION_ERROR, plus the generic
+        // manager-privileges message. FRONTEND_BS_SYNC_GUIDE.md › "Create a temporary account".
+        function CreateTemporaryUser(club_id, bs_user_id, body) {
+            return $http.post('/api/v1/bs_sync/users/' + club_id + '/' + bs_user_id + '/temporary', body || {})
+                .then(handleSuccess, handleErrorKeepCode);
         }
 
         // ── Setup / Import (multipart) ───────────────
@@ -230,5 +244,11 @@ app.factory('BsSyncService', BsSyncService);
 
         function handleError(res) {
             return { success: false, message: res.data ? (res.data.message || res.data.error) : 'Request failed' };
+        }
+
+        // Same, but keeps the backend's `error` code so the caller can branch on it.
+        function handleErrorKeepCode(res) {
+            var d = res.data || {};
+            return { success: false, error: d.error || null, message: d.message || d.error || 'Request failed', status: res.status };
         }
     }

@@ -1,7 +1,7 @@
 app.controller('RemindersController', RemindersController);
 
-    RemindersController.$inject = ['RemindersService', 'MemberService', 'InstructorService', '$rootScope', '$scope', '$timeout', '$q', 'ToastService'];
-    function RemindersController(RemindersService, MemberService, InstructorService, $rootScope, $scope, $timeout, $q, ToastService) {
+    RemindersController.$inject = ['RemindersService', 'EmailLogService', 'MemberService', 'InstructorService', '$rootScope', '$scope', '$timeout', '$q', 'ToastService'];
+    function RemindersController(RemindersService, EmailLogService, MemberService, InstructorService, $rootScope, $scope, $timeout, $q, ToastService) {
 
         // Account Settings → Reminders: the user's own expiry-reminder
         // emails (medical, licence, rating, membership, card, proof of ID,
@@ -22,6 +22,15 @@ app.controller('RemindersController', RemindersController);
         vm.historyLoading = false;
         vm.history = null;
 
+        // Master switch: "send me no reminder or notification emails" —
+        // one flag on the user, overrides every switch below it. Who last set it
+        // (a club manager can set it on the member's behalf) comes from
+        // GET email_preferences → master.
+        vm.muteAll = false;
+        vm.muteAllSaving = false;
+        vm.muteAllSaved = false;
+        vm.master = null;
+
         // Booking reminders ("evening before each booking") are a separate
         // system from the expiry digest above: one mute flag per club
         // MEMBERSHIP (mute_booking_reminders), saved via the same two
@@ -40,6 +49,7 @@ app.controller('RemindersController', RemindersController);
         vm.toggleHistory = toggleHistory;
         vm.historyLabel = historyLabel;
         vm.toggleBookingReminder = toggleBookingReminder;
+        vm.toggleMuteAll = toggleMuteAll;
 
         activate();
         loadBookingReminders();
@@ -48,6 +58,8 @@ app.controller('RemindersController', RemindersController);
             RemindersService.GetPreferences().then(function (data) {
                 vm.loading = false;
                 if (data && data.success && data.preferences) {
+                    vm.muteAll = data.mute_all_notifications == 1;
+                    loadMasterMeta();
                     applyPreferences(data.preferences);
                 } else {
                     vm.load_failed = true;
@@ -136,6 +148,34 @@ app.controller('RemindersController', RemindersController);
         function flashSaved(type) {
             vm.savedFlash[type] = true;
             $timeout(function () { vm.savedFlash[type] = false; }, 1600);
+        }
+
+        // ── Master switch ──
+
+        function loadMasterMeta() {
+            EmailLogService.GetPreferences().then(function (data) {
+                if (data && data.success && data.master) {
+                    vm.master = data.master;
+                    vm.muteAll = data.master.mute_all_notifications == 1;
+                }
+            });
+        }
+
+        function toggleMuteAll() {
+            var wantMuted = !vm.muteAll;
+            vm.muteAll = wantMuted;                 // optimistic — reverted on failure
+            vm.muteAllSaving = true;
+            RemindersService.SaveMasterMute(wantMuted).then(function (data) {
+                vm.muteAllSaving = false;
+                if (data && data.success) {
+                    vm.muteAllSaved = true;
+                    $timeout(function () { vm.muteAllSaved = false; }, 1600);
+                    loadMasterMeta();
+                } else {
+                    vm.muteAll = !wantMuted;
+                    ToastService.error('Not Saved', (data && data.message) || 'That change could not be saved — please try again.');
+                }
+            });
         }
 
         // ── Booking emails (per club membership) ──

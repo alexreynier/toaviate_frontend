@@ -45,9 +45,15 @@ app.factory('FoxService', FoxService);
             return $http.get('/api/v1/fox/user/'+user_id).then(handleSuccess, handleError2);
         }
 
-        function GetFoxEntriesByPlane(plane_id) {
-            // console.log("we're in the foxService here");
-            return $http.get('/api/v1/fox/plane/'+plane_id).then(handleSuccess, handleError2);
+        // Unclaimed Fox entries for one aircraft. offset/limit page through the
+        // list (the API caps at 10 by default); omit both for the legacy call.
+        function GetFoxEntriesByPlane(plane_id, offset, limit) {
+            var url = '/api/v1/fox/plane/' + plane_id;
+            var q = [];
+            if (offset !== undefined && offset !== null) { q.push('offset=' + encodeURIComponent(offset)); }
+            if (limit) { q.push('limit=' + encodeURIComponent(limit)); }
+            if (q.length) { url += '?' + q.join('&'); }
+            return $http.get(url).then(handleSuccess, handleError2);
         }
 
         function GetById(id) {

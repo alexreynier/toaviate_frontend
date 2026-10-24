@@ -458,9 +458,9 @@
                                     <td style="white-space: nowrap;">{{ vm.get_pic(log) }}</td>
                                     <td class="sr-table__num"><span uib-tooltip="{{ log.departure_airport }}">{{ log.departure_airport_code }}</span></td>
                                     <td class="sr-table__num"><span uib-tooltip="{{ log.destination_airport }}">{{ log.destination_airport_code }}</span></td>
-                                    <td class="sr-table__num"><span uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span></td>
-                                    <td class="sr-table__num"><span uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span></td>
-                                    <td class="sr-table__num">{{ vm.get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</td>
+                                    <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="from"></flight-times></td>
+                                    <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="to"></flight-times></td>
+                                    <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="duration"></flight-times></td>
                                     <td><span uib-tooltip="{{ log.lesson_title }}">{{ vm.lesson_ref(log) }}</span></td>
                                     <td class="sr-table__actions">
                                         <a class="sr-iconbtn sr-iconbtn--play" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="View flight replay"><i class="fa fa-play-circle"></i></a>
@@ -489,15 +489,15 @@
                             <div class="sr-card__grid">
                                 <div class="sr-card__stat">
                                     <span class="sr-card__label">Brakes Off</span>
-                                    <span class="sr-card__value" uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                                    <span class="sr-card__value"><flight-times row="log" ctx="vm.td" window="block" part="from"></flight-times></span>
                                 </div>
                                 <div class="sr-card__stat">
                                     <span class="sr-card__label">Brakes On</span>
-                                    <span class="sr-card__value" uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
+                                    <span class="sr-card__value"><flight-times row="log" ctx="vm.td" window="block" part="to"></flight-times></span>
                                 </div>
                                 <div class="sr-card__stat">
                                     <span class="sr-card__label">Time</span>
-                                    <span class="sr-card__value">{{ vm.get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                                    <span class="sr-card__value"><flight-times row="log" ctx="vm.td" window="block" part="duration"></flight-times></span>
                                 </div>
                                 <div class="sr-card__stat" ng-if="vm.lesson_ref(log)">
                                     <span class="sr-card__label">Lesson</span>
@@ -529,7 +529,14 @@
             <h3 class="sr-modal__title"><i class="fas fa-clipboard-check"></i> Flight training record</h3>
             <p class="sr-modal__sub">{{ vm.selected_flight.flight_date | asDate | date:"dd MMM yyyy" }} &middot; {{ vm.selected_flight.registration }} &middot; {{ vm.selected_flight.lesson_title }}</p>
         </div>
-        <button type="button" class="sr-modal__close" ng-click="vm.close_popup()"><i class="fas fa-times"></i></button>
+        <div class="sr-modal__head-actions">
+            <!-- Only flights with a recorded device track can be replayed (has_track from the API) -->
+            <button type="button" class="sr-modal__replay" ng-if="vm.canReplay(vm.selected_flight)" ng-click="vm.viewReplay(vm.selected_flight)"
+                    uib-tooltip="Replay this flight's recorded track — route, height profile and six-pack">
+                <i class="fa fa-play-circle"></i> Flight replay
+            </button>
+            <button type="button" class="sr-modal__close" ng-click="vm.close_popup()"><i class="fas fa-times"></i></button>
+        </div>
     </div>
 
     <div class="sr-modal__body">

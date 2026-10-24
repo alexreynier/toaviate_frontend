@@ -1,7 +1,7 @@
  app.controller('DashboardClubFlightsController', DashboardClubFlightsController);
 
-    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$timeout', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService', 'CancelClaimService', 'ManualFlightService'];
-    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $timeout, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService, ManualFlightService) {
+    DashboardClubFlightsController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$timeout', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'ToastService', 'FlightEditsService', 'FlightMergeService', 'CancelClaimService', 'ManualFlightService', 'TimeDisplayService'];
+    function DashboardClubFlightsController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $timeout, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, ToastService, FlightEditsService, FlightMergeService, CancelClaimService, ManualFlightService, TimeDisplayService) {
         var vm = this;
 
         // Who the Student column names. A dual flight's sheet has the
@@ -72,6 +72,22 @@
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user_id = vm.user.id;
 
+        // How flight times are shown on this page (club convention + viewer switch)
+        vm.td = TimeDisplayService.context(vm.club_id);
+
+        // Column headers come from vm.td; when every listed flight's aircraft carries the
+        // same display override, let the headers follow it so they match the cells.
+        function syncTimeDisplayFromFlights(flights) {
+            var shared = null, mixed = false;
+            for (var i = 0; i < (flights || []).length; i++) {
+                var m = (flights[i].aircraft && flights[i].aircraft.time_display) || null;
+                if (i === 0) { shared = m; }
+                else if (m !== shared) { mixed = true; break; }
+            }
+            vm.td.setPlane(mixed ? null : shared);
+        }
+
+
 
        
         // //console.log(vm.action);
@@ -86,7 +102,8 @@
         vm.show_loading = true;
         PlaneService.GetAllFlightsByClub(vm.club_id, vm.from_date, vm.to_date, vm.selected_aircraft)
         .then(function(data){
-            vm.flights = data.flights;  
+            vm.flights = data.flights;
+            syncTimeDisplayFromFlights(vm.flights);  
             vm.totals = data.totals; 
             vm.aircraft = data.aircraft; 
             vm.show_loading = false;
@@ -395,7 +412,8 @@
             }
              PlaneService.GetAllFlightsByClub(vm.club_id, vm.from_date, vm.to_date, plane_id)
                 .then(function(data){
-                    vm.flights = data.flights;  
+                    vm.flights = data.flights;
+            syncTimeDisplayFromFlights(vm.flights);  
                     vm.totals = data.totals; 
                     vm.aircraft = data.aircraft;
                     vm.show_loading = false; 

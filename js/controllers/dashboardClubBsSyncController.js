@@ -202,12 +202,47 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             }
         }
 
-        // Stamp _isMapped flags directly on each user object
+        // Stamp _isMapped flags directly on each user object, and flag rows whose
+        // TA user is shared with another BS account (two BookedScheduler accounts
+        // registered under one email) — those rows offer "Create temporary account".
         function _stampUserFlags() {
+            var byTa = {};
             for (var i = 0; i < vm.users.length; i++) {
-                vm.users[i]._isMapped = !!vm.users[i].ta_user_id;
+                var u = vm.users[i];
+                u._isMapped = !!u.ta_user_id;
+                u._confirmForce = false;
+                if (u._isMapped) {
+                    var key = String(u.ta_user_id);
+                    if (!byTa[key]) { byTa[key] = []; }
+                    byTa[key].push(u);
+                }
+            }
+            for (var j = 0; j < vm.users.length; j++) {
+                var row = vm.users[j];
+                var group = row._isMapped ? byTa[String(row.ta_user_id)] : null;
+                row._shared = !!(group && group.length > 1);
+                row._sharedWith = [];
+                if (row._shared) {
+                    for (var k = 0; k < group.length; k++) {
+                        if (group[k] !== row) {
+                            row._sharedWith.push(((group[k].bs_first_name || '') + ' ' + (group[k].bs_last_name || '')).trim());
+                        }
+                    }
+                }
             }
         }
+
+        // Notices returned by "Create temporary account", kept per BS user so they
+        // survive the mapping reload that follows a success.
+        vm.tempNotices = {};
+        vm.dismissTempNotice = function(bs_user_id) { delete vm.tempNotices[bs_user_id]; };
+        // Notes mix machine codes ("email_in_use") with sentences — show codes as words.
+        vm.noteLabel = function(n) {
+            n = String(n || '');
+            if (/\s/.test(n)) { return n; }
+            var words = n.replace(/_/g, ' ');
+            return words.charAt(0).toUpperCase() + words.slice(1);
+        };
 
         // ════════════════════════════════════════════
         // BACKGROUND SYNC POLLING
@@ -980,6 +1015,52 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             });
         };
 
+        // Give this BS user their own temporary account (and map them to it).
+        // force=1 re-sends after the backend answered ALREADY_SEPARATE.
+        vm.createTemporary = function(u, force) {
+            if (u._creating) { return; }
+            u._creating = true;
+            var body = {};
+            if (force) { body.force = 1; }
+            BsSyncService.CreateTemporaryUser(vm.club_id, u.bs_user_id, body).then(function(data) {
+                u._creating = false;
+                if (data && data.success) {
+                    u._confirmForce = false;
+                    var created = data.user || {};
+                    vm.tempNotices[u.bs_user_id] = {
+                        notes: angular.isArray(data.notes) ? data.notes : [],
+                        message: data.message || 'Temporary account created and mapped.',
+                        user: created,
+                        previous_ta_user_id: data.previous_ta_user_id
+                    };
+                    ToastService.success('Temporary account created',
+                        ((created.first_name || u.bs_first_name) + ' ' + (created.last_name || u.bs_last_name)).trim() +
+                        ' now has their own account' + (created.login_email ? ' (' + created.login_email + ')' : '') + '.');
+                    vm.loadUsers();
+                    // The new stub appears on the Imported Users tab — refresh it if it was loaded.
+                    if (vm.importedUsers.length) { vm.loadImportedUsers(); }
+                    return;
+                }
+                var code = data && data.error;
+                if (code === 'ALREADY_SEPARATE') {
+                    // Nobody else shares this BS user's account — ask before creating another.
+                    u._confirmForce = true;
+                    u._confirmMessage = (data && data.message) || 'This BookedScheduler user already has an account nobody else shares.';
+                } else if (code === 'NOT_FOUND') {
+                    ToastService.error('No mapping row', (data && data.message) || 'Run "Discover Users" first so this BookedScheduler user has a mapping row, then try again.');
+                } else if (code === 'VALIDATION_ERROR') {
+                    ToastService.error('Not created', (data && data.message) || 'The details for this user were rejected.');
+                } else {
+                    ToastService.error('Not created', (data && data.message) || 'Could not create a temporary account.');
+                }
+            }, function() {
+                u._creating = false;
+                ToastService.error('Error', 'Could not connect to the server.');
+            });
+        };
+
+        vm.cancelCreateTemporary = function(u) { u._confirmForce = false; };
+
         vm.startRemapUser = function(u) {
             u._remapping = true;
             // Pre-select the currently mapped member object
@@ -1157,11 +1238,11 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                         bs_first_name: u.first_name,
                         bs_last_name:  u.last_name,
                         ta_email:      u.login_email,     // fake bsNNNN@ login (temp)
-                        bs_email:      u.original_email,  // real email to invite
+                        bs_email:      u.original_email || u.matching_email || null,  // real email to invite
                         // No real email on record (original_email null — e.g.
                         // tpc-import-… stubs): the row shows an email input and
                         // the address is sent as "email" in the convert body.
-                        needs_email:   !u.original_email,
+                        needs_email:   !(u.original_email || u.matching_email),
                         _email:        '',
                         booking_count: u.booking_count,
                         // Where the stub came from + how much history will

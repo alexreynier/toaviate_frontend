@@ -33,6 +33,40 @@
 
     <div class="snazzy-reveal snazzy-reveal--stagger" ng-if="!vm.loading && !vm.load_failed">
 
+      <!-- ── Master switch: no reminder or notification emails at all ── -->
+      <div class="mep-master" ng-class="{'mep-master--on': vm.muteAll}">
+        <div class="mep-master__icon"><i class="fa" ng-class="vm.muteAll ? 'fa-bell-slash' : 'fa-envelope-open-text'"></i></div>
+        <div class="mep-master__body">
+          <div class="mep-master__title">
+            Send me no reminder or notification emails
+            <span class="rem-saved" ng-if="vm.muteAllSaved"><i class="fa fa-check-circle"></i> Saved</span>
+          </div>
+          <div class="mep-master__desc">
+            Turns off every reminder (booking, expiry, aircraft, daily summaries) and every notification (new bookings,
+            shared course material). You will still receive emails you need to act on: invoices, invitations, password
+            resets and confirmations of your own bookings.
+          </div>
+          <div class="mep-master__meta" ng-if="vm.master.updated_at">
+            <i class="fa fa-history"></i>
+            Set by {{ vm.master.updated_by_name || 'you' }}<span ng-if="vm.master.updated_via == 'club_manager'"> (club manager)</span>
+            on {{ vm.master.updated_at | asDate | date:'dd MMM yyyy' }}<span ng-if="vm.master.note"> &mdash; &ldquo;{{ vm.master.note }}&rdquo;</span>
+          </div>
+        </div>
+        <div class="mep-master__control">
+          <label class="snazzy-toggle snazzy-toggle--danger">
+            <input type="checkbox" ng-checked="vm.muteAll" ng-click="vm.toggleMuteAll()" ng-disabled="vm.muteAllSaving">
+            <span class="snazzy-toggle__slider"></span>
+          </label>
+          <span class="snazzy-toggle-label" ng-class="{'snazzy-toggle-label--off': !vm.muteAll}">{{ vm.muteAll ? 'Muted' : 'Receiving' }}</span>
+        </div>
+      </div>
+      <div class="rem-info rem-info--warn" ng-if="vm.muteAll">
+        <i class="fa fa-ban"></i>
+        <span><strong>Overridden</strong> &mdash; all reminder and notification emails are off. The settings below are kept, and apply again as soon as you turn the switch off.</span>
+      </div>
+
+      <div ng-class="{'mep-group--overridden': vm.muteAll}">
+
       <!-- How it works -->
       <div class="rem-info">
         <i class="fa fa-info-circle"></i>
@@ -136,6 +170,8 @@
           </div>
         </div>
       </div>
+
+      </div><!-- /overridden wrapper -->
 
       <!-- ── Recently sent ── -->
       <div class="rem-collapse" ng-class="{'rem-collapse--open': vm.historyOpen}">

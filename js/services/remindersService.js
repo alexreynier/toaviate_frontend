@@ -13,6 +13,7 @@ app.factory('RemindersService', RemindersService);
         service.GetPreferences = GetPreferences;
         service.SavePreferences = SavePreferences;
         service.GetHistory = GetHistory;
+        service.SaveMasterMute = SaveMasterMute;
 
         service.GetClubSettings = GetClubSettings;
         service.SaveClubSettings = SaveClubSettings;
@@ -38,6 +39,12 @@ app.factory('RemindersService', RemindersService);
         // omitting offsets_days resets that type to its defaults.
         function SavePreferences(preferences) {
             return $http.put('/api/v1/reminders/preferences', { preferences: preferences }).then(handleSuccess, handleError2);
+        }
+
+        // Master switch (§1 FRONTEND_EMAIL_LOG_AND_PREFERENCES_GUIDE.md):
+        // 1 = send NO reminder or notification emails; transactional email still goes.
+        function SaveMasterMute(muted) {
+            return $http.put('/api/v1/reminders/preferences', { mute_all_notifications: muted ? 1 : 0, preferences: [] }).then(handleSuccess, handleError2);
         }
 
         function GetHistory(limit) {

@@ -1,7 +1,7 @@
  app.controller('AircraftStatusController', AircraftStatusController);
 
-    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter', '$q'];
-    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService, AircraftChecksService, $filter, $q) {
+    AircraftStatusController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter', '$q', 'TimeDisplayService'];
+    function AircraftStatusController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, ToastService, DefectMediaService, AircraftChecksService, $filter, $q, TimeDisplayService) {
         
         var vm = this;
 

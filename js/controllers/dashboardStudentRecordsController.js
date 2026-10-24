@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService', 'CaaFormsService'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService, CaaFormsService) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService', 'CaaFormsService', 'TimeDisplayService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService, CaaFormsService, TimeDisplayService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -23,6 +23,9 @@
 
         vm.user_id = vm.user.id;
         vm.club_id = null;
+
+        // Training records always show brakes off → brakes on; only the rounding follows the club.
+        vm.td = TimeDisplayService.context(null, { window: 'block' });
         vm.instructor_clubs = [];
         vm.selected_club = null;
 
@@ -73,6 +76,7 @@
 
                             vm.selected_club = selectedClub;
                             vm.club_id = selectedClub.id;
+                            vm.td.setClub(vm.club_id);
                             load_students_for_club(vm.club_id);
                         } else {
                             ToastService.error('Access Error', 'You do not appear to be an instructor at any club.');
@@ -252,6 +256,7 @@
             if (vm.selected_club && vm.selected_club.id) {
                 vm.club_id = vm.selected_club.id;
             }
+            vm.td.setClub(vm.club_id);
 
             CourseService.GetCoursesByClubId(vm.club_id)
                     .then(function(data){
@@ -1134,7 +1139,7 @@
 
         vm.open_training_detail = function(pls_id, plane_log_sheet){
             vm.show_popup = true;
-            show_edit_training_record = false;
+            vm.show_edit_training_record = false;
             vm.show_popup_name = "see_records";
             vm.flight_detail_id = pls_id;
             vm.user_can_edit = vm.user_can_edit_record();

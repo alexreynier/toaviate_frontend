@@ -723,6 +723,17 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // EMAIL LOG — platform-wide (ToAviate staff). The club-scoped
+            // variant is dashboard.manage_club.email_log; same controller/view,
+            // data.scope picks the API base. FRONTEND_EMAIL_LOG_AND_PREFERENCES_GUIDE.md §3
+            .state('dashboard.super_admin.emails', {
+                url: '/emails',
+                controller: 'EmailLogController',
+                templateUrl: 'views/manageclub/email_log.html',
+                controllerAs: 'vm',
+                data: { scope: 'platform' }
+            })
+
             // ── TRACKER COMMERCE (ToAviate admin) ──
             // One controller (TrackerAdminController) serves every screen,
             // dispatched by data.screen — same pattern as SMS.
@@ -1819,6 +1830,15 @@ var app = angular
                 controller: 'ClubRemindersController',
                 templateUrl: 'views/manageclub/reminders.html',
                 controllerAs: 'vm'
+            })
+
+            // EMAIL LOG — scoped to the admin's club (managers)
+            .state('dashboard.manage_club.email_log', {
+                url: '/email_log',
+                controller: 'EmailLogController',
+                templateUrl: 'views/manageclub/email_log.html',
+                controllerAs: 'vm',
+                data: { scope: 'club' }
             })
 
             .state('dashboard.manage_club.sms', {

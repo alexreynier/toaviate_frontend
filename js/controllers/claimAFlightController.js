@@ -1,7 +1,7 @@
  app.controller('ClaimAFlightController', ClaimAFlightController);
 
-    ClaimAFlightController.$inject = ['UserService', 'FoxService', '$rootScope', '$scope', '$stateParams', '$location'];
-    function ClaimAFlightController(UserService, FoxService, $rootScope, $scope, $stateParams, $location) {
+    ClaimAFlightController.$inject = ['UserService', 'FoxService', '$rootScope', '$scope', '$stateParams', '$location', 'ToastService', 'TimeDisplayService'];
+    function ClaimAFlightController(UserService, FoxService, $rootScope, $scope, $stateParams, $location, ToastService, TimeDisplayService) {
         var vm = this;
 
         vm.user = $rootScope.globals.currentUser;
@@ -27,6 +27,52 @@
         };
 
         // Build helper lists after data loads
+        // ── Load more unclaimed flights for one aircraft ──
+        // The API returns the newest 10 Fox entries per aircraft (fewer may show,
+        // since entries without a log sheet are dropped after the limit). A page
+        // is fetched with offset/limit and appended; `next_offset` from the API
+        // keeps paging in raw-entry space. Until the API sends has_more we fall
+        // back to "the first page looked full".
+        var LOAD_MORE_PAGE = 20;
+        var FIRST_PAGE = 10;
+        vm.canLoadMore = function(plane){
+            if (!plane || !plane.flights) { return false; }
+            if (plane.has_more === true) { return true; }
+            if (plane.has_more === false) { return false; }
+            return plane.flights.length >= (FIRST_PAGE - 2) && !plane._exhausted;
+        };
+        vm.loadMore = function(plane){
+            if (!plane || plane._loading_more) { return; }
+            var offset = (plane.next_offset !== undefined && plane.next_offset !== null) ? plane.next_offset : plane.flights.length;
+            plane._loading_more = true;
+            FoxService.GetFoxEntriesByPlane(plane.plane_id, offset, LOAD_MORE_PAGE)
+                .then(function(data){
+                    plane._loading_more = false;
+                    if (!data || data.success === false) {
+                        ToastService.error('Could not load more', (data && data.message) || 'Please try again.');
+                        return;
+                    }
+                    var seen = {};
+                    plane.flights.forEach(function(f){ seen[f.id] = true; });
+                    var added = 0;
+                    (data.fox_entries || []).forEach(function(f){
+                        if (!seen[f.id]) { plane.flights.push(f); seen[f.id] = true; added++; }
+                    });
+                    if (data.has_more !== undefined) {
+                        plane.has_more = !!data.has_more;
+                        plane.next_offset = data.next_offset;
+                        plane.total_unclaimed = data.total;
+                    } else if (added === 0) {
+                        // Legacy API (no paging support) — nothing new came back.
+                        plane._exhausted = true;
+                        ToastService.warning('No more flights', 'That is everything the server can return for this aircraft right now.');
+                    } else {
+                        plane.next_offset = offset + (data.fox_entries || []).length;
+                    }
+                    buildHelperLists();
+                });
+        };
+
         function buildHelperLists() {
             vm.aircraftList = [];
             vm.allFlights = [];
@@ -48,6 +94,8 @@
                             registration: plane.registration,
                             plane_type: plane.plane_type,
                             club_name: club.club_name,
+                            club_id: club.club_id || club.id || null,
+                            plane_time_display: plane.time_display || null,
                             flight_date: log.flight_date,
                             brakes_time: log.brakes_time,
                             plane_log_sheet_id: log.plane_log_sheet_id,

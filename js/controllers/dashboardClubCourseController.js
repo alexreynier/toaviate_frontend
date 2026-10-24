@@ -1,7 +1,7 @@
  app.controller('DashboardClubCourseController', DashboardClubCourseController);
 
-    DashboardClubCourseController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'ToastService'];
-    function DashboardClubCourseController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, ToastService) {
+    DashboardClubCourseController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$timeout', 'CourseService', 'ToastService'];
+    function DashboardClubCourseController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $timeout, CourseService, ToastService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -121,7 +121,8 @@
                 //to find out club id
                 CourseService.GetCoursesByClubId(vm.club_id)
                     .then(function(data){
-                        vm.club.courses = data.items;   
+                        vm.club.courses = sortCoursesByOrder(data.items || []);
+                        rememberCourseOrder();
                         //console.log(vm.club.courses);
                     });
             break;
@@ -483,20 +484,98 @@
 
 
 
-         vm.delete_course = function(id, index){
-            if(confirm("Are you sure you wish to delete this course? This is irreversible.")){
+        // ── Course order (drag & drop on desktop, up/down on touch) ──
+        // The list is kept in display_order; a move re-stamps every row's
+        // display_order with its position and POSTs the whole order. On failure
+        // the previous order is restored so the screen never lies.
+        vm.courseOrderSaving = false;
+        vm.courseOrderSaved = false;
+        var courseOrderFlash = null;
+        var lastGoodCourseOrder = [];   // ids in the last order the server accepted
 
+        function rememberCourseOrder(){
+            lastGoodCourseOrder = (vm.club.courses || []).map(function(c){ return c.id; });
+        }
+
+        // Put the list back into the last server-accepted order (the dnd lib / move
+        // helpers mutate the array BEFORE the save, so this is the only true "previous").
+        function restoreCourseOrder(){
+            var byId = {};
+            angular.forEach(vm.club.courses, function(c){ byId[c.id] = c; });
+            var restored = [];
+            angular.forEach(lastGoodCourseOrder, function(id){ if (byId[id]) { restored.push(byId[id]); delete byId[id]; } });
+            angular.forEach(byId, function(c){ restored.push(c); });   // anything new since
+            for (var i = 0; i < restored.length; i++) { restored[i].display_order = i; }
+            vm.club.courses = restored;
+        }
+
+        function sortCoursesByOrder(list){
+            return list.slice().sort(function(a, b){
+                var ao = parseInt(a.display_order, 10), bo = parseInt(b.display_order, 10);
+                if (isNaN(ao)) { ao = 1e9; }
+                if (isNaN(bo)) { bo = 1e9; }
+                if (ao !== bo) { return ao - bo; }
+                return String(a.title || '').localeCompare(String(b.title || ''));
+            });
+        }
+
+        // dnd-moved: the dragged course has been inserted at its new index; drop the
+        // stale copy at the old index, then persist.
+        vm.onCourseMoved = function(oldIndex){
+            vm.club.courses.splice(oldIndex, 1);
+            vm.saveCourseOrder();
+        };
+
+        vm.moveCourse = function(course, dir){
+            var idx = vm.club.courses.indexOf(course);
+            var swapWith = vm.club.courses[idx + dir];
+            if (idx < 0 || !swapWith) { return; }
+            vm.club.courses[idx] = swapWith;
+            vm.club.courses[idx + dir] = course;
+            vm.saveCourseOrder();
+        };
+
+        vm.saveCourseOrder = function(){
+            var order = [];
+            for (var i = 0; i < vm.club.courses.length; i++) {
+                vm.club.courses[i].display_order = i;
+                order.push({ id: vm.club.courses[i].id, display_order: i });
+            }
+            vm.courseOrderSaving = true;
+            CourseService.UpdateCourseOrder(vm.club_id, order).then(function(data){
+                vm.courseOrderSaving = false;
+                if (data && data.success) {
+                    rememberCourseOrder();
+                    vm.courseOrderSaved = true;
+                    if (courseOrderFlash) { $timeout.cancel(courseOrderFlash); }
+                    courseOrderFlash = $timeout(function(){ vm.courseOrderSaved = false; }, 1600);
+                } else {
+                    restoreCourseOrder();
+                    ToastService.error('Order not saved', (data && data.message) || 'The new course order could not be saved — the previous order has been restored.');
+                }
+            });
+        };
+
+        // Two-step delete (no browser confirm): first click arms the row, second confirms.
+        vm.armDeleteCourse = function(course){ course._confirmDelete = true; };
+        vm.cancelDeleteCourse = function(course){ course._confirmDelete = false; };
+
+         vm.delete_course = function(id, index){
+                var course = vm.club.courses[index];
+                if (course) { course._deleting = true; }
                 CourseService.DeleteCourse(id)
                     .then(function(data){
                         //console.log(data);
                         if(data.success){
                             vm.club.courses.splice(index, 1);
+                            rememberCourseOrder();
+                            ToastService.success('Course deleted', (course && course.title) ? course.title + ' has been removed.' : 'The course has been removed.');
                         } else {
-                            ToastService.error('Error', 'An error occurred');
+                            if (course) { course._deleting = false; course._confirmDelete = false; }
+                            ToastService.error('Not deleted', (data && data.message) || 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
-            } 
         }
 
         $scope.create = function(){

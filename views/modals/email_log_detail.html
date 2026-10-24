@@ -1,0 +1,90 @@
+<div class="eml-detail">
+
+  <div class="modal-header eml-detail__header">
+    <div class="eml-detail__header-left">
+      <span class="eml-status eml-status--{{ (m.entry || m.row).status }} eml-status--on-dark">
+        <i class="fa" ng-class="m.statusIcon((m.entry || m.row).status)"></i> {{ (m.entry || m.row).status }}
+      </span>
+      <h3 class="modal-title eml-detail__title">{{ (m.entry || m.row).subject || (m.entry || m.row).title || 'Email' }}</h3>
+    </div>
+    <button type="button" class="eml-detail__close" ng-click="m.close()" aria-label="Close" no-busy-guard><i class="fa fa-times"></i></button>
+  </div>
+
+  <div class="modal-body eml-detail__body">
+
+    <div class="eml-detail__grid">
+
+      <!-- Metadata -->
+      <dl class="eml-detail__meta">
+        <dt>To</dt>
+        <dd>
+          <span ng-if="(m.entry || m.row).recipient_first_name || (m.entry || m.row).recipient_last_name">{{ (m.entry || m.row).recipient_first_name }} {{ (m.entry || m.row).recipient_last_name }}<br></span>
+          <span class="snazzy-table__muted">{{ (m.entry || m.row).intended_to }}</span>
+          <span class="eml-detail__note" ng-if="(m.entry || m.row).sent_to && (m.entry || m.row).sent_to !== (m.entry || m.row).intended_to">delivered to {{ (m.entry || m.row).sent_to }}</span>
+          <span class="eml-detail__note" ng-if="m.entry.recipient_current_email && m.entry.recipient_current_email !== (m.entry || m.row).intended_to">current address {{ m.entry.recipient_current_email }}</span>
+        </dd>
+
+        <dt>When</dt>
+        <dd>{{ (m.entry || m.row).created_at | asDate | date:'EEE d MMM yyyy HH:mm:ss' }}</dd>
+
+        <dt>Club</dt>
+        <dd>{{ (m.entry || m.row).club_title || '—' }}</dd>
+
+        <dt>Category</dt>
+        <dd><span class="snazzy-table__badge">{{ (m.entry || m.row).category }}</span></dd>
+
+        <dt>Triggered by</dt>
+        <dd>
+          <span ng-if="(m.entry || m.row).is_cron == 1"><i class="fa fa-robot"></i> cron</span>
+          <span ng-if="(m.entry || m.row).is_cron != 1">{{ ((m.entry || m.row).triggered_by_first_name || '') + ' ' + ((m.entry || m.row).triggered_by_last_name || '') }}<span ng-if="!(m.entry || m.row).triggered_by_first_name">user #{{ (m.entry || m.row).triggered_by_user_id || '—' }}</span></span>
+        </dd>
+
+        <dt>Source</dt>
+        <dd><code class="eml-code">{{ (m.entry || m.row).source }}</code><br><span class="snazzy-table__muted">{{ (m.entry || m.row).request_method }} {{ (m.entry || m.row).request_endpoint }}</span></dd>
+
+        <dt>From</dt>
+        <dd>{{ m.entry.from_address || '—' }}</dd>
+
+        <dt>Provider</dt>
+        <dd>
+          {{ (m.entry || m.row).provider || '—' }}
+          <span class="eml-detail__note" ng-if="(m.entry || m.row).provider_message_id">Message ID <code class="eml-code">{{ (m.entry || m.row).provider_message_id }}</code></span>
+        </dd>
+
+        <dt ng-if="(m.entry || m.row).suppression_reason">Suppressed because</dt>
+        <dd ng-if="(m.entry || m.row).suppression_reason"><span class="eml-ink--suppressed"><i class="fa fa-bell-slash"></i> {{ (m.entry || m.row).suppression_reason }}</span></dd>
+
+        <dt ng-if="(m.entry || m.row).error_message">Error</dt>
+        <dd ng-if="(m.entry || m.row).error_message"><span class="eml-ink--failed"><i class="fa fa-exclamation-circle"></i> {{ (m.entry || m.row).error_message }}</span></dd>
+
+        <dt ng-if="m.entry.attachments.length">Attachments</dt>
+        <dd ng-if="m.entry.attachments.length">
+          <span class="eml-attach" ng-repeat="a in m.entry.attachments"><i class="fa fa-paperclip"></i> {{ a.name }} <span class="snazzy-table__muted">{{ m.sizeLabel(a.size) }}</span></span>
+        </dd>
+
+        <dt>Environment</dt>
+        <dd>{{ (m.entry || m.row).env || '—' }}<span class="snazzy-table__muted" ng-if="m.entry.source_ip"> &middot; {{ m.entry.source_ip }}</span></dd>
+      </dl>
+
+      <!-- Body as sent -->
+      <div class="eml-detail__content">
+        <div class="eml-detail__content-head"><i class="fa fa-file-alt"></i> Content as sent</div>
+        <div class="rem-loading rem-loading--inline" ng-if="m.loading"><div class="rem-spinner"></div><span>Loading&hellip;</span></div>
+        <div class="eml-detail__warn" ng-if="!m.loading && m.failed"><i class="fa fa-exclamation-triangle"></i> The full entry could not be loaded — showing the summary only.</div>
+        <pre class="eml-detail__pre" ng-if="!m.loading && m.entry.body_text">{{ m.entry.body_text }}</pre>
+        <div class="eml-detail__rendered" ng-if="!m.loading && !m.entry.body_text && m.entry.body">
+          <h4 ng-if="m.entry.body.title">{{ m.entry.body.title }}</h4>
+          <p ng-if="m.entry.body.personal_greeting">{{ m.entry.body.personal_greeting }}</p>
+          <p ng-repeat="p in m.entry.body.paragraphs">{{ p.text }}</p>
+          <span class="eml-detail__button" ng-if="m.entry.body.button">{{ m.entry.body.button }}</span>
+        </div>
+        <div class="snazzy-table__muted" ng-if="!m.loading && !m.entry.body_text && !m.entry.body">No body was recorded for this email.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="modal-footer eml-detail__footer">
+    <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="m.close()" no-busy-guard>Close</button>
+  </div>
+</div>

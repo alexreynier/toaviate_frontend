@@ -1,9 +1,12 @@
  app.controller('AircraftJourneyLogsController', AircraftJourneyLogsController);
 
-    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService', 'LogbookExportService', 'ManualFlightService'];
-    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService, LogbookExportService, ManualFlightService) {
+    AircraftJourneyLogsController.$inject = ['UserService', 'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'ClubDocumentService', 'PlaneDocumentService', '$http', 'PlaneService', '$sce', 'ToastService', 'LogbookExportService', 'ManualFlightService', 'TimeDisplayService'];
+    function AircraftJourneyLogsController(UserService, MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, LicenceService, ClubDocumentService, PlaneDocumentService, $http, PlaneService, $sce, ToastService, LogbookExportService, ManualFlightService, TimeDisplayService) {
         
         var vm = this;
+
+        // Flight-time display convention for this aircraft's club (set once the log loads)
+        vm.td = TimeDisplayService.context(null);
 
         vm.clubs = [];
         vm.user = $rootScope.globals.currentUser;
@@ -41,6 +44,8 @@
                    // and manager verdict — see backend get_journey_log (2026-08).
                    vm.journey_club_id = data.club_id || 0;
                    vm.viewer_is_club_manager = data.viewer_is_club_manager;
+                   vm.td.setClub(vm.journey_club_id || (vm.aircraft && vm.aircraft.club_id) || null);
+                   vm.td.setPlane(vm.aircraft && vm.aircraft.time_display);
 
                    setupManualFlightAccess();
 

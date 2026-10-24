@@ -1,0 +1,277 @@
+<div class="eml-page snazzy-page">
+
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ng-if="vm.is_platform" ui-sref="dashboard.super_admin">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="back-box" ng-if="!vm.is_platform" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-envelope-open-text"></i> {{ vm.is_platform ? 'Email Log' : 'Emails' }}</h2>
+        <p ng-if="vm.is_platform">Every reminder, notification and transactional email the platform sends</p>
+        <p ng-if="!vm.is_platform">Every reminder and notification email sent to {{ vm.club_title || 'your club' }}'s members</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Access denied ── -->
+  <div class="snazzy-page__empty eml-denied" ng-if="!vm.allowed">
+    <i class="fa fa-lock snazzy-page__empty-icon"></i>
+    <p ng-if="vm.is_platform">This page is only available to ToAviate staff.</p>
+    <p ng-if="!vm.is_platform">This page is only available to club managers.</p>
+  </div>
+
+  <div ng-if="vm.allowed">
+
+    <!-- ══ Stats ══ -->
+    <div class="eml-stats snazzy-reveal">
+      <div class="eml-stats__head">
+        <span class="eml-stats__title"><i class="fa fa-chart-bar"></i> Last {{ vm.stats_days }} days</span>
+        <div class="eml-stats__range">
+          <button type="button" class="eml-chip" ng-class="{'eml-chip--active': vm.stats_days === 7}" ng-click="vm.setStatsDays(7)" no-busy-guard>7d</button>
+          <button type="button" class="eml-chip" ng-class="{'eml-chip--active': vm.stats_days === 30}" ng-click="vm.setStatsDays(30)" no-busy-guard>30d</button>
+          <button type="button" class="eml-chip" ng-class="{'eml-chip--active': vm.stats_days === 90}" ng-click="vm.setStatsDays(90)" no-busy-guard>90d</button>
+        </div>
+      </div>
+
+      <div class="eml-tiles">
+        <button type="button" class="eml-tile eml-tile--sent" ng-class="{'eml-tile--active': vm.filters.status === 'sent'}" ng-click="vm.setQuick('sent')" no-busy-guard uib-tooltip="Show only sent emails">
+          <span class="eml-tile__icon"><i class="fa fa-check-circle"></i></span>
+          <span class="eml-tile__value">{{ vm.stats_loading ? '…' : (vm.stats.by_status.sent || 0) }}</span>
+          <span class="eml-tile__label">Sent</span>
+        </button>
+        <button type="button" class="eml-tile eml-tile--suppressed" ng-class="{'eml-tile--active': vm.filters.status === 'suppressed'}" ng-click="vm.setQuick('suppressed')" no-busy-guard uib-tooltip="Show only suppressed emails (muted by a preference)">
+          <span class="eml-tile__icon"><i class="fa fa-bell-slash"></i></span>
+          <span class="eml-tile__value">{{ vm.stats_loading ? '…' : (vm.stats.by_status.suppressed || 0) }}</span>
+          <span class="eml-tile__label">Suppressed</span>
+        </button>
+        <button type="button" class="eml-tile eml-tile--failed" ng-class="{'eml-tile--active': vm.filters.status === 'failed'}" ng-click="vm.setQuick('failed')" no-busy-guard uib-tooltip="Show only failed sends">
+          <span class="eml-tile__icon"><i class="fa fa-exclamation-circle"></i></span>
+          <span class="eml-tile__value">{{ vm.stats_loading ? '…' : (vm.stats.by_status.failed || 0) }}</span>
+          <span class="eml-tile__label">Failed</span>
+        </button>
+        <div class="eml-tile eml-tile--muted" uib-tooltip="People who have turned off every reminder and notification email">
+          <span class="eml-tile__icon"><i class="fa fa-user-slash"></i></span>
+          <span class="eml-tile__value">{{ vm.stats_loading ? '…' : (vm.stats.users_muted_all || 0) }}</span>
+          <span class="eml-tile__label">Master mute on</span>
+        </div>
+      </div>
+
+      <!-- Per-day stacked bars: status colours + icon legend + hover tooltip; the sources table below is the table view -->
+      <div class="eml-chart" ng-if="!vm.stats_loading && vm.by_day.length">
+        <div class="eml-chart__bars">
+          <div class="eml-chart__col" ng-repeat="d in vm.by_day track by d.day"
+               ng-mouseenter="vm.hover_day = d" ng-mouseleave="vm.hover_day = null"
+               uib-tooltip="{{ d.day | asDate | date:'EEE d MMM' }}: {{ d.sent }} sent · {{ d.suppressed }} suppressed · {{ d.failed }} failed{{ d.logged ? ' · ' + d.logged + ' logged' : '' }}"
+               tooltip-append-to-body="true">
+            <div class="eml-chart__stack">
+              <div class="eml-chart__seg eml-chart__seg--failed" ng-style="{height: vm.barHeight(d, 'failed') + '%'}" ng-if="d.failed"></div>
+              <div class="eml-chart__seg eml-chart__seg--suppressed" ng-style="{height: vm.barHeight(d, 'suppressed') + '%'}" ng-if="d.suppressed"></div>
+              <div class="eml-chart__seg eml-chart__seg--sent" ng-style="{height: vm.barHeight(d, 'sent') + '%'}" ng-if="d.sent"></div>
+              <div class="eml-chart__seg eml-chart__seg--logged" ng-style="{height: vm.barHeight(d, 'logged') + '%'}" ng-if="d.logged"></div>
+            </div>
+            <span class="eml-chart__x" ng-if="$first || $last || ($index % (vm.stats_days > 30 ? 15 : (vm.stats_days > 7 ? 5 : 1)) === 0)">{{ vm.dayLabel(d.day) }}</span>
+          </div>
+        </div>
+        <div class="eml-chart__legend">
+          <span><i class="fa fa-check-circle eml-ink--sent"></i> Sent</span>
+          <span><i class="fa fa-bell-slash eml-ink--suppressed"></i> Suppressed</span>
+          <span><i class="fa fa-exclamation-circle eml-ink--failed"></i> Failed</span>
+          <span class="eml-chart__legend-hover" ng-if="vm.hover_day">{{ vm.hover_day.day | asDate | date:'EEE d MMM' }} &middot; {{ vm.hover_day.total }} total</span>
+        </div>
+      </div>
+
+      <!-- By source: the table view of the same window -->
+      <div class="eml-sources" ng-if="!vm.stats_loading && vm.by_source.length">
+        <table class="eml-sources__table">
+          <thead><tr><th>Source</th><th class="eml-num">Sent</th><th class="eml-num">Suppressed</th><th class="eml-num">Failed</th></tr></thead>
+          <tbody>
+            <tr ng-repeat="s in vm.by_source | limitTo: 8 track by s.source" ng-click="vm.filters.source = s.source; vm.applyFilters()" uib-tooltip="Filter the log to this source">
+              <td class="eml-sources__name">{{ s.source }}</td>
+              <td class="eml-num">{{ s.sent }}</td>
+              <td class="eml-num" ng-class="{'eml-ink--suppressed': s.suppressed}">{{ s.suppressed }}</td>
+              <td class="eml-num" ng-class="{'eml-ink--failed': s.failed}">{{ s.failed }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ Cron previews (dry runs — never send) ══ -->
+    <div class="eml-preview snazzy-reveal">
+      <div class="eml-preview__head">
+        <div>
+          <span class="eml-preview__title"><i class="fa fa-eye"></i> Who would get tonight's reminder emails?</span>
+          <span class="eml-preview__sub">Dry run only &mdash; nothing is sent and nothing is recorded.</span>
+        </div>
+        <div class="eml-preview__club" ng-if="vm.is_platform">
+          <select class="eml-select" ng-model="vm.preview.club_id" no-busy-guard>
+            <option value="">Choose a club…</option>
+            <option ng-repeat="c in vm.clubs | orderBy:'title'" value="{{ c.id }}">{{ c.title }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="eml-preview__runs">
+        <button type="button" class="eml-preview__btn" ng-repeat="run in vm.dry_runs track by run.key"
+                ng-class="{'eml-preview__btn--active': vm.preview.open && vm.preview.run.key === run.key}"
+                ng-click="vm.runPreview(run)" ng-disabled="vm.preview.loading" no-busy-guard>
+          <i class="fa" ng-class="(vm.preview.loading && vm.preview.run.key === run.key) ? 'fa-spinner fa-spin' : run.icon"></i> {{ run.label }}
+        </button>
+      </div>
+
+      <div class="eml-preview__result" ng-if="vm.preview.open && vm.preview.result">
+        <div class="eml-preview__summary">
+          <strong>{{ vm.preview.result.would_send }}</strong> of <strong>{{ vm.preview.result.candidates }}</strong> candidates would receive {{ vm.preview.run.label | lowercase }}.
+          <a ng-click="vm.closePreview()" class="eml-preview__close"><i class="fa fa-times"></i> close</a>
+        </div>
+        <div class="snazzy-page__empty eml-empty--inline" ng-if="!vm.preview.result.rows.length"><p>No candidates for this run.</p></div>
+        <div class="eml-preview__rows" ng-if="vm.preview.result.rows.length">
+          <div class="eml-preview__row" ng-repeat="r in vm.preview.result.rows">
+            <span class="eml-preview__who">
+              <strong>{{ r.name || ((r.first_name || '') + ' ' + (r.last_name || '')) }}</strong>
+              <span class="snazzy-table__muted">{{ r.email }}</span>
+            </span>
+            <span class="eml-preview__detail" ng-if="r.bookings !== undefined">{{ r.bookings }} booking{{ r.bookings == 1 ? '' : 's' }}</span>
+            <span class="eml-preview__detail" ng-if="r.booking_start || r.start">{{ (r.booking_start || r.start) | asDate | date:'EEE d MMM HH:mm' }}</span>
+            <span class="eml-decision" ng-class="vm.decisionClass(r.decision)"><i class="fa" ng-class="r.decision === 'send' ? 'fa-paper-plane' : 'fa-bell-slash'"></i> {{ vm.decisionLabel(r.decision) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Filters ══ -->
+    <div class="eml-filters snazzy-reveal">
+      <div class="snazzy-page__search-wrap eml-filters__search">
+        <i class="fa fa-search snazzy-page__search-icon"></i>
+        <input type="search" class="snazzy-page__search-input" placeholder="Search subject, recipient or address…" ng-model="vm.filters.q" ng-change="vm.applyFilters(true)">
+      </div>
+      <select class="eml-select" ng-model="vm.filters.status" ng-change="vm.applyFilters()" no-busy-guard>
+        <option value="">Any status</option>
+        <option ng-repeat="s in vm.statuses" value="{{ s }}">{{ vm.statusLabel(s) }}</option>
+      </select>
+      <select class="eml-select" ng-model="vm.filters.category" ng-change="vm.applyFilters()" no-busy-guard>
+        <option value="">Any category</option>
+        <option ng-repeat="c in vm.categories" value="{{ c }}">{{ vm.statusLabel(c) }}</option>
+      </select>
+      <select class="eml-select eml-select--wide" ng-model="vm.filters.source" ng-change="vm.applyFilters()" no-busy-guard>
+        <option value="">Any source</option>
+        <option ng-repeat="s in vm.sources" value="{{ s.source }}">{{ s.source }} ({{ s.c }})</option>
+      </select>
+      <select class="eml-select" ng-if="vm.is_platform" ng-model="vm.filters.club_id" ng-change="vm.applyFilters()" no-busy-guard>
+        <option value="">Any club</option>
+        <option ng-repeat="c in vm.clubs | orderBy:'title'" value="{{ c.id }}">{{ c.title }}</option>
+      </select>
+      <select class="eml-select" ng-model="vm.filters.is_cron" ng-change="vm.applyFilters()" no-busy-guard>
+        <option value="">Cron or user</option>
+        <option value="1">Cron only</option>
+        <option value="0">User-triggered only</option>
+      </select>
+      <div class="eml-filters__dates">
+        <input type="date" class="eml-select" ng-model="vm.filters.from" ng-change="vm.applyFilters()" uib-tooltip="From date">
+        <span class="eml-filters__to">to</span>
+        <input type="date" class="eml-select" ng-model="vm.filters.to" ng-change="vm.applyFilters()" uib-tooltip="To date">
+      </div>
+      <button type="button" class="snazzy-page__filter-btn" ng-if="vm.hasActiveFilters()" ng-click="vm.clearFilters()" no-busy-guard><i class="fa fa-times"></i> Clear</button>
+      <span class="snazzy-page__count-badge eml-filters__count" ng-if="!vm.loading">{{ vm.total }} email{{ vm.total == 1 ? '' : 's' }}</span>
+    </div>
+
+    <!-- ══ Loading / failed / empty ══ -->
+    <div class="snazzy-loading" ng-if="vm.loading && !vm.rows.length">
+      <div class="snazzy-loading__plane"><i class="fas fa-envelope"></i></div>
+      <div class="snazzy-loading__text">Loading the email log&hellip;</div>
+    </div>
+    <div class="snazzy-page__empty" ng-if="!vm.loading && vm.load_failed">
+      <i class="fa fa-exclamation-triangle snazzy-page__empty-icon"></i>
+      <p>{{ vm.load_failed_message }}</p>
+    </div>
+    <div class="snazzy-page__empty" ng-if="!vm.loading && !vm.load_failed && !vm.rows.length">
+      <i class="fa fa-envelope-open snazzy-page__empty-icon"></i>
+      <p>No emails match these filters.</p>
+    </div>
+
+    <!-- ══ Desktop table ══ -->
+    <div class="snazzy-page__table-card snazzy-desktop-table snazzy-reveal" ng-if="vm.rows.length" ng-class="{'eml-dim': vm.loading}">
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table eml-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Status</th>
+              <th class="snazzy-table__hide-mobile">Category</th>
+              <th>Recipient</th>
+              <th class="snazzy-table__hide-mobile" ng-if="vm.is_platform">Club</th>
+              <th>Subject</th>
+              <th class="snazzy-table__hide-mobile">Triggered by</th>
+              <th class="snazzy-table__hide-mobile">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="row in vm.rows track by row.id" ng-click="vm.openDetail(row)" class="eml-table__row">
+              <td class="snazzy-table__date eml-nowrap">{{ row.created_at | asDate | date:'dd MMM yyyy' }}<br><span class="snazzy-table__muted">{{ row.created_at | asDate | date:'HH:mm' }}</span></td>
+              <td>
+                <span class="eml-status eml-status--{{ row.status }}" uib-tooltip="{{ vm.reasonLabel(row.suppression_reason) || row.error_message }}">
+                  <i class="fa" ng-class="vm.statusIcon(row.status)"></i> {{ vm.statusLabel(row.status) }}
+                </span>
+              </td>
+              <td class="snazzy-table__hide-mobile"><span class="snazzy-table__badge">{{ row.category }}</span></td>
+              <td>
+                <div class="snazzy-table__name">{{ vm.recipientName(row) }}</div>
+                <div class="snazzy-table__muted eml-ellipsis">{{ row.intended_to }}</div>
+              </td>
+              <td class="snazzy-table__hide-mobile" ng-if="vm.is_platform">{{ row.club_title || '—' }}</td>
+              <td class="eml-subject">{{ row.subject || row.title || '—' }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <span class="eml-cron" ng-if="row.is_cron == 1"><i class="fa fa-robot"></i> cron</span>
+                <span ng-if="row.is_cron != 1">{{ vm.triggeredBy(row) }}</span>
+              </td>
+              <td class="snazzy-table__hide-mobile"><span class="eml-source" uib-tooltip="{{ row.source }}">{{ vm.shortSource(row.source) }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ Mobile cards ══ -->
+    <div class="snazzy-mobile-cards snazzy-reveal" ng-if="vm.rows.length" ng-class="{'eml-dim': vm.loading}">
+      <div class="snazzy-mobile-card eml-card" ng-repeat="row in vm.rows track by row.id" ng-click="vm.openDetail(row)">
+        <div class="snazzy-mobile-card__header eml-card__header">
+          <span class="eml-card__subject">{{ row.subject || row.title || '—' }}</span>
+          <span class="eml-status eml-status--{{ row.status }} eml-status--on-dark"><i class="fa" ng-class="vm.statusIcon(row.status)"></i> {{ vm.statusLabel(row.status) }}</span>
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">To</span>
+            <span class="snazzy-mobile-card__value">{{ vm.recipientName(row) }}<br><span class="snazzy-table__muted">{{ row.intended_to }}</span></span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">When</span>
+            <span class="snazzy-mobile-card__value">{{ row.created_at | asDate | date:'dd MMM yyyy HH:mm' }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-if="vm.is_platform && row.club_title">
+            <span class="snazzy-mobile-card__label">Club</span>
+            <span class="snazzy-mobile-card__value">{{ row.club_title }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">By</span>
+            <span class="snazzy-mobile-card__value">{{ vm.triggeredBy(row) }} &middot; <span class="snazzy-table__muted">{{ vm.shortSource(row.source) }}</span></span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-if="row.suppression_reason || row.error_message">
+            <span class="snazzy-mobile-card__label">Why</span>
+            <span class="snazzy-mobile-card__value">{{ vm.reasonLabel(row.suppression_reason) || row.error_message }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Pagination ══ -->
+    <div class="eml-pager" ng-if="vm.pages > 1">
+      <button type="button" class="eml-pager__btn" ng-disabled="vm.page <= 1 || vm.loading" ng-click="vm.goPage(vm.page - 1)" no-busy-guard><i class="fa fa-chevron-left"></i> Previous</button>
+      <span class="eml-pager__label">Page {{ vm.page }} of {{ vm.pages }} &middot; {{ vm.total }} emails</span>
+      <button type="button" class="eml-pager__btn" ng-disabled="vm.page >= vm.pages || vm.loading" ng-click="vm.goPage(vm.page + 1)" no-busy-guard>Next <i class="fa fa-chevron-right"></i></button>
+    </div>
+
+  </div>
+</div>

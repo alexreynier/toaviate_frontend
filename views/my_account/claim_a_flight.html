@@ -56,6 +56,9 @@
             </button>
         </div>
 
+        <!-- How times are shown (club convention + viewer switch) -->
+        <time-display-switch club-id="vm.unclaimed.to_claim[0].club_id || vm.unclaimed.to_claim[0].id"></time-display-switch>
+
         <!-- Aircraft ui-select filter -->
         <div class="caf-aircraft-search">
             <ui-select ng-model="vm.selectedAircraft" theme="bootstrap" title="Search Aircraft" append-to-body="true" allow-clear="true" on-select="vm.onAircraftSelected($item)" on-remove="vm.clearAircraftFilter()">
@@ -101,11 +104,11 @@
                                     <tr>
                                         <th>Date</th>
                                         <th class="centre_me caf-hide-mobile">From</th>
-                                        <th class="centre_me caf-hide-mobile">Brakes Off</th>
                                         <th class="centre_me caf-hide-mobile">To</th>
-                                        <th class="centre_me caf-hide-mobile">Brakes On</th>
-                                        <th class="centre_me caf-hide-mobile">Chocks Time</th>
-                                        <th class="centre_me caf-hide-mobile">Airborne Time</th>
+                                        <th class="centre_me caf-hide-mobile">{{ (club.club_id || club.id) | tdLabel : 'from' }}</th>
+                                        <th class="centre_me caf-hide-mobile">{{ (club.club_id || club.id) | tdLabel : 'to' }}</th>
+                                        <th class="centre_me caf-hide-mobile">{{ (club.club_id || club.id) | tdLabel : 'duration' }}</th>
+                                        <th class="centre_me caf-hide-mobile">Airborne (tracker)</th>
                                         <th class="centre_me caf-hide-mobile">Landings</th>
                                         <th class="centre_me">Actions</th>
                                     </tr>
@@ -119,21 +122,13 @@
                                             <span uib-tooltip="{{ log.from_airfield_name || 'unknown' }}">{{ log.from_airfield_code || 'unknown' }}</span>
                                         </td>
                                         <td class="centre_me caf-hide-mobile">
-                                            <span uib-tooltip="Brakes Off Time">{{ log.brakes_off  }}</span> 
-                                            <!-- | asDate | date:"HH:mm:ss" -->
-                                        </td>
-                                        <td class="centre_me caf-hide-mobile">
                                             <span uib-tooltip="{{ log.to_airfield_name || 'unknown' }}">{{ log.to_airfield_code || 'unknown' }}</span>
                                         </td>
+                                        <td class="centre_me caf-hide-mobile"><flight-times row="log" club-id="club.club_id || club.id" part="from"></flight-times></td>
+                                        <td class="centre_me caf-hide-mobile"><flight-times row="log" club-id="club.club_id || club.id" part="to"></flight-times></td>
+                                        <td class="centre_me caf-hide-mobile"><flight-times row="log" club-id="club.club_id || club.id" part="duration"></flight-times></td>
                                         <td class="centre_me caf-hide-mobile">
-                                            <span uib-tooltip="Brakes On Time">{{ log.brakes_on  }}</span>
-                                            <!-- | asDate | date:"HH:mm:ss" -->
-                                        </td>
-                                        <td class="centre_me caf-hide-mobile">
-                                            <span uib-tooltip="Decimal Hours : {{ log.brakes_time | number:2 }}">{{ get_hours_from_decimal(log.brakes_time) }}</span>
-                                        </td>
-                                        <td class="centre_me caf-hide-mobile">
-                                            <span uib-tooltip="Decimal Hours : {{ vm.airborne_decimal(log.airborne_seconds) | number:2 }}">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
+                                            <span uib-tooltip="Airborne time recorded by the tracker — decimal hours {{ vm.airborne_decimal(log.airborne_seconds) | number:2 }}">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
                                         </td>
                                         <td class="centre_me caf-hide-mobile">
                                             <span uib-tooltip="{{ log.takeoffs_landings }}">{{ log.number_landings }}</span>
@@ -157,16 +152,16 @@
                                 </div>
                                 <div class="caf-fc-times">
                                     <div class="caf-fc-stat">
-                                        <span class="caf-fc-label">Brakes Off</span>
-                                        <span>{{ log.brakes_off  }}</span>
+                                        <span class="caf-fc-label">{{ (club.club_id || club.id) | tdLabel : 'from' }}</span>
+                                        <flight-times row="log" club-id="club.club_id || club.id" part="from"></flight-times>
                                     </div>
                                     <div class="caf-fc-stat">
-                                        <span class="caf-fc-label">Brakes On</span>
-                                        <span>{{ log.brakes_on  }}</span>
+                                        <span class="caf-fc-label">{{ (club.club_id || club.id) | tdLabel : 'to' }}</span>
+                                        <flight-times row="log" club-id="club.club_id || club.id" part="to"></flight-times>
                                     </div>
                                     <div class="caf-fc-stat">
-                                        <span class="caf-fc-label">Airborne</span>
-                                        <span>{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
+                                        <span class="caf-fc-label">{{ (club.club_id || club.id) | tdLabel : 'duration' }}</span>
+                                        <flight-times row="log" club-id="club.club_id || club.id" part="duration"></flight-times>
                                     </div>
                                     <div class="caf-fc-stat">
                                         <span class="caf-fc-label">Landings</span>
@@ -175,6 +170,15 @@
                                 </div>
                                 <button class="btn btn-primary caf-fc-claim" ui-sref="dashboard.my_account.book_in({id: log.plane_log_sheet_id})">CLAIM</button>
                             </div>
+                        </div>
+
+                        <!-- Older unclaimed flights beyond the first page -->
+                        <div class="caf-load-more" ng-if="vm.canLoadMore(plane)">
+                            <button type="button" class="caf-load-more__btn" ng-click="vm.loadMore(plane)" ng-disabled="plane._loading_more">
+                                <i class="fas" ng-class="plane._loading_more ? 'fa-spinner fa-spin' : 'fa-angle-double-down'"></i>
+                                <span ng-if="!plane._loading_more">Load more unclaimed flights<span ng-if="plane.total_unclaimed > plane.flights.length"> ({{ plane.total_unclaimed - plane.flights.length }} more)</span></span>
+                                <span ng-if="plane._loading_more">Loading…</span>
+                            </button>
                         </div>
 
                     </div>
@@ -203,11 +207,9 @@
                         <th>Aircraft</th>
                         <th class="centre_me">Date</th>
                         <th class="centre_me caf-hide-mobile">From</th>
-                        <th class="centre_me caf-col-takeoff">Takeoff</th>
                         <th class="centre_me caf-hide-mobile">To</th>
-                        <th class="centre_me caf-col-landing">Landing</th>
-                        <th class="centre_me caf-hide-mobile">Chocks</th>
-                        <th class="centre_me caf-hide-mobile">Airborne</th>
+                        <th class="centre_me caf-col-takeoff">Flight Times</th>
+                        <th class="centre_me caf-hide-mobile">Airborne (tracker)</th>
                         <th class="centre_me caf-hide-mobile">Ldg</th>
                         <th class="centre_me">Actions</th>
                     </tr>
@@ -222,12 +224,10 @@
                         <td class="centre_me caf-hide-mobile">
                             <span uib-tooltip="{{ log.from_airfield_name || 'unknown' }}">{{ log.from_airfield_code || '?' }}</span>
                         </td>
-                        <td class="centre_me caf-col-takeoff">{{ log.brakes_off }}</td>
                         <td class="centre_me caf-hide-mobile">
                             <span uib-tooltip="{{ log.to_airfield_name || 'unknown' }}">{{ log.to_airfield_code || '?' }}</span>
                         </td>
-                        <td class="centre_me caf-col-landing">{{ log.brakes_on}}</td>
-                        <td class="centre_me caf-hide-mobile"><span uib-tooltip="Decimal Hours : {{ log.brakes_time | number:2 }}">{{ get_hours_from_decimal(log.brakes_time) }}</span></td>
+                        <td class="centre_me caf-col-takeoff"><flight-times row="log" club-id="log.club_id"></flight-times></td>
                         <td class="centre_me caf-hide-mobile">{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</td>
                         <td class="centre_me caf-hide-mobile">{{ log.number_landings }}</td>
                         <td class="centre_me">
@@ -254,16 +254,12 @@
                     <span uib-tooltip="{{log.to_airfield_name}}">{{ log.to_airfield_code || '?' }}</span>
                 </div>
                 <div class="caf-fc-times">
-                    <div class="caf-fc-stat">
-                        <span class="caf-fc-label">Takeoff</span>
-                        <span>{{ log.brakes_off  }}</span>
+                    <div class="caf-fc-stat caf-fc-stat--wide">
+                        <span class="caf-fc-label">Flight Times</span>
+                        <flight-times row="log" club-id="log.club_id"></flight-times>
                     </div>
                     <div class="caf-fc-stat">
-                        <span class="caf-fc-label">Landing</span>
-                        <span>{{ log.brakes_on  }}</span>
-                    </div>
-                    <div class="caf-fc-stat">
-                        <span class="caf-fc-label">Airborne</span>
+                        <span class="caf-fc-label">Airborne (tracker)</span>
                         <span>{{ vm.airborne_to_hours(log.airborne_seconds) || "0:00" }}</span>
                     </div>
                     <div class="caf-fc-stat">

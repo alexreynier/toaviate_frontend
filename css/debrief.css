@@ -1,0 +1,454 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Debrief page (views/manageuser/debriefing.html) — .dbf-* BEM
+   Sits on top of the student-records design (.sr-*) that the grading,
+   remarks, tags and save bar already use. This file owns the parts
+   that are unique to debriefing: the flight strip, the course + lesson
+   picker card with its suggestion chip and student history, and the
+   collapsible lesson-brief sections.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Neutralise the legacy wrapper ─────────────────────────────────
+   .centre_align_boxes2 > div is display:flex + justify-content:center and
+   the page centres text, so without this every card's children line up as
+   centred flex items. Scope to .dbf-page so nothing else changes. */
+/* The legacy selector carries six :not() clauses, so it outranks any sane
+   selector — !important on the handful of display/alignment properties it
+   sets is the honest way to beat it. */
+.centre_align_boxes2.dbf-page > .dbf-lesson,
+.centre_align_boxes2.dbf-page > .dbf-briefs,
+.dbf-page .dbf-acc,
+.dbf-page .dbf-lesson > .dbf-current,
+.dbf-page .dbf-lesson > .dbf-history,
+.dbf-page .dbf-lesson > .dbf-reason,
+.dbf-page .dbf-acc > .dbf-acc__body:not(.ng-hide) {
+  display: block !important;
+  width: 100%;
+  text-align: left;
+}
+.centre_align_boxes2.dbf-page > .dbf-flight {
+  display: flex !important;
+  justify-content: flex-start !important;
+  text-align: left;
+  width: 100%;
+}
+.dbf-page .dbf-lesson > .dbf-reason { width: auto; } /* has side margins — 100% would overhang the card */
+.dbf-page .dbf-lesson > .dbf-pickers { display: grid !important; width: 100%; text-align: left; }
+.dbf-page .dbf-lesson > .dbf-lesson__head,
+.dbf-page .dbf-acc > .dbf-acc__head { display: flex !important; justify-content: flex-start; width: 100%; text-align: left; }
+.dbf-page .dbf-lesson__head h3,
+.dbf-page .dbf-lesson__head h3 i { color: #fff; }
+.dbf-page { padding-bottom: 24px; }
+
+/* ── Flight summary strip ─────────────────────────────────────────── */
+.dbf-flight {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  align-items: center;
+}
+.dbf-flight__item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dbf-flight__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.dbf-flight__value {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.dbf-flight__value--mono { font-variant-numeric: tabular-nums; }
+.dbf-flight__spacer { flex: 1; }
+
+/* ── Lesson card ──────────────────────────────────────────────────── */
+.dbf-lesson {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: visible; /* ui-select dropdowns must escape the card */
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.dbf-lesson__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  border-radius: 12px 12px 0 0;
+  color: #fff;
+}
+.dbf-lesson__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dbf-lesson__head h3 .fa, .dbf-lesson__head h3 .fas { color: #fff; }
+.dbf-lesson__head-sub {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+  flex-basis: 100%;
+  margin: -4px 0 0;
+}
+
+/* suggestion / status chip */
+.dbf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.dbf-chip--suggested { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+.dbf-chip--history   { background: #dbeafe; border-color: #bfdbfe; color: #1e40af; }
+.dbf-chip--chosen    { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+.dbf-chip--needed    { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
+
+/* pickers */
+.dbf-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 14px 18px;
+  padding: 16px 18px 6px;
+}
+.dbf-field { min-width: 0; }
+.dbf-field__label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.dbf-field__hint {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 5px;
+}
+.dbf-field .ui-select-bootstrap > .ui-select-match > .btn {
+  border-radius: 8px;
+  border-color: #e2e8f0;
+  min-height: 42px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  font-size: 14px;
+  color: #1e293b;
+  text-align: left;
+}
+.dbf-field .ui-select-bootstrap > .ui-select-match > .btn:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.dbf-field--highlight .ui-select-bootstrap > .ui-select-match > .btn {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+/* explanation line under the pickers */
+.dbf-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 18px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.dbf-reason .fa, .dbf-reason .fas { margin-top: 2px; }
+.dbf-reason--warn  { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.dbf-reason--info  { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.dbf-reason--need  { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.dbf-reason strong { font-weight: 700; }
+
+/* the lesson that is now selected */
+.dbf-current {
+  padding: 14px 18px 16px;
+}
+.dbf-current__num {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2d5a8e;
+}
+.dbf-current__title {
+  margin: 2px 0 10px;
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #1e293b;
+}
+.dbf-meta {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.dbf-meta dt {
+  font-weight: 700;
+  color: #64748b;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding-top: 2px;
+}
+.dbf-meta dd {
+  margin: 0;
+  color: #334155;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* student history */
+.dbf-history {
+  padding: 12px 18px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 0 0 12px 12px;
+}
+.dbf-history__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dbf-history__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.dbf-history__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 12.5px;
+  color: #334155;
+  max-width: 100%;
+}
+.dbf-history__item .fa-check-circle { color: #22c55e; }
+.dbf-history__item .fa-redo { color: #f59e0b; }
+.dbf-history__item--latest {
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 2px rgba(45, 90, 142, 0.12);
+  font-weight: 700;
+}
+.dbf-history__num { color: #94a3b8; font-weight: 700; }
+.dbf-history__empty { font-size: 12.5px; color: #94a3b8; }
+.dbf-history__more { font-size: 12px; color: #64748b; align-self: center; }
+
+/* ── Collapsible lesson-brief sections ────────────────────────────── */
+.dbf-acc {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.dbf-acc__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.15s ease;
+}
+.dbf-acc__head:hover { background: #f8fafc; }
+.dbf-acc__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  color: #2d5a8e;
+  flex-shrink: 0;
+}
+.dbf-acc__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  flex: 1;
+  min-width: 0;
+}
+.dbf-acc__count {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.dbf-acc__chev {
+  color: #94a3b8;
+  transition: transform 0.18s ease;
+}
+.dbf-acc--open .dbf-acc__chev { transform: rotate(90deg); }
+.dbf-acc__body {
+  border-top: 1px solid #e2e8f0;
+  padding: 12px 16px 14px;
+}
+.dbf-acc__body--flush { padding: 0; }
+
+/* bullet lists (pre-flight / air exercises / debrief points) */
+.dbf-bullets { margin: 0; padding: 0; list-style: none; }
+.dbf-bullets li {
+  padding: 5px 0 5px 18px;
+  position: relative;
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.45;
+}
+.dbf-bullets li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.dbf-bullets li.dbf-bullets__heading {
+  padding-left: 0;
+  margin-top: 8px;
+  font-weight: 800;
+  color: #1e293b;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.dbf-bullets li.dbf-bullets__heading::before { display: none; }
+.dbf-bullets li.dbf-bullets__heading:first-child { margin-top: 0; }
+
+/* TEM table → cards on phones */
+.dbf-tem { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.dbf-tem th {
+  text-align: left;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.dbf-tem td {
+  padding: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+  color: #334155;
+  line-height: 1.4;
+}
+.dbf-tem tr:last-child td { border-bottom: 0; }
+.dbf-tem td::before { display: none; }
+
+/* content-file viewer lives inside an accordion now — keep it sane on phones */
+.dbf-acc .lcf-viewer-section { margin: 0; border: 0; box-shadow: none; }
+
+/* ── Save bar — pin to the bottom so Save is always one tap away ───── */
+.dbf-savebar-wrap {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dbf-flight { gap: 8px 16px; padding: 10px 14px; }
+  .dbf-flight__value { font-size: 13.5px; }
+  .dbf-pickers { grid-template-columns: 1fr; gap: 12px; padding: 14px 14px 4px; }
+  .dbf-lesson__head { padding: 12px 14px; }
+  .dbf-chip { margin-left: 0; }
+  .dbf-reason { margin: 8px 14px 0; }
+  .dbf-current { padding: 12px 14px 14px; }
+  .dbf-current__title { font-size: 18px; }
+  .dbf-meta { grid-template-columns: 1fr; gap: 2px 0; }
+  .dbf-meta dt { padding-top: 6px; }
+  .dbf-history { padding: 10px 14px 12px; }
+  .dbf-acc__head { padding: 11px 14px; }
+  .dbf-acc__body { padding: 10px 14px 12px; }
+  .dbf-acc .lcf-viewer-pdf, .dbf-acc .lcf-viewer-main { max-height: 60vh; }
+  .dbf-tem thead { display: none; }
+  .dbf-tem tr { display: block; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+  .dbf-tem tr:last-child { border-bottom: 0; }
+  .dbf-tem td { display: block; padding: 3px 0; border: 0; }
+  .dbf-tem td::before {
+    display: block;
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 1px;
+  }
+}
+
+/* ── Night mode ────────────────────────────────────────────────────── */
+body.night-mode .dbf-flight,
+body.night-mode .dbf-lesson,
+body.night-mode .dbf-acc { background: #1e293b; border-color: #334155; }
+body.night-mode .dbf-flight__value,
+body.night-mode .dbf-current__title,
+body.night-mode .dbf-acc__title,
+body.night-mode .dbf-bullets li.dbf-bullets__heading { color: #f1f5f9; }
+body.night-mode .dbf-meta dd,
+body.night-mode .dbf-bullets li,
+body.night-mode .dbf-tem td,
+body.night-mode .dbf-reason { color: #cbd5e1; }
+body.night-mode .dbf-reason { background: #0f172a; border-color: #334155; }
+body.night-mode .dbf-reason--warn { background: #3b2f0b; border-color: #78350f; color: #fde68a; }
+body.night-mode .dbf-reason--info { background: #172554; border-color: #1e3a8a; color: #bfdbfe; }
+body.night-mode .dbf-reason--need { background: #450a0a; border-color: #7f1d1d; color: #fecaca; }
+body.night-mode .dbf-history { background: #0f172a; border-color: #334155; }
+body.night-mode .dbf-history__item { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+body.night-mode .dbf-acc__head:hover { background: #273449; }
+body.night-mode .dbf-acc__body, body.night-mode .dbf-lesson__head { border-color: #334155; }
+body.night-mode .dbf-acc__count { background: #334155; color: #cbd5e1; }
+body.night-mode .dbf-acc__icon { background: #1e3a5f; color: #93c5fd; }
+body.night-mode .dbf-tem th, body.night-mode .dbf-tem td { border-color: #334155; }
+body.night-mode .dbf-field .ui-select-bootstrap > .ui-select-match > .btn { background: #0f172a; border-color: #334155; color: #e2e8f0; }

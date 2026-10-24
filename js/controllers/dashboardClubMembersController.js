@@ -1,7 +1,7 @@
 app.controller('DashboardClubMembersController', DashboardClubMembersController);
 
-    DashboardClubMembersController.$inject = ['$sce', 'PaymentService', 'UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PackageService', 'ToastService'];
-    function DashboardClubMembersController($sce, PaymentService, UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PackageService, ToastService) {
+    DashboardClubMembersController.$inject = ['$sce', 'PaymentService', 'UserService', 'MemberService', 'MembershipService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'PoidService',  'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', '$http', 'PackageService', 'ToastService', 'TimeDisplayService'];
+    function DashboardClubMembersController($sce, PaymentService, UserService, MemberService, MembershipService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, PoidService,  LicenceService, MedicalService, DifferencesService, AuthenticationService, $http, PackageService, ToastService, TimeDisplayService) {
         var vm = this;
 
         vm.user = null;
@@ -23,6 +23,10 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
+        vm.member_id = $stateParams.member_id || null;   // members.id on the edit screen (email preferences section)
+
+        // How flight times are shown in the member's recent-flights table
+        vm.td = TimeDisplayService.context(vm.club_id);
 
         // Check if the current user is a club super admin for this club
         vm.is_club_super_admin = (vm.user.access && vm.user.access.super_admin && vm.user.access.super_admin.indexOf(vm.club_id) > -1);
@@ -925,7 +929,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                             if(time){
                                  var sign = time < 0 ? "-" : "";
                                  var hour = Math.floor(Math.abs(time));
-                                 var min = Math.floor((Math.abs(time) * 60) % 60);
+                                 var min = Math.round((Math.abs(time) * 60) % 60);
                                  if(min == 60){
                                      hour++;
                                      min = 0;

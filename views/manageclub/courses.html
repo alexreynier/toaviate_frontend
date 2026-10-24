@@ -1,43 +1,118 @@
-<div class="centre_align_boxes2">
+<div class="snazzy-page courses-page">
 
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_club">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-graduation-cap"></i> COURSES</h2>
+        <p>Manage your courses &mdash; the order here is the order members and instructors see everywhere</p>
+      </div>
+    </div>
+  </div>
 
-      <div class="snazzy-page__header">
-            <div class="snazzy-page__header-inner">
-              <div class="back-box" ui-sref="dashboard.manage_club">
-                <i class="fa fa-arrow-circle-left"></i> BACK
-              </div>
-              <div class="snazzy-page__title">
-                <h2><i class="fas fa-graduation-cap"></i> COURSES</h2>
-                <p>Manage your courses</p>
-              </div>
-            </div>
-          </div>
+  <!-- Toolbar -->
+  <div class="courses-page__toolbar snazzy-reveal">
+    <div class="courses-page__hint">
+      <span class="snazzy-page__count-badge" ng-if="vm.club.courses.length">{{ vm.club.courses.length }} course{{ vm.club.courses.length == 1 ? '' : 's' }}</span>
+      <span class="courses-page__hint-text courses-page__hint-text--desktop" ng-if="vm.club.courses.length > 1">
+        <i class="fa fa-arrows-alt-v"></i> Drag the handle to reorder &mdash; changes save automatically.
+      </span>
+      <span class="courses-page__hint-text courses-page__hint-text--mobile" ng-if="vm.club.courses.length > 1">
+        <i class="fa fa-arrows-alt-v"></i> Use the arrows to reorder &mdash; changes save automatically.
+      </span>
+      <span class="courses-page__saving" ng-if="vm.courseOrderSaving"><i class="fa fa-spinner fa-spin"></i> Saving order&hellip;</span>
+      <span class="courses-page__saved" ng-if="vm.courseOrderSaved && !vm.courseOrderSaving"><i class="fa fa-check-circle"></i> Order saved</span>
+    </div>
+    <button class="snazzy-page__btn snazzy-page__btn--primary" ui-sref="dashboard.manage_club.add_course">
+      <i class="fa fa-plus"></i> Add New Course
+    </button>
+  </div>
 
-      <div class="club_docs">
+  <!-- Empty -->
+  <div class="snazzy-page__empty snazzy-reveal" ng-if="vm.club.courses && vm.club.courses.length == 0">
+    <i class="fas fa-graduation-cap snazzy-page__empty-icon"></i>
+    <p>You don't have any courses yet. Create your first one to start building lessons.</p>
+  </div>
 
-            <button class="btn btn-info club_add_button" ui-sref="dashboard.manage_club.add_course">Add New Course</button>
-            <div class="card" ng-if="vm.club.courses.length == 0">
-              You don't have any courses at the moment, please create one.
-            </div>
+  <!-- Desktop table (rows draggable) -->
+  <div class="snazzy-page__table-card snazzy-desktop-table snazzy-reveal" ng-if="vm.club.courses.length > 0">
+    <div class="snazzy-page__table-scroll">
+      <table class="snazzy-table courses-table">
+        <thead>
+          <tr>
+            <th class="courses-table__handle-col"></th>
+            <th class="courses-table__pos-col">#</th>
+            <th>Title</th>
+            <th>Description</th>
+            <th class="snazzy-table__td-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody dnd-list="vm.club.courses" dnd-horizontal-list="false">
+          <!-- No "track by course.id": the drop inserts a deserialised COPY of the row first,
+               and a duplicate key would abort ng-repeat before dnd-moved removes the source. -->
+          <tr ng-repeat="course in vm.club.courses"
+              dnd-draggable="course" dnd-effect-allowed="move"
+              dnd-moved="vm.onCourseMoved($index)"
+              dnd-disable-if="vm.courseOrderSaving || vm.club.courses.length < 2"
+              class="courses-table__row" ng-class="{'courses-table__row--armed': course._confirmDelete}">
+            <td class="courses-table__handle-col">
+              <span class="courses-table__handle" uib-tooltip="Drag to reorder"><i class="fa fa-grip-vertical"></i></span>
+            </td>
+            <td class="courses-table__pos-col"><span class="courses-table__pos">{{ $index + 1 }}</span></td>
+            <td class="snazzy-table__name">{{ course.title }}</td>
+            <td class="courses-table__desc">
+              <span ng-if="course.description">{{ course.description }}</span>
+              <span class="snazzy-table__muted" ng-if="!course.description">&mdash;</span>
+            </td>
+            <td class="snazzy-table__td-actions">
+              <span ng-if="!course._confirmDelete">
+                <a class="snazzy-table__action-btn" ui-sref="dashboard.manage_club.edit_course({course_id: course.id, action: 'edit'})" uib-tooltip="Manage lessons &amp; content"><i class="fa fa-edit"></i></a>
+                <a class="snazzy-table__action-btn snazzy-table__action-btn--danger" ng-click="vm.armDeleteCourse(course)" uib-tooltip="Delete course"><i class="fa fa-trash-alt"></i></a>
+              </span>
+              <span class="courses-table__confirm" ng-if="course._confirmDelete">
+                <span class="courses-table__confirm-text">Delete <strong>{{ course.title }}</strong>? This can't be undone.</span>
+                <button type="button" class="snazzy-page__btn snazzy-page__btn--danger courses-table__confirm-btn" ng-click="vm.delete_course(course.id, $index)" ng-disabled="course._deleting">
+                  <i class="fa" ng-class="course._deleting ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i> Delete
+                </button>
+                <button type="button" class="snazzy-page__btn snazzy-page__btn--outline courses-table__confirm-btn" ng-click="vm.cancelDeleteCourse(course)" ng-disabled="course._deleting" no-busy-guard>Cancel</button>
+              </span>
+            </td>
+          </tr>
+          <tr class="dndPlaceholder courses-table__placeholder">
+            <td colspan="5"><i class="fa fa-level-down-alt"></i> Drop here</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-            <div class="card" ng-if="vm.club.courses.length > 0">
-                <table>
-                    <tr>
-                        <th>Title</th>
-                        <th>Description</th>
-                        <th>Functions</th>
-                    </tr>
-
-                    <tr ng-repeat="course in vm.club.courses">
-                        <td>{{ course.title }}</td>
-                        <td>{{ course.description }}</td>
-                        <td><a ui-sref="dashboard.manage_club.edit_course({course_id: course.id, action: 'edit'})" uib-tooltip="Manage"><i class="fa fa-edit list_icons"></i></a> &nbsp; <a ng-click="vm.delete_course(course.id, $index)" uib-tooltip="Delete"><i class="fa fa-trash-alt list_icons"></i></a></td>
-                    </tr>
-
-                </table>
-
-            </div>
-
-
+  <!-- Mobile cards (up / down buttons instead of drag) -->
+  <div class="snazzy-mobile-cards snazzy-reveal" ng-if="vm.club.courses.length > 0">
+    <!-- Same array as the draggable table: no "track by" here either, or the drop's temporary duplicate throws ngRepeat:dupes in this (hidden) repeat. -->
+    <div class="snazzy-mobile-card courses-card" ng-repeat="course in vm.club.courses">
+      <div class="snazzy-mobile-card__header courses-card__header">
+        <span class="courses-card__pos">{{ $index + 1 }}</span>
+        <span class="snazzy-mobile-card__title courses-card__title">{{ course.title }}</span>
+        <span class="courses-card__move">
+          <button type="button" class="courses-card__move-btn" ng-click="vm.moveCourse(course, -1)" ng-disabled="$first || vm.courseOrderSaving" aria-label="Move up"><i class="fa fa-chevron-up"></i></button>
+          <button type="button" class="courses-card__move-btn" ng-click="vm.moveCourse(course, 1)" ng-disabled="$last || vm.courseOrderSaving" aria-label="Move down"><i class="fa fa-chevron-down"></i></button>
+        </span>
+      </div>
+      <div class="snazzy-mobile-card__body">
+        <div class="courses-card__desc" ng-if="course.description">{{ course.description }}</div>
+        <div class="courses-card__actions" ng-if="!course._confirmDelete">
+          <a class="snazzy-page__btn snazzy-page__btn--outline" ui-sref="dashboard.manage_club.edit_course({course_id: course.id, action: 'edit'})"><i class="fa fa-edit"></i> Manage</a>
+          <a class="snazzy-page__btn snazzy-page__btn--outline courses-card__danger" ng-click="vm.armDeleteCourse(course)"><i class="fa fa-trash-alt"></i> Delete</a>
         </div>
+        <div class="courses-card__actions courses-card__actions--confirm" ng-if="course._confirmDelete">
+          <span class="courses-table__confirm-text">Delete <strong>{{ course.title }}</strong>? This can't be undone.</span>
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.delete_course(course.id, $index)" ng-disabled="course._deleting"><i class="fa" ng-class="course._deleting ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i> Delete</button>
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.cancelDeleteCourse(course)" ng-disabled="course._deleting" no-busy-guard>Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>

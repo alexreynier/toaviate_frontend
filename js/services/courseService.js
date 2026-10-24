@@ -17,6 +17,7 @@ app.factory('CourseService', CourseService);
         service.UpdateLesson = UpdateLesson;
         service.DeleteLesson = DeleteLesson;
         service.UpdateLessonOrder = UpdateLessonOrder;
+        service.UpdateCourseOrder = UpdateCourseOrder;
 
         service.GetTemByLessonId = GetTemByLessonId;
         service.CreateTem = CreateTem;
@@ -125,6 +126,13 @@ app.factory('CourseService', CourseService);
         function UpdateLessonOrder(bullets){
             return $http.post('/api/v1/lessons/organise', bullets).then(handleSuccess, handleError2);
 
+        }
+
+        // Persist the club's course order after a drag/drop or up/down move.
+        //   order = [{ id, display_order }, …]  (display_order = 0-based position)
+        // Mirrors lessons/organise. Backend sorts GET courses/club/{id} by display_order.
+        function UpdateCourseOrder(club_id, order){
+            return $http.post('/api/v1/courses/organise', { club_id: club_id, order: order }).then(handleSuccess, handleError2);
         }
 
 

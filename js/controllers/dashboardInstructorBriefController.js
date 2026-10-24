@@ -1,7 +1,7 @@
  app.controller('DashboardInstructorBriefController', DashboardInstructorBriefController);
 
-    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService'];
-    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService) {
+    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService', 'PlaneService', 'TimeDisplayService'];
+    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService, PlaneService, TimeDisplayService) {
         var vm = this;
 
         // ── Pre-lesson questionnaire flag (shown on the briefing screen) ──
@@ -54,6 +54,9 @@
 
         vm.club_id = $rootScope.globals.currentUser.current_club_instructor;
         vm.user_id = vm.user.id;
+
+        // Debrief times are training-record times: brakes off → on, club rounding.
+        vm.td = TimeDisplayService.context(vm.club_id, { window: 'block' });
 
         vm.exams = [];
 
@@ -225,45 +228,33 @@
 
                     var haveLesson = !!(vm.lesson && vm.lesson.id);
                     vm.no_lesson_selected = !haveLesson;   // drives the picker in the view
+                    // Until the student's records say otherwise, the lesson is just
+                    // the API's guess (next after the latest record, else lesson 1).
+                    vm.suggestion = haveLesson ? { source: 'backend' } : null;
 
                     if (haveLesson) {
                         vm.my_search = vm.lesson.id;
                         load_content_files(vm.lesson.id);
                     }
 
-                    // Load the lessons for the (book-in-selected) course so the
-                    // instructor can pick which lesson they taught — this list also
-                    // powers the existing "taught a different lesson?" switcher.
-                    if (vm.course_id) {
-                        CourseService.GetLessonsByCourseId(vm.course_id)
-                        .then(function(lessonData){
-                            vm.all_lessons = lessonData.items || [];
-                            if (haveLesson) {
-                                for (var i = 0; i < vm.all_lessons.length; i++) {
-                                    if (String(vm.all_lessons[i].id) === String(vm.lesson.id)) {
-                                        vm.selected_debrief_lesson_obj = vm.all_lessons[i];
-                                        break;
-                                    }
-                                }
-                            }
-                        });
+                    load_flight_aircraft();
 
-                        CourseService.GetTagsByCourseId(vm.course_id)
-                        .then(function(tagData){
-                            vm.all_tags = tagData.items;
-                            vm.selected_flight_tags = [];
+                    // The club's courses always load — the course picker is how an
+                    // instructor moves a flight to the other course a student is on.
+                    if (vm.record_club_id) {
+                        CourseService.GetCoursesByClubId(vm.record_club_id)
+                        .then(function(courseData){
+                            vm.debrief_courses = courseData.items || [];
+                            vm.course_obj = find_by_id(vm.debrief_courses, vm.course_id);
                         });
+                    }
+
+                    if (vm.course_id) {
+                        load_course_context(vm.course_id);
                     } else {
-                        // No course on the flight (e.g. an older claimed flight saved
-                        // before course_id was persisted). Let the instructor pick the
-                        // course too — load the club's courses for the picker.
+                        // No course on the flight (claimed without a course on the
+                        // book-in form). The instructor picks the course first.
                         vm.need_course_pick = true;
-                        if (vm.record_club_id) {
-                            CourseService.GetCoursesByClubId(vm.record_club_id)
-                            .then(function(courseData){
-                                vm.debrief_courses = courseData.items || [];
-                            });
-                        }
                     }
                 }
 
@@ -354,6 +345,215 @@
 
         vm.show_all_lessons = false;
         vm.tag_full_flight = true;
+
+        // ═══════════════════════════════════════════════
+        // DEBRIEF: course + lesson picker, suggestion, history
+        // ═══════════════════════════════════════════════
+        vm.debrief_courses = [];     // club courses for the course picker
+        vm.course_obj = null;        // ui-select model (course)
+        vm.lesson_obj = null;        // ui-select model (lesson)
+        vm.all_lessons = [];
+        vm.recent_records = [];      // latest lessoned records on the current course, newest first
+        vm.records_total = 0;
+        vm.records_loading = false;
+        vm.suggestion = null;        // { source: 'backend'|'course_start'|'history'|'chosen', from_title, from_completed }
+        vm.pending_switch = null;    // { type: 'course'|'lesson', obj } awaiting confirmation
+        vm.flight_aircraft = {};
+        // Lesson-brief sections start open on a desktop, closed on a phone so
+        // the grading is reachable without scrolling past a full-height PDF.
+        var wide = !!($window.innerWidth && $window.innerWidth > 768);
+        vm.acc = { files: wide, tem: false, preflight: false, airex: false, debrief: false };
+
+        function find_by_id(list, id){
+            for (var i = 0; i < (list || []).length; i++) {
+                if (String(list[i].id) === String(id)) { return list[i]; }
+            }
+            return null;
+        }
+        function organise_of(l){ return (l && l.organise !== null && l.organise !== undefined) ? Number(l.organise) : 0; }
+        function first_lesson(){
+            var first = null;
+            (vm.all_lessons || []).forEach(function(l){ if (!first || organise_of(l) < organise_of(first)) { first = l; } });
+            return first;
+        }
+        function lesson_after(l){
+            var next = null;
+            (vm.all_lessons || []).forEach(function(c){
+                if (organise_of(c) > organise_of(l) && (!next || organise_of(c) < organise_of(next))) { next = c; }
+            });
+            return next;
+        }
+
+        // Lessons + tags for a course, then the student's records on it (which
+        // may improve the suggested lesson). Shared by first load and course switch.
+        function load_course_context(course_id){
+            vm.all_lessons = [];
+            vm.recent_records = [];
+            vm.records_total = 0;
+            CourseService.GetLessonsByCourseId(course_id)
+                .then(function(lessonData){
+                    if (String(course_id) !== String(vm.course_id)) { return; } // switched again meanwhile
+                    vm.all_lessons = lessonData.items || [];
+                    if (vm.lesson && vm.lesson.id) {
+                        vm.lesson_obj = find_by_id(vm.all_lessons, vm.lesson.id);
+                        vm.selected_debrief_lesson_obj = vm.lesson_obj;
+                    }
+                    load_student_records(course_id);
+                });
+            CourseService.GetTagsByCourseId(course_id)
+                .then(function(tagData){
+                    if (String(course_id) !== String(vm.course_id)) { return; }
+                    vm.all_tags = tagData.items || [];
+                    vm.selected_flight_tags = [];
+                });
+        }
+
+        // The student's records on this course drive two things: the "recent
+        // records" strip, and a better default lesson. The API's suggestion
+        // falls back to lesson 1 whenever the student's latest record carries
+        // no lesson (imported history does that), which is how a student on
+        // A27 gets offered A1. If their records show later lessons, propose
+        // the one after their latest lessoned record instead, and say why.
+        function load_student_records(course_id){
+            if (!vm.student || !vm.student.id) { return; }
+            vm.records_loading = true;
+            CourseService.GetStudentTrainingRecords(vm.student.id, course_id)
+                .then(function(data){
+                    if (String(course_id) !== String(vm.course_id)) { return; }
+                    vm.records_loading = false;
+                    var records = (data && data.success !== false && data.training_records) ? data.training_records : [];
+                    // Newest first (the API sorts oldest-first by flight date)
+                    var lessoned = [];
+                    for (var i = records.length - 1; i >= 0; i--) {
+                        var r = records[i];
+                        if (!r.lesson_id || Number(r.lesson_id) <= 0) { continue; }
+                        var l = find_by_id(vm.all_lessons, r.lesson_id);
+                        lessoned.push({
+                            lesson: l,
+                            title: l ? l.title : ('Lesson #' + r.lesson_id),
+                            number: l ? (organise_of(l) + 1) : null,
+                            completed: Number(r.completed) === 1,
+                            when: r.flight_date || null
+                        });
+                    }
+                    vm.records_total = lessoned.length;
+                    vm.recent_records = lessoned.slice(0, 5);
+                    apply_suggestion(lessoned[0] || null);
+                }, function(){ vm.records_loading = false; });
+        }
+
+        function apply_suggestion(latest){
+            // Only ever override the API's guess, never a lesson the instructor chose.
+            if (vm.suggestion && vm.suggestion.source === 'chosen') { return; }
+            var current = (vm.lesson && vm.lesson.id) ? vm.lesson : null;
+            var first = first_lesson();
+            var api_defaulted = !current || (first && String(current.id) === String(first.id));
+            if (!latest || !latest.lesson) {
+                if (current) { vm.suggestion = { source: api_defaulted ? 'course_start' : 'backend' }; }
+                return;
+            }
+            if (!api_defaulted) {
+                // the API already derived this from a real record — keep it, explain it
+                vm.suggestion = { source: 'history', from_title: latest.title, from_completed: latest.completed };
+                return;
+            }
+            var proposed = latest.completed ? (lesson_after(latest.lesson) || latest.lesson) : latest.lesson;
+            vm.suggestion = { source: 'history', from_title: latest.title, from_completed: latest.completed };
+            if (!current || String(proposed.id) !== String(current.id)) {
+                vm.lesson_obj = proposed;
+                vm.selected_debrief_lesson_obj = proposed;
+                vm.no_lesson_selected = false;
+                vm.change_debrief_lesson();
+            }
+        }
+
+        function load_flight_aircraft(){
+            vm.flight_aircraft = {};
+            var sheet = vm.plane_log_sheet;
+            if (!sheet || !sheet.plane_id) { return; }
+            PlaneService.GetById(sheet.plane_id, sheet.club_id || vm.record_club_id)
+                .then(function(data){
+                    if (data && data.success !== false && data.registration) { vm.flight_aircraft = data; }
+                });
+        }
+
+        vm.flight_minutes = function(){
+            var s = vm.plane_log_sheet;
+            if (!s) { return 0; }
+            var hrs = parseFloat(s.brakes_times_rounded || s.brakes_time || s.flight_time || 0);
+            return isNaN(hrs) ? 0 : Math.round(hrs * 60);
+        };
+        vm.flight_minutes_label = function(){
+            var m = vm.flight_minutes();
+            return Math.floor(m / 60) + 'h ' + (m % 60 < 10 ? '0' : '') + (m % 60) + 'm';
+        };
+
+        // Anything typed or graded that a switch would throw away
+        vm.has_entries = function(){
+            return vm.graded_count() > 0 ||
+                   !!(vm.general_remarks && String(vm.general_remarks).trim()) ||
+                   (vm.selected_flight_tags && vm.selected_flight_tags.length > 0);
+        };
+
+        vm.on_course_pick = function(course){
+            if (!course || String(course.id) === String(vm.course_id)) { return; }
+            if (vm.has_entries()) {
+                vm.pending_switch = { type: 'course', obj: course };
+                vm.course_obj = find_by_id(vm.debrief_courses, vm.course_id); // snap back until confirmed
+                return;
+            }
+            do_switch_course(course);
+        };
+        vm.on_lesson_pick = function(lesson){
+            if (!lesson || (vm.lesson && String(lesson.id) === String(vm.lesson.id))) { return; }
+            if (vm.has_entries()) {
+                vm.pending_switch = { type: 'lesson', obj: lesson };
+                vm.lesson_obj = find_by_id(vm.all_lessons, vm.lesson && vm.lesson.id);
+                return;
+            }
+            do_switch_lesson(lesson);
+        };
+        vm.confirm_switch = function(){
+            var p = vm.pending_switch;
+            vm.pending_switch = null;
+            if (!p) { return; }
+            if (p.type === 'course') { do_switch_course(p.obj); } else { do_switch_lesson(p.obj); }
+        };
+        vm.cancel_switch = function(){ vm.pending_switch = null; };
+
+        function reset_entries(){
+            vm.clear_grades();
+            vm.general_remarks = '';
+            vm.selected_flight_tags = [];
+            vm.flight_tag = '';
+            vm.lesson_completed = false;
+            vm.next_lesson = null;
+        }
+
+        function do_switch_course(course){
+            vm.course_id = course.id;
+            vm.course_obj = course;
+            vm.need_course_pick = false;
+            reset_entries();
+            vm.lesson = {};
+            vm.lesson_obj = null;
+            vm.selected_debrief_lesson_obj = null;
+            vm.no_lesson_selected = true;
+            vm.suggestion = null;
+            vm.all_items = [];
+            vm.contentFiles = [];
+            vm.activeContentFile = null;
+            load_course_context(course.id);
+        }
+
+        function do_switch_lesson(lesson){
+            reset_entries();
+            vm.lesson_obj = lesson;
+            vm.selected_debrief_lesson_obj = lesson;
+            vm.no_lesson_selected = false;
+            vm.suggestion = { source: 'chosen' };
+            vm.change_debrief_lesson();
+        }
 
         // ═══════════════════════════════════════════════
         // COURSE PICKER (when no course set on booking)
@@ -755,13 +955,8 @@
         vm.lesson = {};
         vm.selected_lesson_obj = null;
         vm.selected_debrief_lesson_obj = null;
-        vm.pending_debrief_lesson_obj = null;
-        vm.show_lesson_switcher = false;
         vm.no_lesson_selected = false;   // true on a claimed flight with no booked lesson
-        vm.pick_lesson_obj = null;       // ui-select model for the no-lesson picker
         vm.need_course_pick = false;     // true when the flight has no course_id at all
-        vm.debrief_courses = [];         // club courses for the fallback course picker
-        vm.pick_course_obj = null;       // ui-select model for the course picker
         vm.contentFiles = [];
         vm.contentFilesLoading = true;
         vm.activeContentFile = null;
@@ -773,23 +968,13 @@
             }
         }
 
-        vm.confirm_debrief_lesson_change = function(){
-            if (vm.pending_debrief_lesson_obj) {
-                vm.selected_debrief_lesson_obj = vm.pending_debrief_lesson_obj;
-                vm.pending_debrief_lesson_obj = null;
-                vm.show_lesson_switcher = false;
-                vm.change_debrief_lesson();
-            }
-        }
-
-        vm.cancel_debrief_lesson_change = function(){
-            vm.pending_debrief_lesson_obj = null;
-            vm.show_lesson_switcher = false;
-        }
-
+        // Loads the full lesson (details, bullets, TEM, objectives, content
+        // files) for vm.selected_debrief_lesson_obj and makes it the lesson
+        // being debriefed. Grades are cleared — they belong to the old lesson.
         vm.change_debrief_lesson = function(){
             if (vm.selected_debrief_lesson_obj) {
                 var lesson_id = vm.selected_debrief_lesson_obj.id;
+                vm.lesson_obj = find_by_id(vm.all_lessons, lesson_id) || vm.selected_debrief_lesson_obj;
                 vm.clear_grades();
                 vm.lesson_completed = false;
                 vm.next_lesson = null;
@@ -833,46 +1018,6 @@
                     });
             }
         }
-
-        // Fallback: the flight has no course at all (older claimed flights saved
-        // before course_id was persisted). Instructor picks the course, then its
-        // lessons load into all_lessons and the lesson picker takes over.
-        vm.pick_debrief_course = function(){
-            if (!vm.pick_course_obj || !vm.pick_course_obj.id) {
-                ToastService.warning('Select a Course', 'Please choose the course this flight was part of.');
-                return;
-            }
-            vm.course_id = vm.pick_course_obj.id;
-            vm.need_course_pick = false;
-            vm.all_items = [];
-            CourseService.GetLessonsByCourseId(vm.course_id)
-                .then(function(lessonData){
-                    vm.all_lessons = lessonData.items || [];
-                    if(!vm.all_lessons.length){
-                        ToastService.warning('No Lessons', 'That course has no lessons yet — pick another course.');
-                        vm.need_course_pick = true;
-                    }
-                });
-            CourseService.GetTagsByCourseId(vm.course_id)
-                .then(function(tagData){
-                    vm.all_tags = tagData.items;
-                    vm.selected_flight_tags = [];
-                });
-        };
-
-        // Claimed-flight case: no lesson was booked out. The instructor picks the
-        // lesson they taught (from the course already selected on the book-in form,
-        // i.e. vm.all_lessons for vm.course_id). Selecting it loads the full lesson
-        // inline via change_debrief_lesson so the student record can be filled in.
-        vm.pick_debrief_lesson = function(){
-            if (!vm.pick_lesson_obj || !vm.pick_lesson_obj.id) {
-                ToastService.warning('Select a Lesson', 'Please choose the lesson you taught on this flight.');
-                return;
-            }
-            vm.selected_debrief_lesson_obj = vm.pick_lesson_obj;
-            vm.no_lesson_selected = false;
-            vm.change_debrief_lesson();
-        };
 
         // Load courses for the course picker using the resolved briefing_club_id
         function loadCoursesForBriefing() {

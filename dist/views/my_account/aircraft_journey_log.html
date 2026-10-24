@@ -18,6 +18,8 @@
 <div class="sub_section2 superwide">
 
     <div class="logbook-hero-actions logbook-hero-actions--right">
+        <!-- How times are shown: club convention + viewer switch -->
+        <time-display-switch ctx="vm.td"></time-display-switch>
         <!-- Add a flight the trackers missed (managers only) -->
         <button class="mf-add-btn mf-add-btn--hero" ng-if="vm.can_add_flight" ng-click="vm.openAddFlight()"
                 uib-tooltip="Add a flight the trackers missed — upload a SkyDemon log or enter it manually">
@@ -99,12 +101,9 @@
                                 <td class="bold_text">Pilot</td>
                                 <td class="bold_text centre_me">From</td>
                                 <td class="bold_text centre_me">To</td>
-                                <td class="bold_text centre_me">Brakes Off</td>
-                                <td class="bold_text centre_me">Takeoff</td>
-                                <td class="bold_text centre_me">Landing</td>
-                                <td class="bold_text centre_me">Brakes On</td>
-                                <td class="bold_text centre_me">Flight Time</td>
-                                <td class="bold_text centre_me">Brakes Time</td>
+                                <td class="bold_text centre_me">{{ vm.td.labels.from }}</td>
+                                <td class="bold_text centre_me">{{ vm.td.labels.to }}</td>
+                                <td class="bold_text centre_me">{{ vm.td.labels.duration }}</td>
                                 <td class="bold_text centre_me">Fuel Uplift</td>
                                 <td class="bold_text centre_me">Oil Uplift</td>
                                 <td class="bold_text centre_me"></td>
@@ -120,22 +119,9 @@
                                 <td class="centre_me">
                                     <span uib-tooltip="{{log.destination_airport_code}}">{{ log.destination_airport }}</span>
                                 </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.takeoff_time | timeRounding : 'Takeoff' }}">{{ vm.clean_times(log.takeoff_time) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.landing_time | timeRounding : 'Landing' }}">{{ vm.clean_times(log.landing_time) }}</span>
-                                </td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
-                                </td>
-                                <td class="centre_me">{{ get_hours_from_decimal(log.flight_time) || "0:00" }}</td>
-                                <td class="centre_me">
-                                    <span uib-tooltip="Using rounded minutes for brakes off to brakes on">{{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
-                                </td>
+                                <td class="centre_me"><flight-times row="log" ctx="vm.td" part="from"></flight-times></td>
+                                <td class="centre_me"><flight-times row="log" ctx="vm.td" part="to"></flight-times></td>
+                                <td class="centre_me"><flight-times row="log" ctx="vm.td" part="duration"></flight-times></td>
                                 <td class="centre_me">
                                     <span uib-tooltip="{{ log.fuel_uplift_litres }} litres">{{ log.fuel_uplift_litres }}</span>
                                 </td>
@@ -151,7 +137,7 @@
                                  ng-repeat element in this Angular build) but ng-if on the
                                  inner mount, so the panel only fetches when opened. -->
                             <tr ng-repeat-end class="fw-drawer-row" ng-show="log._wxOpen">
-                                <td colspan="13">
+                                <td colspan="10">
                                     <div class="fw-drawer" fw-drawer-fit ng-if="log._wxOpen">
                                         <flight-weather-panel flight-id="log.id"
                                                               dep-name="log.departure_airport"
@@ -175,28 +161,16 @@
                             </div>
                             <div class="mc-card-grid mc-card-grid-3">
                               <div class="mc-card-stat">
-                                <span class="mc-card-label">Brakes Off</span>
-                                <span uib-tooltip="{{ log.brakes_off | timeRounding : 'Brakes off' : log.brakes_off_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_off_rounded) }}</span>
+                                <span class="mc-card-label">{{ vm.td.labels.from }}</span>
+                                <flight-times row="log" ctx="vm.td" part="from"></flight-times>
                               </div>
                               <div class="mc-card-stat">
-                                <span class="mc-card-label">Takeoff</span>
-                                <span uib-tooltip="{{ log.takeoff_time | timeRounding : 'Takeoff' }}">{{ vm.clean_times(log.takeoff_time) }}</span>
+                                <span class="mc-card-label">{{ vm.td.labels.to }}</span>
+                                <flight-times row="log" ctx="vm.td" part="to"></flight-times>
                               </div>
                               <div class="mc-card-stat">
-                                <span class="mc-card-label">Landing</span>
-                                <span uib-tooltip="{{ log.landing_time | timeRounding : 'Landing' }}">{{ vm.clean_times(log.landing_time) }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Brakes On</span>
-                                <span uib-tooltip="{{ log.brakes_on | timeRounding : 'Brakes on' : log.brakes_on_rounded : '5 minutes' }}">{{ vm.clean_times(log.brakes_on_rounded) }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Flight Time</span>
-                                <span>{{ get_hours_from_decimal(log.flight_time) || "0:00" }}</span>
-                              </div>
-                              <div class="mc-card-stat">
-                                <span class="mc-card-label">Brakes Time</span>
-                                <span>{{ get_hours_from_decimal(log.brakes_times_rounded) || "0:00" }}</span>
+                                <span class="mc-card-label">{{ vm.td.labels.duration }}</span>
+                                <flight-times row="log" ctx="vm.td" part="duration"></flight-times>
                               </div>
                               <div class="mc-card-stat">
                                 <span class="mc-card-label">Fuel Uplift</span>

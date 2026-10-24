@@ -1,0 +1,415 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Flight time display — club-wide convention (TimeDisplayService)
+   .ft   <flight-times> chip        .tds  <time-display-switch> toolbar pill
+   .tdo  Club Settings option cards .pf-td  aircraft-form override hint
+   Snazzy BEM, tokens from CLAUDE.md. Desktop + mobile + night mode.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── <flight-times> ─────────────────────────────────────────────────── */
+.ft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.2;
+  cursor: default;
+}
+.ft__t {
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+}
+.ft__arrow {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.ft__dur {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+.ft--exact .ft__dur { background: #f1f5f9; color: #334155; }
+.ft--single { font-weight: 600; color: #1e293b; }
+.ft--duration { font-weight: 700; }
+/* the requested window wasn't recorded — showing the other one */
+.ft--fallback .ft__t,
+.ft--fallback.ft--single { color: #92400e; }
+.ft--fallback .ft__dur { background: #fef3c7; color: #92400e; }
+.ft--missing .ft__t,
+.ft--missing.ft--single { color: #94a3b8; font-weight: 500; }
+
+/* inside a snazzy table header the inherited colour is white — keep it */
+.snazzy-table thead .ft__t { color: inherit; }
+/* inherit the muted colour when embedded in a muted span */
+.snazzy-table__muted .ft__t,
+.snazzy-mobile-card__value .ft__t { color: inherit; }
+.snazzy-table__muted .ft__dur { font-size: 10px; }
+
+/* ── <time-display-switch> ──────────────────────────────────────────── */
+.tds {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tds:hover { border-color: #cbd5e1; }
+.tds:focus-within { border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+.tds__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0 12px 0 14px;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tds__label i { color: #2d5a8e; font-size: 13px; }
+.tds__select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+.tds__select {
+  height: 100%;
+  margin: 0;
+  padding: 0 32px 0 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  max-width: 320px;
+  text-overflow: ellipsis;
+}
+.tds__select:focus { outline: none; }
+.tds__caret {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  font-size: 10px;
+  color: #94a3b8;
+}
+.tds__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  border: none;
+  border-left: 1px solid #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s ease;
+}
+.tds__reset:hover { background: #fde68a; }
+/* viewer is looking at something other than the club default */
+.tds--override { border-color: #f59e0b; }
+.tds--override .tds__label { background: #fffbeb; color: #92400e; border-right-color: #fde68a; }
+.tds--override .tds__label i { color: #d97706; }
+.tds--override .tds__select { color: #92400e; }
+
+/* toolbar placements */
+.ft-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.ft-toolbar--between { justify-content: space-between; }
+.ft-toolbar__hint {
+  font-size: 12px;
+  color: #64748b;
+}
+.snazzy-page__toolbar .tds { height: 38px; }
+
+/* ── Club Settings: option cards ────────────────────────────────────── */
+.tdo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 6px 0 18px;
+}
+.tdo__option {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 16px 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 400;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.tdo__option:hover { border-color: #cbd5e1; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06); }
+.tdo__option input { position: absolute; opacity: 0; width: 0; height: 0; }
+.tdo__option--active {
+  border-color: #2d5a8e;
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.04) 0%, rgba(45, 90, 142, 0.08) 100%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.tdo__icon {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #2d5a8e;
+  font-size: 17px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tdo__option--active .tdo__icon {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+}
+.tdo__body { flex: 1; min-width: 0; }
+.tdo__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+.tdo__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tdo__sub { font-size: 13px; font-weight: 600; color: #2d5a8e; margin-bottom: 6px; }
+.tdo__desc { font-size: 12.5px; color: #64748b; line-height: 1.5; margin: 0 0 10px; }
+.tdo__example {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  font-size: 12px;
+  color: #64748b;
+}
+.tdo__example-label { font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px; color: #94a3b8; }
+.tdo__check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tdo__option--active .tdo__check { opacity: 1; transform: scale(1); }
+
+.tdo-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tdo-note i { margin-top: 2px; }
+.tdo-note strong { font-weight: 700; }
+
+/* ── Aircraft form: override hint under the select ──────────────────── */
+.pf-td-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+/* ── Flight edit modal: "as members see it" strip ───────────────────── */
+.fe-shown-as {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #64748b;
+}
+.fe-shown-as__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.fe-shown-as .ft__t { font-size: 14px; }
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .tdo { grid-template-columns: 1fr; gap: 10px; }
+  .tdo__option { padding: 14px; }
+  .tds { height: 38px; max-width: 100%; }
+  .tds__select { max-width: 60vw; font-size: 13px; }
+  .ft-toolbar { justify-content: stretch; }
+  .ft-toolbar .tds { flex: 1; }
+  .ft-toolbar .tds__select-wrap { flex: 1; }
+  .ft-toolbar .tds__select { width: 100%; max-width: none; }
+}
+@media (max-width: 480px) {
+  .tds__text { display: none; }
+  .tds__label { padding: 0 10px 0 12px; }
+  .ft__dur { font-size: 10px; padding: 1px 6px; }
+}
+
+/* ── Night mode ─────────────────────────────────────────────────────── */
+body.night-mode .ft__t { color: #e2e8f0; }
+body.night-mode .ft--single { color: #e2e8f0; }
+body.night-mode .ft__arrow { color: #64748b; }
+body.night-mode .ft__dur { background: #1e3a5f; color: #bfdbfe; }
+body.night-mode .ft--exact .ft__dur { background: #334155; color: #e2e8f0; }
+body.night-mode .ft--missing .ft__t,
+body.night-mode .ft--missing.ft--single { color: #64748b; }
+body.night-mode .tds { background: #1e293b; border-color: #334155; }
+body.night-mode .tds__label { background: #0f172a; color: #94a3b8; border-right-color: #334155; }
+body.night-mode .tds__select { color: #e2e8f0; }
+body.night-mode .tds__select option { color: #1e293b; }
+body.night-mode .tdo__option { background: #1e293b; border-color: #334155; }
+body.night-mode .tdo__option--active { background: #1e3a5f; border-color: #60a5fa; }
+body.night-mode .tdo__icon { background: #334155; color: #bfdbfe; }
+body.night-mode .tdo__title { color: #e2e8f0; }
+body.night-mode .tdo__sub { color: #93c5fd; }
+body.night-mode .tdo__desc { color: #94a3b8; }
+body.night-mode .tdo__example { background: #0f172a; border-color: #334155; color: #94a3b8; }
+body.night-mode .tdo-note { background: #1e3a5f; color: #bfdbfe; }
+body.night-mode .fe-shown-as { background: #0f172a; border-color: #334155; color: #94a3b8; }
+
+/* settings heading icon (matches the page's other section headers) */
+.tdo-h2-icon { margin-right: 8px; color: #1e3a5f; }
+
+/* placements inside existing layouts */
+.logbook-hero-actions .tds { vertical-align: middle; margin-right: 8px; }
+.mc-card-grid .mc-card-stat--wide { grid-column: 1 / -1; }
+.dbf-flight .ft__t { font-size: inherit; }
+.fe-shown-as__hint { font-size: 12px; color: #94a3b8; }
+.caf-toolbar .tds { margin-left: auto; }
+.caf-fc-times .caf-fc-stat--wide { grid-column: 1 / -1; }
+
+/* ── Book-in: claimed flight summary ─────────────────────────────── */
+.bi-times {
+  margin: 4px auto 28px;
+  max-width: 560px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.bi-times__main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.04) 0%, rgba(45, 90, 142, 0.08) 100%);
+}
+.bi-times__main .ft__t { font-size: 18px; }
+.bi-times__main .ft__dur { font-size: 12px; padding: 3px 9px; }
+.bi-times__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.bi-times__recorded {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  padding: 10px 16px;
+  border-top: 1px dashed #e2e8f0;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: #334155;
+}
+.bi-times__rec { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.bi-times__rec small { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #94a3b8; }
+@media (max-width: 480px) {
+  .caf-toolbar .tds { margin-left: 0; width: 100%; }
+  .caf-toolbar .tds__select-wrap { flex: 1; }
+  .caf-toolbar .tds__select { width: 100%; max-width: none; }
+  .bi-times__recorded { gap: 6px 12px; }
+}
+body.night-mode .bi-times { background: #1e293b; border-color: #334155; }
+body.night-mode .bi-times__main { background: #0f172a; }
+body.night-mode .bi-times__recorded { border-top-color: #334155; color: #cbd5e1; }
+
+/* book-in: explanation under "instructional flight" when the PIC is a student */
+.bi-solo-hint {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+.bi-solo-hint i { margin-right: 6px; }
+body.night-mode .bi-solo-hint { background: #1e3a5f; color: #bfdbfe; }

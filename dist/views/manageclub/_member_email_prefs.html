@@ -1,0 +1,156 @@
+<div class="mep">
+
+  <!-- Loading -->
+  <div class="rem-loading rem-loading--inline" ng-if="ep.loading">
+    <div class="rem-spinner"></div><span>Loading email preferences&hellip;</span>
+  </div>
+
+  <!-- Failed (403 / 404 / network) -->
+  <div class="rem-empty rem-empty--inline" ng-if="!ep.loading && ep.failed">
+    <p><i class="fa fa-lock"></i> {{ ep.failed_message }}</p>
+    <button type="button" class="rem-btn rem-btn--small" ng-click="ep.reload()"><i class="fa fa-redo"></i> Try again</button>
+  </div>
+
+  <div ng-if="!ep.loading && !ep.failed">
+
+    <!-- ── Master switch ── -->
+    <div class="mep-master" ng-class="{'mep-master--on': ep.muteAll}">
+      <div class="mep-master__icon"><i class="fa" ng-class="ep.muteAll ? 'fa-bell-slash' : 'fa-envelope-open-text'"></i></div>
+      <div class="mep-master__body">
+        <div class="mep-master__title">Send no reminder or notification emails</div>
+        <div class="mep-master__desc">
+          Master switch for this person across <strong>all clubs</strong>. Overrides everything below.
+          Transactional email (invoices, invitations, password resets, confirmations of their own bookings) still goes.
+        </div>
+        <div class="mep-master__meta" ng-if="ep.master.updated_at">
+          <i class="fa fa-history"></i>
+          Last changed by {{ ep.master.updated_by_name || 'the member' }}<span ng-if="ep.master.updated_via"> ({{ ep.master.updated_via == 'club_manager' ? 'club manager' : ep.master.updated_via }})</span>
+          on {{ ep.master.updated_at | asDate | date:'dd MMM yyyy HH:mm' }}<span ng-if="ep.master.note"> &mdash; &ldquo;{{ ep.master.note }}&rdquo;</span>
+        </div>
+        <div class="mep-master__meta" ng-if="!ep.master.updated_at">Last changed: &mdash;</div>
+      </div>
+      <div class="mep-master__control">
+        <label class="snazzy-toggle snazzy-toggle--danger">
+          <input type="checkbox" ng-checked="ep.muteAll" ng-click="ep.toggleMaster()" no-busy-guard>
+          <span class="snazzy-toggle__slider"></span>
+        </label>
+        <span class="snazzy-toggle-label" ng-class="{'snazzy-toggle-label--off': !ep.muteAll}">{{ ep.muteAll ? 'Muted' : 'Receiving' }}</span>
+      </div>
+    </div>
+
+    <!-- ── Per-club booking emails ── -->
+    <div class="mep-group" ng-class="{'mep-group--overridden': ep.muteAll}">
+      <div class="mep-group__title">
+        <i class="fa fa-calendar-check"></i> Booking emails at {{ ep.member.club_title || 'this club' }}
+        <span class="rem-badge rem-badge--unit" ng-if="ep.member.instructor == 1">instructor</span>
+        <span class="mep-group__override" ng-if="ep.muteAll"><i class="fa fa-ban"></i> Overridden &mdash; all reminder and notification emails are off</span>
+      </div>
+      <div class="rem-person__row" ng-repeat="sw in ep.switches track by sw.key" ng-class="{'rem-person__row--off': !sw.on}">
+        <div class="rem-person__row-main">
+          <div>
+            <div class="rem-person__type"><i class="fa" ng-class="sw.icon"></i>{{ sw.label }}</div>
+            <div class="rem-card__desc">{{ sw.desc }}</div>
+          </div>
+          <div class="rem-person__controls">
+            <label class="snazzy-toggle">
+              <input type="checkbox" ng-checked="sw.on" ng-click="ep.toggleSwitch(sw)" no-busy-guard>
+              <span class="snazzy-toggle__slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Expiry reminders ── -->
+    <div class="mep-group" ng-class="{'mep-group--overridden': ep.muteAll}" ng-if="ep.reminders.length">
+      <div class="mep-group__title">
+        <i class="fa fa-bell"></i> Expiry reminders
+        <span class="mep-group__hint">medical, licence, rating, membership, card, ID, qualifications</span>
+      </div>
+      <div class="rem-person__row" ng-repeat="pref in ep.reminders track by pref.reminder_type" ng-class="{'rem-person__row--off': pref.enabled != 1}">
+        <div class="rem-person__row-main">
+          <div>
+            <div class="rem-person__type"><i class="fa" ng-class="ep.typeIcon(pref.reminder_type)"></i>{{ pref.label || pref.reminder_type }}</div>
+            <div class="rem-card__desc" ng-if="pref.description">{{ pref.description }}</div>
+          </div>
+          <div class="rem-person__controls">
+            <label class="snazzy-toggle">
+              <input type="checkbox" ng-checked="pref.enabled == 1" ng-click="ep.toggleReminder(pref)" no-busy-guard>
+              <span class="snazzy-toggle__slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="rem-person__timeline" ng-if="pref.enabled == 1">
+          <div class="rem-chips rem-chips--sm">
+            <span class="rem-chip" ng-repeat="o in pref.offsets_days track by $index">
+              {{ o === 0 ? 'on the day' : (o === 1 ? '1 day before' : o + ' days before') }}
+              <a class="rem-chip__remove" ng-click="ep.removeOffset(pref, $index)" title="Remove">&times;</a>
+            </span>
+            <span class="rem-chip-add">
+              <input type="number" min="0" max="365" step="1" placeholder="days" ng-model="pref.newOffset"
+                     ng-keydown="$event.keyCode === 13 && ep.addOffset(pref)">
+              <button type="button" ng-click="ep.addOffset(pref)" no-busy-guard title="Add a reminder time"><i class="fa fa-plus"></i></button>
+            </span>
+            <span class="rem-badge rem-badge--default" ng-if="pref.is_default == 1 && !ep.touchedReminders[pref.reminder_type]">Default timeline</span>
+            <a class="rem-reset" ng-if="pref.is_default != 1 || ep.touchedReminders[pref.reminder_type]" ng-click="ep.resetOffsets(pref)"><i class="fa fa-undo"></i> Reset</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Save bar ── -->
+    <div class="mep-savebar" ng-class="{'mep-savebar--dirty': ep.isDirty()}">
+      <div class="mep-savebar__note">
+        <i class="fa fa-pen"></i>
+        <input type="text" class="mep-savebar__input" placeholder="Note for the audit trail (optional) — e.g. “asked at the desk”" ng-model="ep.note" maxlength="255">
+      </div>
+      <div class="mep-savebar__actions">
+        <span class="rem-saved" ng-if="ep.saved"><i class="fa fa-check-circle"></i> Saved</span>
+        <span class="mep-savebar__pending" ng-if="ep.isDirty() && !ep.saving"><i class="fa fa-circle"></i> Unsaved changes</span>
+        <button type="button" class="rem-btn rem-btn--small" ng-if="ep.isDirty()" ng-click="ep.discard()" ng-disabled="ep.saving" no-busy-guard>Discard</button>
+        <button type="button" class="rem-btn rem-btn--primary" ng-click="ep.save()" ng-disabled="!ep.isDirty() || ep.saving">
+          <i class="fa" ng-class="ep.saving ? 'fa-spinner fa-spin' : 'fa-save'"></i> Save email preferences
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Recent emails + change history ── -->
+    <div class="mep-cols">
+
+      <div class="rem-collapse" ng-class="{'rem-collapse--open': ep.recentOpen}">
+        <button type="button" class="rem-collapse__head" ng-click="ep.recentOpen = !ep.recentOpen" no-busy-guard>
+          <i class="fa fa-envelope"></i> Recent emails to this member
+          <span class="mep-count" ng-if="ep.bundle.recent_emails.length">{{ ep.bundle.recent_emails.length }}</span>
+          <i class="fa fa-chevron-down rem-collapse__chev"></i>
+        </button>
+        <div class="rem-collapse__body" ng-if="ep.recentOpen">
+          <div class="rem-empty rem-empty--inline" ng-if="!ep.bundle.recent_emails.length"><p>No emails logged for this member yet.</p></div>
+          <div class="mep-email" ng-repeat="e in ep.bundle.recent_emails track by e.id">
+            <span class="eml-status eml-status--{{ e.status }}" uib-tooltip="{{ e.suppression_reason || e.error_message }}"><i class="fa" ng-class="ep.statusIcon(e.status)"></i> {{ e.status }}</span>
+            <span class="mep-email__subject">{{ e.subject || e.title }}</span>
+            <span class="mep-email__when">{{ e.created_at | asDate | date:'dd MMM HH:mm' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rem-collapse" ng-class="{'rem-collapse--open': ep.historyOpen}">
+        <button type="button" class="rem-collapse__head" ng-click="ep.historyOpen = !ep.historyOpen" no-busy-guard>
+          <i class="fa fa-history"></i> Change history
+          <span class="mep-count" ng-if="ep.bundle.recent_changes.length">{{ ep.bundle.recent_changes.length }}</span>
+          <i class="fa fa-chevron-down rem-collapse__chev"></i>
+        </button>
+        <div class="rem-collapse__body" ng-if="ep.historyOpen">
+          <div class="rem-empty rem-empty--inline" ng-if="!ep.bundle.recent_changes.length"><p>No changes recorded yet.</p></div>
+          <div class="mep-change" ng-repeat="c in ep.bundle.recent_changes">
+            <span class="mep-change__when">{{ (c.changed_at || c.created_at || c.updated_at) | asDate | date:'dd MMM yyyy HH:mm' }}</span>
+            <span class="mep-change__who">{{ ep.changedBy(c) }}</span>
+            <span class="mep-change__what">{{ ep.changeText(c) }}</span>
+            <span class="mep-change__note" ng-if="c.note">&ldquo;{{ c.note }}&rdquo;</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService', 'TimeDisplayService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService, TimeDisplayService) {
         var vm = this;
 
         vm.user = null;
@@ -38,6 +38,12 @@
         vm.is_toaviate_staff = !!($rootScope.globals.currentUser &&
             $rootScope.globals.currentUser.email &&
             /@toaviate\.com$/i.test($rootScope.globals.currentUser.email));
+
+        // ── Flight Times Display (club-wide convention, TimeDisplayService) ──
+        // One of block_rounded | block_exact | airborne_rounded | airborne_exact.
+        // Saved on clubs.time_display with the rest of the settings PUT.
+        vm.time_display_modes = TimeDisplayService.MODES;
+        vm.time_display_example = { brakes_off: '10:32:55', takeoff_time: '10:38:12', landing_time: '11:41:03', brakes_on: '11:46:41' };
 
         // ── Voucher Widget status ──
         vm.voucher_widget_active = false;
@@ -926,6 +932,8 @@
                         vm.club.settings.airworthiness_booking_policy = vm.club.settings.airworthiness_booking_policy || 'allow';
                         vm.club.settings.airworthiness_bookout_policy = vm.club.settings.airworthiness_bookout_policy || 'allow';
                         vm.club.settings.pilot_checks_bookout_policy = vm.club.settings.pilot_checks_bookout_policy || 'allow';
+                        vm.club.settings.time_display = TimeDisplayService.isValid(vm.club.settings.time_display)
+                            ? vm.club.settings.time_display : TimeDisplayService.DEFAULT_MODE;
                         // Reminder policy is effectively two-state (allow vs include
                         // warnings); the backend treats 'warn' and 'force' the same
                         // for reminders, so normalise 'force' → 'warn' for the toggle.
@@ -1083,6 +1091,8 @@
             ClubService.Update(vm.club.settings)
                 .then(function(data){
                     //console.log(data);
+                    // every <flight-times> on screen follows the new convention immediately
+                    TimeDisplayService.setClubMode(vm.club_id, vm.club.settings.time_display);
                     $state.go('dashboard.manage_club');
                 });
         }

@@ -853,10 +853,14 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="u in vm._pagedUsers track by (u.bs_user_id || $index)" ng-class="{'bs-row--mapped': u._isMapped, 'bs-row--unmapped': !u._isMapped}">
+              <tr ng-repeat-start="u in vm._pagedUsers track by (u.bs_user_id || $index)" ng-class="{'bs-row--mapped': u._isMapped, 'bs-row--unmapped': !u._isMapped, 'bs-row--shared': u._shared}">
                 <td data-label="BS User">
                   <strong>{{ u.bs_first_name }} {{ u.bs_last_name }}</strong>
                   <span class="bs-sub">{{ u.bs_email }}</span>
+                  <span class="bs-shared-chip" ng-if="u._shared"
+                        uib-tooltip="Two or more BookedScheduler accounts map to the same ToAviate user — their bookings are being filed under one person. Use “Create temporary account” on the row that is wrong.">
+                    <i class="fa fa-user-friends"></i> shares account with {{ u._sharedWith.join(', ') }}
+                  </span>
                 </td>
                 <td data-label="TA User">
                   <!-- Mapped (view mode) -->
@@ -905,14 +909,31 @@
                   <button class="bs-btn bs-btn--sm bs-btn--primary" ng-if="!u._isMapped" ng-click="vm.saveUserMap(u)" ng-disabled="u._saving">
                     <i class="fa" ng-class="{'fa-spinner fa-spin': u._saving, 'fa-save': !u._saving}"></i> Save
                   </button>
-                  <!-- Mapped (view mode): change / unmap buttons -->
-                  <div class="bs-action-btns" ng-if="u._isMapped && !u._remapping">
+                  <!-- Mapped (view mode): change / unmap / create-temporary buttons -->
+                  <div class="bs-action-btns" ng-if="u._isMapped && !u._remapping && !u._confirmForce">
                     <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.startRemapUser(u)" title="Change mapping">
                       <i class="fa fa-pencil-alt"></i> Change
                     </button>
                     <button class="bs-btn bs-btn--sm bs-btn--ghost bs-btn--ghost-danger" ng-click="vm.unmapUser(u)" ng-disabled="u._saving" title="Remove mapping">
                       <i class="fa fa-unlink"></i>
                     </button>
+                    <button class="bs-btn bs-btn--sm bs-btn--ghost bs-btn--ghost-amber" ng-if="u._shared"
+                            ng-click="vm.createTemporary(u)" ng-disabled="u._creating || u._saving"
+                            uib-tooltip="Give {{ u.bs_first_name }} {{ u.bs_last_name }} their own temporary account and map this BookedScheduler user to it. Bookings are not moved now — the next sync re-files them.">
+                      <i class="fa" ng-class="{'fa-spinner fa-spin': u._creating, 'fa-user-plus': !u._creating}"></i> Create temporary account
+                    </button>
+                  </div>
+                  <!-- ALREADY_SEPARATE: nobody else shares this account — confirm before forcing -->
+                  <div class="bs-inline-confirm" ng-if="u._isMapped && !u._remapping && u._confirmForce">
+                    <span class="bs-inline-confirm__text"><i class="fa fa-info-circle"></i> {{ u._confirmMessage }}</span>
+                    <div class="bs-action-btns">
+                      <button class="bs-btn bs-btn--sm bs-btn--primary" ng-click="vm.createTemporary(u, 1)" ng-disabled="u._creating">
+                        <i class="fa" ng-class="{'fa-spinner fa-spin': u._creating, 'fa-user-plus': !u._creating}"></i> Create anyway
+                      </button>
+                      <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.cancelCreateTemporary(u)" ng-disabled="u._creating">
+                        <i class="fa fa-times"></i>
+                      </button>
+                    </div>
                   </div>
                   <!-- Mapped (remap mode): save / cancel buttons -->
                   <div class="bs-action-btns" ng-if="u._isMapped && u._remapping">
@@ -922,6 +943,30 @@
                     <button class="bs-btn bs-btn--sm bs-btn--ghost" ng-click="vm.cancelRemapUser(u)">
                       <i class="fa fa-times"></i>
                     </button>
+                  </div>
+                </td>
+              </tr>
+              <!-- Result of "Create temporary account" (survives the reload; ng-show —
+                   ng-if is inert on an ng-repeat element in this Angular build) -->
+              <tr ng-repeat-end class="bs-notice-row" ng-show="vm.tempNotices[u.bs_user_id]">
+                <td colspan="4">
+                  <div class="bs-notice bs-notice--amber" ng-if="vm.tempNotices[u.bs_user_id]">
+                    <div class="bs-notice__main">
+                      <i class="fa fa-user-check bs-notice__icon"></i>
+                      <div class="bs-notice__body">
+                        <div class="bs-notice__title">
+                          {{ vm.tempNotices[u.bs_user_id].message }}
+                          <span class="bs-mono bs-subtle" ng-if="vm.tempNotices[u.bs_user_id].user.login_email">{{ vm.tempNotices[u.bs_user_id].user.login_email }}</span>
+                        </div>
+                        <div class="bs-notice__line" ng-repeat="n in vm.tempNotices[u.bs_user_id].notes track by $index">
+                          <i class="fa fa-exclamation-triangle"></i> {{ vm.noteLabel(n) }}
+                        </div>
+                        <div class="bs-notice__line" ng-if="!vm.tempNotices[u.bs_user_id].user.matching_email">
+                          <i class="fa fa-envelope"></i> No email on the new account &mdash; you'll be asked for one when converting it on the <strong>Imported Users</strong> tab.
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" class="bs-notice__close" ng-click="vm.dismissTempNotice(u.bs_user_id)" title="Dismiss"><i class="fa fa-times"></i></button>
                   </div>
                 </td>
               </tr>

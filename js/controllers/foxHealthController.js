@@ -558,7 +558,7 @@ app.controller('FoxUnmatchedController', FoxUnmatchedController);
         vm.timeOf = function(ts) {
             if (!ts) { return '—'; }
             var s = String(ts);
-            return s.length >= 16 ? s.slice(11, 16) : s;
+            return s.length >= 16 ? roundTimeToMinute(s.slice(11, 19)) : s;   // nearest minute, never truncated
         };
 
         // Block (brakes) time = brakes_on − brakes_off; server-local stamps.

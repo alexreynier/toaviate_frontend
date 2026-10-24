@@ -469,17 +469,8 @@
                 if(vm.bookout.pic.instructor == 1){
 
                 } else {
-                    vm.this_claim_was_instructional = false;
-                    vm.bookout.put_id = 0;
-                    vm.bookout.put = {};
-                    vm.bookout.instructor_id = 0;
-                    if(vm.bookout.pic_id > 0){
-                        vm.bookout.payer_id = vm.bookout.pic_id;
-                    } else if(vm.bookout.user_id > 0) {
-                        vm.bookout.payer_id = vm.bookout.user_id;
-                    } else {
-                        //alert("It appears that no payer ID has been set yet.");
-                    }
+                    // Student picked as PIC on an instructional flight → authorised solo
+                    enter_student_solo_mode();
                     vm.calculate_invoice_for_flight();
                 }
                
@@ -2317,6 +2308,31 @@
             });
         };
 
+        vm.picIsInstructor = function(){
+            return !!(vm.bookout && vm.bookout.pic && vm.bookout.pic.instructor == 1);
+        };
+
+        // A student (non-instructor) as PIC on an instructional flight = an AUTHORISED
+        // STUDENT SOLO: the student stays PIC, the chosen instructor authorised and
+        // supervised it (authorised_solo / authorised_by) and gets the debrief. Defaults
+        // the authoriser to the logged-in user when they instruct at this club.
+        function enter_student_solo_mode(){
+            vm.this_was_supervised_solo = true;
+            vm.bookout.put_id = 0;
+            vm.bookout.put = {};
+            vm.bookout.payer_id = vm.bookout.pic_id || vm.bookout.payer_id;
+            if(!(vm.bookout.instructor_id > 0) || vm.bookout.instructor_id == vm.bookout.pic_id){
+                var me = (vm.instructors || []).find(function(i){ return i.user_id === vm.user.id; });
+                if(me){
+                    vm.bookout.instructor = me;
+                    vm.bookout.instructor_id = me.user_id;
+                } else {
+                    vm.bookout.instructor = {};
+                    vm.bookout.instructor_id = 0;
+                }
+            }
+        }
+
         vm.this_was_instructional_claim = function(){
             //toggle as it worked
             vm.this_claim_was_instructional = !vm.this_claim_was_instructional;
@@ -2325,12 +2341,16 @@
 
                 vm.ignore_next_tuition_change = true;
 
-                //then PIC is the INSTRUCTOR
-                //vm.bookout.instructor_id = vm.bookout.pic.user_id;
-                vm.bookout.payer_id = vm.bookout.put_id;
+                if(!vm.picIsInstructor()){
+                    enter_student_solo_mode();
+                } else {
+                    //then PIC is the INSTRUCTOR
+                    //vm.bookout.instructor_id = vm.bookout.pic.user_id;
+                    vm.bookout.payer_id = vm.bookout.put_id;
 
-                if(vm.bookout.instructor_id == 0 && (vm.bookout.pic && vm.bookout.pic.user_id > 0)){
-                    vm.bookout.instructor_id = vm.bookout.pic.user_id;
+                    if(vm.bookout.instructor_id == 0 && (vm.bookout.pic && vm.bookout.pic.user_id > 0)){
+                        vm.bookout.instructor_id = vm.bookout.pic.user_id;
+                    }
                 }
 
                 preselect_course_and_tuition();
@@ -2830,6 +2850,12 @@
                 return false;
             }
 
+            if(vm.this_was_supervised_solo && (!(vm.bookout.instructor_id > 0) || vm.bookout.instructor_id == vm.bookout.pic_id)){
+                ToastService.highlightField('instructor_id');
+                ToastService.warning('Authorising instructor', 'Please choose the instructor who authorised and supervised this solo flight.');
+                return false;
+            }
+
             if(vm.this_claim_was_instructional && (vm.bookout.instructor_id == 0 || vm.bookout.tuition_id == 0)){
                 ToastService.highlightField('instructor_id');
                 ToastService.warning('Missing Details', 'You need to add an instructor and tuition type if this flight was instructional.');
@@ -3134,6 +3160,7 @@
             var authorised_by = 0;
             if(vm.this_was_supervised_solo){
                 authorised_solo = 1;
+                is_dual_flight = 0;   // the student flew alone — PIC time, never dual
                 if(vm.bookout.instructor && vm.bookout.instructor.user_id){
                     authorised_by = vm.bookout.instructor.user_id;
                 } else if(vm.bookout.instructor_id > 0){
@@ -3157,6 +3184,11 @@
             var put_id = vm.bookout.put_id;
             if(put_id == 0 && is_dual_flight == 1){
                 put_id = vm.bookout.payer_id;
+            }
+            if(authorised_solo == 1 && vm.bookout.pic_id > 0){
+                // student solo: the PIC is also the student the training record belongs to
+                // (backend logbook capacity stays PIC when put_id == pic_id / authorised_solo)
+                put_id = vm.bookout.pic_id;
             }
 
             var pic_id = vm.bookout.pic_id;
@@ -3207,10 +3239,18 @@
                 instructor_id: bookout_instructor_id,
                 booking_id: vm.bookout.booking_id,
                 payer_id: vm.bookout.payer_id,
+                // top-level only: the backend's pilot gate reads it from the request and strips
+                // it; inside plane_log_sheet every key becomes an UPDATE column (no such column).
+                authorising_instructor_id: authorised_by,
                 plane_log_sheet: {
                     dual_flight: is_dual_flight,
                     authorised_solo: authorised_solo,
                     authorised_by: authorised_by,
+                    // The backend derives the sheet's / created booking's instructor from
+                    // plane_log_sheet.instructor_id, falling back to "PIC when a different PUT
+                    // exists" — which is 0 for an authorised solo (PIC == student). Send it so
+                    // the authorising FI gets the flight in their debrief queue.
+                    instructor_id: bookout_instructor_id,
                     tuition_id: vm.bookout.tuition_id,
                     course_id: vm.bookout.course_id,
                     club_id: vm.bookout.club_id,
@@ -4113,6 +4153,10 @@
                 }
 
                 vm.bookout.authorised_solo = (booking.authorised_solo == 1)? true : false;
+                if(booking.authorised_solo == 1 && booking.instructor_id > 0){
+                    vm.this_claim_was_instructional = true;
+                    vm.this_was_supervised_solo = true;
+                }
 
 
                 vm.bookout.from_airfield = booking.from_airport;

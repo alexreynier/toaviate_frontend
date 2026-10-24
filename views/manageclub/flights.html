@@ -196,6 +196,15 @@
       <input type="search" placeholder="Search flights…" ng-model="my_search" class="snazzy-page__search-input" />
     </div>
 
+    <!-- ═══ Time display (club convention + viewer switch) ═══ -->
+    <div class="ft-toolbar ft-toolbar--between">
+      <span class="ft-toolbar__hint">
+        <i class="fa fa-info-circle"></i>
+        Times shown as <strong>{{ vm.td.def.title }}</strong>, {{ vm.td.def.sub | lowercase }}. Hover a time for every recorded value.
+      </span>
+      <time-display-switch ctx="vm.td"></time-display-switch>
+    </div>
+
     <!-- ═══ Empty state ═══ -->
     <div class="snazzy-page__empty" ng-if="!vm.flights || vm.flights.length == 0">
       <i class="fa fa-plane snazzy-page__empty-icon"></i>
@@ -213,10 +222,9 @@
               <th>Student / Pilot</th>
               <th>From</th>
               <th>To</th>
-              <th class="snazzy-table__hide-mobile">Brakes Off</th>
-              <th class="snazzy-table__hide-mobile">Takeoff</th>
-              <th class="snazzy-table__hide-mobile">Landing</th>
-              <th class="snazzy-table__hide-mobile">Brakes On</th>
+              <th class="snazzy-table__hide-mobile">{{ vm.td.labels.from }}</th>
+              <th class="snazzy-table__hide-mobile">{{ vm.td.labels.to }}</th>
+              <th class="snazzy-table__hide-mobile">{{ vm.td.labels.duration }}</th>
               <th style="text-align:right;">Actions</th>
             </tr>
           </thead>
@@ -235,18 +243,9 @@
               </td>
               <td><span uib-tooltip="{{flight.from_airport.title}}">{{ flight.from_airport.code }}</span></td>
               <td><span uib-tooltip="{{flight.to_airport.title}}">{{ flight.to_airport.code }}</span></td>
-              <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="{{ flight.brakes_off | timeRounding : 'Brakes Off Time' }}">{{ flight.brakes_off | roundMinute }}</span>
-              </td>
-              <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="{{ flight.takeoff_time | timeRounding : 'Takeoff Time' }}">{{ flight.takeoff_time | roundMinute }}</span>
-              </td>
-              <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="{{ flight.landing_time | timeRounding : 'Landing Time' }}">{{ flight.landing_time | roundMinute }}</span>
-              </td>
-              <td class="snazzy-table__hide-mobile">
-                <span uib-tooltip="{{ flight.brakes_on | timeRounding : 'Brakes On Time' }}">{{ flight.brakes_on | roundMinute }}</span>
-              </td>
+              <td class="snazzy-table__hide-mobile"><flight-times row="flight" ctx="vm.td" part="from"></flight-times></td>
+              <td class="snazzy-table__hide-mobile"><flight-times row="flight" ctx="vm.td" part="to"></flight-times></td>
+              <td class="snazzy-table__hide-mobile"><flight-times row="flight" ctx="vm.td" part="duration"></flight-times></td>
               <td style="text-align:right;">
                 <button class="fe-edit-btn" ng-click="vm.editFlight(flight)" uib-tooltip="Edit this flight">
                   <i class="fa fa-pencil-alt"></i> Edit
@@ -299,12 +298,8 @@
             <span>{{ flight.from_airport.code }} &rarr; {{ flight.to_airport.code }}</span>
           </div>
           <div class="snazzy-mobile-card__row">
-            <span class="snazzy-mobile-card__label">Brakes</span>
-            <span>{{ flight.brakes_off | roundMinute }} &mdash; {{ flight.brakes_on | roundMinute }}</span>
-          </div>
-          <div class="snazzy-mobile-card__row">
-            <span class="snazzy-mobile-card__label">Takeoff / Landing</span>
-            <span>{{ flight.takeoff_time | roundMinute }} / {{ flight.landing_time | roundMinute }}</span>
+            <span class="snazzy-mobile-card__label">{{ vm.td.labels.window }}</span>
+            <flight-times row="flight" ctx="vm.td"></flight-times>
           </div>
         </div>
       </div>
