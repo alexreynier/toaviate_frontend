@@ -249,8 +249,8 @@ app.controller('TpcImportController', TpcImportController);
 
 app.controller('TpcImportRunController', TpcImportRunController);
 
-    TpcImportRunController.$inject = ['TpcImportService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$interval', '$timeout', '$document'];
-    function TpcImportRunController(TpcImportService, ToastService, $rootScope, $scope, $state, $stateParams, $interval, $timeout, $document) {
+    TpcImportRunController.$inject = ['TpcImportService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$interval', '$timeout', '$document', '$q'];
+    function TpcImportRunController(TpcImportService, ToastService, $rootScope, $scope, $state, $stateParams, $interval, $timeout, $document, $q) {
 
         var vm = this;
 
@@ -404,6 +404,7 @@ app.controller('TpcImportRunController', TpcImportRunController);
                 if (!data || !data.success) { return; }
                 vm.rows = data.rows || [];
                 vm.total = data.total || 0;
+                rebuildDisplay();
                 vm.per_page = data.per_page || vm.per_page;
                 vm.rebuildGroups();
             });
@@ -418,11 +419,161 @@ app.controller('TpcImportRunController', TpcImportRunController);
         };
 
         function replaceRow(row) {
+            var found = false;
             for (var i = 0; i < vm.rows.length; i++) {
-                if (vm.rows[i].id === row.id) { vm.rows[i] = row; return row; }
+                if (vm.rows[i].id === row.id) { vm.rows[i] = row; found = true; break; }
             }
+            if (partnerCache[row.id]) { partnerCache[row.id] = row; }
+            rebuildDisplay();
             return row;
         }
+
+        // ── List display: group dual→solo split pairs into one "tracked flight" card ──
+        // vm.display = [{kind:'row', key, row} | {kind:'split', key, legs:[leg1, leg2], …}].
+        // A leg outside the current page/filter is fetched once and shown as a ghost
+        // (partnerCache) so the pair always reads as one flight.
+        var partnerCache = {};
+        vm.display = [];
+        function rebuildDisplay() {
+            var byId = {};
+            angular.forEach(vm.rows, function(r) { byId[r.id] = r; });
+            var seen = {};
+            var out = [];
+            angular.forEach(vm.rows, function(r) {
+                var sp = r.split && r.split.mode ? r.split : null;
+                if (!sp || !sp.partner_row_id) { out.push({ kind: 'row', key: 'r' + r.id, row: r, rows: [r] }); return; }
+                var key = 's' + Math.min(r.id, sp.partner_row_id);
+                if (seen[key]) { return; }
+                seen[key] = true;
+                var partner = byId[sp.partner_row_id] || partnerCache[sp.partner_row_id] || null;
+                var item = { kind: 'split', key: key, legs: [], pendingIds: [], busy: false, loadingPartner: false, ghostLeg: null };
+                if (partner && !byId[partner.id]) { partner._ghost = true; item.ghostLeg = partner.split && partner.split.leg; }
+                var legs = partner ? [r, partner] : [r];
+                legs.sort(function(a, b) { return ((a.split && a.split.leg) || 0) - ((b.split && b.split.leg) || 0); });
+                item.legs = legs;
+                item.rows = legs;
+                var leg1 = legs[0] && legs[0].split && legs[0].split.leg === 1 ? legs[0] : null;
+                item.pls_id = (leg1 && leg1.match && leg1.match.pls_id) || null;
+                item.tracker = (leg1 && leg1.old_times) || null;
+                item.date = r.flight_date;
+                item.registration = r.registration;
+                item.student = ((r.first_name || '') + ' ' + (r.last_name || '')).trim();
+                angular.forEach(legs, function(l) { if (l.status === 'pending') { item.pendingIds.push(l.id); } });
+                item.adjust = runningChangeAdjust(legs);
+                item.anyApplied = legs.some(function(l) { return l.status === 'applied'; });
+                item.allApplied = legs.length === 2 && legs.every(function(l) { return l.status === 'applied'; });
+                if (!partner) {
+                    item.loadingPartner = true;
+                    TpcImportService.GetRow(sp.partner_row_id).then(function(data) {
+                        if (data && data.success) { partnerCache[sp.partner_row_id] = data.row || data; }
+                        rebuildDisplay();
+                    });
+                }
+                out.push(item);
+            });
+            vm.display = out;
+        }
+
+        // ── Running change: no gap, no overlap ──
+        // The solo leg's start IS the handover, so the dual leg must end at exactly
+        // that time (the workbook often rounds each leg independently — 13:45→14:25
+        // then 14:20→14:40). We honour the solo's start: set the dual leg's brakes-on
+        // to it and recompute its hours from the new span, before anything is applied.
+        function hhmmToMin(t) { var p = String(t || '').split(':'); return p.length === 2 ? (parseInt(p[0], 10) * 60 + parseInt(p[1], 10)) : null; }
+        function spanHours(from, to) {
+            var a = hhmmToMin(from), b = hhmmToMin(to);
+            if (a === null || b === null) { return null; }
+            var d = b - a; if (d < 0) { d += 1440; }
+            return Math.round((d / 60) * 10000) / 10000;
+        }
+        function legTimes(l) { return (l && l.new_times) || { brakes_off: l && l.brakes_off, brakes_on: l && l.brakes_on }; }
+        function runningChangeAdjust(legs) {
+            var leg1 = null, leg2 = null;
+            angular.forEach(legs, function(l) { if (l.split && l.split.leg === 1) { leg1 = l; } if (l.split && l.split.leg === 2) { leg2 = l; } });
+            if (!leg1 || !leg2 || leg1.status !== 'pending') { return null; }
+            var handover = legTimes(leg2).brakes_off;
+            var end1 = legTimes(leg1).brakes_on;
+            if (!handover || !end1 || handover === end1) { return null; }
+            return { leg1_id: leg1.id, leg2_id: leg2.id, from: end1, to: handover, hours: spanHours(legTimes(leg1).brakes_off, handover),
+                     overlap: hhmmToMin(end1) > hhmmToMin(handover) };
+        }
+        vm.runningChangeAdjust = function(legs) { return runningChangeAdjust(legs); };
+
+        // Returns a promise that resolves once the dual leg ends at the handover time.
+        function ensureRunningChange(legs) {
+            var adj = runningChangeAdjust(legs);
+            if (!adj) { return $q.when(null); }
+            var body = { brakes_on: adj.to };
+            if (adj.hours !== null) { body.flight_time_hours = adj.hours; }
+            return TpcImportService.EditRow(adj.leg1_id, body).then(function(data) {
+                if (!(data && data.success)) {
+                    ToastService.error('Handover not set', (data && data.message) || 'Could not set the dual leg to end at ' + adj.to + '.');
+                    return $q.reject(data);
+                }
+                var row = data.row || data;
+                var keep = row.split && row.split.partner_row_id === adj.leg2_id;
+                if (row.id) { replaceRow(row); }
+                // the time edit triggers a rematch; re-pair if that dropped the split
+                if (!keep) {
+                    return TpcImportService.RowAction(adj.leg1_id, { action: 'split', partner_row_id: adj.leg2_id }).then(function(d2) {
+                        if (d2 && d2.success && d2.row) { replaceRow(d2.row); }
+                        return adj;
+                    });
+                }
+                return adj;
+            });
+        }
+        vm.ensureRunningChange = ensureRunningChange;
+
+        // Bulk paths ("Apply selected" / "Apply all") bypass the cards, so normalise
+        // every pending pair they could touch first. onlyIds = null → every pending
+        // pair in the run; otherwise only pairs with a leg in that id list.
+        function fixAllHandovers(onlyIds) {
+            return TpcImportService.GetRows(vm.run_id, { issue: 'split', status: 'pending', per_page: 500, page: 1 }).then(function(data) {
+                var rows = (data && (data.rows || data.items)) || [];
+                var byId = {};
+                angular.forEach(rows, function(r) { byId[r.id] = r; });
+                var pairs = [], seen = {};
+                angular.forEach(rows, function(r) {
+                    var sp = r.split && r.split.mode ? r.split : null;
+                    if (!sp || !sp.partner_row_id || !byId[sp.partner_row_id]) { return; }
+                    var key = Math.min(r.id, sp.partner_row_id);
+                    if (seen[key]) { return; }
+                    seen[key] = true;
+                    if (onlyIds && onlyIds.indexOf(r.id) === -1 && onlyIds.indexOf(sp.partner_row_id) === -1) { return; }
+                    pairs.push([r, byId[sp.partner_row_id]]);
+                });
+                var chain = $q.when(0);
+                var fixed = 0;
+                angular.forEach(pairs, function(legs) {
+                    chain = chain.then(function() {
+                        return ensureRunningChange(legs).then(function(adj) { if (adj) { fixed++; } });
+                    });
+                });
+                return chain.then(function() { return fixed; });
+            });
+        }
+        vm.fixAllHandovers = fixAllHandovers;
+
+        // Apply a pair from the list (dual leg first; the backend also enforces that).
+        vm.applyPair = function(item) {
+            if (!item || item.busy || !item.pendingIds.length) { return; }
+            var ordered = item.legs.filter(function(l) { return l.status === 'pending'; }).map(function(l) { return l.id; });
+            item.busy = true;
+            ensureRunningChange(item.legs).then(function() {
+                return TpcImportService.Apply(vm.run_id, { row_ids: ordered });
+            }, function() { item.busy = false; return $q.reject(); }).then(function(data) {
+                item.busy = false;
+                if (data && data.success) {
+                    ToastService.success('Split applied', ordered.length === 2 ? 'Dual leg updated the tracker flight; the solo leg was created as its second leg.' : 'The remaining leg was applied.');
+                    vm.loadRun(true);
+                    vm.loadRows();
+                    if (vm.drawer) { vm.refreshRow(); }
+                } else {
+                    ToastService.error('Not applied', (data && data.message) || 'The split could not be applied.');
+                }
+            });
+        };
 
         // ── Display helpers ──
         vm.badge = function(row) {
@@ -438,6 +589,140 @@ app.controller('TpcImportRunController', TpcImportRunController);
         vm.capacityLabel = function(c) {
             return { PUT: 'Pu/t', P1: 'P1', P1S: 'P1/S' }[c] || c || '—';
         };
+        // A P1 row with a resolved instructor is applied as an AUTHORISED STUDENT SOLO
+        // (first solo, solo circuits, QXC): the instructor is the authoriser, not a pilot
+        // on board, and the student gets a training record. Plain P1 = private hire.
+        vm.isSupervisedSolo = function(row) {
+            return !!(row && row.capacity === 'P1' && row.student_user_id && row.instructor_user_id);
+        };
+        vm.capacityHint = function(row) {
+            if (!row) { return ''; }
+            if (vm.isSupervisedSolo(row)) { return 'student solo · supervised'; }
+            if (row.capacity === 'P1') { return 'self-hire'; }
+            if (row.capacity === 'P1S') { return 'P1 supervised'; }
+            if (row.capacity === 'PUT') { return 'dual training'; }
+            return '';
+        };
+
+        // ── Dual → solo splits ──
+        // The backend pairs a Pu/t row with the P1 row that follows it for the same
+        // student / aircraft / day when ONE tracker flight spans both (leg 1 updates
+        // the tracker flight, leg 2 is inserted as the solo with tpc_prev_leg_id).
+        // Applying leg 2 applies leg 1 first. We surface the pair, let the admin
+        // open the other leg, apply both, unpair, or pair manually.
+        vm.splitOf = function(row) {
+            if (!row) { return null; }
+            if (row.split && row.split.mode) { return row.split; }
+            return null;
+        };
+        vm.isSplitRow = function(row) {
+            return !!(vm.splitOf(row) || (row && (row.issues || []).indexOf('split') > -1));
+        };
+        vm.splitLegLabel = function(row) {
+            var sp = vm.splitOf(row);
+            if (!sp) { return 'split'; }
+            return sp.leg === 1 ? 'leg 1 · dual' : 'leg 2 · solo';
+        };
+
+        vm.detectSplits = function() {
+            if (vm.detectingSplits) { return; }
+            vm.detectingSplits = true;
+            TpcImportService.DetectSplits(vm.run_id).then(function(data) {
+                vm.detectingSplits = false;
+                if (data && data.success) {
+                    var n = (data.pairs || 0) + (data.prior_solo_pairs || 0);
+                    ToastService.success('Split scan complete', n ? n + ' dual → solo pair' + (n === 1 ? '' : 's') + ' found.' : 'No new dual → solo pairs found.');
+                    vm.loadRun(true);
+                    vm.loadRows();
+                } else {
+                    ToastService.error('Scan failed', (data && data.message) || 'Could not scan for splits.');
+                }
+            });
+        };
+
+        function loadSplitPartner() {
+            var d = vm.drawer;
+            if (!d) { return; }
+            var sp = vm.splitOf(d.row);
+            d.partner = null;
+            if (!sp || !sp.partner_row_id) { return; }
+            TpcImportService.GetRow(sp.partner_row_id).then(function(data) {
+                if (!vm.drawer || vm.drawer !== d) { return; }
+                if (data && data.success) { d.partner = replaceRow(data.row || data); }
+            });
+        }
+
+        vm.openPartner = function() {
+            var d = vm.drawer;
+            if (!d || !d.partner) { return; }
+            vm.openDrawer(d.partner);
+        };
+
+        // Apply the pair in order (dual first — leg 2 carries tpc_prev_leg_id).
+        vm.applySplitPair = function() {
+            var d = vm.drawer;
+            var sp = d && vm.splitOf(d.row);
+            if (!sp) { return; }
+            var ids = sp.leg === 1 ? [d.row.id, sp.partner_row_id] : [sp.partner_row_id, d.row.id];
+            ids = ids.filter(function(id) { return !!id; });
+            var legs = d.partner ? [d.row, d.partner] : [d.row];
+            ensureRunningChange(legs).then(function() {
+                return TpcImportService.Apply(vm.run_id, { row_ids: ids });
+            }).then(function(data) {
+                if (data && data.success) {
+                    var res = data.result || {};
+                    ToastService.success('Split applied', 'Dual leg updated the tracker flight; the solo leg was created as its second leg.' + (res.failed ? ' (' + res.failed + ' failed)' : ''));
+                    vm.refreshRow();
+                    vm.loadRun(true);
+                    vm.loadRows();
+                } else {
+                    ToastService.error('Not applied', (data && data.message) || 'The split could not be applied.');
+                }
+            });
+        };
+
+        vm.unsplitRow = function() {
+            rowAction({ action: 'unsplit' }, 'Rows unpaired — each will be imported on its own again.');
+            if (vm.drawer) { vm.drawer.partner = null; vm.drawer.splitPicker = null; }
+        };
+
+        // Manual pairing: list this run's pending rows for the same student, day and
+        // aircraft with the opposite capacity.
+        vm.openSplitPicker = function() {
+            var d = vm.drawer;
+            if (!d) { return; }
+            d.splitPicker = { loading: true, cands: [] };
+            var want = d.row.capacity === 'PUT' ? 'P1' : 'PUT';
+            TpcImportService.GetRows(vm.run_id, { q: d.row.last_name || '', date_from: d.row.flight_date, date_to: d.row.flight_date, per_page: 100, page: 1 }).then(function(data) {
+                if (!vm.drawer || vm.drawer !== d || !d.splitPicker) { return; }
+                d.splitPicker.loading = false;
+                var rows = (data && (data.rows || data.items)) || [];
+                d.splitPicker.cands = rows.filter(function(r) {
+                    return r.id !== d.row.id && r.capacity === want && r.status === 'pending' &&
+                           String(r.registration) === String(d.row.registration) &&
+                           String(r.student_user_id) === String(d.row.student_user_id) && !vm.isSplitRow(r);
+                });
+            });
+        };
+        vm.closeSplitPicker = function() { if (vm.drawer) { vm.drawer.splitPicker = null; } };
+        vm.pairWith = function(c) {
+            var d = vm.drawer;
+            if (!d) { return; }
+            TpcImportService.RowAction(d.row.id, { action: 'split', partner_row_id: c.id }).then(function(data) {
+                if (data && data.success) {
+                    d.splitPicker = null;
+                    if (data.row) { d.row = replaceRow(data.row); d.edit = editBuffer(d.row); }
+                    ToastService.success('Paired', 'Dual → solo split: the dual leg updates the tracker flight, the solo leg becomes its second leg.');
+                    loadSplitPartner();
+                    vm.loadRun(true);
+                    vm.loadRows();
+                } else if (data && data.error === 'NO_SPANNING_FLIGHT') {
+                    ToastService.warning('No spanning flight', 'No single tracker flight covers both rows, so there is nothing to split — match or insert each row on its own.');
+                } else {
+                    ToastService.error('Not paired', (data && data.message) || 'Those two rows cannot be paired.');
+                }
+            });
+        };
 
         var ISSUE_META = {
             time_review:          { icon: 'fa-exclamation-triangle', label: 'time review' },
@@ -447,7 +732,8 @@ app.controller('TpcImportRunController', TpcImportRunController);
             dup_in_sheet:         { icon: 'fa-clone',                label: 'duplicate' },
             time_discrepancy:     { icon: 'fa-clock',                label: 'Δ time' },
             source_reject:        { icon: 'fa-ban',                  label: 'source problem' },
-            already_imported:     { icon: 'fa-history',              label: 'already imported' }
+            already_imported:     { icon: 'fa-history',              label: 'already imported' },
+            split:                { icon: 'fa-code-branch',          label: 'dual → solo split (two workbook rows, one tracker flight)' }
         };
         vm.issueMeta = function(issue) { return ISSUE_META[issue] || { icon: 'fa-circle', label: issue.replace(/_/g, ' ') }; };
 
@@ -476,7 +762,9 @@ app.controller('TpcImportRunController', TpcImportRunController);
             var ids = vm.selIds();
             if (!ids.length) { return; }
             vm.bulkBusy = true;
-            TpcImportService.Apply(vm.run_id, { row_ids: ids }).then(function(data) {
+            fixAllHandovers(ids).then(function() {
+                return TpcImportService.Apply(vm.run_id, { row_ids: ids });
+            }, function() { return TpcImportService.Apply(vm.run_id, { row_ids: ids }); }).then(function(data) {
                 vm.bulkBusy = false;
                 if (data && data.success) {
                     var r = data.result || {};
@@ -517,6 +805,18 @@ app.controller('TpcImportRunController', TpcImportRunController);
         vm.closeOverlay = function() { vm.overlay = null; };
 
         vm.applyAll = function() {
+            if (vm._applyAllNormalised !== true) {
+                // normalise every pending dual→solo pair first, then run the real apply-all
+                vm.applyAllBusy = true;
+                return fixAllHandovers(null).then(function(fixed) {
+                    if (fixed) { ToastService.success('Handovers set', fixed + ' dual → solo pair' + (fixed === 1 ? '' : 's') + ' now meet at the solo start time.'); }
+                }, function() {}).then(function() {
+                    vm.applyAllBusy = false;
+                    vm._applyAllNormalised = true;
+                    vm.applyAll();
+                    vm._applyAllNormalised = false;
+                });
+            }
             vm.overlay = null;
             TpcImportService.Apply(vm.run_id, { all: true }).then(function(data) {
                 if (data && data.success) {
@@ -626,6 +926,7 @@ app.controller('TpcImportRunController', TpcImportRunController);
                     vm.drawer.detail = r;
                     vm.drawer.edit = editBuffer(vm.drawer.row);
                     buildDrawerExtras();
+                    loadSplitPartner();
                 }
             });
         };
@@ -767,6 +1068,7 @@ app.controller('TpcImportRunController', TpcImportRunController);
                     vm.drawer.detail = data.row || data;
                     vm.drawer.edit = editBuffer(vm.drawer.row);
                     buildDrawerExtras();
+                    loadSplitPartner();
                 }
             });
         };
@@ -807,7 +1109,11 @@ app.controller('TpcImportRunController', TpcImportRunController);
         vm.applyRow = function() {
             var d = vm.drawer;
             if (!d || d.row.status !== 'pending') { return; }
-            TpcImportService.Apply(vm.run_id, { row_ids: [d.row.id] }).then(function(data) {
+            // a split leg applied on its own still honours the handover time
+            var legs = (vm.splitOf(d.row) && d.partner) ? [d.row, d.partner] : [];
+            ensureRunningChange(legs).then(function() {
+                return TpcImportService.Apply(vm.run_id, { row_ids: [d.row.id] });
+            }).then(function(data) {
                 if (data && data.success && data.result && data.result.applied) {
                     ToastService.success('Applied', 'Row ' + d.row.import_key + ' applied.');
                     vm.refreshRow(); vm.loadRun(true);

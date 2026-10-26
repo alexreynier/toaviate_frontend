@@ -940,22 +940,35 @@
     margin-bottom: 8px;
     padding: 8px 0;
   }
+  /* Card mode: label in a fixed left column, EVERY child of the cell stacked
+     in the right column. (A flex row here laid a cell's name / email / badge /
+     inputs out side by side and pushed them past the viewport.) */
   .bs-table tbody td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: start;
     padding: 6px 16px;
     border-bottom: 1px solid #f8fafc;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .bs-table tbody td::before {
     content: attr(data-label);
+    grid-column: 1;
+    grid-row: 1;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     color: #94a3b8;
-    margin-right: 12px;
-    flex-shrink: 0;
+    padding-top: 3px;
   }
+  .bs-table tbody td > * { grid-column: 2; min-width: 0; }
+  .bs-table tbody td .bs-mono { white-space: normal; }
+  .bs-table tbody td .bs-input,
+  .bs-table tbody td .bs-select { width: 100%; max-width: 260px; }
+  .bs-table tbody td .bs-email-fill { margin-top: 2px; }
   .bs-table__actions-col { width: auto; text-align: right; }
   .bs-row--unmapped td:first-child { border-left: none; border-top: 3px solid #f59e0b; }
 
@@ -1495,6 +1508,50 @@
   margin-bottom: 5px;
 }
 .bs-email-fill__chip i { font-size: 9px; }
+/* Override variant: admin is inviting a different address than the stored one */
+.bs-email-fill__chip--override { background: #dbeafe; color: #1e40af; }
+.bs-email-fill__cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.12);
+  color: inherit;
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  transition: background 0.15s ease;
+}
+.bs-email-fill__cancel:hover { background: rgba(30, 64, 175, 0.25); }
+.bs-email-fill__cancel:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+/* "change" link beside a stored email on an unconverted row */
+.bs-email-fill__change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #2d5a8e;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.bs-email-fill__change i { font-size: 9px; }
+.bs-email-fill__change:hover { background: #f1f5f9; border-color: #cbd5e1; color: #1e3a5f; }
+.bs-email-fill__change:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
 .bs-email-fill__wrap { position: relative; }
 .bs-email-fill__icon {
   position: absolute;
@@ -1583,6 +1640,32 @@
 }
 .bs-inline-confirm__text { font-size: 12px; color: #92400e; line-height: 1.4; }
 .bs-inline-confirm__text i { margin-right: 4px; }
+/* Convert All confirm: a full-width bar above the imported table */
+.bs-inline-confirm--bar {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  animation: bsEmailIn 0.2s ease both;
+}
+.bs-inline-confirm--bar .bs-inline-confirm__text { font-size: 13px; }
+.bs-inline-confirm--bar .bs-action-btns { flex-shrink: 0; }
+/* Per-row merge confirm inside the action cell */
+.bs-inline-confirm--merge {
+  align-items: flex-start;
+  text-align: left;
+  min-width: 240px;
+  max-width: 340px;
+  animation: bsEmailIn 0.2s ease both;
+}
+/* Pre-convert clash warning under the name */
+.bs-clash { margin-top: 6px; }
+.bs-clash__badge { white-space: normal; text-align: left; line-height: 1.35; cursor: help; }
+.bs-row--clash td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+/* Rows Convert All left alone — needs an individual decision */
+.bs-row--skipped td { background: #fffbeb; }
+.bs-row--skipped td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
 .bs-notice-row td { padding-top: 0 !important; border-top: none !important; }
 .bs-notice {
   position: relative;
@@ -1605,8 +1688,18 @@
 @media (max-width: 768px) {
   .bs-action-btns { flex-wrap: wrap; }
   .bs-btn--ghost-amber { white-space: normal; }
+  .bs-inline-confirm--bar { flex-direction: column; align-items: stretch; }
+  .bs-inline-confirm--merge { min-width: 0; max-width: none; }
+  .bs-row--clash td:first-child, .bs-row--skipped td:first-child { box-shadow: none; }
+  .bs-row--clash { box-shadow: inset 3px 0 0 #f59e0b; }
+  .bs-row--skipped { box-shadow: inset 3px 0 0 #dc2626; }
   .bs-notice-row td[colspan] { display: block; }
   .bs-notice { flex-direction: column; padding-right: 34px; }
   .bs-notice__close { position: absolute; top: 8px; right: 8px; }
 }
 body.night-mode .bs-shared-chip, body.night-mode .bs-notice--amber, body.night-mode .bs-inline-confirm { background: #3b2a0a; color: #fde68a; border-color: #92400e; }
+body.night-mode .bs-row--skipped td { background: #3b2a0a; }
+body.night-mode .bs-email-fill__chip--override { background: #1e3a5f; color: #bfdbfe; }
+body.night-mode .bs-email-fill__cancel { background: rgba(191, 219, 254, 0.18); }
+body.night-mode .bs-email-fill__change { background: #1e293b; border-color: #334155; color: #93c5fd; }
+body.night-mode .bs-email-fill__change:hover { background: #334155; border-color: #475569; color: #bfdbfe; }

@@ -131,7 +131,9 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         not_configured: 1, stripe_js_unavailable: 1, LOOKUP_UNAVAILABLE: 1,
         LOOKUP_FAILED: 1, AUTHENTICATION: 1, requires_action: 1, two_factor_required: 1,
         two_factor_setup_required: 1, existing_account: 1, out_of_stock: 1,
-        ALREADY_SEPARATE: 1   // bs_sync "create temporary account" → inline "Create anyway" confirm
+        ALREADY_SEPARATE: 1,  // bs_sync "create temporary account" → inline "Create anyway" confirm
+        MERGE_CONFIRM_REQUIRED: 1,  // bs_sync convert → inline "merge into X?" confirm
+        EMAIL_IN_USE: 1       // bs_sync convert → inline field error on the typed email
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes

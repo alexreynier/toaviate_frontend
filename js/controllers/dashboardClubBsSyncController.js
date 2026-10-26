@@ -965,7 +965,11 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             BsSyncService.DiscoverUsers(vm.club_id).then(function(data) {
                 vm.discovering.users = false;
                 if (data.success !== false) {
-                    ToastService.success('Users Discovered', 'User list has been refreshed from BookedScheduler.');
+                    var parts = [];
+                    if (data.mapped > 0)    { parts.push(data.mapped + ' new mapped'); }
+                    if (data.unmapped > 0)  { parts.push(data.unmapped + ' new unmapped'); }
+                    if (data.refreshed > 0) { parts.push(data.refreshed + ' name/email updated from BookedScheduler'); }
+                    ToastService.success('Users Discovered', parts.length ? parts.join(', ') + '.' : 'User list is already up to date with BookedScheduler.');
                     vm.loadUsers();
                 } else {
                     ToastService.error('Error', data.message || 'Failed to discover users.');
@@ -1244,6 +1248,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                         // the address is sent as "email" in the convert body.
                         needs_email:   !(u.original_email || u.matching_email),
                         _email:        '',
+                        // What converting would DO, judged by the stored real email
+                        // (backend-computed): 'free' | 'existing_account' |
+                        // 'existing_member' | 'none'. The two existing_* states mean
+                        // convert MERGES this person into email_owner's account.
+                        email_status:  u.email_status || (u.original_email || u.matching_email ? 'free' : 'none'),
+                        email_owner:   u.email_owner || null,
                         booking_count: u.booking_count,
                         // Where the stub came from + how much history will
                         // follow the account when it is converted.
@@ -1383,7 +1393,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                     break;
                 case 'signup':
                 default:
-                    ToastService.success('Signup Invitation Sent', 'Signup invitation sent to ' + (u.bs_email || u._email));
+                    ToastService.success('Signup Invitation Sent', 'Signup invitation sent to ' + (data.real_email || (emailEditable(u) && u._email ? u._email.trim() : u.bs_email)));
                     break;
             }
             if (data.membership && data.membership.already_expired) {
@@ -1403,7 +1413,7 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         // formatted to "YYYY-MM-DD" here (the model holds Date objects). The backend
         // uses exactly the membership_id it receives — so this must be the admin's
         // selected tier (the dropdown uses ng-options to keep that mapping correct).
-        function _convertPayload(u) {
+        function _convertPayload(u, confirmMerge) {
             var payload = {
                 membership_id: u._membershipId,
                 term_start: toYmd(u._termStart) || toYmd(new Date()),
@@ -1412,12 +1422,80 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 // backend-derived default, so the two never disagree.
                 require_payment: u._requirePayment ? 1 : 0
             };
-            // Rows with no stored real email carry the admin-typed one.
-            if (u.needs_email && u._email && u._email.trim()) {
+            // Rows with no stored real email carry the admin-typed one; so do
+            // rows where the admin chose to invite a different address than the
+            // stored one (the backend stores it as the stub's matching_email).
+            if (emailEditable(u) && u._email && u._email.trim()) {
                 payload.email = u._email.trim();
             }
+            // Only ever sent after the admin confirmed the per-row merge panel.
+            if (confirmMerge) { payload.confirm_merge = 1; }
             return payload;
         }
+
+        // The row's email input is live when there is no stored email OR the
+        // admin has opened the "use a different email" override.
+        function emailEditable(u) {
+            return !!(u.needs_email || u._emailOverride);
+        }
+        vm.emailEditable = emailEditable;
+
+        // ── Merge warnings ───────────────────────────────────────────────
+        // A row "clashes" when its stored real email already belongs to a
+        // genuine account: converting it merges this imported person INTO that
+        // account (invite-then-merge, or immediately if they're already a club
+        // member). Such rows are warned up front, need an explicit per-row
+        // confirmation, and are skipped by Convert All. A typed override makes
+        // the stored status moot — the backend's MERGE_CONFIRM_REQUIRED backstop
+        // still catches a collision on the new address.
+        function isClash(u) {
+            if (u._converted || u._emailOverride) { return false; }
+            return u.email_status === 'existing_account' || u.email_status === 'existing_member';
+        }
+        vm.isClash = isClash;
+        vm.ownerName = function(u) {
+            var o = (u._mergeInfo && u._mergeInfo.owner) || u.email_owner;
+            return o ? ((o.first_name || '') + ' ' + (o.last_name || '')).trim() : 'an existing account';
+        };
+        vm.clashLabel = function(u) {
+            return u.email_status === 'existing_member'
+                ? 'Will merge into ' + vm.ownerName(u)
+                : 'Existing account: ' + vm.ownerName(u);
+        };
+        vm.clashHint = function(u) {
+            return u.email_status === 'existing_member'
+                ? u.bs_email + ' belongs to ' + vm.ownerName(u) + ', already a member of this club. Converting merges this person\'s bookings and flights onto that account immediately and deletes the imported record.'
+                : u.bs_email + ' belongs to ' + vm.ownerName(u) + ', who has a ToAviate account but is not a member here. Converting invites that account to join; on accept the bookings and flights merge onto it and the imported record is deleted.';
+        };
+        // Text for the per-row confirm panel (data may come from the backend
+        // backstop rather than the list, so prefer _mergeInfo when present).
+        vm.mergeText = function(u) {
+            var info = u._mergeInfo || { is_member: u.email_status === 'existing_member' };
+            var who = vm.ownerName(u);
+            return info.is_member
+                ? 'Merge into ' + who + '\'s account now? Their bookings and flights move across and this imported record is deleted. This can\'t be undone.'
+                : 'Invite ' + who + '\'s existing account to join? On accept, this imported record is merged into it and deleted.';
+        };
+        function openMergeConfirm(u, existing, isMember) {
+            u._confirmMerge = true;
+            u._skipped = false;
+            u._mergeInfo = { owner: existing || u.email_owner, is_member: !!isMember };
+        }
+        vm.cancelMerge = function(u) { u._confirmMerge = false; u._mergeInfo = null; };
+
+        // "Change" on a row that already has a stored email: open the input
+        // pre-filled with the stored address so a stale one can be corrected
+        // (e.g. the email was changed in BookedScheduler after discovery).
+        vm.startEmailOverride = function(u) {
+            u._emailOverride = true;
+            u._email = u.bs_email || '';
+            u._emailError = null;
+        };
+        vm.cancelEmailOverride = function(u) {
+            u._emailOverride = false;
+            u._email = '';
+            u._emailError = null;
+        };
 
         // Light-touch validity: backend is authoritative (INVALID_EMAIL), this
         // just stops obvious slips before a round-trip.
@@ -1429,24 +1507,31 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
 
         // A pending row is convert-ready only when any required email is present.
         function emailBlocked(u) {
-            return u.needs_email && !vm.emailLooksValid(u);
+            return emailEditable(u) && !vm.emailLooksValid(u);
         }
 
-        vm.convertUser = function(u) {
+        vm.convertUser = function(u, confirmMerge) {
             _ensureConvertDefaults(u);
             if (!u._membershipId) {
                 ToastService.warning('Membership Required', 'Please choose a membership tier before converting.');
                 return;
             }
+            // Known clash → open the inline confirm instead of converting.
+            if (!confirmMerge && isClash(u)) {
+                openMergeConfirm(u, u.email_owner, u.email_status === 'existing_member');
+                return;
+            }
             if (emailBlocked(u)) {
                 u._emailError = u._email && u._email.trim()
                     ? 'That doesn\'t look like a valid email address.'
-                    : 'This person has no email on record — enter one to invite them.';
+                    : (u._emailOverride
+                        ? 'Enter the email address to invite, or cancel to use the stored one.'
+                        : 'This person has no email on record — enter one to invite them.');
                 ToastService.warning('Email Required', 'Enter a real email address for ' + ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '')).trim() + ' before converting.');
                 return;
             }
             u._converting = true;
-            var payload = _convertPayload(u);
+            var payload = _convertPayload(u, confirmMerge);
             // Trace what's actually sent (stripped in prod) so a "picked X, got Y"
             // membership mismatch can be diagnosed against the selected tier.
             console.log('BS convert payload', { ta_user_id: u.ta_user_id, selected: payload.membership_id, tier: findMembership(u._membershipId) });
@@ -1454,7 +1539,13 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 u._converting = false;
                 if (data.success) {
                     u._converted = true;
+                    u._confirmMerge = false;
+                    u._mode = data.mode || 'signup';
                     u._membership = data.membership || null;
+                    // The address the backend actually invited is now the stub's
+                    // real email — reflect it so the row (and any re-render) agrees.
+                    if (data.real_email) { u.bs_email = data.real_email; }
+                    else if (emailEditable(u) && u._email) { u.bs_email = u._email.trim(); }
                     showConvertResult(u, data);
                 } else if (data.error === 'MEMBERSHIP_REQUIRED') {
                     handleMembershipRequired(u, data);
@@ -1464,6 +1555,17 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 } else if (data.error === 'INVALID_EMAIL') {
                     u._emailError = 'The backend rejected this address — please check it.';
                     ToastService.warning('Invalid Email', data.message || 'That email address doesn\'t look right — please check it.');
+                } else if (data.error === 'MERGE_CONFIRM_REQUIRED') {
+                    // Backstop: the address (possibly just typed) belongs to a real
+                    // account the list didn't know about — ask, don't merge.
+                    var ex = data.existing_user || {};
+                    u.email_status = ex.is_member ? 'existing_member' : 'existing_account';
+                    u.email_owner  = ex;
+                    openMergeConfirm(u, ex, !!ex.is_member);
+                } else if (data.error === 'EMAIL_IN_USE') {
+                    // The typed address is another imported person's real email.
+                    u._emailError = data.message || 'That address already belongs to another imported person.';
+                    ToastService.warning('Email already used', data.message || 'That address is already another imported person\'s real email.');
                 } else {
                     ToastService.error('Error', data.message || 'Failed to convert user.');
                 }
@@ -1487,36 +1589,73 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                 ToastService.warning('Email Required', noEmail.length + ' user(s) have no email on record. Enter a real email for each highlighted row before converting all.');
                 return;
             }
-            if (!confirm('This will send invitations to ALL imported users. Continue?')) return;
+            // Rows whose email already belongs to a real account are NEVER batch-
+            // converted — they'd merge into someone. They're skipped, highlighted,
+            // and left for an individual, confirmed convert.
+            var clashes = pending.filter(isClash);
+            var free    = pending.filter(function(u) { return !isClash(u); });
+            if (!free.length) {
+                clashes.forEach(function(u) { u._skipped = true; });
+                ToastService.warning('Nothing to batch-convert', 'Every remaining person\'s email already belongs to an existing account. Convert those rows individually.');
+                return;
+            }
+            // Inline confirm (no browser dialogs) — the panel shows the counts.
+            vm.confirmAll = { free: free.length, clashes: clashes.length, rows: free, skipped: clashes };
+        };
+        vm.cancelConvertAll = function() { vm.confirmAll = null; };
+
+        vm.runConvertAll = function() {
+            var plan = vm.confirmAll;
+            if (!plan) { return; }
+            vm.confirmAll = null;
+            plan.skipped.forEach(function(u) { u._skipped = true; });
             vm.convertingAll = true;
-            var idx = 0;
+            var idx = 0, invited = 0, held = 0, failed = 0;
+
+            function finish() {
+                vm.convertingAll = false;
+                var skipped = plan.skipped.length + held;
+                var parts = [invited + ' invited'];
+                if (skipped) { parts.push(skipped + ' skipped — their email belongs to an existing account; convert those rows individually'); }
+                if (failed)  { parts.push(failed + ' failed'); }
+                (failed || skipped ? ToastService.warning : ToastService.success)('Convert All finished', parts.join('. ') + '.');
+            }
 
             function next() {
-                if (idx >= pending.length) {
-                    vm.convertingAll = false;
-                    ToastService.success('Done', 'All imported users have been sent invitations.');
-                    $scope.$apply();
-                    return;
-                }
-                var u = pending[idx];
+                if (idx >= plan.rows.length) { finish(); return; }
+                var u = plan.rows[idx];
                 _ensureConvertDefaults(u);
                 u._converting = true;
                 BsSyncService.ConvertUser(vm.club_id, u.ta_user_id, _convertPayload(u)).then(function(data) {
                     u._converting = false;
                     if (data.success) {
                         u._converted = true;
+                        u._mode = data.mode || 'signup';
                         u._membership = data.membership || null;
+                        invited++;
                         if (data.membership && data.membership.already_expired) {
                             var name = ((u.bs_first_name || '') + ' ' + (u.bs_last_name || '')).trim() || u.bs_email;
                             ToastService.warning('Membership Expired', name + "'s membership is due for renewal.");
                         }
+                    } else if (data.error === 'MERGE_CONFIRM_REQUIRED') {
+                        // Backstop fired for a row the list thought was free —
+                        // hold it for an individual decision, same as a known clash.
+                        var ex = data.existing_user || {};
+                        u.email_status = ex.is_member ? 'existing_member' : 'existing_account';
+                        u.email_owner  = ex;
+                        u._skipped = true;
+                        held++;
                     } else if (data.error === 'MEMBERSHIP_REQUIRED') {
                         handleMembershipRequired(u, data);
+                        failed++;
+                    } else {
+                        failed++;
                     }
                     idx++;
                     next();
                 }, function() {
                     u._converting = false;
+                    failed++;
                     idx++;
                     next();
                 });

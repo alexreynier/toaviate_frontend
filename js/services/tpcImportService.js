@@ -24,7 +24,8 @@ app.factory('TpcImportService', TpcImportService);
         service.GetRows = GetRows;             // paged; filters via params
         service.GetRow = GetRow;               // full row incl. candidates + db_before
         service.EditRow = EditRow;             // PUT — date/reg/time edits clear + rematch
-        service.RowAction = RowAction;         // match/insert/skip/reject/restore/rematch/assign_person/create_person
+        service.RowAction = RowAction;
+        service.DetectSplits = DetectSplits;         // match/insert/skip/reject/restore/rematch/assign_person/create_person
 
         // ── Apply / revert / people ──
         service.Apply = Apply;                 // { row_ids: [...] } inline | { all: true } background
@@ -87,6 +88,12 @@ app.factory('TpcImportService', TpcImportService);
 
         function EditRow(row_id, changes) {
             return $http.put(base + '/row/' + row_id, changes).then(handleSuccess, handleError2);
+        }
+
+        // Re-scan a run for dual→solo "running change" pairs (one tracker flight,
+        // a Pu/t row then a P1 row for the same student). Safe to repeat.
+        function DetectSplits(run_id) {
+            return $http.post(base + '/detect_splits/' + run_id, {}).then(handleSuccess, handleError2);
         }
 
         function RowAction(row_id, body) {

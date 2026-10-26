@@ -115,6 +115,13 @@
       <a class="tpcrun__bulk-clear" ng-click="vm.sel = {}">clear</a>
     </div>
 
+    <div class="tpcrun__scan" ng-if="vm.run.status !== 'failed'">
+      <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-click="vm.detectSplits()" ng-disabled="vm.detectingSplits || vm.runBusy()"
+              uib-tooltip="Find dual → solo 'running change' pairs: a Pu/t row followed by a P1 row for the same student, aircraft and day, both inside one tracker flight">
+        <i class="fas" ng-class="vm.detectingSplits ? 'fa-spinner fa-spin' : 'fa-code-branch'"></i> Re-scan for dual → solo splits
+      </button>
+    </div>
+
     <div class="snazzy-page__toolbar">
       <div class="snazzy-page__meta">
         <span class="snazzy-page__count-badge">{{ vm.total | number }}</span> rows
@@ -161,10 +168,11 @@
       </p>
     </div>
 
-    <!-- ── Row list ── -->
-    <div class="tpcrun__rows" ng-if="!vm.loadingRows && !vm.group_mode">
-      <div class="tpcrun__row" ng-repeat="row in vm.rows"
-           ng-class="{'tpcrun__row--rejected': row.status === 'rejected', 'tpcrun__row--open': vm.drawer.row.id === row.id}"
+    <!-- ── Row list ──
+         Rows render through one template; a dual→solo split pair renders as ONE
+         "split tracked flight" card with its two legs inside (vm.display groups them). -->
+    <script type="text/ng-template" id="tpcrun-row.html">
+      <div class="tpcrun__row" ng-class="{'tpcrun__row--rejected': row.status === 'rejected', 'tpcrun__row--open': vm.drawer.row.id === row.id, 'tpcrun__row--ghost': row._ghost}"
            ng-click="vm.openDrawer(row)">
         <label class="tpcrun__check" ng-click="$event.stopPropagation()" ng-if="row.status === 'pending'">
           <input type="checkbox" ng-model="vm.sel[row.id]">
@@ -175,8 +183,9 @@
             <span class="tpcrun__key fxh__mono">{{ row.import_key }}</span>
             <span class="tpcrun__date">{{ row.flight_date | asDate | date:'dd MMM yy' }}</span>
             <span class="tpcrun__reg">{{ row.registration }}</span>
-            <span class="tpcrun__cap">{{ vm.capacityLabel(row.capacity) }}</span>
-            <span class="tpcrun__issue" ng-repeat="issue in row.issues" uib-tooltip="{{ vm.issueMeta(issue).label }}">
+            <span class="tpcrun__cap" uib-tooltip="{{ vm.capacityHint(row) }}">{{ vm.capacityLabel(row.capacity) }}<span class="tpcrun__cap-hint" ng-if="vm.isSupervisedSolo(row)"> · solo</span></span>
+            <span class="tpcrun__split" ng-if="vm.isSplitRow(row)" uib-tooltip="Dual → solo split: two workbook rows, one tracker flight"><i class="fas fa-code-branch"></i> {{ vm.splitLegLabel(row) }}</span>
+            <span class="tpcrun__issue" ng-repeat="issue in row.issues" ng-if="issue !== 'split'" uib-tooltip="{{ vm.issueMeta(issue).label }}">
               <i class="fas {{ vm.issueMeta(issue).icon }}"></i>
             </span>
           </div>
@@ -206,6 +215,62 @@
           </div>
           <div class="tpcrun__times-old tpcrun__times-old--new" ng-if="!row.old_times">NEW</div>
         </div>
+      </div>
+    </script>
+
+    <div class="tpcrun__rows" ng-if="!vm.loadingRows && !vm.group_mode">
+      <div ng-repeat="item in vm.display track by item.key">
+
+        <!-- plain row (ng-repeat, not ng-init: a replaced row object must re-render) -->
+        <div ng-if="item.kind === 'row'">
+          <div ng-repeat="row in item.rows track by row.id" ng-include="'tpcrun-row.html'"></div>
+        </div>
+
+        <!-- split tracked flight: dual leg then solo leg of ONE tracker flight -->
+        <div class="tpcsplit" ng-if="item.kind === 'split'" ng-class="{'tpcsplit--done': item.allApplied}">
+          <div class="tpcsplit__head">
+            <span class="tpcsplit__icon"><i class="fas fa-code-branch"></i></span>
+            <div class="tpcsplit__title">
+              <strong>Split tracked flight</strong>
+              <span class="tpcsplit__sub">
+                dual &rarr; solo running change
+                <span ng-if="item.pls_id"> &middot; tracker flight <span class="fxh__mono">#{{ item.pls_id }}</span></span>
+                <span ng-if="item.tracker"> &middot; {{ item.tracker.brakes_off }}&rarr;{{ item.tracker.brakes_on }}</span>
+                <span ng-if="item.date"> &middot; {{ item.date | asDate | date:'dd MMM yy' }}</span>
+                <span ng-if="item.registration"> &middot; {{ item.registration }}</span>
+                <span ng-if="item.student"> &middot; {{ item.student }}</span>
+              </span>
+            </div>
+            <div class="tpcsplit__actions">
+              <span class="tpcsplit__state" ng-if="item.allApplied"><i class="fas fa-check-circle"></i> both legs applied</span>
+              <span class="tpcsplit__state tpcsplit__state--partial" ng-if="!item.allApplied && item.anyApplied"><i class="fas fa-adjust"></i> one leg applied</span>
+              <button type="button" class="solo-btn solo-btn--go solo-btn--sm" ng-if="item.pendingIds.length" ng-click="vm.applyPair(item); $event.stopPropagation()" ng-disabled="item.busy">
+                <i class="fas" ng-class="item.busy ? 'fa-spinner fa-spin' : 'fa-play'"></i> {{ item.pendingIds.length === 2 ? 'Apply both legs' : 'Apply remaining leg' }}
+              </button>
+            </div>
+          </div>
+          <div class="tpcsplit__legs">
+            <div class="tpcsplit__leg" ng-repeat="row in item.rows track by row.id">
+              <div class="tpcsplit__leg-label" ng-class="'tpcsplit__leg-label--' + row.split.leg">
+                <span class="tpcsplit__leg-num">{{ row.split.leg }}</span>
+                <span class="tpcsplit__leg-kind">{{ row.split.leg === 1 ? 'dual' : 'solo' }}</span>
+              </div>
+              <div class="tpcsplit__leg-row" ng-include="'tpcrun-row.html'"></div>
+            </div>
+            <div class="tpcsplit__leg tpcsplit__leg--loading" ng-if="item.loadingPartner">
+              <div class="solo-req__spinner"></div> Loading the other leg&hellip;
+            </div>
+          </div>
+          <div class="tpcsplit__handover" ng-if="item.adjust">
+            <i class="fas fa-exchange-alt"></i>
+            Running change at <strong>{{ item.adjust.to }}</strong> &mdash; the dual leg will end at {{ item.adjust.to }}
+            (workbook says {{ item.adjust.from }}{{ item.adjust.overlap ? ', which overlaps the solo' : ', which leaves a gap' }}); its time becomes {{ item.adjust.hours | number:2 }} h. Set automatically when applied.
+          </div>
+          <div class="tpcsplit__note" ng-if="item.ghostLeg">
+            <i class="fas fa-filter"></i> Leg {{ item.ghostLeg }} is outside the current filter &mdash; shown here so the pair reads as one flight.
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -272,9 +337,12 @@
             <div class="tpcdrawer__field"><label>Capacity</label>
               <select ng-model="vm.drawer.edit.capacity" ng-disabled="vm.drawer.row.status !== 'pending'">
                 <option value="PUT">Pu/t — dual training</option>
-                <option value="P1">P1 — self-hire</option>
+                <option value="P1">P1 — self-hire, or student solo when an instructor is named</option>
                 <option value="P1S">P1/S — P1 supervised</option>
-              </select></div>
+              </select>
+              <div class="tpcdrawer__cap-hint" ng-if="vm.isSupervisedSolo(vm.drawer.row)">
+                <i class="fas fa-user-graduate"></i> {{ vm.drawer.row.instructor_name }} is named on this P1 row, so it is imported as an <strong>authorised student solo</strong>: the student is P1, the instructor is recorded as the authoriser and a training record is created for them to complete.
+              </div></div>
             <div class="tpcdrawer__stored" ng-if="vm.drawer.row.new_times.stored_brakes_off !== vm.drawer.row.new_times.brakes_off">
               stored as {{ vm.drawer.row.new_times.stored_brakes_off }}→{{ vm.drawer.row.new_times.stored_brakes_on }} <span uib-tooltip="Shifted by the detected clock offset so the database stays on the tracker clock">(tracker clock)</span>
             </div>
@@ -307,6 +375,67 @@
           · Δ{{ vm.drawer.row.match.delta_min }} min
           · clock offset {{ vm.drawer.row.match.offset_min ? (vm.drawer.row.match.offset_min / 60) + 'h' : '0' }}
           <a ng-click="vm.drawer.pickerOpen = !vm.drawer.pickerOpen">Change <i class="fas" ng-class="vm.drawer.pickerOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i></a>
+        </div>
+
+        <!-- ── Dual → solo split (one tracker flight, two workbook rows) ── -->
+        <div class="tpcdrawer__split" ng-if="vm.splitOf(vm.drawer.row)">
+          <div class="tpcdrawer__split-head">
+            <i class="fas fa-code-branch"></i>
+            <strong>Dual → solo split &mdash; {{ vm.splitLegLabel(vm.drawer.row) }}</strong>
+            <span class="tpcdrawer__split-mode">running change</span>
+          </div>
+          <p class="tpcdrawer__split-text" ng-if="vm.splitOf(vm.drawer.row).leg === 1">
+            This dual leg updates the tracker flight. The solo leg that follows is inserted as the flight's second leg, with the same instructor recorded as the solo's authoriser.
+          </p>
+          <p class="tpcdrawer__split-text" ng-if="vm.splitOf(vm.drawer.row).leg === 2 && !(vm.drawer.partner && vm.drawer.partner.status === 'applied')">
+            This is the student's solo leg of the same tracker flight. Applying it applies the dual leg first, then creates this leg as a supervised solo with <strong>{{ vm.drawer.row.instructor_name || 'the instructor' }}</strong> recorded as the authoriser.
+          </p>
+          <p class="tpcdrawer__split-text" ng-if="vm.splitOf(vm.drawer.row).leg === 2 && vm.drawer.partner && vm.drawer.partner.status === 'applied'">
+            The dual leg has already been applied to the tracker flight. Apply this row to add the solo leg as the flight's second leg &mdash; a supervised solo with <strong>{{ vm.drawer.row.instructor_name || 'the instructor' }}</strong> recorded as the authoriser. Two legs are expected: the student logs dual time for the first and solo (P1) time for the second.
+          </p>
+          <div class="tpcdrawer__split-partner" ng-if="vm.drawer.partner" ng-click="vm.openPartner()" uib-tooltip="Open the other leg">
+            <span class="tpcrun__badge tpcrun__badge--{{ vm.badge(vm.drawer.partner).cls }}">{{ vm.badge(vm.drawer.partner).label }}</span>
+            <span class="fxh__mono">{{ vm.drawer.partner.import_key }}</span>
+            <strong>{{ vm.drawer.partner.new_times.brakes_off }}→{{ vm.drawer.partner.new_times.brakes_on }}</strong>
+            <span>{{ vm.capacityLabel(vm.drawer.partner.capacity) }} · {{ vm.capacityHint(vm.drawer.partner) }}</span>
+            <span class="tpcdrawer__split-status">{{ vm.drawer.partner.status }}</span>
+            <i class="fas fa-external-link-alt"></i>
+          </div>
+          <div class="tpcdrawer__split-partner tpcdrawer__split-partner--loading" ng-if="!vm.drawer.partner"><div class="solo-req__spinner"></div> Loading the other leg…</div>
+          <div class="tpcsplit__handover" ng-if="vm.drawer.partner && vm.runningChangeAdjust([vm.drawer.row, vm.drawer.partner])">
+            <i class="fas fa-exchange-alt"></i>
+            Running change at <strong>{{ vm.runningChangeAdjust([vm.drawer.row, vm.drawer.partner]).to }}</strong> &mdash; the dual leg will end at that time
+            (workbook says {{ vm.runningChangeAdjust([vm.drawer.row, vm.drawer.partner]).from }}); its time becomes {{ vm.runningChangeAdjust([vm.drawer.row, vm.drawer.partner]).hours | number:2 }} h. Set automatically when applied.
+          </div>
+          <div class="tpcdrawer__split-actions" ng-if="vm.drawer.row.status === 'pending'">
+            <button type="button" class="solo-btn solo-btn--go solo-btn--sm" ng-if="!(vm.drawer.partner && vm.drawer.partner.status === 'applied')" ng-click="vm.applySplitPair()"><i class="fas fa-play"></i> Apply both legs</button>
+            <button type="button" class="solo-btn solo-btn--go solo-btn--sm" ng-if="vm.drawer.partner && vm.drawer.partner.status === 'applied'" ng-click="vm.applyRow()"><i class="fas fa-play"></i> Apply this {{ vm.splitOf(vm.drawer.row).leg === 2 ? 'solo' : 'dual' }} leg</button>
+            <button type="button" class="solo-btn solo-btn--ghost solo-btn--sm" ng-if="!(vm.drawer.partner && vm.drawer.partner.status === 'applied')" ng-click="vm.unsplitRow()" uib-tooltip="Treat the two rows as separate flights again"><i class="fas fa-unlink"></i> Unpair</button>
+          </div>
+        </div>
+
+        <!-- Not paired: offer manual pairing for a dual or solo row with a resolved student -->
+        <div class="tpcdrawer__split tpcdrawer__split--offer" ng-if="!vm.splitOf(vm.drawer.row) && vm.drawer.row.status === 'pending' && vm.drawer.row.student_user_id && (vm.drawer.row.capacity === 'PUT' || vm.drawer.row.capacity === 'P1')">
+          <div class="tpcdrawer__split-head" ng-if="!vm.drawer.splitPicker">
+            <i class="fas fa-code-branch"></i>
+            <span>Was this one tracker flight split dual &rarr; solo (instructor got out, student carried on)?</span>
+            <a ng-click="vm.openSplitPicker()">Pair with the other leg&hellip;</a>
+          </div>
+          <div ng-if="vm.drawer.splitPicker">
+            <div class="tpcdrawer__split-head">
+              <i class="fas fa-code-branch"></i>
+              <span>Pick the {{ vm.drawer.row.capacity === 'PUT' ? 'solo (P1)' : 'dual (Pu/t)' }} row for {{ vm.drawer.row.first_name }} {{ vm.drawer.row.last_name }} on this day and aircraft</span>
+              <a ng-click="vm.closeSplitPicker()">cancel</a>
+            </div>
+            <div class="exadmin__loading" ng-if="vm.drawer.splitPicker.loading"><div class="solo-req__spinner"></div> Looking for rows…</div>
+            <div class="tpcdrawer__pp-empty" ng-if="!vm.drawer.splitPicker.loading && !vm.drawer.splitPicker.cands.length">No pending {{ vm.drawer.row.capacity === 'PUT' ? 'P1' : 'Pu/t' }} row for this student, aircraft and day in this run.</div>
+            <div class="tpcdrawer__split-partner" ng-repeat="c in vm.drawer.splitPicker.cands" ng-click="vm.pairWith(c)" uib-tooltip="Pair with this row">
+              <span class="fxh__mono">{{ c.import_key }}</span>
+              <strong>{{ c.new_times.brakes_off }}→{{ c.new_times.brakes_on }}</strong>
+              <span>{{ vm.capacityLabel(c.capacity) }} · {{ vm.capacityHint(c) }}</span>
+              <i class="fas fa-link"></i>
+            </div>
+          </div>
         </div>
 
         <div class="tpcdrawer__cands" ng-if="vm.drawer.pickerOpen">
