@@ -734,7 +734,21 @@
             }
         ];
         vm.split_flight_confirmation = 0;
-
+        // who flew the second part: 'same' (continued flight — e.g. master left
+        // on between two flights), 'solo' (student solo send-off), 'other'
+        vm.split_crew_mode = 'same';
+        vm.split_crew_options = [
+            { id: 'same',  title: 'Same crew',        hint: 'the same people carried on flying (one flight, two tracker legs)' },
+            { id: 'solo',  title: 'Student solo',     hint: 'the student flew part 2 alone — an authorised solo you supervised' },
+            { id: 'other', title: 'Somebody else',    hint: 'a different pilot flew part 2 — leave it for them to claim' }
+        ];
+        vm.split_crew_can_solo = function(){
+            return !!(vm.bookout && ((vm.bookout.put_id > 0) || (vm.bookout.put && vm.bookout.put.user_id > 0)));
+        };
+        vm.split_crew_label = function(id){
+            var o = vm.split_crew_options.find(function(x){ return x.id === id; });
+            return o ? o.title : 'Same crew';
+        };
         vm.split_this_flight = function(){
             vm.split_flight = 1;
             //add this pls_id to the split
@@ -2106,6 +2120,9 @@
                         vm.bookout = data.bookout;
 
                         vm.claim_a_flight = data.unclaimed;
+                        // split flights: the other half (part 1 when booking in part 2)
+                        vm.split_prev_leg = data.split_prev_leg || null;
+                        vm.split_next_leg = data.split_next_leg || null;
                         // BookingService.GetUnclaimedFlights(vm.bookout.plane_id).then(function (data) {
                         //         ////console.log("data is : ", data);
                         //         if(data.success){
@@ -2376,6 +2393,53 @@
 
         }
 
+
+        // ── Part 2 of a split flight: quick crew switches ───────────────
+        // The row already carries the crew chosen at the split (crew_mode);
+        // these flip it on the form without re-picking everyone by hand.
+        vm.split_prev_leg = null;
+        vm.split_next_leg = null;
+        vm.split_leg_student_id = function(){
+            var prev = vm.split_prev_leg || {};
+            return (prev.put_id > 0) ? prev.put_id : ((prev.authorised_solo == 1 && prev.pic_id > 0) ? prev.pic_id : 0);
+        };
+        vm.split_leg_use_solo = function(){
+            var student_id = vm.split_leg_student_id();
+            var student = (vm.pics || []).find(function(p){ return p.user_id === student_id; });
+            if(!student){
+                ToastService.warning('Student Not Found', 'The student from part 1 is not in the member list here — please pick the pilot in command by hand.');
+                return;
+            }
+            vm.bookout.pic = student;
+            vm.bookout.pic_id = student.user_id;
+            vm.this_claim_was_instructional = true;
+            enter_student_solo_mode();
+            var prev_instr = (vm.instructors || []).find(function(i){ return i.user_id === vm.split_prev_leg.instructor_id; });
+            if(prev_instr){
+                vm.bookout.instructor = prev_instr;
+                vm.bookout.instructor_id = prev_instr.user_id;
+            }
+            vm.bookout.authorised_solo = true;
+            vm.bookout.payer_id = student.user_id;
+            preselect_course_and_tuition();
+            vm.calculate_invoice_for_flight();
+        };
+        vm.split_leg_use_same = function(){
+            var prev = vm.split_prev_leg || {};
+            var pic = (vm.pics || []).find(function(p){ return p.user_id === prev.pic_id; });
+            var put = (vm.pics || []).find(function(p){ return p.user_id === prev.put_id; });
+            var instr = (vm.instructors || []).find(function(i){ return i.user_id === prev.instructor_id; });
+            vm.this_was_supervised_solo = false;
+            vm.bookout.authorised_solo = false;
+            if(pic){ vm.bookout.pic = pic; vm.bookout.pic_id = pic.user_id; }
+            if(put){ vm.bookout.put = put; vm.bookout.put_id = put.user_id; } else { vm.bookout.put = {}; vm.bookout.put_id = 0; }
+            if(instr){ vm.bookout.instructor = instr; vm.bookout.instructor_id = instr.user_id; } else { vm.bookout.instructor = {}; vm.bookout.instructor_id = 0; }
+            vm.this_claim_was_instructional = (vm.bookout.put_id > 0 || vm.bookout.instructor_id > 0);
+            vm.bookout.payer_id = (vm.bookout.put_id > 0) ? vm.bookout.put_id : (vm.bookout.pic_id || vm.bookout.payer_id);
+            if(vm.this_claim_was_instructional){ preselect_course_and_tuition(); }
+            vm.calculate_invoice_for_flight();
+        };
+        vm.split_leg_is_solo = function(){ return !!vm.this_was_supervised_solo; };
 
         // vm.convert_decimal_to_hours = function(decimal_time){
         //     var temp = new Array();
@@ -3419,6 +3483,11 @@
                 if(vm.split_two && obj.plane_log_sheet.booking_id && obj.plane_log_sheet.booking_id > 0){
                     vm.split_two.booking_id = obj.plane_log_sheet.booking_id;
                 }
+                // who flew part 2 — same crew / student solo / somebody else
+                // (FRONTEND_SPLIT_FLIGHT_SECOND_LEG_GUIDE.md)
+                if(vm.split_two){
+                    vm.split_two.crew_mode = vm.split_crew_mode || 'same';
+                }
                
 
                 obj.plane_log_sheet.split_two = vm.split_two;
@@ -3790,6 +3859,17 @@
 
 
 
+        // Part 2 of a split flight was just created by this book-in: go straight
+        // to it rather than the dashboard (the debrief path carries it as
+        // split_next_id instead). Returns true when it navigated.
+        function go_to_split_leg_if_any(data){
+            var next_id = (data && data.split && data.split.plane_log_sheet_id > 0) ? data.split.plane_log_sheet_id : 0;
+            if(!next_id){ return false; }
+            ToastService.success('Part 1 Booked In', 'Now book in the second part of the flight.');
+            $state.go('dashboard.my_account.book_in', {id: next_id}, { reload: true });
+            return true;
+        }
+
         function after_success_bookin(where_to, data){
                 // A zero-charge (package/free) instructional flight was sent "home"
                 // and never debriefed — the record is owed regardless of payment.
@@ -3797,6 +3877,7 @@
                     where_to = "debrief";
                 }
                 if(where_to == "home"){
+                        if(go_to_split_leg_if_any(data)){ return; }
                         $state.go('dashboard.my_account', {}, { reload: true });
                     } else if(where_to == "debrief") {
                         console.log("DEBRIEF!!");
@@ -3839,6 +3920,7 @@
                         } else {
                           console.log("DEBRIEF 3!!");
                           // return false;
+                            if(go_to_split_leg_if_any(data)){ return; }
                             $state.go('dashboard.my_account', {}, { reload: true });
                         }                        
 
@@ -4287,9 +4369,10 @@
                 if(vm.claimed_flight && vm.claimed_flight.id > 0){
                     vm.bookout.claimed_fox_plane_log_sheet_id = vm.claimed_flight.id;
                 }
-                if(vm.bookout.fox_log_id > 0){
-                    vm.bookout.claimed_fox_plane_log_sheet_id = vm.bookout.fox_log_id;
-                }
+                // (removed) claimed_fox_plane_log_sheet_id = fox_log_id — that is a
+                // fox_entries id, not a log sheet id: the backend deletes the log
+                // sheet with that id. A row loaded straight from Claim a Flight (or
+                // part 2 of a split) IS the row being booked in; nothing to delete.
 
 
 

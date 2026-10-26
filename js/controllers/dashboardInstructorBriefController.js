@@ -188,6 +188,26 @@
 
                 //vm.pls_id = $stateParams.plane_log_sheet_id;
 
+                // ── Split flights (FRONTEND_SPLIT_FLIGHT_SECOND_LEG_GUIDE.md) ──
+                // The API also reports the open second leg, so the hand-off works
+                // when this screen is reached from the debrief list later on, not
+                // only straight after the book-in that created the split.
+                vm.pending_split_leg = null;
+                vm.sheet_needs_book_in = false;
+                vm.book_in_split_leg = function(){
+                    if(vm.split_next_id > 0){ $state.go('dashboard.my_account.book_in', {id: vm.split_next_id}); }
+                };
+                vm.book_in_this_sheet = function(){
+                    if(vm.plane_log_sheet && vm.plane_log_sheet.id > 0){ $state.go('dashboard.my_account.book_in', {id: vm.plane_log_sheet.id}); }
+                };
+                vm.split_leg_later = function(){
+                    vm.show_split = 0;
+                    ToastService.success('Noted', 'Part 2 stays under your flights to book in and on Claim a Flight.');
+                };
+                vm.split_leg_resume = function(){
+                    if(vm.split_next_id > 0){ vm.show_split = 1; }
+                };
+
                 if(vm.plane_log_sheet_id > 0){
                     //if we claim without a bookout....ugh... (for_debrief_pls)
                     BookingService.GetForForDebriefPls(vm.plane_log_sheet_id)
@@ -216,6 +236,13 @@
                     vm.student = data.student;
                     vm.instructor = data.instructor;
                     vm.plane_log_sheet = data.log_sheet;
+                    vm.sheet_needs_book_in = !!(data.log_sheet && data.log_sheet.needs_book_in == 1);
+                    vm.pending_split_leg = data.pending_split_leg || null;
+                    if(vm.pending_split_leg && vm.pending_split_leg.id > 0 && !(vm.split_next_id > 0)){
+                        vm.split_next_id = vm.pending_split_leg.id;
+                        vm.split_booking_id = vm.pending_split_leg.booking_id;
+                        vm.show_split = 1;
+                    }
                     // Log-sheet rows link here with booking_id 0; the API now tells
                     // us the booking the flight belongs to, so the record can flag
                     // it debriefed and it can't be debriefed twice.

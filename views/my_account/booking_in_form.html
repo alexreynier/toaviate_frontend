@@ -138,6 +138,35 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
       <h2><i class="fas fa-info-circle"></i> Flight Information</h2>
 
+      <!-- ── Part 2 of a split flight ─────────────────────────────── -->
+      <div class="bi-split-leg" ng-if="vm.split_prev_leg">
+        <div class="bi-split-leg__head">
+          <i class="fas fa-cut"></i>
+          <div>
+            <strong>Part 2 of a split flight</strong>
+            <p>
+              Part 1 ({{ vm.split_prev_leg.brakes_off_rounded | brakesTime }}–{{ vm.split_prev_leg.brakes_on_rounded | brakesTime }},
+              <span ng-if="vm.split_prev_leg.pic_first_name">PIC {{ vm.split_prev_leg.pic_first_name }} {{ vm.split_prev_leg.pic_last_name }}</span><span ng-if="vm.split_prev_leg.put_first_name">, student {{ vm.split_prev_leg.put_first_name }} {{ vm.split_prev_leg.put_last_name }}</span>)
+              <span ng-if="vm.split_prev_leg.needs_book_in != 1">is booked in.</span><span ng-if="vm.split_prev_leg.needs_book_in == 1">still needs booking in.</span>
+              Confirm who flew this part, then book it in as normal.
+            </p>
+          </div>
+        </div>
+        <div class="bi-split-leg__choices">
+          <button type="button" class="bi-split-leg__choice" ng-class="{'bi-split-leg__choice--on': vm.split_leg_is_solo()}"
+                  ng-click="vm.split_leg_use_solo()" ng-disabled="!vm.split_leg_student_id()">
+            <i class="fas fa-user-graduate"></i> Student solo
+            <small>{{ vm.split_prev_leg.put_first_name || 'the student' }} flew alone — authorised solo</small>
+          </button>
+          <button type="button" class="bi-split-leg__choice" ng-class="{'bi-split-leg__choice--on': !vm.split_leg_is_solo()}"
+                  ng-click="vm.split_leg_use_same()">
+            <i class="fas fa-users"></i> Same crew as part 1
+            <small>one flight, the tracker just logged two legs</small>
+          </button>
+        </div>
+        <p class="bi-split-leg__note">Different pilot altogether? Just pick them as Pilot in Command below.</p>
+      </div>
+
       <div class="center_if_large">
 
         <div class="form-group">
@@ -715,6 +744,19 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
                 <div ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0">
                   <br />
 
+                  <div class="bi-split-crew">
+                    <label>Who flew the second part?</label>
+                    <div class="bi-split-crew__options">
+                      <label class="bi-split-crew__opt" ng-repeat="opt in vm.split_crew_options"
+                             ng-class="{'bi-split-crew__opt--on': vm.split_crew_mode == opt.id, 'bi-split-crew__opt--off': opt.id == 'solo' && !vm.split_crew_can_solo()}">
+                        <input type="radio" name="split_crew_mode" ng-model="vm.split_crew_mode" ng-value="opt.id" ng-disabled="opt.id == 'solo' && !vm.split_crew_can_solo()" />
+                        <span class="bi-split-crew__title">{{ opt.title }}</span>
+                        <span class="bi-split-crew__hint">{{ opt.hint }}</span>
+                      </label>
+                    </div>
+                    <p class="bi-split-crew__note">You can still change this when you book the second part in. The second part is saved as an open flight — it appears under flights to book in, on Claim a Flight, and after the training record for this part.</p>
+                  </div>
+
                   <button class="btn btn-danger" ng-click="vm.cancel_split()"><i class="fas fa-times"></i> CANCEL SPLIT</button>
 
                   <button class="btn btn-primary" ng-click="vm.confirm_split()"><i class="fas fa-check"></i> CONFIRM FLIGHT SPLIT</button>
@@ -734,6 +776,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
               <div ng-if="vm.split_flight_confirmation == 1">
                 <br />
+                <p class="bi-split-crew__chosen"><i class="fas fa-cut"></i> Second part: <strong>{{ vm.split_crew_label(vm.split_crew_mode) }}</strong> — it will be waiting to book in once this part is done.</p>
                 <button class="btn btn-danger" ng-click="vm.cancel_split()">CANCEL SPLIT FLIGHT</button>
                 <br /><br />
               </div>
