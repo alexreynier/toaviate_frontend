@@ -22,7 +22,7 @@ app.controller('FoxTrackerHealthController', FoxTrackerHealthController);
         vm.loading = true;
         vm.trackers = [];
         vm.unknown_devices = [];
-        vm.summary = { mismatches: 0, never_seen: 0, unknown: 0, unmatched: 0 };
+        vm.summary = { mismatches: 0, never_seen: 0, unknown: 0, unmatched: 0, counter_resets: 0 };
         vm.fix = null;   // fix-identity dialog state
 
         // ?tracker= from the CCID-mismatch alert emails — highlight + scroll.
@@ -61,7 +61,10 @@ app.controller('FoxTrackerHealthController', FoxTrackerHealthController);
                     mismatches: trackers.filter(function(t) { return t.ccid_mismatch; }).length,
                     never_seen: trackers.filter(function(t) { return t.never_seen; }).length,
                     unknown: vm.unknown_devices.length,
-                    unmatched: trackers.reduce(function(sum, t) { return sum + (parseInt(t.unmatched_entries, 10) || 0); }, 0)
+                    unmatched: trackers.reduce(function(sum, t) { return sum + (parseInt(t.unmatched_entries, 10) || 0); }, 0),
+                    // Devices that reuse flight numbers (FRONTEND_TRACK_DATA_GUIDE.md §4)
+                    // — the source of mis-linked recordings; badge links to the track tools.
+                    counter_resets: trackers.filter(function(t) { return (parseInt(t.flight_number_reuse_count, 10) || 0) > 0; }).length
                 };
                 spotTracker();
             });
@@ -515,6 +518,28 @@ app.controller('FoxUnmatchedController', FoxUnmatchedController);
         vm.clearFilters = function() {
             vm.filters = { club_id: '', imei: '', from: null, to: null };
             vm.load();
+        };
+
+        // ── Track-derived counterparts (FRONTEND_TRACK_DATA_GUIDE.md §5) ──
+        // `airborne_seconds_calculated` / `landings_calculated` sit beside the
+        // tracker's values; `track_calculated_status` says whether they belong
+        // to this flight: ok → show the pair, file_mismatch → the recording on
+        // file is another flight (warning tag, no pair), no_events → muted tag,
+        // null → not analysed, show nothing.
+        vm.calcStatus = function(entry) {
+            return entry.track_calculated_status || null;
+        };
+        vm.hasCalc = function(entry) {
+            var st = vm.calcStatus(entry);
+            if (st === 'file_mismatch' || st === 'no_events') { return false; }
+            return entry.airborne_seconds_calculated !== null && entry.airborne_seconds_calculated !== undefined
+                || entry.landings_calculated !== null && entry.landings_calculated !== undefined;
+        };
+        vm.calcTag = function(entry) {
+            var st = vm.calcStatus(entry);
+            if (st === 'file_mismatch') { return { cls: 'warn', icon: 'fa-exclamation-triangle', label: 'recording mismatch', hint: 'The recording linked to this flight does not cover its time — its track-derived counts belong to another flight.' }; }
+            if (st === 'no_events') { return { cls: 'muted', icon: 'fa-wave-square', label: 'no track events', hint: 'The track was analysed but no take-off or landing could be detected in it.' }; }
+            return null;
         };
 
         // ── Row display helpers ──

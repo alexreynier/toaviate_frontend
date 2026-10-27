@@ -61,6 +61,9 @@ app.factory('PlaneService', PlaneService);
         // service.GetMaintenanceForUser = GetMaintenanceForUser;
 
         service.UpdateAircraftLogbooks = UpdateAircraftLogbooks;
+        service.AirborneRecompute = AirborneRecompute;
+        service.AirborneExplain = AirborneExplain;
+        service.AirborneReset = AirborneReset;
 
         service.HypotheticalFlightSplit = HypotheticalFlightSplit;
 
@@ -85,8 +88,27 @@ app.factory('PlaneService', PlaneService);
             return $http.post('/api/v1/plane_log_sheets/get_all_for_club/' + club_id, {from_date: from_date, to_date: to_date, aircraft: aircraft}).then(handleSuccess, handleError2);
         }
         
+        // Rebuild the aircraft's airframe / engine / propeller logbooks FROM the stored
+        // flights (Planes::rebuild_logbooks — never recomputes airborne time, never touches
+        // the rounded billing columns). BACKEND_AIRBORNE_SOURCE_GUIDE.md §7.
         function UpdateAircraftLogbooks(plane_id){
             return $http.get('/api/v1/planes/update_all_logbooks/'+plane_id).then(handleSuccess, handleError2);
+        }
+
+        // Airborne-time recompute over the history (ToAviate admin). params: {apply, days, after_id, run_id, budget_s, plane_id}.
+        // DRY RUN unless apply=1. Chunked: loop while data.done === false with after_id = data.next_after_id and the same run_id.
+        function AirborneRecompute(params){
+            return $http.get('/api/v1/planes/fix_times', { params: params || {} }).then(handleSuccess, handleError2);
+        }
+
+        // What the cascade sees + would decide for one sheet (club manager / ToAviate admin).
+        function AirborneExplain(pls_id){
+            return $http.get('/api/v1/planes/airborne_explain/'+pls_id).then(handleSuccess, handleError2);
+        }
+
+        // Forget a manual airborne time / the lock for one sheet and recompute it (club manager).
+        function AirborneReset(pls_id, note){
+            return $http.post('/api/v1/flight_edits/airborne_reset/'+pls_id, { note: note || '' }).then(handleSuccess, handleError2);
         }
 
         function GetUpdatedCharges(club_id, plane_id, user_id){

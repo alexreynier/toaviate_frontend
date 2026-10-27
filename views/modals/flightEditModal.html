@@ -216,6 +216,14 @@
           <flight-times row="form" club-id="clubId"></flight-times>
           <span class="fe-shown-as__hint">({{ clubId | tdLabel : 'window' }} &mdash; set in Club Settings)</span>
         </div>
+        <!-- Maintenance airborne time with its source on record (BACKEND_AIRBORNE_SOURCE_GUIDE.md §6).
+             Staff-facing: members see the number only elsewhere. Typing a new value makes it 'manual' + final. -->
+        <div class="fe-shown-as" ng-if="plsRow && plsRow.airborne_time !== undefined && plsRow.airborne_time !== null" style="opacity:.8;">
+          <span class="fe-shown-as__label"><i class="fa fa-wrench"></i> Maintenance airborne</span>
+          <span>{{ airborneHm(plsRow.airborne_time) }}</span>
+          <span class="fe-shown-as__hint" ng-if="plsRow.airborne_source">&middot; {{ airborneSourceLabel(plsRow.airborne_source) }}<span ng-if="plsRow.airborne_settled_at"> &middot; final</span><span ng-if="!plsRow.airborne_settled_at"> &middot; provisional</span></span>
+          <span class="fe-shown-as__hint" ng-if="!plsRow.airborne_source">&middot; source not yet recorded</span>
+        </div>
         <div class="fe-field-row">
           <div class="fe-field fe-field--third">
             <label class="fe-field__label">Flight Date</label>
@@ -371,6 +379,21 @@
             <input type="text" class="fe-field__input" ng-model="form.route" placeholder="e.g. EGBJ — EGHH — EGBJ" />
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ── TRACK ANALYSIS link (ToAviate staff only) — the reconciliation itself lives on the admin track tools page ── -->
+    <div class="fe-section" ng-if="plsId && isToAviateStaff()">
+      <div class="fe-section__header" ng-click="toggleSection('track')">
+        <i class="fa fa-route fe-section__icon"></i>
+        <span class="fe-section__title">Track Analysis <small>(ToAviate admin)</small></span>
+        <i class="fa fe-section__chevron" ng-class="sections.track ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+      </div>
+      <div class="fe-section__body" ng-if="sections.track">
+        <p class="fe-section__staff-note">
+          <i class="fas fa-route"></i> The tracker · track file · sheet comparison lives on the ToAviate-admin analysis page.
+          <a ui-sref="dashboard.super_admin.fox_track_tools({pls: plsId})" ng-click="$dismiss('cancel')" ng-if="plsId">Open track analysis for this flight <i class="fas fa-arrow-right"></i></a>
+        </p>
       </div>
     </div>
 

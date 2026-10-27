@@ -247,15 +247,38 @@
             break;
         }  
 
+        // ONE logbook rebuild — the same Planes::rebuild_logbooks every other
+        // "recheck" path lands on (BACKEND_AIRBORNE_SOURCE_GUIDE.md §7).
+        vm.rebuild_logbooks_busy = false;
+        vm.rebuild_logbooks = function(){
+            if(!(vm.this_plane_id && vm.this_plane_id > 0) || vm.rebuild_logbooks_busy){ return; }
+            vm.rebuild_logbooks_busy = true;
+            PlaneService.UpdateAircraftLogbooks(vm.this_plane_id)
+            .then(function(data){
+                vm.rebuild_logbooks_busy = false;
+                if(data && data.success){
+                    ToastService.success('Logbooks Rebuilt', 'Airframe, engine and propeller logbooks were recalculated from the recorded flights.');
+                    loadMaintenanceDetail();
+                } else {
+                    ToastService.error('Rebuild Failed', (data && data.message) || 'The logbooks could not be rebuilt.');
+                }
+            }, function(){
+                vm.rebuild_logbooks_busy = false;
+                ToastService.error('Rebuild Failed', 'The logbooks could not be rebuilt.');
+            });
+        };
+
+        // Regenerates the UNCLAIMED tracker placeholder flights (fox/reset_aeroplane) —
+        // not a logbook recalculation; the button says so now.
         vm.reset_aeroplane = function(){
             if(vm.this_plane_id && vm.this_plane_id > 0){
-                var a = confirm("Are you sure you wish to override the logs?");
+                var a = confirm("Rebuild tracker placeholders?\n\nThis deletes the UNCLAIMED tracker flights of the current tracker and recreates them from the tracker's recordings. Claimed and booked-in flights are not touched. Continue?");
                 if(a){
                     FoxService.ResetOneClubPlane(vm.this_plane_id)
                     .then(function(data){
                         console.log(data);
                         if(data.success){
-                            ToastService.success('Reset Complete', 'Logbooks have been re-checked.');
+                            ToastService.success('Placeholders Rebuilt', 'Unclaimed tracker flights were regenerated from the tracker\'s recordings.');
                             // Re-fetch so the recalculated hours / next-check show
                             // without a manual page refresh.
                             loadMaintenanceDetail();

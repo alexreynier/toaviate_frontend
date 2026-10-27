@@ -1,0 +1,864 @@
+<!-- ══════════════════════════════════════════════════════════
+     FOX TRACKER MANAGEMENT — Track-data tools
+     Analysis / segments backfill, file inspect, mis-linked recording
+     scan · repair · undo · report, resolve an ambiguous link.
+     FRONTEND_TRACK_DATA_GUIDE.md §4 / §4.1.
+     ══════════════════════════════════════════════════════════ -->
+<div class="snazzy-page ftt">
+
+  <div ng-if="!vm.authorised" class="fox-tracker__unauthorised">
+    <div class="fox-tracker__unauthorised-icon"><i class="fas fa-lock"></i></div>
+    <h2>Access Denied</h2>
+    <p>This page is restricted to ToAviate management users.</p>
+  </div>
+
+  <div ng-if="vm.authorised">
+
+    <!-- ── Header ── -->
+    <div class="snazzy-page__header">
+      <div class="snazzy-page__header-inner">
+        <div class="back-box" ui-sref="dashboard.super_admin">
+          <i class="fa fa-arrow-circle-left"></i> BACK
+        </div>
+        <div class="snazzy-page__title">
+          <h2><i class="fas fa-tools"></i> Track Tools</h2>
+          <p>Track analysis, split segments and mis-linked recordings</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tabs ── -->
+    <div class="fox-tracker__tabs">
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.tracker_planes"><i class="fas fa-plane"></i> Fleet</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_unmatched"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
+      <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-tools"></i> Track tools</a>
+    </div>
+
+    <div class="snazzy-page__body snazzy-reveal snazzy-reveal--stagger">
+
+      <!-- ── In-page jump bar ── -->
+      <div class="ftt-jump">
+        <a class="ftt-jump__pill" ng-click="vm.jump('analysis')"><i class="fas fa-sync-alt"></i> Analysis</a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('segments')"><i class="fas fa-cut"></i> Segments</a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('inspect')"><i class="fas fa-search"></i> Inspect</a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('flight')"><i class="fas fa-route"></i> Flight analysis</a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('links')"><i class="fas fa-link"></i> Mis-linked recordings
+          <span class="ftt-jump__count" ng-if="vm.links.candidates.length">{{ vm.links.candidates.length }}</span>
+        </a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('splits')"><i class="fas fa-cut"></i> Split flights to review</a>
+        <a class="ftt-jump__pill" ng-click="vm.jump('airborne')"><i class="fas fa-wrench"></i> Airborne time</a>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════
+           1. ANALYSIS
+           ═══════════════════════════════════════════════ -->
+      <div class="ftt-card" id="ftt-analysis">
+        <div class="ftt-card__head">
+          <i class="fas fa-sync-alt"></i> Track analysis
+          <span class="ftt-card__sub">Detects take-offs, landings and go-arounds from the recorded track</span>
+        </div>
+        <div class="ftt-card__body ftt-grid ftt-grid--2">
+
+          <!-- Backfill -->
+          <div class="ftt-block">
+            <div class="ftt-block__title">Analysis backfill</div>
+            <p class="ftt-block__help">Analyses every un-analysed file, 200 per request, until the backend reports nothing remaining.</p>
+            <div class="ftt-actions">
+              <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runBackfill()" ng-disabled="vm.bf.running">
+                <i class="fas" ng-class="vm.bf.running ? 'fa-spinner fa-spin' : 'fa-play'"></i>
+                {{ vm.bf.running ? 'Backfilling…' : 'Run backfill' }}
+              </button>
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-if="vm.bf.running" ng-click="vm.stopBackfill()" ng-disabled="vm.bf.stop" no-busy-guard>
+                <i class="fas fa-stop"></i> {{ vm.bf.stop ? 'Stopping after this loop…' : 'Stop' }}
+              </button>
+            </div>
+
+            <div class="ftt-progress" ng-if="vm.bf.running || vm.bf.finished">
+              <div class="ftt-progress__stats">
+                <span class="ftt-progress__stat"><strong>{{ vm.bf.loops }}</strong> loop{{ vm.bf.loops === 1 ? '' : 's' }}</span>
+                <span class="ftt-progress__stat"><strong>{{ vm.bf.done }}</strong> analysed</span>
+                <span class="ftt-progress__stat" ng-if="vm.bf.remaining !== null"><strong>{{ vm.bf.remaining }}</strong> remaining</span>
+                <span class="ftt-progress__stat ftt-progress__stat--muted" ng-if="vm.bf.remaining === null && vm.bf.loops">no “remaining” count in the response</span>
+              </div>
+              <div class="ftt-progress__bar" ng-if="vm.bf.remaining !== null && (vm.bf.done + vm.bf.remaining) > 0">
+                <div class="ftt-progress__fill" ng-class="{'ftt-progress__fill--done': vm.bf.finished && !vm.bf.stalled}"
+                     ng-style="{width: vm.bfPct() + '%'}"></div>
+              </div>
+              <div class="ftt-note ftt-note--ok" ng-if="vm.bf.finished && !vm.bf.stalled && !vm.bf.remaining">
+                <i class="fas fa-check-circle"></i> Every file analysed.
+              </div>
+              <div class="ftt-note ftt-note--warn" ng-if="vm.bf.finished && vm.bf.stalled">
+                <i class="fas fa-exclamation-triangle"></i> Paused — no progress over the last loops. Check the API log before re-running.
+              </div>
+              <div class="ftt-note ftt-note--muted" ng-if="vm.bf.finished && vm.bf.stop && vm.bf.remaining > 0">
+                <i class="fas fa-pause-circle"></i> Stopped by you with {{ vm.bf.remaining }} remaining.
+              </div>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.bf.error"><i class="fas fa-exclamation-circle"></i> {{ vm.bf.error }}</div>
+          </div>
+
+          <!-- Re-analyse one file -->
+          <div class="ftt-block">
+            <div class="ftt-block__title">Re-analyse a file</div>
+            <p class="ftt-block__help">After a detector update or a missing-file retry. <em>Force</em> re-runs an already-analysed file.</p>
+            <div class="ftt-form-row">
+              <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="File id" ng-model="vm.analyse.file_id" ng-keyup="$event.keyCode === 13 && vm.runAnalyse()">
+              <label class="ftt-check">
+                <input type="checkbox" ng-model="vm.analyse.force"> <span>Force</span>
+              </label>
+              <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runAnalyse()" ng-disabled="vm.analyse.busy">
+                <i class="fas" ng-class="vm.analyse.busy ? 'fa-spinner fa-spin' : 'fa-redo-alt'"></i> Analyse
+              </button>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.analyse.error"><i class="fas fa-exclamation-circle"></i> {{ vm.analyse.error }}</div>
+            <div class="ftt-result" ng-if="vm.analyse.result">
+              <div class="ftt-result__head"><i class="fas fa-check-circle"></i> File #{{ vm.analyse.result.file_id }} analysed</div>
+              <div class="ftt-kv" ng-if="vm.analyse.result.scalars.length">
+                <span class="ftt-kv__item" ng-repeat="kv in vm.analyse.result.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+              </div>
+              <div class="ftt-kv" ng-if="vm.analyse.result.summary.length">
+                <span class="ftt-kv__item" ng-repeat="kv in vm.analyse.result.summary"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+              </div>
+              <a class="ftt-link" ng-click="vm.inspectFile(vm.analyse.result.file_id)"><i class="fas fa-search"></i> inspect this file</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════
+           2. SEGMENTS
+           ═══════════════════════════════════════════════ -->
+      <div class="ftt-card" id="ftt-segments">
+        <div class="ftt-card__head">
+          <i class="fas fa-cut"></i> Split-flight segments
+          <span class="ftt-card__sub">Per-leg tracks for flights that were split at book-in</span>
+        </div>
+        <div class="ftt-card__body">
+
+          <div class="ftt-actions">
+            <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.segDryRun()" ng-disabled="vm.seg.dry_busy">
+              <i class="fas" ng-class="vm.seg.dry_busy ? 'fa-spinner fa-spin' : 'fa-eye'"></i> Dry run (50)
+            </button>
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.segAskBuild()" ng-disabled="vm.seg.build_busy || vm.seg.build_confirm">
+              <i class="fas fa-hammer"></i> Build historic segments (50)
+            </button>
+          </div>
+
+          <!-- Inline confirm -->
+          <div class="ftt-confirm" ng-if="vm.seg.build_confirm">
+            <div class="ftt-confirm__text">
+              <i class="fas fa-exclamation-triangle"></i>
+              Build per-leg tracks for up to 50 historic splits now? Each leg gets its own file; the originals are untouched.
+            </div>
+            <div class="ftt-confirm__actions">
+              <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.segCancelBuild()" ng-disabled="vm.seg.build_busy">Cancel</button>
+              <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.segBuild()" ng-disabled="vm.seg.build_busy">
+                <i class="fas" ng-class="vm.seg.build_busy ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ vm.seg.build_busy ? 'Building…' : 'Yes, build' }}
+              </button>
+            </div>
+          </div>
+          <div class="ftt-note ftt-note--bad" ng-if="vm.seg.dry_error"><i class="fas fa-exclamation-circle"></i> {{ vm.seg.dry_error }}</div>
+          <div class="ftt-note ftt-note--bad" ng-if="vm.seg.build_error"><i class="fas fa-exclamation-circle"></i> {{ vm.seg.build_error }}</div>
+
+          <!-- Dry run / build results share one renderer -->
+          <div class="ftt-grid ftt-grid--2" ng-if="vm.seg.results.length">
+            <div class="ftt-block" ng-repeat="res in vm.seg.results">
+              <div class="ftt-block__title">
+                {{ res.title }}
+                <span class="ftt-chip ftt-chip--green">{{ res.candidates.length }} candidate{{ res.candidates.length === 1 ? '' : 's' }}</span>
+                <span class="ftt-chip ftt-chip--grey">{{ res.skipped.length }} skipped</span>
+              </div>
+              <div class="ftt-kv" ng-if="res.scalars.length">
+                <span class="ftt-kv__item" ng-repeat="kv in res.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+              </div>
+              <div class="ftt-seg-list" ng-if="res.candidates.length">
+                <div class="ftt-seg-row" ng-repeat="row in res.candidates">
+                  <span class="ftt-seg-row__id fxh__mono" ng-if="row.id">sheet #{{ row.id }}</span>
+                  <span class="ftt-seg-row__kv" ng-repeat="kv in row.kv"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+                  <span class="ftt-seg-row__reason" ng-if="row.reason">{{ row.reason }}</span>
+                </div>
+              </div>
+              <div class="ftt-seg-list ftt-seg-list--skipped" ng-if="res.skipped.length">
+                <div class="ftt-seg-list__head">Skipped</div>
+                <div class="ftt-seg-row" ng-repeat="row in res.skipped">
+                  <span class="ftt-seg-row__id fxh__mono" ng-if="row.id">sheet #{{ row.id }}</span>
+                  <span class="ftt-seg-row__reason ftt-seg-row__reason--why">{{ vm.reasonText(row.reason) || 'no reason given' }}</span>
+                  <span class="ftt-seg-row__kv" ng-repeat="kv in row.kv"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+                </div>
+              </div>
+              <div class="ftt-empty" ng-if="!res.candidates.length && !res.skipped.length">Nothing to do — every split already has its segments.</div>
+            </div>
+          </div>
+
+          <!-- Rebuild one split -->
+          <div class="ftt-block ftt-block--divider">
+            <div class="ftt-block__title">Rebuild one split</div>
+            <p class="ftt-block__help">Re-cuts both legs from the original recording. Use when a leg shows “track not yet cut” or <code>EMPTY_SEGMENT</code>. Either leg's id works.</p>
+            <div class="ftt-form-row">
+              <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Log sheet id" ng-model="vm.seg.rebuild_id" ng-keyup="$event.keyCode === 13 && vm.segRebuild()">
+              <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.segRebuild()" ng-disabled="vm.seg.rebuild_busy">
+                <i class="fas" ng-class="vm.seg.rebuild_busy ? 'fa-spinner fa-spin' : 'fa-redo-alt'"></i> Rebuild
+              </button>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.seg.rebuild_error"><i class="fas fa-exclamation-circle"></i> {{ vm.seg.rebuild_error }}</div>
+            <div class="ftt-result" ng-if="vm.seg.rebuild">
+              <div class="ftt-result__head"><i class="fas fa-check-circle"></i> Sheet #{{ vm.seg.rebuild.pls_id }} rebuilt</div>
+              <div class="ftt-kv">
+                <span class="ftt-kv__item" ng-repeat="kv in vm.seg.rebuild.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+                <span class="ftt-kv__item" ng-repeat="kv in vm.seg.rebuild.rows"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════
+           3. INSPECT A FILE
+           ═══════════════════════════════════════════════ -->
+      <!-- ── Flight analysis: reconciliation for one log sheet ── -->
+      <div class="ftt-card" id="ftt-flight">
+        <div class="ftt-card__head">
+          <i class="fas fa-route"></i> Flight analysis
+          <span class="ftt-card__sub">Tracker · track file · log sheet for one flight, with Apply</span>
+        </div>
+        <div class="ftt-card__body">
+          <div class="ftt-form-row">
+            <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Log sheet id" ng-model="vm.flight.pls_id" ng-keyup="$event.keyCode === 13 && vm.runFlight()">
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runFlight()" no-busy-guard>
+              <i class="fas fa-route"></i> Analyse
+            </button>
+          </div>
+          <div class="ftt-flight" ng-if="vm.flight.shown_id">
+            <track-reconciliation class="trc-host--full" pls-id="vm.flight.shown_id" start-open="true" empty-text="No tracker recording is linked to this log sheet."></track-reconciliation>
+          </div>
+          <div class="ftt-empty" ng-if="!vm.flight.shown_id">Enter a log sheet id (the debrief and flight-edit screens link here for ToAviate staff).</div>
+        </div>
+      </div>
+
+      <div class="ftt-card" id="ftt-inspect">
+        <div class="ftt-card__head">
+          <i class="fas fa-search"></i> Inspect a file
+          <span class="ftt-card__sub">Tracker vs track reconciliation for one recording, read-only</span>
+        </div>
+        <div class="ftt-card__body">
+          <div class="ftt-form-row">
+            <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="File id" ng-model="vm.inspect.file_id" ng-keyup="$event.keyCode === 13 && vm.runInspect()">
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runInspect()" ng-disabled="vm.inspect.busy">
+              <i class="fas" ng-class="vm.inspect.busy ? 'fa-spinner fa-spin' : 'fa-search'"></i> Inspect
+            </button>
+          </div>
+          <div class="ftt-note ftt-note--bad" ng-if="vm.inspect.error"><i class="fas fa-exclamation-circle"></i> {{ vm.inspect.error }}</div>
+
+          <div class="ftt-inspect" ng-if="vm.inspect.data">
+            <div class="ftt-inspect__title">
+              File #{{ vm.inspect.data.file_id }}
+              <span class="fxh__mono ftt-inspect__path" ng-if="vm.inspect.data.file.file_path" ng-click="vm.copy(vm.inspect.data.file.file_path)" uib-tooltip="Tap to copy">{{ vm.basename(vm.inspect.data.file.file_path) }}</span>
+              <span class="ftt-chip ftt-chip--amber" ng-if="!vm.inspect.data.available"><i class="fas fa-hourglass-half"></i> track analysis pending</span>
+            </div>
+
+            <!-- Flags -->
+            <div class="ftt-flags" ng-if="vm.inspect.data.flags.length">
+              <span class="ftt-flag" ng-repeat="f in vm.inspect.data.flags" uib-tooltip="{{ f }}"><i class="fas fa-exclamation-triangle"></i> {{ vm.flagLabel(f) }}</span>
+            </div>
+
+            <div class="ftt-grid ftt-grid--3">
+              <!-- Tracker -->
+              <div class="ftt-block ftt-block--col">
+                <div class="ftt-block__title"><i class="fas fa-satellite-dish"></i> Tracker</div>
+                <div class="ftt-empty" ng-if="!vm.inspect.data.tracker">No tracker block.</div>
+                <div class="ftt-kv ftt-kv--stack" ng-if="vm.inspect.data.tracker">
+                  <span class="ftt-kv__item" ng-repeat="kv in vm.inspect.data.tracker_scalars"><label>{{ kv.label }}</label> {{ kv.k === 'airborne_seconds' ? vm.duration(kv.v) : vm.fmt(kv.v) }}</span>
+                </div>
+                <div class="ftt-table-wrap" ng-if="vm.inspect.data.tracker_pairs.length">
+                  <table class="ftt-table ftt-table--compact">
+                    <thead><tr><th>#</th><th>Start</th><th>End</th><th>Dur.</th></tr></thead>
+                    <tbody>
+                      <tr ng-repeat="p in vm.inspect.data.tracker_pairs">
+                        <td data-label="#">{{ p.index }}</td>
+                        <td data-label="Start" class="fxh__mono">{{ vm.ts(p.start) }}</td>
+                        <td data-label="End" class="fxh__mono">{{ vm.ts(p.end) }}</td>
+                        <td data-label="Dur.">{{ vm.duration(p.duration_s) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Track -->
+              <div class="ftt-block ftt-block--col">
+                <div class="ftt-block__title"><i class="fas fa-route"></i> Track file</div>
+                <div class="ftt-empty" ng-if="!vm.inspect.data.summary">Not analysed yet.</div>
+                <div class="ftt-kv ftt-kv--stack" ng-if="vm.inspect.data.summary">
+                  <span class="ftt-kv__item" ng-repeat="kv in vm.inspect.data.summary_scalars">
+                    <label>{{ kv.label }}</label>
+                    {{ kv.k === 'airborne_seconds' ? vm.duration(kv.v) : (kv.k === 'confidence' ? vm.pct(kv.v) : vm.fmt(kv.v)) }}
+                    <span class="ftt-chip ftt-chip--amber" ng-if="kv.k === 'confidence' && kv.v < 0.5">unconfirmed</span>
+                  </span>
+                </div>
+                <div class="ftt-table-wrap" ng-if="vm.inspect.data.events.length">
+                  <table class="ftt-table ftt-table--compact">
+                    <thead><tr><th>#</th><th>Event</th><th>At</th><th>Conf.</th></tr></thead>
+                    <tbody>
+                      <tr ng-repeat="e in vm.inspect.data.events" ng-class="{'ftt-table__row--dim': e.confidence < 0.5}">
+                        <td data-label="#">{{ e.seq }}</td>
+                        <td data-label="Event">
+                          <i class="fas" ng-class="e.event_type === 'takeoff' ? 'fa-plane-departure' : (e.event_type === 'landing' ? 'fa-plane-arrival' : 'fa-undo-alt')"></i>
+                          {{ e.event_type === 'landing' ? vm.landingKindLabel(e.landing_kind) : e.event_type.replace('_', '-') }}
+                          <span class="ftt-table__hint" ng-if="e.method && e.method !== 'speed' && e.method !== 'speed_agl'" uib-tooltip="{{ vm.methodLabel(e.method) }}"><i class="fas fa-info-circle"></i></span>
+                        </td>
+                        <td data-label="At" class="fxh__mono">{{ vm.ts(e.at) }}</td>
+                        <td data-label="Conf.">{{ vm.pct(e.confidence) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Comparison -->
+              <div class="ftt-block ftt-block--col">
+                <div class="ftt-block__title"><i class="fas fa-balance-scale"></i> Comparison</div>
+                <div class="ftt-empty" ng-if="!vm.inspect.data.comparison">No comparison — the track has not been analysed.</div>
+                <div ng-if="vm.inspect.data.comparison">
+                  <div class="ftt-kv ftt-kv--stack">
+                    <span class="ftt-kv__item"><label>agreement</label> {{ vm.pct(vm.inspect.data.comparison.agreement) }}</span>
+                    <span class="ftt-kv__item"><label>tolerance</label> {{ vm.inspect.data.comparison.tolerance_s }} s</span>
+                    <span class="ftt-kv__item"><label>matched</label> {{ vm.inspect.data.matched.length }}</span>
+                    <span class="ftt-kv__item"><label>real pairs</label> {{ vm.fmt(vm.inspect.data.comparison.tracker_pairs_real) }}</span>
+                    <span class="ftt-kv__item"><label>phantom pairs</label> {{ vm.fmt(vm.inspect.data.comparison.tracker_pairs_phantom) }}</span>
+                    <span class="ftt-kv__item"><label>outside file</label> {{ vm.fmt(vm.inspect.data.comparison.tracker_pairs_outside) }}</span>
+                  </div>
+                  <div class="ftt-verdicts" ng-if="vm.inspect.data.tracker_only.length">
+                    <div class="ftt-seg-list__head">Tracker only</div>
+                    <div class="ftt-verdict" ng-repeat="t in vm.inspect.data.tracker_only">
+                      <span class="fxh__mono">#{{ t.index }} {{ vm.window(t.start, t.end) }}</span>
+                      <span class="ftt-chip" ng-class="t.verdict === 'unexplained' ? 'ftt-chip--red' : 'ftt-chip--amber'">{{ vm.verdictLabel(t.verdict) }}</span>
+                      <span class="ftt-verdict__check" ng-if="t.check">max {{ t.check.max_speed_kt }} kt · {{ t.check.max_agl_ft }} ft agl</span>
+                    </div>
+                  </div>
+                  <div class="ftt-verdicts" ng-if="vm.inspect.data.track_only.length">
+                    <div class="ftt-seg-list__head">Track only</div>
+                    <div class="ftt-verdict" ng-repeat="t in vm.inspect.data.track_only">
+                      <span class="fxh__mono">{{ vm.ts(t.at || (t.landing && t.landing.at) || (t.takeoff && t.takeoff.at)) }}</span>
+                      <span class="ftt-chip ftt-chip--blue">the track shows a landing the tracker missed</span>
+                    </div>
+                  </div>
+                  <div class="ftt-notes" ng-if="vm.inspect.data.notes.length">
+                    <div class="ftt-notes__row" ng-repeat="n in vm.inspect.data.notes track by $index"><i class="fas fa-sticky-note"></i> {{ n }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommended -->
+            <div class="ftt-block ftt-block--divider" ng-if="vm.inspect.data.recommended.length">
+              <div class="ftt-block__title"><i class="fas fa-lightbulb"></i> Recommended</div>
+              <div class="ftt-table-wrap">
+                <table class="ftt-table">
+                  <thead><tr><th>Field</th><th>Value</th><th>Source</th><th>Reason</th></tr></thead>
+                  <tbody>
+                    <tr ng-repeat="r in vm.inspect.data.recommended">
+                      <td data-label="Field">{{ vm.label(r.field) }}</td>
+                      <td data-label="Value" class="fxh__mono">{{ r.field === 'airborne_seconds' ? vm.duration(r.value) : vm.fmt(r.value) }}</td>
+                      <td data-label="Source"><span class="ftt-chip" ng-class="vm.sourceCls(r.source)" uib-tooltip="{{ vm.inspect.data.policy[r.field] }}">{{ r.source }}</span></td>
+                      <td data-label="Reason" class="ftt-table__muted">{{ r.reason }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════
+           4. MIS-LINKED RECORDINGS
+           ═══════════════════════════════════════════════ -->
+      <div class="ftt-card" id="ftt-links">
+        <div class="ftt-card__head">
+          <i class="fas fa-link"></i> Mis-linked recordings
+          <span class="ftt-card__sub">Recordings whose Fox entry does not cover their time range</span>
+        </div>
+        <div class="ftt-card__body">
+
+          <!-- Filters + batch label -->
+          <div class="ftt-form-row ftt-form-row--filters">
+            <input type="text" class="fox-tracker__form-input ftt-input ftt-input--imei fxh__mono" placeholder="IMEI (optional)" ng-model="vm.links.imei" ng-keyup="$event.keyCode === 13 && vm.runScan()">
+            <input type="number" min="1" max="1000" class="fox-tracker__form-input ftt-input ftt-input--num" placeholder="Limit" ng-model="vm.links.limit" uib-tooltip="Scan limit">
+            <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runScan()" ng-disabled="vm.links.scan_busy">
+              <i class="fas" ng-class="vm.links.scan_busy ? 'fa-spinner fa-spin' : 'fa-search'"></i> Scan
+            </button>
+            <span class="ftt-form-row__spacer"></span>
+            <label class="ftt-batch">
+              <span class="ftt-batch__label" uib-tooltip="One label per session — repairs and every manual decision below are logged under it, so Undo reverses them all at once">Batch</span>
+              <input type="text" class="fox-tracker__form-input ftt-input ftt-input--batch fxh__mono" ng-model="vm.links.batch" maxlength="64">
+            </label>
+          </div>
+          <div class="ftt-note ftt-note--bad" ng-if="vm.links.scan_error"><i class="fas fa-exclamation-circle"></i> {{ vm.links.scan_error }}</div>
+
+          <!-- Last manual resolution (survives the re-scan) -->
+          <div class="ftt-result ftt-result--resolve" ng-if="vm.last_resolve">
+            <div class="ftt-result__head">
+              <i class="fas fa-check-circle"></i>
+              File #{{ vm.last_resolve.file_id }}
+              <span ng-if="vm.last_resolve.decision === 'unlink'">unlinked</span>
+              <span ng-if="vm.last_resolve.decision === 'create'">moved to new entry #{{ vm.last_resolve.new_entry_id }}</span>
+              <span ng-if="vm.last_resolve.decision === 'entry'">linked to entry #{{ vm.last_resolve.new_entry_id }}</span>
+              <span class="ftt-chip ftt-chip--grey" ng-if="vm.last_resolve.old_entry_id">was #{{ vm.last_resolve.old_entry_id }}</span>
+              <span class="ftt-chip ftt-chip--grey fxh__mono">{{ vm.last_resolve.batch }}</span>
+              <a class="ftt-result__dismiss" ng-click="vm.last_resolve = null" no-busy-guard><i class="fas fa-times"></i></a>
+            </div>
+            <div class="ftt-result__note" ng-if="vm.last_resolve.note"><i class="fas fa-info-circle"></i> {{ vm.last_resolve.note }}</div>
+            <div class="ftt-result__existing" ng-if="vm.last_resolve.existing">
+              <i class="fas fa-file-alt"></i>
+              Entry #{{ vm.last_resolve.new_entry_id }} already had recording
+              <a class="ftt-link" ng-click="vm.inspectFile(vm.last_resolve.existing.id)">#{{ vm.last_resolve.existing.id }}</a>
+              <span class="fxh__mono">{{ vm.window(vm.last_resolve.existing.first, vm.last_resolve.existing.last) }}</span>
+              — it stays the entry's main file;
+              <span ng-if="vm.last_resolve.existing.entry_covers_it">the entry covers it.</span>
+              <span ng-if="!vm.last_resolve.existing.entry_covers_it" class="ftt-result__flag">the entry does not cover it, so it will come back on the next scan for its own decision.</span>
+            </div>
+          </div>
+
+          <!-- Scan summary -->
+          <div class="snazzy-page__toolbar" ng-if="vm.links.scan">
+            <div class="snazzy-page__meta">
+              <span class="snazzy-page__count-badge">{{ vm.links.candidates.length }}</span> candidate{{ vm.links.candidates.length === 1 ? '' : 's' }}
+              <span ng-if="vm.links.skip_count"> · <strong>{{ vm.links.skip_count }}</strong> need{{ vm.links.skip_count === 1 ? 's' : '' }} a human decision</span>
+              <span class="ftt-table__muted" ng-if="vm.links.imei"> · IMEI {{ vm.links.imei }}</span>
+              <span class="ftt-table__muted"> · scanned {{ vm.ago(vm.links.scan.ran_at) }}</span>
+            </div>
+            <div class="ftt-kv ftt-kv--inline" ng-if="vm.links.scan.scalars.length">
+              <span class="ftt-kv__item" ng-repeat="kv in vm.links.scan.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+            </div>
+          </div>
+
+          <div class="ftt-empty ftt-empty--big" ng-if="vm.links.scan && !vm.links.candidates.length">
+            <i class="fas fa-clipboard-check"></i> Every recording is linked to an entry that covers it.
+          </div>
+
+          <!-- Candidates table -->
+          <div class="ftt-table-wrap" ng-if="vm.links.candidates.length">
+            <table class="ftt-table ftt-table--links">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Recording window</th>
+                  <th>Old entry</th>
+                  <th>Action</th>
+                  <th>Reason</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Two <tr>s per candidate via ng-repeat-start / -end; the
+                     second is the resolve drawer for skip rows. ng-show, not
+                     ng-if, on repeat elements (inert on Angular 1.4). -->
+                <tr ng-repeat-start="c in vm.links.candidates" class="ftt-table__row"
+                    ng-class="{'ftt-table__row--resolvable': vm.resolvable(c), 'ftt-table__row--open': c._open, 'ftt-table__row--resolved': c._resolved}"
+                    ng-click="vm.toggleCandidate(c)">
+                  <td data-label="File">
+                    <span class="fxh__mono ftt-table__id">#{{ c.file_id }}</span>
+                    <span class="ftt-table__path" ng-click="$event.stopPropagation(); vm.copy(c.file_path)" uib-tooltip="{{ c.file_path }} — tap to copy">{{ vm.basename(c.file_path) }}</span>
+                  </td>
+                  <td data-label="Recording" class="fxh__mono">{{ vm.window(c.first, c.last) }}</td>
+                  <td data-label="Old entry">
+                    <span class="fxh__mono ftt-table__id" ng-if="c.old_entry_id">#{{ c.old_entry_id }}</span>
+                    <span class="ftt-table__muted" ng-if="!c.old_entry_id">none</span>
+                    <div class="ftt-table__sub fxh__mono" ng-if="c.old_entry_window">
+                      {{ vm.window(c.old_entry_window.brakes_off, c.old_entry_window.brakes_on) }}
+                      <span class="ftt-table__muted" ng-if="c.old_entry_window.pairs !== undefined">· {{ c.old_entry_window.pairs }} pair{{ c.old_entry_window.pairs == 1 ? '' : 's' }}</span>
+                    </div>
+                  </td>
+                  <td data-label="Action">
+                    <span class="ftt-chip" ng-class="vm.actionMeta(c.action).cls"><i class="fas {{ vm.actionMeta(c.action).icon }}"></i> {{ vm.actionMeta(c.action).label }}</span>
+                    <span class="ftt-table__sub" ng-if="c.new_entry_id">→ entry #{{ c.new_entry_id }}</span>
+                  </td>
+                  <td data-label="Reason">
+                    <span class="ftt-table__reason">{{ c.reason }}</span>
+                    <div class="ftt-table__sub" ng-if="vm.reasonText(c.reason) !== c.reason">{{ vm.reasonText(c.reason) }}</div>
+                  </td>
+                  <td data-label="" class="ftt-table__act">
+                    <a class="ftt-link" ng-click="$event.stopPropagation(); vm.inspectFile(c.file_id)" uib-tooltip="Inspect this file"><i class="fas fa-search"></i></a>
+                    <a class="ftt-link ftt-link--resolve" ng-show="vm.resolvable(c)">
+                      <i class="fas" ng-class="c._open ? 'fa-chevron-up' : 'fa-chevron-down'"></i> {{ c._open ? 'close' : 'decide' }}
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- ── §4.1 Resolve drawer ── -->
+                <tr ng-repeat-end class="ftt-resolve-row" ng-show="c._open && vm.resolvable(c)">
+                  <td colspan="6">
+                    <div class="ftt-resolve">
+                      <div class="ftt-resolve__file">
+                        <div class="ftt-resolve__file-title"><i class="fas fa-file-alt"></i> Recording #{{ c.file_id }}</div>
+                        <div class="ftt-resolve__file-window fxh__mono">{{ vm.ts(c.first) }}<br>→ {{ vm.ts(c.last) }}</div>
+                        <div class="ftt-resolve__file-path" ng-click="vm.copy(c.file_path)">{{ vm.basename(c.file_path) }}</div>
+                        <div class="ftt-resolve__file-old" ng-if="c.old_entry_id">
+                          currently on entry #{{ c.old_entry_id }}
+                          <span ng-if="c.old_entry_window" class="fxh__mono">({{ vm.window(c.old_entry_window.brakes_off, c.old_entry_window.brakes_on) }})</span>
+                        </div>
+                        <div class="ftt-resolve__why">{{ vm.reasonText(c.reason) }}</div>
+                      </div>
+
+                      <div class="ftt-resolve__choices">
+                        <div class="ftt-resolve__head">Which flight is this recording?</div>
+
+                        <label class="ftt-choice" ng-repeat="e in c.candidate_entries" ng-class="{'ftt-choice--on': c._pick === ('e' + e.id), 'ftt-choice--preferred': e.sheets > 0 || e.claimed}">
+                          <input type="radio" name="ftt-pick-{{ c.file_id }}" ng-model="c._pick" value="e{{ e.id }}">
+                          <span class="ftt-choice__body">
+                            <span class="ftt-choice__title">
+                              Entry #{{ e.id }}
+                              <span class="ftt-table__muted" ng-if="e.flight_number">· flight {{ e.flight_number }}</span>
+                              <span class="ftt-chip ftt-chip--green" ng-if="e.sheets > 0"><i class="fas fa-clipboard"></i> {{ e.sheets }} log sheet{{ e.sheets == 1 ? '' : 's' }}</span>
+                              <span class="ftt-chip ftt-chip--blue" ng-if="e.claimed"><i class="fas fa-user-check"></i> claimed</span>
+                              <span class="ftt-chip ftt-chip--amber" ng-if="e.has_file"><i class="fas fa-file-alt"></i> has its own recording<span ng-if="e.file_id"> #{{ e.file_id }}</span></span>
+                            </span>
+                            <span class="ftt-choice__line"><label>brakes</label> <span class="fxh__mono">{{ vm.window(e.brakes_off, e.brakes_on) }}</span></span>
+                            <span class="ftt-choice__line"><label>airborne</label> <span class="fxh__mono">{{ vm.window(e.pairs_first, e.pairs_last) }}</span> <span class="ftt-table__muted">({{ e.pairs }} pair{{ e.pairs == 1 ? '' : 's' }})</span></span>
+                          </span>
+                        </label>
+
+                        <label class="ftt-choice ftt-choice--alt" ng-class="{'ftt-choice--on': c._pick === 'create'}">
+                          <input type="radio" name="ftt-pick-{{ c.file_id }}" ng-model="c._pick" value="create">
+                          <span class="ftt-choice__body">
+                            <span class="ftt-choice__title"><i class="fas fa-plus"></i> Create a new entry from this recording</span>
+                            <span class="ftt-choice__line ftt-table__muted">None of the entries above is this flight — make one from the recording's own window.</span>
+                          </span>
+                        </label>
+                        <label class="ftt-choice ftt-choice--alt" ng-class="{'ftt-choice--on': c._pick === 'unlink'}">
+                          <input type="radio" name="ftt-pick-{{ c.file_id }}" ng-model="c._pick" value="unlink">
+                          <span class="ftt-choice__body">
+                            <span class="ftt-choice__title"><i class="fas fa-unlink"></i> Unlink (not a flight)</span>
+                            <span class="ftt-choice__line ftt-table__muted">The recording stays on disk but is attached to no entry.</span>
+                          </span>
+                        </label>
+
+                        <div class="ftt-note ftt-note--bad" ng-if="c._error"><i class="fas fa-exclamation-circle"></i> {{ c._error }}</div>
+
+                        <div class="ftt-resolve__actions">
+                          <span class="ftt-table__muted">logged as <span class="fxh__mono">{{ vm.links.batch || '(no batch)' }}</span> · reason “manual”</span>
+                          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.resolve(c)" ng-disabled="c._busy || !c._pick">
+                            <i class="fas" ng-class="c._busy ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ c._busy ? 'Applying…' : 'Apply decision' }}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- ── Repair / Undo / Report ── -->
+          <div class="ftt-grid ftt-grid--3 ftt-block--divider">
+
+            <!-- Repair -->
+            <div class="ftt-block">
+              <div class="ftt-block__title"><i class="fas fa-wrench"></i> Repair</div>
+              <p class="ftt-block__help">Applies every relink / create / unlink the scan proposes, {{ vm.repair.limit }} files per request until nothing changes. Skips stay for you to decide above.</p>
+              <div class="ftt-form-row">
+                <input type="number" min="1" max="500" class="fox-tracker__form-input ftt-input ftt-input--num" ng-model="vm.repair.limit" uib-tooltip="Files per request" ng-disabled="vm.repair.running">
+                <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.repairAsk()" ng-disabled="vm.repair.running || vm.repair.confirm">
+                  <i class="fas fa-wrench"></i> Repair{{ vm.links.imei ? ' this IMEI' : ' all' }}
+                </button>
+                <button class="snazzy-page__btn snazzy-page__btn--outline" ng-if="vm.repair.running" ng-click="vm.stopRepair()" ng-disabled="vm.repair.stop" no-busy-guard>
+                  <i class="fas fa-stop"></i> {{ vm.repair.stop ? 'Stopping…' : 'Stop' }}
+                </button>
+              </div>
+              <div class="ftt-confirm" ng-if="vm.repair.confirm">
+                <div class="ftt-confirm__text">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  Re-point recordings{{ vm.links.imei ? ' for IMEI ' + vm.links.imei : ' fleet-wide' }} under batch <span class="fxh__mono">{{ vm.links.batch }}</span>? One transaction per file; reversible with Undo.
+                </div>
+                <div class="ftt-confirm__actions">
+                  <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.repairCancel()">Cancel</button>
+                  <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.runRepair()"><i class="fas fa-check"></i> Yes, repair</button>
+                </div>
+              </div>
+              <div class="ftt-progress" ng-if="vm.repair.running || vm.repair.finished">
+                <div class="ftt-progress__stats">
+                  <span class="ftt-progress__stat"><strong>{{ vm.repair.loops }}</strong> loop{{ vm.repair.loops === 1 ? '' : 's' }}</span>
+                  <span class="ftt-progress__stat"><strong>{{ vm.repair.changed_total }}</strong> changed</span>
+                  <span class="ftt-progress__stat" ng-if="vm.repair.running"><i class="fas fa-spinner fa-spin"></i> running</span>
+                </div>
+                <div class="ftt-kv" ng-if="vm.repair.last.scalars.length">
+                  <span class="ftt-kv__item" ng-repeat="kv in vm.repair.last.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+                </div>
+                <div class="ftt-note ftt-note--ok" ng-if="vm.repair.finished && !vm.repair.stalled && !vm.repair.stop"><i class="fas fa-check-circle"></i> Nothing left to change.</div>
+                <div class="ftt-note ftt-note--warn" ng-if="vm.repair.finished && vm.repair.stalled"><i class="fas fa-exclamation-triangle"></i> Loop limit reached — re-run to continue.</div>
+              </div>
+              <div class="ftt-note ftt-note--bad" ng-if="vm.repair.error"><i class="fas fa-exclamation-circle"></i> {{ vm.repair.error }}</div>
+            </div>
+
+            <!-- Undo -->
+            <div class="ftt-block">
+              <div class="ftt-block__title"><i class="fas fa-undo"></i> Undo a batch</div>
+              <p class="ftt-block__help">Restores the pointers a batch changed. Entries the batch created stay and are listed.</p>
+              <div class="ftt-form-row">
+                <input type="text" class="fox-tracker__form-input ftt-input ftt-input--batch fxh__mono" placeholder="Batch label" ng-model="vm.undo.batch">
+                <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.undoAsk()" ng-disabled="vm.undo.busy || vm.undo.confirm">
+                  <i class="fas fa-undo"></i> Undo
+                </button>
+              </div>
+              <div class="ftt-confirm" ng-if="vm.undo.confirm">
+                <div class="ftt-confirm__text">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  Undo every change logged under <span class="fxh__mono">{{ vm.undo.batch }}</span> — repairs and manual decisions alike?
+                </div>
+                <div class="ftt-confirm__actions">
+                  <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.undoCancel()" ng-disabled="vm.undo.busy">Cancel</button>
+                  <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.runUndo()" ng-disabled="vm.undo.busy">
+                    <i class="fas" ng-class="vm.undo.busy ? 'fa-spinner fa-spin' : 'fa-undo'"></i> {{ vm.undo.busy ? 'Undoing…' : 'Yes, undo' }}
+                  </button>
+                </div>
+              </div>
+              <div class="ftt-note ftt-note--bad" ng-if="vm.undo.error"><i class="fas fa-exclamation-circle"></i> {{ vm.undo.error }}</div>
+              <div class="ftt-result" ng-if="vm.undo.result">
+                <div class="ftt-result__head"><i class="fas fa-check-circle"></i> Batch <span class="fxh__mono">{{ vm.undo.result.batch }}</span> undone</div>
+                <div class="ftt-kv" ng-if="vm.undo.result.scalars.length">
+                  <span class="ftt-kv__item" ng-repeat="kv in vm.undo.result.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+                </div>
+                <div class="ftt-result__note" ng-if="vm.undo.result.entries_left_count">
+                  <i class="fas fa-info-circle"></i>
+                  {{ vm.undo.result.entries_left_count }} entr{{ vm.undo.result.entries_left_count === 1 ? 'y' : 'ies' }} created by the batch stay{{ vm.undo.result.entries_left_count === 1 ? 's' : '' }}:
+                  <span class="fxh__mono" ng-repeat="id in vm.undo.result.entries_left track by $index">#{{ id.id || id }}{{ $last ? '' : ', ' }}</span>
+                </div>
+                <div class="ftt-result__note ftt-table__muted" ng-if="!vm.undo.result.entries_left_count">No entries were created by this batch.</div>
+              </div>
+            </div>
+
+            <!-- Report -->
+            <div class="ftt-block">
+              <div class="ftt-block__title"><i class="fas fa-list-alt"></i> Report</div>
+              <p class="ftt-block__help">Audit rows from <code>fox_link_repairs</code>. Leave the label blank for every batch.</p>
+              <div class="ftt-form-row">
+                <input type="text" class="fox-tracker__form-input ftt-input ftt-input--batch fxh__mono" placeholder="Batch (blank = all)" ng-model="vm.report.batch" ng-keyup="$event.keyCode === 13 && vm.runReport()">
+                <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.runReport()" ng-disabled="vm.report.busy">
+                  <i class="fas" ng-class="vm.report.busy ? 'fa-spinner fa-spin' : 'fa-list-alt'"></i> Report
+                </button>
+              </div>
+              <div class="ftt-note ftt-note--bad" ng-if="vm.report.error"><i class="fas fa-exclamation-circle"></i> {{ vm.report.error }}</div>
+            </div>
+          </div>
+
+          <!-- Report output (full width) -->
+          <div class="ftt-report" ng-if="vm.report.loaded">
+            <div class="ftt-kv ftt-kv--inline" ng-if="vm.report.scalars.length">
+              <span class="ftt-kv__item" ng-repeat="kv in vm.report.scalars"><label>{{ kv.label }}</label> {{ vm.fmt(kv.v) }}</span>
+            </div>
+
+            <div class="ftt-table-wrap" ng-if="vm.report.batches.length">
+              <div class="ftt-seg-list__head">Batches</div>
+              <table class="ftt-table ftt-table--report">
+                <thead><tr><th ng-repeat="col in vm.report.batch_cols">{{ col.label }}</th><th></th></tr></thead>
+                <tbody>
+                  <tr ng-repeat="row in vm.report.batches">
+                    <td ng-repeat="col in vm.report.batch_cols" data-label="{{ col.label }}" ng-class="{'fxh__mono': col.k === 'batch'}">{{ vm.fmt(row[col.k]) }}</td>
+                    <td data-label="" class="ftt-table__act"><a class="ftt-link" ng-if="row.batch" ng-click="vm.reportBatch(row.batch)">rows <i class="fas fa-arrow-right"></i></a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="ftt-table-wrap" ng-if="vm.report.rows.length">
+              <div class="ftt-seg-list__head">{{ vm.report.batch ? 'Batch ' + vm.report.batch : 'All repair rows' }} · {{ vm.report.rows.length }}</div>
+              <table class="ftt-table ftt-table--report">
+                <thead><tr><th ng-repeat="col in vm.report.cols">{{ col.label }}</th></tr></thead>
+                <tbody>
+                  <tr ng-repeat="row in vm.report.rows">
+                    <td ng-repeat="col in vm.report.cols" data-label="{{ col.label }}" ng-class="{'fxh__mono': col.k === 'batch' || col.k.slice(-3) === '_id' || col.k.slice(-3) === '_at'}">
+                      <span ng-if="col.k === 'action'" class="ftt-chip" ng-class="vm.actionMeta(row[col.k]).cls">{{ vm.fmt(row[col.k]) }}</span>
+                      <span ng-if="col.k === 'batch'"><a class="ftt-link" ng-click="vm.reportBatch(row[col.k])">{{ vm.fmt(row[col.k]) }}</a></span>
+                      <span ng-if="col.k !== 'action' && col.k !== 'batch'">{{ vm.fmt(row[col.k]) }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="ftt-empty" ng-if="!vm.report.rows.length && !vm.report.batches.length">No repair rows{{ vm.report.batch ? ' for batch ' + vm.report.batch : ' yet' }}.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           6. Airborne time (maintenance hours) — BACKEND_AIRBORNE_SOURCE_GUIDE.md §5 / §6
+           ═══════════════════════════════════════════════════ -->
+      <div class="ftt-card" id="ftt-airborne">
+        <div class="ftt-card__head">
+          <i class="fas fa-wrench"></i> Airborne time (maintenance hours)
+          <span class="ftt-card__sub">Most accurate source wins — track file › tracker › take-off/landing clock › brakes − 10 min. Once a sheet is settled nothing automatic changes it.</span>
+        </div>
+        <div class="ftt-card__body">
+
+          <!-- Recompute over the history -->
+          <div class="ftt-block">
+            <div class="ftt-block__title">Recalculate airborne time over the history</div>
+            <p class="ftt-block__help">
+              <strong>Dry run</strong> reports what would change and why (nothing is written). Read the biggest moves: a flight whose
+              track and tracker disagree by hours is a mis-linked recording, not a correction. <strong>Apply</strong> writes the best figure
+              on every non-manual sheet, stamps its source, <strong>locks every row older than 2 days</strong>, and rebuilds the logbooks of
+              every aircraft touched. Chunked — large histories take several requests.
+            </p>
+            <div class="ftt-form-row">
+              <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Last N days (blank = all)" ng-model="vm.air.days">
+              <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Plane id (optional)" ng-model="vm.air.plane_id">
+              <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.airRun(false)" ng-disabled="vm.air.busy">
+                <i class="fas" ng-class="vm.air.busy && vm.air.mode === 'dry' ? 'fa-spinner fa-spin' : 'fa-vial'"></i> Dry run
+              </button>
+              <button class="snazzy-page__btn snazzy-page__btn--danger" ng-if="!vm.air.confirm" ng-click="vm.airRun(true)" ng-disabled="vm.air.busy">
+                <i class="fas" ng-class="vm.air.busy && vm.air.mode === 'apply' ? 'fa-spinner fa-spin' : 'fa-check-double'"></i> Apply
+              </button>
+              <span ng-if="vm.air.confirm">
+                <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.airRun(true)"><i class="fas fa-exclamation-triangle"></i> Confirm — write, stamp and lock</button>
+                <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.air.confirm = false">Cancel</button>
+              </span>
+              <span class="ftt-chip ftt-chip--grey" ng-if="vm.air.busy">{{ vm.air.progress.checked }} checked…</span>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.error"><i class="fas fa-exclamation-circle"></i> {{ vm.air.error }}</div>
+
+            <div class="ftt-grid ftt-grid--2" ng-if="vm.air.report">
+              <div class="ftt-block">
+                <div class="ftt-block__title">
+                  {{ vm.air.report.dry_run ? 'Dry run' : 'Applied' }}
+                  <span class="ftt-chip ftt-chip--grey fxh__mono">{{ vm.air.report.run_id }}</span>
+                  <span class="ftt-chip" ng-class="vm.air.report.dry_run ? 'ftt-chip--grey' : 'ftt-chip--green'">{{ vm.air.report.updated }} {{ vm.air.report.dry_run ? 'would change' : 'written' }}</span>
+                </div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item"><label>checked</label> {{ vm.air.report.checked }}</span>
+                  <span class="ftt-kv__item"><label>hours changed</label> {{ vm.air.report.hours_changed }}</span>
+                  <span class="ftt-kv__item"><label>source changed</label> {{ vm.air.report.source_changed }}</span>
+                  <span class="ftt-kv__item"><label>settled</label> {{ vm.air.report.settled }}</span>
+                  <span class="ftt-kv__item"><label>left provisional</label> {{ vm.air.report.left_provisional }}</span>
+                  <span class="ftt-kv__item"><label>total delta</label> {{ vm.air.report.total_delta_hours > 0 ? '+' : '' }}{{ vm.air.report.total_delta_hours }} h</span>
+                  <span class="ftt-kv__item"><label>planes touched</label> {{ vm.air.report.plane_count }}</span>
+                </div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item" ng-repeat="p in vm.airPairs(vm.air.report.by_source)"><label>{{ vm.airSourceLabel(p.k) }}</label> {{ p.v }}</span>
+                </div>
+                <div class="ftt-kv" ng-if="vm.airPairs(vm.air.report.flags).length">
+                  <span class="ftt-kv__item" ng-repeat="p in vm.airPairs(vm.air.report.flags)" uib-tooltip="e.g. sheets {{ p.v.sample_ids.join(', ') }}"><label>{{ p.k }}</label> {{ p.v.count }}</span>
+                </div>
+                <div class="ftt-kv" ng-if="vm.airPairs(vm.air.report.provisional_reasons).length">
+                  <span class="ftt-kv__item" ng-repeat="p in vm.airPairs(vm.air.report.provisional_reasons)"><label>provisional: {{ p.k }}</label> {{ p.v }}</span>
+                </div>
+                <div class="ftt-kv" ng-if="vm.airPairs(vm.air.report.by_transition).length">
+                  <span class="ftt-kv__item" ng-repeat="p in vm.airPairs(vm.air.report.by_transition)"><label>{{ p.k }}</label> {{ p.v }}</span>
+                </div>
+              </div>
+              <div class="ftt-block">
+                <div class="ftt-block__title">Biggest moves <span class="ftt-chip ftt-chip--grey">{{ vm.air.report.biggest_moves.length }}</span></div>
+                <div class="ftt-seg-list" ng-if="vm.air.report.biggest_moves.length">
+                  <div class="ftt-seg-row" ng-repeat="m in vm.air.report.biggest_moves">
+                    <span class="ftt-seg-row__id fxh__mono"><a ng-click="vm.air.explain_id = m.plane_log_sheet_id; vm.airExplain()">sheet #{{ m.plane_log_sheet_id }}</a></span>
+                    <span class="ftt-seg-row__kv"><label>plane</label> {{ m.plane_id }}</span>
+                    <span class="ftt-seg-row__kv"><label>date</label> {{ m.flight_date }}</span>
+                    <span class="ftt-seg-row__kv"><label>hours</label> {{ vm.airHm(m.before_hours) }} → <strong>{{ vm.airHm(m.after_hours) }}</strong> ({{ m.delta_hours > 0 ? '+' : '' }}{{ m.delta_hours }} h)</span>
+                    <span class="ftt-seg-row__kv"><label>source</label> {{ vm.airSourceLabel(m.before_source) }} → {{ vm.airSourceLabel(m.after_source) }}</span>
+                    <span class="ftt-seg-row__kv" ng-if="m.flags.length"><label>flags</label> {{ m.flags.join(', ') }}</span>
+                    <span class="ftt-seg-row__reason">{{ m.reason }}</span>
+                  </div>
+                </div>
+                <div class="ftt-empty" ng-if="!vm.air.report.biggest_moves.length">No sheet's hours would move.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Explain one sheet -->
+          <div class="ftt-block ftt-block--divider">
+            <div class="ftt-block__title">Explain one sheet</div>
+            <p class="ftt-block__help">What the cascade sees for a log sheet (tracker seconds, track file, clock, brakes), what is stored, what it would decide, whether it is final, and its history.</p>
+            <div class="ftt-form-row">
+              <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Log sheet id" ng-model="vm.air.explain_id" ng-keyup="$event.keyCode === 13 && vm.airExplain()">
+              <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.airExplain()" ng-disabled="vm.air.explain_busy">
+                <i class="fas" ng-class="vm.air.explain_busy ? 'fa-spinner fa-spin' : 'fa-search'"></i> Explain
+              </button>
+              <span ng-if="vm.air.explain && !vm.air.reset_confirm">
+                <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.airReset()" ng-disabled="vm.air.reset_busy"
+                        uib-tooltip="Forget a hand-set figure / the lock on this sheet, recompute it from the best source and settle it. Audited.">
+                  <i class="fas" ng-class="vm.air.reset_busy ? 'fa-spinner fa-spin' : 'fa-redo'"></i> Re-evaluate &amp; settle
+                </button>
+              </span>
+              <span ng-if="vm.air.reset_confirm">
+                <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="vm.airReset()"><i class="fas fa-exclamation-triangle"></i> Confirm re-evaluate</button>
+                <button class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.air.reset_confirm = false">Cancel</button>
+              </span>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.explain_error"><i class="fas fa-exclamation-circle"></i> {{ vm.air.explain_error }}</div>
+
+            <div class="ftt-grid ftt-grid--2" ng-if="vm.air.explain">
+              <div class="ftt-block">
+                <div class="ftt-block__title">
+                  Sheet #{{ vm.air.explain.sheet.id }}
+                  <span class="ftt-chip ftt-chip--grey">plane {{ vm.air.explain.sheet.plane_id }} · {{ vm.air.explain.sheet.flight_date }}</span>
+                  <span class="ftt-chip" ng-class="vm.air.explain.sheet.airborne_settled_at ? 'ftt-chip--green' : 'ftt-chip--grey'">{{ vm.air.explain.sheet.airborne_settled_at ? 'final' : 'provisional' }}</span>
+                </div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item"><label>stored</label> {{ vm.airHm(vm.air.explain.sheet.airborne_time) }} ({{ vm.air.explain.sheet.airborne_time }} h)</span>
+                  <span class="ftt-kv__item"><label>source</label> {{ vm.airSourceLabel(vm.air.explain.sheet.airborne_source) }}</span>
+                  <span class="ftt-kv__item" ng-if="vm.air.explain.sheet.airborne_settled_at"><label>settled</label> {{ vm.air.explain.sheet.airborne_settled_at }}</span>
+                  <span class="ftt-kv__item"><label>booked in</label> {{ vm.air.explain.sheet.booked_in ? 'yes' : 'no' }}</span>
+                  <span class="ftt-kv__item"><label>tracker</label> {{ vm.air.explain.sheet.fox_log_id || '—' }}{{ vm.air.explain.sheet.is_split_flight ? ' (split leg)' : '' }}</span>
+                </div>
+                <div class="ftt-block__title" style="margin-top:8px;">Inputs</div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item" ng-repeat="p in vm.airPairs(vm.air.explain.inputs)"><label>{{ p.k }}</label> {{ vm.fmt(p.v) }}</span>
+                </div>
+                <div class="ftt-block__title" style="margin-top:8px;">Gate</div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item"><label>settles</label> {{ vm.air.explain.gate.settle ? 'yes' : 'no' }}</span>
+                  <span class="ftt-kv__item"><label>why</label> {{ vm.air.explain.gate.why }}</span>
+                </div>
+              </div>
+              <div class="ftt-block">
+                <div class="ftt-block__title">Decision</div>
+                <div class="ftt-kv">
+                  <span class="ftt-kv__item"><label>now</label> {{ vm.airHm(vm.air.explain.current.hours) }} · {{ vm.airSourceLabel(vm.air.explain.current.source) }}{{ vm.air.explain.current.locked ? ' (locked)' : '' }}</span>
+                  <span class="ftt-kv__item"><label>would compute</label> {{ vm.airHm(vm.air.explain.would_compute.hours) }} · {{ vm.airSourceLabel(vm.air.explain.would_compute.source) }}</span>
+                  <span class="ftt-kv__item" ng-if="vm.air.explain.would_compute.flags.length"><label>flags</label> {{ vm.air.explain.would_compute.flags.join(', ') }}</span>
+                </div>
+                <p class="ftt-block__help">{{ vm.air.explain.would_compute.reason }}</p>
+                <div class="ftt-note" ng-class="vm.air.explain.differs ? 'ftt-note--bad' : ''" ng-if="vm.air.explain.differs"><i class="fas fa-info-circle"></i> The stored figure differs from what the cascade would compute now. It is {{ vm.air.explain.sheet.airborne_settled_at ? 'locked — only Re-evaluate or a flight edit changes it' : 'provisional — the nightly pass will update it' }}.</div>
+                <div class="ftt-block__title" style="margin-top:8px;">History <span class="ftt-chip ftt-chip--grey">{{ vm.air.explain.history.length }}</span></div>
+                <div class="ftt-seg-list" ng-if="vm.air.explain.history.length">
+                  <div class="ftt-seg-row" ng-repeat="h in vm.air.explain.history | limitTo: 10">
+                    <span class="ftt-seg-row__kv"><label>{{ h.created_at }}</label> {{ h.action }}</span>
+                    <span class="ftt-seg-row__kv"><label>hours</label> {{ vm.airHm(h.before_hours) }} → {{ vm.airHm(h.after_hours) }}</span>
+                    <span class="ftt-seg-row__kv"><label>source</label> {{ vm.airSourceLabel(h.before_source) }} → {{ vm.airSourceLabel(h.after_source) }}{{ h.settled == 1 ? ' · final' : '' }}</span>
+                    <span class="ftt-seg-row__kv" ng-if="h.user_id"><label>by user</label> {{ h.user_id }}</span>
+                    <span class="ftt-seg-row__reason">{{ h.reason }}</span>
+                  </div>
+                </div>
+                <div class="ftt-empty" ng-if="!vm.air.explain.history.length">No history yet — the sheet has not been evaluated by the new cascade.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           5. Split flights to review (§4.2) — every club.
+           Shared <suspect-splits> directive (js/directives/suspectSplits.js).
+           ═══════════════════════════════════════════════════ -->
+      <div class="ftt-card" id="ftt-splits">
+        <div class="ftt-card__head">
+          <i class="fas fa-cut"></i> Split flights to review
+          <span class="ftt-card__sub">Split pairs whose recorded track shows no landing between the legs — all clubs</span>
+        </div>
+        <div class="ftt-card__body">
+          <p class="ftt-block__help">
+            Each pair was booked in as two flights on a tracker boundary the track disproves (a GPS speed glitch or a
+            fast taxi). <strong>Undo the split</strong> folds leg 2 back into leg 1 and recalculates unpaid invoices;
+            <strong>Keep it</strong> hides the pair. Club managers see the same list for their own club under
+            Manage Club → Flights.
+          </p>
+          <suspect-splits admin="true"></suspect-splits>
+        </div>
+      </div>
+
+    </div><!-- body -->
+  </div><!-- authorised -->
+</div>

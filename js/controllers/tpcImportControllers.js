@@ -682,6 +682,8 @@ app.controller('TpcImportRunController', TpcImportRunController);
         };
 
         vm.unsplitRow = function() {
+            var partnerId = vm.drawer && vm.splitOf(vm.drawer.row) && vm.splitOf(vm.drawer.row).partner_row_id;
+            if (partnerId) { delete partnerCache[partnerId]; }   // a ghost leg must not survive the unpair
             rowAction({ action: 'unsplit' }, 'Rows unpaired — each will be imported on its own again.');
             if (vm.drawer) { vm.drawer.partner = null; vm.drawer.splitPicker = null; }
         };
@@ -1082,6 +1084,10 @@ app.controller('TpcImportRunController', TpcImportRunController);
                     if (data.row) { d.row = replaceRow(data.row); d.edit = editBuffer(d.row); }
                     if (okMsg) { ToastService.success('Done', okMsg); }
                     if (body.action === 'match' || body.action === 'insert' || body.action === 'rematch') { vm.refreshRow(); }
+                    // Pairing/unpairing changes the PARTNER row too (its split block),
+                    // and only a fresh list drops/forms the split card for both legs —
+                    // replaceRow alone left a stale card beside the freed row.
+                    if (body.action === 'unsplit' || body.action === 'split') { delete partnerCache[d.row.id]; vm.loadRows(); }
                     vm.loadRun(true);
                 } else if (data && data.error === 'FLIGHT_TAKEN') {
                     ToastService.warning('Flight Taken', 'Another row (or a previous import) already owns that flight.');

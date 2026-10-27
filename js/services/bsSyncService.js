@@ -209,6 +209,10 @@ app.factory('BsSyncService', BsSyncService);
             // a stale stored address. Backend refuses with EMAIL_REQUIRED /
             // INVALID_EMAIL (FRONTEND_BS_SYNC_GUIDE.md).
             if (opts.email) body.email = opts.email;
+            // 1 only after the admin confirmed the per-row "merge into X?" panel —
+            // without it the backend refuses a merge onto an existing account
+            // with MERGE_CONFIRM_REQUIRED (the guard this flag exists for).
+            if (opts.confirm_merge) body.confirm_merge = 1;
             return $http.post('/api/v1/bs_sync/convert/' + club_id + '/' + user_id, body)
                 .then(handleSuccess, handleError);
         }

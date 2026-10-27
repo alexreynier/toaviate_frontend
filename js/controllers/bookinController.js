@@ -1,7 +1,7 @@
  app.controller('BookinController', BookinController);
 
-    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService', 'DefectMediaService'];
-    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService, DefectMediaService) {
+    BookinController.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService', 'DefectMediaService', 'FoxTrackService'];
+    function BookinController($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService, DefectMediaService, FoxTrackService) {
         
         var vm = this;
 
@@ -341,6 +341,12 @@
             vm.bookout.landings = vm.claimed_flight.full_stop_landings;
             
             vm.bookout.stops = vm.claimed_flight.stops;
+            vm.bookout.track_counts_source = vm.claimed_flight.track_counts_source || null;
+            vm.bookout.tng = vm.claimed_flight.touch_and_go;
+            prefill_counts_from_track(vm.claimed_flight.id);
+            vm.split_choices = [];
+            vm.split_flight_time = null;
+            reset_split_phantom();
 
             vm.bookout.fox_log_id = vm.claimed_flight.fox_log_id;
             vm.bookout.fox_claimed = 1;
@@ -735,42 +741,341 @@
         ];
         vm.split_flight_confirmation = 0;
         // who flew the second part: 'same' (continued flight — e.g. master left
-        // on between two flights), 'solo' (student solo send-off), 'other'
+        // on between two flights), 'solo' (student solo send-off), 'hire' (the
+        // person under instruction carried on as an ordinary self-hire — a
+        // licence holder, no instructor, no training record), 'other'
         vm.split_crew_mode = 'same';
         vm.split_crew_options = [
-            { id: 'same',  title: 'Same crew',        hint: 'the same people carried on flying (one flight, two tracker legs)' },
-            { id: 'solo',  title: 'Student solo',     hint: 'the student flew part 2 alone — an authorised solo you supervised' },
-            { id: 'other', title: 'Somebody else',    hint: 'a different pilot flew part 2 — leave it for them to claim' }
+            { id: 'same',  title: 'Same crew',                   hint: 'the same people carried on flying (one flight, two tracker legs)' },
+            { id: 'solo',  title: 'Student solo',                hint: 'the student flew part 2 alone — an authorised solo you supervised' },
+            { id: 'hire',  title: 'Pilot continued as self-hire', hint: 'The person under instruction flew on alone as an ordinary hire — no instructor, no training record' },
+            { id: 'other', title: 'Somebody else',               hint: 'a different pilot flew part 2 — leave it for them to claim' }
         ];
         vm.split_crew_can_solo = function(){
             return !!(vm.bookout && ((vm.bookout.put_id > 0) || (vm.bookout.put && vm.bookout.put.user_id > 0)));
+        };
+        // 'solo' and 'hire' both need a person under instruction on part 1
+        vm.split_crew_opt_disabled = function(opt){
+            return !!(opt && (opt.id == 'solo' || opt.id == 'hire') && !vm.split_crew_can_solo());
         };
         vm.split_crew_label = function(id){
             var o = vm.split_crew_options.find(function(x){ return x.id === id; });
             return o ? o.title : 'Same crew';
         };
-        vm.split_this_flight = function(){
-            vm.split_flight = 1;
-            //add this pls_id to the split
-            var split_send = vm.split_flight_time;
-            split_send.booking_id = vm.bookout.booking_id;
-            split_send.this_pls_id = vm.bookout.id;
-            // console.log("split it");
-            // console.log("vm.bookout.id : ", vm.bookout.id);
+        vm.split_crew_student_name = function(){
+            var put = (vm.bookout && vm.bookout.put) || {};
+            return put.first_name || 'the student';
+        };
+        // one line under the radios saying what the chosen mode does to part 2
+        vm.split_crew_note = function(id){
+            var who = vm.split_crew_student_name();
+            switch(id){
+                case 'solo':  return 'Part 2 is saved as an authorised student solo: ' + who + ' is pilot in command, you authorised it, and it gets its own training record.';
+                case 'hire':  return 'Part 2 is saved as an ordinary self-hire for ' + who + ': pilot in command and payer, no instructor, no training record.';
+                case 'other': return 'Part 2 is saved with no crew — whoever flew it claims and books it in.';
+                default:      return 'Part 2 keeps the same pilot in command, student and instructor as this part.';
+            }
+        };
+        // ── Split picker (FRONTEND_TRACK_DATA_GUIDE.md §3) ──────────────────
+        // The "Split Flight At" options come from GET fox_track/pls/{id}/split_points
+        // (every real ground stop, tracker + track file, in time order). The
+        // tracker-only candidates the backend puts on vm.bookout.stops stay as
+        // the fallback (NO_TRACK / error / no points) and are merged in when a
+        // tracker gap isn't covered by a point. Each option posts exactly what
+        // the old picker posted: { title: ISO …T…Z, time: 'HH:MM' }.
+        vm.split_flight_time = null;
+        vm.split_choices = [];                 // what the ui-select lists
+        vm.split_points_status = 'idle';       // idle | loading | ok | none
+        vm.split_points_note = '';
+        vm.split_pairs_source = null;          // 'tracker' | 'track' (hypothetical response, §3)
+        // §3.1 phantom split points: the pending "Split anyway?" confirm and
+        // whether the current preview was forced past a phantom verdict
+        vm.split_phantom = null;               // { warning, min_agl_ft, max_speed_kt, from_hm, to_hm, verdict, pls_id }
+        vm.split_forced = false;
+        var split_forced_title = null;         // the choice title the user forced (so rounding keeps force_split)
+        var split_points_cache = {};           // pls_id → split_points[]
+
+        function reset_split_phantom(){
+            vm.split_phantom = null;
+            vm.split_forced = false;
+            split_forced_title = null;
+            vm.split_pairs_source = null;
+        }
+
+        function split_pls_id(){
+            var pls_id = vm.bookout.id;
+            if(!pls_id || pls_id == null || pls_id == 0){
+                pls_id = vm.this_pls_id_raw;
+            }
+            if(vm.has_used_claimed_flight && vm.claimed_flight && vm.claimed_flight.id > 0){
+                pls_id = vm.claimed_flight.id;
+            }
+            return (pls_id && pls_id > 0) ? pls_id : 0;
+        }
+
+        // 'Y-m-d H:i:s' (UTC) → 'HH:MM'
+        function hm_of(dt){
+            if(!dt) { return ''; }
+            var m = String(dt).match(/(\d{2}):(\d{2})(?::\d{2})?\s*Z?$/);
+            return m ? (m[1] + ':' + m[2]) : String(dt);
+        }
+        // 'Y-m-d H:i:s' → 'Y-m-dTH:i:sZ' (what hypothetical_flight_split parses as title)
+        function iso_of(dt){
+            if(!dt) { return ''; }
+            var str = String(dt);
+            if(str.indexOf('T') > -1) { return /Z$/.test(str) ? str : str + 'Z'; }
+            return str.replace(' ', 'T') + 'Z';
+        }
+        function ts_of(iso){
+            var t = Date.parse(iso);
+            return isNaN(t) ? 0 : Math.floor(t / 1000);
+        }
+
+        function tracker_stop_choice(stop){
+            return {
+                title: stop.title,
+                time: stop.time,
+                ts: ts_of(stop.title),
+                source: 'tracker',
+                from_hm: '', to_hm: '',
+                kind_label: '',
+                recommended: false,
+                warning: null,
+                verdict: null, verdict_label: '', selectable: true,
+                floor_hm: stop.time, ceil_hm: stop.time, nearest_hm: stop.time,
+                point: null
+            };
+        }
+
+        function build_split_choices(points){
+            var choices = [];
+            var i;
+            (points || []).forEach(function(pt){
+                var r = pt.rounded_to_5_min || {};
+                var nearest = hm_of(r.nearest || pt.midpoint);
+                // §3.1: selectable:false = phantom verdict (the tracker's "landing"
+                // is not in the track) — listed greyed-out, never a default
+                var selectable = (pt.selectable !== false);
+                choices.push({
+                    title: iso_of(pt.midpoint),
+                    time: nearest,
+                    ts: pt.midpoint_ts || ts_of(iso_of(pt.midpoint)),
+                    from_ts: pt.from_ts, to_ts: pt.to_ts,
+                    source: pt.source || 'both',
+                    from_hm: hm_of(pt.from), to_hm: hm_of(pt.to),
+                    duration_s: pt.duration_s,
+                    kind_label: pt.landing_kind ? FoxTrackService.landingKindLabel(pt.landing_kind) : '',
+                    recommended: !!pt.recommended && selectable,
+                    warning: pt.warning || null,
+                    verdict: pt.verdict || null,
+                    verdict_label: pt.verdict ? FoxTrackService.verdictLabel(pt.verdict) : '',
+                    selectable: selectable,
+                    floor_hm: hm_of(r.floor || pt.midpoint),
+                    ceil_hm: hm_of(r.ceil || pt.midpoint),
+                    nearest_hm: nearest,
+                    tracker_pair_index: (pt.tracker_pair_index === undefined) ? null : pt.tracker_pair_index,
+                    point: pt
+                });
+            });
+            // merge the tracker-derived candidates that no point already covers
+            // (de-duplicated by window / time)
+            var stops = (vm.bookout && angular.isArray(vm.bookout.stops)) ? vm.bookout.stops : [];
+            stops.forEach(function(stop){
+                if(!stop || !stop.title) { return; }
+                var sts = ts_of(stop.title);
+                var covered = false;
+                for(i = 0; i < choices.length; i++){
+                    if(choices[i].time == stop.time) { covered = true; break; }
+                    if(choices[i].from_ts && choices[i].to_ts && sts >= choices[i].from_ts - 60 && sts <= choices[i].to_ts + 60) { covered = true; break; }
+                }
+                if(!covered) { choices.push(tracker_stop_choice(stop)); }
+            });
+            choices.sort(function(a, b){ return (a.ts || 0) - (b.ts || 0); });
+            return choices;
+        }
+
+        function use_tracker_stops_only(){
+            var stops = (vm.bookout && angular.isArray(vm.bookout.stops)) ? vm.bookout.stops : [];
+            vm.split_choices = stops.map(tracker_stop_choice);
+            vm.split_points_status = 'none';
+        }
+
+        vm.load_split_points = function(){
+            var pls_id = split_pls_id();
+            if(!pls_id){ use_tracker_stops_only(); return; }
+            if(split_points_cache[pls_id]){
+                vm.split_choices = build_split_choices(split_points_cache[pls_id]);
+                vm.split_points_status = 'ok';
+                return;
+            }
+            use_tracker_stops_only();          // fallback shown while we fetch
+            vm.split_points_status = 'loading';
+            FoxTrackService.GetSplitPoints(pls_id)
+                .then(function(data){
+                    if(data && data.success !== false && angular.isArray(data.split_points) && data.split_points.length > 0){
+                        split_points_cache[pls_id] = data.split_points;
+                        vm.split_choices = build_split_choices(data.split_points);
+                        vm.split_points_status = 'ok';
+                        vm.split_points_note = (data.track_confidence !== null && data.track_confidence !== undefined && data.track_confidence < 0.5) ? 'Low confidence in the track analysis — treat the track-only points as unconfirmed.' : '';
+                    } else {
+                        // NO_TRACK / FORBIDDEN / empty → tracker candidates only, never block the form
+                        console.log('split_points unavailable', data);
+                        use_tracker_stops_only();
+                        // the track was read but shows no ground stop ≠ the track is missing
+                        if(data && data.success !== false && angular.isArray(data.split_points)){ vm.split_points_status = 'empty'; }
+                    }
+                }, function(){ use_tracker_stops_only(); });
+        };
+
+        // The landing counts on an unclaimed sheet are a snapshot taken when the
+        // entry was analysed; the reconciliation recomputes from the track every
+        // time. Most accurate wins: when the track file is analysed (and not cut
+        // at a split / mis-linked / low confidence) seed the form from its
+        // recommendation, otherwise keep the tracker-provided figures. Never
+        // overrides counts a person set ('manual' / 'applied') or a value the
+        // pilot has already changed on the form.
+        function prefill_counts_from_track(pls_id){
+            pls_id = parseInt(pls_id, 10);
+            if(!(pls_id > 0) || !FoxTrackService || !FoxTrackService.GetPls){ return; }
+            var src = vm.bookout.track_counts_source;
+            if(src === 'manual' || src === 'applied'){ return; }
+            var seeded_fs = vm.bookout.landings, seeded_tg = vm.bookout.tng;
+            FoxTrackService.GetPls(pls_id).then(function(data){
+                if(!data || data.success === false || !data.recommended){ return; }
+                var track = data.track || null, ts = track ? (track.summary || track) : null;
+                if(!ts || track.available === false){ return; }
+                if(ts.confidence !== undefined && ts.confidence !== null && Number(ts.confidence) < 0.5){ return; }
+                var rec = data.recommended, flags = rec.flags || [];
+                if(flags.indexOf('SEGMENT_TRUNCATED') > -1 || flags.indexOf('TRACKER_PAIRS_OUTSIDE_TRACK') > -1 || flags.indexOf('NO_TRACK_EVENTS') > -1){ return; }
+                var v = function(k){ var o = rec[k]; var n = (o && o.value !== undefined) ? parseInt(o.value, 10) : NaN; return isNaN(n) ? null : n; };
+                var fs = v('full_stop_landings'), sg = v('stop_and_gos'), tg = v('touch_and_gos');
+                if(fs === null || tg === null){ return; }
+                fs = fs + (sg || 0);                      // the sheet counts stop-and-gos with full stops
+                if(vm.bookout.landings != seeded_fs || vm.bookout.tng != seeded_tg){ return; }   // pilot already edited
+                if(fs == seeded_fs && tg == seeded_tg){ return; }
+                console.log("prefill counts from track", {fs: fs, tg: tg, was: [seeded_fs, seeded_tg]});
+                vm.bookout.landings = fs; vm.bookout.full_stop_landings = fs;
+                vm.bookout.tng = tg; vm.bookout.touch_and_go = tg;
+                vm.bookout.track_counts_source = 'calculated';
+                if(vm.calculate_invoice_for_flight){ vm.calculate_invoice_for_flight(); }
+            });
+        }
+
+        vm.split_option_label = function(c){
+            if(!c) { return ''; }
+            var bits = [];
+            if(c.kind_label) { bits.push(c.kind_label); }
+            if(c.source === 'track') { bits.push('track file only'); }
+            return c.time + (bits.length ? ' · ' + bits.join(' · ') : '');
+        };
+
+        // floor / nearest / ceil of the chosen point's midpoint on the 5-minute grid
+        // Memoised per chosen point: this is called from an ng-repeat every digest,
+        // and a fresh array of fresh objects each call is an infinite-digest loop.
+        vm.split_round_options = function(){
+            var c = vm.split_flight_time;
+            if(!c || !c.point) { return []; }
+            var key = [c.floor_hm, c.nearest_hm, c.ceil_hm].join('|');
+            if(c._round_key === key && c._round_options) { return c._round_options; }
+            var seen = {}, out = [];
+            [['floor', c.floor_hm], ['nearest', c.nearest_hm], ['ceil', c.ceil_hm]].forEach(function(o){
+                if(o[1] && !seen[o[1]]) { seen[o[1]] = true; out.push({ id: o[0], time: o[1] }); }
+            });
+            c._round_key = key;
+            c._round_options = out.length > 1 ? out : [];
+            return c._round_options;
+        };
+        vm.split_use_rounding = function(hm){
+            if(!vm.split_flight_time || !hm || vm.split_flight_time.time == hm) { return; }
+            vm.split_flight_time.time = hm;
+            vm.update_split();
+        };
+
+        // force = true repeats the POST with force_split:1 (§3.1, after the user
+        // confirmed "Split anyway?"). Left undefined, the force sticks only while
+        // the same choice is selected (rounding floor/nearest/ceil re-posts).
+        function post_hypothetical_split(pls_id, force){
+            if(!vm.split_flight_time || !vm.split_flight_time.title){ return; }
+            var forced = (force === undefined) ? (vm.split_forced && split_forced_title === vm.split_flight_time.title) : !!force;
+            var split_send = {
+                title: vm.split_flight_time.title,
+                time: vm.split_flight_time.time,
+                booking_id: vm.bookout.booking_id,
+                this_pls_id: vm.bookout.id
+            };
+            if(forced){ split_send.force_split = 1; }
             // console.log("split_send : ", split_send);
-            PlaneService.HypotheticalFlightSplit(vm.bookout.id, split_send)
+            PlaneService.HypotheticalFlightSplit(pls_id, split_send)
              .then(function (data) {
-                    // console.log("data is : ", data);
+                    console.log("data is : ", data);
+                    if(data && data.error === 'PHANTOM_SPLIT_POINT'){
+                        // the chosen time sits on a gap the track says was never a
+                        // landing — ask inline, no browser dialog (§3.1)
+                        var sp = data.split_point || {};
+                        vm.split_phantom = {
+                            warning: sp.warning || data.message || 'The tracker\'s landing here is not in the recorded track: splitting here would cut a flight in mid-air.',
+                            min_agl_ft: (sp.min_agl_ft === undefined) ? null : sp.min_agl_ft,
+                            max_speed_kt: (sp.max_speed_kt === undefined) ? null : sp.max_speed_kt,
+                            from_hm: hm_of(sp.from), to_hm: hm_of(sp.to),
+                            verdict: sp.verdict || null,
+                            verdict_label: sp.verdict ? FoxTrackService.verdictLabel(sp.verdict) : '',
+                            pls_id: pls_id
+                        };
+                        vm.split_forced = false;
+                        split_forced_title = null;
+                        vm.split_one = null;
+                        vm.split_two = null;
+                        return;
+                    }
+                    if(!data || data.success === false || !data.first_flight){
+                        ToastService.warning('Split not possible', (data && data.message) || 'The selected timings dont work unfortunately.');
+                        return;
+                    }
+                    vm.split_phantom = null;
                     vm.split_one = data.first_flight;
-                    
-                    vm.split_flight = 1;    
+
+                    vm.split_flight = 1;
                     // vm.split_one.brakes_off = {"time": vm.split_one.brakes_off};
                     // vm.split_one.brakes_on = {"time": vm.split_one.brakes_on};
                     vm.split_two = data.second_flight;
                     vm.split_two.brakes_off = {"time": vm.split_two.brakes_off};
                     vm.split_two.brakes_on = {"time": vm.split_two.brakes_on};
+                    // split_cut_utc (where the recorded track is cut) rides on
+                    // second_flight and is posted back with split_two — keep it
+                    if(!vm.split_two.split_cut_utc && vm.split_one && vm.split_one.split_cut_utc){
+                        vm.split_two.split_cut_utc = vm.split_one.split_cut_utc;
+                    }
+                    // a forced split carries split_point (top level + both legs);
+                    // it must reach the book-in PUT on split_two so the backend
+                    // flags the pair for the manager's review
+                    if(!vm.split_two.split_point && data.split_point){
+                        vm.split_two.split_point = data.split_point;
+                    }
+                    vm.split_forced = !!(forced && vm.split_two.split_point && vm.split_two.split_point.selectable !== true);
+                    split_forced_title = vm.split_forced ? vm.split_flight_time.title : null;
+                    // "tracker" | "track" — track = pairs synthesised from the recording
+                    vm.split_pairs_source = data.split_pairs_source || null;
                 });
+        }
 
+        vm.split_phantom_confirm = function(){
+            if(!vm.split_phantom){ return; }
+            post_hypothetical_split(vm.split_phantom.pls_id || split_pls_id() || vm.bookout.id, true);
+        };
+        vm.split_phantom_cancel = function(){
+            vm.split_phantom = null;
+            vm.split_forced = false;
+            split_forced_title = null;
+            vm.split_flight_time = null;
+        };
+
+        vm.split_this_flight = function(){
+            vm.split_flight = 1;
+            vm.load_split_points();
+            //add this pls_id to the split (only once a time has been picked)
+            if(vm.split_flight_time && vm.split_flight_time.title){
+                post_hypothetical_split(vm.bookout.id);
+            }
         }
 
         vm.cancel_split = function(){
@@ -779,6 +1084,7 @@
             vm.split_two = {};
             vm.split_flight = 0;
             vm.split_flight_confirmation = 0;
+            reset_split_phantom();
 
             process_bookout_to_bookin(vm.bookout);
 
@@ -786,52 +1092,22 @@
         }
 
         vm.update_split = function(){
-            // console.log("we updated the split time hmmm...");
-            // console.log(vm.split_flight_time);
-            
-            // console.log("flight 1");
-            // console.log(vm.bookout.brakes_off_rounded);
-            // console.log(vm.split_flight_time.time);
-
-            // console.log("flight 2");
-            // console.log(vm.split_flight_time.time);
-            // console.log(vm.bookout.brakes_on_rounded);
-
-            var pls_id = vm.bookout.id; 
-            if(!pls_id || pls_id == null || pls_id == 0){
-                //console.log("RAW> ", vm.this_pls_id_raw);
-                pls_id = vm.this_pls_id_raw;
+            // belt and braces behind ui-disable-choice: a phantom point is never a split
+            if(vm.split_flight_time && vm.split_flight_time.selectable === false){
+                ToastService.warning('Not a landing', vm.split_flight_time.warning || 'The tracker\'s landing here is not in the recorded track — pick another time.');
+                vm.split_flight_time = null;
+                return;
             }
-               // console.log("RAWDAWG ", pls_id);
-
-            if(vm.has_used_claimed_flight && vm.claimed_flight.id > 0){
-                //console.log("SPLIT FLIGHT CLAIMED");
-                pls_id = vm.claimed_flight.id;
+            // a new choice drops any pending "Split anyway?" and any force on the old one
+            if(vm.split_flight_time && split_forced_title !== vm.split_flight_time.title){
+                vm.split_phantom = null;
+                vm.split_forced = false;
+                split_forced_title = null;
             }
-
-            var split_send = vm.split_flight_time;
-            split_send.booking_id = vm.bookout.booking_id;
-            split_send.this_pls_id = vm.bookout.id;
-
-            // console.log("split it");
-            // console.log("pls_id : ", pls_id);
-            // console.log("split_send : ", split_send);
-
+            var pls_id = split_pls_id();
+            if(!pls_id){ pls_id = vm.bookout.id; }
             //hypothetical_flight_split
-            PlaneService.HypotheticalFlightSplit(pls_id, split_send)
-             .then(function (data) {
-                    console.log("data is : ", data);
-                    vm.split_one = data.first_flight;
-                    
-                    vm.split_flight = 1;    
-                    // vm.split_one.brakes_off = {"time": vm.split_one.brakes_off};
-                    // vm.split_one.brakes_on = {"time": vm.split_one.brakes_on};
-                    vm.split_two = data.second_flight;
-                    vm.split_two.brakes_off = {"time": vm.split_two.brakes_off};
-                    vm.split_two.brakes_on = {"time": vm.split_two.brakes_on};
-                });
-
-
+            post_hypothetical_split(pls_id);
         }
 
         function clean_times(which, start_end, compared_to = null){
@@ -1569,6 +1845,7 @@
                 console.log(vm.bookout.brakes_on);
                 vm.split_flight_confirmation = 0;
                 vm.split_flight = 0;
+                reset_split_phantom();
                 // vm.split_one = {};
                 // vm.split_two = {};
                 process_bookout_to_bookin(vm.bookout);
@@ -2151,6 +2428,7 @@
                                     vm.pics = tagMemberSource(pics);
                                     console.log("PICS: ", vm.pics);
                                     process_bookout_to_bookin(data.bookout);
+                                    preselect_split_leg_crew(data.bookout);
                             });
 
                        MemberService.GetAllByClubInstructor(vm.bookout.club_id, vm.user.id)
@@ -2439,7 +2717,70 @@
             if(vm.this_claim_was_instructional){ preselect_course_and_tuition(); }
             vm.calculate_invoice_for_flight();
         };
+        // Self-hire: the leg-1 student flew on alone as a licence holder — an
+        // ordinary hire, no instructor, no training record (crew_mode 'hire').
+        vm.split_leg_use_hire = function(){
+            var student_id = vm.split_leg_student_id();
+            var student = (vm.pics || []).find(function(p){ return p.user_id === student_id; });
+            if(!student){
+                ToastService.warning('Pilot Not Found', 'The pilot from part 1 is not in the member list here — please pick the pilot in command by hand.');
+                return;
+            }
+            vm.bookout.pic = student;
+            vm.bookout.pic_id = student.user_id;
+            vm.this_claim_was_instructional = false;
+            vm.this_was_supervised_solo = false;
+            vm.bookout.authorised_solo = false;
+            vm.bookout.put = {};
+            vm.bookout.put_id = 0;
+            vm.bookout.instructor = {};
+            vm.bookout.instructor_id = 0;
+            vm.bookout.course = {};
+            vm.bookout.course_id = 0;
+            vm.bookout.tuition_required = {};
+            vm.bookout.tuition_id = 0;
+            vm.bookout.payer_id = student.user_id;
+            vm.calculate_invoice_for_flight();
+        };
+        // Which choice reflects the form right now (solo > hire > same > none)
         vm.split_leg_is_solo = function(){ return !!vm.this_was_supervised_solo; };
+        vm.split_leg_is_hire = function(){
+            var student_id = vm.split_leg_student_id();
+            return !!(student_id > 0 && vm.bookout && vm.bookout.pic_id == student_id
+                && !vm.this_claim_was_instructional && !vm.this_was_supervised_solo);
+        };
+        vm.split_leg_is_same = function(){
+            var prev = vm.split_prev_leg || {};
+            return !!(prev.pic_id > 0 && vm.bookout && vm.bookout.pic_id == prev.pic_id
+                && !vm.this_was_supervised_solo && !vm.split_leg_is_hire());
+        };
+        vm.split_leg_student_name = function(){
+            var prev = vm.split_prev_leg || {};
+            if(prev.put_first_name){ return prev.put_first_name; }
+            if(prev.authorised_solo == 1 && prev.pic_first_name){ return prev.pic_first_name; }
+            return 'the student';
+        };
+        // On load: when the backend tells us which crew the split chose
+        // (split_prev_leg.crew_mode / bookout crew_mode — tolerated when
+        // absent), start from that choice rather than whatever the row carried.
+        // The row itself already reflects 'solo' (authorised_solo + instructor)
+        // and 'other' (no crew), so only a mismatch is acted on.
+        function preselect_split_leg_crew(bookout){
+            if(!vm.split_prev_leg){ return; }
+            var prev = vm.split_prev_leg || {};
+            var row = bookout || {};
+            var mode = prev.crew_mode || row.crew_mode || row.split_crew_mode || '';
+            if(!mode && row.tpc_split_mode == 'dual_to_solo'){ mode = 'solo'; }
+            mode = String(mode).toLowerCase();
+            if(mode == 'solo' && !vm.split_leg_is_solo() && vm.split_leg_student_id() > 0){
+                vm.split_leg_use_solo();
+            } else if(mode == 'hire' && !vm.split_leg_is_hire() && vm.split_leg_student_id() > 0){
+                vm.split_leg_use_hire();
+            } else if(mode == 'same' && !vm.split_leg_is_same()){
+                vm.split_leg_use_same();
+            }
+            // 'other' / unknown: leave the row as the backend set it
+        }
 
         // vm.convert_decimal_to_hours = function(decimal_time){
         //     var temp = new Array();
@@ -3239,8 +3580,14 @@
             }
 
             var bookout_instructor_id = vm.bookout.instructor_id;
-            if(!bookout_instructor_id || bookout_instructor_id == 0 && is_dual_flight == 1 && vm.bookout.pic_id > 0){
+            // Only a DUAL flight with no explicit instructor defaults the instructor
+            // to the PIC. The old condition was `!x || (x == 0 && dual && pic)` —
+            // operator precedence made every self-hire carry its pilot as "instructor".
+            if((!bookout_instructor_id || bookout_instructor_id == 0) && is_dual_flight == 1 && vm.bookout.pic_id > 0){
                 bookout_instructor_id = vm.bookout.pic_id;
+            }
+            if(is_dual_flight != 1 && !vm.this_was_supervised_solo && !vm.bookout.authorised_solo){
+                bookout_instructor_id = 0;   // plain hire / P1: nobody instructed
             }
 
 
@@ -4354,6 +4701,7 @@
                 //vm.bookout.touch_and_go = vm.bookout.touch_and_go;
                 vm.bookout.tng = vm.bookout.touch_and_go;
                 vm.bookout.landings = vm.bookout.full_stop_landings;
+                prefill_counts_from_track(vm.bookout.id || booking.plane_log_sheet_id || $stateParams.id);
 
 //                vm.bookout.fox_log_id = vm.claimed_flight.fox_log_id; already set
                 vm.bookout.fox_claimed = 1;

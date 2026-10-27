@@ -10,9 +10,9 @@
 app.controller('FlightReplayController', FlightReplayController);
 
     FlightReplayController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$timeout', '$window', '$log',
-        'FlightReplayService', 'FlightMapAdapter', 'ToastService'];
+        'FlightReplayService', 'FlightMapAdapter', 'ToastService', 'FoxTrackService', 'BookingService'];
     function FlightReplayController($scope, $rootScope, $state, $stateParams, $timeout, $window, $log,
-        FlightReplayService, FlightMapAdapter, ToastService) {
+        FlightReplayService, FlightMapAdapter, ToastService, FoxTrackService, BookingService) {
 
         var vm = this;
 
@@ -33,6 +33,30 @@ app.controller('FlightReplayController', FlightReplayController);
         vm.track = [];
         vm.photos = [];
         vm.annotations = [];
+
+        // ── Track data (FRONTEND_TRACK_DATA_GUIDE.md §1) — all additive keys on the
+        // replay payload; every one of these stays null/empty on an older payload
+        // so nothing below changes behaviour when the backend hasn't sent them. ──
+        vm.trackScope = null;       // 'leg' | 'full' | null (key absent)
+        vm.split = null;            // { leg, total, siblingId } when flight.is_split_flight
+        vm.legNotCut = false;       // split leg still replaying the whole recording
+        vm.eventsState = null;      // null (key absent) | 'pending' (track_events null) | 'ready'
+        vm.events = [];             // decorated track_events.events[] (see decorateEvent)
+        vm.eventSummary = null;     // track_events.summary
+        vm.eventsUnconfirmed = false; // summary.confidence < 0.5
+        vm.airborneLabel = '';      // summary.airborne_seconds as h:mm
+        vm.trackerOnly = [];        // tracker "flights" the track disproves, with verdict labels
+        vm.activeEvent = null;      // the event shown in the over-map card
+
+        // Marker legend (symbol + colour per event kind). Shapes are unicode glyphs
+        // so they read the same on the scrubber ticks, the legend and the event card.
+        vm.eventLegend = [
+            { kind: 'takeoff',      symbol: '▲', label: 'Take-off' },
+            { kind: 'full_stop',    symbol: '▼', label: 'Full stop' },
+            { kind: 'stop_and_go',  symbol: '▼', label: 'Stop-and-go' },
+            { kind: 'touch_and_go', symbol: '▼', label: 'Touch-and-go' },
+            { kind: 'go_around',    symbol: '↺', label: 'Go-around' }
+        ];
 
         // ── Shared scrub state ──
         vm.currentIndex = 0;
@@ -105,6 +129,7 @@ app.controller('FlightReplayController', FlightReplayController);
                 vm.currentPoint = vm.track.length ? angular.copy(vm.track[0]) : null;
 
                 groupAnnotations();
+                applyTrackData(data);
 
                 if (vm.hasTrack && vm.track.length) {
                     // Defer until after this digest renders the ng-if blocks, so
@@ -156,14 +181,20 @@ app.controller('FlightReplayController', FlightReplayController);
         // photo or timeline note is clicked).
         vm.seekToTs = function (ts) {
             if (!ts || !vm.track.length) return;
+            vm.pause();
+            vm.seekToIndex(indexAtTs(ts));
+            if (mapAdapter && vm.currentPoint) mapAdapter.panTo(vm.currentPoint);
+        };
+
+        // Track index of the nearest fix at/just before a unix timestamp (0 when
+        // the timestamp precedes the track). Shared by photos, notes and events.
+        function indexAtTs(ts) {
             var best = 0;
             for (var i = 0; i < vm.track.length; i++) {
                 if (vm.track[i].ts && vm.track[i].ts <= ts) best = i; else break;
             }
-            vm.pause();
-            vm.seekToIndex(best);
-            if (mapAdapter && vm.currentPoint) mapAdapter.panTo(vm.currentPoint);
-        };
+            return best;
+        }
 
         // Seek to a timeline annotation's pinned moment AND surface the note in a
         // dismissible card over the map so the reader sees what it says.
@@ -173,7 +204,7 @@ app.controller('FlightReplayController', FlightReplayController);
         };
 
         // Show / hide the over-map note card.
-        vm.showNote = function (an) { vm.activeNote = an || null; };
+        vm.showNote = function (an) { vm.activeNote = an || null; if (an) vm.activeEvent = null; };
         vm.closeNote = function () { vm.activeNote = null; };
 
         // ════════════════════════════════════════════════
@@ -434,7 +465,157 @@ app.controller('FlightReplayController', FlightReplayController);
                 });
             });
 
+            // Track-derived events (take-off / landing / go-around). The adapter
+            // renders every pin as a white-ringed dot, so the KIND is carried by the
+            // colour (see EVENT_COLOURS + the legend) and the confidence by the
+            // dot's alpha; the tooltip + over-map card carry the detail.
+            (vm.events || []).forEach(function (ev) {
+                if (ev.latitude == null || ev.longitude == null) return;
+                pins.push({
+                    lat: ev.latitude, lon: ev.longitude,
+                    colour: rgba(ev._colour, ev._opacity),
+                    title: ev._title,
+                    onClick: function () { $scope.$applyAsync(function () { vm.seekToEvent(ev); }); }
+                });
+            });
+
             mapAdapter.setPins(pins, function (pin) { if (pin.onClick) pin.onClick(); });
+        }
+
+        // ════════════════════════════════════════════════
+        // TRACK EVENTS + SPLIT LEGS (guide §1 / §6)
+        // ════════════════════════════════════════════════
+        var EVENT_COLOURS = {
+            takeoff: '#0ea5e9',        // sky — "go"
+            full_stop: '#dc2626',      // landing kinds read as a traffic light:
+            stop_and_go: '#f59e0b',    //   red = stopped, amber = stopped then went,
+            touch_and_go: '#16a34a',   //   green = never stopped
+            go_around: '#1e3a5f',      // brand navy
+            landing: '#64748b'         // landing with no kind yet
+        };
+        var EVENT_SYMBOLS = { takeoff: '▲', landing: '▼', go_around: '↺' };
+
+        // Pull the additive §1 keys off the replay payload. Older payloads (no
+        // track_scope / track_events / split keys) leave every vm.* at its default.
+        function applyTrackData(data) {
+            vm.trackScope = data.track_scope || null;
+
+            // Split flight → header badge + sibling link.
+            vm.split = null;
+            vm.legNotCut = false;
+            if (vm.flight && vm.flight.is_split_flight) {
+                vm.split = {
+                    leg: vm.flight.split_leg || null,
+                    total: 2,
+                    siblingId: vm.flight.split_prev_leg_id || null
+                };
+                // Leg 1 has no prev-leg pointer; the sheet endpoint returns the OPEN
+                // next leg (null once leg 2 is booked in — then no link, badge only).
+                if (!vm.split.siblingId && !vm.isSD) loadSiblingLeg();
+                vm.legNotCut = (vm.trackScope === 'full');
+            }
+
+            // Track-derived events.
+            vm.events = [];
+            vm.eventSummary = null;
+            vm.eventsUnconfirmed = false;
+            vm.airborneLabel = '';
+            vm.trackerOnly = [];
+            vm.activeEvent = null;
+            if (!data.hasOwnProperty('track_events')) { vm.eventsState = null; return; }
+            var te = data.track_events;
+            if (!te || te.available === false) { vm.eventsState = 'pending'; return; }
+
+            vm.eventsState = 'ready';
+            vm.eventSummary = te.summary || null;
+            if (vm.eventSummary) {
+                var conf = vm.eventSummary.confidence;
+                vm.eventsUnconfirmed = (conf != null && conf < 0.5);
+                // a cut leg can report 0 airborne seconds (the take-off sits in the other leg) — hide rather than show 0:00
+                vm.airborneLabel = vm.eventSummary.airborne_seconds > 0 ? fmtHm(vm.eventSummary.airborne_seconds) : '';
+            }
+            vm.events = (te.events || []).map(decorateEvent).sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+
+            // Tracker "flights" the track disproves: §1 payload carries them as
+            // summary.tracker_pair_checks[]; a reconciliation block (if the backend
+            // ever inlines one) as comparison.tracker_only[]. Same verdict vocabulary.
+            var checks = (vm.eventSummary && vm.eventSummary.tracker_pair_checks) ||
+                         (data.comparison && data.comparison.tracker_only) || [];
+            vm.trackerOnly = checks.filter(function (c) { return c && c.verdict; }).map(function (c) {
+                var chk = c.check || c;
+                var bits = [];
+                if (chk.max_speed_kt != null) bits.push('max ' + Math.round(chk.max_speed_kt) + ' kt');
+                if (chk.max_agl_ft != null) bits.push('max ' + Math.round(chk.max_agl_ft) + ' ft agl');
+                if (c.duration_s != null) bits.push(Math.round(c.duration_s) + ' s');
+                return {
+                    index: c.index,
+                    verdict: c.verdict,
+                    label: FoxTrackService.verdictLabel(c.verdict),
+                    detail: bits.join(' · '),
+                    start: c.start ? String(c.start).substr(11, 5) : null
+                };
+            });
+        }
+
+        // Add the render-only fields (underscore convention) an event needs on the
+        // map, the scrubber ticks and the over-map card.
+        function decorateEvent(ev) {
+            var e = angular.copy(ev);
+            var isLanding = (e.event_type === 'landing');
+            e._kind = isLanding ? (e.landing_kind || 'landing') : e.event_type;
+            e._symbol = EVENT_SYMBOLS[e.event_type] || '●';
+            e._colour = EVENT_COLOURS[e._kind] || EVENT_COLOURS.landing;
+            e._kindLabel = isLanding
+                ? (e.landing_kind ? FoxTrackService.landingKindLabel(e.landing_kind) + ' landing' : 'landing')
+                : (e.event_type === 'go_around' ? 'go-around' : (e.event_type === 'takeoff' ? 'take-off' : (e.event_type || 'event')));
+            e._methodLabel = FoxTrackService.methodLabel(e.method);
+            e._lowConf = (e.confidence != null && e.confidence < 0.5);
+            e._confPct = (e.confidence != null) ? Math.round(e.confidence * 100) : null;
+            // Opacity tracks confidence but never drops below 0.35 so a marker stays visible.
+            e._opacity = (e.confidence == null) ? 1 : Math.max(0.35, Math.min(1, e.confidence));
+            e._timeLabel = e.at ? String(e.at).substr(11, 8) : '';
+            e._index = (e.ts && vm.track.length) ? indexAtTs(e.ts) : 0;
+            e._pct = vm.scrubMax ? (e._index / vm.scrubMax) * 100 : 0;
+            e._title = [e._timeLabel ? e._timeLabel + ' UTC' : null, e._kindLabel, e._methodLabel]
+                .filter(function (s) { return !!s; }).join(' · ') + (e._lowConf ? ' · low confidence' : '');
+            return e;
+        }
+
+        // Scrub to an event (pins, ticks, legend list) and show its card over the map.
+        vm.seekToEvent = function (ev) {
+            if (!ev) return;
+            vm.pause();
+            if (vm.track.length) {
+                vm.seekToIndex(ev._index || 0);
+                if (mapAdapter && vm.currentPoint) mapAdapter.panTo(vm.currentPoint);
+            }
+            vm.activeNote = null;
+            vm.activeEvent = ev;
+        };
+        vm.closeEvent = function () { vm.activeEvent = null; };
+
+        // Leg 1 only: ask the sheet endpoint for the open next leg so the badge
+        // can link forward. Failure or "already booked in" just leaves the badge unlinked.
+        function loadSiblingLeg() {
+            BookingService.GetForBookIn(vm.flight_id).then(function (res) {
+                if (!res || res.success === false || !vm.split) return;
+                var next = res.split_next_leg;
+                if (next && next.id) vm.split.siblingId = next.id;
+            });
+        }
+
+        // Seconds → "h:mm" (airborne time).
+        function fmtHm(sec) {
+            if (sec == null) return '';
+            var m = Math.round(sec / 60);
+            var h = Math.floor(m / 60), mm = m % 60;
+            return h + ':' + (mm < 10 ? '0' : '') + mm;
+        }
+
+        // '#rrggbb' + alpha → 'rgba(r,g,b,a)' (both map providers accept CSS colours).
+        function rgba(h, a) {
+            var c = hex(h);
+            return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a == null ? 1 : a) + ')';
         }
 
         // ════════════════════════════════════════════════

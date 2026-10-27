@@ -58,6 +58,16 @@
         // Debrief times are training-record times: brakes off → on, club rounding.
         vm.td = TimeDisplayService.context(vm.club_id, { window: 'block' });
 
+        // The track reconciliation panel applied track-derived landing counts to
+        // the sheet (FRONTEND_TRACK_DATA_GUIDE.md §2.2) — mirror them on our copy
+        // so the Landings item and its counts-source chip update in place.
+        $scope.$on('trackCounts:applied', function (event, sheet) {
+            if (!sheet || !vm.plane_log_sheet) { return; }
+            ['full_stop_landings', 'touch_and_go', 'track_counts_source', 'track_counts_updated_at'].forEach(function (k) {
+                if (sheet[k] !== undefined) { vm.plane_log_sheet[k] = sheet[k]; }
+            });
+        });
+
         vm.exams = [];
 
         
@@ -194,8 +204,13 @@
                 // only straight after the book-in that created the split.
                 vm.pending_split_leg = null;
                 vm.sheet_needs_book_in = false;
+                // "Save & book in part 2": the record is saved FIRST (save_progress
+                // redirects to the part-2 book-in on success), so nothing typed into
+                // this debrief is lost. Validation toasts say what is missing.
                 vm.book_in_split_leg = function(){
-                    if(vm.split_next_id > 0){ $state.go('dashboard.my_account.book_in', {id: vm.split_next_id}); }
+                    if(!(vm.split_next_id > 0)){ return; }
+                    vm.show_split = 1;
+                    vm.save_progress();
                 };
                 vm.book_in_this_sheet = function(){
                     if(vm.plane_log_sheet && vm.plane_log_sheet.id > 0){ $state.go('dashboard.my_account.book_in', {id: vm.plane_log_sheet.id}); }

@@ -1,0 +1,170 @@
+<div class="snazzy-page ih-page">
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-stopwatch"></i> Hours Instructed</h2>
+        <p>Every flight you instructed, with the solos you supervised</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="snazzy-page__body snazzy-reveal snazzy-reveal--stagger">
+
+    <!-- ── Range ── -->
+    <div class="ih-range">
+      <div class="ih-range__presets">
+        <button type="button" class="ih-preset" ng-repeat="p in vm.presets"
+                ng-class="{'ih-preset--on': vm.preset === p.id}"
+                ng-click="vm.use_preset(p.id)" no-busy-guard>{{ p.label }}</button>
+      </div>
+      <div class="ih-range__custom" ng-show="vm.preset === 'custom'">
+        <div class="snazzy-page__filter-group">
+          <label>From</label>
+          <input type="date" class="snazzy-page__date-input" ng-model="vm.from_date" />
+        </div>
+        <div class="snazzy-page__filter-group">
+          <label>To</label>
+          <input type="date" class="snazzy-page__date-input" ng-model="vm.to_date" />
+        </div>
+        <div class="snazzy-page__filter-group snazzy-page__filter-group--btn">
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.search()" ng-disabled="vm.loading" no-busy-guard>
+            <i class="fa fa-search"></i> Show
+          </button>
+        </div>
+      </div>
+      <div class="ih-range__meta">
+        <span class="ih-range__dates"><i class="far fa-calendar"></i> {{ vm.from_date | date:'d MMM yyyy' }} – {{ vm.to_date | date:'d MMM yyyy' }}</span>
+        <label class="ih-toggle" ng-class="{'ih-toggle--on': vm.include_solo}">
+          <input type="checkbox" ng-checked="vm.include_solo" ng-click="vm.toggle_solo()" />
+          <span class="ih-toggle__track"><span class="ih-toggle__knob"></span></span>
+          <span class="ih-toggle__label">Include supervised solos</span>
+        </label>
+      </div>
+      <div class="ih-clubs" ng-if="vm.clubs.length > 1">
+        <span class="ih-clubs__label">Club</span>
+        <button type="button" class="ih-preset ih-preset--sm" ng-class="{'ih-preset--on': !vm.filter_club}" ng-click="vm.filter_club = null; vm.set_club(null)" no-busy-guard>All</button>
+        <button type="button" class="ih-preset ih-preset--sm" ng-repeat="c in vm.clubs" ng-class="{'ih-preset--on': vm.filter_club == c.id}" ng-click="vm.set_club(c.id)" no-busy-guard>{{ c.title }}</button>
+      </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+      <div class="sec-spinner"></div><span>Adding up your hours…</span>
+    </div>
+
+    <div ng-if="!vm.loading && vm.loaded">
+
+      <!-- ── Totals ── -->
+      <div class="snazzy-page__summary-card ih-summary">
+        <div class="snazzy-page__summary-grid">
+          <div class="snazzy-page__stat ih-stat--total">
+            <span class="snazzy-page__stat-label">Hours instructed</span>
+            <span class="snazzy-page__stat-value">{{ vm.hours(vm.totals.hours) }}</span>
+            <span class="ih-stat__sub">{{ vm.totals.flights }} flight{{ vm.totals.flights === 1 ? '' : 's' }}</span>
+          </div>
+          <div class="snazzy-page__stat">
+            <span class="snazzy-page__stat-label"><i class="fas fa-user-friends ih-kind ih-kind--dual"></i> Dual instruction</span>
+            <span class="snazzy-page__stat-value">{{ vm.hours(vm.totals.dual_hours) }}</span>
+            <span class="ih-stat__sub">{{ vm.totals.dual_flights }} flight{{ vm.totals.dual_flights === 1 ? '' : 's' }} · you were aboard</span>
+          </div>
+          <div class="snazzy-page__stat" ng-class="{'ih-stat--muted': !vm.include_solo}">
+            <span class="snazzy-page__stat-label"><i class="fas fa-user ih-kind ih-kind--solo"></i> Supervised solo</span>
+            <span class="snazzy-page__stat-value">{{ vm.include_solo ? vm.hours(vm.totals.solo_hours) : '—' }}</span>
+            <span class="ih-stat__sub" ng-if="vm.include_solo">{{ vm.totals.solo_flights }} flight{{ vm.totals.solo_flights === 1 ? '' : 's' }} · authorised, not aboard</span>
+            <span class="ih-stat__sub" ng-if="!vm.include_solo">not included</span>
+          </div>
+          <div class="snazzy-page__stat">
+            <span class="snazzy-page__stat-label">Students</span>
+            <span class="snazzy-page__stat-value">{{ vm.totals.students }}</span>
+            <span class="ih-stat__sub">{{ vm.totals.landings }} landing{{ vm.totals.landings === 1 ? '' : 's' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Empty ── -->
+      <div class="snazzy-page__empty" ng-if="!vm.shown_flights().length">
+        <div class="snazzy-page__empty-icon"><i class="fas fa-stopwatch"></i></div>
+        <h3>Nothing instructed in this range</h3>
+        <p>Flights appear here once they are booked in with you as the instructor.</p>
+      </div>
+
+      <div ng-if="vm.shown_flights().length">
+
+        <!-- ── By month ── -->
+        <div class="ih-card ih-months" ng-if="vm.months.length > 1">
+          <div class="ih-card__head"><i class="far fa-calendar-alt"></i> By month</div>
+          <div class="ih-months__grid">
+            <div class="ih-month" ng-repeat="m in vm.months">
+              <div class="ih-month__name">{{ m.label }}</div>
+              <div class="ih-month__hours">{{ vm.hours(m.hours) }}</div>
+              <div class="ih-month__bar">
+                <span class="ih-month__seg ih-month__seg--dual" ng-style="{width: (m.hours ? (m.dual_hours / m.hours * 100) : 0) + '%'}"></span>
+                <span class="ih-month__seg ih-month__seg--solo" ng-style="{width: (m.hours ? (m.solo_hours / m.hours * 100) : 0) + '%'}"></span>
+              </div>
+              <div class="ih-month__split">
+                <span><i class="fas fa-circle ih-kind ih-kind--dual"></i> {{ vm.hours(m.dual_hours) }} dual</span>
+                <span ng-if="vm.include_solo"><i class="fas fa-circle ih-kind ih-kind--solo"></i> {{ vm.hours(m.solo_hours) }} solo</span>
+                <span class="ih-month__count">{{ m.flights }} flt</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Flights (table on wide screens, stacked cards on phones) ── -->
+        <div class="ih-card">
+          <div class="ih-card__head"><i class="fas fa-plane"></i> Flights <span class="snazzy-page__count-badge">{{ vm.shown_flights().length }}</span></div>
+          <div class="snazzy-page__table-scroll ih-table-wrap">
+            <table class="snazzy-table ih-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Student</th>
+                  <th class="snazzy-table__hide-mobile">Aircraft</th>
+                  <th class="snazzy-table__hide-mobile">Lesson</th>
+                  <th class="snazzy-table__hide-mobile">Club</th>
+                  <th class="ih-table__num">Landings</th>
+                  <th class="ih-table__num">Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="f in vm.shown_flights() track by f.id">
+                  <td class="ih-table__date">{{ f.flight_date | date:'d MMM yyyy' }}<span class="ih-table__time" ng-if="f.brakes_off"> · {{ f.brakes_off | roundMinute }}</span></td>
+                  <td><span class="ih-badge ih-badge--{{ f.kind }}"><i class="fas" ng-class="f.kind === 'solo' ? 'fa-user' : 'fa-user-friends'"></i> {{ vm.kind_label(f.kind) }}</span></td>
+                  <td>{{ f.student_name || '—' }}</td>
+                  <td class="snazzy-table__hide-mobile">{{ f.registration || '—' }}</td>
+                  <td class="snazzy-table__hide-mobile ih-table__lesson">{{ f.lesson_title || '—' }}</td>
+                  <td class="snazzy-table__hide-mobile">{{ f.club_title }}</td>
+                  <td class="ih-table__num">{{ f.landings }}</td>
+                  <td class="ih-table__num ih-table__hours">{{ vm.hours(f.hours) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="ih-mlist">
+            <div class="ih-mcard" ng-repeat="f in vm.shown_flights() track by f.id">
+              <div class="ih-mcard__top">
+                <span class="ih-mcard__date">{{ f.flight_date | date:'d MMM yyyy' }}<span class="ih-table__time" ng-if="f.brakes_off"> · {{ f.brakes_off | roundMinute }}</span></span>
+                <span class="ih-mcard__hours">{{ vm.hours(f.hours) }}</span>
+              </div>
+              <div class="ih-mcard__mid">
+                <span class="ih-badge ih-badge--{{ f.kind }}"><i class="fas" ng-class="f.kind === 'solo' ? 'fa-user' : 'fa-user-friends'"></i> {{ vm.kind_label(f.kind) }}</span>
+                <span class="ih-mcard__student"><i class="fas fa-user-graduate"></i> {{ f.student_name || '—' }}</span>
+              </div>
+              <div class="ih-mcard__meta">
+                <span ng-if="f.registration"><i class="fas fa-plane"></i> {{ f.registration }}</span>
+                <span><i class="fas fa-plane-arrival"></i> {{ f.landings }} landing{{ f.landings === 1 ? '' : 's' }}</span>
+                <span ng-if="f.club_title"><i class="fas fa-home"></i> {{ f.club_title }}</span>
+              </div>
+              <div class="ih-mcard__lesson" ng-if="f.lesson_title"><i class="fas fa-book-open"></i> {{ f.lesson_title }}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

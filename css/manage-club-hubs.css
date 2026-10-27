@@ -8,7 +8,8 @@
 
      _vouchers_nav.html  Vouchers · Air Experiences · Discounts · Widget
      _invoices_nav.html  Invoices · Payments
-     _members_nav.html   Members · Requests · Instructors · Missing Students
+     members_hub.html    Members · Requests · Instructors · Missing Students (a real
+                         parent STATE — header + tabs persist, only the body swaps)
      _stats_nav.html     Statistics · Accounting Export
 
    Each partial is ng-include'd directly BELOW the host page's existing
@@ -149,4 +150,49 @@ body.night-mode .mchub-tabs .trk-tab--active:focus {
 
 @media (prefers-reduced-motion: reduce) {
     .mchub-tabs .trk-tab { transition: none; }
+}
+
+
+/* ═══ Members hub (views/manageclub/members_hub.html) ═══
+   The hub root is the ONE .snazzy-page for all four screens. It sits in a
+   flex row (.centre_align_boxes2 > div, justify-content:center) whose items
+   shrink-wrap to content — the cause of the page width jumping between
+   tabs. The host ui-view is told to fill the row instead. */
+.centre_align_boxes2 > div > ui-view:has(> .mhub) {
+    flex: 1 1 100%;
+    width: 100%;
+}
+.mhub { width: 100%; }
+.mhub__view { display: block; }
+.mhub__tabs { margin-bottom: 22px; }
+.mhub__actions { display: block; }
+
+/* Child screens: the hub supplies the page padding, header and tabs. */
+.snazzy-page--hub,
+.members-page--hub {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+.snazzy-page--hub > .snazzy-page__body { padding-top: 0; }
+/* The hub inherits text-align:center from .centre_align_boxes2; rows and
+   labels in the children are left-aligned components. */
+.mhub { text-align: left; }
+.mhub .ib-card__info, .mhub .msq-candidates__label { text-align: left; }
+
+/* The body fades in on its own (global ui-view ng-enter rule); the
+   outgoing body is removed immediately so the new one never stacks below. */
+.mhub__view.ng-leave { display: none; }
+
+.mreq-toolbar { justify-content: flex-end; margin-bottom: 14px; }
+
+@media only screen and (max-width: 768px) {
+    .mhub__tabs { margin-bottom: 16px; }
+    /* four tabs on one line at phone width: tighter, icon-less */
+    .mhub__tabs { gap: 0; }
+    .mhub__tabs .trk-tab { flex: 1 1 auto; justify-content: center; padding: 10px 4px; font-size: 11.5px; letter-spacing: 0; gap: 4px; }
+    .mhub__tabs .trk-tab i { display: none; }
+    .mhub__actions { position: static; transform: none; margin-top: 14px; }
+    .mhub__actions .members-page__add-btn { width: 100%; text-align: center; padding: 12px 20px; }
 }

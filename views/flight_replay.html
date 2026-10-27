@@ -10,6 +10,16 @@
         <h2>
           <i class="fa fa-video"></i> Flight Replay
           <span class="fr-sd-badge" ng-if="vm.isSD" uib-tooltip="{{ vm.trackNote || 'SkyDemon track — GPS only' }}">SD</span>
+          <!-- Split tracker flight: which leg this is, with a link to the other leg
+               (leg 2 → prev leg id from the payload; leg 1 → open next leg from the sheet). -->
+          <span class="fr-leg-badge" ng-if="vm.split" uib-tooltip="This tracker flight was split into two log sheets at book-in">
+            <i class="fa fa-cut"></i> Leg {{ vm.split.leg || '?' }} of {{ vm.split.total }}
+            <a class="fr-leg-badge__link" ng-if="vm.split.siblingId"
+               ui-sref="dashboard.flight_replay({flight_id: vm.split.siblingId})">
+              <span ng-if="vm.split.leg == 2"><i class="fa fa-arrow-left"></i> Leg 1</span>
+              <span ng-if="vm.split.leg != 2">Leg 2 <i class="fa fa-arrow-right"></i></span>
+            </a>
+          </span>
         </h2>
         <p ng-if="vm.flight">
           {{ vm.flight.registration }} &middot;
@@ -83,6 +93,12 @@
     <!-- ═══ SD note — GPS-only track ═══ -->
     <div class="fr-sd-note snazzy-reveal" ng-if="vm.isSD && vm.trackNote">
       <i class="fa fa-location-arrow"></i> {{ vm.trackNote }}
+    </div>
+
+    <!-- ═══ Split leg still showing the whole recording (cut not built yet) ═══ -->
+    <div class="fr-events__notice snazzy-reveal" ng-if="vm.legNotCut && vm.hasTrack">
+      <i class="fa fa-cut"></i>
+      <span>Track not yet cut for this leg — it is built within about 10 minutes of the book-in. Until then this replay shows the whole recording.</span>
     </div>
 
     <!-- ═══ No-track empty state (still allow photos/notes) ═══ -->
@@ -195,6 +211,23 @@
           </div>
           <div class="fr-note-card__body">{{ vm.activeNote.body }}</div>
         </div>
+
+        <!-- ── Track-event card (shown when an event marker / tick is clicked) ── -->
+        <div class="fr-event-card" ng-if="vm.activeEvent" ng-class="'fr-event-card--' + vm.activeEvent._kind">
+          <button class="fr-event-card__close" ng-click="vm.closeEvent()"><i class="fa fa-times"></i></button>
+          <div class="fr-event-card__head">
+            <span class="fr-events__glyph" ng-class="'fr-events__glyph--' + vm.activeEvent._kind">{{ vm.activeEvent._symbol }}</span>
+            <span class="fr-event-card__kind">{{ vm.activeEvent._kindLabel }}</span>
+            <span class="fr-event-card__time" ng-if="vm.activeEvent._timeLabel"><i class="fa fa-clock"></i> {{ vm.activeEvent._timeLabel }} UTC</span>
+          </div>
+          <div class="fr-event-card__row" ng-if="vm.activeEvent._methodLabel">{{ vm.activeEvent._methodLabel }}</div>
+          <div class="fr-event-card__row fr-event-card__meta">
+            <span ng-if="vm.activeEvent.agl_ft != null">{{ vm.activeEvent.agl_ft | number:0 }} ft agl</span>
+            <span ng-if="vm.activeEvent.speed_kt != null">{{ vm.activeEvent.speed_kt | number:0 }} kt</span>
+            <span ng-if="vm.activeEvent._confPct != null">confidence {{ vm.activeEvent._confPct }}%</span>
+            <span class="fr-events__lowconf" ng-if="vm.activeEvent._lowConf">low confidence</span>
+          </div>
+        </div>
       </div>
 
       <!-- Slide handle (fullscreen only). Kept OUTSIDE the panel so the panel's
@@ -221,6 +254,15 @@
         </button>
 
         <div class="fr-transport__scrub">
+          <!-- Event ticks ride the scrubber: left = track index as a % of the track,
+               so they line up with the time axis of the profile below. -->
+          <div class="fr-events__ticks" ng-if="vm.events.length">
+            <button type="button" class="fr-events__tick fr-events__tick--{{ ev._kind }}" ng-repeat="ev in vm.events track by $index"
+                    ng-class="{'fr-events__tick--active': vm.activeEvent === ev, 'fr-events__tick--lowconf': ev._lowConf}"
+                    ng-style="{'left': ev._pct + '%', 'opacity': ev._opacity}"
+                    ng-click="vm.seekToEvent(ev)" uib-tooltip="{{ ev._title }}" tooltip-append-to-body="true"
+                    aria-label="{{ ev._title }}">{{ ev._symbol }}</button>
+          </div>
           <input type="range" class="fr-scrub" min="0" max="{{ vm.scrubMax }}" step="1"
                  ng-model="vm.currentIndex" ng-change="vm.onScrub()" />
           <div class="fr-transport__meta">
@@ -238,6 +280,73 @@
 
       <div class="fr-profile">
         <flight-height-profile track="vm.track" current-index="vm.currentIndex" on-seek="vm.seekToIndex(i)"></flight-height-profile>
+      </div>
+    </div>
+
+    <!-- ═══ Track analysis: events detected from the recording (guide §1) ═══
+         Only rendered when the payload carries the track_events key, so older
+         payloads and SkyDemon replays show nothing here. -->
+    <div class="fr-events snazzy-reveal" ng-if="vm.hasTrack && vm.eventsState" ng-class="{'fr-events--pending': vm.eventsState === 'pending', 'fr-events--unconfirmed': vm.eventsUnconfirmed}">
+      <div class="fr-events__head">
+        <h3><i class="fa fa-chart-line"></i> Track analysis</h3>
+        <span class="fr-events__pill fr-events__pill--pending" ng-if="vm.eventsState === 'pending'"><i class="fa fa-hourglass-half"></i> Track analysis pending</span>
+        <span class="fr-events__pill fr-events__pill--unconfirmed" ng-if="vm.eventsState === 'ready' && vm.eventsUnconfirmed"
+              uib-tooltip="The detector is less than 50% confident in this recording — treat these counts as a hint, not a record">unconfirmed</span>
+        <span class="fr-events__meta" ng-if="vm.eventsState === 'ready' && vm.eventSummary.confidence != null">
+          confidence {{ vm.eventSummary.confidence * 100 | number:0 }}%
+        </span>
+      </div>
+
+      <p class="fr-events__pending-note" ng-if="vm.eventsState === 'pending'">
+        Take-offs, landings and go-arounds are detected from the recording within minutes of upload — check back shortly.
+      </p>
+
+      <div ng-if="vm.eventsState === 'ready'">
+        <!-- Summary strip -->
+        <div class="fr-events__grid" ng-if="vm.eventSummary">
+          <div class="fr-events__stat">
+            <span class="fr-events__label">Landings</span>
+            <span class="fr-events__value">{{ vm.eventSummary.landings || 0 }}</span>
+          </div>
+          <div class="fr-events__stat" uib-tooltip="Full stops + stop-and-gos — both count as a full-stop landing on the sheet">
+            <span class="fr-events__label">Logged as full stops</span>
+            <span class="fr-events__value">{{ (vm.eventSummary.full_stop_landings || 0) + (vm.eventSummary.stop_and_gos || 0) }}</span>
+            <span class="fr-events__sub" ng-if="vm.eventSummary.stop_and_gos">{{ vm.eventSummary.full_stop_landings || 0 }} full stop · {{ vm.eventSummary.stop_and_gos }} stop-and-go</span>
+          </div>
+          <div class="fr-events__stat">
+            <span class="fr-events__label">Touch-and-gos</span>
+            <span class="fr-events__value">{{ vm.eventSummary.touch_and_gos || 0 }}</span>
+          </div>
+          <div class="fr-events__stat">
+            <span class="fr-events__label">Go-arounds</span>
+            <span class="fr-events__value">{{ vm.eventSummary.go_arounds || 0 }}</span>
+          </div>
+          <div class="fr-events__stat" ng-if="vm.airborneLabel">
+            <span class="fr-events__label">Airborne</span>
+            <span class="fr-events__value">{{ vm.airborneLabel }}<small>h:mm</small></span>
+          </div>
+        </div>
+
+        <!-- Legend: what the markers / ticks mean -->
+        <div class="fr-events__legend">
+          <span class="fr-events__legend-item" ng-repeat="l in vm.eventLegend">
+            <span class="fr-events__glyph" ng-class="'fr-events__glyph--' + l.kind">{{ l.symbol }}</span> {{ l.label }}
+          </span>
+          <span class="fr-events__legend-hint"><i class="fa fa-info-circle"></i> Faded markers = lower confidence. Click one to jump there.</span>
+        </div>
+
+        <div class="fr-panel__empty" ng-if="!vm.events.length">No take-offs or landings were detected in this recording.</div>
+
+        <!-- Tracker "flights" the track disproves -->
+        <div class="fr-events__tracker-only" ng-if="vm.trackerOnly.length">
+          <span class="fr-events__tracker-only-title"><i class="fa fa-satellite-dish"></i> Tracker also reported:</span>
+          <div class="fr-events__tracker-only-row" ng-repeat="t in vm.trackerOnly track by $index">
+            <span class="fr-events__verdict" ng-class="'fr-events__verdict--' + t.verdict">{{ t.label }}</span>
+            <span class="fr-events__tracker-only-detail" ng-if="t.start || t.detail">
+              <span ng-if="t.start">{{ t.start }} UTC</span><span ng-if="t.start && t.detail"> · </span><span ng-if="t.detail">{{ t.detail }}</span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 

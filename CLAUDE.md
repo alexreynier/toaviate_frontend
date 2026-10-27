@@ -408,6 +408,93 @@ Optional TOTP 2FA + WebAuthn passkeys (added 2026-08). Backend contract:
 - Show-once secrets (TOTP secret, recovery codes) use `backdrop:'static'` modals
   and are never re-fetchable — don't add endpoints or caching that would change that.
 
+## Account Email Addresses & Step-Up Authentication
+
+One account, one primary + verified secondaries, every mutation behind a
+step-up (password + second factor). Added 2026-10-26; contract and the list of
+every file: `FRONTEND_ACCOUNT_EMAILS_GUIDE.md` (backend repo), rationale
+`ACCOUNT_EMAILS_DESIGN.md`.
+
+- **`StepUpService.Run(opts, action)`** ([js/services/stepUpService.js](js/services/stepUpService.js))
+  is the one entry point for anything step-up-gated (now: emails; later:
+  password change, passkey enrolment). It opens `views/modals/step_up.html`,
+  retries once on `STEP_UP_REQUIRED`, resolves `{error:'CANCELLED'}` on back-out.
+- **Security page card** `AccountEmailsController as ae` in
+  [views/my_account/security.html](views/my_account/security.html) (`.ae-*`,
+  [css/account-emails.css](css/account-emails.css)); make-primary updates
+  `$rootScope.globals.currentUser.email` + re-persists the globals cookie, never
+  re-runs `SetCredentials`.
+- **Public pages** `/email_confirm/:token` and `/email_cancel/:token` are baked
+  into emails — paths can never change; GET only displays, POST acts (mail
+  scanners prefetch links). Any failure → one uniform "invalid or expired" panel.
+- **Staff recovery** `AdminEmailRecoveryController as rec` on the super-admin
+  Security page (`.aer-*`); backend enforces `FOUR_EYES` / `ADMIN_2FA_REQUIRED`.
+- Every backend code from this feature is in the write-guard `HANDLED_CODES`;
+  `/account_email_confirm/` is in `SILENT_URLS`. Add new codes there, not ad hoc.
+
+## Track Data (per-leg replay, track events, reconciliation)
+
+Fox tracker recordings now yield track-derived events and a tracker·track·sheet
+reconciliation (added 2026-10-26; contract `FRONTEND_TRACK_DATA_GUIDE.md` /
+`BACKEND_TRACK_DATA_GUIDE.md` in the backend repo).
+
+- **Service:** [js/services/foxTrackService.js](js/services/foxTrackService.js) — every `fox_track/*`
+  call plus the SHARED copy helpers (`verdictLabel`, `methodLabel`, `landingKindLabel`,
+  `countsSourceChip`, `flagLabel`). Name a verdict/flag/source through these, never ad hoc.
+- **Directives:** `<track-reconciliation pls-id club-id>` ([js/directives/trackReconciliation.js](js/directives/trackReconciliation.js),
+  `.trc-*`) renders nothing on NO_TRACK/FORBIDDEN and emits `trackCounts:applied` after a
+  staff Apply; `<track-counts-chip source>` (`.tcs-chip--*`) goes beside any landing counts.
+  Mounted on the instructor debrief and the flight-edit modal; the book-in form uses the chip.
+- **Replay:** events ride `FlightMapAdapter.setPins` (coloured dots — the adapter only draws
+  circles) and ticks on the scrubber strip (the height profile canvas is a separate directive).
+- **Admin:** `dashboard.super_admin.fox_track_tools?imei` (`.ftt-*`) — backfill loop, segments,
+  inspect, links scan → repair / undo / resolve. Resolve and repair log under one batch label;
+  Undo reverses the whole batch.
+- **Suspect splits** (`<suspect-splits club-id admin>`, [js/directives/suspectSplits.js](js/directives/suspectSplits.js), `.ssp-*`):
+  manager page `dashboard.manage_club.split_review` (`/flights/split_review`, linked from the flights
+  toolbar) and a card on the admin track tools. Undo folds leg 2 back ONLY on a phantom boundary
+  (`NOT_SUSPECT` otherwise) — a mistaken but genuine split is released through **Cancel claim**.
+- **Where the reconciliation shows:** ONLY on the ToAviate-admin track tools page
+  (`dashboard.super_admin.fox_track_tools?pls=<id>`, "Flight analysis" card, `start-open="true"`).
+  The debrief and flight-edit screens show a link there for ToAviate staff (`isToAviateStaff()`)
+  and nothing for anyone else; the `<track-counts-chip>` was removed from member-facing forms.
+  The book-in form seeds landing counts from the live recommendation (`prefill_counts_from_track`).
+  Claim a Flight shows ONE airborne time / landing count per row ("most accurate wins": the track file's
+  figure when `track_calculated_status == 'ok'`, else the tracker's — `vm.best_airborne_seconds` /
+  `vm.best_landings`); the source is a tooltip only. The maintenance-logbook side of the same rule
+  (which airborne time the airframe/engine/prop logbooks sum, with an `airborne_source` stamp) is
+  SPEC'd in the backend repo's `BACKEND_AIRBORNE_SOURCE_GUIDE.md` — not built yet.
+- **Cancel claim** (Manage Club → Flights, manager only; `views/modals/cancelClaimModal.html`,
+  `CancelClaimService`, contract `FRONTEND_FLIGHT_CLAIM_CANCELLATION_GUIDE.md`) is the "release this
+  flight back to Claim a Flight" action: money reversed, invoices voided, records archived, sheet reset
+  to `fox_claimed = 2`. On a split pair it releases BOTH legs and recombines them into one placeholder —
+  contract `FRONTEND_FLIGHT_CLAIM_CANCELLATION_GUIDE.md` §9 (`split` block; `OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED`
+  → checkbox; `BLOCKED` + blockers; money for a shared booking is reversed once, on leg 1).
+- The backend's error codes for this feature are in the write-guard `HANDLED_CODES`.
+
+## Members hub (Manage Club → Members / Requests / Instructors / Missing Students)
+
+`dashboard.manage_club.members_hub` is an abstract PARENT state (`views/manageclub/members_hub.html`,
+`MembersHubController as hub`) that owns the gradient header + tab bar; the four screens are its children
+(declared with `parent:` so their names, URLs, controllers and `data` are unchanged —
+`dashboard.manage_instructor_bookings` keeps its top-level URL via `url: '^/dashboard/…'`). Only the nested
+`<ui-view class="mhub__view">` swaps, so the chrome never re-renders and the width is stable. Each child sets
+`data.hub = { title, subtitle, icon }`; child templates start at their body (`.snazzy-page--hub` /
+`.members-page--hub`, padding 0). **ui-router gotcha:** a state is only queued when its DOTTED-name parent is
+missing, so a child that names the hub via `parent:` must be registered AFTER the hub in app.js (the hub sits
+directly under `dashboard.manage_club`). The host `ui-view` is widened with `:has(> .mhub)` because
+`.centre_align_boxes2 > div` is a centred flex row that shrink-wraps pages to their content.
+
+## Hours Instructed (instructor dashboard)
+
+`dashboard.manage_user.instructed_hours` (tile HOURS INSTRUCTED) —
+[instructedHoursController.js](js/controllers/instructedHoursController.js) + [instructorHoursService.js](js/services/instructorHoursService.js)
+(`GET instructor_hours?from&to`, own flights only) + `views/manageuser/instructed_hours.html` + [css/instructed-hours.css](css/instructed-hours.css) (`.ih-*`).
+Flights come tagged `kind: dual | solo`; totals, the month breakdown and the club filter are computed
+client-side so the "Include supervised solos" toggle is instant. A supervised solo is NEVER logbook time for
+the instructor (My Logbook / PDF exclude it — backend `PersonalLogbook::is_authorised_solo_not_flown_by`);
+this page is where it is counted. Presets are built from today's date; date inputs hold real `Date` objects.
+
 ## Logbook Endorsements & Free-Logbook Signup Funnel
 
 Instructor countersignatures ("stamps") on personal-logbook lines + the

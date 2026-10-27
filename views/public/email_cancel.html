@@ -1,0 +1,69 @@
+<!-- Public "this wasn't me" page (/email_cancel/:token) — vetoes an open
+     email recovery case. No account session, no app chrome. GET shows the
+     summary; the case is only cancelled by the explicit POST behind the
+     button (mail scanners prefetch links). Every failure is the one
+     uniform panel. -->
+<div class="ec-page">
+
+    <div class="ec-page__topbar">
+        <img src="images/main_logo.png" class="ec-page__logo" alt="ToAviate" />
+    </div>
+
+    <div class="ec-card snazzy-reveal">
+
+        <div class="ec-card__band ec-card__band--danger">
+            <i class="fas fa-shield-alt ec-card__band-icon"></i>
+            <span class="ec-card__band-title">Cancel an email change</span>
+        </div>
+
+        <!-- Loading -->
+        <div class="ec-card__body" ng-if="vm.state === 'loading'">
+            <div class="sec-spinner ec-spinner"></div>
+            <p class="ec-text">Checking your link…</p>
+        </div>
+
+        <!-- Invalid / expired / used — the ONE uniform panel -->
+        <div class="ec-card__body" ng-if="vm.state === 'invalid'">
+            <i class="fas fa-unlink ec-icon ec-icon--muted"></i>
+            <h2 class="ec-title">This link is invalid or has expired.</h2>
+            <p class="ec-text">The request may already have been cancelled or completed. If you're worried about your account, sign in and check your Security page.</p>
+            <div class="ec-actions">
+                <a ui-sref="login" class="sec-btn sec-btn--outline ec-btn">Go to sign in</a>
+            </div>
+        </div>
+
+        <!-- Summary → Cancel -->
+        <div class="ec-card__body" ng-if="vm.state === 'summary'">
+            <i class="fas fa-exclamation-triangle ec-icon ec-icon--warn"></i>
+            <h2 class="ec-title">Stop the change to <span class="ec-email">{{ vm.new_email_masked }}</span>?</h2>
+            <p class="ec-text">
+                A request was made to move the sign-in address on your ToAviate account to this new address.
+                Cancelling stops it — your current sign-in address stays as it is.
+            </p>
+            <p class="ec-meta" ng-show="vm.openedAtLabel">
+                <i class="far fa-clock"></i> Request opened {{ vm.openedAtLabel }}
+            </p>
+            <div class="ec-actions">
+                <button type="button" class="sec-btn sec-btn--danger ec-btn" ng-click="vm.cancelRequest()" ng-disabled="vm.busy">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-ban'"></i>
+                    {{ vm.busy ? 'Cancelling…' : 'Cancel this request' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- Done -->
+        <div class="ec-card__body" ng-if="vm.state === 'done'">
+            <i class="fas fa-check-circle ec-icon ec-icon--good"></i>
+            <h2 class="ec-title">Cancelled.</h2>
+            <p class="ec-text">If you did not expect this, change your password now.</p>
+            <div class="ec-actions">
+                <a ui-sref="password_reset" class="sec-btn sec-btn--primary ec-btn">
+                    <i class="fas fa-key"></i> Change my password
+                </a>
+                <a ui-sref="login" class="ec-link">Go to sign in</a>
+            </div>
+        </div>
+
+    </div>
+
+</div>

@@ -50,7 +50,8 @@ var app = angular
                 '/api/v1/webauthn/login', // passkey login_options / login_verify (pre-auth)
                 '/api/v1/logbook_endorsement_confirm', // public endorsement confirm page
                 '/api/v1/logbook_signup', // public free-logbook signup + invite landing
-                '/api/v1/caa_form_confirm' // public CAA-form external signing page (token)
+                '/api/v1/caa_form_confirm', // public CAA-form external signing page (token)
+                '/api/v1/account_email_confirm' // public email confirm / cancel pages (token)
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -366,6 +367,27 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── ACCOUNT EMAIL ADDRESSES — public confirm / cancel pages ──
+            // (FRONTEND_ACCOUNT_EMAILS_GUIDE.md §2.3.) PUBLIC — both tokens
+            // are baked into outgoing emails, so the paths can never change.
+            // GET only shows a summary; the action is an explicit POST from
+            // the page (mail scanners prefetch links). Also in publicStates +
+            // publicPages + the interceptor's unauthEndpoints
+            // ('/api/v1/account_email_confirm').
+            .state('email_confirm', {           // link in the verification email
+                url: '/email_confirm/:token',
+                controller: 'EmailConfirmController',
+                templateUrl: 'views/public/email_confirm.html',
+                controllerAs: 'vm'
+            })
+
+            .state('email_cancel', {            // "this wasn't me" / recovery veto link
+                url: '/email_cancel/:token',
+                controller: 'EmailCancelController',
+                templateUrl: 'views/public/email_cancel.html',
+                controllerAs: 'vm'
+            })
+
             .state('registration_success', {
                 url: '/registration_success',
                 controller: 'RegisterController',
@@ -459,15 +481,7 @@ var app = angular
         // THIS IS THE CLUB DASHBOARD BIT :)
 
             //dashboardClubInstructorBookings
-            .state('dashboard.manage_instructor_bookings', {
-                url: '/manage_instructor_bookings',
-                controller: 'DashboardClubInstructorBookings',
-                templateUrl: 'views/manageclub/instructor_bookings.html',
-                controllerAs: 'vm',
-                data: {
-                    action: "list"
-                }
-            })
+            // (dashboard.manage_instructor_bookings now lives in the Members hub — see below dashboard.manage_club)
 
 
             .state('dashboard.manage_club', {
@@ -475,6 +489,34 @@ var app = angular
                 controller: 'DashboardController',
                 templateUrl: 'views/manage_club.html',
                 controllerAs: 'vm'
+            })
+
+            // ── MEMBERS HUB — one header + tab bar, four child screens ──
+            // ui-router only queues a state whose DOTTED-name parent is missing, so a
+            // child that names this hub via `parent:` must be registered AFTER it —
+            // keep this block directly under dashboard.manage_club. Children keep their names, URLs, controllers and data; they are
+            // re-parented with `parent:` so only the nested ui-view swaps
+            // (no header/tab flicker, one stable page width).
+            .state('dashboard.manage_club.members_hub', {
+                abstract: true,
+                url: '',
+                controller: 'MembersHubController',
+                templateUrl: 'views/manageclub/members_hub.html',
+                controllerAs: 'hub'
+            })
+
+            // Lives in the Members hub (parent above) but keeps its historic
+            // top-level URL via the absolute '^' prefix.
+            .state('dashboard.manage_instructor_bookings', {
+                parent: 'dashboard.manage_club.members_hub',
+                url: '^/dashboard/manage_instructor_bookings',
+                controller: 'DashboardClubInstructorBookings',
+                templateUrl: 'views/manageclub/instructor_bookings.html',
+                controllerAs: 'vm',
+                data: {
+                    action: "list",
+                    hub: { title: 'Instructors', subtitle: 'Your instructors, their booking pages and qualifications', icon: 'fa-user-tie' }
+                }
             })
 
 
@@ -541,6 +583,17 @@ var app = angular
                 url: '/fox_unmatched?imei&club_id&entry',
                 controller: 'FoxUnmatchedController',
                 templateUrl: 'views/manageclub/fox_unmatched.html',
+                controllerAs: 'vm'
+            })
+
+            // Track-data tools (FRONTEND_TRACK_DATA_GUIDE.md §4 / §4.1):
+            // analysis + segments backfill, file inspect, mis-linked recording
+            // scan / repair / undo / resolve / report. ?imei= prefills the scan
+            // filter (the health board's flight-counter-reset badge links here).
+            .state('dashboard.super_admin.fox_track_tools', {
+                url: '/fox_track_tools?imei&pls',
+                controller: 'FoxTrackToolsController',
+                templateUrl: 'views/manageclub/fox_track_tools.html',
                 controllerAs: 'vm'
             })
 
@@ -937,6 +990,19 @@ var app = angular
                 url: '/flights',
                 controller: 'DashboardClubFlightsController',
                 templateUrl: 'views/manageclub/flights.html',
+                controllerAs: 'vm',
+                data: {
+                    action: 'list'
+                }
+            })
+
+            // SPLIT FLIGHTS TO REVIEW — split pairs whose recorded track shows
+            // no landing between the legs (FRONTEND_TRACK_DATA_GUIDE.md §4.2)
+
+            .state('dashboard.manage_club.split_review', {
+                url: '/flights/split_review',
+                controller: 'SplitReviewController',
+                templateUrl: 'views/manageclub/split_review.html',
                 controllerAs: 'vm',
                 data: {
                     action: 'list'
@@ -1502,6 +1568,14 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // ── HOURS INSTRUCTED — dual instruction + supervised solos, by range ──
+            .state('dashboard.manage_user.instructed_hours', {
+                url: '/instructed_hours',
+                controller: 'InstructedHoursController',
+                templateUrl: 'views/manageuser/instructed_hours.html',
+                controllerAs: 'vm'
+            })
+
             // ── CAA FORMS — digital CAA paperwork ──
             // (FRONTEND_CAA_FORMS_GUIDE.md.) One controller serves every
             // screen, dispatched by data.screen (same pattern as SMS).
@@ -1760,10 +1834,14 @@ var app = angular
             // be matched by name (instructors may deep-link here from the
             // debrief list; the backend allows instructor membership)
             .state('dashboard.manage_club.missing_students', {
+                parent: 'dashboard.manage_club.members_hub',
                 url: '/missing_students',
                 controller: 'MissingStudentsController',
                 templateUrl: 'views/manageclub/missing_students.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: {
+                    hub: { title: 'Missing Students', subtitle: 'Imported flights whose student could not be matched by name — assign a member, create a temporary member, or dismiss', icon: 'fa-user-times' }
+                }
             })
 
             .state('dashboard.manage_club.settings', {
@@ -2092,12 +2170,14 @@ var app = angular
             // MEMBERS 
 
             .state('dashboard.manage_club.members', {
+                parent: 'dashboard.manage_club.members_hub',
                 url: '/members',
                 controller: 'DashboardClubMembersController',
                 templateUrl: 'views/manageclub/members.html',
                 controllerAs: 'vm',
                 data: {
-                    action: 'list'
+                    action: 'list',
+                    hub: { title: 'Members', subtitle: 'Manage your club members', icon: 'fa-users' }
                 }
             })
 
@@ -2157,12 +2237,14 @@ var app = angular
             })
 
             .state('dashboard.manage_club.member_requests', {
+                parent: 'dashboard.manage_club.members_hub',
                 url: '/member_requests',
                 controller: 'DashboardClubMemberRequestsController',
                 templateUrl: 'views/manageclub/member_requests.html',
                 controllerAs: 'vm',
                 data: {
-                    action: 'list'
+                    action: 'list',
+                    hub: { title: 'Membership Requests', subtitle: 'Welcome new members to your organisation', icon: 'fa-user-plus' }
                 }
             })
 
@@ -3504,7 +3586,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm'];
+        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3602,7 +3684,9 @@ var app = angular
                 '/free_logbook',                // free digital logbook signup
                 '/logbook_invite',              // invite-a-pilot landing (token, in emails)
                 '/endorsement_confirm',         // endorsement confirmation (token, in emails)
-                '/caa_form_confirm'             // CAA form external signing (token, in emails)
+                '/caa_form_confirm',            // CAA form external signing (token, in emails)
+                '/email_confirm',               // account email confirmation (token, in emails)
+                '/email_cancel'                 // account email recovery veto (token, in emails)
             ];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {

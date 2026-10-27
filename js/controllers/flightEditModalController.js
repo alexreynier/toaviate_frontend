@@ -29,6 +29,24 @@ app.controller('FlightEditModalController', FlightEditModalController);
         $scope.original = null;
         $scope.plsId = null;              // resolved PLS ID after load
 
+        // Maintenance airborne time — where the stored figure came from
+        // (plane_log_sheets.airborne_source, BACKEND_AIRBORNE_SOURCE_GUIDE.md).
+        var AIRBORNE_SOURCE_LABELS = {
+            track_file: 'from the track file',
+            tracker: 'from the tracker',
+            clock: 'from the take-off / landing times',
+            brakes_allowance: 'brakes off → on minus 10 min',
+            manual: 'set by hand',
+            legacy: 'stored value (no source could reproduce it)'
+        };
+        $scope.airborneSourceLabel = function (src) { return AIRBORNE_SOURCE_LABELS[src] || src || ''; };
+        $scope.airborneHm = function (hours) {
+            var h = parseFloat(hours);
+            if (isNaN(h)) { return '—'; }
+            var mins = Math.round(h * 60);
+            return Math.floor(mins / 60) + ':' + ('0' + (mins % 60)).slice(-2);
+        };
+
         // Form model (editable copy)
         $scope.form = {};
 
@@ -120,7 +138,8 @@ app.controller('FlightEditModalController', FlightEditModalController);
             route: true,
             other: false,
             financial: false,
-            history: false
+            history: false,
+            track: false          // tracker · track file · sheet reconciliation (lazy — fetched when opened)
         };
 
 
@@ -631,6 +650,7 @@ app.controller('FlightEditModalController', FlightEditModalController);
                     pls = data.plane_log_sheet || data;
                 }
                 $scope.plsId = pls ? pls.id : null;
+                $scope.plsRow = pls || null;      // sheet row — carries track_counts_source for the counts chip
 
                 var booking = data.booking || {};
 
@@ -1031,6 +1051,24 @@ app.controller('FlightEditModalController', FlightEditModalController);
             $scope.auditDetail = null;
         };
 
+
+        // The reconciliation panel applied the track-derived counts to the sheet
+        // (FRONTEND_TRACK_DATA_GUIDE.md §2.2): refresh our copy of the sheet row
+        // so the counts chip and the original-vs-form diff reflect the new values.
+        $scope.$on('trackCounts:applied', function (event, sheet) {
+            if (!sheet) { return; }
+            var keys = ['full_stop_landings', 'touch_and_go', 'track_counts_source', 'track_counts_updated_at'];
+            var targets = [$scope.plsRow];
+            if ($scope.original) {
+                targets.push($scope.hasBooking
+                    ? ($scope.original.plane_log_sheets && $scope.original.plane_log_sheets[0])
+                    : ($scope.original.plane_log_sheet || $scope.original));
+            }
+            targets.forEach(function (row) {
+                if (!row) { return; }
+                keys.forEach(function (k) { if (sheet[k] !== undefined) { row[k] = sheet[k]; } });
+            });
+        });
 
         // ═══════════════════════════════════════════════
         // ACCORDION TOGGLES

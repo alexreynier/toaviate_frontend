@@ -610,3 +610,191 @@ flight-height-profile { display: block; position: relative; width: 100%; height:
   margin-bottom: 16px;
 }
 .fr-sd-note .fa { font-size: 13px; }
+
+/* ════════════════════════════════════════════════════════════
+   TRACK DATA (guide §1): split-leg badge, event markers / ticks,
+   analysis summary strip, legend, tracker-only verdicts, event card.
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Header leg badge (sits in the gradient header next to the title) ── */
+.fr-leg-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4); color: #fff;
+  font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+  border-radius: 6px; padding: 3px 9px; margin-left: 10px; vertical-align: middle; white-space: nowrap;
+}
+.fr-leg-badge > .fa { font-size: 10px; opacity: 0.85; }
+.fr-leg-badge__link {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding: 1px 7px;
+  border-radius: 999px; background: #fff; color: #1e3a5f !important; font-size: 10.5px; font-weight: 800;
+  letter-spacing: 0.3px; text-transform: none; text-decoration: none !important; cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.fr-leg-badge__link:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.25); }
+.fr-leg-badge__link .fa { font-size: 9px; }
+
+/* ── "Track not yet cut" notice (same voice as the SD note, warning tone) ── */
+.fr-events__notice {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px;
+  padding: 10px 14px; font-size: 13px; line-height: 1.45; color: #92400e; margin-bottom: 16px;
+}
+.fr-events__notice .fa { font-size: 13px; margin-top: 2px; flex: 0 0 auto; }
+
+/* ── Event colours: one source of truth for ticks, glyphs and the card accent.
+   Mirrors EVENT_COLOURS in the controller (the map dots are drawn by the adapter
+   from those values, so keep the two in step). ── */
+.fr-events__glyph--takeoff,      .fr-events__tick--takeoff      { color: #0ea5e9; }
+.fr-events__glyph--full_stop,    .fr-events__tick--full_stop    { color: #dc2626; }
+.fr-events__glyph--stop_and_go,  .fr-events__tick--stop_and_go  { color: #f59e0b; }
+.fr-events__glyph--touch_and_go, .fr-events__tick--touch_and_go { color: #16a34a; }
+.fr-events__glyph--go_around,    .fr-events__tick--go_around    { color: #1e3a5f; }
+.fr-events__glyph--landing,      .fr-events__tick--landing      { color: #64748b; }
+
+.fr-events__glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 1px solid #e2e8f0;
+  font-size: 12px; line-height: 1; font-weight: 700; flex: 0 0 auto;
+}
+
+/* ── Scrubber ticks: a thin strip above the range input; each tick is absolutely
+   positioned at index / scrubMax. translateX(-50%) centres it on the fix. ── */
+.fr-transport__scrub { position: relative; }
+.fr-events__ticks { position: relative; height: 22px; margin: 0 9px 2px; }   /* 9px ≈ half the 18px thumb */
+.fr-events__tick {
+  position: absolute; top: 0; transform: translateX(-50%);
+  width: 22px; height: 22px; padding: 0; border: 1px solid #e2e8f0; border-radius: 50%;
+  background: #fff; font-size: 12px; line-height: 1; font-weight: 700; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.18);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.fr-events__tick:hover, .fr-events__tick:focus { transform: translateX(-50%) scale(1.2); z-index: 2; outline: none; box-shadow: 0 3px 8px rgba(15,23,42,0.28); }
+.fr-events__tick--active { border-color: currentColor; box-shadow: 0 0 0 3px rgba(59,130,246,0.18); z-index: 3; }
+.fr-events__tick--lowconf { border-style: dashed; }
+/* Fullscreen glass bar: ticks on dark glass */
+.fr-profile-card--fs .fr-events__tick { background: rgba(255,255,255,0.92); border-color: rgba(255,255,255,0.4); }
+
+/* ── Analysis card ── */
+.fr-events {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px;
+  margin-bottom: 18px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06); animation: frFadeUp 0.4s ease;
+}
+.fr-events--pending { background: #f8fafc; }
+.fr-events--unconfirmed { border-color: #fde68a; }
+.fr-events__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.fr-events__head h3 { margin: 0; font-size: 15px; font-weight: 700; color: #1e293b; }
+.fr-events__head h3 i { color: #2d5a8e; margin-right: 6px; }
+.fr-events__meta { font-size: 12px; color: #64748b; margin-left: auto; }
+.fr-events__pill {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px; padding: 3px 9px; border-radius: 999px;
+}
+.fr-events__pill--pending { background: #dbeafe; color: #1e40af; }
+.fr-events__pill--unconfirmed { background: #fef3c7; color: #92400e; }
+.fr-events__pending-note { margin: 0; font-size: 13px; color: #64748b; }
+
+/* Summary strip (same rhythm as .fr-summary, tighter) */
+.fr-events__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.fr-events__stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.fr-events__label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #94a3b8; }
+.fr-events__value { font-size: 20px; font-weight: 700; color: #1e293b; }
+.fr-events__value small { font-size: 11px; font-weight: 600; color: #94a3b8; margin-left: 3px; }
+.fr-events__sub { font-size: 11px; color: #64748b; }
+/* Unconfirmed: the numbers are a hint — mute them so the legacy counts read louder */
+.fr-events--unconfirmed .fr-events__value { color: #64748b; }
+.fr-events--unconfirmed .fr-events__value::after { content: ' ?'; font-size: 13px; color: #b45309; }
+
+/* Legend */
+.fr-events__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12.5px; color: #334155; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.fr-events__legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.fr-events__legend-hint { font-size: 11.5px; color: #94a3b8; flex-basis: 100%; }
+.fr-events__legend-hint i { margin-right: 4px; }
+.fr-events__lowconf { display: inline-block; background: #fef3c7; color: #92400e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 6px; border-radius: 5px; }
+
+/* Tracker-only pairs */
+.fr-events__tracker-only { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 6px; }
+.fr-events__tracker-only-title { font-size: 12px; font-weight: 700; color: #64748b; }
+.fr-events__tracker-only-title i { color: #94a3b8; margin-right: 4px; }
+.fr-events__tracker-only-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 12.5px; color: #334155; }
+.fr-events__verdict { display: inline-block; padding: 3px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; background: #f1f5f9; color: #334155; }
+.fr-events__verdict--phantom_taxi, .fr-events__verdict--hop_emitted { background: #fef3c7; color: #92400e; }
+.fr-events__verdict--phantom_airborne { background: #dbeafe; color: #1e40af; }
+.fr-events__verdict--outside_file { background: #fee2e2; color: #991b1b; }
+.fr-events__tracker-only-detail { font-size: 11.5px; color: #64748b; }
+
+/* ── Event card over the map (sibling of .fr-note-card) ── */
+.fr-event-card {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 8;
+  width: 340px; max-width: calc(100% - 32px);
+  background: #fff; border: 1px solid #e2e8f0; border-left: 4px solid #64748b;
+  border-radius: 12px; padding: 12px 44px 12px 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.26); animation: frFadeUp 0.18s ease;
+}
+.fr-event-card--takeoff      { border-left-color: #0ea5e9; }
+.fr-event-card--full_stop    { border-left-color: #dc2626; }
+.fr-event-card--stop_and_go  { border-left-color: #f59e0b; }
+.fr-event-card--touch_and_go { border-left-color: #16a34a; }
+.fr-event-card--go_around    { border-left-color: #1e3a5f; }
+.fr-event-card__close {
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; color: #475569;
+  cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.12s ease;
+}
+.fr-event-card__close:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+.fr-event-card__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.fr-event-card__kind { font-size: 13.5px; font-weight: 700; color: #1e293b; text-transform: capitalize; }
+.fr-event-card__time { font-size: 11.5px; color: #64748b; white-space: nowrap; }
+.fr-event-card__row { font-size: 12.5px; color: #334155; line-height: 1.45; }
+.fr-event-card__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 11.5px; color: #64748b; }
+.fr-stage--fullwidth .fr-event-card { z-index: 2147483647; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .fr-leg-badge { margin-left: 0; margin-top: 6px; }
+  .fr-events { padding: 14px; }
+  .fr-events__meta { margin-left: 0; flex-basis: 100%; }
+  .fr-events__grid { grid-template-columns: repeat(3, 1fr); }
+  .fr-events__ticks { height: 20px; }
+  .fr-events__tick { width: 20px; height: 20px; font-size: 11px; }
+}
+@media (max-width: 480px) {
+  .fr-page__title h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; }
+  .fr-leg-badge { font-size: 10.5px; }
+  .fr-events__grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .fr-events__value { font-size: 18px; }
+  .fr-events__legend { gap: 6px 12px; font-size: 12px; }
+  .fr-event-card { width: auto; left: 12px; right: 12px; transform: none; max-width: none; }
+  /* Fewer, bigger tap targets: keep the ticks but give fat fingers room */
+  .fr-events__ticks { height: 24px; }
+  .fr-events__tick { width: 24px; height: 24px; }
+}
+
+/* ── Night mode ── */
+body.night-mode .fr-events,
+body.night-mode .fr-event-card { background: #1e293b; border-color: #334155; box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+body.night-mode .fr-events--pending { background: #0f172a; }
+body.night-mode .fr-events--unconfirmed { border-color: #92400e; }
+body.night-mode .fr-events__head h3,
+body.night-mode .fr-events__value,
+body.night-mode .fr-event-card__kind { color: #f1f5f9; }
+body.night-mode .fr-events__stat { background: #0f172a; border-color: #334155; }
+body.night-mode .fr-events__legend,
+body.night-mode .fr-events__tracker-only { border-top-color: #334155; color: #cbd5e1; }
+body.night-mode .fr-events__tracker-only-row,
+body.night-mode .fr-event-card__row { color: #cbd5e1; }
+body.night-mode .fr-events__verdict { background: #334155; color: #e2e8f0; }
+body.night-mode .fr-events__pending-note,
+body.night-mode .fr-events__meta,
+body.night-mode .fr-events__sub,
+body.night-mode .fr-event-card__time,
+body.night-mode .fr-event-card__meta { color: #94a3b8; }
+body.night-mode .fr-events__notice { background: #422006; border-color: #92400e; color: #fde68a; }
+/* Glyphs and ticks keep a light disc so the coloured symbol stays legible; the
+   navy go-around symbol gets a lighter tone on dark surfaces. */
+body.night-mode .fr-events__glyph,
+body.night-mode .fr-events__tick { background: #f1f5f9; border-color: #475569; }
+body.night-mode .fr-events__glyph--go_around,
+body.night-mode .fr-events__tick--go_around { color: #2d5a8e; }
+body.night-mode .fr-event-card--go_around { border-left-color: #2d5a8e; }
+body.night-mode .fr-event-card__close { background: #0f172a; border-color: #334155; color: #cbd5e1; }

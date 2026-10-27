@@ -20,9 +20,14 @@ app.directive('memberEmailPrefs', function() {
 
 app.controller('MemberEmailPrefsController', MemberEmailPrefsController);
 
-    MemberEmailPrefsController.$inject = ['EmailLogService', '$scope', '$timeout', 'ToastService'];
-    function MemberEmailPrefsController(EmailLogService, $scope, $timeout, ToastService) {
+    MemberEmailPrefsController.$inject = ['EmailLogService', '$scope', '$timeout', 'ToastService', '$rootScope'];
+    function MemberEmailPrefsController(EmailLogService, $scope, $timeout, ToastService, $rootScope) {
         var ep = this;
+
+        // The master mute is the MEMBER's own account-wide setting (every club).
+        // A club manager can see it (it explains why nothing below is sent)
+        // but must not flip it on another club's behalf — only ToAviate staff can.
+        ep.canEditMaster = !!($rootScope.isToAviateStaff && $rootScope.isToAviateStaff());
 
         // Switch semantics — "ON" always means "receives it" (guide §2 table).
         var SWITCHES = [
@@ -114,6 +119,7 @@ app.controller('MemberEmailPrefsController', MemberEmailPrefsController);
         // ── Staging ──
 
         function toggleMaster() {
+            if (!ep.canEditMaster) { return; }
             ep.muteAll = !ep.muteAll;
             ep.touched.mute_all_notifications = true;
         }

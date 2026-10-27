@@ -107,7 +107,17 @@
                             to_airfield_name: log.to_airfield_name,
                             airborne_seconds: log.airborne_seconds,
                             number_landings: log.number_landings,
-                            takeoffs_landings: log.takeoffs_landings
+                            takeoffs_landings: log.takeoffs_landings,
+                            split_leg: log.split_leg,
+                            // track-derived counterparts (FRONTEND_TRACK_DATA_GUIDE.md §5)
+                            airborne_seconds_calculated: log.airborne_seconds_calculated,
+                            landings_calculated: log.landings_calculated,
+                            full_stop_landings_calculated: log.full_stop_landings_calculated,
+                            stop_and_go_calculated: log.stop_and_go_calculated,
+                            touch_and_go_calculated: log.touch_and_go_calculated,
+                            go_arounds_calculated: log.go_arounds_calculated,
+                            phantom_pairs_calculated: log.phantom_pairs_calculated,
+                            track_calculated_status: log.track_calculated_status
                         });
                     });
                 });
@@ -227,6 +237,61 @@
              var hours = seconds / 60 / 60;
              return hours;
         }
+
+        // ── Track-derived counterparts beside the tracker's values (§5) ──
+        // track_calculated_status: ok | file_mismatch | no_events | null (not analysed)
+        function has_num(v){ return v !== null && v !== undefined && v !== ''; }
+        // "Most accurate wins": the track file's figure when the recording was
+        // analysed cleanly, otherwise the tracker's. Nobody on the claim list
+        // needs to know which — the source is only a tooltip.
+        vm.best_airborne_seconds = function(log){
+            if(!log) { return null; }
+            if(vm.has_track_calc(log) && log.track_calculated_status === 'ok' && has_num(log.airborne_seconds_calculated) && Number(log.airborne_seconds_calculated) > 0){
+                return Number(log.airborne_seconds_calculated);
+            }
+            return has_num(log.airborne_seconds) ? Number(log.airborne_seconds) : null;
+        };
+        vm.best_landings = function(log){
+            if(!log) { return null; }
+            if(vm.has_track_calc(log) && log.track_calculated_status === 'ok' && has_num(log.landings_calculated)){
+                return Number(log.landings_calculated);
+            }
+            return has_num(log.number_landings) ? Number(log.number_landings) : null;
+        };
+        vm.best_source_tip = function(log, what){
+            var from_track = vm.has_track_calc(log) && log.track_calculated_status === 'ok';
+            return (what === 'landings' ? 'Landings ' : 'Airborne time ') + (from_track ? 'from the recorded track file' : 'recorded by the tracker');
+        };
+
+        vm.has_track_calc = function(log){
+            return !!(log && log.track_calculated_status && log.track_calculated_status !== 'no_events'
+                      && (has_num(log.airborne_seconds_calculated) || has_num(log.landings_calculated)));
+        };
+        vm.track_status_label = function(log){
+            if(!log || !log.track_calculated_status) { return ''; }
+            return ({ file_mismatch: 'recording mismatch', no_events: 'no track events' })[log.track_calculated_status] || '';
+        };
+        vm.track_status_tip = function(log){
+            if(!log || !log.track_calculated_status) { return ''; }
+            return ({
+                file_mismatch: 'The recording on file is not this flight — the track values do not describe it.',
+                no_events: 'The recorded track was analysed but no take-offs or landings could be detected in it.'
+            })[log.track_calculated_status] || '';
+        };
+        vm.airborne_minutes = function(seconds){
+            if(!has_num(seconds)) { return null; }
+            return Math.round(parseFloat(seconds) / 60);
+        };
+        vm.landings_calc_tip = function(log){
+            if(!log) { return ''; }
+            var bits = [];
+            if(has_num(log.full_stop_landings_calculated)) { bits.push(log.full_stop_landings_calculated + ' full stop'); }
+            if(has_num(log.stop_and_go_calculated))        { bits.push(log.stop_and_go_calculated + ' stop-and-go'); }
+            if(has_num(log.touch_and_go_calculated))       { bits.push(log.touch_and_go_calculated + ' touch-and-go'); }
+            if(has_num(log.go_arounds_calculated))         { bits.push(log.go_arounds_calculated + ' go-around'); }
+            if(has_num(log.phantom_pairs_calculated) && log.phantom_pairs_calculated > 0) { bits.push(log.phantom_pairs_calculated + ' tracker "flight(s)" the track shows as taxi/glitch'); }
+            return bits.length ? ('From the recorded track: ' + bits.join(', ')) : 'Landings detected in the recorded track';
+        };
 
         vm.airborne_to_hours = function(seconds){
              var hours = seconds / 60 / 60;

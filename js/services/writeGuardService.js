@@ -133,12 +133,29 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         two_factor_setup_required: 1, existing_account: 1, out_of_stock: 1,
         ALREADY_SEPARATE: 1,  // bs_sync "create temporary account" → inline "Create anyway" confirm
         MERGE_CONFIRM_REQUIRED: 1,  // bs_sync convert → inline "merge into X?" confirm
-        EMAIL_IN_USE: 1       // bs_sync convert → inline field error on the typed email
+        EMAIL_IN_USE: 1,      // bs_sync convert → inline field error on the typed email
+        // Account email addresses + step-up (FRONTEND_ACCOUNT_EMAILS_GUIDE.md):
+        // every one of these is rendered inline by the step-up modal, the
+        // Security-page card, the public confirm pages or the staff recovery card.
+        STEP_UP_REQUIRED: 1, WRONG_PASSWORD: 1, WRONG_CODE: 1, TOO_MANY_ATTEMPTS: 1,
+        EXPIRED: 1, INVALID_EMAIL: 1, LIMIT_REACHED: 1, IS_PRIMARY: 1, NOT_VERIFIED: 1,
+        RATE_LIMITED: 1, ADMIN_2FA_REQUIRED: 1, FOUR_EYES: 1, OPEN_CASE_EXISTS: 1,
+        ALREADY_ADDED: 1, SEND_FAILED: 1, BAD_PURPOSE: 1, EMAIL_TAKEN: 1, IMPORTED_USER: 1,
+        VALIDATION_ERROR: 1, NO_PRIMARY: 1, ALREADY_ON_ACCOUNT: 1, CASE_CLOSED: 1,
+        ALREADY_APPROVED: 1, COMPLETION_FAILED: 1,
+        // Track data (FRONTEND_TRACK_DATA_GUIDE.md): reconciliation Apply + admin link tools
+        // render these inline / as their own toasts.
+        NOTHING_TO_APPLY: 1, BAD_FIELDS: 1, NO_TRACK: 1, UNAVAILABLE: 1, BAD_DECISION: 1,
+        ENTRY_REQUIRED: 1, ENTRY_NOT_FOUND: 1, ENTRY_IMEI_MISMATCH: 1, ALREADY_LINKED: 1,
+        ALREADY_UNLINKED: 1, FILE_MISSING: 1, APPLY_FAILED: 1, EMPTY_SEGMENT: 1,
+        PHANTOM_SPLIT_POINT: 1, BLOCKED: 1, NOT_SUSPECT: 1, NOT_A_SPLIT: 1,  // split picker confirm / suspect-splits unsplit
+        OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED: 1   // cancel-claim on a split pair → checkbox in the modal
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes
         '/invitations/accept_existing',
-        '/webauthn/'
+        '/webauthn/',
+        '/account_email_confirm/'   // public confirm/cancel pages render one uniform "invalid link" panel
     ];
 
     function settle(x) {

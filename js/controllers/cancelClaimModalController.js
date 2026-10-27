@@ -23,11 +23,18 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
         $scope.preview = null;
         $scope.errorMessage = null;
 
+        // Split-flight recombine (BACKEND_CANCEL_CLAIM_SPLIT_GUIDE.md) — all null/empty for an ordinary flight
+        $scope.split = null;                 // preview.split
+        $scope.splitLegs = [];               // [{ key:'leg1', label:'Leg 1', data:{…} }, …] for the leg cards
+        $scope.blockers = [];                // split.blockers from the preview, or blockers from a BLOCKED execute
+        $scope.ackRequiredByServer = false;  // execute answered OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED
+
         // Confirm form
         $scope.form = {
             reason: '',
             financialAction: 'no_refund',
-            refundAmount: null
+            refundAmount: null,
+            acknowledgeOtherLeg: false       // → acknowledge_other_leg: 1
         };
         $scope.formErrors = {};
 
@@ -62,16 +69,20 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
                     $scope.preview = data;
                     $scope.step = 1;
 
-                    // Set default refund amount to total paid
-                    if (data.financial && data.financial.total_paid > 0) {
-                        $scope.form.refundAmount = data.financial.total_paid;
+                    applySplit(data);
+
+                    // Set default refund amount to total paid (combined across both legs for a split pair)
+                    var paidTotal = $scope.getPaidTotal();
+                    if (paidTotal > 0) {
+                        $scope.form.refundAmount = paidTotal;
                     }
 
                     // Set default financial action based on available_actions
-                    if (data.available_actions && data.available_actions.length > 0) {
-                        if (data.available_actions.indexOf('stripe_refund') > -1) {
+                    var actions = $scope.getAvailableActions();
+                    if (actions.length > 0) {
+                        if (actions.indexOf('stripe_refund') > -1) {
                             $scope.form.financialAction = 'stripe_refund';
-                        } else if (data.available_actions.indexOf('credit_account') > -1) {
+                        } else if (actions.indexOf('credit_account') > -1) {
                             $scope.form.financialAction = 'credit_account';
                         } else {
                             $scope.form.financialAction = 'no_refund';
@@ -85,10 +96,161 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
         }
 
 
+        // Read preview.split (absent/null for an ordinary flight → nothing changes)
+        function applySplit(data) {
+            var split = data.split || null;
+            $scope.split = split;
+            $scope.splitLegs = [];
+            $scope.blockers = [];
+            $scope.ackRequiredByServer = false;
+            $scope.form.acknowledgeOtherLeg = false;
+            if (!split) return;
+
+            $scope.splitLegs = [
+                { key: 'leg1', label: 'Leg 1', data: split.leg1 || {} },
+                { key: 'leg2', label: 'Leg 2', data: split.leg2 || {} }
+            ];
+            $scope.blockers = angular.isArray(split.blockers) ? split.blockers.slice() : [];
+
+            // Merge split.warnings into the existing warnings list. The split block uses
+            // info|warning|danger; the existing card styles info|high|critical.
+            if (angular.isArray(split.warnings) && split.warnings.length) {
+                if (!angular.isArray(data.warnings)) data.warnings = [];
+                angular.forEach(split.warnings, function(w) {
+                    if (!w) return;
+                    data.warnings.push({
+                        level: normaliseWarningLevel(w.level),
+                        message: w.message
+                    });
+                });
+            }
+        }
+
+        function normaliseWarningLevel(level) {
+            switch (level) {
+                case 'danger':   return 'critical';
+                case 'warning':  return 'high';
+                case 'critical':
+                case 'high':
+                case 'info':     return level;
+                default:         return 'info';
+            }
+        }
+
+
+        // ═══════════════════════════════════════════════
+        // SPLIT-FLIGHT HELPERS
+        // ═══════════════════════════════════════════════
+        $scope.isOn = function(v) {
+            return v === true || v == 1;
+        };
+
+        $scope.getLegNumber = function() {
+            return ($scope.split && $scope.split.role === 'leg2') ? 2 : 1;
+        };
+
+        $scope.getLegClaimant = function(leg) {
+            if (!leg || !leg.claiming_user) return '';
+            return ((leg.claiming_user.first_name || '') + ' ' + (leg.claiming_user.last_name || '')).trim();
+        };
+
+        $scope.getLegBookedState = function(leg) {
+            if (!leg) return '';
+            if ($scope.isOn(leg.booked_in)) return 'Booked in';
+            if ($scope.isOn(leg.booked_out)) return 'Booked out — not yet booked in';
+            return 'Not booked out';
+        };
+
+        $scope.getLegPaid = function(leg) {
+            if (!leg || !leg.financial || leg.financial.total_paid == null) return 0;
+            var n = parseFloat(leg.financial.total_paid);
+            return isNaN(n) ? 0 : n;
+        };
+
+        $scope.getLegStripeRefundable = function(leg) {
+            if (!leg || !leg.financial || !leg.financial.has_stripe_payment) return 0;
+            var n = parseFloat(leg.financial.stripe_refundable_amount);
+            return isNaN(n) ? 0 : n;
+        };
+
+        $scope.getOtherLeg = function() {
+            if (!$scope.split) return null;
+            return $scope.split.role === 'leg2' ? $scope.split.leg1 : $scope.split.leg2;
+        };
+
+        $scope.getOtherLegName = function() {
+            return $scope.getLegClaimant($scope.getOtherLeg()) || 'the other member';
+        };
+
+        $scope.getRecombinedLandings = function() {
+            var rp = $scope.split && $scope.split.recombined_preview;
+            if (!rp || rp.landings == null) return null;
+            var n = parseInt(rp.landings, 10);
+            return isNaN(n) ? null : n;
+        };
+
+        // Paid total the financial action applies to: both legs combined for a split pair
+        $scope.getPaidTotal = function() {
+            if ($scope.split) {
+                return $scope.getLegPaid($scope.split.leg1) + $scope.getLegPaid($scope.split.leg2);
+            }
+            if (!$scope.preview || !$scope.preview.financial || $scope.preview.financial.total_paid == null) return 0;
+            var n = parseFloat($scope.preview.financial.total_paid);
+            return isNaN(n) ? 0 : n;
+        };
+
+        $scope.getStripeRefundable = function() {
+            if ($scope.split) {
+                return $scope.getLegStripeRefundable($scope.split.leg1) + $scope.getLegStripeRefundable($scope.split.leg2);
+            }
+            if (!$scope.preview || !$scope.preview.financial) return 0;
+            var n = parseFloat($scope.preview.financial.stripe_refundable_amount);
+            return isNaN(n) ? 0 : n;
+        };
+
+        $scope.getAvailableActions = function() {
+            if ($scope.split && angular.isArray($scope.split.available_actions) && $scope.split.available_actions.length) {
+                return $scope.split.available_actions;
+            }
+            if ($scope.preview && angular.isArray($scope.preview.available_actions)) {
+                return $scope.preview.available_actions;
+            }
+            return [];
+        };
+
+        $scope.needsAcknowledgement = function() {
+            return $scope.ackRequiredByServer ||
+                   !!($scope.split && $scope.split.other_leg_claimed_by_other_user);
+        };
+
+        $scope.isBlocked = function() {
+            return $scope.blockers.length > 0;
+        };
+
+        $scope.getBlockerLabel = function(code) {
+            switch (code) {
+                case 'other_leg_already_superseded':
+                    return 'The other leg has already been merged away — nothing to recombine.';
+                case 'tpc_import_pair':
+                    return 'Both legs came from the training-records import — use that import\'s revert instead.';
+                default:
+                    return code;
+            }
+        };
+
+        // Gates: Continue (preview) and Cancel Claim (confirm)
+        $scope.canProceed = function() {
+            if ($scope.isBlocked()) return false;
+            if ($scope.needsAcknowledgement() && !$scope.form.acknowledgeOtherLeg) return false;
+            return true;
+        };
+
+
         // ═══════════════════════════════════════════════
         // NAVIGATION
         // ═══════════════════════════════════════════════
         $scope.goToConfirm = function() {
+            if (!$scope.canProceed()) return;
             $scope.step = 2;
         };
 
@@ -124,14 +286,13 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
         };
 
         $scope.isActionAvailable = function(action) {
-            if (!$scope.preview || !$scope.preview.available_actions) return false;
-            return $scope.preview.available_actions.indexOf(action) > -1;
+            return $scope.getAvailableActions().indexOf(action) > -1;
         };
 
         $scope.hasOnlyNoRefund = function() {
-            if (!$scope.preview || !$scope.preview.available_actions) return true;
-            return $scope.preview.available_actions.length === 1 &&
-                   $scope.preview.available_actions[0] === 'no_refund';
+            var actions = $scope.getAvailableActions();
+            if (!actions.length) return true;
+            return actions.length === 1 && actions[0] === 'no_refund';
         };
 
 
@@ -146,8 +307,10 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
 
         $scope.getWarningIcon = function(level) {
             switch (level) {
-                case 'critical': return 'fa-exclamation';
-                case 'high':     return 'fa-exclamation-triangle';
+                case 'critical':
+                case 'danger':   return 'fa-exclamation';
+                case 'high':
+                case 'warning':  return 'fa-exclamation-triangle';
                 case 'info':     return 'fa-info';
                 default:         return 'fa-info';
             }
@@ -229,7 +392,7 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
             }
 
             if ($scope.form.refundAmount != null && $scope.preview && $scope.preview.financial) {
-                var maxAmount = $scope.preview.financial.total_paid || 0;
+                var maxAmount = $scope.getPaidTotal();
                 if ($scope.form.refundAmount > maxAmount) {
                     $scope.formErrors.refundAmount = 'Cannot exceed ' + $scope.formatCurrency(maxAmount);
                     valid = false;
@@ -240,10 +403,16 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
                 }
             }
 
+            if ($scope.needsAcknowledgement() && !$scope.form.acknowledgeOtherLeg) {
+                $scope.formErrors.acknowledge = 'Please confirm you understand the other leg\'s claim is released too.';
+                valid = false;
+            }
+
             return valid;
         };
 
         $scope.confirmCancellation = function() {
+            if ($scope.isBlocked()) return;
             if (!$scope.validateForm()) return;
             $scope.showConfirmDialog = true;
         };
@@ -262,19 +431,34 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
                 financial_action: $scope.form.financialAction
             };
 
-            // Only include refund_amount if it differs from the default (total_paid)
+            // Only include refund_amount if it differs from the default (total_paid, combined for a split pair)
             if ($scope.form.refundAmount != null &&
                 $scope.preview && $scope.preview.financial &&
-                $scope.form.refundAmount !== $scope.preview.financial.total_paid) {
+                parseFloat($scope.form.refundAmount) !== $scope.getPaidTotal()) {
                 payload.refund_amount = parseFloat($scope.form.refundAmount);
+            }
+
+            // Split pair: releasing another member's leg must be a conscious act
+            if ($scope.form.acknowledgeOtherLeg) {
+                payload.acknowledge_other_leg = 1;
             }
 
             CancelClaimService.CancelClaim(payload).then(function(data) {
                 $scope.submitting = false;
 
                 if (data.success) {
+                    if (data.split) { data.split.warnings = normaliseSplitWarnings(data.split.warnings); }
                     $scope.result = data;
                     $scope.step = 3;
+                } else if (data.error === 'OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED') {
+                    $scope.ackRequiredByServer = true;
+                    $scope.form.acknowledgeOtherLeg = false;
+                    $scope.formErrors.acknowledge = 'The other leg of this split flight is claimed by ' + $scope.getOtherLegName() +
+                        '. Tick the box to confirm their claim is released too, then try again.';
+                    ToastService.warning('Acknowledgement Required', 'Confirm the other leg\'s claim is released too.');
+                } else if (data.error === 'BLOCKED') {
+                    $scope.blockers = angular.isArray(data.blockers) && data.blockers.length ? data.blockers : ['BLOCKED'];
+                    ToastService.error('Cannot Recombine', 'This split flight cannot be recombined — see the reasons listed.');
                 } else {
                     ToastService.error('Cancellation Failed', data.message || 'An error occurred while cancelling the claim.');
                 }
@@ -319,4 +503,12 @@ app.controller('CancelClaimModalController', CancelClaimModalController);
                 default:               return 'cc-history-badge--none';
             }
         };
-    }
+    
+        // Execute-response split.warnings are plain strings (BACKEND_CANCEL_CLAIM_SPLIT_GUIDE.md §3);
+        // the preview's split.warnings are {level, message}. Accept both everywhere.
+        function normaliseSplitWarnings(list) {
+            return (angular.isArray(list) ? list : []).map(function (w) {
+                return (w && typeof w === 'object') ? w : { level: 'info', message: String(w) };
+            });
+        }
+}

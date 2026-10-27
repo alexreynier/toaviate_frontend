@@ -130,6 +130,137 @@
             </div>
         </div>
 
+        <!-- ═══ Email addresses ═══
+             Own controller (own load/refresh cycle). ng-controller sits on
+             the card, NOT on an ng-if element — this Angular would skip it. -->
+        <div class="sec-card ae-card" ng-controller="AccountEmailsController as ae">
+            <div class="sec-card__head">
+                <i class="fas fa-envelope sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Email Addresses</h3>
+                    <p class="sec-card__sub">Sign in with any verified address — notifications go to your primary</p>
+                </div>
+                <span class="sec-pill" ng-class="ae.verifiedCount > 1 ? 'sec-pill--on' : 'sec-pill--off'"
+                      ng-show="!ae.loading && !ae.loadError">
+                    <span class="sec-pill__dot"></span>{{ ae.verifiedCount }} verified
+                </span>
+            </div>
+
+            <div class="sec-card__body">
+
+                <div class="sec-loading" ng-show="ae.loading">
+                    <div class="sec-spinner"></div>
+                    <span>Loading addresses…</span>
+                </div>
+
+                <div class="sec-empty" ng-show="!ae.loading && ae.loadError">
+                    <i class="fas fa-exclamation-circle sec-empty__icon"></i>
+                    <p>Couldn't load your addresses.</p>
+                    <button class="sec-btn sec-btn--outline" ng-click="ae.reload()">
+                        <i class="fas fa-sync-alt"></i> Try again
+                    </button>
+                </div>
+
+                <div ng-show="!ae.loading && !ae.loadError">
+
+                    <!-- Address list -->
+                    <div class="ae-list">
+                        <div class="ae-row" ng-repeat="row in ae.addresses track by row.id"
+                             ng-class="{ 'ae-row--primary': row.is_primary, 'ae-row--pending': row.pending, 'ae-row--busy': row._busy }">
+
+                            <div class="ae-row__main">
+                                <div class="ae-row__email" title="{{ row.email }}">{{ row.email }}</div>
+                                <span class="ae-badge"
+                                      ng-class="row.is_primary ? 'ae-badge--primary' : (row.pending ? 'ae-badge--pending' : 'ae-badge--verified')">
+                                    <i class="fas"
+                                       ng-class="row.is_primary ? 'fa-star' : (row.pending ? 'fa-clock' : 'fa-check')"></i>
+                                    <span>{{ ae.statusLabel(row) }}</span>
+                                </span>
+                            </div>
+
+                            <!-- Normal actions -->
+                            <div class="ae-row__actions" ng-show="!row._confirmRemove">
+                                <button class="sec-btn sec-btn--outline ae-btn--sm"
+                                        ng-show="!row.is_primary && !row.pending"
+                                        ng-disabled="row._busy"
+                                        ng-click="ae.makePrimary(row)">
+                                    <i class="fas fa-star"></i> Make primary
+                                </button>
+                                <button class="sec-btn sec-btn--outline ae-btn--sm"
+                                        ng-show="row.pending"
+                                        ng-disabled="ae.resendLocked(row) || row._busy"
+                                        title="{{ ae.resendLocked(row) ? 'Sent — you can resend again shortly' : 'Send a new confirmation link' }}"
+                                        ng-click="ae.resend(row)">
+                                    <i class="fas fa-paper-plane"></i> {{ ae.resendLocked(row) ? 'Sent' : 'Resend' }}
+                                </button>
+                                <button class="sec-icon-btn sec-icon-btn--danger" title="Remove"
+                                        ng-show="!row.is_primary"
+                                        ng-disabled="row._busy"
+                                        ng-click="ae.askRemove(row)">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                                <span class="ae-row__spinner" ng-show="row._busy"><span class="sec-spinner"></span></span>
+                            </div>
+
+                            <!-- Inline remove confirm (no browser confirm) -->
+                            <div class="ae-row__confirm" ng-show="row._confirmRemove">
+                                <span class="ae-row__confirm-text">Remove?</span>
+                                <button class="sec-btn sec-btn--danger ae-btn--sm" ng-click="ae.confirmRemove(row)">Yes</button>
+                                <button class="sec-btn sec-btn--outline ae-btn--sm" ng-click="ae.cancelRemove(row)">No</button>
+                            </div>
+                        </div>
+
+                        <div class="sec-empty" ng-show="!ae.addresses.length">
+                            <i class="fas fa-envelope-open sec-empty__icon"></i>
+                            <p>No email addresses on this account.</p>
+                        </div>
+                    </div>
+
+                    <!-- Neutral "check your inbox" notice after an add -->
+                    <div class="ae-notice" ng-show="ae.addNotice">
+                        <i class="fas fa-envelope-open-text"></i>
+                        <span>{{ ae.addNotice }}</span>
+                    </div>
+
+                    <!-- Inline add form -->
+                    <form class="ae-add" ng-show="ae.adding" ng-submit="ae.submitAdd()" novalidate>
+                        <label class="ae-add__label" for="field-ae-email">New email address</label>
+                        <div class="ae-add__controls">
+                            <input type="email" id="field-ae-email" class="sec-modal__input ae-add__input"
+                                   ng-model="ae.newEmail" ng-disabled="ae.addBusy"
+                                   placeholder="you@example.com" autocomplete="email" autocapitalize="off" spellcheck="false" />
+                            <div class="ae-add__buttons">
+                                <button type="button" class="sec-btn sec-btn--outline" ng-click="ae.cancelAdd()" ng-disabled="ae.addBusy">Cancel</button>
+                                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="ae.addBusy">
+                                    <i class="fas" ng-class="ae.addBusy ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"></i>
+                                    {{ ae.addBusy ? 'Sending…' : 'Send confirmation' }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ae-add__error" ng-show="ae.addError">{{ ae.addError }}</div>
+                        <div class="ae-add__hint">We'll email a confirmation link to this address. It expires in 24 hours.</div>
+                    </form>
+
+                    <!-- Footer -->
+                    <div class="ae-footer" ng-show="!ae.adding">
+                        <button class="sec-btn sec-btn--primary" ng-click="ae.openAdd()" ng-disabled="!ae.canAdd"
+                                title="{{ ae.canAdd ? '' : 'You have reached the address limit' }}">
+                            <i class="fas fa-plus"></i> Add an address
+                        </button>
+                        <span class="ae-footer__count">
+                            {{ ae.verifiedCount }} of {{ ae.limits.max_verified }} addresses used<span ng-show="ae.pendingCount"> · {{ ae.pendingCount }} pending</span>
+                        </span>
+                    </div>
+
+                    <p class="ae-explainer">
+                        Any verified address can be used to sign in and to reset your password.<br>
+                        Notifications go to your primary address.
+                    </p>
+
+                </div>
+            </div>
+        </div>
+
     </div>
 
 </div>

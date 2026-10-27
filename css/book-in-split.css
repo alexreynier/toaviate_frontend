@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════
+   Book-in split picker + track-vs-tracker counterparts (.bis-*)
+   FRONTEND_TRACK_DATA_GUIDE.md §3 (split points) and §5 (entry rows)
+   Used by views/my_account/booking_in_form.html and claim_a_flight.html.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Split picker options (ui-select, appended to body) ── */
+.bis-picker { text-align: left; }
+.bis-opt { display: block; padding: 2px 0; line-height: 1.35; }
+.bis-opt__main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bis-opt__time { font-weight: 700; font-size: 14px; color: #1e293b; }
+.bis-opt__tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; line-height: 1.4; white-space: nowrap;
+}
+.bis-opt__tag--rec { background: #dcfce7; color: #166534; }
+.bis-opt__tag--track { background: #dbeafe; color: #1e40af; }
+.bis-opt__tag--tracker { background: #f1f5f9; color: #64748b; }
+.bis-opt__meta { font-size: 12px; color: #64748b; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.bis-opt__warn { font-size: 11px; color: #92400e; margin-top: 2px; }
+.bis-opt__warn i { margin-right: 3px; }
+.bis-opt--recommended .bis-opt__time { color: #166534; }
+/* ui-select paints the active row with the brand colour — keep the tags legible on it */
+.ui-select-choices-row.active .bis-opt__time,
+.ui-select-choices-row.active .bis-opt__meta,
+.ui-select-choices-row.active .bis-opt__warn { color: #fff; }
+.ui-select-choices-row.active .bis-opt__tag { background: rgba(255,255,255,0.22); color: #fff; }
+
+/* verdict hint on a selectable point (hop_emitted / unexplained) */
+.bis-opt__verdict { font-size: 11px; color: #94a3b8; font-style: italic; margin-top: 1px; }
+.ui-select-choices-row.active .bis-opt__verdict { color: rgba(255,255,255,0.8); }
+/* phantom point (selectable:false): greyed, not clickable, never recommended */
+.bis-opt--phantom { opacity: 0.6; cursor: not-allowed; }
+.bis-opt--phantom .bis-opt__time { color: #64748b; font-weight: 600; }
+.bis-opt__tag--phantom { background: #fee2e2; color: #991b1b; }
+.ui-select-choices-row.disabled .bis-opt { cursor: not-allowed; }
+.ui-select-choices-row.disabled .bis-opt__time,
+.ui-select-choices-row.active.disabled .bis-opt__time { color: #64748b; }
+.ui-select-choices-row.active.disabled .bis-opt__meta,
+.ui-select-choices-row.active.disabled .bis-opt__warn { color: #92400e; }
+.ui-select-choices-row.active.disabled .bis-opt__tag--phantom { background: #fee2e2; color: #991b1b; }
+
+.bis-status { margin: 8px 0 0; font-size: 12px; color: #334155; }
+.bis-status--muted { color: #64748b; }
+.bis-status--warn { color: #92400e; }
+.bis-status--flag { color: #991b1b; font-weight: 600; }
+.bis-status i { margin-right: 4px; }
+
+/* ── "Split anyway?" inline confirm (PHANTOM_SPLIT_POINT, §3.1) ── */
+.bis-phantom {
+  margin: 10px 0 0; padding: 12px 14px; text-align: left;
+  background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px;
+}
+.bis-phantom__head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #92400e; }
+.bis-phantom__warn { margin: 6px 0 0; font-size: 13px; line-height: 1.45; color: #78350f; }
+.bis-phantom__facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bis-phantom__facts span {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.7); color: #92400e;
+}
+.bis-phantom__q { margin: 10px 0 8px; font-size: 13px; font-weight: 700; color: #1e293b; }
+.bis-phantom__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bis-phantom__btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; border: 1px solid transparent;
+  font-size: 13px; font-weight: 700; line-height: 1.2; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bis-phantom__btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.bis-phantom__btn--force { background: #dc2626; border-color: #dc2626; color: #fff; }
+.bis-phantom__btn--force:hover { background: #b91c1c; border-color: #b91c1c; }
+.bis-phantom__btn--back { background: #fff; border-color: #cbd5e1; color: #334155; }
+.bis-phantom__btn--back:hover { border-color: #2d5a8e; background: #f8fafc; }
+
+/* ── floor / nearest / ceil chooser ── */
+.bis-round {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  margin: 10px 0 0; padding: 10px 12px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+}
+.bis-round__label { font-size: 12px; font-weight: 700; color: #334155; }
+.bis-round__opts { display: inline-flex; gap: 6px; }
+.bis-round__btn {
+  display: inline-flex; flex-direction: column; align-items: center;
+  padding: 5px 12px; border-radius: 8px; border: 1px solid #cbd5e1;
+  background: #fff; color: #1e293b; font-weight: 700; font-size: 13px; line-height: 1.2;
+  cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease;
+}
+.bis-round__btn small { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
+.bis-round__btn:hover { border-color: #2d5a8e; }
+.bis-round__btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.bis-round__btn--on { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); border-color: #1e3a5f; color: #fff; }
+.bis-round__btn--on small { color: #bfdbfe; }
+.bis-round__hint { font-size: 12px; color: #64748b; }
+
+/* ── tracker · track counterparts on Claim a Flight rows ── */
+.bis-calc { display: block; font-size: 11px; color: #64748b; white-space: nowrap; margin-top: 1px; }
+.bis-calc small { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #94a3b8; }
+.bis-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 999px; line-height: 1.5; white-space: nowrap; margin-top: 2px;
+}
+.bis-tag--warn { background: #fef3c7; color: #92400e; }
+.bis-tag--muted { background: #f1f5f9; color: #64748b; }
+.caf-table .bis-tag { display: inline-flex; }
+
+/* mobile card row: one line per pair, wraps on narrow phones */
+.bis-fc-track .bis-fc-track__vals { display: flex; flex-direction: column; gap: 2px; font-size: 12px !important; font-weight: 500 !important; color: #334155 !important; }
+.bis-fc-track .bis-fc-track__vals small { font-size: 10px; color: #94a3b8; font-weight: 600; }
+.bis-fc-track .bis-tag { align-self: flex-start; }
+
+@media (max-width: 768px) {
+  .bis-round { flex-direction: column; align-items: stretch; }
+  .bis-round__opts { display: flex; }
+  .bis-round__btn { flex: 1; }
+  .bis-opt__time { font-size: 15px; }
+  .bis-phantom__actions { flex-direction: column; }
+  .bis-phantom__btn { width: 100%; justify-content: center; padding: 10px 14px; }
+}
+@media (max-width: 420px) {
+  .bis-opt__meta { font-size: 11px; }
+  .bis-fc-track .bis-fc-track__vals { font-size: 11px !important; }
+}
+
+/* ── night mode ── */
+body.night-mode .bis-opt__time { color: #e2e8f0; }
+body.night-mode .bis-opt__meta { color: #94a3b8; }
+body.night-mode .bis-opt__warn { color: #fbbf24; }
+body.night-mode .bis-opt__tag--rec { background: #14532d; color: #bbf7d0; }
+body.night-mode .bis-opt__tag--track { background: #1e3a8a; color: #bfdbfe; }
+body.night-mode .bis-opt__tag--tracker { background: #334155; color: #cbd5e1; }
+body.night-mode .bis-opt--recommended .bis-opt__time { color: #86efac; }
+body.night-mode .bis-status { color: #cbd5e1; }
+body.night-mode .bis-status--muted { color: #94a3b8; }
+body.night-mode .bis-status--warn { color: #fbbf24; }
+body.night-mode .bis-status--flag { color: #fca5a5; }
+body.night-mode .bis-opt__verdict { color: #94a3b8; }
+body.night-mode .bis-opt--phantom .bis-opt__time,
+body.night-mode .ui-select-choices-row.disabled .bis-opt__time { color: #94a3b8; }
+body.night-mode .bis-opt__tag--phantom,
+body.night-mode .ui-select-choices-row.active.disabled .bis-opt__tag--phantom { background: #7f1d1d; color: #fecaca; }
+body.night-mode .bis-phantom { background: #451a03; border-color: #92400e; }
+body.night-mode .bis-phantom__head { color: #fde68a; }
+body.night-mode .bis-phantom__warn { color: #fef3c7; }
+body.night-mode .bis-phantom__facts span { background: rgba(0,0,0,0.3); color: #fde68a; }
+body.night-mode .bis-phantom__q { color: #e2e8f0; }
+body.night-mode .bis-phantom__btn--back { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+body.night-mode .bis-phantom__btn--back:hover { background: #1e293b; border-color: #64748b; }
+body.night-mode .bis-round { background: #1e293b; border-color: #334155; }
+body.night-mode .bis-round__label { color: #e2e8f0; }
+body.night-mode .bis-round__btn { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+body.night-mode .bis-round__hint { color: #94a3b8; }
+body.night-mode .bis-calc { color: #94a3b8; }
+body.night-mode .bis-tag--warn { background: #78350f; color: #fde68a; }
+body.night-mode .bis-tag--muted { background: #334155; color: #cbd5e1; }
+body.night-mode .bis-fc-track .bis-fc-track__vals { color: #cbd5e1 !important; }
+
+/* ── Part 2 of a split flight: three crew choices (same / solo / self-hire)
+      Base .bi-split-leg__* styles live in flight-times.css (loaded later);
+      the --three modifier wins on specificity, not order. ── */
+.bi-split-leg__choices--three .bi-split-leg__choice { flex: 1 1 180px; min-width: 0; }
+.bi-split-leg__choices--three .bi-split-leg__choice small { white-space: normal; line-height: 1.35; }
+
+/* per-flight vs whole-booking figure under the "send invoice" button */
+.bi-booking-total { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.5; }
+
+@media (max-width: 768px) {
+  .bi-split-leg__choices--three .bi-split-leg__choice { flex-basis: calc(50% - 5px); }
+}
+@media (max-width: 480px) {
+  .bi-split-leg__choices--three { flex-direction: column; }
+  .bi-split-leg__choices--three .bi-split-leg__choice { flex-basis: auto; width: 100%; }
+}
+
+body.night-mode .bi-booking-total { color: #94a3b8; }
