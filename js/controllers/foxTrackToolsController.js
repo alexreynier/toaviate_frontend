@@ -648,7 +648,8 @@ app.controller('FoxTrackToolsController', FoxTrackToolsController);
         };
         vm.air = {
             days: '', plane_id: '', busy: false, mode: null, report: null, error: null, confirm: false, progress: null,
-            explain_id: vm.flight.pls_id || '', explain: null, explain_busy: false, explain_error: null, reset_confirm: false, reset_busy: false
+            explain_id: vm.flight.pls_id || '', explain: null, explain_busy: false, explain_error: null, reset_confirm: false, reset_busy: false,
+            redo: false, redo_word: ''   // deliberate redo of the one-off (deployment window only)
         };
         vm.airSourceLabel = function(src) { return AIR_SRC[src] || src || '—'; };
         vm.airHm = function(hours) {
@@ -657,16 +658,23 @@ app.controller('FoxTrackToolsController', FoxTrackToolsController);
             var mins = Math.round(h * 60);
             return Math.floor(mins / 60) + ':' + ('0' + (mins % 60)).slice(-2);
         };
+        // {k: v} → [{k, v}] for ng-repeat. Cached per object: a fresh array on
+        // every digest makes ng-repeat re-render forever ($rootScope:infdig).
+        var airPairsCache = [];
         vm.airPairs = function(obj) {
+            if (!obj) { return []; }
+            for (var i = 0; i < airPairsCache.length; i++) { if (airPairsCache[i].obj === obj) { return airPairsCache[i].out; } }
             var out = [];
-            angular.forEach(obj || {}, function(v, k) { out.push({ k: k, v: v }); });
+            angular.forEach(obj, function(v, k) { out.push({ k: k, v: v }); });
+            if (airPairsCache.length > 200) { airPairsCache.shift(); }
+            airPairsCache.push({ obj: obj, out: out });
             return out;
         };
 
         // chunk reports → one report (sums, merged maps, top-20 moves)
         function airMerge(acc, d) {
             if (!acc) {
-                acc = { run_id: d.run_id, mode: d.mode, dry_run: d.dry_run, days: d.days, checked: 0, updated: 0, hours_changed: 0, source_changed: 0, settled: 0, left_provisional: 0,
+                acc = { run_id: d.run_id, mode: d.mode, dry_run: d.dry_run, days: d.days, scope: d.scope, scope_note: d.scope_note, checked: 0, updated: 0, hours_changed: 0, source_changed: 0, settled: 0, left_provisional: 0,
                         total_delta_hours: 0, by_source: {}, by_transition: {}, flags: {}, provisional_reasons: {}, biggest_moves: [], planes: {}, rebuilt: {}, chunks: 0 };
             }
             acc.chunks++;
@@ -689,41 +697,128 @@ app.controller('FoxTrackToolsController', FoxTrackToolsController);
             return acc;
         }
 
-        vm.airRun = function(apply) {
+        // A run is a chain of chunked requests. If one fails (server wall, network),
+        // nothing already written is lost: the state is kept in a.resume and the
+        // Resume button continues from the last cursor with the same run id.
+        vm.airRun = function(apply, resume) {
             var a = vm.air;
             if (a.busy) { return; }
-            if (apply && !a.confirm) { a.confirm = true; return; }
+            if (apply && !a.confirm && !resume) { a.confirm = true; return; }
             a.confirm = false;
-            a.busy = true; a.error = null; a.report = null; a.progress = { checked: 0 }; a.mode = apply ? 'apply' : 'dry';
-            var acc = null, run_id = null;
+            var st = (resume && a.resume) ? a.resume : { apply: apply, after_id: 0, run_id: null, acc: null,
+                redo: (a.redo && a.redo_word === 'REDO'), days: parseInt(a.days, 10) > 0 ? parseInt(a.days, 10) : null,
+                plane_id: parseInt(a.plane_id, 10) > 0 ? parseInt(a.plane_id, 10) : null };
+            a.resume = null;
+            a.busy = true; a.error = null; a.report = null; a.progress = { checked: st.acc ? st.acc.checked : 0 }; a.mode = st.apply ? 'apply' : 'dry';
+            function fail(msg) {
+                a.busy = false;
+                a.error = msg;
+                a.resume = st;   // Resume picks up here
+                ToastService.error('Recompute Stopped', msg);
+            }
             function step(after_id) {
-                var params = { apply: apply ? 1 : 0, after_id: after_id || 0, budget_s: 20 };
-                if (parseInt(a.days, 10) > 0) { params.days = parseInt(a.days, 10); }
-                if (parseInt(a.plane_id, 10) > 0) { params.plane_id = parseInt(a.plane_id, 10); }
-                if (run_id) { params.run_id = run_id; }
+                st.after_id = after_id || 0;
+                var params = { apply: st.apply ? 1 : 0, after_id: st.after_id, budget_s: 12 };
+                if (st.redo) { params.redo_one_off = 1; params.confirm = 'REDO'; }
+                if (st.days) { params.days = st.days; }
+                if (st.plane_id) { params.plane_id = st.plane_id; }
+                if (st.run_id) { params.run_id = st.run_id; }
                 PlaneService.AirborneRecompute(params).then(function(data) {
                     if (!data || !data.success) {
-                        a.busy = false;
-                        a.error = errorText(data, 'The airborne-time recompute failed.');
-                        ToastService.error('Recompute Failed', a.error);
+                        // a CHUNK_FAILED answer carries the cursor; an HTTP failure keeps the last one
+                        if (data && data.next_after_id) { st.after_id = data.next_after_id; }
+                        if (data && data.run_id) { st.run_id = data.run_id; }
+                        fail(errorText(data, 'The airborne-time recompute failed.'));
                         return;
                     }
-                    run_id = data.run_id;
-                    acc = airMerge(acc, data);
-                    a.progress = { checked: acc.checked, chunks: acc.chunks };
+                    st.run_id = data.run_id;
+                    st.acc = airMerge(st.acc, data);
+                    a.progress = { checked: st.acc.checked, chunks: st.acc.chunks };
                     if (data.done === false && data.next_after_id) { step(data.next_after_id); return; }
                     a.busy = false;
-                    a.report = acc;
-                    ToastService.success(apply ? 'Airborne Times Applied' : 'Dry Run Complete',
-                        acc.checked + ' sheet(s) checked, ' + acc.updated + (apply ? ' written' : ' would change') + ' (' + acc.hours_changed + ' with different hours).');
+                    a.report = st.acc;
+                    if (st.apply) { vm.airRuns(); }
+                    ToastService.success(st.apply ? 'Airborne Times Applied' : 'Dry Run Complete',
+                        st.acc.checked + ' sheet(s) checked, ' + st.acc.updated + (st.apply ? ' written' : ' would change') + ' (' + st.acc.hours_changed + ' with different hours).');
+                    // the logbooks: queued for the background worker — watch the batch
+                    if (st.apply && data.rebuild_batch) { ToastService.success('Logbook Rebuild Queued', (data.rebuild_pending || []).length + ' aircraft queued; you will be emailed when it is done.'); airWatchBatch(data.rebuild_batch); }
                 }, function() {
-                    a.busy = false;
-                    a.error = 'The request failed — the server may have hit its time limit; run the CLI script instead (airborne_recompute.php).';
-                    ToastService.error('Recompute Failed', a.error);
+                    fail('The request failed — press Resume to continue from where it stopped.');
                 });
             }
-            step(0);
+            step(st.after_id);
         };
+
+        // Logbook rebuild runs in the BACKGROUND: the server queues one job per
+        // logbook, the planes/airborne_worker cron works them off every minute,
+        // and the requester gets an email when the batch is done. The page just
+        // polls the batch status while it is open — it can be closed any time.
+        vm.airRebuildStatus = function(batch) {
+            var a = vm.air;
+            PlaneService.AirborneRebuildStatus(batch || null).then(function(data) {
+                if (!data || !data.success) { a.rebuild_status_error = errorText(data, 'The rebuild status could not be loaded.'); return; }
+                a.rebuild_status_error = null;
+                a.rebuild_status = data;
+                var b = batch ? (data.batches || []).filter(function(x) { return x.batch_id === batch; })[0] : (data.batches || [])[0];
+                a.rebuild_batch_info = b || null;
+                if (b && !b.complete && !a.rebuild_poll) {
+                    a.rebuild_poll = $timeout(function() { a.rebuild_poll = null; vm.airRebuildStatus(batch); }, 5000);
+                }
+                if (b && b.complete && a.rebuild_watching === b.batch_id) {
+                    a.rebuild_watching = null;
+                    (b.failed ? ToastService.warning : ToastService.success)('Logbook Rebuild Finished', b.done + ' of ' + b.total + ' logbook(s) rebuilt across ' + b.planes + ' aircraft' + (b.failed ? ', ' + b.failed + ' failed.' : '.'));
+                    vm.airRuns();
+                }
+            });
+        };
+        function airWatchBatch(batch) {
+            var a = vm.air;
+            a.rebuild_batch = batch;
+            a.rebuild_watching = batch;
+            if (a.rebuild_poll) { $timeout.cancel(a.rebuild_poll); a.rebuild_poll = null; }
+            vm.airRebuildStatus(batch);
+        }
+        $scope.$on('$destroy', function() { if (vm.air.rebuild_poll) { $timeout.cancel(vm.air.rebuild_poll); } });
+
+        // manual fallback: run the worker for ~15 s from here (it also re-kicks the chain)
+        vm.airRebuildNudge = function() {
+            var a = vm.air;
+            if (a.nudge_busy) { return; }
+            a.nudge_busy = true;
+            PlaneService.AirborneRebuildNudge().then(function(data) {
+                a.nudge_busy = false;
+                if (!data || !data.success) { ToastService.error('Nudge Failed', errorText(data, 'The worker could not be run.')); return; }
+                ToastService.success('Worker Ran', (data.ran || []).length + ' job(s) done this nudge, ' + data.queued_left + ' left' + (data.chained ? ' — chain re-kicked.' : '.'));
+                vm.airRebuildStatus(a.rebuild_batch || null);
+            });
+        };
+
+        vm.airRebuildTouched = function() {
+            var a = vm.air;
+            if (a.rebuild_busy) { return; }
+            if (!a.rebuild_confirm) { a.rebuild_confirm = true; return; }
+            a.rebuild_confirm = false; a.rebuild_busy = true;
+            PlaneService.AirborneRebuildTouched().then(function(data) {
+                a.rebuild_busy = false;
+                if (!data || !data.success) { ToastService.error('Rebuild Failed', errorText(data, 'The rebuild could not be queued.')); return; }
+                if (!data.rebuild_batch) { ToastService.success('Nothing To Rebuild', 'No applied run has changed any flight.'); return; }
+                ToastService.success('Logbook Rebuild Queued', data.message);
+                airWatchBatch(data.rebuild_batch);
+            });
+        };
+        vm.airRebuildStatus(null);
+
+        // previous runs — survives a lost page (logout / closed tab)
+        vm.airRuns = function() {
+            var a = vm.air;
+            a.runs_busy = true; a.runs_error = null;
+            PlaneService.AirborneRuns(20).then(function(data) {
+                a.runs_busy = false;
+                if (!data || !data.success) { a.runs_error = errorText(data, 'The runs could not be loaded.'); return; }
+                a.runs = data;
+            });
+        };
+        vm.airRuns();
 
         vm.airExplain = function() {
             var a = vm.air;

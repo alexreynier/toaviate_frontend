@@ -92,6 +92,108 @@
        ════════════════════════════════════════════════════════ -->
   <div class="modal-body cc-modal__body" ng-if="step === 1 && activeTab === 'cancel' && preview">
 
+    <!-- ── Split Flight Panel (preview.split — absent for an ordinary flight) ── -->
+    <div class="cc-card cc-split" ng-if="split">
+      <div class="cc-card__header">
+        <div class="cc-card__header-icon cc-card__header-icon--split">
+          <i class="fa fa-code-branch"></i>
+        </div>
+        <span class="cc-card__title">Split Flight</span>
+        <span class="cc-card__badge cc-card__badge--split">Leg {{ getLegNumber() }} of 2</span>
+      </div>
+      <div class="cc-card__body">
+        <p class="cc-split__intro">
+          This flight is <strong>leg {{ getLegNumber() }} of 2</strong> of a split tracker flight.
+          Cancelling the claim releases <strong>both legs</strong> and recombines them into
+          <strong>one flight</strong> in Claim a Flight:
+        </p>
+        <div class="cc-split__recombined" ng-if="split.recombined_preview">
+          <span class="cc-split__recombined-icon"><i class="fa fa-plane"></i></span>
+          <span class="cc-split__recombined-times">
+            <flight-times row="split.recombined_preview" club-id="preview.plane_log_sheet.club_id || preview.club_id"></flight-times>
+          </span>
+          <span class="cc-split__recombined-landings" ng-if="getRecombinedLandings() !== null">
+            {{ getRecombinedLandings() }} landing{{ getRecombinedLandings() === 1 ? '' : 's' }}
+          </span>
+        </div>
+
+        <!-- Leg cards -->
+        <div class="cc-split__legs">
+          <div class="cc-split-leg" ng-repeat="leg in splitLegs" ng-class="{'cc-split-leg--current': leg.key === split.role}">
+            <div class="cc-split-leg__head">
+              <span class="cc-split-leg__name">{{ leg.label }}</span>
+              <span class="cc-split-leg__id" ng-show="leg.data.id">#{{ leg.data.id }}</span>
+              <span class="cc-split-leg__tag" ng-show="leg.key === split.role">This flight</span>
+            </div>
+            <div class="cc-split-leg__times">
+              <flight-times row="leg.data" club-id="preview.plane_log_sheet.club_id || preview.club_id"></flight-times>
+            </div>
+            <div class="cc-split-leg__rows">
+              <div class="cc-split-leg__row">
+                <span class="cc-split-leg__label">Claimed by</span>
+                <span class="cc-split-leg__value" ng-show="leg.data.claiming_user">{{ getLegClaimant(leg.data) }}</span>
+                <span class="cc-split-leg__value cc-split-leg__value--muted" ng-show="!leg.data.claiming_user">Unclaimed</span>
+              </div>
+              <div class="cc-split-leg__row" ng-show="leg.data.instructor">
+                <span class="cc-split-leg__label">Instructor</span>
+                <span class="cc-split-leg__value">{{ leg.data.instructor.first_name }} {{ leg.data.instructor.last_name }}</span>
+              </div>
+              <div class="cc-split-leg__row">
+                <span class="cc-split-leg__label">Status</span>
+                <span class="cc-split-leg__value">{{ getLegBookedState(leg.data) }}</span>
+              </div>
+              <div class="cc-split-leg__row">
+                <span class="cc-split-leg__label">Invoices</span>
+                <span class="cc-split-leg__value" ng-show="leg.data.invoices && leg.data.invoices.length">
+                  <span class="cc-split-leg__invoice" ng-repeat="inv in leg.data.invoices">
+                    #{{ inv.id }} <span class="cc-split-leg__invoice-status cc-split-leg__invoice-status--{{ inv.status }}">{{ inv.status }}</span> {{ formatCurrency(inv.total) }}
+                  </span>
+                </span>
+                <span class="cc-split-leg__value cc-split-leg__value--muted" ng-show="leg.data.shares_booking && (!leg.data.invoices || !leg.data.invoices.length)"><i class="fa fa-link"></i> Billed with leg 1 (one booking)</span>
+                <span class="cc-split-leg__value cc-split-leg__value--muted" ng-show="!leg.data.shares_booking && (!leg.data.invoices || !leg.data.invoices.length)">None</span>
+              </div>
+              <div class="cc-split-leg__row">
+                <span class="cc-split-leg__label">Training records</span>
+                <span class="cc-split-leg__value">{{ leg.data.training_records ? leg.data.training_records.length : 0 }}</span>
+              </div>
+              <div class="cc-split-leg__row cc-split-leg__row--paid">
+                <span class="cc-split-leg__label">Paid</span>
+                <span class="cc-split-leg__value" ng-show="!leg.data.shares_booking" ng-class="{'cc-split-leg__value--green': getLegPaid(leg.data) > 0}">{{ formatCurrency(getLegPaid(leg.data)) }}</span>
+                <span class="cc-split-leg__value cc-split-leg__value--muted" ng-show="leg.data.shares_booking">Included in leg 1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other leg claimed by someone else → acknowledgement required -->
+        <div class="cc-split__notice cc-split__notice--danger" ng-if="split.other_leg_claimed_by_other_user">
+          <div class="cc-split__notice-icon"><i class="fa fa-user-times"></i></div>
+          <div class="cc-split__notice-body">
+            <div class="cc-split__notice-title">The other leg is claimed by {{ getOtherLegName() }}</div>
+            <div class="cc-split__notice-text">
+              Their claim is released as well — their flight comes off their logbook and account
+              and any payment on that leg is handled by the financial action you choose.
+            </div>
+            <label class="cc-split__ack">
+              <input type="checkbox" ng-model="form.acknowledgeOtherLeg" />
+              <span>I understand {{ getOtherLegName() }}'s claim on the other leg is released too</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Blockers -->
+        <div class="cc-split__notice cc-split__notice--blocked" ng-if="isBlocked()">
+          <div class="cc-split__notice-icon"><i class="fa fa-ban"></i></div>
+          <div class="cc-split__notice-body">
+            <div class="cc-split__notice-title">This split flight can't be recombined</div>
+            <ul class="cc-split__blockers">
+              <li ng-repeat="b in blockers">{{ getBlockerLabel(b) }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Flight Details Card ── -->
     <div class="cc-card">
       <div class="cc-card__header">
@@ -191,6 +293,13 @@
           </span>
           <span class="cc-finance-row__amount">{{ formatCurrency(preview.financial.stripe_refundable_amount) }}</span>
         </div>
+        <div class="cc-finance-row cc-finance-row--total" ng-if="split">
+          <span class="cc-finance-row__label">
+            <i class="fa fa-code-branch cc-split__row-icon"></i>
+            Paid across both legs
+          </span>
+          <span class="cc-finance-row__amount cc-finance-row__amount--green">{{ formatCurrency(getPaidTotal()) }}</span>
+        </div>
 
         <!-- Payment method badge -->
         <div ng-if="getFinanceMethodLabel()" style="margin-top:6px;">
@@ -278,7 +387,7 @@
       </button>
     </div>
     <div class="cc-footer__right">
-      <button class="cc-btn cc-btn--danger" ng-click="goToConfirm()">
+      <button class="cc-btn cc-btn--danger" ng-click="goToConfirm()" ng-disabled="!canProceed()">
         Continue <i class="fa fa-arrow-right"></i>
       </button>
     </div>
@@ -363,6 +472,15 @@
        ════════════════════════════════════════════════════════ -->
   <div class="modal-body cc-modal__body" ng-if="step === 2" style="position:relative;">
 
+    <!-- ── Split flight: one action covers both legs ── -->
+    <div class="cc-split__confirm-note" ng-if="split">
+      <i class="fa fa-code-branch"></i>
+      <span>
+        Both legs (#{{ split.leg1.id }} and #{{ split.leg2.id }}) are released and recombined into one flight.
+        One financial action applies to both legs.
+      </span>
+    </div>
+
     <!-- ── Reason ── -->
     <div class="cc-form-group">
       <label class="cc-form-label">
@@ -398,7 +516,7 @@
             <div class="cc-action-option__title">Credit member's account</div>
             <div class="cc-action-option__desc">Add credit to the member's club account balance</div>
           </div>
-          <div class="cc-action-option__amount">{{ formatCurrency(preview.financial.total_paid) }}</div>
+          <div class="cc-action-option__amount">{{ formatCurrency(getPaidTotal()) }}</div>
         </label>
 
         <!-- Stripe Refund -->
@@ -414,7 +532,7 @@
             <div class="cc-action-option__title">Refund to Stripe card</div>
             <div class="cc-action-option__desc">Refund to the member's original payment card</div>
           </div>
-          <div class="cc-action-option__amount">{{ formatCurrency(preview.financial.stripe_refundable_amount) }}</div>
+          <div class="cc-action-option__amount">{{ formatCurrency(getStripeRefundable()) }}</div>
         </label>
 
         <!-- No Refund -->
@@ -444,16 +562,42 @@
     </div>
 
     <!-- ── Partial Refund Amount ── -->
-    <div class="cc-refund-amount" ng-if="!hasOnlyNoRefund() && form.financialAction !== 'no_refund' && preview.financial.total_paid > 0">
+    <div class="cc-refund-amount" ng-if="!hasOnlyNoRefund() && form.financialAction !== 'no_refund' && getPaidTotal() > 0">
       <span class="cc-refund-amount__label">Refund Amount</span>
       <input type="number" class="cc-refund-amount__input"
              ng-model="form.refundAmount"
              min="0"
-             max="{{ preview.financial.total_paid }}"
+             max="{{ getPaidTotal() }}"
              step="0.01" />
-      <span class="cc-refund-amount__max">Max: {{ formatCurrency(preview.financial.total_paid) }}</span>
+      <span class="cc-refund-amount__max">Max: {{ formatCurrency(getPaidTotal()) }}</span>
       <div class="cc-form-error" ng-if="formErrors.refundAmount" style="width:100%; margin-top:6px;">
         <i class="fa fa-exclamation-circle"></i> {{ formErrors.refundAmount }}
+      </div>
+    </div>
+
+    <!-- ── Split flight: acknowledge the other member's leg ── -->
+    <div class="cc-split__notice cc-split__notice--danger" ng-if="needsAcknowledgement()">
+      <div class="cc-split__notice-icon"><i class="fa fa-user-times"></i></div>
+      <div class="cc-split__notice-body">
+        <div class="cc-split__notice-title">The other leg is claimed by {{ getOtherLegName() }}</div>
+        <label class="cc-split__ack">
+          <input type="checkbox" ng-model="form.acknowledgeOtherLeg" />
+          <span>I understand {{ getOtherLegName() }}'s claim on the other leg is released too</span>
+        </label>
+        <div class="cc-form-error" ng-if="formErrors.acknowledge">
+          <i class="fa fa-exclamation-circle"></i> {{ formErrors.acknowledge }}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Split flight: blocked (from the preview, or a BLOCKED execute response) ── -->
+    <div class="cc-split__notice cc-split__notice--blocked" ng-if="isBlocked()">
+      <div class="cc-split__notice-icon"><i class="fa fa-ban"></i></div>
+      <div class="cc-split__notice-body">
+        <div class="cc-split__notice-title">This split flight can't be recombined</div>
+        <ul class="cc-split__blockers">
+          <li ng-repeat="b in blockers">{{ getBlockerLabel(b) }}</li>
+        </ul>
       </div>
     </div>
 
@@ -464,12 +608,13 @@
           <i class="fa fa-exclamation-triangle"></i>
         </div>
         <h4>Are you sure?</h4>
-        <p>This will cancel the flight claim and remove the member assignment. This action cannot be undone.</p>
+        <p ng-if="!split">This will cancel the flight claim and remove the member assignment. This action cannot be undone.</p>
+        <p ng-if="split">This will release the claims on <strong>both legs</strong> and recombine them into one unclaimed flight. This action cannot be undone.</p>
         <p ng-if="form.financialAction === 'stripe_refund'" style="color:#dc2626; font-weight:600;">
-          A Stripe refund of {{ formatCurrency(form.refundAmount || preview.financial.total_paid) }} will be issued.
+          A Stripe refund of {{ formatCurrency(form.refundAmount || getPaidTotal()) }} will be issued.
         </p>
         <p ng-if="form.financialAction === 'credit_account'" style="color:#2563eb; font-weight:600;">
-          {{ formatCurrency(form.refundAmount || preview.financial.total_paid) }} will be credited to the member's account.
+          {{ formatCurrency(form.refundAmount || getPaidTotal()) }} will be credited to the member's account.
         </p>
         <div class="cc-confirm-dialog__actions">
           <button class="cc-btn cc-btn--ghost" ng-click="cancelConfirmDialog()" ng-disabled="submitting">
@@ -493,7 +638,7 @@
       </button>
     </div>
     <div class="cc-footer__right">
-      <button class="cc-btn cc-btn--danger" ng-click="confirmCancellation()" ng-disabled="submitting">
+      <button class="cc-btn cc-btn--danger" ng-click="confirmCancellation()" ng-disabled="submitting || !canProceed()">
         <i class="fa" ng-class="submitting ? 'fa-spinner fa-spin' : 'fa-times-circle'"></i>
         {{ submitting ? 'Processing…' : 'Cancel Claim' }}
       </button>
@@ -514,6 +659,24 @@
 
       <h3 class="cc-result__title">Claim Cancelled Successfully</h3>
       <p class="cc-result__message">{{ result.message }}</p>
+
+      <!-- Split flight recombined (result.split) -->
+      <div class="cc-split__result" ng-if="result.split && result.split.recombined">
+        <div class="cc-split__result-head">
+          <i class="fa fa-code-branch"></i> Both legs released and recombined
+        </div>
+        <p class="cc-split__result-text">
+          Flight <strong>#{{ result.split.placeholder_pls_id }}</strong> is now in Claim a Flight as one flight;
+          leg <strong>#{{ result.split.superseded_pls_id }}</strong> was merged away.
+        </p>
+        <div class="cc-warnings cc-split__result-warnings" ng-if="result.split.warnings && result.split.warnings.length">
+          <div class="cc-warning cc-warning--{{ w.level === 'danger' ? 'critical' : (w.level === 'warning' ? 'high' : 'info') }}"
+               ng-repeat="w in result.split.warnings">
+            <div class="cc-warning__icon"><i class="fa" ng-class="getWarningIcon(w.level)"></i></div>
+            <span>{{ w.message }}</span>
+          </div>
+        </div>
+      </div>
 
       <!-- Summary Info -->
       <div class="cc-result-info">

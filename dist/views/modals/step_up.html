@@ -1,0 +1,186 @@
+<div class="sec-modal step-up">
+
+    <div class="sec-modal__header">
+        <i class="fas fa-user-shield sec-modal__header-icon"></i>
+        <h3 class="sec-modal__title">{{ vm.title }}</h3>
+        <div class="sec-modal__steps">
+            <span class="sec-modal__step" ng-class="{'sec-modal__step--active': vm.stage === 'password'}">1</span>
+            <span class="sec-modal__step" ng-class="{'sec-modal__step--active': vm.stage === 'factor'}">2</span>
+        </div>
+    </div>
+
+    <!-- ── Stage 1 — confirm password ── -->
+    <div class="sec-modal__body" ng-show="vm.stage === 'password'">
+        <p class="sec-modal__text">{{ vm.text }}</p>
+
+        <div class="step-up__note" ng-show="vm.note">
+            <i class="fas fa-info-circle"></i>
+            <span>{{ vm.note }}</span>
+        </div>
+
+        <form ng-submit="vm.submitPassword()" autocomplete="on">
+            <label class="sec-modal__label" for="step-up-password">Your password</label>
+            <input type="password" id="step-up-password" class="sec-modal__input"
+                   ng-model="vm.password" autocomplete="current-password"
+                   ng-disabled="vm.busy" />
+
+            <div class="step-up__error" ng-show="vm.error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ vm.error }}</span>
+            </div>
+
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy">
+                    {{ vm.busy ? 'Checking…' : 'Continue' }}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Stage 2 — second factor ── -->
+    <div class="sec-modal__body" ng-show="vm.stage === 'factor'">
+
+        <!-- totp / recovery code -->
+        <form ng-submit="vm.submitCode()" ng-show="vm.method === 'totp'">
+            <p class="sec-modal__text" ng-show="!vm.useRecovery">
+                Enter the 6-digit code from your authenticator app.
+            </p>
+            <p class="sec-modal__text" ng-show="vm.useRecovery">
+                Enter one of the recovery codes you saved when you set up
+                two-factor authentication. Each code works once.
+            </p>
+
+            <div ng-show="!vm.useRecovery">
+                <label class="sec-modal__label" for="step-up-code">6-digit code</label>
+                <input type="text" id="step-up-code" class="sec-modal__input sec-modal__input--code"
+                       ng-model="vm.code" placeholder="123456" maxlength="6"
+                       inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
+                       autocapitalize="off" autocorrect="off" spellcheck="false"
+                       ng-disabled="vm.busy" />
+            </div>
+
+            <div ng-show="vm.useRecovery">
+                <label class="sec-modal__label" for="step-up-recovery">Recovery code</label>
+                <input type="text" id="step-up-recovery" class="sec-modal__input step-up__input--recovery"
+                       ng-model="vm.recoveryCode" maxlength="14"
+                       autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                       ng-disabled="vm.busy" />
+            </div>
+
+            <div class="step-up__error" ng-show="vm.error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ vm.error }}</span>
+            </div>
+
+            <div class="step-up__links">
+                <a href="" class="step-up__link" ng-click="vm.toggleRecovery()" ng-show="!vm.useRecovery">
+                    Use a recovery code instead
+                </a>
+                <a href="" class="step-up__link" ng-click="vm.toggleRecovery()" ng-show="vm.useRecovery">
+                    Use my authenticator app instead
+                </a>
+            </div>
+
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary"
+                        ng-disabled="vm.busy || (vm.useRecovery ? !vm.recoveryCode : !vm.code)">
+                    {{ vm.busy ? 'Verifying…' : 'Verify' }}
+                </button>
+            </div>
+        </form>
+
+        <!-- emailed code -->
+        <form ng-submit="vm.submitCode()" ng-show="vm.method === 'email_code'">
+            <p class="sec-modal__text">
+                We sent a 6-digit code to <span class="step-up__masked">{{ vm.sentToMasked }}</span>.
+                It expires in a few minutes.
+            </p>
+
+            <div ng-show="!vm.pickingAddress">
+                <label class="sec-modal__label" for="step-up-code-email">6-digit code</label>
+                <input type="text" id="step-up-code-email" class="sec-modal__input sec-modal__input--code"
+                       ng-model="vm.code" placeholder="123456" maxlength="6"
+                       inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
+                       autocapitalize="off" autocorrect="off" spellcheck="false"
+                       ng-disabled="vm.busy" />
+            </div>
+
+            <!-- send to a different verified address -->
+            <div class="step-up__picker" ng-show="vm.pickingAddress">
+                <label class="sec-modal__label" for="step-up-address">Send the code to</label>
+                <select id="step-up-address" class="sec-modal__input step-up__select"
+                        ng-model="vm.pickedAddress"
+                        ng-options="a as (a.email_masked || a.email) for a in vm.addresses track by a.id"
+                        ng-disabled="vm.busy">
+                    <option value="">Choose an address…</option>
+                </select>
+                <div class="step-up__picker-actions">
+                    <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.pickingAddress = false" ng-disabled="vm.busy">Back</button>
+                    <button type="button" class="sec-btn sec-btn--primary" ng-click="vm.sendToAddress()" ng-disabled="vm.busy || !vm.pickedAddress">
+                        {{ vm.busy ? 'Sending…' : 'Send code' }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="step-up__error" ng-show="vm.error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ vm.error }}</span>
+            </div>
+
+            <div class="step-up__links" ng-show="!vm.pickingAddress">
+                <a href="" class="step-up__link" ng-click="vm.resend()"
+                   ng-class="{'step-up__link--disabled': vm.resendWait > 0 || vm.busy}">
+                    Resend code<span ng-show="vm.resendWait > 0"> ({{ vm.resendWait }}s)</span>
+                </a>
+                <a href="" class="step-up__link" ng-click="vm.showAddressPicker()"
+                   ng-show="vm.addresses.length > 1" ng-class="{'step-up__link--disabled': vm.busy}">
+                    Send to a different address
+                </a>
+            </div>
+
+            <div class="sec-modal__footer" ng-show="!vm.pickingAddress">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+                <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="vm.busy || !vm.code">
+                    {{ vm.busy ? 'Verifying…' : 'Verify' }}
+                </button>
+            </div>
+        </form>
+
+        <!-- passkey -->
+        <div ng-show="vm.method === 'passkey'">
+            <p class="sec-modal__text">
+                Confirm with the passkey on this device — Face ID, Touch ID,
+                Windows Hello or your device PIN.
+            </p>
+
+            <div class="step-up__passkey">
+                <button type="button" class="sec-btn sec-btn--primary step-up__passkey-btn"
+                        ng-click="vm.usePasskey()" ng-disabled="vm.busy">
+                    <i class="fas fa-fingerprint"></i>
+                    {{ vm.waitingPasskey ? 'Waiting for your device…' : 'Use your passkey' }}
+                </button>
+                <div class="sec-waiting" ng-show="vm.waitingPasskey">
+                    <div class="sec-spinner"></div>
+                    <span>Follow your browser's prompt</span>
+                </div>
+            </div>
+
+            <div class="step-up__error" ng-show="vm.error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ vm.error }}</span>
+            </div>
+
+            <p class="step-up__hint">
+                No passkey on this device? Cancel and use a device that has one.
+            </p>
+
+            <div class="sec-modal__footer">
+                <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.busy">Cancel</button>
+            </div>
+        </div>
+
+    </div>
+
+</div>

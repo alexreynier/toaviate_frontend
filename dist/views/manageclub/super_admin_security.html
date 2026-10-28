@@ -122,4 +122,386 @@
 
     </div>
 
+    <!-- ═══ Email recovery + Security events (AdminEmailRecoveryController) ═══
+         Wrapper div carries the controller on its own — no ng-if on this element. -->
+    <div class="aer" ng-controller="AdminEmailRecoveryController as rec">
+
+        <!-- Admin's own 2FA missing: banner replaces the form -->
+        <div class="sec-banner aer-banner" ng-show="rec.needs2fa">
+            <i class="fas fa-shield-alt sec-banner__icon"></i>
+            <div>
+                <b>Enable two-factor authentication on your own account to use email recovery.</b>
+                <span class="aer-banner__text">Opening, approving and cancelling recovery requests
+                requires TOTP or a passkey on the staff account doing it.</span>
+                <a class="aer-banner__link" ui-sref="dashboard.my_account.security">
+                    <i class="fas fa-arrow-right"></i> Go to my Security settings
+                </a>
+            </div>
+        </div>
+
+        <!-- ═══ Email recovery ═══ -->
+        <div class="sec-card aer-card">
+            <div class="sec-card__head">
+                <i class="fas fa-envelope-open-text sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Email Recovery</h3>
+                    <p class="sec-card__sub">For members who lost access to their only sign-in mailbox</p>
+                </div>
+            </div>
+            <div class="sec-card__body">
+
+                <!-- 1. Find the account -->
+                <div class="aer-section">
+                    <div class="aer-section__title"><span class="aer-step">1</span> Find the account</div>
+                    <form class="aer-lookup" ng-submit="rec.lookup()">
+                        <div class="aer-lookup__field">
+                            <i class="fas fa-search aer-lookup__icon"></i>
+                            <input type="text" id="field-aer-lookup" class="sec-modal__input aer-lookup__input"
+                                   ng-model="rec.query"
+                                   ng-model-options="{ debounce: 450 }"
+                                   ng-change="rec.lookup()"
+                                   placeholder="Email address or user ID"
+                                   autocomplete="off" />
+                            <button type="button" class="aer-lookup__clear" ng-show="rec.query"
+                                    ng-click="rec.clearLookup()" title="Clear" no-busy-guard>
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button type="submit" class="sec-btn sec-btn--outline" ng-disabled="rec.lookupBusy">
+                            <i class="fas" ng-class="rec.lookupBusy ? 'fa-circle-notch fa-spin' : 'fa-search'"></i>
+                            {{ rec.lookupBusy ? 'Looking…' : 'Look up' }}
+                        </button>
+                    </form>
+                    <div class="aer-miss" ng-show="rec.lookupMiss && !rec.lookupBusy">
+                        <i class="fas fa-user-slash"></i> {{ rec.lookupMiss }}
+                    </div>
+
+                    <!-- Account summary -->
+                    <div class="aer-summary" ng-show="rec.found">
+                        <div class="aer-summary__head">
+                            <div class="aer-summary__who">
+                                <b>{{ rec.fullName(rec.found) }}</b>
+                                <span>ID {{ rec.found.id }}</span>
+                            </div>
+                            <button type="button" class="sec-btn sec-btn--outline aer-summary__events-btn"
+                                    ng-click="rec.eventsFor(rec.found)" no-busy-guard>
+                                <i class="fas fa-list"></i> Security events
+                            </button>
+                        </div>
+
+                        <div class="aer-open-case" ng-show="rec.found.open_case">
+                            <i class="fas fa-hourglass-half"></i>
+                            <div>
+                                <b>Open recovery request</b> —
+                                {{ rec.found.open_case.old_email || rec.found.email }}
+                                <i class="fas fa-long-arrow-alt-right"></i>
+                                {{ rec.found.open_case.new_email }}
+                                <span class="aer-chip" ng-class="rec.statusClass(rec.found.open_case)">{{ rec.statusLabel(rec.found.open_case) }}</span>
+                                <span class="aer-open-case__meta" ng-show="rec.found.open_case.initiated_by_name || rec.found.open_case.opened_by || rec.found.open_case.initiated_by">
+                                    opened by {{ rec.openerName(rec.found.open_case) }}
+                                    {{ rec.ago(rec.found.open_case.opened_at || rec.found.open_case.created_at) }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="aer-addresses">
+                            <div class="aer-addresses__label">Addresses</div>
+                            <div class="aer-addr" ng-repeat="a in rec.found.addresses track by (a.id || $index)">
+                                <span class="aer-addr__email">{{ a.email }}</span>
+                                <span class="aer-chip aer-chip--info" ng-show="rec.isTruthy(a.is_primary)">Primary</span>
+                                <span class="aer-chip aer-chip--success" ng-show="a.verified_at && !rec.isTruthy(a.pending)">Verified</span>
+                                <span class="aer-chip aer-chip--amber" ng-show="rec.isTruthy(a.pending) || (!a.verified_at && !rec.isTruthy(a.is_primary))">Pending</span>
+                            </div>
+                            <div class="aer-addr" ng-show="!rec.found.addresses.length">
+                                <span class="aer-addr__email">{{ rec.found.email }}</span>
+                                <span class="aer-chip aer-chip--info">Primary</span>
+                            </div>
+                        </div>
+
+                        <div class="aer-facts">
+                            <div class="aer-fact">
+                                <span class="aer-fact__label">Two-factor</span>
+                                <span class="aer-fact__value" ng-class="rec.isTruthy(rec.found.two_factor) ? 'aer-fact__value--yes' : 'aer-fact__value--no'">
+                                    <i class="fas" ng-class="rec.isTruthy(rec.found.two_factor) ? 'fa-check-circle' : 'fa-minus-circle'"></i>
+                                    {{ rec.yesNo(rec.found.two_factor) }}
+                                </span>
+                            </div>
+                            <div class="aer-fact">
+                                <span class="aer-fact__label">Passkeys</span>
+                                <span class="aer-fact__value" ng-class="rec.found.passkeys ? 'aer-fact__value--yes' : 'aer-fact__value--no'">
+                                    <i class="fas" ng-class="rec.found.passkeys ? 'fa-check-circle' : 'fa-minus-circle'"></i>
+                                    {{ rec.found.passkeys || 0 }}
+                                </span>
+                            </div>
+                            <div class="aer-fact">
+                                <span class="aer-fact__label">Phone verified</span>
+                                <span class="aer-fact__value" ng-class="rec.isTruthy(rec.found.phone_verified) ? 'aer-fact__value--yes' : 'aer-fact__value--no'">
+                                    <i class="fas" ng-class="rec.isTruthy(rec.found.phone_verified) ? 'fa-check-circle' : 'fa-minus-circle'"></i>
+                                    {{ rec.yesNo(rec.found.phone_verified) }}
+                                    <small ng-show="rec.isTruthy(rec.found.phone_verified)">· SMS step will apply</small>
+                                </span>
+                            </div>
+                            <div class="aer-fact aer-fact--wide">
+                                <span class="aer-fact__label">Clubs</span>
+                                <span class="aer-fact__value">
+                                    <span class="aer-club" ng-repeat="c in rec.found.clubs track by (c.id || $index)">{{ c.name || ('club #' + c.id) }}</span>
+                                    <span class="aer-fact__none" ng-show="!rec.found.clubs.length">None</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Open a recovery request (hidden until an account is found; replaced by the banner when 2FA is missing) -->
+                <div class="aer-section" ng-show="rec.found && !rec.needs2fa && !rec.forbidden">
+                    <div class="aer-section__title"><span class="aer-step">2</span> Open a recovery request</div>
+
+                    <div class="sec-warning" ng-show="rec.found.open_case">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>This account already has an open recovery request. Cancel it below before opening another.</div>
+                    </div>
+
+                    <form class="aer-form" ng-submit="rec.openRequest()" ng-show="!rec.found.open_case" autocomplete="off">
+                        <label class="sec-modal__label" for="field-aer-new-email">New email address</label>
+                        <input type="email" id="field-aer-new-email" class="sec-modal__input"
+                               ng-model="rec.form.new_email" placeholder="name@example.com"
+                               ng-disabled="rec.opening" />
+
+                        <label class="sec-modal__label">Identity verification <span class="aer-req">at least one</span></label>
+                        <div class="aer-checklist" id="field-aer-checks">
+                            <label class="aer-check" ng-repeat="chk in rec.CHECKS track by chk.key"
+                                   ng-class="{ 'aer-check--on': rec.form.checks[chk.key] }">
+                                <input type="checkbox" class="aer-check__input"
+                                       ng-checked="rec.form.checks[chk.key]"
+                                       ng-click="rec.toggleCheck(chk.key)"
+                                       ng-disabled="rec.opening" no-busy-guard />
+                                <span class="aer-check__box"><i class="fas fa-check"></i></span>
+                                <span class="aer-check__label">{{ chk.label }}</span>
+                            </label>
+                        </div>
+
+                        <label class="sec-modal__label" for="field-aer-notes">Verification notes <span class="aer-req">required</span></label>
+                        <textarea id="field-aer-notes" class="sec-modal__input aer-textarea" rows="3"
+                                  ng-model="rec.form.notes" ng-disabled="rec.opening"
+                                  placeholder="Who you spoke to, when, and what was checked"></textarea>
+
+                        <div class="aer-explainer">
+                            <i class="fas fa-info-circle"></i>
+                            <div>The member must confirm from the new address (and by SMS if they have a
+                            verified phone). The old address is notified and can cancel. The change completes
+                            after 24 hours, or sooner if a second administrator approves.</div>
+                        </div>
+
+                        <div class="aer-form__actions">
+                            <button type="submit" class="sec-btn sec-btn--primary" ng-disabled="rec.opening">
+                                <i class="fas" ng-class="rec.opening ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"></i>
+                                {{ rec.opening ? 'Opening…' : 'Open request' }}
+                            </button>
+                            <span class="aer-form__hint">You’ll be asked for your password and second factor.</span>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 3. Open requests -->
+                <div class="aer-section">
+                    <div class="aer-section__title aer-section__title--row">
+                        <span><span class="aer-step">3</span> Open requests
+                            <span class="aer-count" ng-show="rec.casesLoaded">{{ rec.open.length }}</span></span>
+                        <button type="button" class="sec-btn sec-btn--outline aer-refresh"
+                                ng-click="rec.loadCases()" ng-disabled="rec.casesLoading" no-busy-guard>
+                            <i class="fas fa-sync-alt" ng-class="{ 'fa-spin': rec.casesLoading }"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="sec-loading" ng-show="rec.casesLoading && !rec.casesLoaded">
+                        <div class="sec-spinner"></div>
+                        <span>Loading requests…</span>
+                    </div>
+
+                    <div class="aer-empty" ng-show="rec.casesLoaded && !rec.open.length">
+                        <i class="fas fa-inbox"></i> No open recovery requests.
+                    </div>
+
+                    <div class="aer-table-wrap" ng-show="rec.open.length">
+                        <table class="snazzy-table aer-table aer-table--stack">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Old → New</th>
+                                    <th>Status</th>
+                                    <th class="aer-hide-mobile">Opened</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="c in rec.open track by c.id" ng-class="{ 'aer-table__row--busy': rec.busy[c.id] }">
+                                    <td data-label="Member">
+                                        <span class="snazzy-table__name">{{ rec.caseUser(c) }}</span>
+                                        <span class="aer-table__muted">ID {{ c.user_id || c.user.id }} · case #{{ c.id }}</span>
+                                    </td>
+                                    <td data-label="Old → New" class="aer-table__emails">
+                                        <span class="aer-table__old">{{ c.old_email }}</span>
+                                        <i class="fas fa-long-arrow-alt-right aer-table__arrow"></i>
+                                        <span class="aer-table__new">{{ c.new_email }}</span>
+                                    </td>
+                                    <td data-label="Status">
+                                        <span class="aer-chip" ng-class="rec.statusClass(c)">{{ rec.statusLabel(c) }}</span>
+                                        <span class="aer-table__muted" ng-show="rec.statusDetail(c)">{{ rec.statusDetail(c) }}</span>
+                                    </td>
+                                    <td data-label="Opened" class="aer-hide-mobile">
+                                        <span>{{ rec.openerName(c) }}<span class="aer-you" ng-show="rec.isMine(c)">you</span></span>
+                                        <span class="aer-table__muted" title="{{ rec.fmt(c.opened_at || c.created_at) }}">{{ rec.ago(c.opened_at || c.created_at) }}</span>
+                                    </td>
+                                    <td data-label="Actions" class="aer-table__actions">
+                                        <div class="aer-actions" ng-show="!rec.cancelDraft[c.id]">
+                                            <button type="button" class="sec-btn sec-btn--primary aer-btn-sm"
+                                                    ng-show="rec.canApprove(c)"
+                                                    ng-click="rec.approve(c)" ng-disabled="rec.busy[c.id] || rec.needs2fa" no-busy-guard>
+                                                <i class="fas" ng-class="rec.busy[c.id] ? 'fa-circle-notch fa-spin' : 'fa-check'"></i> Approve
+                                            </button>
+                                            <span class="aer-table__muted aer-four-eyes" ng-show="rec.isMine(c)">
+                                                <i class="fas fa-user-friends"></i> A different administrator must approve
+                                            </span>
+                                            <button type="button" class="sec-btn sec-btn--danger-outline aer-btn-sm"
+                                                    ng-click="rec.askCancel(c)" ng-disabled="rec.busy[c.id] || rec.needs2fa" no-busy-guard>
+                                                <i class="fas fa-ban"></i> Cancel
+                                            </button>
+                                        </div>
+                                        <div class="aer-cancel" ng-show="rec.cancelDraft[c.id]">
+                                            <input type="text" id="field-aer-cancel-{{ c.id }}" class="sec-modal__input aer-cancel__input"
+                                                   ng-model="rec.cancelDraft[c.id].reason"
+                                                   placeholder="Reason for cancelling (recorded on the case)"
+                                                   ng-disabled="rec.busy[c.id]" />
+                                            <div class="aer-cancel__actions">
+                                                <button type="button" class="sec-btn sec-btn--outline aer-btn-sm"
+                                                        ng-click="rec.dismissCancel(c)" ng-disabled="rec.busy[c.id]" no-busy-guard>Keep</button>
+                                                <button type="button" class="sec-btn sec-btn--danger aer-btn-sm"
+                                                        ng-click="rec.confirmCancel(c)" ng-disabled="rec.busy[c.id]" no-busy-guard>
+                                                    <i class="fas" ng-class="rec.busy[c.id] ? 'fa-circle-notch fa-spin' : 'fa-ban'"></i>
+                                                    {{ rec.busy[c.id] ? 'Cancelling…' : 'Cancel request' }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Recent closed cases, collapsed -->
+                    <div class="aer-recent" ng-show="rec.casesLoaded && rec.recent.length">
+                        <button type="button" class="aer-recent__toggle" ng-click="rec.showRecent = !rec.showRecent" no-busy-guard>
+                            <i class="fas" ng-class="rec.showRecent ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                            Recent closed cases <span class="aer-count">{{ rec.recent.length }}</span>
+                        </button>
+                        <div class="aer-table-wrap" ng-show="rec.showRecent">
+                            <table class="snazzy-table aer-table aer-table--stack aer-table--recent">
+                                <thead>
+                                    <tr>
+                                        <th>Member</th>
+                                        <th>Old → New</th>
+                                        <th>Outcome</th>
+                                        <th class="aer-hide-mobile">Opened</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr ng-repeat="c in rec.recent track by c.id">
+                                        <td data-label="Member">
+                                            <span class="snazzy-table__name">{{ rec.caseUser(c) }}</span>
+                                            <span class="aer-table__muted">ID {{ c.user_id || c.user.id }} · case #{{ c.id }}</span>
+                                        </td>
+                                        <td data-label="Old → New" class="aer-table__emails">
+                                            <span class="aer-table__old">{{ c.old_email }}</span>
+                                            <i class="fas fa-long-arrow-alt-right aer-table__arrow"></i>
+                                            <span class="aer-table__new">{{ c.new_email }}</span>
+                                        </td>
+                                        <td data-label="Outcome">
+                                            <span class="aer-chip" ng-class="rec.statusClass(c)">{{ rec.statusLabel(c) }}</span>
+                                            <span class="aer-table__muted" ng-show="rec.statusDetail(c)">{{ rec.statusDetail(c) }}</span>
+                                            <span class="aer-table__muted" ng-show="c.approved_by">approved by {{ rec.approverName(c) }}</span>
+                                        </td>
+                                        <td data-label="Opened" class="aer-hide-mobile">
+                                            <span>{{ rec.openerName(c) }}</span>
+                                            <span class="aer-table__muted">{{ rec.fmt(c.opened_at || c.created_at) }}</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ═══ Security events ═══ -->
+        <div class="sec-card aer-card" id="aer-events">
+            <div class="sec-card__head">
+                <i class="fas fa-stream sec-card__icon"></i>
+                <div>
+                    <h3 class="sec-card__title">Security Events</h3>
+                    <p class="sec-card__sub">Email, step-up and recovery activity on one account</p>
+                </div>
+            </div>
+            <div class="sec-card__body">
+
+                <form class="aer-lookup" ng-submit="rec.loadEvents()">
+                    <div class="aer-lookup__field">
+                        <i class="fas fa-user aer-lookup__icon"></i>
+                        <input type="text" id="field-aer-events-user" class="sec-modal__input aer-lookup__input"
+                               ng-model="rec.eventsUserId" placeholder="User ID" autocomplete="off" />
+                    </div>
+                    <button type="submit" class="sec-btn sec-btn--outline" ng-disabled="rec.eventsBusy">
+                        <i class="fas" ng-class="rec.eventsBusy ? 'fa-circle-notch fa-spin' : 'fa-filter'"></i>
+                        {{ rec.eventsBusy ? 'Loading…' : 'Show events' }}
+                    </button>
+                </form>
+
+                <div class="aer-empty" ng-show="!rec.eventsLoaded && !rec.eventsBusy">
+                    <i class="fas fa-search"></i> Enter a user ID (or use <em>Security events</em> on a looked-up account).
+                </div>
+                <div class="aer-empty" ng-show="rec.eventsLoaded && !rec.events.length && !rec.eventsBusy">
+                    <i class="fas fa-inbox"></i> No security events for user {{ rec.eventsUserId }}.
+                </div>
+
+                <div class="aer-table-wrap" ng-show="rec.events.length">
+                    <table class="snazzy-table aer-table aer-table--stack aer-events">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Event</th>
+                                <th>Actor</th>
+                                <th class="aer-hide-mobile">IP / network</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="e in rec.events track by (e.id || $index)">
+                                <td data-label="When">
+                                    <span>{{ rec.fmt(e.created_at) }}</span>
+                                    <span class="aer-table__muted">{{ rec.ago(e.created_at) }}</span>
+                                </td>
+                                <td data-label="Event"><code class="aer-event">{{ e.event }}</code></td>
+                                <td data-label="Actor">
+                                    <span ng-show="e.actor">{{ rec.fullName(e.actor) }}</span>
+                                    <span class="aer-table__muted" ng-show="!e.actor">link / system</span>
+                                </td>
+                                <td data-label="IP / network" class="aer-hide-mobile">
+                                    <span>{{ e.ip || '—' }}</span>
+                                    <span class="aer-table__muted" ng-show="e.asn_org">{{ e.asn_org }}</span>
+                                </td>
+                                <td data-label="Details" class="aer-events__details">
+                                    <span class="aer-events__text" ng-class="{ 'aer-events__text--open': e._open }"
+                                          ng-click="rec.toggleEvent(e)" no-busy-guard>{{ rec.detailsText(e) || '—' }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
 </div>

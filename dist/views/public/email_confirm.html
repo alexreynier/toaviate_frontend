@@ -1,0 +1,118 @@
+<!-- Public email-address confirmation page (/email_confirm/:token).
+     No account session, no app chrome. GET shows the summary; the address
+     is only confirmed by the explicit POST behind the Confirm button (mail
+     scanners prefetch links). Every failure is the one uniform panel. -->
+<div class="ec-page">
+
+    <div class="ec-page__topbar">
+        <img src="images/main_logo.png" class="ec-page__logo" alt="ToAviate" />
+    </div>
+
+    <div class="ec-card snazzy-reveal">
+
+        <div class="ec-card__band">
+            <i class="fas fa-envelope-open-text ec-card__band-icon"></i>
+            <span class="ec-card__band-title">
+                {{ vm.kind === 'recovery' ? 'Confirm your new sign-in address' : 'Confirm your email address' }}
+            </span>
+        </div>
+
+        <!-- Loading -->
+        <div class="ec-card__body" ng-if="vm.state === 'loading'">
+            <div class="sec-spinner ec-spinner"></div>
+            <p class="ec-text">Checking your link…</p>
+        </div>
+
+        <!-- Invalid / expired / used — the ONE uniform panel -->
+        <div class="ec-card__body" ng-if="vm.state === 'invalid'">
+            <i class="fas fa-unlink ec-icon ec-icon--muted"></i>
+            <h2 class="ec-title">This link is invalid or has expired.</h2>
+            <p class="ec-text">If you still need to confirm an address, request a new link from your account's Security page.</p>
+            <div class="ec-actions">
+                <a ui-sref="login" class="sec-btn sec-btn--outline ec-btn">Go to sign in</a>
+            </div>
+        </div>
+
+        <!-- Summary → Confirm -->
+        <div class="ec-card__body" ng-if="vm.state === 'summary'">
+            <i class="fas fa-at ec-icon ec-icon--brand"></i>
+
+            <h2 class="ec-title" ng-if="vm.kind !== 'recovery'">
+                Confirm <span class="ec-email">{{ vm.email_masked }}</span>
+                for <span ng-show="vm.first_name">{{ vm.first_name }}'s</span><span ng-show="!vm.first_name">your</span> ToAviate account?
+            </h2>
+            <p class="ec-text" ng-if="vm.kind !== 'recovery'">
+                Once confirmed, this address can be used to sign in alongside the existing one.
+            </p>
+
+            <h2 class="ec-title" ng-if="vm.kind === 'recovery'">
+                Confirm <span class="ec-email">{{ vm.email_masked }}</span>
+                as the new sign-in address for <span ng-show="vm.first_name">{{ vm.first_name }}'s</span><span ng-show="!vm.first_name">your</span> account?
+            </h2>
+            <p class="ec-text" ng-if="vm.kind === 'recovery'">
+                Nothing changes until you press Confirm. If you didn't ask for this, simply close this page.
+            </p>
+
+            <div class="ec-actions">
+                <button type="button" class="sec-btn sec-btn--primary ec-btn" ng-click="vm.confirmAddress()" ng-disabled="vm.busy">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    {{ vm.busy ? 'Confirming…' : 'Confirm' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- SMS code sub-step (recovery only) -->
+        <div class="ec-card__body" ng-if="vm.state === 'sms'">
+            <i class="fas fa-mobile-alt ec-icon ec-icon--brand"></i>
+            <h2 class="ec-title">One more step</h2>
+            <p class="ec-text">Enter the code we sent to your phone.</p>
+
+            <form class="ec-code" name="smsForm" ng-submit="vm.submitCode()" novalidate>
+                <input type="text"
+                       id="field-ec-code"
+                       class="sec-modal__input sec-modal__input--code ec-code__input"
+                       ng-class="{'field-error': vm.codeError}"
+                       ng-model="vm.code"
+                       ng-change="vm.codeError = ''"
+                       inputmode="numeric"
+                       autocomplete="one-time-code"
+                       pattern="[0-9]*"
+                       maxlength="6"
+                       placeholder="••••••"
+                       aria-label="6-digit code"
+                       ng-disabled="vm.busy" />
+                <p class="ec-code__error" ng-show="vm.codeError">
+                    {{ vm.codeError }}
+                    <span ng-show="vm.attemptsRemaining !== null">
+                        {{ vm.attemptsRemaining }} {{ vm.attemptsRemaining === 1 ? 'attempt' : 'attempts' }} remaining.
+                    </span>
+                </p>
+                <div class="ec-actions">
+                    <button type="submit" class="sec-btn sec-btn--primary ec-btn" ng-disabled="vm.busy || !vm.codeLooksValid()">
+                        <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                        {{ vm.busy ? 'Checking…' : 'Verify code' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Done -->
+        <div class="ec-card__body" ng-if="vm.state === 'done'">
+            <i class="fas fa-check-circle ec-icon ec-icon--good"></i>
+
+            <h2 class="ec-title" ng-if="vm.kind !== 'recovery'">Done.</h2>
+            <p class="ec-text" ng-if="vm.kind !== 'recovery'">You can now sign in with this address.</p>
+
+            <h2 class="ec-title" ng-if="vm.kind === 'recovery'">Thanks — your request is being processed.</h2>
+            <p class="ec-text" ng-if="vm.kind === 'recovery'">You'll get an email when it completes. You can close this page.</p>
+
+            <div class="ec-actions">
+                <a ui-sref="login" class="sec-btn ec-btn" ng-class="vm.kind === 'recovery' ? 'sec-btn--outline' : 'sec-btn--primary'">
+                    <i class="fas fa-sign-in-alt"></i> Go to sign in
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+</div>

@@ -138,6 +138,40 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
       <h2><i class="fas fa-info-circle"></i> Flight Information</h2>
 
+      <!-- ── Part 2 of a split flight ─────────────────────────────── -->
+      <div class="bi-split-leg" ng-if="vm.split_prev_leg">
+        <div class="bi-split-leg__head">
+          <i class="fas fa-cut"></i>
+          <div>
+            <strong>Part 2 of a split flight</strong>
+            <p>
+              Part 1 ({{ vm.split_prev_leg.brakes_off_rounded | brakesTime }}–{{ vm.split_prev_leg.brakes_on_rounded | brakesTime }},
+              <span ng-if="vm.split_prev_leg.pic_first_name">PIC {{ vm.split_prev_leg.pic_first_name }} {{ vm.split_prev_leg.pic_last_name }}</span><span ng-if="vm.split_prev_leg.put_first_name">, student {{ vm.split_prev_leg.put_first_name }} {{ vm.split_prev_leg.put_last_name }}</span>)
+              <span ng-if="vm.split_prev_leg.needs_book_in != 1">is booked in.</span><span ng-if="vm.split_prev_leg.needs_book_in == 1">still needs booking in.</span>
+              Confirm who flew this part, then book it in as normal.
+            </p>
+          </div>
+        </div>
+        <div class="bi-split-leg__choices bi-split-leg__choices--three">
+          <button type="button" class="bi-split-leg__choice" ng-class="{'bi-split-leg__choice--on': vm.split_leg_is_same()}"
+                  ng-click="vm.split_leg_use_same()">
+            <i class="fas fa-users"></i> Same crew as part 1
+            <small>one flight, the tracker just logged two legs</small>
+          </button>
+          <button type="button" class="bi-split-leg__choice" ng-class="{'bi-split-leg__choice--on': vm.split_leg_is_solo()}"
+                  ng-click="vm.split_leg_use_solo()" ng-show="vm.split_leg_student_id() > 0">
+            <i class="fas fa-user-graduate"></i> Student solo
+            <small>{{ vm.split_leg_student_name() }} flew alone — authorised solo</small>
+          </button>
+          <button type="button" class="bi-split-leg__choice" ng-class="{'bi-split-leg__choice--on': vm.split_leg_is_hire()}"
+                  ng-click="vm.split_leg_use_hire()" ng-show="vm.split_leg_student_id() > 0">
+            <i class="fas fa-id-card"></i> Self-hire
+            <small>{{ vm.split_leg_student_name() }} flew on alone (no instructor)</small>
+          </button>
+        </div>
+        <p class="bi-split-leg__note">Different pilot altogether? Just pick them as Pilot in Command below.</p>
+      </div>
+
       <div class="center_if_large">
 
         <div class="form-group">
@@ -643,16 +677,68 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
                <div ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0">
 
                   <br />
-                  <div class="form-group">
-                        <label for="lubricant_type">Split Flight At</label>
+                  <div class="form-group bis-picker">
+                        <label for="split_flight_at">Split Flight At</label>
                         <ui-select ng-model="vm.split_flight_time" theme="bootstrap" title="Please choose when to split the flight" append-to-body="true" class="input-group" ng-change="vm.update_split();">
                           <ui-select-match placeholder="Please choose when to split the flight" >
-                            {{ vm.split_flight_time.time }}             
+                            {{ vm.split_option_label(vm.split_flight_time) }}
                           </ui-select-match>
-                          <ui-select-choices repeat="stop in vm.bookout.stops | filter: {title: $select.search, time: $select.search}">
-                            <span ng-bind-html="stop.time | highlight: $select.search"></span>
+                          <!-- selectable:false = phantom verdict (§3.1): greyed, never a default, ui-select refuses the click -->
+                          <ui-select-choices repeat="stop in vm.split_choices | filter: {title: $select.search, time: $select.search}" ui-disable-choice="stop.selectable === false">
+                            <div class="bis-opt" ng-class="{'bis-opt--recommended': stop.recommended, 'bis-opt--track': stop.source == 'track', 'bis-opt--phantom': stop.selectable === false}">
+                              <div class="bis-opt__main">
+                                <span class="bis-opt__time" ng-bind-html="stop.time | highlight: $select.search"></span>
+                                <span class="bis-opt__tag bis-opt__tag--phantom" ng-if="stop.selectable === false"><i class="fas fa-ban"></i> not a landing</span>
+                                <span class="bis-opt__tag bis-opt__tag--rec" ng-if="stop.recommended && stop.selectable !== false"><i class="fas fa-star"></i> recommended</span>
+                                <span class="bis-opt__tag bis-opt__tag--track" ng-if="stop.source == 'track'">seen in the track file only</span>
+                                <span class="bis-opt__tag bis-opt__tag--tracker" ng-if="stop.source == 'tracker' && vm.split_points_status == 'ok'">tracker only</span>
+                              </div>
+                              <div class="bis-opt__meta" ng-if="stop.from_hm || stop.kind_label">
+                                <span ng-if="stop.from_hm">on the ground {{ stop.from_hm }}–{{ stop.to_hm }}</span>
+                                <span ng-if="stop.kind_label">{{ stop.kind_label }}</span>
+                              </div>
+                              <div class="bis-opt__verdict" ng-if="stop.selectable !== false && stop.verdict_label">{{ stop.verdict_label }}</div>
+                              <div class="bis-opt__warn" ng-if="stop.warning"><i class="fas fa-exclamation-triangle"></i> {{ stop.warning }}</div>
+                            </div>
                           </ui-select-choices>
+                          <ui-select-no-choice>
+                            <span>No ground stops found in this flight</span>
+                          </ui-select-no-choice>
                         </ui-select>
+                        <p class="bis-status" ng-if="vm.split_points_status == 'loading'"><i class="fas fa-spinner fa-spin"></i> Checking the recorded track for ground stops&hellip;</p>
+                        <p class="bis-status bis-status--muted" ng-if="vm.split_points_status == 'none' && vm.split_choices.length > 0">Ground stops from the tracker only — the recorded track is not available for this flight.</p>
+                        <p class="bis-status bis-status--muted" ng-if="vm.split_points_status == 'empty'">The recorded track shows no ground stop in this flight<span ng-if="vm.split_choices.length > 0"> — tracker stops only</span>.</p>
+                        <p class="bis-status bis-status--warn" ng-if="vm.split_points_status == 'ok' && vm.split_points_note"><i class="fas fa-exclamation-triangle"></i> {{ vm.split_points_note }}</p>
+                        <p class="bis-status bis-status--muted" ng-if="vm.split_pairs_source == 'track'"><i class="fas fa-route"></i> Split points from the recorded track (the tracker reported no stops for this flight).</p>
+
+                        <!-- §3.1 PHANTOM_SPLIT_POINT: the chosen time is not a landing in the track — confirm inline -->
+                        <div class="bis-phantom" ng-if="vm.split_phantom">
+                          <div class="bis-phantom__head"><i class="fas fa-exclamation-triangle"></i> This doesn't look like a landing</div>
+                          <p class="bis-phantom__warn">{{ vm.split_phantom.warning }}</p>
+                          <div class="bis-phantom__facts" ng-if="vm.split_phantom.min_agl_ft != null || vm.split_phantom.max_speed_kt != null || vm.split_phantom.from_hm || vm.split_phantom.verdict_label">
+                            <span ng-if="vm.split_phantom.from_hm">tracker gap {{ vm.split_phantom.from_hm }}–{{ vm.split_phantom.to_hm }}</span>
+                            <span ng-if="vm.split_phantom.min_agl_ft != null">lowest {{ vm.split_phantom.min_agl_ft }} ft</span>
+                            <span ng-if="vm.split_phantom.max_speed_kt != null">max {{ vm.split_phantom.max_speed_kt }} kt</span>
+                            <span ng-if="vm.split_phantom.verdict_label">{{ vm.split_phantom.verdict_label }}</span>
+                          </div>
+                          <p class="bis-phantom__q">Split anyway? The split will be flagged for the manager's review.</p>
+                          <div class="bis-phantom__actions">
+                            <button type="button" class="bis-phantom__btn bis-phantom__btn--force" ng-click="vm.split_phantom_confirm()"><i class="fas fa-cut"></i> Split anyway</button>
+                            <button type="button" class="bis-phantom__btn bis-phantom__btn--back" ng-click="vm.split_phantom_cancel()"><i class="fas fa-undo"></i> Choose another time</button>
+                          </div>
+                        </div>
+                        <p class="bis-status bis-status--flag" ng-if="vm.split_forced && !vm.split_phantom"><i class="fas fa-flag"></i> Split past a point the track says was not a landing — this split will be flagged for the manager's review.</p>
+
+                        <!-- the chosen point's midpoint on the 5-minute grid: floor / nearest / ceil -->
+                        <div class="bis-round" ng-if="!vm.split_phantom && vm.split_round_options().length > 0">
+                          <span class="bis-round__label">Round the split to</span>
+                          <div class="bis-round__opts">
+                            <button type="button" class="bis-round__btn" ng-repeat="r in vm.split_round_options() track by r.id"
+                                    ng-class="{'bis-round__btn--on': vm.split_flight_time.time == r.time}"
+                                    ng-click="vm.split_use_rounding(r.time)">{{ r.time }}<small>{{ r.id }}</small></button>
+                          </div>
+                          <span class="bis-round__hint" ng-if="vm.split_flight_time.from_hm">aircraft on the ground {{ vm.split_flight_time.from_hm }}–{{ vm.split_flight_time.to_hm }}</span>
+                        </div>
                   </div>
 
                   <br /><br />
@@ -715,9 +801,22 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
                 <div ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0">
                   <br />
 
+                  <div class="bi-split-crew">
+                    <label>Who flew the second part?</label>
+                    <div class="bi-split-crew__options">
+                      <label class="bi-split-crew__opt" ng-repeat="opt in vm.split_crew_options"
+                             ng-class="{'bi-split-crew__opt--on': vm.split_crew_mode == opt.id, 'bi-split-crew__opt--off': vm.split_crew_opt_disabled(opt)}">
+                        <input type="radio" name="split_crew_mode" ng-model="vm.split_crew_mode" ng-value="opt.id" ng-disabled="vm.split_crew_opt_disabled(opt)" />
+                        <span class="bi-split-crew__title">{{ opt.title }}</span>
+                        <span class="bi-split-crew__hint">{{ opt.hint }}</span>
+                      </label>
+                    </div>
+                    <p class="bi-split-crew__note"><strong>{{ vm.split_crew_label(vm.split_crew_mode) }}:</strong> {{ vm.split_crew_note(vm.split_crew_mode) }} You can still change this when you book the second part in. The second part is saved as an open flight — it appears under flights to book in, on Claim a Flight, and after the training record for this part.</p>
+                  </div>
+
                   <button class="btn btn-danger" ng-click="vm.cancel_split()"><i class="fas fa-times"></i> CANCEL SPLIT</button>
 
-                  <button class="btn btn-primary" ng-click="vm.confirm_split()"><i class="fas fa-check"></i> CONFIRM FLIGHT SPLIT</button>
+                  <button class="btn btn-primary" ng-click="vm.confirm_split()" ng-disabled="vm.split_phantom || !vm.split_one"><i class="fas fa-check"></i> CONFIRM FLIGHT SPLIT</button>
                   <br /><br />
                 </div>
 
@@ -726,7 +825,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
             </div>
 
            
-             <div ng-if="vm.split_flight == 0 && vm.split_flight_confirmation == 0 && vm.bookout.stops.length > 0">
+             <div ng-if="vm.split_flight == 0 && vm.split_flight_confirmation == 0 && (vm.bookout.stops.length > 0 || (vm.has_used_claimed_flight && vm.bookout.fox_log_id > 0))">
                 <br />
                 <button class="btn btn-danger" ng-click="vm.split_this_flight()"><i class="fas fa-cut"></i> SPLIT THIS FLIGHT</button>
                 <br /><br />
@@ -734,6 +833,7 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
 
               <div ng-if="vm.split_flight_confirmation == 1">
                 <br />
+                <p class="bi-split-crew__chosen"><i class="fas fa-cut"></i> Second part: <strong>{{ vm.split_crew_label(vm.split_crew_mode) }}</strong> — it will be waiting to book in once this part is done.</p>
                 <button class="btn btn-danger" ng-click="vm.cancel_split()">CANCEL SPLIT FLIGHT</button>
                 <br /><br />
               </div>
@@ -1580,8 +1680,9 @@ flight_rounded ==> time from first move to last move rounded to nearest 5 minute
               <div class="center_if_large">
 
             <button class="btn btn-primary btn_bigger" ng-click="vm.book_in_flight('debrief')">
-              <i class="fas fa-paper-plane"></i> FINISH &amp; SEND INVOICE FOR £{{ vm.invoice_totals| number:2 }} TO PILOT
+              <i class="fas fa-paper-plane"></i> FINISH &amp; SEND INVOICE FOR £{{ vm.plane_charges.total | number:2 }} TO PILOT
             </button>
+            <p class="bi-booking-total" ng-if="vm.previous_total > 0 && vm.invoice_totals != vm.plane_charges.total">This flight £{{ vm.plane_charges.total | number:2 }} — booking total £{{ vm.invoice_totals | number:2 }} across all legs.</p>
 
           </div>
     </div>

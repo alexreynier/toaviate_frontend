@@ -41,6 +41,52 @@
         <span class="dbf-flight__label">Instructor</span>
         <span class="dbf-flight__value">{{ vm.instructor.first_name }} {{ vm.instructor.last_name }}</span>
       </div>
+      <div class="dbf-flight__item" ng-if="vm.plane_log_sheet.full_stop_landings != null || vm.plane_log_sheet.touch_and_go != null">
+        <span class="dbf-flight__label">Landings</span>
+        <span class="dbf-flight__value">
+          {{ (vm.plane_log_sheet.full_stop_landings || 0) }} full stop · {{ (vm.plane_log_sheet.touch_and_go || 0) }} T&amp;G
+        </span>
+      </div>
+      <!-- Tracker · track file · sheet reconciliation lives on the ToAviate-admin analysis page (Trackers → Track tools) -->
+      <div class="dbf-flight__item dbf-flight__item--staff" ng-if="isToAviateStaff() && vm.plane_log_sheet.id > 0">
+        <span class="dbf-flight__label">ToAviate admin</span>
+        <span class="dbf-flight__value">
+          <a ui-sref="dashboard.super_admin.fox_track_tools({pls: vm.plane_log_sheet.id})" class="dbf-staff-link"><i class="fas fa-route"></i> Track analysis for this flight</a>
+        </span>
+      </div>
+    </div>
+
+    <!-- ── This sheet is not booked in yet ─────────────────────────── -->
+    <div class="dbf-split dbf-split--warn snazzy-reveal" ng-if="vm.sheet_needs_book_in">
+      <div class="dbf-split__text">
+        <strong><i class="fas fa-exclamation-triangle"></i> This flight has not been booked in yet</strong>
+        <p>Book it in first — the times and payment are settled there — then come back for the record.</p>
+      </div>
+      <div class="dbf-split__actions">
+        <button type="button" class="sr-btn sr-btn--primary" ng-click="vm.book_in_this_sheet()"><i class="fas fa-plane-arrival"></i> Book this flight in</button>
+      </div>
+    </div>
+
+    <!-- ── Split flight: part 2 still open ─────────────────────────── -->
+    <div class="dbf-split snazzy-reveal" ng-if="vm.split_next_id > 0 && vm.show_split">
+      <div class="dbf-split__text">
+        <strong><i class="fas fa-cut"></i> Part 2 of this flight still needs booking in</strong>
+        <p ng-if="vm.pending_split_leg">
+          {{ vm.pending_split_leg.brakes_off_rounded | brakesTime }}–{{ vm.pending_split_leg.brakes_on_rounded | brakesTime }}
+          <span ng-if="vm.pending_split_leg.authorised_solo == 1"> · student solo<span ng-if="vm.pending_split_leg.pic_first_name"> by {{ vm.pending_split_leg.pic_first_name }} {{ vm.pending_split_leg.pic_last_name }}</span></span>
+          <span ng-if="vm.pending_split_leg.authorised_solo != 1 && vm.pending_split_leg.pic_first_name"> · PIC {{ vm.pending_split_leg.pic_first_name }} {{ vm.pending_split_leg.pic_last_name }}</span>
+          <span ng-if="vm.pending_split_leg.authorised_solo != 1 && !vm.pending_split_leg.pic_first_name"> · nobody assigned yet</span>
+        </p>
+        <p>Finish this record and save it — you are taken straight to part 2. Or leave part 2 for later: it stays under your flights to book in and on Claim a Flight.</p>
+      </div>
+      <div class="dbf-split__actions">
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.book_in_split_leg()" ng-disabled="vm.saving"><i class="fas fa-save"></i> Save record &amp; book in part 2</button>
+        <button type="button" class="sr-btn sr-btn--ghost" ng-click="vm.split_leg_later()">Not now</button>
+      </div>
+    </div>
+    <div class="dbf-split dbf-split--muted snazzy-reveal" ng-if="vm.split_next_id > 0 && !vm.show_split">
+      <div class="dbf-split__text"><i class="fas fa-cut"></i> Part 2 left for later.</div>
+      <div class="dbf-split__actions"><button type="button" class="sr-btn sr-btn--ghost" ng-click="vm.split_leg_resume()">Go to it after saving instead</button></div>
     </div>
 
     <!-- ── Course + lesson card ───────────────────────────────────── -->
@@ -498,7 +544,7 @@
                 {{ vm.gradable_items().length - vm.graded_count() }} objective(s) still ungraded — you can still save.
             </span>
             <button type="button" class="sr-btn sr-btn--success" ng-click="vm.save_progress()" ng-disabled="vm.saving || vm.no_lesson_selected">
-                <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ vm.saving ? 'Saving…' : 'Save progress' }}
+                <i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i> {{ vm.saving ? 'Saving…' : ((vm.show_split && vm.split_next_id > 0) ? 'Save & book in part 2' : 'Save progress') }}
             </button>
         </div>
     </div>

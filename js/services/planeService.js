@@ -63,6 +63,11 @@ app.factory('PlaneService', PlaneService);
         service.UpdateAircraftLogbooks = UpdateAircraftLogbooks;
         service.AirborneRecompute = AirborneRecompute;
         service.AirborneExplain = AirborneExplain;
+        service.AirborneRuns = AirborneRuns;
+        service.AirborneRebuildTouched = AirborneRebuildTouched;
+        service.AirborneRebuildPlane = AirborneRebuildPlane;
+        service.AirborneRebuildStatus = AirborneRebuildStatus;
+        service.AirborneRebuildNudge = AirborneRebuildNudge;
         service.AirborneReset = AirborneReset;
 
         service.HypotheticalFlightSplit = HypotheticalFlightSplit;
@@ -98,7 +103,44 @@ app.factory('PlaneService', PlaneService);
         // Airborne-time recompute over the history (ToAviate admin). params: {apply, days, after_id, run_id, budget_s, plane_id}.
         // DRY RUN unless apply=1. Chunked: loop while data.done === false with after_id = data.next_after_id and the same run_id.
         function AirborneRecompute(params){
-            return $http.get('/api/v1/planes/fix_times', { params: params || {} }).then(handleSuccess, handleError2);
+            // own error handler: a chunk that dies at the server's wall must NOT log the user out
+            // (handleError2 redirects to /login on a 401) — the controller offers Resume instead
+            return $http.get('/api/v1/planes/fix_times', { params: params || {}, timeout: 120000 }).then(handleSuccess, function (res) {
+                var msg = (res && res.data && (res.data.message || res.data.error)) ? (res.data.message || res.data.error) : null;
+                return { success: false, status: res ? res.status : 0, error: 'HTTP_' + (res ? res.status : 0),
+                         message: 'Request failed (HTTP ' + (res ? res.status : 0) + (msg ? ': ' + msg : '') + ') — press Resume to continue from where it stopped.' };
+            });
+        }
+
+        // Every applied airborne-time run reconstructed from the history + the table's state (ToAviate admin).
+        function AirborneRuns(limit){
+            return $http.get('/api/v1/planes/airborne_runs', { params: { limit: limit || 20 } }).then(handleSuccess, handleError2);
+        }
+
+        // The aircraft whose logbooks need rebuilding (every plane any applied run changed) — ToAviate admin.
+        function AirborneRebuildTouched(){
+            return $http.get('/api/v1/planes/airborne_rebuild_touched').then(handleSuccess, function (res) {
+                return { success: false, status: res ? res.status : 0, message: 'Request failed (HTTP ' + (res ? res.status : 0) + ')' };
+            });
+        }
+
+        // Progress of the background logbook-rebuild queue (a batch, or everything when omitted).
+        function AirborneRebuildStatus(batch){
+            return $http.get('/api/v1/planes/airborne_rebuild_status', { params: batch ? { batch: batch } : {} }).then(handleSuccess, handleError2);
+        }
+
+        // Run the background worker for one short budget from the browser (manual fallback; ToAviate admin).
+        function AirborneRebuildNudge(){
+            return $http.get('/api/v1/planes/airborne_rebuild_nudge', { timeout: 60000 }).then(handleSuccess, function (res) {
+                return { success: false, status: res ? res.status : 0, message: 'Request failed (HTTP ' + (res ? res.status : 0) + ')' };
+            });
+        }
+
+        // Rebuild ONE plane's logbooks (one request per plane — a fleet rebuild in one request dies at the server's wall).
+        function AirborneRebuildPlane(plane_id, from){
+            return $http.get('/api/v1/planes/airborne_rebuild_plane/' + plane_id, { params: from ? { from: from } : {}, timeout: 120000 }).then(handleSuccess, function (res) {
+                return { success: false, status: res ? res.status : 0, message: 'Request failed (HTTP ' + (res ? res.status : 0) + ')' };
+            });
         }
 
         // What the cascade sees + would decide for one sheet (club manager / ToAviate admin).

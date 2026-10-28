@@ -1,0 +1,254 @@
+<!-- suspect-splits — "Split flights to review" (FRONTEND_TRACK_DATA_GUIDE.md §4.2).
+     Shared by dashboard.manage_club.split_review (club managers) and the
+     ToAviate-admin track tools. Controller: js/directives/suspectSplits.js (ss). -->
+<div class="ssp" ng-if="!ss.hidden">
+
+  <!-- ── Toolbar ── -->
+  <div class="ssp__bar">
+    <div class="ssp__bar-left">
+      <span class="ssp__count" ng-if="ss.loaded && !ss.error" ng-class="{'ssp__count--none': !ss.count}">
+        {{ ss.count }} to review
+      </span>
+      <span class="ssp__scanned" ng-if="ss.loaded && !ss.error && ss.scanned">
+        · {{ ss.scanned }} split pair{{ ss.scanned === 1 ? '' : 's' }} checked against the recorded track
+      </span>
+    </div>
+    <div class="ssp__bar-right">
+      <label class="ssp__toggle">
+        <input type="checkbox" ng-model="ss.includeDismissed" ng-change="ss.load()" ng-disabled="ss.loading">
+        Show kept (dismissed)
+      </label>
+      <button type="button" class="ssp__refresh" ng-click="ss.load()" ng-disabled="ss.loading" uib-tooltip="Refresh" no-busy-guard>
+        <i class="fas fa-sync-alt" ng-class="{'fa-spin': ss.loading}"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Undo results (the merged pair has left the list, so the outcome lives here) ── -->
+  <div class="ssp-result" ng-repeat="res in ss.results">
+    <div class="ssp-result__head">
+      <i class="fas fa-check-circle"></i>
+      <span>Split undone — sheet {{ res.id }} is the whole flight again</span>
+      <a class="ssp-result__close" ng-click="ss.closeResult(res)" uib-tooltip="Dismiss" no-busy-guard><i class="fas fa-times"></i></a>
+    </div>
+    <div class="ssp-result__grid">
+      <div class="ssp-result__item">
+        <label>Whole flight</label>
+        <span>{{ ss.dateLabel(res.date) }} &nbsp;{{ res.off }} <i class="fas fa-long-arrow-alt-right"></i> {{ res.on }}</span>
+        <span class="ssp__muted">t/o {{ res.tko }} · ldg {{ res.ldg }}</span>
+      </div>
+      <div class="ssp-result__item">
+        <label>Times</label>
+        <span>flight {{ res.flight_time || '—' }}</span>
+        <span class="ssp__muted">airborne {{ res.airborne_time || '—' }}</span>
+      </div>
+      <div class="ssp-result__item">
+        <label>Landings</label>
+        <span>{{ res.full_stop || 0 }} full stop · {{ res.tng || 0 }} touch-and-go</span>
+      </div>
+      <div class="ssp-result__item">
+        <label>Second leg</label>
+        <span>sheet {{ res.leg2_superseded_id }} is gone from every list</span>
+        <span class="ssp__muted">its row stays, marked merged · merge #{{ res.merge_id }}</span>
+      </div>
+    </div>
+    <div class="ssp-result__invoices">
+      <div class="ssp-invoice" ng-class="inv.cls" ng-repeat="inv in res.invoices"><i class="fas fa-file-invoice"></i> {{ inv.line }}</div>
+      <div class="ssp__muted" ng-if="!res.invoices.length"><i class="fas fa-file-invoice"></i> No invoices were recalculated.</div>
+    </div>
+    <div class="ssp-result__warnings">
+      <div class="ssp-note ssp-note--warn" ng-repeat="w in res.warnings track by $index"><i class="fas fa-exclamation-triangle"></i> {{ w }}</div>
+      <div class="ssp-note ssp-note--ok" ng-if="!res.warnings.length"><i class="fas fa-check"></i> No warnings.</div>
+    </div>
+    <div class="ssp-result__links">
+      <a class="ssp-link" ui-sref="dashboard.flight_replay({flight_id: res.id})"><i class="fas fa-play-circle"></i> Flight Replay for sheet {{ res.id }}</a>
+    </div>
+  </div>
+
+  <!-- ── Loading / error / empty ── -->
+  <div class="ssp__loading" ng-if="ss.loading && !ss.rows.length">
+    <span class="ssp__spinner"></span> Checking split flights against their recorded tracks…
+  </div>
+  <div class="ssp-note ssp-note--bad" ng-if="ss.error"><i class="fas fa-exclamation-circle"></i> {{ ss.error }}</div>
+  <div class="ssp-empty" ng-if="ss.loaded && !ss.error && !ss.loading && !ss.rows.length">
+    <div class="ssp-empty__icon"><i class="fas fa-check-circle"></i></div>
+    <div class="ssp-empty__text">No split flights need a review.</div>
+    <div class="ssp-empty__sub" ng-if="!ss.includeDismissed">Pairs that were kept as two flights are hidden — tick "Show kept" to see them.</div>
+  </div>
+
+  <!-- ── Cards ── -->
+  <div class="ssp-card" ng-repeat="row in ss.rows"
+       ng-class="{'ssp-card--kept': row.dismissed, 'ssp-card--blocked': !row.can_unsplit && !row.dismissed}">
+
+    <div class="ssp-card__head">
+      <div class="ssp-card__title">
+        <i class="fas fa-cut"></i>
+        <span>{{ ss.dateLabel(row.leg1.flight_date) }}</span>
+        <span class="ssp-card__ids">sheets {{ row.leg1.id }} + {{ row.leg2.id }}</span>
+        <span class="ssp-card__ids" ng-if="ss.isAdmin && row.leg1.club_id">· club {{ row.leg1.club_id }}</span>
+      </div>
+      <div class="ssp-card__badges">
+        <span class="ssp-chip ssp-chip--grey" ng-if="row.dismissed"><i class="fas fa-bookmark"></i> kept</span>
+        <span class="ssp-chip ssp-chip--amber" ng-if="!row.dismissed && row._review.action === 'flagged'"><i class="fas fa-flag"></i> flagged at book-in</span>
+        <span class="ssp-chip ssp-chip--red" ng-if="!row.can_unsplit && !row.dismissed"><i class="fas fa-lock"></i> needs a manual edit</span>
+      </div>
+    </div>
+
+    <!-- Leg 1 · boundary · Leg 2 -->
+    <div class="ssp-legs">
+      <div class="ssp-leg">
+        <div class="ssp-leg__label">Leg 1 <span class="ssp-leg__id">#{{ row.leg1.id }}</span></div>
+        <div class="ssp-leg__times">{{ ss.hm(row.leg1.brakes_off) }} <i class="fas fa-long-arrow-alt-right"></i> {{ ss.hm(row.leg1.brakes_on) }}</div>
+        <div class="ssp-leg__sub" ng-if="row._leg1.hasAirborne">
+          airborne {{ ss.hm(row.leg1.takeoff_time) }} – {{ ss.hm(row.leg1.landing_time) }}<span ng-if="row.leg1.flight_time"> · {{ row.leg1.flight_time }} flight</span>
+        </div>
+        <div class="ssp-leg__chips">
+          <span class="ssp-chip" ng-class="c.cls" ng-repeat="c in row._leg1.chips"><i class="fas" ng-class="c.icon"></i> {{ c.text }}</span>
+        </div>
+        <div class="ssp-leg__crew" ng-if="row._leg1.crew">{{ row._leg1.crew }}</div>
+        <a class="ssp-link" ui-sref="dashboard.flight_replay({flight_id: row.leg1.id})"><i class="fas fa-play-circle"></i> Replay</a>
+      </div>
+
+      <div class="ssp-boundary" ng-if="row._boundary">
+        <div class="ssp-boundary__label">tracker boundary</div>
+        <div class="ssp-boundary__time">{{ ss.hms(row.boundary.start) }} → {{ ss.hms(row.boundary.end) }}<span ng-if="row._boundary.duration"> ({{ row._boundary.duration }})</span></div>
+        <div class="ssp-boundary__verdict">{{ row._boundary.label }}</div>
+        <div class="ssp-boundary__stats" ng-if="row._boundary.stats">{{ row._boundary.stats }}</div>
+      </div>
+      <div class="ssp-boundary ssp-boundary--none" ng-if="!row._boundary">
+        <div class="ssp-boundary__label">tracker boundary</div>
+        <div class="ssp-boundary__verdict">not matched in the track</div>
+      </div>
+
+      <div class="ssp-leg">
+        <div class="ssp-leg__label">Leg 2 <span class="ssp-leg__id">#{{ row.leg2.id }}</span></div>
+        <div class="ssp-leg__times">{{ ss.hm(row.leg2.brakes_off) }} <i class="fas fa-long-arrow-alt-right"></i> {{ ss.hm(row.leg2.brakes_on) }}</div>
+        <div class="ssp-leg__sub">
+          <span ng-if="!row._sameDate">{{ ss.dateLabel(row.leg2.flight_date) }} · </span><span ng-if="row._leg2.hasAirborne">airborne {{ ss.hm(row.leg2.takeoff_time) }} – {{ ss.hm(row.leg2.landing_time) }}</span><span ng-if="row.leg2.flight_time"> · {{ row.leg2.flight_time }} flight</span>
+        </div>
+        <div class="ssp-leg__chips">
+          <span class="ssp-chip" ng-class="c.cls" ng-repeat="c in row._leg2.chips"><i class="fas" ng-class="c.icon"></i> {{ c.text }}</span>
+        </div>
+        <div class="ssp-leg__crew" ng-if="row._leg2.crew">{{ row._leg2.crew }}</div>
+        <a class="ssp-link" ui-sref="dashboard.flight_replay({flight_id: row.leg2.id})"><i class="fas fa-play-circle"></i> Replay</a>
+      </div>
+    </div>
+
+    <div class="ssp-note ssp-note--warn ssp-note--warning-sentence" ng-if="row.warning">
+      <i class="fas fa-exclamation-triangle"></i> <em>{{ row.warning }}</em>
+    </div>
+
+    <div class="ssp-review" ng-if="row._review" ng-class="row._review.cls">
+      <i class="fas" ng-class="row._review.icon"></i>
+      <span class="ssp-review__text">{{ row._review.text }}<span class="ssp-review__when" ng-if="row._review.when"> · {{ row._review.when }}</span></span>
+      <span class="ssp-review__note" ng-if="row._review.note">“{{ row._review.note }}”</span>
+    </div>
+
+    <!-- Actions -->
+    <div class="ssp-actions" ng-if="!ss.actionsHidden && !row._undo.open && !row._keep.open">
+      <button type="button" class="ssp-btn ssp-btn--primary" ng-click="ss.startUndo(row)" ng-disabled="!row.can_unsplit"
+              uib-tooltip="{{ row.can_unsplit ? 'Fold leg 2 back into leg 1 — you will see what changes first' : 'Blocked — see why below' }}">
+        <i class="fas fa-undo"></i> Undo the split
+      </button>
+      <button type="button" class="ssp-btn ssp-btn--outline" ng-click="ss.startKeep(row)" ng-if="!row.dismissed">
+        <i class="fas fa-bookmark"></i> Keep it
+      </button>
+    </div>
+    <div class="ssp-blockers" ng-if="!ss.actionsHidden && !row._undo.open && !row.can_unsplit && row._blockers.length">
+      <div class="ssp-blockers__title"><i class="fas fa-lock"></i> Can't be undone automatically:</div>
+      <ul class="ssp-blockers__list">
+        <li ng-repeat="b in row._blockers track by $index">{{ b }}</li>
+      </ul>
+    </div>
+
+    <!-- Undo panel: preview → note → inline confirm -->
+    <div class="ssp-panel ssp-panel--undo" ng-if="row._undo.open">
+      <div class="ssp-panel__head"><i class="fas fa-undo"></i> Undo the split — fold sheet {{ row.leg2.id }} back into sheet {{ row.leg1.id }}</div>
+
+      <div class="ssp__loading" ng-if="row._undo.loading"><span class="ssp__spinner"></span> Working out what would change…</div>
+
+      <div ng-if="!row._undo.loading && row._undo.preview">
+        <div class="ssp-table-wrap" ng-if="row._undo.changes.length">
+          <table class="ssp-table">
+            <thead><tr><th>Sheet {{ row.leg1.id }}</th><th>Before</th><th class="ssp-table__arrow"></th><th>After</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="c in row._undo.changes">
+                <td data-label="Column" class="ssp-table__col">{{ c.label }}</td>
+                <td data-label="Before" class="ssp-table__before">{{ c.before }}</td>
+                <td data-label="" class="ssp-table__arrow"><i class="fas fa-long-arrow-alt-right"></i></td>
+                <td data-label="After" class="ssp-table__after">{{ c.after }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ssp__muted ssp-panel__nochange" ng-if="!row._undo.changes.length">No column on sheet {{ row.leg1.id }} changes.</div>
+
+        <div class="ssp-panel__list">
+          <div class="ssp-invoice ssp-invoice--pending" ng-repeat="id in row._undo.invoices track by $index">
+            <i class="fas fa-file-invoice"></i> invoice {{ id }} will be recalculated for the whole flight
+          </div>
+          <div class="ssp-invoice ssp-invoice--pending"><i class="fas fa-layer-group"></i> sheet {{ row.leg2.id }} will be superseded — it disappears from every list</div>
+        </div>
+
+        <div class="ssp-note ssp-note--warn" ng-repeat="w in row._undo.warnings track by $index"><i class="fas fa-exclamation-triangle"></i> {{ w }}</div>
+
+        <div class="ssp-blockers" ng-if="row._undo.blockers.length">
+          <div class="ssp-blockers__title"><i class="fas fa-lock"></i> Can't be undone automatically:</div>
+          <ul class="ssp-blockers__list"><li ng-repeat="b in row._undo.blockers track by $index">{{ b }}</li></ul>
+        </div>
+
+        <div class="ssp-field">
+          <label for="ssp-undo-note-{{ row.leg1.id }}">Note (optional)</label>
+          <input type="text" class="ssp-input" id="ssp-undo-note-{{ row.leg1.id }}" maxlength="500"
+                 ng-model="row._undo.note" ng-disabled="row._undo.busy" placeholder="Why — e.g. GPS glitch on the downwind leg">
+        </div>
+      </div>
+
+      <div class="ssp-note ssp-note--bad" ng-if="row._undo.error"><i class="fas fa-exclamation-circle"></i> {{ row._undo.error }}</div>
+
+      <div class="ssp-panel__actions" ng-if="!row._undo.loading">
+        <div class="ssp-panel__btns" ng-if="!row._undo.confirming">
+          <button type="button" class="ssp-btn ssp-btn--primary" ng-click="ss.askUndo(row)" ng-disabled="!row.can_unsplit || !row._undo.preview">
+            <i class="fas fa-undo"></i> Undo the split…
+          </button>
+          <button type="button" class="ssp-btn ssp-btn--outline" ng-click="ss.cancelUndo(row)">Cancel</button>
+        </div>
+        <div class="ssp-confirm" ng-if="row._undo.confirming">
+          <span class="ssp-confirm__text">
+            <i class="fas fa-exclamation-triangle"></i>
+            Sheet {{ row.leg1.id }} becomes the whole flight and sheet {{ row.leg2.id }} is superseded. This is written straight away.
+          </span>
+          <div class="ssp-confirm__actions">
+            <button type="button" class="ssp-btn ssp-btn--danger" ng-click="ss.doUndo(row)" ng-disabled="row._undo.busy">
+              <i class="fas" ng-class="row._undo.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i> Yes, undo it
+            </button>
+            <button type="button" class="ssp-btn ssp-btn--outline" ng-click="row._undo.confirming = false" ng-disabled="row._undo.busy">Back</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keep panel: note → inline confirm -->
+    <div class="ssp-panel ssp-panel--keep" ng-if="row._keep.open">
+      <div class="ssp-panel__head"><i class="fas fa-bookmark"></i> Keep as two flights</div>
+      <p class="ssp-panel__help">The pair leaves this list (tick "Show kept" to see it again). Nothing on either sheet changes.</p>
+      <div class="ssp-field">
+        <label for="ssp-keep-note-{{ row.leg1.id }}">Note (optional)</label>
+        <input type="text" class="ssp-input" id="ssp-keep-note-{{ row.leg1.id }}" maxlength="500"
+               ng-model="row._keep.note" ng-disabled="row._keep.busy" placeholder="Why — e.g. checked with the instructor, it really was two flights">
+      </div>
+      <div class="ssp-note ssp-note--bad" ng-if="row._keep.error"><i class="fas fa-exclamation-circle"></i> {{ row._keep.error }}</div>
+      <div class="ssp-confirm ssp-confirm--keep">
+        <span class="ssp-confirm__text"><i class="fas fa-info-circle"></i> Keep sheets {{ row.leg1.id }} and {{ row.leg2.id }} as separate flights?</span>
+        <div class="ssp-confirm__actions">
+          <button type="button" class="ssp-btn ssp-btn--primary" ng-click="ss.doKeep(row)" ng-disabled="row._keep.busy">
+            <i class="fas" ng-class="row._keep.busy ? 'fa-spinner fa-spin' : 'fa-check'"></i> Yes, keep it
+          </button>
+          <button type="button" class="ssp-btn ssp-btn--outline" ng-click="ss.cancelKeep(row)" ng-disabled="row._keep.busy">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- card -->
+
+</div>

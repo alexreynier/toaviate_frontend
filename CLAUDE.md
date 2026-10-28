@@ -224,6 +224,10 @@ is already set). When adding or changing UI:
   swapping a wide table for stacked cards on narrow screens (see flights.html);
   footers/button-bars switching to `flex-direction: column`.
 - **Always test/verify both widths.** A change is not done until it works on mobile.
+- **Text controls stay ≥16px on phones.** iOS Safari zooms the page when a focused input is smaller and
+  the SPA never zooms back out (the "everything is zoomed + horizontal scroll" bug). A global
+  `≤768px → 16px !important` guard sits at the end of snazzy-pages.css; never add a smaller mobile input
+  size and never reach for `maximum-scale=1` in the viewport meta.
 
 ---
 

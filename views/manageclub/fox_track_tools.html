@@ -702,6 +702,8 @@
               track and tracker disagree by hours is a mis-linked recording, not a correction. <strong>Apply</strong> writes the best figure
               on every non-manual sheet, stamps its source, <strong>locks every row older than 2 days</strong>, and rebuilds the logbooks of
               every aircraft touched. Chunked — large histories take several requests.
+              <strong>One-shot:</strong> after the first applied run only provisional sheets are ever read again — a settled figure is
+              corrected by hand on its own sheet (flight edit or re-evaluate), never by this tool.
             </p>
             <div class="ftt-form-row">
               <input type="number" min="1" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="Last N days (blank = all)" ng-model="vm.air.days">
@@ -718,7 +720,20 @@
               </span>
               <span class="ftt-chip ftt-chip--grey" ng-if="vm.air.busy">{{ vm.air.progress.checked }} checked…</span>
             </div>
-            <div class="ftt-note ftt-note--bad" ng-if="vm.air.error"><i class="fas fa-exclamation-circle"></i> {{ vm.air.error }}</div>
+            <!-- Redo of the one-off: only offered once it has been applied; needs the word REDO typed -->
+            <div class="ftt-form-row" ng-if="vm.air.runs && vm.air.runs.one_off_applied_at" style="align-items:center; gap:8px;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+                <input type="checkbox" ng-model="vm.air.redo"> Redo the one-off over settled sheets too
+              </label>
+              <input type="text" class="fox-tracker__form-input ftt-input ftt-input--id" placeholder="type REDO" ng-model="vm.air.redo_word" ng-if="vm.air.redo">
+              <span class="ftt-chip ftt-chip--grey" ng-if="vm.air.redo">deployment window only — e.g. the first run happened before the recordings were analysed. Manual sheets stay untouched.</span>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.error">
+              <i class="fas fa-exclamation-circle"></i> {{ vm.air.error }}
+              <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-if="vm.air.resume" ng-click="vm.airRun(vm.air.resume.apply, true)" style="margin-left:8px;">
+                <i class="fas fa-play"></i> Resume from sheet #{{ vm.air.resume.after_id }} ({{ vm.air.resume.acc.checked || 0 }} done)
+              </button>
+            </div>
 
             <div class="ftt-grid ftt-grid--2" ng-if="vm.air.report">
               <div class="ftt-block">
@@ -727,6 +742,7 @@
                   <span class="ftt-chip ftt-chip--grey fxh__mono">{{ vm.air.report.run_id }}</span>
                   <span class="ftt-chip" ng-class="vm.air.report.dry_run ? 'ftt-chip--grey' : 'ftt-chip--green'">{{ vm.air.report.updated }} {{ vm.air.report.dry_run ? 'would change' : 'written' }}</span>
                 </div>
+                <div class="ftt-note" ng-if="vm.air.report.scope_note"><i class="fas fa-info-circle"></i> {{ vm.air.report.scope_note }}</div>
                 <div class="ftt-kv">
                   <span class="ftt-kv__item"><label>checked</label> {{ vm.air.report.checked }}</span>
                   <span class="ftt-kv__item"><label>hours changed</label> {{ vm.air.report.hours_changed }}</span>
@@ -763,6 +779,76 @@
                   </div>
                 </div>
                 <div class="ftt-empty" ng-if="!vm.air.report.biggest_moves.length">No sheet's hours would move.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Previous runs: reconstructed from airborne_time_history, so a run whose page was lost can still be read -->
+          <div class="ftt-block ftt-block--divider">
+            <div class="ftt-block__title">
+              Previous runs
+              <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.airRuns()" ng-disabled="vm.air.runs_busy"><i class="fas" ng-class="vm.air.runs_busy ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i> Refresh</button>
+              <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-if="!vm.air.rebuild_confirm" ng-click="vm.airRebuildTouched()" ng-disabled="vm.air.rebuild_busy"
+                      uib-tooltip="Queues a background rebuild of the airframe / engine / propeller logbooks of every aircraft any applied run has changed. The worker cron does it one logbook at a time; you are emailed when it is done. Changes no flight.">
+                <i class="fas" ng-class="vm.air.rebuild_busy ? 'fa-spinner fa-spin' : 'fa-book'"></i> Rebuild logbooks of touched aircraft (background)
+              </button>
+              <span ng-if="vm.air.rebuild_confirm">
+                <button class="snazzy-page__btn snazzy-page__btn--danger snazzy-page__btn--sm" ng-click="vm.airRebuildTouched()">Confirm — queue the rebuild</button>
+                <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.air.rebuild_confirm = false">Cancel</button>
+              </span>
+            </div>
+            <!-- background queue status (polls every 10 s while a batch is in progress; safe to close the page) -->
+            <div class="ftt-note" ng-if="vm.air.rebuild_batch_info" ng-class="vm.air.rebuild_batch_info.failed ? 'ftt-note--bad' : ''">
+              <i class="fas" ng-class="vm.air.rebuild_batch_info.complete ? 'fa-check-circle' : 'fa-spinner fa-spin'"></i>
+              <strong>{{ vm.air.rebuild_batch_info.percent }}%</strong> — Logbook rebuild <span class="fxh__mono">{{ vm.air.rebuild_batch_info.batch_id }}</span>:
+              {{ vm.air.rebuild_batch_info.done }} done · {{ vm.air.rebuild_batch_info.running }} running · {{ vm.air.rebuild_batch_info.queued }} queued · {{ vm.air.rebuild_batch_info.failed }} failed
+              of {{ vm.air.rebuild_batch_info.total }} logbooks across {{ vm.air.rebuild_batch_info.planes }} aircraft
+              <span ng-if="vm.air.rebuild_status.running && !vm.air.rebuild_batch_info.complete"> — now: {{ vm.air.rebuild_status.running.registration || ('plane ' + vm.air.rebuild_status.running.plane_id) }} {{ vm.air.rebuild_status.running.part }}</span>
+              <span ng-if="!vm.air.rebuild_batch_info.complete"> — running in the background on the server; you will be emailed when it is done. This page can be closed.
+                <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.airRebuildNudge()" ng-disabled="vm.air.nudge_busy" style="margin-left:8px;"
+                        uib-tooltip="Not moving? Runs the worker for ~15 seconds from here and re-starts the background chain.">
+                  <i class="fas" ng-class="vm.air.nudge_busy ? 'fa-spinner fa-spin' : 'fa-bolt'"></i> Nudge
+                </button>
+              </span>
+              <span ng-if="vm.air.rebuild_batch_info.complete"> — finished {{ vm.air.rebuild_batch_info.finished_at }} UTC.</span>
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.rebuild_status.failed.length">
+              <i class="fas fa-exclamation-circle"></i> Failed jobs: <span ng-repeat="f in vm.air.rebuild_status.failed">{{ f.registration || ('plane ' + f.plane_id) }} {{ f.part }} ({{ f.error }}){{ $last ? '' : ', ' }}</span> — queue the rebuild again to retry.
+            </div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.rebuild_status_error"><i class="fas fa-exclamation-circle"></i> {{ vm.air.rebuild_status_error }}</div>
+            <div class="ftt-note ftt-note--bad" ng-if="vm.air.runs_error"><i class="fas fa-exclamation-circle"></i> {{ vm.air.runs_error }}</div>
+            <div ng-if="vm.air.runs">
+              <div class="ftt-note" ng-class="vm.air.runs.one_off_applied_at && !vm.air.runs.one_off_complete ? 'ftt-note--bad' : ''"><i class="fas fa-info-circle"></i> {{ vm.air.runs.note }}</div>
+              <div class="ftt-kv">
+                <span class="ftt-kv__item"><label>live sheets</label> {{ vm.air.runs.state.live }}</span>
+                <span class="ftt-kv__item"><label>settled</label> {{ vm.air.runs.state.settled }}</span>
+                <span class="ftt-kv__item"><label>provisional</label> {{ vm.air.runs.state.provisional }}</span>
+                <span class="ftt-kv__item"><label>manual</label> {{ vm.air.runs.state.manual }}</span>
+                <span class="ftt-kv__item"><label>unstamped</label> {{ vm.air.runs.state.unstamped }}</span>
+              </div>
+              <div class="ftt-empty" ng-if="!vm.air.runs.runs.length">No applied run yet (dry runs leave no trace).</div>
+              <div class="ftt-seg-list" ng-if="vm.air.runs.runs.length">
+                <div class="ftt-seg-row" ng-repeat="r in vm.air.runs.runs" style="flex-wrap:wrap;">
+                  <span class="ftt-seg-row__id fxh__mono">{{ r.run_id }}</span>
+                  <span class="ftt-seg-row__kv"><label>{{ r.action }}</label> {{ r.started_at }} → {{ r.finished_at }}</span>
+                  <span class="ftt-seg-row__kv"><label>written</label> {{ r.rows_written }}</span>
+                  <span class="ftt-seg-row__kv"><label>hours changed</label> {{ r.hours_changed }}</span>
+                  <span class="ftt-seg-row__kv"><label>settled</label> {{ r.settled }}</span>
+                  <span class="ftt-seg-row__kv"><label>planes</label> {{ r.planes }}</span>
+                  <span class="ftt-seg-row__kv"><label>total delta</label> {{ r.total_delta_hours > 0 ? '+' : '' }}{{ r.total_delta_hours }} h</span>
+                  <span class="ftt-seg-row__kv" ng-repeat="p in vm.airPairs(r.by_source)"><label>{{ vm.airSourceLabel(p.k) }}</label> {{ p.v }}</span>
+                  <a class="ftt-seg-row__reason" ng-click="r.show_moves = !r.show_moves">{{ r.show_moves ? 'hide' : 'show' }} biggest moves</a>
+                  <div class="ftt-seg-list" ng-if="r.show_moves" style="width:100%; margin-top:6px;">
+                    <div class="ftt-seg-row" ng-repeat="m in r.biggest_moves">
+                      <span class="ftt-seg-row__id fxh__mono"><a ng-click="vm.air.explain_id = m.plane_log_sheet_id; vm.airExplain()">sheet #{{ m.plane_log_sheet_id }}</a></span>
+                      <span class="ftt-seg-row__kv"><label>plane</label> {{ m.plane_id }}</span>
+                      <span class="ftt-seg-row__kv"><label>date</label> {{ m.flight_date }}</span>
+                      <span class="ftt-seg-row__kv"><label>hours</label> {{ vm.airHm(m.before_hours) }} → <strong>{{ vm.airHm(m.after_hours) }}</strong> ({{ m.delta_hours > 0 ? '+' : '' }}{{ m.delta_hours }} h)</span>
+                      <span class="ftt-seg-row__kv"><label>source</label> {{ vm.airSourceLabel(m.before_source) }} → {{ vm.airSourceLabel(m.after_source) }}</span>
+                      <span class="ftt-seg-row__reason">{{ m.reason }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

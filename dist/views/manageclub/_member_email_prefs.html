@@ -17,10 +17,15 @@
     <div class="mep-master" ng-class="{'mep-master--on': ep.muteAll}">
       <div class="mep-master__icon"><i class="fa" ng-class="ep.muteAll ? 'fa-bell-slash' : 'fa-envelope-open-text'"></i></div>
       <div class="mep-master__body">
-        <div class="mep-master__title">Send no reminder or notification emails</div>
+        <div class="mep-master__title">All reminder &amp; notification emails</div>
         <div class="mep-master__desc">
-          Master switch for this person across <strong>all clubs</strong>. Overrides everything below.
-          Transactional email (invoices, invitations, password resets, confirmations of their own bookings) still goes.
+          <span ng-if="!ep.muteAll">Receiving. The member can switch every reminder and notification off for <strong>all clubs</strong> from My Account &rarr; Reminders — that would override everything below.</span>
+          <span ng-if="ep.muteAll">Switched off by the member for <strong>all clubs</strong> (My Account &rarr; Reminders). It overrides everything below.</span>
+        </div>
+        <div class="mep-master__fine">
+          Invoices, invitations, password resets and confirmations of their own bookings always go.
+          <span ng-if="!ep.canEditMaster">Only the member can change this.</span>
+          <span ng-if="ep.canEditMaster">ToAviate staff can change it here on the member's behalf.</span>
         </div>
         <div class="mep-master__meta" ng-if="ep.master.updated_at">
           <i class="fa fa-history"></i>
@@ -29,21 +34,26 @@
         </div>
         <div class="mep-master__meta" ng-if="!ep.master.updated_at">Last changed: &mdash;</div>
       </div>
-      <div class="mep-master__control">
+      <div class="mep-master__control" ng-if="ep.canEditMaster">
         <label class="snazzy-toggle snazzy-toggle--danger">
           <input type="checkbox" ng-checked="ep.muteAll" ng-click="ep.toggleMaster()" no-busy-guard>
           <span class="snazzy-toggle__slider"></span>
         </label>
         <span class="snazzy-toggle-label" ng-class="{'snazzy-toggle-label--off': !ep.muteAll}">{{ ep.muteAll ? 'Muted' : 'Receiving' }}</span>
       </div>
+      <div class="mep-master__control" ng-if="!ep.canEditMaster">
+        <span class="mep-master__status" ng-class="{'mep-master__status--muted': ep.muteAll}">
+          <i class="fa" ng-class="ep.muteAll ? 'fa-bell-slash' : 'fa-check'"></i> {{ ep.muteAll ? 'Muted by the member' : 'Receiving' }}
+        </span>
+      </div>
     </div>
 
     <!-- ── Per-club booking emails ── -->
     <div class="mep-group" ng-class="{'mep-group--overridden': ep.muteAll}">
-      <div class="mep-group__title">
-        <i class="fa fa-calendar-check"></i> Booking emails at {{ ep.member.club_title || 'this club' }}
-        <span class="rem-badge rem-badge--unit" ng-if="ep.member.instructor == 1">instructor</span>
-        <span class="mep-group__override" ng-if="ep.muteAll"><i class="fa fa-ban"></i> Overridden &mdash; all reminder and notification emails are off</span>
+      <div class="mep-group__head">
+        <span class="mep-group__title"><i class="fa fa-calendar-check"></i> Booking emails at {{ ep.member.club_title || 'this club' }}</span>
+        <span class="mep-group__tag" ng-if="ep.member.instructor == 1">instructor</span>
+        <span class="mep-group__override" ng-if="ep.muteAll"><i class="fa fa-ban"></i> Overridden &mdash; everything is off</span>
       </div>
       <div class="rem-person__row" ng-repeat="sw in ep.switches track by sw.key" ng-class="{'rem-person__row--off': !sw.on}">
         <div class="rem-person__row-main">
@@ -63,9 +73,10 @@
 
     <!-- ── Expiry reminders ── -->
     <div class="mep-group" ng-class="{'mep-group--overridden': ep.muteAll}" ng-if="ep.reminders.length">
-      <div class="mep-group__title">
-        <i class="fa fa-bell"></i> Expiry reminders
-        <span class="mep-group__hint">medical, licence, rating, membership, card, ID, qualifications</span>
+      <div class="mep-group__head">
+        <span class="mep-group__title"><i class="fa fa-bell"></i> Expiry reminders</span>
+        <span class="mep-group__hint">medical · licence · rating · membership · card · ID · qualifications</span>
+        <span class="mep-group__override" ng-if="ep.muteAll"><i class="fa fa-ban"></i> Overridden &mdash; everything is off</span>
       </div>
       <div class="rem-person__row" ng-repeat="pref in ep.reminders track by pref.reminder_type" ng-class="{'rem-person__row--off': pref.enabled != 1}">
         <div class="rem-person__row-main">

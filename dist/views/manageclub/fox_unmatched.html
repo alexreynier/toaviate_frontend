@@ -31,6 +31,7 @@
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_trackers"><i class="fas fa-satellite-dish"></i> Registry</a>
       <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_tracker_health"><i class="fas fa-heartbeat"></i> Health</a>
       <a class="fox-tracker__tab fox-tracker__tab--on"><i class="fas fa-plane-slash"></i> Unmatched flights</a>
+      <a class="fox-tracker__tab" ui-sref="dashboard.super_admin.fox_track_tools"><i class="fas fa-tools"></i> Track tools</a>
     </div>
 
     <div class="snazzy-page__body">
@@ -145,8 +146,11 @@
               <div class="fxu__row-top">
                 <span class="fxu__entry-id fxh__mono" ng-click="vm.copy('ENTRY #' + entry.id)" uib-tooltip="Matches the ENTRY ID in the admin emails — tap to copy">ENTRY #{{ entry.id }}</span>
                 <span class="fxu__times">{{ vm.times(entry) }}</span>
-                <span class="fxu__fact"><i class="fas fa-stopwatch"></i> {{ vm.duration(entry.airborne_seconds) }}</span>
-                <span class="fxu__fact"><i class="fas fa-plane-arrival"></i> {{ entry.number_landings || 0 }} landing{{ entry.number_landings == 1 ? '' : 's' }}</span>
+                <span class="fxu__fact"><i class="fas fa-stopwatch"></i> {{ vm.duration(entry.airborne_seconds) }}<span class="fxu__calc" ng-if="vm.hasCalc(entry)"> (tracker) · <strong>{{ vm.duration(entry.airborne_seconds_calculated) }}</strong> (track)</span></span>
+                <span class="fxu__fact"><i class="fas fa-plane-arrival"></i> {{ entry.number_landings || 0 }} landing{{ entry.number_landings == 1 ? '' : 's' }}<span class="fxu__calc" ng-if="vm.hasCalc(entry)"> (tracker) · <strong>{{ entry.landings_calculated }}</strong> (track)</span></span>
+                <span class="fxu__calc-tag fxu__calc-tag--{{ vm.calcTag(entry).cls }}" ng-if="vm.calcTag(entry)" uib-tooltip="{{ vm.calcTag(entry).hint }}">
+                  <i class="fas {{ vm.calcTag(entry).icon }}"></i> {{ vm.calcTag(entry).label }}
+                </span>
                 <a class="fxu__flight-toggle" ng-click="vm.toggleFlight(entry)">
                   <i class="fas" ng-class="entry._showFlight ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                   {{ entry._showFlight ? 'hide' : 'flight details' }}
@@ -187,7 +191,7 @@
                   </div>
                   <div class="fxu__flight-airborne">
                     <label>Airborne</label>
-                    <span>{{ vm.duration(entry.airborne_seconds) }}</span>
+                    <span>{{ vm.duration(entry.airborne_seconds) }}<span class="fxu__calc fxu__calc--strip" ng-if="vm.hasCalc(entry)"> (tracker) · {{ vm.duration(entry.airborne_seconds_calculated) }} (track)</span></span>
                   </div>
                   <div class="fxu__flight-cell">
                     <label>Landing</label>
@@ -201,8 +205,10 @@
                 </div>
                 <div class="fxu__flight-stats">
                   <span class="fxu__flight-stat"><label>Block time</label> {{ vm.blockTime(entry) }}</span>
-                  <span class="fxu__flight-stat"><label>Airborne</label> {{ vm.duration(entry.airborne_seconds) }}</span>
-                  <span class="fxu__flight-stat"><label>Landings</label> {{ entry.number_landings || 0 }}</span>
+                  <span class="fxu__flight-stat"><label>Airborne</label> {{ vm.duration(entry.airborne_seconds) }}<span class="fxu__calc" ng-if="vm.hasCalc(entry)"> (tracker) · {{ vm.duration(entry.airborne_seconds_calculated) }} (track)</span></span>
+                  <span class="fxu__flight-stat"><label>Landings</label> {{ entry.number_landings || 0 }}<span class="fxu__calc" ng-if="vm.hasCalc(entry)"> (tracker) · {{ entry.landings_calculated }} (track)</span></span>
+                  <span class="fxu__flight-stat" ng-if="vm.hasCalc(entry) && entry.go_arounds_calculated > 0"><label>Go-arounds</label> {{ entry.go_arounds_calculated }} <span class="fxu__calc">(track)</span></span>
+                  <span class="fxu__flight-stat" ng-if="vm.hasCalc(entry) && entry.phantom_pairs_calculated > 0"><label>Phantom</label> {{ entry.phantom_pairs_calculated }} <span class="fxu__calc">(tracker flights the track disproves)</span></span>
                 </div>
               </div>
 

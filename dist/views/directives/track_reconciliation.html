@@ -1,0 +1,178 @@
+<div class="trc" ng-if="!rc.hidden || rc.emptyText">
+
+  <!-- NO_TRACK with a host-supplied line (e.g. inside a collapsed modal section) -->
+  <div class="trc__none" ng-if="rc.hidden && rc.emptyText && rc.resolved">
+    <i class="fas fa-satellite-dish"></i> {{ rc.emptyText }}
+  </div>
+
+  <div ng-if="!rc.hidden">
+
+    <div class="trc__head" ng-class="{'trc__head--open': rc.expanded}">
+      <button type="button" class="trc__head-main" ng-click="rc.toggle()" no-busy-guard aria-expanded="{{ rc.expanded }}">
+        <span class="trc__title">
+          <i class="fas fa-route"></i> Track reconciliation
+          <span class="trc__sub" ng-if="rc.expanded">Tracker · track file · log sheet</span>
+        </span>
+        <span class="trc__summary trc__summary--{{ rc.summaryTone }}" ng-if="rc.data && rc.summary && !rc.expanded">
+          <i class="fas" ng-class="{ok: 'fa-check-circle', warn: 'fa-exclamation-circle', info: 'fa-info-circle'}[rc.summaryTone]"></i> {{ rc.summary }}
+        </span>
+      </button>
+      <div class="trc__head-right">
+        <span class="trc__review" ng-if="rc.reviewNeeded && rc.expanded" uib-tooltip="The log sheet differs from the recommended values — review the landings below">
+          <i class="fas fa-exclamation-circle"></i> Review landings
+        </span>
+        <button type="button" class="trc__refresh" ng-if="rc.expanded" ng-click="rc.load()" ng-disabled="rc.loading" uib-tooltip="Refresh" no-busy-guard>
+          <i class="fas fa-sync-alt" ng-class="{'fa-spin': rc.loading}"></i>
+        </button>
+        <button type="button" class="trc__refresh trc__toggle" ng-click="rc.toggle()" uib-tooltip="{{ rc.expanded ? 'Hide details' : 'Show details' }}" no-busy-guard>
+          <i class="fas" ng-class="rc.expanded ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="trc__loading" ng-if="rc.loading && !rc.data">
+      <span class="trc__spinner"></span> Loading track data…
+    </div>
+
+    <div class="trc__banner trc__banner--danger" ng-if="rc.error">
+      <i class="fas fa-exclamation-triangle"></i> {{ rc.error }}
+    </div>
+
+    <div ng-if="rc.data" ng-show="rc.expanded" class="trc__body">
+
+      <!-- ── Banners (§6) ── -->
+      <div class="trc__banner trc__banner--info" ng-if="rc.pending">
+        <i class="fas fa-hourglass-half"></i>
+        <span><strong>Track analysis pending.</strong> The recording is analysed within minutes of upload — the tracker's own values are shown until then.</span>
+      </div>
+      <div class="trc__banner trc__banner--warn" ng-if="rc.lowConfidence && !rc.pending">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span><strong>Low confidence in the track analysis.</strong> The tracker's counts are shown as the reference; track counts are unconfirmed.</span>
+      </div>
+      <div class="trc__banner trc__banner--danger" ng-if="rc.mismatch">
+        <i class="fas fa-unlink"></i>
+        <span><strong>Recording mismatch.</strong> The tracker flight and the recorded track do not describe the same flight — the file is probably linked to the wrong flight. Track-side values are shown for reference.</span>
+      </div>
+      <div class="trc__banner trc__banner--info trc__banner--truncated" ng-if="rc.truncated">
+        <i class="fas fa-cut"></i>
+        <span><strong>Track cut at the split</strong> — this leg's recording ends / starts in flight<span ng-if="rc.truncatedPhrases"> ({{ rc.truncatedPhrases }})</span>, so its landing counts come from the tracker.</span>
+      </div>
+
+      <!-- ── Flags ── -->
+      <ul class="trc__flags" ng-if="rc.flags.length">
+        <li class="trc__flag trc__flag--{{ f.tone }}" ng-repeat="f in rc.flags" uib-tooltip="{{ f.policy }}" tooltip-placement="top">
+          <i class="fas" ng-class="f.icon"></i> <span>{{ f.label }}</span>
+        </li>
+      </ul>
+
+      <!-- ── Tracker · Track file · On the sheet · Recommended ── -->
+      <div class="trc__table-wrap">
+        <table class="trc__table" ng-class="{'trc__table--legacy': rc.lowConfidence}">
+          <thead>
+            <tr>
+              <th class="trc__th trc__th--field">Field</th>
+              <th class="trc__th">Tracker</th>
+              <th class="trc__th">
+                Track file
+                <span class="trc__tag" ng-if="rc.pending">pending</span>
+                <span class="trc__tag trc__tag--warn" ng-if="rc.lowConfidence && !rc.pending">unconfirmed</span>
+              </th>
+              <th class="trc__th">
+                On the sheet
+                <track-counts-chip source="rc.data.sheet.track_counts_source" updated-at="rc.data.sheet.track_counts_updated_at"></track-counts-chip>
+              </th>
+              <th class="trc__th trc__th--rec">Recommended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="trc__row" ng-repeat="r in rc.rows" ng-class="{'trc__row--differs': r.differs && !r.truncated, 'trc__row--truncated': r.truncated}">
+              <th class="trc__field">{{ r.label }}</th>
+              <td class="trc__cell" data-label="Tracker"
+                  ng-class="{'trc__cell--src': r.source == 'tracker' || r.source == 'agreed', 'trc__cell--emph': rc.lowConfidence}">
+                {{ r.tracker }}
+              </td>
+              <td class="trc__cell" data-label="Track file"
+                  ng-class="{'trc__cell--src': (r.source == 'track' || r.source == 'agreed') && !rc.pending && !r.truncated, 'trc__cell--muted': rc.lowConfidence || rc.pending, 'trc__cell--cut': r.truncated}">
+                <span class="trc__cell-val">
+                  {{ r.track }}
+                  <span class="trc__cut-tag" ng-if="r.truncated" uib-tooltip="The track of this leg ends / starts in flight, so it cannot have seen every landing — the tracker's value is used">track cut at the split</span>
+                </span>
+              </td>
+              <td class="trc__cell trc__cell--sheet" data-label="On the sheet" ng-class="{'trc__cell--differs': r.differs && !r.truncated}">
+                {{ r.sheet }}
+                <span class="trc__sheet-rec" ng-class="{'trc__sheet-rec--quiet': r.truncated}" ng-if="r.differs" uib-tooltip="{{ r.sheetNote }}">→ {{ r.sheetRecommended }}</span>
+                <i class="fas fa-info-circle trc__sheet-hint" ng-if="r.sheetHint && r.sheet == '—'" uib-tooltip="{{ r.sheetHint }}"></i>
+              </td>
+              <td class="trc__cell trc__cell--rec" data-label="Recommended">
+                <span class="trc__rec-value" uib-tooltip="{{ r.reason }}" tooltip-placement="left">{{ r.rec }}</span>
+                <span class="trc__src trc__src--{{ r.source }}" ng-class="{'trc__src--authority': r.truncated && r.source == 'tracker'}" ng-if="r.source" uib-tooltip="{{ r.reason }}" tooltip-placement="left">{{ r.source }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- the maintenance figure actually stored on the sheet and where it came from (BACKEND_AIRBORNE_SOURCE_GUIDE.md §6) -->
+        <div class="trc__sheet-airborne" ng-if="rc.data.sheet && rc.data.sheet.airborne_time !== null && rc.data.sheet.airborne_time !== undefined" style="margin-top:8px; font-size:12px; opacity:.85;">
+          <i class="fas fa-wrench"></i>
+          Maintenance airborne on the sheet: <strong>{{ rc.fmtHours(rc.data.sheet.airborne_time) }}</strong>
+          <span ng-if="rc.data.sheet.airborne_source"> &middot; {{ rc.airborneSourceLabel(rc.data.sheet.airborne_source) }}</span>
+          <span ng-if="rc.data.sheet.airborne_settled_at" uib-tooltip="Final since {{ rc.data.sheet.airborne_settled_at }} UTC — only a flight edit or re-evaluate changes it"> &middot; final</span>
+          <span ng-if="rc.data.sheet.airborne_source && !rc.data.sheet.airborne_settled_at" uib-tooltip="The nightly pass may still improve it (e.g. once the track file is analysed)"> &middot; provisional</span>
+          <span ng-if="!rc.data.sheet.airborne_source"> &middot; source not yet recorded</span>
+        </div>
+      </div>
+
+      <!-- ── Tracker-only / track-only flights ── -->
+      <ul class="trc__notes" ng-if="rc.notes.length">
+        <li class="trc__note trc__note--{{ n.tone }}" ng-repeat="n in rc.notes">
+          <i class="fas" ng-class="n.icon"></i> <span>{{ n.text }}</span>
+        </li>
+      </ul>
+
+      <!-- ── Apply (club staff only, §2.2) ── -->
+      <div class="trc__apply" ng-if="rc.staff">
+        <div class="trc__apply-row" ng-if="!rc.confirming">
+          <button type="button" class="trc__btn trc__btn--primary" ng-click="rc.startApply()" ng-disabled="!rc.canApply || rc.alreadyMatches || rc.truncatedRefused" no-busy-guard>
+            <i class="fas fa-check"></i> Apply track counts to the sheet
+          </button>
+          <span class="trc__apply-hint" ng-if="rc.alreadyMatches && !rc.truncatedRefused"><i class="fas fa-check-circle"></i> The sheet already matches the recommendation</span>
+        </div>
+
+        <!-- NOTHING_TO_APPLY + reason SEGMENT_TRUNCATED: the backend never lowers a count from a cut track -->
+        <div class="trc__result trc__result--refused" ng-if="rc.truncatedRefused && !rc.confirming">
+          <div class="trc__result-line"><i class="fas fa-cut"></i> <span>The track of this leg is cut at the split and cannot have seen every landing — counts are not lowered from it; edit the sheet by hand.</span></div>
+          <ul class="trc__refused" ng-if="rc.refusedLines.length">
+            <li class="trc__refused-line" ng-repeat="l in rc.refusedLines track by $index"><i class="fas fa-minus-circle"></i> <span>{{ l }}</span></li>
+          </ul>
+        </div>
+
+        <!-- Last successful Apply (+ any fields the backend refused to lower on a cut leg) -->
+        <div class="trc__result trc__result--ok" ng-if="rc.result && !rc.truncatedRefused && !rc.confirming">
+          <div class="trc__result-line"><i class="fas fa-check-circle"></i> <span>Counts applied — {{ rc.result.text }}</span></div>
+          <ul class="trc__refused" ng-if="rc.refusedLines.length">
+            <li class="trc__refused-line" ng-repeat="l in rc.refusedLines track by $index"><i class="fas fa-minus-circle"></i> <span>{{ l }}</span></li>
+          </ul>
+        </div>
+
+        <div class="trc__confirm" ng-if="rc.confirming">
+          <div class="trc__confirm-diff"><i class="fas fa-exchange-alt"></i> {{ rc.diffLine }}</div>
+          <div class="trc__confirm-flags" ng-if="rc.warnFlags.length">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span><span ng-repeat="f in rc.warnFlags">{{ f.label }}{{ $last ? '' : ' · ' }}</span> — the recommendation is applied regardless.</span>
+          </div>
+          <input type="text" class="trc__note-input" ng-model="rc.note" maxlength="255" placeholder="Note (optional, e.g. circuits session, track confirmed)" />
+          <div class="trc__confirm-actions">
+            <button type="button" class="trc__btn trc__btn--primary" ng-click="rc.confirmApply()" ng-disabled="rc.applying">
+              <i class="fas" ng-class="rc.applying ? 'fa-spinner fa-spin' : 'fa-check'"></i> Apply {{ rc.diffLine ? '' : 'counts' }}
+            </button>
+            <button type="button" class="trc__btn trc__btn--outline" ng-click="rc.cancelApply()" ng-disabled="rc.applying" no-busy-guard>Cancel</button>
+          </div>
+        </div>
+
+        <p class="trc__apply-note">
+          <i class="fas fa-info-circle"></i> Applying changes the landing counts on the log sheet only — invoices are not touched. Landing fees are changed on the flight-edit screen.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
