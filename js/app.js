@@ -1533,8 +1533,11 @@ var app = angular
                 }
             })
 
+            // ?from=records_to_file | student_records — where a club admin
+            // filing on an instructor's behalf came from; the save (and BACK)
+            // return there instead of the instructor dashboard.
             .state('dashboard.manage_user.debriefing', {
-                url: '/debriefing/:booking_id/:plane_log_sheet_id/:split_next_id/:split_booking_id',
+                url: '/debriefing/:booking_id/:plane_log_sheet_id/:split_next_id/:split_booking_id?from',
                 controller: 'DashboardInstructorBriefController',
                 templateUrl: 'views/manageuser/debriefing.html',
                 controllerAs: 'vm',
@@ -1545,7 +1548,8 @@ var app = angular
                     booking_id: null,
                     split_next_id: null,
                     split_booking_id: null,
-                    plane_log_sheet_id: null
+                    plane_log_sheet_id: null,
+                    from: null
                 }
             })
 
@@ -1841,6 +1845,23 @@ var app = angular
                 controllerAs: 'vm',
                 data: {
                     hub: { title: 'Missing Students', subtitle: 'Imported flights whose student could not be matched by name — assign a member, create a temporary member, or dismiss', icon: 'fa-user-times' }
+                }
+            })
+
+            // Records to file — club admins file student training records for
+            // their own club's flights on the instructor's behalf (they show as
+            // awaiting that instructor's confirmation). "File record" opens the
+            // debrief state with from=records_to_file so a save returns here.
+            // ?tab=awaiting opens the awaiting-confirmation tab.
+            // Backend: BACKEND_ADMIN_STUDENT_RECORDS_GUIDE.md.
+            .state('dashboard.manage_club.records_to_file', {
+                parent: 'dashboard.manage_club.members_hub',
+                url: '/records_to_file?tab',
+                controller: 'RecordsToFileController',
+                templateUrl: 'views/manageclub/records_to_file.html',
+                controllerAs: 'vm',
+                data: {
+                    hub: { title: 'Records to File', subtitle: 'Flights that still need a student training record — file them on the instructor\'s behalf', icon: 'fa-file-signature' }
                 }
             })
 

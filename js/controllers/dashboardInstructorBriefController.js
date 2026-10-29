@@ -1,7 +1,7 @@
  app.controller('DashboardInstructorBriefController', DashboardInstructorBriefController);
 
-    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService', 'PlaneService', 'TimeDisplayService'];
-    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService, PlaneService, TimeDisplayService) {
+    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService', 'PlaneService', 'TimeDisplayService', 'RecordsToFileService'];
+    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService, PlaneService, TimeDisplayService, RecordsToFileService) {
         var vm = this;
 
         // ── Pre-lesson questionnaire flag (shown on the briefing screen) ──
@@ -175,6 +175,10 @@
 
                     });
 
+                // Records a club admin entered on this instructor's behalf —
+                // they count already, but wait for the instructor to confirm.
+                load_awaiting_confirmation();
+
 
             break;
             case "debrief":
@@ -182,6 +186,9 @@
                 //console.log("booking_id", $stateParams.booking_id);
                 vm.plane_log_sheet_id = $stateParams.plane_log_sheet_id;
                 vm.booking_id = $stateParams.booking_id;
+                // A club admin filing on an instructor's behalf arrives from the
+                // Records to File page or a student's record — return there.
+                vm.from = ($stateParams.from === 'records_to_file' || $stateParams.from === 'student_records') ? $stateParams.from : null;
                 
                 console.log("STATEPARAMS: ", $stateParams);
 
@@ -239,6 +246,13 @@
                 // form (already returned here as data.course_id).
                 function handleDebriefData(data){
                     if(!data || !data.success){
+                        var load_error = data ? (data.error || (data.message && data.message.error)) : null;
+                        if(load_error === 'FORBIDDEN' || (data && data.status === 403)){
+                            // Not staff of the flight's club, and not its instructor.
+                            ToastService.error('No Access', 'You can only debrief flights at your own club, or flights you instructed.');
+                            vm.leave_debrief();
+                            return;
+                        }
                         ToastService.error('Load Failed', 'We could not obtain the debriefing information for you...');
                         return;
                     }
@@ -248,8 +262,15 @@
                     vm.record_club_id = data.club_id;
                     vm.lesson = data.lesson;
                     vm.all_items = data.all_items || [];
+                    // A club admin filing on an instructor's behalf may have no
+                    // default instructor club — use the flight's club instead.
+                    if(!vm.club_id && data.club_id){
+                        vm.club_id = data.club_id;
+                        vm.td.setClub(vm.club_id);
+                    }
                     vm.student = data.student;
                     vm.instructor = data.instructor;
+                    setup_record_instructor(data);
                     vm.plane_log_sheet = data.log_sheet;
                     vm.sheet_needs_book_in = !!(data.log_sheet && data.log_sheet.needs_book_in == 1);
                     vm.pending_split_leg = data.pending_split_leg || null;
@@ -383,6 +404,147 @@
                         ToastService.error('Not Restored', data.message || 'The flight could not be restored.');
                     }
                 });
+        };
+
+        // ═══════════════════════════════════════════════
+        // "Records entered for you" (debrief_list screen)
+        // ═══════════════════════════════════════════════
+        // Records a club admin filed on this instructor's behalf
+        // (BACKEND_ADMIN_STUDENT_RECORDS_GUIDE.md). They count already and show
+        // as awaiting confirmation until the instructor confirms (or edits) them.
+        // NB: called from the switch above, before this point runs — keep it a
+        // hoisted function and don't (re)initialise its state down here.
+        function load_awaiting_confirmation(){
+            vm.awaiting_loading = true;
+            RecordsToFileService.AwaitingConfirmation().then(function(data){
+                vm.awaiting_loading = false;
+                vm.awaiting = (data && data.success) ? (data.records || []) : [];
+            });
+        }
+
+        function remove_awaiting(r){
+            var i = (vm.awaiting || []).indexOf(r);
+            if(i > -1){ vm.awaiting.splice(i, 1); }
+        }
+
+        vm.confirm_awaiting = function(r){
+            RecordsToFileService.Confirm(r.id).then(function(data){
+                if(data && data.success){
+                    remove_awaiting(r);
+                    ToastService.success('Record Confirmed',
+                        (r.student_first_name || '') + ' ' + (r.student_last_name || '') + ' — your record is confirmed.', { confetti: false });
+                    return;
+                }
+                var code = data ? data.error : null;
+                if(code === 'ALREADY_SUPERSEDED'){
+                    // Edited since the list loaded — the live version is a new record.
+                    ToastService.warning('Record Changed', 'This record was edited since the list loaded — the list has been refreshed.');
+                    load_awaiting_confirmation();
+                } else if(code === 'NOTHING_TO_CONFIRM'){
+                    remove_awaiting(r);
+                    ToastService.warning('Nothing To Confirm', 'This record does not need your confirmation.');
+                } else if(code === 'NOT_FOUND'){
+                    remove_awaiting(r);
+                    ToastService.warning('Record Not Found', 'This record no longer exists.');
+                } else if(code === 'FORBIDDEN'){
+                    ToastService.error('Not Allowed', 'Only the instructor named on a record can confirm it.');
+                } else {
+                    ToastService.error('Not Confirmed', (data && data.message) || 'The record could not be confirmed.');
+                }
+            });
+        };
+
+        vm.review_awaiting = function(r){
+            $state.go('dashboard.manage_user.student_records', { club_id: r.club_id, student_id: r.student_id, course_id: r.course_id });
+        };
+
+        // ═══════════════════════════════════════════════
+        // DEBRIEF: filing on the instructor's behalf
+        // ═══════════════════════════════════════════════
+        // for_debrief / for_debrief_pls report filer_is_instructor. When false
+        // (a club admin, or someone other than the flight's instructor) the form
+        // asks who gave the lesson; the record is saved "entered on behalf" and
+        // shows as awaiting that instructor's confirmation. When true the
+        // instructor's own flow is exactly as before (no picker).
+        vm.show_instructor_picker = false;
+        vm.instructor_options = [];
+        vm.record_instructor = null;     // ui-select model — one of instructor_options
+        vm.instructor_error = false;     // .field-error on the picker
+
+        function setup_record_instructor(data){
+            vm.filer_is_club_admin = !!data.filer_is_club_admin;
+            vm.instructor_options = data.instructor_options || [];
+            // An older API response carries no flag: keep the unchanged flow.
+            vm.show_instructor_picker = (data.filer_is_instructor === false);
+            vm.instructor_error = false;
+            vm.record_instructor = null;
+            if(vm.show_instructor_picker && vm.instructor && vm.instructor.id){
+                vm.record_instructor = find_by_id(vm.instructor_options, vm.instructor.id) || vm.instructor;
+            }
+        }
+
+        // The instructor the record is filed under (sent as instructor_id).
+        function record_instructor_id(){
+            if(vm.show_instructor_picker){
+                return (vm.record_instructor && vm.record_instructor.id) ? Number(vm.record_instructor.id) : 0;
+            }
+            // Imported flights may have no instructor on the sheet — the person
+            // completing the debrief is the instructor of record.
+            return (vm.instructor && vm.instructor.id) ? vm.instructor.id : vm.user.id;
+        }
+
+        // Banner name — null when nobody is chosen or the chosen one is the caller.
+        vm.on_behalf_name = function(){
+            var r = vm.record_instructor;
+            if(!r || !r.id || Number(r.id) === Number(vm.user.id)){ return null; }
+            return ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || 'the instructor';
+        };
+        vm.on_record_instructor_pick = function(){
+            vm.instructor_error = false;
+        };
+        // "I gave this lesson" — only when the caller is one of the club's instructors.
+        vm.can_pick_self = function(){
+            if(!vm.show_instructor_picker){ return false; }
+            if(vm.record_instructor && Number(vm.record_instructor.id) === Number(vm.user.id)){ return false; }
+            return !!find_by_id(vm.instructor_options, vm.user.id);
+        };
+        vm.pick_self_instructor = function(){
+            var me = find_by_id(vm.instructor_options, vm.user.id);
+            if(me){
+                vm.record_instructor = me;
+                vm.on_record_instructor_pick();
+            }
+        };
+
+        // Field-error pattern (AGENT_GUIDE_ERROR_HANDLING.md) on the picker.
+        function flag_instructor_field(title, message){
+            vm.show_instructor_picker = true;
+            vm.instructor_error = true;
+            setTimeout(function(){   // the picker may only just have been revealed
+                var el = document.getElementById('field-dbf-instructor');
+                if(el){ el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            }, 0);
+            ToastService.error(title, message);
+        }
+
+        function error_code(data){
+            if(!data){ return null; }
+            if(data.error){ return data.error; }
+            return (data.message && typeof data.message === 'object') ? (data.message.error || null) : null;
+        }
+
+        // Where a FORBIDDEN load, BACK (when filing from elsewhere) and a
+        // successful save go when the debrief was opened with ?from=.
+        vm.leave_debrief = function(){
+            if(vm.from === 'records_to_file'){
+                $state.go('dashboard.manage_club.records_to_file');
+            } else if(vm.from === 'student_records' && vm.student && vm.student.id && vm.course_id){
+                $state.go('dashboard.manage_user.student_records', {
+                    club_id: vm.record_club_id, student_id: vm.student.id, course_id: vm.course_id
+                });
+            } else {
+                $rootScope.safeBack();
+            }
         };
 
         vm.show_all_lessons = false;
@@ -798,6 +960,13 @@
                 return false;
             }
 
+            // Filing for someone else: the record needs the instructor who gave
+            // the lesson (the backend refuses a non-instructor — INSTRUCTOR_REQUIRED).
+            if(vm.show_instructor_picker && !record_instructor_id()){
+                flag_instructor_field('Missing: Instructor', 'Please choose the instructor who gave this lesson before saving.');
+                return false;
+            }
+
             // Only an explicitly chosen next lesson is sent; otherwise the API
             // works it out from course order (sending the same lesson back made
             // the next debrief suggest the lesson just completed).
@@ -815,9 +984,10 @@
                 lesson_id: vm.lesson.id,
                 course_id: vm.course_id,
                 user_id: vm.student.id,
-                // Imported flights may have no instructor on the sheet — the
-                // person completing the debrief is the instructor of record.
-                instructor_id: (vm.instructor && vm.instructor.id) ? vm.instructor.id : vm.user.id,
+                // The flight's instructor (or, filing on their behalf, the one
+                // picked). completed_by is forced to the caller server-side; a
+                // record whose instructor isn't the caller is "entered on behalf".
+                instructor_id: record_instructor_id(),
                 completed_by: vm.user.id,
                 plane_log_sheet_id: vm.plane_log_sheet.id,
                 next_lesson_id: next_lesson,
@@ -838,16 +1008,31 @@
                     vm.saving = false;
                     if(data && data.success){
 
-                        ToastService.success('Records Saved', 'Thank you!');
+                        if(vm.on_behalf_name()){
+                            ToastService.success('Records Saved', 'Saved for ' + vm.on_behalf_name() + ' — it shows as awaiting their confirmation.');
+                        } else {
+                            ToastService.success('Records Saved', 'Thank you!');
+                        }
                         if(vm.show_split && vm.split_next_id && vm.split_next_id > 0){
                             $state.go('dashboard.my_account.book_in', {id: vm.split_next_id});
                             //dashboard.my_account.book_in({id: log.plane_log_sheet_id})
+                        } else if(vm.from){
+                            // Filed from Records to File / a student's record — go back there.
+                            vm.leave_debrief();
                         } else {
                             $state.go('dashboard.manage_user', {reload: true});
                         }
 
 
 
+                    } else if(error_code(data) === 'INSTRUCTOR_REQUIRED'){
+                        // The named instructor isn't an instructor at this club
+                        // (e.g. an admin left as the instructor) — pick the real one.
+                        if(vm.record_instructor && Number(vm.record_instructor.id) === Number(vm.user.id)){
+                            vm.record_instructor = null;
+                        }
+                        var ir_msg = (data && typeof data.message === 'string' && data.message) ? data.message : 'Choose the instructor who gave this lesson.';
+                        flag_instructor_field('Instructor Required', ir_msg);
                     } else {
                         // VALIDATION_ERROR / SAVE_FAILED / DUPLICATE carry the reason
                         var why = (data && data.message) ? (typeof data.message === 'string' ? data.message : (data.message.message || '')) : '';
@@ -947,7 +1132,7 @@
                 lesson_id: vm.lesson.id,
                 course_id: vm.course_id,
                 user_id: vm.student.id,
-                instructor_id: vm.instructor.id,
+                instructor_id: record_instructor_id(),
                 completed_by: vm.user.id,
                 plane_log_sheet_id: vm.plane_log_sheet.id,
                 next_lesson_id: next_lesson,

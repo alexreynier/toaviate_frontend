@@ -1,7 +1,7 @@
  app.controller('DashboardStudentRecordsController', DashboardStudentRecordsController);
 
-    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService', 'CaaFormsService', 'TimeDisplayService'];
-    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService, CaaFormsService, TimeDisplayService) {
+    DashboardStudentRecordsController.$inject = ['ClubService', 'UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'MemberService', '$sce', 'ToastService', 'SoloRequirementsService', 'ExamSalesService', 'CaaFormsService', 'TimeDisplayService', 'RecordsToFileService'];
+    function DashboardStudentRecordsController(ClubService, UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, MemberService, $sce, ToastService, SoloRequirementsService, ExamSalesService, CaaFormsService, TimeDisplayService, RecordsToFileService) {
         var vm = this;
 
            //    /* PLEASE DO NOT COPY AND PASTE THIS CODE. */(function(){var w=window,C='___grecaptcha_cfg',cfg=w[C]=w[C]||{},N='grecaptcha';var gr=w[N]=w[N]||{};gr.ready=gr.ready||function(f){(cfg['fns']=cfg['fns']||[]).push(f);};(cfg['render']=cfg['render']||[]).push('explicit');(cfg['onload']=cfg['onload']||[]).push('initRecaptcha');w['__google_recaptcha_client']=true;var d=document,po=d.createElement('script');po.type='text/javascript';po.async=true;po.src='https://www.gstatic.com/recaptcha/releases/JPZ52lNx97aD96bjM7KaA0bo/recaptcha__en.js';var e=d.querySelector('script[nonce]'),n=e&&(e['nonce']||e.getAttribute('nonce'));if(n){po.setAttribute('nonce',n);}var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(po, s);})();
@@ -152,6 +152,8 @@
             vm.course = null;
             vm.show_record = false;
             vm._initialMembers = [];
+            vm.unfiled = [];
+            vm.unfiled_total = 0;
 
             // A club switch invalidates any student/course in the URL.
             sync_url(true);
@@ -346,6 +348,8 @@
                     vm.exam_records = data.exam_records;
                     vm.course_totals = data.course_hours;
                     vm.log_sheets = data.log_sheets;
+                    index_records();
+                    load_unfiled_flights();
                     // Same lesson accordions the member-facing screen uses.
                     vm.lessons = group_items_by_lesson(vm.all_items);
                     vm.grade_legend = build_grade_legend(vm.all_items);
@@ -1142,7 +1146,9 @@
             vm.show_edit_training_record = false;
             vm.show_popup_name = "see_records";
             vm.flight_detail_id = pls_id;
-            vm.user_can_edit = vm.user_can_edit_record();
+            // Staff of the record's club only — decided once the record (and so
+            // its club) is in; until then the page's club stands in.
+            vm.user_can_edit = vm.user_can_edit_record(plane_log_sheet && plane_log_sheet.club_id);
 
             vm.selected_flight = plane_log_sheet;
 
@@ -1157,6 +1163,9 @@
                         vm.selected_record = data.all_items;
                         vm.selected_record_remarks = data.general_remarks;
                         vm.this_entry = data.this_entry;
+                        if(vm.this_entry && vm.this_entry.club_id){
+                            vm.user_can_edit = vm.user_can_edit_record(vm.this_entry.club_id);
+                        }
 
                     });
         }
@@ -1652,6 +1661,7 @@
                     vm.course_totals = data.course_hours;
                     vm.log_sheets = data.log_sheets;
                     vm.questionnaires = data.questionnaires || [];
+                    index_records();
                     vm.lessons = group_items_by_lesson(vm.all_items);
                     vm.grade_legend = build_grade_legend(vm.all_items);
                 });
@@ -1705,23 +1715,143 @@
             
         }
 
-        vm.user_can_edit_record = function(){
-            // vm.training_records.club_id
-            // vm.user.access.manager
-            var is_manager = (vm.user.access.manager.find(function(item){ return item === vm.training_records.club_id; }))? true : false;
-
-            if(vm.training_records.instructor_id == vm.user_id || vm.user_id == vm.training_records.completed_by || is_manager){
-                console.log("should have access to edit this record");
-                return true;
-            }
-
-            console.log("should NOT have access to edit this record - tempo return true though");
-            //this should be false
-            return true;
+        // Staff of the record's club (instructor, manager or super-admin there)
+        // may edit it — the same rule the backend enforces on PUT
+        // training_records/{id}. club_id: the record's club; falls back to the
+        // club this page is showing.
+        vm.user_can_edit_record = function(club_id){
+            var cid = Number(club_id || vm.club_id || 0);
+            if(!cid){ return false; }
+            var access = (vm.user && vm.user.access) || {};
+            return ['instructor', 'manager', 'super_admin'].some(function(role){
+                return (access[role] || []).some(function(c){ return Number(c) === cid; });
+            });
         }
+
+        // ═══════════════════════════════════════════════
+        // ENTERED ON BEHALF / CONFIRMATION (BACKEND_ADMIN_STUDENT_RECORDS_GUIDE.md)
+        // ═══════════════════════════════════════════════
+        // A record filed by someone other than its instructor counts at once but
+        // shows "Awaiting instructor confirmation" until that instructor
+        // confirms it (or edits it themselves). training_records[] carries the
+        // record's own instructor_id; log_sheets[] rows point at it by
+        // training_record_id.
+        vm.record_by_id = {};
+        function index_records(){
+            vm.record_by_id = {};
+            (vm.training_records || []).forEach(function(r){ vm.record_by_id[r.id] = r; });
+        }
+
+        vm.record_for_log = function(log){
+            return (log && log.training_record_id) ? (vm.record_by_id[log.training_record_id] || null) : null;
+        };
+        // Flights-table row: a record entered on someone's behalf, not yet confirmed.
+        vm.log_awaiting = function(log){
+            return !!(log && log.training_record_id && Number(log.entered_on_behalf) === 1 && !log.instructor_confirmed_at);
+        };
+        vm.log_entered_by = function(log){
+            if(!log || Number(log.entered_on_behalf) !== 1){ return ''; }
+            return ((log.entered_by_first_name || '') + ' ' + (log.entered_by_last_name || '')).trim();
+        };
+        vm.log_instructor = function(log){
+            if(!log){ return ''; }
+            return ((log.instructor_first_name || '') + ' ' + (log.instructor_last_name || '')).trim();
+        };
+        // The viewer is the record's instructor and it is still awaiting them.
+        vm.can_confirm_record = function(record_id){
+            var r = vm.record_by_id[record_id];
+            return !!(r && Number(r.awaiting_instructor_confirmation) === 1 && Number(r.instructor_id) === Number(vm.user_id));
+        };
+        // Detail drawer: the open record is awaiting confirmation.
+        vm.entry_awaiting = function(){
+            var e = vm.this_entry;
+            return !!(e && e.id && Number(e.entered_on_behalf) === 1 && !e.instructor_confirmed_at);
+        };
+
+        vm.confirm_record = function(record_id){
+            if(!record_id){ return; }
+            RecordsToFileService.Confirm(record_id).then(function(data){
+                if(data && data.success){
+                    ToastService.success('Record Confirmed', 'Thank you — the record no longer shows as awaiting confirmation.', { confetti: false });
+                } else if(data && data.error === 'ALREADY_SUPERSEDED'){
+                    ToastService.warning('Record Changed', 'This record was edited since you opened it — the records have been reloaded.');
+                } else if(data && data.error === 'NOTHING_TO_CONFIRM'){
+                    ToastService.warning('Nothing To Confirm', 'This record does not need your confirmation.');
+                } else if(data && data.error === 'FORBIDDEN'){
+                    ToastService.error('Not Allowed', 'Only the instructor named on a record can confirm it.');
+                    return;
+                } else {
+                    ToastService.error('Not Confirmed', (data && data.message) || 'The record could not be confirmed.');
+                    return;
+                }
+                // Refetch either way so the chips (and any newer version) are current.
+                reload_after_save();
+            });
+        };
+
+        // ── Flights without a record (club admins of this page's club) ──
+        // The student's flights at this club that still need a training record
+        // (training_records/to_file?student_id=). "File record" opens the
+        // debrief form with from=student_records, which comes back here.
+        vm.unfiled = [];
+        vm.unfiled_total = 0;
+        vm.unfiled_loading = false;
+        vm.is_club_admin_here = function(){
+            var cid = Number(vm.club_id || 0);
+            if(!cid){ return false; }
+            var access = (vm.user && vm.user.access) || {};
+            return ['manager', 'super_admin'].some(function(role){
+                return (access[role] || []).some(function(c){ return Number(c) === cid; });
+            });
+        };
+
+        var unfiled_seq = 0;
+        function load_unfiled_flights(){
+            vm.unfiled = [];
+            vm.unfiled_total = 0;
+            if(vm.action !== 'student_records' || !vm.is_club_admin_here() || !vm.student_id){ return; }
+            var mine = ++unfiled_seq;
+            vm.unfiled_loading = true;
+            RecordsToFileService.Queue(vm.club_id, { student_id: vm.student_id, per_page: 50 }).then(function(data){
+                if(mine !== unfiled_seq){ return; }
+                vm.unfiled_loading = false;
+                if(data && data.success){
+                    vm.unfiled = data.flights || [];
+                    vm.unfiled_total = data.total || vm.unfiled.length;
+                }
+                // FORBIDDEN / a failure: the section simply stays hidden.
+            });
+        }
+
+        vm.unfiled_kind = function(kind){
+            if(kind === 'dual'){ return 'Dual'; }
+            if(kind === 'supervised_solo'){ return 'Supervised solo'; }
+            return 'Instructional';
+        };
+
+        vm.file_unfiled = function(f){
+            if(!f || f.needs_book_in == 1){ return; }
+            $state.go('dashboard.manage_user.debriefing', {
+                booking_id: (f.booking_id && Number(f.booking_id) > 0) ? Number(f.booking_id) : 0,
+                plane_log_sheet_id: f.plane_log_sheet_id,
+                split_next_id: null,
+                split_booking_id: null,
+                from: 'student_records'
+            });
+        };
 
         // Export Course Record as PDF
         vm.exporting_pdf = false;
+
+        // TEMPORARY (review by 2026-11-13 — backend TEMPORARY_MEASURES_REVIEW.md #1):
+        // "Leave out syllabus progress" while imported records carry no graded
+        // items, so the progress pages print empty. Remembered in this browser.
+        vm.export_skip_progress = false;
+        try { vm.export_skip_progress = $window.localStorage.getItem('sr_export_skip_progress') === '1'; } catch (e) {}
+        vm.remember_export_options = function() {
+            try { $window.localStorage.setItem('sr_export_skip_progress', vm.export_skip_progress ? '1' : '0'); } catch (e) {}
+        };
+
         vm.exportCourseRecord = function() {
             if (!vm.course_id || !vm.student_id) {
                 ToastService.warning('Export Error', 'Please load a course record first.');
@@ -1730,7 +1860,7 @@
 
             vm.exporting_pdf = true;
 
-            CourseService.ExportCourseRecord(vm.course_id, vm.student_id)
+            CourseService.ExportCourseRecord(vm.course_id, vm.student_id, { include_progress: !vm.export_skip_progress })
                 .then(function(response) {
                     vm.exporting_pdf = false;
 

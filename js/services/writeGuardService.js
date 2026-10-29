@@ -149,7 +149,10 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         ENTRY_REQUIRED: 1, ENTRY_NOT_FOUND: 1, ENTRY_IMEI_MISMATCH: 1, ALREADY_LINKED: 1,
         ALREADY_UNLINKED: 1, FILE_MISSING: 1, APPLY_FAILED: 1, EMPTY_SEGMENT: 1,
         PHANTOM_SPLIT_POINT: 1, BLOCKED: 1, NOT_SUSPECT: 1, NOT_A_SPLIT: 1,  // split picker confirm / suspect-splits unsplit
-        OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED: 1   // cancel-claim on a split pair → checkbox in the modal
+        OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED: 1,  // cancel-claim on a split pair → checkbox in the modal
+        // Records entered on an instructor's behalf (BACKEND_ADMIN_STUDENT_RECORDS_GUIDE.md):
+        // the debrief flags its instructor picker; confirm/edit toast their own outcome.
+        INSTRUCTOR_REQUIRED: 1, NOTHING_TO_CONFIRM: 1, ALREADY_SUPERSEDED: 1
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes

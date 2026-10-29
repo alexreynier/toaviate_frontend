@@ -291,9 +291,13 @@ app.factory('CourseService', CourseService);
         }
 
 
-        function ExportCourseRecord(course_id, student_id) {
+        // options.include_progress === false → ?include_progress=0. TEMPORARY
+        // (review by 2026-11-13, backend TEMPORARY_MEASURES_REVIEW.md #1).
+        function ExportCourseRecord(course_id, student_id, options) {
+            var params = (options && options.include_progress === false) ? { include_progress: 0 } : undefined;
             return $http.get('/api/v1/course_record_export/' + course_id + '/' + student_id, {
-                responseType: 'arraybuffer'
+                responseType: 'arraybuffer',
+                params: params
             }).then(function(res) {
                 return res;
             }, function(res) {
