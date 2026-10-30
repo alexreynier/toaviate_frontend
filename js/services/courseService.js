@@ -18,6 +18,7 @@ app.factory('CourseService', CourseService);
         service.DeleteLesson = DeleteLesson;
         service.UpdateLessonOrder = UpdateLessonOrder;
         service.UpdateCourseOrder = UpdateCourseOrder;
+        service.sortByDisplayOrder = sortByDisplayOrder;
 
         service.GetTemByLessonId = GetTemByLessonId;
         service.CreateTem = CreateTem;
@@ -133,6 +134,26 @@ app.factory('CourseService', CourseService);
         // Mirrors lessons/organise. Backend sorts GET courses/club/{id} by display_order.
         function UpdateCourseOrder(club_id, order){
             return $http.post('/api/v1/courses/organise', { club_id: club_id, order: order }).then(handleSuccess, handleError2);
+        }
+
+        // Order a course list the way the manager arranged it on Manage Club -> Courses
+        // (courses.display_order, 0-based), title as the tie-break. Courses with no
+        // display_order (older endpoints) keep their server order, after the ordered ones.
+        // Returns a NEW array (never mutates the input). Run EVERY course picker through this
+        // so the drag-and-drop order is honoured no matter which endpoint supplied the list.
+        function sortByDisplayOrder(list){
+            if (!Array.isArray(list)) { return list; }
+            return list.map(function(c, i){ return { c: c, i: i }; })
+                .sort(function(a, b){
+                    var ao = parseInt(a.c && a.c.display_order, 10), bo = parseInt(b.c && b.c.display_order, 10);
+                    var an = isNaN(ao), bn = isNaN(bo);
+                    if (an && bn) { return a.i - b.i; }
+                    if (an) { return 1; }
+                    if (bn) { return -1; }
+                    if (ao !== bo) { return ao - bo; }
+                    return String(a.c.title || '').localeCompare(String(b.c.title || ''));
+                })
+                .map(function(w){ return w.c; });
         }
 
 

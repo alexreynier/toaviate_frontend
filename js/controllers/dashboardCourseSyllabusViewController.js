@@ -67,7 +67,7 @@
                 //console.log("view list of existing courses");
                 CourseService.GetCoursesByClubId(vm.club_id)
                     .then(function(data){
-                        vm.courses = data.items;   
+                        vm.courses = CourseService.sortByDisplayOrder(data.items);   
                     });
             break;
             default:

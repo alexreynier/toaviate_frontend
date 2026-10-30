@@ -1,7 +1,7 @@
 app.controller('ExamResultsController', ExamResultsController);
 
-    ExamResultsController.$inject = ['ExamSalesService', 'ClubService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$uibModal', 'PaymentService', 'MemberService', '$sce'];
-    function ExamResultsController(ExamSalesService, ClubService, ToastService, $rootScope, $scope, $state, $stateParams, $uibModal, PaymentService, MemberService, $sce) {
+    ExamResultsController.$inject = ['ExamSalesService', 'CourseService', 'ClubService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$uibModal', 'PaymentService', 'MemberService', '$sce'];
+    function ExamResultsController(ExamSalesService, CourseService, ClubService, ToastService, $rootScope, $scope, $state, $stateParams, $uibModal, PaymentService, MemberService, $sce) {
 
         // Exam results admin screen — four tabs:
         //   outstanding  purchases awaiting a result (oldest first, amber > 7 days)
@@ -314,7 +314,7 @@ app.controller('ExamResultsController', ExamResultsController);
                         exam._price = exam._override && exam.price !== null ? parseFloat(exam.price) : null;
                     });
                 });
-                vm.pricing.courses = courses;
+                vm.pricing.courses = CourseService.sortByDisplayOrder(courses);
             });
         };
 

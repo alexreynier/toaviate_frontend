@@ -110,7 +110,7 @@
                                 // Auto-select the booking's course and show its lessons
                                 CourseService.GetCoursesByClubId(vm.briefing_club_id)
                                     .then(function(courseData) {
-                                        vm.course_picker_courses = courseData.items || [];
+                                        vm.course_picker_courses = CourseService.sortByDisplayOrder(courseData.items || []);
                                         // Find the matching course
                                         var matchedCourse = null;
                                         for (var i = 0; i < vm.course_picker_courses.length; i++) {
@@ -307,7 +307,7 @@
                     if (vm.record_club_id) {
                         CourseService.GetCoursesByClubId(vm.record_club_id)
                         .then(function(courseData){
-                            vm.debrief_courses = courseData.items || [];
+                            vm.debrief_courses = CourseService.sortByDisplayOrder(courseData.items || []);
                             vm.course_obj = find_by_id(vm.debrief_courses, vm.course_id);
                         });
                     }
@@ -1250,7 +1250,7 @@
         function loadCoursesForBriefing() {
             CourseService.GetCoursesByClubId(vm.briefing_club_id)
                 .then(function(data) {
-                    vm.course_picker_courses = data.items || [];
+                    vm.course_picker_courses = CourseService.sortByDisplayOrder(data.items || []);
                     vm.course_picker_loading = false;
                 })
                 .catch(function() {

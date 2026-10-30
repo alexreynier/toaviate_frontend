@@ -41,7 +41,7 @@ app.controller('AssignToStudentModalController', AssignToStudentModalController)
         // Load the club's courses up front.
         CourseService.GetCoursesByClubId(clubId).then(function(data) {
             m.loadingCourses = false;
-            m.courses = listOf(data, ['items', 'courses']);
+            m.courses = CourseService.sortByDisplayOrder(listOf(data, ['items', 'courses']));
         });
 
         function listOf(data, keys) {

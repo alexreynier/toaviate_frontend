@@ -135,7 +135,7 @@
             if (lk.loaded || lk.loading) return;
             lk.loading = true;
             CourseService.GetCoursesByClubId(vm.club_id).then(function(data) {
-                lk.courses = (data && data.items) || [];
+                lk.courses = CourseService.sortByDisplayOrder((data && data.items) || []);
             });
             QuestionnaireService.ListByClub(vm.club_id).then(function(data) {
                 lk.questionnaires = (data && (data.items || data.questionnaires)) || [];

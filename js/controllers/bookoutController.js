@@ -1440,7 +1440,7 @@
                 // vm.bookout.tuition_required
                 CourseService.GetCoursesByClubId(vm.bookout.club_id)
                                 .then(function(data){
-                                    vm.courses = data.items;   
+                                    vm.courses = CourseService.sortByDisplayOrder(data.items);   
                                      console.log("COURSES", vm.courses);
                                      console.log("COURSES", vm.bookout.course_id);
 

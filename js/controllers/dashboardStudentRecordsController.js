@@ -168,7 +168,7 @@
 
             MemberService.GetAllByClubStudents(club_id)
                 .then(function(data) {
-                    vm.courses = data.courses;
+                    vm.courses = CourseService.sortByDisplayOrder(data.courses);
                     vm.members = data.members || [];
                     vm._initialMembers = vm.members.slice();
                     restore_link_selection();
@@ -263,7 +263,7 @@
             CourseService.GetCoursesByClubId(vm.club_id)
                     .then(function(data){
 
-                        vm.courses = data.items;
+                        vm.courses = CourseService.sortByDisplayOrder(data.items);
 
                     });
         }

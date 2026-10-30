@@ -283,7 +283,7 @@
 
                                 CourseService.GetCoursesByClubId(vm.new_booking.club_id)
                                 .then(function(data){
-                                    vm.courses = data.items;   
+                                    vm.courses = CourseService.sortByDisplayOrder(data.items);   
                                 });
 
 
@@ -1607,7 +1607,7 @@
 
          CourseService.GetCoursesByClubId(vm.new_booking.plane.club_id)
                     .then(function(data){
-                        vm.courses = data.items;   
+                        vm.courses = CourseService.sortByDisplayOrder(data.items);   
                     });
 
 

@@ -249,8 +249,8 @@ app.controller('TpcImportController', TpcImportController);
 
 app.controller('TpcImportRunController', TpcImportRunController);
 
-    TpcImportRunController.$inject = ['TpcImportService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$interval', '$timeout', '$document', '$q'];
-    function TpcImportRunController(TpcImportService, ToastService, $rootScope, $scope, $state, $stateParams, $interval, $timeout, $document, $q) {
+    TpcImportRunController.$inject = ['TpcImportService', 'CourseService', 'ToastService', '$rootScope', '$scope', '$state', '$stateParams', '$interval', '$timeout', '$document', '$q'];
+    function TpcImportRunController(TpcImportService, CourseService, ToastService, $rootScope, $scope, $state, $stateParams, $interval, $timeout, $document, $q) {
 
         var vm = this;
 
@@ -999,7 +999,7 @@ app.controller('TpcImportRunController', TpcImportRunController);
         // and let the reviewer correct it before applying.
         vm.courses = [];
         TpcImportService.CoursesForClub(vm.club_id).then(function(data) {
-            vm.courses = (data && data.courses) || [];
+            vm.courses = CourseService.sortByDisplayOrder((data && data.courses) || []);
         });
 
         vm.lessonsFor = function(course_id) {

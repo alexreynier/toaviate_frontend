@@ -4763,7 +4763,7 @@
 
             CourseService.GetCoursesByClubId(booking.club_id)
                 .then(function(data){
-                    vm.club_courses = data.items;
+                    vm.club_courses = CourseService.sortByDisplayOrder(data.items);
 
                     if(vm.bookout.instructor_id > 0 || vm.bookout.put_id > 0 || vm.this_was_instructional_claim || vm.this_claim_was_instructional || vm.bookout.course_id > 0){
                         // console.log("process bookout to book in");

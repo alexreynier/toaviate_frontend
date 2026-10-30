@@ -1,7 +1,7 @@
  app.controller('DashboardClubShopSaleController', DashboardClubShopSaleController);
 
-    DashboardClubShopSaleController.$inject = ['$timeout', '$sce', 'ExperiencesService', 'PaymentService', '$scope', '$rootScope', 'MemberService', 'ClubService', 'ShopItemService', '$state', 'PackageService', 'ExamSalesService', 'ToastService', '$uibModal'];
-    function DashboardClubShopSaleController($timeout, $sce, ExperiencesService, PaymentService, $scope, $rootScope,   MemberService, ClubService, ShopItemService, $state, PackageService, ExamSalesService, ToastService, $uibModal) {
+    DashboardClubShopSaleController.$inject = ['$timeout', '$sce', 'ExperiencesService', 'PaymentService', '$scope', '$rootScope', 'MemberService', 'ClubService', 'ShopItemService', '$state', 'PackageService', 'ExamSalesService', 'CourseService', 'ToastService', '$uibModal'];
+    function DashboardClubShopSaleController($timeout, $sce, ExperiencesService, PaymentService, $scope, $rootScope,   MemberService, ClubService, ShopItemService, $state, PackageService, ExamSalesService, CourseService, ToastService, $uibModal) {
 
           var vm = this;
 
@@ -478,7 +478,7 @@
               vm.exams.loading = true;
               ExamSalesService.GetCatalog(vm.club_id).then(function(data){
                   vm.exams.loading = false;
-                  vm.exams.courses = (data && data.courses) || [];
+                  vm.exams.courses = CourseService.sortByDisplayOrder((data && data.courses) || []);
                   if (vm.exams.courses.length === 1) { vm.exams.selected_course = vm.exams.courses[0]; }
               });
               vm.exams.pending_loading = true;

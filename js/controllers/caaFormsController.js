@@ -14,9 +14,9 @@
 
 app.controller('CaaFormsController', CaaFormsController);
 
-    CaaFormsController.$inject = ['CaaFormsService', 'InstructorService', 'MemberService', 'UserService', 'ClubService', 'ToastService',
+    CaaFormsController.$inject = ['CaaFormsService', 'InstructorService', 'MemberService', 'UserService', 'ClubService', 'ToastService', 'CourseService',
                                   '$rootScope', '$state', '$stateParams', '$uibModal', '$q'];
-    function CaaFormsController(CaaFormsService, InstructorService, MemberService, UserService, ClubService, ToastService,
+    function CaaFormsController(CaaFormsService, InstructorService, MemberService, UserService, ClubService, ToastService, CourseService,
                                 $rootScope, $state, $stateParams, $uibModal, $q) {
         var vm = this;
         var CLUB_KEY = 'toaviate_instructor_selected_club_id';
@@ -561,7 +561,7 @@ app.controller('CaaFormsController', CaaFormsController);
                         return;
                     }
                     applyPrefill(data);
-                    vm.courses = (data.context && data.context.courses) || [];
+                    vm.courses = CourseService.sortByDisplayOrder((data.context && data.context.courses) || []);
                 });
             };
 

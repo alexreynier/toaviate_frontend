@@ -453,7 +453,7 @@
                                 // console.log("GET COURSES");
                                 CourseService.GetCoursesByClubId(vm.new_booking.club_id)
                                 .then(function(data){
-                                    vm.courses = data.items;   
+                                    vm.courses = CourseService.sortByDisplayOrder(data.items);   
                                     // console.log("COURSES", vm.courses);
 
                                     //set new_booking.tuition-required 
@@ -2280,7 +2280,7 @@
 
          CourseService.GetCoursesByClubId(vm.new_booking.plane.club_id || vm.club_id)
                     .then(function(data){
-                        vm.courses = data.items;
+                        vm.courses = CourseService.sortByDisplayOrder(data.items);
 
                         // Re-select tuition_required from the new courses array
                         // so the ui-select object reference matches
@@ -3504,7 +3504,7 @@
             // Load courses for this club
             CourseService.GetCoursesByClubId(booking_club_id)
             .then(function(data){
-                vm.courses = data.items;
+                vm.courses = CourseService.sortByDisplayOrder(data.items);
             });
 
             // Refresh instructors for this specific plane, but preserve our pre-selected instructor

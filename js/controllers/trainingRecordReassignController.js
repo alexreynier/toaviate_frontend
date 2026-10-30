@@ -13,8 +13,8 @@
 
 app.controller('TrainingRecordReassignController', TrainingRecordReassignController);
 
-    TrainingRecordReassignController.$inject = ['TpcImportService', 'MemberService', 'PlaneService', 'ToastService', '$rootScope', '$timeout'];
-    function TrainingRecordReassignController(TpcImportService, MemberService, PlaneService, ToastService, $rootScope, $timeout) {
+    TrainingRecordReassignController.$inject = ['TpcImportService', 'CourseService', 'MemberService', 'PlaneService', 'ToastService', '$rootScope', '$timeout'];
+    function TrainingRecordReassignController(TpcImportService, CourseService, MemberService, PlaneService, ToastService, $rootScope, $timeout) {
 
         var vm = this;
         var PER_PAGE = 50;
@@ -59,7 +59,7 @@ app.controller('TrainingRecordReassignController', TrainingRecordReassignControl
 
         function loadPickers() {
             TpcImportService.CoursesForClub(vm.club_id).then(function(data) {
-                vm.courses = (data && data.courses) || [];
+                vm.courses = CourseService.sortByDisplayOrder((data && data.courses) || []);
             });
             MemberService.GetAllByClub(vm.club_id).then(function(data) {
                 var list = angular.isArray(data) ? data : (data && data.members) || [];

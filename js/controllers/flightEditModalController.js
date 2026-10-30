@@ -516,11 +516,11 @@ app.controller('FlightEditModalController', FlightEditModalController);
             CourseService.GetCoursesByClubId(clubId)
                 .then(function(data) {
                     if (data && data.items) {
-                        $scope.courses = data.items;
+                        $scope.courses = CourseService.sortByDisplayOrder(data.items);
                     } else if (data && data.courses) {
-                        $scope.courses = data.courses;
+                        $scope.courses = CourseService.sortByDisplayOrder(data.courses);
                     } else if (Array.isArray(data)) {
-                        $scope.courses = data;
+                        $scope.courses = CourseService.sortByDisplayOrder(data);
                     }
                 });
         }

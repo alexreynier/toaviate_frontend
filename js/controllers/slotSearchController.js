@@ -109,7 +109,7 @@ app.controller('SlotSearchController', SlotSearchController);
         function loadCourseAndTuitionOptions() {
             CourseService.GetCoursesByClubId(vm.club_id)
                 .then(function(data) {
-                    vm.courses = (data && data.items) ? data.items : (Array.isArray(data) ? data : []);
+                    vm.courses = CourseService.sortByDisplayOrder((data && data.items) ? data.items : (Array.isArray(data) ? data : []));
                 });
             InstructorCharges.GetByClubId(vm.club_id)
                 .then(function(data) {

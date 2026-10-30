@@ -510,13 +510,7 @@
         }
 
         function sortCoursesByOrder(list){
-            return list.slice().sort(function(a, b){
-                var ao = parseInt(a.display_order, 10), bo = parseInt(b.display_order, 10);
-                if (isNaN(ao)) { ao = 1e9; }
-                if (isNaN(bo)) { bo = 1e9; }
-                if (ao !== bo) { return ao - bo; }
-                return String(a.title || '').localeCompare(String(b.title || ''));
-            });
+            return CourseService.sortByDisplayOrder(list || []);
         }
 
         // dnd-moved: the dragged course has been inserted at its new index; drop the
