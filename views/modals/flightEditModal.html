@@ -362,21 +362,11 @@
         <div class="fe-field-row" ng-if="hasBooking">
           <div class="fe-field fe-field--third">
             <label class="fe-field__label">Landings</label>
-            <input type="number" class="fe-field__input" ng-model="form.landings" min="0" />
+            <input type="number" class="fe-field__input" ng-model="form.full_stop_landings" min="0" />
           </div>
           <div class="fe-field fe-field--third">
             <label class="fe-field__label">Touch &amp; Go's</label>
-            <input type="number" class="fe-field__input" ng-model="form.touch_and_gos" min="0" />
-          </div>
-          <div class="fe-field fe-field--third">
-            <label class="fe-field__label">Night Landings</label>
-            <input type="number" class="fe-field__input" ng-model="form.night_landings" min="0" />
-          </div>
-        </div>
-        <div class="fe-field-row" ng-if="hasBooking">
-          <div class="fe-field fe-field--full">
-            <label class="fe-field__label">Route</label>
-            <input type="text" class="fe-field__input" ng-model="form.route" placeholder="e.g. EGBJ — EGHH — EGBJ" />
+            <input type="number" class="fe-field__input" ng-model="form.touch_and_go" min="0" />
           </div>
         </div>
       </div>
@@ -537,12 +527,42 @@
     </div>
 
     <!-- ── FINANCIAL IMPACT ── -->
-    <div class="fe-preview-section fe-preview-section--financial" ng-if="preview.financial_impact.has_impact">
+    <!-- Shown whenever the charges were recalculated (a time/aircraft/crew
+         edit), including when they came out unchanged — the admin should see
+         "no change to the invoice", not nothing. -->
+    <div class="fe-preview-section fe-preview-section--financial" ng-if="preview.financial_impact.original_total !== null && preview.financial_impact.original_total !== undefined">
       <div class="fe-preview-section__header">
         <i class="fa fa-pound-sign"></i> Financial Impact
       </div>
       <div class="fe-preview-section__body">
-        <div class="fe-financial-summary">
+
+        <!-- Charges unchanged -->
+        <div class="fe-financial-notice fe-financial-notice--neutral" ng-if="!preview.financial_impact.has_impact">
+          <i class="fa fa-check-circle"></i>
+          <span>No change to the member's invoice — it stays at {{ formatAmount(preview.financial_impact.original_total) }}.</span>
+        </div>
+
+        <!-- Invoice already out of step with the flight's times -->
+        <div class="fe-financial-notice fe-financial-notice--warn" ng-if="preview.financial_impact.invoice_drift && (preview.financial_impact.invoice_drift > 0.01 || preview.financial_impact.invoice_drift < -0.01)">
+          <i class="fa fa-info-circle"></i>
+          <span>The invoice ({{ formatAmount(preview.financial_impact.original_total) }}) does not match what the flight's <em>current</em> times would charge ({{ formatAmount(preview.financial_impact.current_calculated_total) }}). The difference below includes that existing gap, not only this edit.</span>
+        </div>
+
+        <!-- What the aircraft charge is billed on, before → after -->
+        <div class="fe-financial-billing" ng-if="preview.financial_impact.billing && preview.financial_impact.billing.before.from">
+          <span class="fe-financial-billing__label">{{ billingBasisLabel(preview.financial_impact.billing.basis) }}</span>
+          <span class="fe-financial-billing__window">
+            {{ preview.financial_impact.billing.before.from }}–{{ preview.financial_impact.billing.before.to }}
+            <small>({{ preview.financial_impact.billing.before.units | number:2 }} h)</small>
+          </span>
+          <i class="fa fa-long-arrow-alt-right fe-diff__arrow"></i>
+          <span class="fe-financial-billing__window" ng-class="{'fe-financial-billing__window--changed': billingWindowChanged()}">
+            {{ preview.financial_impact.billing.after.from }}–{{ preview.financial_impact.billing.after.to }}
+            <small>({{ preview.financial_impact.billing.after.units | number:2 }} h)</small>
+          </span>
+        </div>
+
+        <div class="fe-financial-summary" ng-if="preview.financial_impact.has_impact">
           <div class="fe-financial-row">
             <span>Original total:</span>
             <span>{{ formatAmount(preview.financial_impact.original_total) }}</span>
@@ -562,18 +582,18 @@
 
         <!-- Charge Breakdown -->
         <div class="fe-financial-breakdown" ng-if="preview.financial_impact.breakdown">
-          <h5 class="fe-financial-breakdown__title">Charge Breakdown</h5>
+          <h5 class="fe-financial-breakdown__title">Charge Breakdown <small ng-if="preview.financial_impact.vat_included">— amounts include VAT at {{ preview.financial_impact.vat_info.vat_rate }}%</small></h5>
           <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.charge_type">
             <span>Charge Type:</span>
             <span class="fe-badge fe-badge--type">{{ preview.financial_impact.breakdown.charge_type | uppercase }}</span>
           </div>
           <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.charge_rate">
             <span>Rate:</span>
-            <span>{{ formatAmount(preview.financial_impact.breakdown.charge_rate) }} / unit</span>
+            <span>{{ formatAmount(preview.financial_impact.breakdown.charge_rate) }} / {{ unitLabel(preview.financial_impact.breakdown.charge_type) }}</span>
           </div>
           <div class="fe-financial-row" ng-if="preview.financial_impact.breakdown.units">
-            <span>Units:</span>
-            <span>{{ preview.financial_impact.breakdown.units | number:3 }}</span>
+            <span>Billed {{ unitLabel(preview.financial_impact.breakdown.charge_type) }}s:</span>
+            <span>{{ preview.financial_impact.breakdown.units | number:2 }}</span>
           </div>
           <div class="fe-financial-row">
             <span>Aircraft Charge:</span>

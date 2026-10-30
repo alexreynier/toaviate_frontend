@@ -2,7 +2,11 @@
 
     <div class="snazzy-page__header">
             <div class="snazzy-page__header-inner">
-              <div class="back-box" ui-sref="dashboard.my_account({reload: true})">
+              <div class="back-box" ng-if="!vm.from" ui-sref="dashboard.my_account({reload: true})">
+                <i class="fa fa-arrow-circle-left"></i> BACK
+              </div>
+              <!-- Filing from Records to File / a student's record: back to it -->
+              <div class="back-box" ng-if="vm.from" ng-click="vm.leave_debrief()">
                 <i class="fa fa-arrow-circle-left"></i> BACK
               </div>
               <div class="snazzy-page__title">
@@ -53,6 +57,32 @@
         <span class="dbf-flight__value">
           <a ui-sref="dashboard.super_admin.fox_track_tools({pls: vm.plane_log_sheet.id})" class="dbf-staff-link"><i class="fas fa-route"></i> Track analysis for this flight</a>
         </span>
+      </div>
+    </div>
+
+    <!-- ── Filing on the instructor's behalf ─────────────────────────
+         Shown only when the API says the caller is not this flight's
+         instructor (filer_is_instructor === false), or when a save came back
+         INSTRUCTOR_REQUIRED. The record then shows as awaiting confirmation. -->
+    <div class="dbf-behalf snazzy-reveal" ng-if="vm.show_instructor_picker">
+      <div class="dbf-reason dbf-reason--info dbf-behalf__note">
+        <i class="fas fa-user-edit"></i>
+        <span ng-if="vm.on_behalf_name()">You're entering this record on behalf of <strong>{{ vm.on_behalf_name() }}</strong>. It will show as awaiting their confirmation.</span>
+        <span ng-if="!vm.record_instructor">Choose the instructor who gave this lesson. If it wasn't you, the record will show as awaiting their confirmation.</span>
+        <span ng-if="vm.record_instructor && !vm.on_behalf_name()">You're recorded as the instructor who gave this lesson.</span>
+      </div>
+      <div class="dbf-field dbf-behalf__field" id="field-dbf-instructor" ng-class="{'field-error': vm.instructor_error}">
+        <label class="dbf-field__label" for="dbf-instructor">Instructor who gave the lesson</label>
+        <ui-select id="dbf-instructor" ng-model="vm.record_instructor" on-select="vm.on_record_instructor_pick($item)" theme="bootstrap" title="Instructor" append-to-body="true">
+          <ui-select-match placeholder="{{ vm.instructor_options.length ? 'Choose the instructor…' : 'No instructors found at this club' }}">{{ $select.selected.first_name }} {{ $select.selected.last_name }}</ui-select-match>
+          <ui-select-choices repeat="ins in vm.instructor_options | propsFilterA: {first_name: $select.search, last_name: $select.search}">
+            <div ng-bind-html="(ins.first_name + ' ' + ins.last_name) | highlight: $select.search"></div>
+          </ui-select-choices>
+        </ui-select>
+        <span class="dbf-field__hint dbf-field__hint--error" ng-if="vm.instructor_error">Choose the instructor before saving — the record is filed under their name.</span>
+        <button type="button" class="sr-btn sr-btn--ghost sr-btn--sm dbf-behalf__self" ng-if="vm.can_pick_self()" ng-click="vm.pick_self_instructor()">
+          <i class="fas fa-user-check"></i> I gave this lesson
+        </button>
       </div>
     </div>
 

@@ -1,0 +1,394 @@
+<!-- Records to file — Members hub child (header + tabs come from members_hub.html).
+     Club admins file student training records for their own club's flights on
+     the instructor's behalf; RecordsToFileController / css/records-to-file.css. -->
+<div class="snazzy-page rtf-page snazzy-page--hub">
+
+  <div class="snazzy-page__body">
+
+    <!-- ── No admin club picked yet ── -->
+    <div class="snazzy-page__empty" ng-if="!vm.club_id">
+      <div class="snazzy-page__empty-icon"><i class="fa fa-building"></i></div>
+      <p>Choose a club from the club switcher to see its flights that need a record.</p>
+    </div>
+
+    <!-- ── Not a club admin of this club ── -->
+    <div class="snazzy-page__empty" ng-if="vm.club_id && vm.forbidden">
+      <div class="snazzy-page__empty-icon"><i class="fa fa-lock"></i></div>
+      <p>Only club managers and super-admins of this club can file records on an instructor's behalf.</p>
+    </div>
+
+    <div ng-if="vm.club_id && !vm.forbidden">
+
+      <!-- ═══ Summary (whole club — independent of the filters) ═══ -->
+      <div class="snazzy-page__summary-card rtf-summary" ng-if="vm.summary">
+        <div class="snazzy-page__summary-grid">
+          <div class="snazzy-page__stat rtf-stat"
+               ng-class="{'rtf-stat--on': vm.tab === 'to_file' && vm.view === 'all'}"
+               ng-click="vm.setView('all')" no-busy-guard>
+            <span class="snazzy-page__stat-label">Open</span>
+            <span class="snazzy-page__stat-value">{{ vm.summary.open }}</span>
+            <span class="rtf-stat__sub">flights without a record</span>
+          </div>
+          <div class="snazzy-page__stat rtf-stat rtf-stat--ready"
+               ng-class="{'rtf-stat--on': vm.tab === 'to_file' && vm.view === 'ready'}"
+               ng-click="vm.setView('ready')" no-busy-guard>
+            <span class="snazzy-page__stat-label">Ready to file</span>
+            <span class="snazzy-page__stat-value">{{ vm.readyCount() }}</span>
+            <span class="rtf-stat__sub">student known</span>
+          </div>
+          <div class="snazzy-page__stat rtf-stat rtf-stat--warn"
+               ng-class="{'rtf-stat--on': vm.tab === 'to_file' && vm.view === 'needs_student'}"
+               ng-click="vm.setView('needs_student')" no-busy-guard>
+            <span class="snazzy-page__stat-label">Needs a student</span>
+            <span class="snazzy-page__stat-value">{{ vm.summary.no_student }}</span>
+            <span class="rtf-stat__sub">resolve the student first</span>
+          </div>
+          <div class="snazzy-page__stat rtf-stat rtf-stat--info"
+               ng-class="{'rtf-stat--on': vm.tab === 'awaiting'}"
+               ng-click="vm.setTab('awaiting')" no-busy-guard>
+            <span class="snazzy-page__stat-label">Awaiting confirmation</span>
+            <span class="snazzy-page__stat-value">{{ vm.summary.awaiting_confirmation }}</span>
+            <span class="rtf-stat__sub">entered for an instructor</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Page tabs ═══ -->
+      <div class="rtf-tabs" role="tablist">
+        <button type="button" class="rtf-tabs__tab" role="tab"
+                ng-class="{'rtf-tabs__tab--on': vm.tab === 'to_file'}"
+                ng-click="vm.setTab('to_file')" no-busy-guard>
+          <i class="fas fa-file-signature"></i> Flights to file
+        </button>
+        <button type="button" class="rtf-tabs__tab" role="tab"
+                ng-class="{'rtf-tabs__tab--on': vm.tab === 'awaiting'}"
+                ng-click="vm.setTab('awaiting')" no-busy-guard>
+          <i class="fas fa-user-clock"></i> Awaiting instructor confirmation
+          <span class="rtf-tabs__count" ng-if="vm.summary.awaiting_confirmation > 0">{{ vm.summary.awaiting_confirmation }}</span>
+        </button>
+      </div>
+
+
+      <!-- ═══════════════════════════ TAB 1 — flights to file ═══════════════════════════ -->
+      <div ng-if="vm.tab === 'to_file'">
+
+        <!-- Filters -->
+        <div class="snazzy-page__filter-bar rtf-filters">
+          <div class="snazzy-page__filter-group rtf-filters__view">
+            <label>Show</label>
+            <div class="rtf-seg" role="group" aria-label="Which flights to show">
+              <button type="button" class="rtf-seg__btn" ng-class="{'rtf-seg__btn--on': vm.view === 'ready'}"
+                      ng-click="vm.setView('ready')" no-busy-guard>Ready to file</button>
+              <button type="button" class="rtf-seg__btn" ng-class="{'rtf-seg__btn--on': vm.view === 'needs_student'}"
+                      ng-click="vm.setView('needs_student')" no-busy-guard>Needs a student</button>
+              <button type="button" class="rtf-seg__btn" ng-class="{'rtf-seg__btn--on': vm.view === 'all'}"
+                      ng-click="vm.setView('all')" no-busy-guard>All</button>
+            </div>
+          </div>
+          <div class="snazzy-page__filter-group">
+            <label for="rtf-instructor">Instructor</label>
+            <select id="rtf-instructor" class="rtf-select" ng-model="vm.filters.instructor"
+                    ng-options="o.value as o.label for o in vm.instructor_choices"
+                    ng-change="vm.onInstructorChange()" no-busy-guard></select>
+          </div>
+          <div class="snazzy-page__filter-group">
+            <label for="rtf-from">From</label>
+            <input id="rtf-from" type="date" class="snazzy-page__date-input" ng-model="vm.filters.date_from" />
+          </div>
+          <div class="snazzy-page__filter-group">
+            <label for="rtf-to">To</label>
+            <input id="rtf-to" type="date" class="snazzy-page__date-input" ng-model="vm.filters.date_to" />
+          </div>
+          <div class="snazzy-page__filter-group snazzy-page__filter-group--btn">
+            <button type="button" class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.applyDates()" no-busy-guard>
+              <i class="fa fa-search"></i> Apply
+            </button>
+          </div>
+          <div class="snazzy-page__filter-group snazzy-page__filter-group--btn" ng-if="vm.hasFilters()">
+            <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.clearFilters()" no-busy-guard>
+              <i class="fa fa-times"></i> Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Why these flights can't be filed yet -->
+        <div class="rtf-note" ng-if="vm.view === 'needs_student'">
+          <i class="fa fa-info-circle"></i>
+          <span>These flights have no student linked, so there is nobody to file a record for yet. Resolve the student on a row,
+            or work through them all on the <a ui-sref="dashboard.manage_club.missing_students">Missing Students</a> queue.
+            Many are older imported flights.</span>
+        </div>
+
+        <!-- Count -->
+        <div class="snazzy-page__toolbar rtf-toolbar" ng-if="!vm.loading && vm.flights.length > 0">
+          <div class="snazzy-page__meta">
+            Showing <span class="snazzy-page__count-badge">{{ vm.flights.length }}</span> of {{ vm.total }} flight<span ng-if="vm.total !== 1">s</span>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="snazzy-page__load-more" ng-if="vm.loading">
+          <span class="snazzy-page__spinner"><i class="fa fa-spinner fa-spin"></i> Loading flights…</span>
+        </div>
+
+        <!-- Empty -->
+        <div class="snazzy-page__empty" ng-if="!vm.loading && vm.loaded && vm.flights.length == 0">
+          <div class="snazzy-page__empty-icon"><i class="fa fa-check-double"></i></div>
+          <p ng-if="vm.hasFilters()">No flights match these filters.</p>
+          <p ng-if="!vm.hasFilters() && vm.view === 'ready'">Nothing to file — every flight with a known student has a record.</p>
+          <p ng-if="!vm.hasFilters() && vm.view === 'needs_student'">Every open flight has a student linked.</p>
+          <p ng-if="!vm.hasFilters() && vm.view === 'all'">No open flights — every instructional flight has a record.</p>
+        </div>
+
+        <!-- Desktop table -->
+        <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="!vm.loading && vm.flights.length > 0">
+          <div class="snazzy-page__table-scroll">
+            <table class="snazzy-table rtf-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Aircraft</th>
+                  <th>{{ vm.td.labels.window }}</th>
+                  <th>Student</th>
+                  <th>Instructor</th>
+                  <th class="rtf-table__actions">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="f in vm.flights track by f.plane_log_sheet_id">
+                  <td class="snazzy-table__date">
+                    {{ f.flight_date | asDate | date:'dd MMM yyyy' }}
+                    <span class="rtf-chip rtf-chip--kind">{{ vm.kindLabel(f.kind) }}</span>
+                  </td>
+                  <td>
+                    <span class="snazzy-table__badge" uib-tooltip="{{ f.plane_type }}">{{ f.registration || '—' }}</span>
+                  </td>
+                  <td><flight-times row="f" ctx="vm.td" window="block"></flight-times></td>
+                  <td>
+                    <span ng-if="f.student">
+                      <span class="snazzy-table__name">{{ vm.personName(f.student) }}</span>
+                      <span class="msq-chip msq-chip--temp" ng-if="f.student.imported_user == 1"
+                            uib-tooltip="A temporary member — records saved now follow their account when it is converted.">temporary member</span>
+                    </span>
+                    <span ng-if="!f.student">
+                      <span class="msq-chip msq-chip--missing"><i class="fa fa-question-circle"></i> no student</span>
+                      <span class="rtf-muted rtf-block" ng-if="vm.sheetName(f)">sheet says <strong>{{ vm.sheetName(f) }}</strong></span>
+                    </span>
+                  </td>
+                  <td>
+                    <span ng-if="f.instructor">{{ vm.personName(f.instructor) }}</span>
+                    <span class="rtf-muted" ng-if="!f.instructor">No instructor</span>
+                  </td>
+                  <td class="rtf-table__actions">
+                    <span class="rtf-actions" ng-if="f.needs_book_in == 1">
+                      <span class="msq-chip msq-chip--split" uib-tooltip="Second part of a split flight — book it in before a record can be filed">part {{ f.tpc_split_leg || 2 }} · not booked in</span>
+                      <a class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ui-sref="dashboard.my_account.book_in({id: f.plane_log_sheet_id})">
+                        <i class="fa fa-plane-arrival"></i> Book in
+                      </a>
+                    </span>
+                    <span class="rtf-actions" ng-if="f.needs_book_in != 1 && f.student">
+                      <button type="button" class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-click="vm.fileRecord(f)">
+                        <i class="fa fa-file-signature"></i> File record
+                      </button>
+                    </span>
+                    <span class="rtf-actions" ng-if="f.needs_book_in != 1 && !f.student">
+                      <button type="button" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.resolveStudent(f)">
+                        <i class="fa fa-user-plus"></i> Resolve student…
+                      </button>
+                      <a class="rtf-link" ui-sref="dashboard.manage_club.missing_students">Missing Students</a>
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="snazzy-mobile-cards" ng-if="!vm.loading && vm.flights.length > 0">
+          <div class="snazzy-mobile-card" ng-repeat="f in vm.flights track by f.plane_log_sheet_id">
+            <div class="snazzy-mobile-card__header">
+              <i class="fa fa-user-graduate"></i>
+              <span ng-if="f.student">{{ vm.personName(f.student) }}</span>
+              <span ng-if="!f.student">Student not identified</span>
+            </div>
+            <div class="snazzy-mobile-card__body">
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Flight</span>
+                <span class="snazzy-mobile-card__value">
+                  {{ f.flight_date | asDate | date:'dd MMM yyyy' }} &middot; <flight-times row="f" ctx="vm.td" window="block" part="window"></flight-times>
+                </span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Aircraft</span>
+                <span class="snazzy-mobile-card__value">{{ f.registration || '—' }} <span class="snazzy-table__muted">{{ f.plane_type }}</span></span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Instructor</span>
+                <span class="snazzy-mobile-card__value">
+                  <span ng-if="f.instructor">{{ vm.personName(f.instructor) }}</span>
+                  <span class="rtf-muted" ng-if="!f.instructor">No instructor</span>
+                </span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Type</span>
+                <span class="snazzy-mobile-card__value">{{ vm.kindLabel(f.kind) }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row" ng-if="!f.student">
+                <span class="snazzy-mobile-card__label">Sheet says</span>
+                <span class="snazzy-mobile-card__value">{{ vm.sheetName(f) || '—' }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row" ng-if="f.student.imported_user == 1">
+                <span class="snazzy-mobile-card__label">Status</span>
+                <span class="snazzy-mobile-card__value"><span class="msq-chip msq-chip--temp">temporary member</span></span>
+              </div>
+              <div class="snazzy-mobile-card__row" ng-if="f.needs_book_in == 1">
+                <span class="snazzy-mobile-card__label">Status</span>
+                <span class="snazzy-mobile-card__value"><span class="msq-chip msq-chip--split">part {{ f.tpc_split_leg || 2 }} · not booked in</span></span>
+              </div>
+            </div>
+            <div class="snazzy-mobile-card__actions rtf-card-actions">
+              <a class="snazzy-page__btn snazzy-page__btn--outline" ng-if="f.needs_book_in == 1"
+                 ui-sref="dashboard.my_account.book_in({id: f.plane_log_sheet_id})">
+                <i class="fa fa-plane-arrival"></i> Book in part {{ f.tpc_split_leg || 2 }}
+              </a>
+              <button type="button" class="snazzy-page__btn snazzy-page__btn--primary" ng-if="f.needs_book_in != 1 && f.student"
+                      ng-click="vm.fileRecord(f)">
+                <i class="fa fa-file-signature"></i> File record
+              </button>
+              <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-if="f.needs_book_in != 1 && !f.student"
+                      ng-click="vm.resolveStudent(f)">
+                <i class="fa fa-user-plus"></i> Resolve student…
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="snazzy-page__load-more" ng-if="!vm.loading && vm.canLoadMore()">
+          <button type="button" class="snazzy-page__load-more-btn" ng-click="vm.loadMore()" ng-disabled="vm.loading_more" no-busy-guard>
+            <i class="fa" ng-class="vm.loading_more ? 'fa-spinner fa-spin' : 'fa-chevron-down'"></i>
+            {{ vm.loading_more ? 'Loading…' : 'Load more (' + (vm.total - vm.flights.length) + ' remaining)' }}
+          </button>
+        </div>
+        <div class="snazzy-page__all-loaded" ng-if="!vm.loading && vm.flights.length > 0 && !vm.canLoadMore() && vm.total > 50">
+          <i class="fa fa-check-circle"></i> All {{ vm.total }} flights loaded
+        </div>
+
+      </div>
+
+
+      <!-- ═══════════════════════ TAB 2 — awaiting instructor confirmation ═══════════════════════ -->
+      <div ng-if="vm.tab === 'awaiting'">
+
+        <div class="rtf-note">
+          <i class="fa fa-info-circle"></i>
+          <span>Records entered on an instructor's behalf count straight away, and show as awaiting confirmation until
+            that instructor confirms them from their Debriefings list (or edits the record themselves).</span>
+        </div>
+
+        <div class="snazzy-page__filter-bar rtf-filters" ng-if="vm.awaiting.length > 0 && vm.awaiting_instructors.length > 2">
+          <div class="snazzy-page__filter-group">
+            <label for="rtf-awaiting-instructor">Instructor</label>
+            <select id="rtf-awaiting-instructor" class="rtf-select" ng-model="vm.awaiting_filter"
+                    ng-options="o.value as o.label for o in vm.awaiting_instructors" no-busy-guard></select>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="snazzy-page__load-more" ng-if="vm.awaiting_loading">
+          <span class="snazzy-page__spinner"><i class="fa fa-spinner fa-spin"></i> Loading records…</span>
+        </div>
+
+        <!-- Empty -->
+        <div class="snazzy-page__empty" ng-if="!vm.awaiting_loading && vm.awaiting_loaded && vm.awaitingFiltered().length == 0">
+          <div class="snazzy-page__empty-icon"><i class="fa fa-check-double"></i></div>
+          <p>No records are waiting for an instructor's confirmation.</p>
+        </div>
+
+        <!-- Desktop table -->
+        <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="!vm.awaiting_loading && vm.awaitingFiltered().length > 0">
+          <div class="snazzy-page__table-scroll">
+            <table class="snazzy-table rtf-table">
+              <thead>
+                <tr>
+                  <th>Flight</th>
+                  <th>Student</th>
+                  <th>Lesson</th>
+                  <th>Instructor</th>
+                  <th>Entered by</th>
+                  <th class="rtf-table__actions">Record</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="r in vm.awaitingFiltered() track by r.id">
+                  <td class="snazzy-table__date">
+                    {{ r.flight_date | asDate | date:'dd MMM yyyy' }}
+                    <span class="snazzy-table__muted rtf-block" ng-if="r.registration">{{ r.registration }}</span>
+                  </td>
+                  <td><span class="snazzy-table__name">{{ r.student_first_name }} {{ r.student_last_name }}</span></td>
+                  <td>
+                    <span>{{ r.lesson_title || '—' }}</span>
+                    <span class="snazzy-table__muted rtf-block" ng-if="r.course_title">{{ r.course_title }}</span>
+                  </td>
+                  <td>
+                    {{ r.instructor_first_name }} {{ r.instructor_last_name }}
+                    <span class="rtf-chip rtf-chip--awaiting rtf-block-chip"><i class="fas fa-hourglass-half"></i> awaiting confirmation</span>
+                  </td>
+                  <td>
+                    {{ r.entered_by_first_name }} {{ r.entered_by_last_name }}
+                    <span class="snazzy-table__muted rtf-block" ng-if="r.created_at">{{ r.created_at | asDate | date:'dd MMM yyyy' }}</span>
+                  </td>
+                  <td class="rtf-table__actions">
+                    <a class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
+                       ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: r.student_id, course_id: r.course_id})">
+                      <i class="fa fa-folder-open"></i> Open record
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="snazzy-mobile-cards" ng-if="!vm.awaiting_loading && vm.awaitingFiltered().length > 0">
+          <div class="snazzy-mobile-card" ng-repeat="r in vm.awaitingFiltered() track by r.id">
+            <div class="snazzy-mobile-card__header">
+              <i class="fa fa-user-clock"></i>
+              {{ r.student_first_name }} {{ r.student_last_name }}
+            </div>
+            <div class="snazzy-mobile-card__body">
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Flight</span>
+                <span class="snazzy-mobile-card__value">{{ r.flight_date | asDate | date:'dd MMM yyyy' }}<span ng-if="r.registration"> &middot; {{ r.registration }}</span></span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Lesson</span>
+                <span class="snazzy-mobile-card__value">{{ r.lesson_title || '—' }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Instructor</span>
+                <span class="snazzy-mobile-card__value">{{ r.instructor_first_name }} {{ r.instructor_last_name }}</span>
+              </div>
+              <div class="snazzy-mobile-card__row">
+                <span class="snazzy-mobile-card__label">Entered by</span>
+                <span class="snazzy-mobile-card__value">{{ r.entered_by_first_name }} {{ r.entered_by_last_name }}</span>
+              </div>
+            </div>
+            <div class="snazzy-mobile-card__actions rtf-card-actions">
+              <a class="snazzy-page__btn snazzy-page__btn--outline"
+                 ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: r.student_id, course_id: r.course_id})">
+                <i class="fa fa-folder-open"></i> Open record
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

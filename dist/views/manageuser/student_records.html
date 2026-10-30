@@ -72,6 +72,11 @@
                 </div>
             </div>
             <div class="sr-record-head__actions">
+                <!-- TEMPORARY (review by 2026-11-13, backend TEMPORARY_MEASURES_REVIEW.md #1) -->
+                <label class="sr-record-head__opt" title="Imported records carry no graded items yet, so the progress pages would print empty">
+                    <input type="checkbox" ng-model="vm.export_skip_progress" ng-change="vm.remember_export_options()">
+                    Leave out syllabus progress
+                </label>
                 <a class="sr-record-head__btn" ng-click="vm.exportCourseRecord()" title="Export this course record as a PDF">
                     <i class="fa fa-file-pdf" ng-hide="vm.exporting_pdf"></i>
                     <i class="fa fa-spinner fa-spin" ng-show="vm.exporting_pdf"></i>
@@ -447,6 +452,7 @@
                                     <th class="sr-table__num">Brakes On</th>
                                     <th class="sr-table__num">Time</th>
                                     <th>Lesson</th>
+                                    <th>Instructor</th>
                                     <th class="sr-table__actions"></th>
                                 </tr>
                             </thead>
@@ -462,7 +468,18 @@
                                     <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="to"></flight-times></td>
                                     <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="duration"></flight-times></td>
                                     <td><span uib-tooltip="{{ log.lesson_title }}">{{ vm.lesson_ref(log) }}</span></td>
+                                    <td>
+                                        <!-- the RECORD's instructor first; "entered by" when someone else filed it -->
+                                        <span class="rtf-sr-instructor" ng-if="vm.log_instructor(log)">{{ vm.log_instructor(log) }}</span>
+                                        <span class="rtf-sr-by" ng-if="vm.log_entered_by(log)">Entered by {{ vm.log_entered_by(log) }}</span>
+                                        <span class="rtf-chip rtf-chip--awaiting" ng-if="vm.log_awaiting(log)"
+                                              uib-tooltip="Entered on the instructor's behalf — it counts, but waits for them to confirm it"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+                                    </td>
                                     <td class="sr-table__actions">
+                                        <button type="button" class="sr-btn sr-btn--success sr-btn--sm rtf-sr-confirm-btn" ng-if="vm.can_confirm_record(log.training_record_id)"
+                                                ng-click="vm.confirm_record(log.training_record_id)" uib-tooltip="You gave this lesson — confirm the record entered for you">
+                                            <i class="fas fa-check"></i> Confirm
+                                        </button>
                                         <a class="sr-iconbtn sr-iconbtn--play" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="View flight replay"><i class="fa fa-play-circle"></i></a>
                                         <a class="sr-iconbtn" ng-click="vm.open_training_detail(log.id, log)" uib-tooltip="View the training record for this flight"><i class="fa fa-info-circle"></i></a>
                                     </td>
@@ -503,8 +520,110 @@
                                     <span class="sr-card__label">Lesson</span>
                                     <span class="sr-card__value">{{ vm.lesson_ref(log) }}</span>
                                 </div>
+                                <div class="sr-card__stat" ng-if="vm.log_instructor(log)">
+                                    <span class="sr-card__label">Instructor</span>
+                                    <span class="sr-card__value">{{ vm.log_instructor(log) }}</span>
+                                </div>
+                            </div>
+                            <div class="rtf-sr-chip-row" ng-if="vm.log_entered_by(log) || vm.log_awaiting(log)">
+                                <span class="rtf-sr-by" ng-if="vm.log_entered_by(log)">Entered by {{ vm.log_entered_by(log) }}</span>
+                                <span class="rtf-chip rtf-chip--awaiting" ng-if="vm.log_awaiting(log)"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+                            </div>
+                            <div class="sr-card__actions" ng-if="vm.can_confirm_record(log.training_record_id)">
+                                <button type="button" class="sr-btn sr-btn--success sr-btn--sm" ng-click="vm.confirm_record(log.training_record_id)">
+                                    <i class="fas fa-check"></i> Confirm this record
+                                </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ── Flights without a record (club admins of this club only) ──
+             The student's flights at this club that still need a training
+             record. "File record" opens the debrief form on the instructor's
+             behalf and comes back here after saving. -->
+        <div class="sr-section" ng-if="vm.is_club_admin_here() && (vm.unfiled_loading || vm.unfiled.length)">
+            <div class="sr-section__head">
+                <h3 class="sr-section__title"><i class="fas fa-file-signature"></i> Flights without a record</h3>
+                <span class="sr-section__count" ng-if="vm.unfiled_total">{{ vm.unfiled_total }}</span>
+            </div>
+
+            <div class="sr-section__body sr-section__body--flush">
+
+                <div class="sr-empty" ng-if="vm.unfiled_loading">
+                    <p class="sr-empty__text"><i class="fa fa-spinner fa-spin"></i> Looking for flights without a record…</p>
+                </div>
+
+                <div ng-if="!vm.unfiled_loading && vm.unfiled.length">
+                    <div class="sr-table-wrap">
+                        <table class="sr-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Aircraft</th>
+                                    <th>Type</th>
+                                    <th>{{ vm.td.labels.window }}</th>
+                                    <th>Instructor</th>
+                                    <th class="sr-table__actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr ng-repeat="f in vm.unfiled track by f.plane_log_sheet_id">
+                                    <td class="rtf-nowrap">{{ f.flight_date | asDate | date:"dd MMM yyyy" }}</td>
+                                    <td><span uib-tooltip="{{ f.plane_type }}">{{ f.registration }}</span></td>
+                                    <td>{{ vm.unfiled_kind(f.kind) }}</td>
+                                    <td><flight-times row="f" ctx="vm.td" window="block"></flight-times></td>
+                                    <td>
+                                        <span ng-if="f.instructor">{{ f.instructor.first_name }} {{ f.instructor.last_name }}</span>
+                                        <span class="rtf-muted" ng-if="!f.instructor">No instructor</span>
+                                    </td>
+                                    <td class="sr-table__actions">
+                                        <span class="msq-chip msq-chip--split" ng-if="f.needs_book_in == 1"
+                                              uib-tooltip="Second part of a split flight — book it in before a record can be filed">part {{ f.tpc_split_leg || 2 }} · not booked in</span>
+                                        <button type="button" class="sr-btn sr-btn--primary sr-btn--sm" ng-if="f.needs_book_in != 1" ng-click="vm.file_unfiled(f)">
+                                            <i class="fas fa-file-signature"></i> File record
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="sr-cards">
+                        <div class="sr-card" ng-repeat="f in vm.unfiled track by f.plane_log_sheet_id">
+                            <div class="sr-card__head">
+                                <span class="sr-card__title">{{ f.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+                                <span class="msq-chip msq-chip--split" ng-if="f.needs_book_in == 1">part {{ f.tpc_split_leg || 2 }} · not booked in</span>
+                            </div>
+                            <div class="sr-card__sub">{{ f.registration }} &middot; {{ vm.unfiled_kind(f.kind) }}</div>
+                            <div class="sr-card__grid sr-card__grid--2">
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">{{ vm.td.labels.window }}</span>
+                                    <span class="sr-card__value"><flight-times row="f" ctx="vm.td" window="block"></flight-times></span>
+                                </div>
+                                <div class="sr-card__stat">
+                                    <span class="sr-card__label">Instructor</span>
+                                    <span class="sr-card__value">
+                                        <span ng-if="f.instructor">{{ f.instructor.first_name }} {{ f.instructor.last_name }}</span>
+                                        <span ng-if="!f.instructor">None named</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="sr-card__actions" ng-if="f.needs_book_in != 1">
+                                <button type="button" class="sr-btn sr-btn--primary sr-btn--sm" ng-click="vm.file_unfiled(f)">
+                                    <i class="fas fa-file-signature"></i> File record
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sr-empty" ng-if="vm.unfiled_total > vm.unfiled.length">
+                        <p class="sr-empty__text">Showing the latest {{ vm.unfiled.length }} of {{ vm.unfiled_total }} —
+                            the rest are on <a ui-sref="dashboard.manage_club.records_to_file">Records to File</a>.</p>
                     </div>
                 </div>
 
@@ -650,7 +769,11 @@
                 <div class="sr-remarks sr-remarks--empty" ng-if="!vm.selected_record_remarks">No general remarks were left for this flight.</div>
 
                 <div class="sr-audit">
-                    <span>Recorded by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
+                    <span ng-if="vm.this_entry.instructor_first_name || vm.this_entry.instructor_last_name">Instructor <strong>{{ vm.this_entry.instructor_first_name }} {{ vm.this_entry.instructor_last_name }}</strong></span>
+                    <span ng-if="vm.this_entry.entered_on_behalf != 1">Recorded by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
+                    <span ng-if="vm.this_entry.entered_on_behalf == 1">Entered by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
+                    <span class="rtf-chip rtf-chip--awaiting rtf-sr-audit-chip" ng-if="vm.entry_awaiting()"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+                    <span class="rtf-chip rtf-chip--confirmed rtf-sr-audit-chip" ng-if="vm.this_entry.entered_on_behalf == 1 && vm.this_entry.instructor_confirmed_at"><i class="fas fa-check"></i> Confirmed by the instructor {{ vm.this_entry.instructor_confirmed_at | asDate | date:"dd MMM yyyy" }}</span>
                     <span>Created <strong>{{ vm.this_entry.created_at | asDate | date:"dd MMM yyyy" || "no date" }}</strong></span>
                     <span ng-if="vm.this_entry.edited_by > 0"
                           uib-tooltip="Reason given: {{ vm.this_entry.edit_reason }}">
@@ -664,6 +787,9 @@
 
     <div class="sr-modal__foot">
         <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_popup()">Close</button>
+        <button type="button" class="sr-btn sr-btn--success" ng-if="vm.this_entry.id && vm.can_confirm_record(vm.this_entry.id)" ng-click="vm.confirm_record(vm.this_entry.id)">
+            <i class="fas fa-check"></i> Confirm record
+        </button>
         <button type="button" class="sr-btn sr-btn--primary" ng-if="vm.user_can_edit" ng-click="vm.show_edit_record()">
             <i class="fas fa-pen"></i> Edit record
         </button>

@@ -15,6 +15,43 @@
 
   <div class="snazzy-page__body">
 
+    <!-- ═══════════════════════════════════════════════════════════════
+         Records entered for you — a club admin filed these on your behalf.
+         They count already; confirm them (or Review → edit) so they stop
+         showing as awaiting confirmation. Hidden when there are none.
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="rtf-confirm snazzy-reveal" ng-if="vm.awaiting.length > 0">
+      <div class="rtf-confirm__head">
+        <h3 class="rtf-confirm__title"><i class="fas fa-user-clock"></i> Records entered for you</h3>
+        <span class="snazzy-page__count-badge">{{ vm.awaiting.length }}</span>
+        <p class="rtf-confirm__sub">Someone at the club filed these training records for lessons you gave. Check each one and confirm it — or open it to correct it first.</p>
+      </div>
+      <div class="rtf-confirm__item" ng-repeat="r in vm.awaiting track by r.id">
+        <div class="rtf-confirm__main">
+          <div class="rtf-confirm__who">{{ r.student_first_name }} {{ r.student_last_name }}</div>
+          <div class="rtf-confirm__meta">
+            <span>{{ r.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+            <span ng-if="r.brakes_off"><flight-times row="r" club-id="r.club_id" window="block" part="window"></flight-times></span>
+            <span ng-if="r.registration">{{ r.registration }}</span>
+            <span ng-if="r.lesson_title">{{ r.lesson_title }}</span>
+            <span ng-if="!r.lesson_title && r.course_title">{{ r.course_title }}</span>
+          </div>
+          <div class="rtf-confirm__by">
+            Entered by <strong>{{ r.entered_by_first_name }} {{ r.entered_by_last_name }}</strong><span ng-if="r.created_at"> on {{ r.created_at | asDate | date:"dd MMM yyyy" }}</span>
+          </div>
+          <div class="rtf-confirm__remarks" ng-if="r.general_remarks">{{ r.general_remarks | limitTo: 220 }}{{ r.general_remarks.length > 220 ? '…' : '' }}</div>
+        </div>
+        <div class="rtf-confirm__actions">
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.review_awaiting(r)">
+            <i class="fa fa-search"></i> Review
+          </button>
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.confirm_awaiting(r)">
+            <i class="fa fa-check"></i> Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Empty state ── -->
     <div class="snazzy-page__empty" ng-if="vm.briefings.length == 0 && vm.flight_debriefs.length == 0">
       <div class="snazzy-page__empty-icon"><i class="fa fa-check-double"></i></div>

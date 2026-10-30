@@ -657,7 +657,9 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 // Build editable form
                 $scope.form = {
                     plane_id: booking.plane_id || (pls ? pls.plane_id : null),
-                    user_id: booking.user_id || (pls ? pls.user_id : null),
+                    // the STUDENT (billed member) — on a flight the instructor
+                    // claimed, booking.user_id / pls.user_id are the instructor
+                    user_id: data.student_user_id || booking.user_id || (pls ? pls.user_id : null),
                     instructor_id: booking.instructor_id || (pls ? pls.instructor_id : null),
                     lesson_id: booking.lesson_id || null,
                     voucher_id: booking.voucher_id || null,
@@ -671,13 +673,12 @@ app.controller('FlightEditModalController', FlightEditModalController);
                     landing_time: pls ? pls.landing_time : '',
                     tacho_start: pls ? parseFloat(pls.tacho_start) || '' : '',
                     tacho_end: pls ? parseFloat(pls.tacho_end) || '' : '',
-                    landings: pls ? parseInt(pls.landings) || 0 : 0,
-                    touch_and_gos: pls ? parseInt(pls.touch_and_gos) || 0 : 0,
-                    night_landings: pls ? parseInt(pls.night_landings) || 0 : 0,
+                    // the sheet's real columns (there is no landings / touch_and_gos / night_landings)
+                    full_stop_landings: pls ? parseInt(pls.full_stop_landings) || 0 : 0,
+                    touch_and_go: pls ? parseInt(pls.touch_and_go) || 0 : 0,
                     authorised_solo: pls ? (pls.authorised_solo ? true : false) : false,
                     is_picus: pls ? (pls.is_picus ? true : false) : false,
-                    remarks: pls ? pls.remarks || '' : '',
-                    route: pls ? pls.route || '' : '',
+                    remarks: pls ? pls.flight_notes || '' : '',   // the sheet's notes column (the API maps remarks → flight_notes)
                     pic_id: pls ? (pls.pic_id ? parseInt(pls.pic_id, 10) : null) : null,
                     put_id: pls ? (pls.put_id ? parseInt(pls.put_id, 10) : null) : null,
                     course_id: pls ? pls.course_id : null,
@@ -932,10 +933,23 @@ app.controller('FlightEditModalController', FlightEditModalController);
                     }
 
                     $scope.preview = data;
+                    // The server decides what counts as a crew change (it drops
+                    // a sheet instructor that merely matches the booking's) —
+                    // the training-record warning and the apply action follow
+                    // its diff, not the form's.
+                    $scope.crewChanged = previewChangesCrew(data);
                     $scope.financial.action = '';
                     $scope.step = 2;
                 });
         };
+
+        function previewChangesCrew(data) {
+            var crew = false;
+            [].concat(data.booking_changes || [], data.pls_changes || []).forEach(function(c) {
+                if (c && (c.field === 'user_id' || c.field === 'instructor_id')) { crew = true; }
+            });
+            return crew;
+        }
 
         $scope.backToEdit = function() {
             $scope.step = 1;
@@ -962,7 +976,8 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 booking_changes: changes.bookingChanges,
                 pls_changes: changes.plsChanges,
                 financial_action: $scope.financial.action || 'none',
-                training_record_action: changes.trainingRecordAction,
+                // only when the PREVIEW showed a student/instructor change
+                training_record_action: $scope.crewChanged ? 'remove_and_reset' : 'none',
                 payment_method: null,
                 stripe_payment_intent_id: null
             };
@@ -1144,13 +1159,29 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 normalisedPls[f] = normaliseTimeHHMM(pls[f]);
             });
 
+            // The value each crew/aircraft field was PRE-FILLED from — the same
+            // source the form used, so only a real edit reads as a change. On an
+            // instructor-claimed flight the booking and sheet carry the
+            // instructor as user_id and NULL as instructor_id; the student is
+            // student_user_id (the billed member) and the instructor is the
+            // booking's. Comparing with the raw columns reported "Student
+            // Reassignment" / "Instructor Change" on every edit.
+            function prefilledValue(field) {
+                if (field === 'user_id' && $scope.original && $scope.original.student_user_id) {
+                    return $scope.original.student_user_id;
+                }
+                if ($scope.hasBooking && booking[field]) { return booking[field]; }
+                return pls[field];
+            }
+
             // Booking-level fields (only if there IS a booking)
             if ($scope.hasBooking) {
                 // NOTE: lesson_id deliberately excluded — lesson changes must be
                 // done via the Training Records section, not flight editing.
                 var bookingFields = ['plane_id', 'user_id', 'instructor_id', 'voucher_id', 'maintenance_flight'];
                 bookingFields.forEach(function(field) {
-                    if (String($scope.form[field] || '') !== String(booking[field] || '')) {
+                    var was = (field === 'user_id') ? prefilledValue(field) : booking[field];
+                    if (String($scope.form[field] || '') !== String(was || '')) {
                         bookingChanges[field] = $scope.form[field];
                     }
                 });
@@ -1159,7 +1190,7 @@ app.controller('FlightEditModalController', FlightEditModalController);
             // Shared fields
             var sharedFields = ['plane_id', 'user_id', 'instructor_id'];
             sharedFields.forEach(function(field) {
-                if (String($scope.form[field] || '') !== String(pls[field] || '')) {
+                if (String($scope.form[field] || '') !== String(prefilledValue(field) || '')) {
                     plsChanges[field] = $scope.form[field];
                 }
             });
@@ -1170,9 +1201,9 @@ app.controller('FlightEditModalController', FlightEditModalController);
                 'from_airport_id', 'to_airport_id', 'flight_date',
                 'brakes_off', 'brakes_on', 'takeoff_time', 'landing_time',
                 'tacho_start', 'tacho_end',
-                'landings', 'touch_and_gos', 'night_landings',
+                'full_stop_landings', 'touch_and_go',
                 'authorised_solo', 'is_picus',
-                'remarks', 'route',
+                'remarks',
                 'pic_id', 'put_id', 'course_id', 'tuition_id'
             ] : [
                 'from_airport_id', 'to_airport_id', 'flight_date',
@@ -1181,10 +1212,12 @@ app.controller('FlightEditModalController', FlightEditModalController);
             ];
             plsOnlyFields.forEach(function(field) {
                 var formVal = $scope.form[field] != null ? $scope.form[field] : '';
-                // For time fields, compare against normalised original (HH:MM)
+                // For time fields, compare against normalised original (HH:MM);
+                // remarks live in the sheet's flight_notes column
+                var plsKey = (field === 'remarks') ? 'flight_notes' : field;
                 var plsVal = normalisedPls.hasOwnProperty(field)
                     ? (normalisedPls[field] || '')
-                    : (pls[field] != null ? pls[field] : '');
+                    : (pls[plsKey] != null ? pls[plsKey] : '');
                 if (String(formVal) !== String(plsVal)) {
                     plsChanges[field] = $scope.form[field];
                 }
@@ -1298,6 +1331,28 @@ app.controller('FlightEditModalController', FlightEditModalController);
         $scope.formatEditType = function(type) {
             if (!type) return '';
             return type.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+        };
+
+        // What the aircraft charge is billed on (financial_impact.billing.basis)
+        $scope.billingBasisLabel = function(basis) {
+            switch (basis) {
+                case 'tpc_window':       return 'Charged time (rounded take-off −5 min to rounded landing +5 min):';
+                case 'brakes_rounded':   return 'Charged time (brakes off to brakes on, rounded to 5 min):';
+                case 'brakes_exact':     return 'Charged time (brakes off to brakes on):';
+                case 'airborne_rounded': return 'Charged time (take-off to landing, rounded to 5 min):';
+                case 'airborne_exact':   return 'Charged time (take-off to landing):';
+                case 'tacho':            return 'Charged tacho (start to end):';
+                case 'hobbs':            return 'Charged Hobbs (start to end):';
+                default:                 return 'Charged:';
+            }
+        };
+        $scope.unitLabel = function(chargeType) {
+            return (chargeType === 'tacho' || chargeType === 'hobbs') ? 'unit' : 'hour';
+        };
+        $scope.billingWindowChanged = function() {
+            var b = $scope.preview && $scope.preview.financial_impact && $scope.preview.financial_impact.billing;
+            if (!b || !b.before || !b.after) return false;
+            return b.before.from !== b.after.from || b.before.to !== b.after.to || Number(b.before.units) !== Number(b.after.units);
         };
 
         $scope.getEditTypeIcon = function(type) {
