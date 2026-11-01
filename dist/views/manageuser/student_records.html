@@ -2,8 +2,9 @@
 
     <div class="snazzy-page__header">
         <div class="snazzy-page__header-inner">
-            <div class="back-box" ui-sref="dashboard.manage_user({reload: true})">
-                <i class="fa fa-arrow-circle-left"></i> BACK
+            <!-- Returns to wherever the user came from (vm.origin), else the instructor dashboard. -->
+            <div class="back-box" ng-click="vm.go_back()">
+                <i class="fa fa-arrow-circle-left"></i> BACK<span ng-if="vm.origin_label"> TO {{ vm.origin_label | uppercase }}</span>
             </div>
             <div class="snazzy-page__title">
                 <h2><i class="fas fa-user-graduate"></i> STUDENT RECORDS</h2>
@@ -467,7 +468,11 @@
                                     <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="from"></flight-times></td>
                                     <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="to"></flight-times></td>
                                     <td class="sr-table__num"><flight-times row="log" ctx="vm.td" window="block" part="duration"></flight-times></td>
-                                    <td><span uib-tooltip="{{ log.lesson_title }}">{{ vm.lesson_ref(log) }}</span></td>
+                                    <td>
+                                        <span uib-tooltip="{{ log.lesson_title }}">{{ vm.lesson_ref(log) }}</span>
+                                        <span class="rtf-chip rtf-chip--import" ng-if="log.import_note_only == 1"
+                                              uib-tooltip="Only the TPC import note so far: nobody has debriefed this flight. Filling it in replaces the note."><i class="fas fa-file-import"></i> import note only</span>
+                                    </td>
                                     <td>
                                         <!-- the RECORD's instructor first; "entered by" when someone else filed it -->
                                         <span class="rtf-sr-instructor" ng-if="vm.log_instructor(log)">{{ vm.log_instructor(log) }}</span>
@@ -479,6 +484,10 @@
                                         <button type="button" class="sr-btn sr-btn--success sr-btn--sm rtf-sr-confirm-btn" ng-if="vm.can_confirm_record(log.training_record_id)"
                                                 ng-click="vm.confirm_record(log.training_record_id)" uib-tooltip="You gave this lesson — confirm the record entered for you">
                                             <i class="fas fa-check"></i> Confirm
+                                        </button>
+                                        <button type="button" class="sr-btn sr-btn--primary sr-btn--sm" ng-if="log.import_note_only == 1" ng-click="vm.fill_import_note(log)"
+                                                uib-tooltip="Debrief this flight — the record replaces the import note">
+                                            <i class="fas fa-pen"></i> Fill in
                                         </button>
                                         <a class="sr-iconbtn sr-iconbtn--play" ng-if="vm.canReplay(log)" ng-click="vm.viewReplay(log)" uib-tooltip="View flight replay"><i class="fa fa-play-circle"></i></a>
                                         <a class="sr-iconbtn" ng-click="vm.open_training_detail(log.id, log)" uib-tooltip="View the training record for this flight"><i class="fa fa-info-circle"></i></a>
@@ -524,6 +533,14 @@
                                     <span class="sr-card__label">Instructor</span>
                                     <span class="sr-card__value">{{ vm.log_instructor(log) }}</span>
                                 </div>
+                            </div>
+                            <div class="rtf-sr-chip-row" ng-if="log.import_note_only == 1">
+                                <span class="rtf-chip rtf-chip--import"><i class="fas fa-file-import"></i> import note only</span>
+                            </div>
+                            <div class="sr-card__actions" ng-if="log.import_note_only == 1">
+                                <button type="button" class="sr-btn sr-btn--primary sr-btn--sm" ng-click="vm.fill_import_note(log)">
+                                    <i class="fas fa-pen"></i> Fill in the record
+                                </button>
                             </div>
                             <div class="rtf-sr-chip-row" ng-if="vm.log_entered_by(log) || vm.log_awaiting(log)">
                                 <span class="rtf-sr-by" ng-if="vm.log_entered_by(log)">Entered by {{ vm.log_entered_by(log) }}</span>
@@ -575,7 +592,9 @@
                                 <tr ng-repeat="f in vm.unfiled track by f.plane_log_sheet_id">
                                     <td class="rtf-nowrap">{{ f.flight_date | asDate | date:"dd MMM yyyy" }}</td>
                                     <td><span uib-tooltip="{{ f.plane_type }}">{{ f.registration }}</span></td>
-                                    <td>{{ vm.unfiled_kind(f.kind) }}</td>
+                                    <td>{{ vm.unfiled_kind(f.kind) }}
+                                        <span class="rtf-chip rtf-chip--import" ng-if="f.import_note" uib-tooltip="Only the TPC import note so far ({{ f.import_note }}): nobody has debriefed this flight. Filing the record replaces the note."><i class="fas fa-file-import"></i> import note only</span>
+                                    </td>
                                     <td><flight-times row="f" ctx="vm.td" window="block"></flight-times></td>
                                     <td>
                                         <span ng-if="f.instructor">{{ f.instructor.first_name }} {{ f.instructor.last_name }}</span>
@@ -599,7 +618,9 @@
                                 <span class="sr-card__title">{{ f.flight_date | asDate | date:"dd MMM yyyy" }}</span>
                                 <span class="msq-chip msq-chip--split" ng-if="f.needs_book_in == 1">part {{ f.tpc_split_leg || 2 }} · not booked in</span>
                             </div>
-                            <div class="sr-card__sub">{{ f.registration }} &middot; {{ vm.unfiled_kind(f.kind) }}</div>
+                            <div class="sr-card__sub">{{ f.registration }} &middot; {{ vm.unfiled_kind(f.kind) }}
+                                <span class="rtf-chip rtf-chip--import" ng-if="f.import_note"><i class="fas fa-file-import"></i> import note only</span>
+                            </div>
                             <div class="sr-card__grid sr-card__grid--2">
                                 <div class="sr-card__stat">
                                     <span class="sr-card__label">{{ vm.td.labels.window }}</span>
@@ -786,6 +807,13 @@
     </div>
 
     <div class="sr-modal__foot">
+        <button type="button" class="sr-btn sr-btn--primary" ng-if="vm.this_entry.import_note_only == 1" ng-click="vm.fill_import_note(vm.selected_flight)">
+            <i class="fas fa-pen"></i> Fill in the record
+        </button>
+        <!-- Opened straight from another page (?flight=): the way back there. -->
+        <button type="button" class="sr-btn sr-btn--ghost sr-modal__back" ng-if="vm.linked_popup" ng-click="vm.go_back()">
+            <i class="fas fa-arrow-left"></i> Back to {{ vm.origin_label || 'previous page' }}
+        </button>
         <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_popup()">Close</button>
         <button type="button" class="sr-btn sr-btn--success" ng-if="vm.this_entry.id && vm.can_confirm_record(vm.this_entry.id)" ng-click="vm.confirm_record(vm.this_entry.id)">
             <i class="fas fa-check"></i> Confirm record

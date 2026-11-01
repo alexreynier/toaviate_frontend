@@ -115,7 +115,19 @@
 
         <!-- ── Flights (table on wide screens, stacked cards on phones) ── -->
         <div class="ih-card">
-          <div class="ih-card__head"><i class="fas fa-plane"></i> Flights <span class="snazzy-page__count-badge">{{ vm.shown_flights().length }}</span></div>
+          <div class="ih-card__head ih-card__head--flights">
+            <span class="ih-card__title"><i class="fas fa-plane"></i> Flights <span class="snazzy-page__count-badge">{{ vm.shown_flights().length }}</span></span>
+            <span class="ih-card__tools">
+              <button type="button" class="ih-todo-chip" ng-if="vm.todo_count > 0"
+                      ng-class="{'ih-todo-chip--on': vm.only_todo}" ng-click="vm.toggle_todo()" no-busy-guard
+                      uib-tooltip="Flights with no training record yet, or a record the club entered for you to confirm" tooltip-placement="left" tooltip-popup-delay="350">
+                <i class="fas" ng-class="vm.only_todo ? 'fa-times' : 'fa-pen'"></i>
+                {{ vm.only_todo ? 'Show all flights' : 'Records outstanding' }}
+                <span class="ih-todo-chip__count" ng-if="!vm.only_todo">{{ vm.todo_count }}</span>
+              </button>
+              <span class="ih-alldone" ng-if="vm.todo_count === 0"><i class="fas fa-check-circle"></i> All training records filed</span>
+            </span>
+          </div>
           <div class="snazzy-page__table-scroll ih-table-wrap">
             <table class="snazzy-table ih-table">
               <thead>
@@ -124,28 +136,57 @@
                   <th>Type</th>
                   <th>Student</th>
                   <th class="snazzy-table__hide-mobile">Aircraft</th>
-                  <th class="snazzy-table__hide-mobile">Lesson</th>
+                  <th class="snazzy-table__hide-mobile">Training record</th>
                   <th class="snazzy-table__hide-mobile">Club</th>
                   <th class="ih-table__num">Landings</th>
                   <th class="ih-table__num">Hours</th>
+                  <th class="ih-table__track">Track</th>
                 </tr>
               </thead>
               <tbody>
-                <tr ng-repeat="f in vm.shown_flights() track by f.id">
+                <tr ng-repeat="f in vm.shown_flights() track by f.id" data-ih-flight="{{ f.id }}" ng-class="{'ih-row--flash': vm.flash_id === f.id}">
                   <td class="ih-table__date">{{ f.flight_date | date:'d MMM yyyy' }}<span class="ih-table__time" ng-if="f.brakes_off"> · {{ f.brakes_off | roundMinute }}</span></td>
                   <td><span class="ih-badge ih-badge--{{ f.kind }}"><i class="fas" ng-class="f.kind === 'solo' ? 'fa-user' : 'fa-user-friends'"></i> {{ vm.kind_label(f.kind) }}</span></td>
                   <td>{{ f.student_name || '—' }}</td>
                   <td class="snazzy-table__hide-mobile">{{ f.registration || '—' }}</td>
-                  <td class="snazzy-table__hide-mobile ih-table__lesson">{{ f.lesson_title || '—' }}</td>
+                  <td class="snazzy-table__hide-mobile ih-table__rec" ng-switch="f.record_status">
+                    <a class="ih-rec ih-rec--done" ng-switch-when="recorded" ng-class="{'ih-rec--static': !vm.can_open_record(f)}" ng-click="vm.open_record(f)"
+                       uib-tooltip="{{ vm.can_open_record(f) ? 'Open the training record' : '' }}" tooltip-placement="top" tooltip-popup-delay="350">
+                      <i class="fas fa-clipboard-check"></i><span class="ih-rec__text">{{ f.lesson_title || 'Record filed' }}</span>
+                    </a>
+                    <a class="ih-rec ih-rec--confirm" ng-switch-when="awaiting_confirmation" ng-click="vm.open_record(f)"
+                       uib-tooltip="Entered for you by the club. Check it and confirm" tooltip-placement="top" tooltip-popup-delay="350">
+                      <i class="fas fa-user-check"></i><span class="ih-rec__text">Confirm<span ng-if="f.lesson_title"> · {{ f.lesson_title }}</span></span>
+                    </a>
+                    <button type="button" class="ih-rec ih-rec--todo" ng-switch-when="missing" ng-click="vm.fill_record(f)"
+                            uib-tooltip="No training record yet. Debrief this flight" tooltip-placement="top" tooltip-popup-delay="350">
+                      <i class="fas fa-pen"></i><span class="ih-rec__text">Fill in record</span>
+                    </button>
+                    <button type="button" class="ih-rec ih-rec--todo" ng-switch-when="import_note" ng-click="vm.fill_record(f)"
+                            uib-tooltip="Only the TPC import note so far: nobody has debriefed this flight. Filing the record replaces the note." tooltip-placement="top" tooltip-popup-delay="350">
+                      <i class="fas fa-pen"></i><span class="ih-rec__text">Fill in record</span><span class="ih-rec__tag"><i class="fas fa-file-import"></i> import note</span>
+                    </button>
+                    <span class="ih-rec ih-rec--na" ng-switch-when="not_required" uib-tooltip="Marked as not needing a training record" tooltip-placement="top" tooltip-popup-delay="350">
+                      <i class="fas fa-minus-circle"></i><span class="ih-rec__text">Not required</span>
+                    </span>
+                    <span class="ih-rec--none" ng-switch-default uib-tooltip="No student on this flight" tooltip-placement="top" tooltip-popup-delay="350">—</span>
+                  </td>
                   <td class="snazzy-table__hide-mobile">{{ f.club_title }}</td>
                   <td class="ih-table__num">{{ f.landings }}</td>
                   <td class="ih-table__num ih-table__hours">{{ vm.hours(f.hours) }}</td>
+                  <td class="ih-table__track">
+                    <button type="button" class="ih-track" ng-if="f.has_track" ng-click="vm.open_track(f)"
+                            uib-tooltip="Replay the track flown" tooltip-placement="left" tooltip-popup-delay="350" aria-label="Replay the track flown">
+                      <i class="fas fa-route"></i>
+                    </button>
+                    <span class="ih-track ih-track--none" ng-if="!f.has_track" uib-tooltip="No track on file" tooltip-placement="left" tooltip-popup-delay="350">—</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div class="ih-mlist">
-            <div class="ih-mcard" ng-repeat="f in vm.shown_flights() track by f.id">
+            <div class="ih-mcard" ng-repeat="f in vm.shown_flights() track by f.id" data-ih-flight="{{ f.id }}" ng-class="{'ih-row--flash': vm.flash_id === f.id}">
               <div class="ih-mcard__top">
                 <span class="ih-mcard__date">{{ f.flight_date | date:'d MMM yyyy' }}<span class="ih-table__time" ng-if="f.brakes_off"> · {{ f.brakes_off | roundMinute }}</span></span>
                 <span class="ih-mcard__hours">{{ vm.hours(f.hours) }}</span>
@@ -160,6 +201,28 @@
                 <span ng-if="f.club_title"><i class="fas fa-home"></i> {{ f.club_title }}</span>
               </div>
               <div class="ih-mcard__lesson" ng-if="f.lesson_title"><i class="fas fa-book-open"></i> {{ f.lesson_title }}</div>
+              <div class="ih-mcard__actions" ng-if="f.has_track || f.record_status !== 'no_student'">
+                <button type="button" class="ih-track ih-track--label" ng-if="f.has_track" ng-click="vm.open_track(f)">
+                  <i class="fas fa-route"></i> Track
+                </button>
+                <span class="ih-mcard__rec" ng-switch="f.record_status">
+                  <button type="button" class="ih-rec ih-rec--done" ng-switch-when="recorded" ng-disabled="!vm.can_open_record(f)" ng-click="vm.open_record(f)">
+                    <i class="fas fa-clipboard-check"></i> View record
+                  </button>
+                  <button type="button" class="ih-rec ih-rec--confirm" ng-switch-when="awaiting_confirmation" ng-click="vm.open_record(f)">
+                    <i class="fas fa-user-check"></i> Confirm record
+                  </button>
+                  <button type="button" class="ih-rec ih-rec--todo" ng-switch-when="missing" ng-click="vm.fill_record(f)">
+                    <i class="fas fa-pen"></i> Fill in record
+                  </button>
+                  <button type="button" class="ih-rec ih-rec--todo" ng-switch-when="import_note" ng-click="vm.fill_record(f)">
+                    <i class="fas fa-pen"></i> Fill in record <span class="ih-rec__tag"><i class="fas fa-file-import"></i> import note</span>
+                  </button>
+                  <span class="ih-rec ih-rec--na" ng-switch-when="not_required">
+                    <i class="fas fa-minus-circle"></i> Record not required
+                  </span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
