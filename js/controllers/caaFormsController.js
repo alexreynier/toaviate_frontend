@@ -1174,6 +1174,8 @@ app.controller('CaaFormsController', CaaFormsController);
             };
 
             vm.back = function() {
+                // Opened from a student's record ("My documents") — go back there.
+                if ($rootScope.cameFrom && $rootScope.cameFrom('dashboard.manage_user.student_records')) { $rootScope.safeBack(); return; }
                 if (vm.isInstructorHere || vm.isHotHere) {
                     $state.go('dashboard.manage_user.caa_forms', { club_id: vm.form ? vm.form.club_id : null });
                 } else {

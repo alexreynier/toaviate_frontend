@@ -33,12 +33,13 @@ app.controller('RecordsToFileController', RecordsToFileController);
 
         // ── To-file list state ──
         vm.view = 'ready';                 // 'ready' (has a student) | 'needs_student' | 'all'
-        vm.filters = { instructor: '', date_from: null, date_to: null };
+        // record_kind: '' all | 'none' no record at all | 'import_note' only the TPC import note so far
+        vm.filters = { instructor: '', date_from: null, date_to: null, record_kind: '' };
         vm.flights = [];
         vm.total = 0;
         vm.page = 1;
         vm.loading = false;
-        vm.loading_more = false;
+        vm.paging = false;       // swapping to another page (the list dims, the pager locks)
         vm.loaded = false;
         vm.forbidden = false;
         vm.summary = null;
@@ -70,6 +71,8 @@ app.controller('RecordsToFileController', RecordsToFileController);
                     club_id: vm.club_id,
                     view: vm.view,
                     instructor: vm.filters.instructor || '',
+                    record_kind: vm.filters.record_kind || '',
+                    page: vm.page || 1,
                     date_from: ymd(vm.filters.date_from),
                     date_to: ymd(vm.filters.date_to)
                 }));
@@ -84,6 +87,8 @@ app.controller('RecordsToFileController', RecordsToFileController);
                 if (!s || String(s.club_id) !== String(vm.club_id)) { return; }
                 if (s.view === 'ready' || s.view === 'needs_student' || s.view === 'all') { vm.view = s.view; }
                 vm.filters.instructor = s.instructor || '';
+                vm.filters.record_kind = (s.record_kind === 'none' || s.record_kind === 'import_note') ? s.record_kind : '';
+                vm.page = Math.max(1, parseInt(s.page, 10) || 1);
                 vm.filters.date_from = fromYmd(s.date_from);
                 vm.filters.date_to = fromYmd(s.date_to);
             } catch (e) {}
@@ -107,11 +112,12 @@ app.controller('RecordsToFileController', RecordsToFileController);
             return Math.max(0, (vm.summary.open || 0) - (vm.summary.no_student || 0));
         };
         vm.hasFilters = function() {
-            return !!(vm.filters.instructor || vm.filters.date_from || vm.filters.date_to);
+            return !!(vm.filters.instructor || vm.filters.record_kind || vm.filters.date_from || vm.filters.date_to);
         };
-        vm.canLoadMore = function() {
-            return vm.flights.length < vm.total;
-        };
+        // "Showing 51–100" for the toolbar (the pager under the list says the same)
+        vm.rangeFrom = function() { return vm.total ? (vm.page - 1) * PER_PAGE + 1 : 0; };
+        vm.rangeTo = function() { return Math.min(vm.total, (vm.page - 1) * PER_PAGE + vm.flights.length); };
+        vm.perPage = PER_PAGE;
 
         // Instructor picker options come from the whole-club summary.
         function buildInstructorChoices() {
@@ -144,6 +150,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
             } else if (vm.filters.instructor) {
                 p.instructor_id = vm.filters.instructor;
             }
+            if (vm.filters.record_kind) { p.record_kind = vm.filters.record_kind; }
             p.date_from = ymd(vm.filters.date_from);
             p.date_to = ymd(vm.filters.date_to);
             return p;
@@ -159,19 +166,27 @@ app.controller('RecordsToFileController', RecordsToFileController);
         }
 
         // ── To-file list ──
-        vm.load = function() {
+        // load() = page 1 (a filter changed); goPage(n) keeps the filters. The
+        // backend clamps a page past the end to the last one.
+        vm.load = function(page) {
             if (!vm.club_id) { return; }
             var mine = ++seq;
-            vm.loading = true;
-            vm.page = 1;
+            var first = !vm.loaded;
+            // the very first load resumes the remembered page (back from filing a record)
+            vm.page = (page && page > 0) ? page : (first ? (vm.page || 1) : 1);
+            vm.loading = !vm.loaded;
+            vm.paging = vm.loaded;
             saveFilters();
-            RecordsToFileService.Queue(vm.club_id, queryParams(1)).then(function(data) {
+            RecordsToFileService.Queue(vm.club_id, queryParams(vm.page)).then(function(data) {
                 if (mine !== seq) { return; }
                 vm.loading = false;
+                vm.paging = false;
                 vm.loaded = true;
                 if (data && data.success) {
                     vm.flights = data.flights || [];
                     vm.total = data.total || 0;
+                    vm.page = data.page || vm.page;
+                    saveFilters();
                     vm.summary = data.summary || vm.summary;
                     buildInstructorChoices();
                 } else {
@@ -184,27 +199,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
             });
         };
 
-        vm.loadMore = function() {
-            if (vm.loading_more || !vm.canLoadMore()) { return; }
-            var mine = seq;
-            vm.loading_more = true;
-            RecordsToFileService.Queue(vm.club_id, queryParams(vm.page + 1)).then(function(data) {
-                if (mine !== seq) { return; }   // filters changed meanwhile — the new list wins
-                vm.loading_more = false;
-                if (data && data.success) {
-                    vm.page = data.page || (vm.page + 1);
-                    vm.total = data.total || vm.total;
-                    // A record filed elsewhere meanwhile shifts the pages — skip repeats.
-                    var seen = {};
-                    vm.flights.forEach(function(f) { seen[f.plane_log_sheet_id] = true; });
-                    (data.flights || []).forEach(function(f) {
-                        if (!seen[f.plane_log_sheet_id]) { vm.flights.push(f); }
-                    });
-                } else {
-                    ToastService.error('Load Failed', (data && data.message) || 'Could not load more flights.');
-                }
-            });
-        };
+        vm.goPage = function(page) { vm.load(page); };
 
         vm.setView = function(view) {
             if (vm.view === view && vm.tab === 'to_file') { return; }
@@ -223,6 +218,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
         };
         vm.clearFilters = function() {
             vm.filters.instructor = '';
+            vm.filters.record_kind = '';
             vm.filters.date_from = null;
             vm.filters.date_to = null;
             vm.load();
@@ -260,7 +256,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
                 }
             });
             modal.result.then(function(res) {
-                if (res && res.fixed) { vm.load(); }
+                if (res && res.fixed) { vm.load(vm.page); }   // stay on this page
             }, function() {});
         };
 

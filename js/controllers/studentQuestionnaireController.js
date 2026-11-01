@@ -17,6 +17,8 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
 
         vm.pretty = function(s) { return s ? String(s).replace(/_/g, ' ') : ''; };
         vm.back = function() {
+            // Opened from the member's training record — go back there.
+            if ($rootScope.cameFrom && $rootScope.cameFrom('dashboard.my_account.training_records')) { $rootScope.safeBack(); return; }
             // Hub → My Account; a sub-screen → the hub.
             if (vm.screen === 'mine') {
                 $state.go('dashboard.my_account');

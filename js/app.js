@@ -1625,10 +1625,19 @@ var app = angular
             .state('dashboard.manage_user.student_records', {
                 // Deep-linkable: club/student/course selection lives in the URL so
                 // refresh, back button and shared links land on the same record.
-                url: '/student_records?club_id&student_id&course_id',
+                // &flight=<plane_log_sheet_id> also opens that flight's record popup
+                // (Hours Instructed → open the training record); consumed once.
+                url: '/student_records?club_id&student_id&course_id&flight',
                 controller: 'DashboardStudentRecordsController',
                 templateUrl: 'views/manageuser/student_records.html',
                 controllerAs: 'vm',
+                // The controller mirrors its selection into the query string with a
+                // notify:false $state.go. Without this, that swaps the state's locals
+                // under a ui-view that never re-rendered; this ui-router re-renders on
+                // the NEXT $viewContentLoading (mid-way through leaving), spawning an
+                // orphan copy of the page whose late fetch rewrote the URL back here —
+                // BACK / links out "did nothing". Query-only changes now keep the page.
+                reloadOnSearch: false,
                 data: {
                     action: 'student_records'
                 }
@@ -3613,8 +3622,20 @@ var app = angular
             if (fromState && fromState.name) {
                 previousStateName = fromState.name;
                 previousStateParams = fromParams;
+                // Read-only copy for pages with more than one way in (student
+                // records, the CAA form…) to work out where BACK should go.
+                // Null when arriving from a public page. Registered on
+                // $rootScope, so it is set before the new view's controller runs.
+                $rootScope.previousState = (publicStates.indexOf(fromState.name) === -1)
+                    ? { name: fromState.name, params: angular.copy(fromParams) || {} }
+                    : null;
             }
         });
+
+        // True when the user arrived at the current page from state `name`.
+        $rootScope.cameFrom = function(name) {
+            return !!($rootScope.previousState && $rootScope.previousState.name === name);
+        };
 
         $rootScope.safeBack = function() {
             if (previousStateName && publicStates.indexOf(previousStateName) === -1) {

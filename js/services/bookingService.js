@@ -185,9 +185,11 @@ app.factory('BookingService', BookingService);
 
         }
 
-        function GetBookingsToDebrief(instructor_id){
-
-            return $http.get('/api/v1/bookings/instructor_debrief').then(handleSuccess, handleError2);
+        // params (optional): { fd_page, fd_per_page } pages "Flights without a student record"
+        function GetBookingsToDebrief(instructor_id, params){
+            var q = [];
+            angular.forEach(params || {}, function(v, k){ if(v !== null && v !== undefined && v !== ''){ q.push(encodeURIComponent(k) + '=' + encodeURIComponent(v)); } });
+            return $http.get('/api/v1/bookings/instructor_debrief' + (q.length ? '?' + q.join('&') : '')).then(handleSuccess, handleError2);
 
         }
 

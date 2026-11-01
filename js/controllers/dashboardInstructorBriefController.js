@@ -71,6 +71,19 @@
         vm.exams = [];
 
         
+        // ── Debrief list paging state — declared BEFORE the switch below, whose
+        // debrief_list case starts the first load (a var declared later would
+        // still be undefined then). Server-side pages
+        // (bookings/instructor_debrief?fd_page&fd_per_page): the list can be
+        // hundreds of rows. The page is remembered for the tab, so coming back
+        // from a debrief lands on the same page.
+        vm.flight_debriefs = [];
+        vm.fd_page = 1;
+        vm.fd_per_page = 25;
+        vm.fd_total = 0;
+        vm.fd_loading = false;
+        var FD_PAGE_KEY = 'toaviate_debrief_list_page';
+
         switch(vm.action){
             case "add":
                 //console.log("adding a new course please");
@@ -163,17 +176,10 @@
             case "debrief_list":
                 //console.log("view list of existing courses");
 
-                BookingService.GetBookingsToDebrief(vm.user.id)
-                    .then(function(data){
-
-                        vm.briefings = data.briefings;
-                        // Imported / tracker-claimed flights with no booking that
-                        // still need a student record (see
-                        // FRONTEND_MISSING_STUDENT_RECORDS_GUIDE.md). Sorted
-                        // newest-first by the API; can be long after an import.
-                        vm.flight_debriefs = data.flight_debriefs || [];
-
-                    });
+                // Imported / tracker-claimed flights with no booking that still
+                // need a student record (FRONTEND_MISSING_STUDENT_RECORDS_GUIDE.md).
+                // Newest first and server-paged — hundreds after an import.
+                load_debrief_list(restore_fd_page());
 
                 // Records a club admin entered on this instructor's behalf —
                 // they count already, but wait for the instructor to confirm.
@@ -188,7 +194,8 @@
                 vm.booking_id = $stateParams.booking_id;
                 // A club admin filing on an instructor's behalf arrives from the
                 // Records to File page or a student's record — return there.
-                vm.from = ($stateParams.from === 'records_to_file' || $stateParams.from === 'student_records') ? $stateParams.from : null;
+                // instructed_hours: the instructor's own "Fill in record" prompt.
+                vm.from = ($stateParams.from === 'records_to_file' || $stateParams.from === 'student_records' || $stateParams.from === 'instructed_hours') ? $stateParams.from : null;
                 
                 console.log("STATEPARAMS: ", $stateParams);
 
@@ -272,6 +279,8 @@
                     vm.instructor = data.instructor;
                     setup_record_instructor(data);
                     vm.plane_log_sheet = data.log_sheet;
+                    // only the TPC import note on this flight so far — saving replaces it
+                    vm.import_note = data.import_note || null;
                     vm.sheet_needs_book_in = !!(data.log_sheet && data.log_sheet.needs_book_in == 1);
                     vm.pending_split_leg = data.pending_split_leg || null;
                     if(vm.pending_split_leg && vm.pending_split_leg.id > 0 && !(vm.split_next_id > 0)){
@@ -337,9 +346,25 @@
         // Rows are plane_log_sheet flights with no booking. missing_student:1
         // rows can't be debriefed yet — the student must be resolved first
         // (inline dismiss here; assign/create lives on the admin queue page).
-        vm.flight_debriefs = [];
-        vm.fd_limit = 25;   // client-side pagination — the list can be hundreds of rows
-        vm.fd_show_more = function(){ vm.fd_limit += 50; };
+        // (vm.flight_debriefs / vm.fd_* paging state is declared above the action switch.)
+        vm.fd_go = function(page){ load_debrief_list(page); };
+
+        function restore_fd_page(){
+            try { return Math.max(1, parseInt(sessionStorage.getItem(FD_PAGE_KEY), 10) || 1); } catch(e) { return 1; }
+        }
+        function load_debrief_list(page){
+            vm.fd_loading = true;
+            BookingService.GetBookingsToDebrief(vm.user.id, { fd_page: page || 1, fd_per_page: vm.fd_per_page })
+                .then(function(data){
+                    vm.fd_loading = false;
+                    if(!data || data.success === false){ return; }
+                    vm.briefings = data.briefings;
+                    vm.flight_debriefs = data.flight_debriefs || [];
+                    vm.fd_total = (data.flight_debriefs_total !== undefined) ? data.flight_debriefs_total : vm.flight_debriefs.length;
+                    vm.fd_page = data.flight_debriefs_page || 1;
+                    try { sessionStorage.setItem(FD_PAGE_KEY, String(vm.fd_page)); } catch(e) {}
+                });
+        }
 
         // The name the paper sheet had for an unidentified student
         // ("Ben ANDERSON" — may be surname-only, or nothing at all).
@@ -368,12 +393,8 @@
             modal.result.then(function(res){
                 if(res && res.fixed){
                     // The student is now attached (possibly to sibling rows too) —
-                    // reload so every fixed row flips to debrief-able.
-                    BookingService.GetBookingsToDebrief(vm.user.id)
-                        .then(function(data){
-                            vm.briefings = data.briefings;
-                            vm.flight_debriefs = data.flight_debriefs || [];
-                        });
+                    // reload this page so every fixed row flips to debrief-able.
+                    load_debrief_list(vm.fd_page);
                 }
             }, function(){});
         };
@@ -538,6 +559,9 @@
         vm.leave_debrief = function(){
             if(vm.from === 'records_to_file'){
                 $state.go('dashboard.manage_club.records_to_file');
+            } else if(vm.from === 'instructed_hours'){
+                // The page restores its own range and highlights this flight.
+                $state.go('dashboard.manage_user.instructed_hours');
             } else if(vm.from === 'student_records' && vm.student && vm.student.id && vm.course_id){
                 $state.go('dashboard.manage_user.student_records', {
                     club_id: vm.record_club_id, student_id: vm.student.id, course_id: vm.course_id
@@ -1017,7 +1041,7 @@
                             $state.go('dashboard.my_account.book_in', {id: vm.split_next_id});
                             //dashboard.my_account.book_in({id: log.plane_log_sheet_id})
                         } else if(vm.from){
-                            // Filed from Records to File / a student's record — go back there.
+                            // Filed from Records to File / a student's record / Hours Instructed — go back there.
                             vm.leave_debrief();
                         } else {
                             $state.go('dashboard.manage_user', {reload: true});

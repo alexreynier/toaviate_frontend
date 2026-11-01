@@ -31,6 +31,24 @@
 
         vm.exams = [];
 
+        // Set once this view is torn down — late async callbacks must not touch the URL.
+        var page_left = false;
+        $scope.$on('$destroy', function(){ page_left = true; });
+
+        // Return path (see resolve_origin): declared before the switch below uses it.
+        var ORIGIN_KEY = 'toaviate_sr_origin';
+        var ORIGIN_LABELS = {
+            'dashboard': 'Dashboard',
+            'dashboard.manage_user': 'Instructor Dashboard',
+            'dashboard.manage_user.instructed_hours': 'Hours Instructed',
+            'dashboard.manage_user.my_schedule': 'My Schedule',
+            'dashboard.manage_user.debriefing_list': 'Debriefs',
+            'dashboard.manage_user.debriefing': 'Debrief',
+            'dashboard.manage_user.caa_forms': 'CAA Forms',
+            'dashboard.manage_user.caa_forms_new': 'CAA Form',
+            'dashboard.manage_club.records_to_file': 'Records to File'
+        };
+
         
         switch(vm.action){
             
@@ -41,6 +59,11 @@
                 // button or a shared link. Consumed once the lists have loaded.
                 vm.link_student_id = $stateParams.student_id || null;
                 vm.link_course_id = $stateParams.course_id || null;
+                vm.link_flight_id = $stateParams.flight || null;
+
+                // Where BACK goes — wherever the user actually came from.
+                vm.origin = resolve_origin();
+                vm.origin_label = origin_label(vm.origin);
 
                 // Load the clubs this instructor belongs to. GetStaffClubs =
                 // instructor OR manager clubs — GetAdminClubs alone is
@@ -156,7 +179,7 @@
             vm.unfiled_total = 0;
 
             // A club switch invalidates any student/course in the URL.
-            sync_url(true);
+            sync_url();
 
             load_students_for_club(vm.club_id);
         };
@@ -206,13 +229,19 @@
         // Mirror the current selection into the URL's query params without
         // re-instantiating the controller (notify:false), so refresh / back /
         // copy-link all land straight back on this student + course.
-        function sync_url(replace) {
-            var options = { notify: false };
-            if (replace) { options.location = 'replace'; }
+        // ALWAYS replaces the current history entry: the page is one stop in
+        // the browser history. Pushing made browser BACK land on this page's
+        // own previous URL, which re-ran the controller (and re-opened a
+        // ?flight= popup, then pushed again) — BACK looked like it did nothing.
+        function sync_url() {
+            // Never from a page that has been left (a fetch landing late).
+            if (page_left || $state.current.name !== 'dashboard.manage_user.student_records') { return; }
+            var options = { notify: false, location: 'replace' };
             $state.go('dashboard.manage_user.student_records', {
                 club_id: vm.club_id,
                 student_id: vm.show_record ? vm.student_id : null,
-                course_id: vm.show_record ? vm.course_id : null
+                course_id: vm.show_record ? vm.course_id : null,
+                flight: null
             }, options);
         }
 
@@ -307,7 +336,7 @@
                 vm.caa_documents = forms.filter(function(f){ return f.status === 'completed'; });
             });
         }
-        vm.openCaaForm = function(f){ $state.go('dashboard.caa_form', { id: f.id }); };
+        vm.openCaaForm = function(f){ go_and_return('dashboard.caa_form', { id: f.id }); };
         vm.downloadCaaPdf = function(f){
             vm.caa_pdf_busy = f.id;
             CaaFormsService.GetPdf(f.id, (f.form_type || 'caa_form') + '.pdf').then(function(res){
@@ -367,8 +396,79 @@
                         };
                     }
                     sync_url();
+                    open_linked_flight();
                 });
         }
+
+        // ?flight=<plane_log_sheet_id> (Hours Instructed → open the training
+        // record): once the student's records are in, open that flight's record
+        // popup — where it can be read, edited or confirmed. Consumed once.
+        function open_linked_flight(){
+            if(!vm.link_flight_id || page_left){ return; }
+            var pls = String(vm.link_flight_id);
+            vm.link_flight_id = null;
+            var log = null;
+            angular.forEach(vm.log_sheets || [], function(l){
+                if(!log && l && String(l.id) === pls){ log = l; }
+            });
+            vm.open_training_detail(Number(pls), log || { id: Number(pls), club_id: vm.club_id });
+            // Opened for someone who came here for this one record — the popup
+            // offers the way straight back (see the sr-modal footer).
+            vm.linked_popup = !!vm.origin;
+        }
+
+        // ── Return path ──
+        // The page has many ways in: the instructor dashboard tile, My Schedule,
+        // Hours Instructed, Records to File, the debrief list, a CAA form…
+        // BACK returns to the one the user actually used. The origin is kept
+        // per tab (sessionStorage) so it survives a refresh and the page's own
+        // round trips (debrief, replay, CAA form, questionnaire), which mark
+        // themselves via go_and_return() so coming back from them doesn't
+        // overwrite it. Any other arrival is a fresh origin.
+        // (ORIGIN_KEY / ORIGIN_LABELS are declared at the top — resolve_origin() runs during init.)
+
+        function read_origin(){
+            try { return JSON.parse(sessionStorage.getItem(ORIGIN_KEY) || 'null'); } catch(e) { return null; }
+        }
+        function write_origin(o){
+            try { sessionStorage.setItem(ORIGIN_KEY, JSON.stringify(o)); } catch(e) {}
+        }
+        function resolve_origin(){
+            var self = $state.current.name;
+            var prev = $rootScope.previousState;   // set by the app.js run block
+            var stored = read_origin();
+            if(prev && prev.name && prev.name !== self){
+                var returning = stored && stored.excursion && stored.excursion === prev.name;
+                if(!returning){ stored = { name: prev.name, params: prev.params || {} }; }
+            }
+            if(stored){ stored.excursion = null; write_origin(stored); }
+            if(!stored || !stored.name || stored.name === self){ return null; }
+            var st = $state.get(stored.name);
+            return (st && !st.abstract) ? stored : null;
+        }
+        function origin_label(o){
+            if(!o){ return null; }
+            if(ORIGIN_LABELS[o.name]){ return ORIGIN_LABELS[o.name]; }
+            var st = $state.get(o.name);
+            return (st && st.data && st.data.hub && st.data.hub.title) || null;
+        }
+        // Leave for a page that comes back here (its BACK / save returns),
+        // keeping this page's origin intact for the return.
+        function go_and_return(state, params){
+            if(vm.action === 'student_records'){
+                var o = read_origin();
+                if(o){ o.excursion = state; write_origin(o); }
+            }
+            $state.go(state, params);
+        }
+
+        vm.go_back = function(){
+            if(vm.origin){
+                $state.go(vm.origin.name, vm.origin.params || {});
+            } else {
+                $state.go('dashboard.manage_user');
+            }
+        };
 
         // The course's full lesson list — backs both lesson pickers in the record
         // edit form (this record's lesson, and the student's next lesson).
@@ -451,7 +551,7 @@
         // the marking screen so it can be reviewed with the student.
         vm.soloReviewAttempt = function(req){
             if (!req.evidence || !req.evidence.id) { return; }
-            $state.go('dashboard.manage_club.questionnaire_review', { attempt_id: req.evidence.id });
+            go_and_return('dashboard.manage_club.questionnaire_review', { attempt_id: req.evidence.id });
         };
 
         vm.soloStartSignOff = function(req){
@@ -1127,7 +1227,7 @@
         // questionnaire hub use). Only meaningful for a submitted/reviewed attempt.
         vm.open_questionnaire_result = function(q){
             if(!q || !q.attempt_id) return;
-            $state.go('dashboard.my_account.questionnaire_result', { attempt_id: q.attempt_id });
+            go_and_return('dashboard.my_account.questionnaire_result', { attempt_id: q.attempt_id });
         };
 
         // Open the flight replay/debrief for a student's logged flight. Shown
@@ -1138,7 +1238,7 @@
         };
         vm.viewReplay = function(log){
             if(!vm.canReplay(log)) return;
-            $state.go('dashboard.flight_replay', { flight_id: log.id });
+            go_and_return('dashboard.flight_replay', { flight_id: log.id });
         };
 
         vm.open_training_detail = function(pls_id, plane_log_sheet){
@@ -1172,6 +1272,7 @@
 
         vm.close_popup = function(){
             vm.show_popup = false;
+            vm.linked_popup = false;
 
             vm.show_edit_training_record = false;
 
@@ -1829,9 +1930,23 @@
             return 'Instructional';
         };
 
+        // A flight whose only record is the TPC import note: debrief it. Saving
+        // replaces the note (TrainingRecords::add), and the debrief returns here.
+        vm.fill_import_note = function(log){
+            if(!log || !log.id){ return; }
+            vm.close_popup();
+            go_and_return('dashboard.manage_user.debriefing', {
+                booking_id: (log.booking_id && Number(log.booking_id) > 0) ? Number(log.booking_id) : 0,
+                plane_log_sheet_id: log.id,
+                split_next_id: null,
+                split_booking_id: null,
+                from: 'student_records'
+            });
+        };
+
         vm.file_unfiled = function(f){
             if(!f || f.needs_book_in == 1){ return; }
-            $state.go('dashboard.manage_user.debriefing', {
+            go_and_return('dashboard.manage_user.debriefing', {
                 booking_id: (f.booking_id && Number(f.booking_id) > 0) ? Number(f.booking_id) : 0,
                 plane_log_sheet_id: f.plane_log_sheet_id,
                 split_next_id: null,

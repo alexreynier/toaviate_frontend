@@ -184,6 +184,14 @@ page-prefixed blocks**: a block per page, `__element`, `--modifier`.
   __load-more / __spinner        pagination / loading
 ```
 
+**Numbered pagination — reuse `<snazzy-pager>`** ([js/directives/snazzyPager.js](js/directives/snazzyPager.js),
+[css/snazzy-pager.css](css/snazzy-pager.css)) for any server-paged list instead of another one-off pager:
+`<snazzy-pager page="vm.page" total="vm.total" per-page="vm.perPage" label="flights" busy="vm.paging"
+anchor="#list-top" on-change="vm.goPage(page)">`. Put `snazzy-pager-anchor` on the anchor (clears the fixed nav) and
+`ng-class="{'snazzy-pager-busy': vm.paging}"` on the list. Phones show Prev · current · "of N" · Next. Used by the
+debrief list (`bookings/instructor_debrief?fd_page&fd_per_page`, page remembered in sessionStorage) and Records to File
+(page kept with its filters); both backends clamp a page past the end to the last page.
+
 Page-specific blocks follow the same convention: `members-page__*`, `member-detail__*`,
 `ib-card__*` (instructor bookings), `receipt-approval-card__*`, `shop-page__*`, etc.
 
@@ -498,6 +506,45 @@ Flights come tagged `kind: dual | solo`; totals, the month breakdown and the clu
 client-side so the "Include supervised solos" toggle is instant. A supervised solo is NEVER logbook time for
 the instructor (My Logbook / PDF exclude it — backend `PersonalLogbook::is_authorised_solo_not_flown_by`);
 this page is where it is counted. Presets are built from today's date; date inputs hold real `Date` objects.
+Each flight row closes the loop (added 2026-10-30): a **Track** button (`has_track`, same rule as every replay link) →
+`dashboard.flight_replay`; a **Training record** chip from the backend's `record_status` — `import_note` (as `missing`, with an
+"import note" tag — see TPC-import placeholder records below), `recorded` (green, opens
+`student_records?…&flight=<pls>`, which auto-opens that flight's record popup and drops the param), `awaiting_confirmation`
+(amber, same link — confirm in the popup), `missing` (red dashed "Fill in record" → debrief with `from=instructed_hours`,
+whose save/BACK return here), `not_required`, `no_student`. A "Records outstanding" chip filters the list. Range, filters and
+the last-opened flight live in sessionStorage (`toaviate_ih_view` / `toaviate_ih_focus`) so the return trip lands on the same
+view with that row pulsed once.
+
+## Student records — return path & URL syncing
+
+`dashboard.manage_user.student_records` has many ways in (instructor dashboard tile, My Schedule, Hours Instructed,
+Records to File, the debrief list, a CAA form). Rules (2026-10-30):
+- **BACK goes where the user came from.** `$rootScope.previousState` / `$rootScope.cameFrom(name)` (set in the app.js
+  run block) feed `resolve_origin()` in dashboardStudentRecordsController; the origin is kept in sessionStorage
+  `toaviate_sr_origin` so a refresh keeps it. Leave for a page that comes back (replay, debrief, CAA form,
+  questionnaire) through `go_and_return(state, params)` so the return trip doesn't overwrite the origin.
+- **`&flight=<pls_id>`** opens that flight's record popup once, with a "Back to <origin>" button in its footer.
+- **URL syncing must replace, and the state needs `reloadOnSearch: false`.** This ui-router (0.2.x) ui-view re-renders on
+  `$viewContentLoading`: a `notify:false` `$state.go` that changes params swaps the state's locals without re-rendering,
+  so the NEXT navigation away spawns an orphan copy of the page mid-transition whose late fetch drags the URL back.
+  Same latent pattern (push-style, so not a drop-in fix) in tpc_import_run, exam_results, fox_track_tools and the
+  CAA forms list.
+- The CAA form and the member questionnaire result return to the record when opened from it (`cameFrom`).
+
+## TPC-import placeholder records ("import note only")
+
+The 2023+ TPC import wrote a training record for every dual flight so the flight counts on the student's course record.
+When the source row had no exercise or remarks, that record's remarks are just `[TPC import 2026:410]` (7,401 of them
+locally) — a placeholder, not a debrief. Rule (2026-10-30, backend `TrainingRecords::import_note_only_sql`): remarks are
+the import tag and nothing else, no lesson, no graded/remarked item. Anything an instructor adds ("Ex: 10 — all stalls
+satis", a lesson, a grade) makes it a real record; "Ex: 8b [TPC import …]" counts as filled in.
+- Every "still needs a record" check uses it via `Bookings::open_record_sql()` (debrief list "Flights without a student
+  record", Records to File + the student page's unfiled list); Hours Instructed reports `record_status: 'import_note'`.
+- Filing the debrief REPLACES the placeholder (soft-deleted in the same transaction by `TrainingRecords::add`) instead of
+  failing DUPLICATE. The placeholder is never deleted otherwise — it carries the flight's course hours.
+- UI: `.rtf-chip--import` ("import note only", info blue, dashed) everywhere; Records to File filter `record_kind`
+  (`none` | `import_note`) + `summary.import_notes`; the debrief page shows a "saving replaces the note" banner
+  (`import_note` on `bookings/for_debrief_pls`). No migration: plain LIKE/LOCATE SQL, same on every MySQL.
 
 ## Logbook Endorsements & Free-Logbook Signup Funnel
 

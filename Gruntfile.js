@@ -153,6 +153,7 @@ module.exports = function (grunt) {
                     'css/payment-methods.css',
                     'css/missing-students.css',
                     'css/records-to-file.css',
+                    'css/snazzy-pager.css',
                     'css/platform-keys.css',
                     'css/security.css',
                     'css/step-up.css',

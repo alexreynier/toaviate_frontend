@@ -27,7 +27,7 @@
                ng-click="vm.setView('all')" no-busy-guard>
             <span class="snazzy-page__stat-label">Open</span>
             <span class="snazzy-page__stat-value">{{ vm.summary.open }}</span>
-            <span class="rtf-stat__sub">flights without a record</span>
+            <span class="rtf-stat__sub">flights without a record<span ng-if="vm.summary.import_notes > 0"> · {{ vm.summary.import_notes }} import note only</span></span>
           </div>
           <div class="snazzy-page__stat rtf-stat rtf-stat--ready"
                ng-class="{'rtf-stat--on': vm.tab === 'to_file' && vm.view === 'ready'}"
@@ -92,6 +92,14 @@
                     ng-change="vm.onInstructorChange()" no-busy-guard></select>
           </div>
           <div class="snazzy-page__filter-group">
+            <label for="rtf-record">Record</label>
+            <select id="rtf-record" class="rtf-select" ng-model="vm.filters.record_kind" ng-change="vm.load()" no-busy-guard>
+              <option value="">Any</option>
+              <option value="none">No record at all</option>
+              <option value="import_note">Import note only</option>
+            </select>
+          </div>
+          <div class="snazzy-page__filter-group">
             <label for="rtf-from">From</label>
             <input id="rtf-from" type="date" class="snazzy-page__date-input" ng-model="vm.filters.date_from" />
           </div>
@@ -120,9 +128,9 @@
         </div>
 
         <!-- Count -->
-        <div class="snazzy-page__toolbar rtf-toolbar" ng-if="!vm.loading && vm.flights.length > 0">
+        <div class="snazzy-page__toolbar rtf-toolbar snazzy-pager-anchor" id="rtf-list" ng-if="!vm.loading && vm.flights.length > 0">
           <div class="snazzy-page__meta">
-            Showing <span class="snazzy-page__count-badge">{{ vm.flights.length }}</span> of {{ vm.total }} flight<span ng-if="vm.total !== 1">s</span>
+            Showing <span class="snazzy-page__count-badge">{{ vm.rangeFrom() | number }}–{{ vm.rangeTo() | number }}</span> of {{ vm.total | number }} flight<span ng-if="vm.total !== 1">s</span>
           </div>
         </div>
 
@@ -141,7 +149,7 @@
         </div>
 
         <!-- Desktop table -->
-        <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="!vm.loading && vm.flights.length > 0">
+        <div class="snazzy-page__table-card snazzy-desktop-table" ng-if="!vm.loading && vm.flights.length > 0" ng-class="{'snazzy-pager-busy': vm.paging}">
           <div class="snazzy-page__table-scroll">
             <table class="snazzy-table rtf-table">
               <thead>
@@ -169,6 +177,7 @@
                       <span class="snazzy-table__name">{{ vm.personName(f.student) }}</span>
                       <span class="msq-chip msq-chip--temp" ng-if="f.student.imported_user == 1"
                             uib-tooltip="A temporary member — records saved now follow their account when it is converted.">temporary member</span>
+                      <span class="rtf-chip rtf-chip--import" ng-if="f.import_note" uib-tooltip="Only the TPC import note so far ({{ f.import_note }}): nobody has debriefed this flight. Filing the record replaces the note."><i class="fas fa-file-import"></i> import note only</span>
                     </span>
                     <span ng-if="!f.student">
                       <span class="msq-chip msq-chip--missing"><i class="fa fa-question-circle"></i> no student</span>
@@ -205,7 +214,7 @@
         </div>
 
         <!-- Mobile cards -->
-        <div class="snazzy-mobile-cards" ng-if="!vm.loading && vm.flights.length > 0">
+        <div class="snazzy-mobile-cards" ng-if="!vm.loading && vm.flights.length > 0" ng-class="{'snazzy-pager-busy': vm.paging}">
           <div class="snazzy-mobile-card" ng-repeat="f in vm.flights track by f.plane_log_sheet_id">
             <div class="snazzy-mobile-card__header">
               <i class="fa fa-user-graduate"></i>
@@ -242,6 +251,10 @@
                 <span class="snazzy-mobile-card__label">Status</span>
                 <span class="snazzy-mobile-card__value"><span class="msq-chip msq-chip--temp">temporary member</span></span>
               </div>
+              <div class="snazzy-mobile-card__row" ng-if="f.import_note">
+                <span class="snazzy-mobile-card__label">Record</span>
+                <span class="snazzy-mobile-card__value"><span class="rtf-chip rtf-chip--import"><i class="fas fa-file-import"></i> import note only</span></span>
+              </div>
               <div class="snazzy-mobile-card__row" ng-if="f.needs_book_in == 1">
                 <span class="snazzy-mobile-card__label">Status</span>
                 <span class="snazzy-mobile-card__value"><span class="msq-chip msq-chip--split">part {{ f.tpc_split_leg || 2 }} · not booked in</span></span>
@@ -264,16 +277,9 @@
           </div>
         </div>
 
-        <!-- Pagination -->
-        <div class="snazzy-page__load-more" ng-if="!vm.loading && vm.canLoadMore()">
-          <button type="button" class="snazzy-page__load-more-btn" ng-click="vm.loadMore()" ng-disabled="vm.loading_more" no-busy-guard>
-            <i class="fa" ng-class="vm.loading_more ? 'fa-spinner fa-spin' : 'fa-chevron-down'"></i>
-            {{ vm.loading_more ? 'Loading…' : 'Load more (' + (vm.total - vm.flights.length) + ' remaining)' }}
-          </button>
-        </div>
-        <div class="snazzy-page__all-loaded" ng-if="!vm.loading && vm.flights.length > 0 && !vm.canLoadMore() && vm.total > 50">
-          <i class="fa fa-check-circle"></i> All {{ vm.total }} flights loaded
-        </div>
+        <!-- Pagination (server-side pages) -->
+        <snazzy-pager ng-if="!vm.loading" page="vm.page" total="vm.total" per-page="vm.perPage" label="flights"
+                      busy="vm.paging" anchor="#rtf-list" on-change="vm.goPage(page)"></snazzy-pager>
 
       </div>
 

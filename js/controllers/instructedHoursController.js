@@ -2,9 +2,15 @@
 // split into dual instruction (aboard) and supervised solos (authorised, not
 // aboard), over a date range with quick presets. Totals are computed here so
 // the "include supervised solos" toggle is instant.
+//
+// Each flight also closes the loop: replay the recorded track (has_track), open
+// the training record (deep-links the student record page's flight popup), or
+// "Fill in record" (the debrief, from=instructed_hours so the save comes back
+// here). The range / filters live in sessionStorage so coming back from any of
+// those lands on the same view, with the flight you opened briefly highlighted.
 app.controller('InstructedHoursController', InstructedHoursController);
-InstructedHoursController.$inject = ['$rootScope', '$filter', 'InstructorHoursService', 'ToastService'];
-function InstructedHoursController($rootScope, $filter, InstructorHoursService, ToastService) {
+InstructedHoursController.$inject = ['$rootScope', '$filter', '$state', '$timeout', 'InstructorHoursService', 'ToastService'];
+function InstructedHoursController($rootScope, $filter, $state, $timeout, InstructorHoursService, ToastService) {
     var vm = this;
     vm.user = $rootScope.globals.currentUser;
 
@@ -20,17 +26,56 @@ function InstructedHoursController($rootScope, $filter, InstructorHoursService, 
     vm.clubs = [];
     vm.students = [];
     vm.filter_club = null;
+    vm.only_todo = false;     // list filter: flights still needing a record from me
+    vm.todo_count = 0;
+    vm.flash_id = null;       // the flight opened before coming back — highlighted once
+
+    var VIEW_KEY = 'toaviate_ih_view';
+    var FOCUS_KEY = 'toaviate_ih_focus';
 
     vm.presets = build_presets();
     vm.use_preset = use_preset;
     vm.search = search;
-    vm.toggle_solo = function(){ vm.include_solo = !vm.include_solo; recompute(); };
-    vm.set_club = function(id){ vm.filter_club = (vm.filter_club === id) ? null : id; recompute(); };
+    vm.toggle_solo = function(){ vm.include_solo = !vm.include_solo; recompute(); save_view(); };
+    vm.set_club = function(id){ vm.filter_club = (vm.filter_club === id) ? null : id; recompute(); save_view(); };
+    vm.toggle_todo = function(){ vm.only_todo = !vm.only_todo; save_view(); };
     vm.kind_label = function(k){ return k === 'solo' ? 'Supervised solo' : (k === 'dual' ? 'Dual' : 'Other'); };
     vm.hours = function(h){ return hours_hm(h); };
-    vm.shown_flights = function(){ return vm._shown || []; };
+    vm.shown_flights = function(){ return vm.only_todo ? (vm._todo || []) : (vm._shown || []); };
 
-    use_preset('last30');
+    // ── closing the loop: track + training record per flight ──
+    // 'missing' = no record yet; 'import_note' = only the TPC import note (not a debrief);
+    // 'awaiting_confirmation' = the club entered one for me to confirm.
+    vm.needs_me = function(f){ return !!f && (f.record_status === 'missing' || f.record_status === 'import_note' || f.record_status === 'awaiting_confirmation'); };
+    vm.can_open_record = function(f){ return !!(f && f.training_record_id && f.course_id && (f.record_user_id || f.student_id)); };
+    vm.open_track = function(f){
+        if (!f || !f.has_track) { return; }
+        remember_focus(f);
+        $state.go('dashboard.flight_replay', { flight_id: f.id });
+    };
+    vm.open_record = function(f){
+        if (!vm.can_open_record(f)) { return; }
+        remember_focus(f);
+        $state.go('dashboard.manage_user.student_records', {
+            club_id: f.record_club_id || f.club_id,
+            student_id: f.record_user_id || f.student_id,
+            course_id: f.course_id,
+            flight: f.id
+        });
+    };
+    vm.fill_record = function(f){
+        if (!f || (f.record_status !== 'missing' && f.record_status !== 'import_note')) { return; }
+        remember_focus(f);
+        $state.go('dashboard.manage_user.debriefing', {
+            booking_id: f.booking_id || 0,
+            plane_log_sheet_id: f.id,
+            split_next_id: null,
+            split_booking_id: null,
+            from: 'instructed_hours'
+        });
+    };
+
+    restore_view();
 
     // ── presets ──
     function build_presets(){
@@ -52,7 +97,7 @@ function InstructedHoursController($rootScope, $filter, InstructorHoursService, 
         var p = null;
         for (var i = 0; i < vm.presets.length; i++) { if (vm.presets[i].id === id) { p = vm.presets[i]; } }
         vm.preset = id;
-        if (!p || id === 'custom') { if (!vm.from_date) { vm.from_date = add_days(new Date(), -30); vm.to_date = new Date(); } return; }
+        if (!p || id === 'custom') { if (!vm.from_date) { vm.from_date = add_days(new Date(), -30); vm.to_date = new Date(); } save_view(); return; }
         vm.from_date = new Date(p.from.getTime());
         vm.to_date = new Date(p.to.getTime());
         search();
@@ -61,6 +106,7 @@ function InstructedHoursController($rootScope, $filter, InstructorHoursService, 
         if (!vm.from_date || !vm.to_date) { ToastService.warning('Dates', 'Pick both a from and a to date.'); return; }
         if (vm.from_date > vm.to_date) { ToastService.warning('Dates', 'The from date is after the to date.'); return; }
         vm.loading = true;
+        save_view();
         InstructorHoursService.GetSummary(ymd(vm.from_date), ymd(vm.to_date)).then(function(data){
             vm.loading = false;
             vm.loaded = true;
@@ -74,16 +120,18 @@ function InstructedHoursController($rootScope, $filter, InstructorHoursService, 
             vm.clubs = angular.isArray(data.clubs) ? data.clubs : [];
             if (vm.filter_club && !vm.clubs.some(function(c){ return c.id == vm.filter_club; })) { vm.filter_club = null; }
             recompute();
+            flash_focus();
         });
     }
 
     // ── totals (client-side so the toggle / club filter are instant) ──
     function recompute(){
-        var shown = [], by_month = {}, students = {}, t = empty_totals();
+        var shown = [], todo = [], by_month = {}, students = {}, t = empty_totals();
         angular.forEach(vm.flights, function(f){
             if (f.kind === 'solo' && !vm.include_solo) { return; }
             if (vm.filter_club && f.club_id != vm.filter_club) { return; }
             shown.push(f);
+            if (vm.needs_me(f)) { todo.push(f); }
             var h = num(f.hours), key = String(f.flight_date || '').slice(0, 7);
             if (!by_month[key]) { by_month[key] = { key: key, label: month_label(key), dual_hours: 0, solo_hours: 0, hours: 0, flights: 0 }; }
             var mo = by_month[key];
@@ -97,12 +145,68 @@ function InstructedHoursController($rootScope, $filter, InstructorHoursService, 
         vm.totals = t;
         vm.months = Object.keys(by_month).sort().reverse().map(function(k){ return by_month[k]; });
         vm._shown = shown;
+        vm._todo = todo;
+        vm.todo_count = todo.length;
+        if (!todo.length) { vm.only_todo = false; }   // nothing left: back to the full list
+    }
+
+    // ── remembered view (sessionStorage: this tab only) ──
+    function save_view(){
+        try {
+            sessionStorage.setItem(VIEW_KEY, JSON.stringify({
+                preset: vm.preset,
+                from: vm.preset === 'custom' && vm.from_date ? ymd(vm.from_date) : null,
+                to: vm.preset === 'custom' && vm.to_date ? ymd(vm.to_date) : null,
+                include_solo: vm.include_solo,
+                filter_club: vm.filter_club,
+                only_todo: vm.only_todo
+            }));
+        } catch (e) {}
+    }
+    function restore_view(){
+        var v = null;
+        try { v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null'); } catch (e) { v = null; }
+        if (!v || !v.preset) { use_preset('last30'); return; }
+        vm.include_solo = v.include_solo !== false;
+        vm.filter_club = v.filter_club || null;
+        vm.only_todo = !!v.only_todo;
+        if (v.preset === 'custom' && v.from && v.to) {
+            vm.preset = 'custom';
+            vm.from_date = parse_ymd(v.from);
+            vm.to_date = parse_ymd(v.to);
+            search();
+            return;
+        }
+        var known = vm.presets.some(function(p){ return p.id === v.preset && p.id !== 'custom'; });
+        use_preset(known ? v.preset : 'last30');
+    }
+    // Which flight was opened (track / record / debrief) so the return trip can find it.
+    function remember_focus(f){
+        try { sessionStorage.setItem(FOCUS_KEY, JSON.stringify({ id: f.id, at: Date.now() })); } catch (e) {}
+    }
+    function flash_focus(){
+        var v = null;
+        try { v = JSON.parse(sessionStorage.getItem(FOCUS_KEY) || 'null'); sessionStorage.removeItem(FOCUS_KEY); } catch (e) { v = null; }
+        if (!v || !v.id || (Date.now() - (v.at || 0)) > 60 * 60 * 1000) { return; }
+        var f = null;
+        angular.forEach(vm.shown_flights(), function(x){ if (x.id === v.id) { f = x; } });
+        if (!f) { return; }
+        vm.flash_id = f.id;
+        // after the rows render: bring it into view (window or body scroller alike), then let the pulse fade
+        $timeout(function(){
+            var els = document.querySelectorAll('[data-ih-flight="' + f.id + '"]');
+            for (var i = 0; i < els.length; i++) {
+                if (els[i].offsetParent !== null && els[i].scrollIntoView) { els[i].scrollIntoView({ block: 'center' }); break; }
+            }
+        }, 60);
+        $timeout(function(){ vm.flash_id = null; }, 2600);
     }
 
     function empty_totals(){ return { hours: 0, dual_hours: 0, solo_hours: 0, flights: 0, dual_flights: 0, solo_flights: 0, landings: 0, students: 0 }; }
     function num(v){ var n = parseFloat(v); return isNaN(n) ? 0 : n; }
     function add_days(d, n){ var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
     function ymd(d){ return $filter('date')(d, 'yyyy-MM-dd'); }
+    function parse_ymd(s){ var p = String(s).split('-'); return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10)); }
     function month_name(y, m){ return $filter('date')(new Date(y, m, 1), 'MMMM'); }
     function month_label(key){ var p = key.split('-'); return p.length === 2 ? $filter('date')(new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1), 'MMMM yyyy') : key; }
     // decimal hours → "H:MM"
