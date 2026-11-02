@@ -10,6 +10,8 @@
         service.Login1 = Login1;
         service.Login2 = Login2;
         service.Login2FA = Login2FA;
+        service.LoginVerifyEmail = LoginVerifyEmail;
+        service.ResendLoginEmailCode = ResendLoginEmailCode;
         service.Login3 = Login3;
         service.Logout = Logout;
 
@@ -94,6 +96,29 @@
         // responses ({error:'WRONG_CODE', attempts_remaining} etc.) are passed
         // through to the caller even on non-2xx statuses so the login screen
         // can show attempts left / expiry.
+        // Email confirmation at login (users.verified = 0 with a correct
+        // password): the 6-digit code emailed by login2. Same "token,code"
+        // Base64 convention as login_2fa; errors (WRONG_CODE / EXPIRED /
+        // TOO_MANY_ATTEMPTS) pass through so the screen can react.
+        function LoginVerifyEmail(token, code, callback){
+            var a = Base64.encode(token + "," + code);
+            $http.post('/api/v1/users/login_verify_email', { a: a })
+               .success(function (response) { callback(response); })
+               .error(function (data, status) {
+                   console.log('LoginVerifyEmail failed:', status, data);
+                   if (data && (data.error || data.message)) { data.success = false; callback(data); }
+                   else { callback({ success: false, error: 'Verification failed. Please check your connection and try again.' }); }
+               });
+        }
+        function ResendLoginEmailCode(token, callback){
+            $http.post('/api/v1/users/login_resend_email_code', { token: token })
+               .success(function (response) { callback(response); })
+               .error(function (data, status) {
+                   console.log('ResendLoginEmailCode failed:', status, data);
+                   callback((data && typeof data === 'object') ? angular.extend({ success: false }, data) : { success: false, message: 'Could not send a new code. Please try again.' });
+               });
+        }
+
         function Login2FA(token, code, type, callback){
 
             var user = Base64.encode(token + "," + code);
@@ -246,6 +271,7 @@
                 pilot: [],
                 instructor: [],
                 super_admin: [],
+                passenger: [],      // pax memberships (is_pax) — not pilots, land on My Account
                 items: access,
                 show_manager: false,
                 show_instructor: false,
@@ -256,6 +282,8 @@
 
 
             for(var i=0;i<access.length;i++){
+
+                if(Number(access[i].is_pax) === 1){ obj.passenger.push(access[i].club_id); }
 
                 if(access[i].approved == 1){
                     obj.pilot.push(access[i].club_id);

@@ -1853,10 +1853,16 @@
         vm.log_awaiting = function(log){
             return !!(log && log.training_record_id && Number(log.entered_on_behalf) === 1 && !log.instructor_confirmed_at);
         };
-        vm.log_entered_by = function(log){
-            if(!log || Number(log.entered_on_behalf) !== 1){ return ''; }
-            return ((log.entered_by_first_name || '') + ' ' + (log.entered_by_last_name || '')).trim();
-        };
+        // "Entered by X" / "Edited by X": who wrote it for the instructor. When
+        // someone else edited it later, that editor — a TPC import files under
+        // the instructor, so the filer alone read "Entered by <the instructor>".
+        function on_behalf_phrase(row){
+            if(!row || Number(row.entered_on_behalf) !== 1){ return ''; }
+            var who = ((row.on_behalf_by_first_name || '') + ' ' + (row.on_behalf_by_last_name || '')).trim();
+            if(!who){ return ''; }
+            return (Number(row.on_behalf_edit) === 1 ? 'Edited by ' : 'Entered by ') + who;
+        }
+        vm.log_entered_by = on_behalf_phrase;
         vm.log_instructor = function(log){
             if(!log){ return ''; }
             return ((log.instructor_first_name || '') + ' ' + (log.instructor_last_name || '')).trim();
@@ -1891,7 +1897,7 @@
         // can confirm a record whose instructor has left or can't be reached. A
         // reason is required; the record then shows who confirmed it for them.
         vm.can_confirm_for_instructor = false;
-        vm.cfi_reasons = ['Instructor has left the club', 'Instructor cannot be reached'];
+        vm.cfi_reasons = ['Instructor has left the club', 'Instructor no longer instructs at the club', 'Instructor cannot be reached'];
         vm.cfi_dialog = null;
         vm.can_confirm_for = function(record_id){
             var r = vm.record_by_id[record_id];
@@ -1904,7 +1910,7 @@
             vm.cfi_dialog = {
                 record_id: record_id,
                 instructor: ((r.record_instructor_first_name || '') + ' ' + (r.record_instructor_last_name || '')).trim() || 'the instructor',
-                entered_by: ((r.entered_by_first_name || '') + ' ' + (r.entered_by_last_name || '')).trim(),
+                entered_by: on_behalf_phrase(r),
                 reason: '',
                 error: false,
                 saving: false

@@ -1,8 +1,8 @@
 // MaintenanceSignupController — public single-page signup for a maintenance organisation.
 app.controller('MaintenanceSignupController', MaintenanceSignupController);
 
-MaintenanceSignupController.$inject = ['$rootScope', '$scope', '$state', '$location', 'ToastService', 'MaintenanceOrganisationService', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService', 'TrackerCommerceService'];
-function MaintenanceSignupController($rootScope, $scope, $state, $location, ToastService, MaintenanceOrganisationService, SignupDraftService, SignupPreviewService, PasswordPolicyService, TrackerCommerceService) {
+MaintenanceSignupController.$inject = ['$rootScope', '$scope', '$state', '$location', 'ToastService', 'MaintenanceOrganisationService', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService', 'TrackerCommerceService', '$http', 'EnvConfig'];
+function MaintenanceSignupController($rootScope, $scope, $state, $location, ToastService, MaintenanceOrganisationService, SignupDraftService, SignupPreviewService, PasswordPolicyService, TrackerCommerceService, $http, EnvConfig) {
     var vm = this;
 
     vm.submitting = false;
@@ -36,6 +36,22 @@ function MaintenanceSignupController($rootScope, $scope, $state, $location, Toas
     vm.years = range(thisYear - 18, thisYear - 80);
 
     vm.submit = submit;
+
+    // Signed in already? The founder fields are skipped and the org goes on this account.
+    var me = $rootScope.globals && $rootScope.globals.currentUser;
+    vm.loggedIn = !!(me && me.id);
+    vm.loggedInName = vm.loggedIn ? ((me.first_name || '') + ' ' + (me.last_name || '')).trim() : '';
+    vm.existingAccount = false;
+    vm.autoVerified = false;
+    // Terms / privacy (the stored platform documents, same as the other wizards)
+    vm.openDoc = function(name){
+        var url = EnvConfig.getApiBaseUrl() + '/api/v1/term_documents/show_file/' + name;
+        $http.get(url, { responseType: 'arraybuffer' }).then(function(res){
+            var blob = new Blob([res.data], { type: (res.headers('Content-Type') || 'application/pdf') });
+            var w = window.open(URL.createObjectURL(blob), '_blank');
+            if (!w) { ToastService.warning('Pop-up blocked', 'Please allow pop-ups to open the document.'); }
+        }, function(){ ToastService.error('Document unavailable', "We couldn't open that document just now."); });
+    };
     vm.clearFieldError = function(e) { ToastService.clearFieldError(e); };
 
     // Live password-requirements checklist under the password field.
@@ -112,7 +128,7 @@ function MaintenanceSignupController($rootScope, $scope, $state, $location, Toas
     }
 
     function submit() {
-        var checks = [
+        var checks = vm.loggedIn ? [] : [
             { ok: !!vm.user.first_name,  field: 'mxo_first',     label: 'First name' },
             { ok: !!vm.user.last_name,   field: 'mxo_last',      label: 'Last name' },
             { ok: !!vm.user.email,       field: 'mxo_email',     label: 'Your email' },
@@ -150,21 +166,26 @@ function MaintenanceSignupController($rootScope, $scope, $state, $location, Toas
         }
 
         vm.submitting = true;
-        MaintenanceOrganisationService.Signup({
-            tnc: vm.tnc,
-            user: vm.user,
-            organisation: vm.org,
-            invite_token: inviteToken || null
-        }).then(function(res) {
+        // Already signed in: the organisation is created on THIS account (no
+        // second user, no stranger's account touched).
+        var request = vm.loggedIn
+            ? MaintenanceOrganisationService.RegisterExisting(vm.org)
+            : MaintenanceOrganisationService.Signup({ tnc: vm.tnc, user: vm.user, organisation: vm.org, invite_token: inviteToken || null });
+        request.then(function(res) {
             vm.submitting = false;
             if (res && res.success) {
                 vm.submitted = true;
+                vm.autoVerified = !!(vm.loggedIn || (res.invite && res.invite.success));
                 SignupDraftService.Clear(DRAFT_KEY);
                 ToastService.success('Organisation created',
-                    'Check your inbox to verify your email, then sign in.',
+                    vm.autoVerified ? 'Your organisation is ready.' : 'Check your inbox to verify your email, then sign in.',
                     { confetti: true, duration: 4500 });
+            } else if (res && res.existing_account) {
+                vm.existingAccount = true;
+                ToastService.warning('You already have an account', 'Log in with it and create the organisation from there - nothing you entered has been lost.');
             } else {
-                ToastService.error('Signup failed', (res && res.message) || 'Please try again.');
+                var failMsg = res && (res.message || res.error);
+                ToastService.error('Signup failed', (typeof failMsg === 'string' && failMsg) ? failMsg : 'Please try again.');
             }
         });
     }

@@ -87,6 +87,22 @@
             showWeeks: false
         }
 
+        // ── Instructor rows: the club's "hide instructors who aren't available on
+        // the day" setting (clubs.hide_unavailable_instructors) is applied by the
+        // API; this is the viewer's own "show all" override, remembered per browser.
+        // instructor_filter comes back with every calendar fetch:
+        // { club_setting, applied, hidden }.
+        var SHOW_ALL_KEY = 'toaviate_bookings_show_all_instructors';
+        vm.show_all_instructors = false;
+        try { vm.show_all_instructors = localStorage.getItem(SHOW_ALL_KEY) === '1'; } catch (e) {}
+        vm.instructor_filter = { club_setting: 0, applied: 0, hidden: 0 };
+        var last_range = { start: moment().format("Y-M-D"), end: "" };
+        vm.toggleShowAllInstructors = function(){
+            vm.show_all_instructors = !vm.show_all_instructors;
+            try { localStorage.setItem(SHOW_ALL_KEY, vm.show_all_instructors ? '1' : '0'); } catch (e) {}
+            $scope.updateEvents(last_range.start, last_range.end);
+        };
+
         vm.dateTimeRangePickerOptions = {
             hour_step: 1,
             minute_step: 30,
@@ -444,13 +460,15 @@
 
     $scope.updateEvents = function(start, end){
         ////console.log("start", start, "end", end);
+        last_range = { start: start, end: end };
 
-        BookingService.GetAll(vm.user.id, start, end)
+        BookingService.GetAll(vm.user.id, start, end, vm.show_all_instructors)
         .then(function(data){
             //console.log(data);
 
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;
+            if (data.instructor_filter) { vm.instructor_filter = data.instructor_filter; }
 
             // //console.log("hello", $scope.all_events);
             // //console.log("hello", $scope.all_resources);
@@ -1091,12 +1109,13 @@
          //        });
 
          //console.log("UPDATE BOOKINGS ");
-         BookingService.GetAll(vm.user.id, moment().format("Y-M-D"), "")
+         BookingService.GetAll(vm.user.id, moment().format("Y-M-D"), "", vm.show_all_instructors)
         .then(function(data){
             //console.log(data);
 
             $scope.all_events = data.events;
             $scope.all_resources = data.resources;
+            if (data.instructor_filter) { vm.instructor_filter = data.instructor_filter; }
 
             //console.log("hello", $scope.all_events);
             //console.log("hello", $scope.all_resources);

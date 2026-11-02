@@ -133,7 +133,11 @@
 		            if (!$scope.formData.guardian.dob) {
 		                $scope.formErrors.guardian_dob = true; valid = false;
 		            }
-		            if (!$scope.formData.guardian.guardianship || !$scope.formData.guardian.guardianship.trim()) {
+		            if (!$scope.formData.guardian.email || !String($scope.formData.guardian.email).trim()) {
+		                $scope.formErrors.guardian_email = true; valid = false;
+		            }
+		            // a checkbox: boolean, not text
+		            if (!$scope.formData.guardian.guardianship) {
 		                $scope.formErrors.guardian_guardianship = true; valid = false;
 		            }
 		        }
@@ -445,7 +449,8 @@
                 	} else {
                 		//previously a failed save was silent — the passenger
                 		//was left staring at the same page with no feedback
-                		$scope.submitError = (data && (data.message || data.error)) || 'We were unable to save your details. Please try again.';
+                		var failMsg = data && (data.message || data.error);
+                		$scope.submitError = (typeof failMsg === 'string' && failMsg) ? failMsg : 'We were unable to save your details. Please try again.';
                 		ToastService.error('Submission Failed', $scope.submitError + ' Nothing you entered has been lost.');
                 	}
 
@@ -792,10 +797,13 @@
 		       }
 
 		       // Block anything else that isn't Tab or navigation
+		       // Mobile keyboards report 229 / "Unidentified" / "Process" on keydown
+		       // and deliver the digit through the input event instead.
+		       if (key === 229 || key === 'Unidentified' || key === 'Process') { return; }
 		       if (key !== 'Tab' && key !== 9) {
 		           event.preventDefault();
 		       }
-		   };
+    };
 
 		   // Handle input event (catches autofill, mobile keyboards, etc.)
 		   $scope.onCodeInput = function(event, idx) {
@@ -837,6 +845,13 @@
 		                   el.addEventListener('focus', function() {
 		                       this.select();
 		                   });
+		                   // ng-input is not an AngularJS directive: bind the input event here
+		                   if (!el.getAttribute('data-code-input-bound')) {
+		                       el.setAttribute('data-code-input-bound', '1');
+		                       el.addEventListener('input', function() {
+		                           $scope.$apply(function() { $scope.onCodeInput({ target: el }, idx); });
+		                       });
+		                   }
 		               }
 		           })(i);
 		       }
@@ -967,6 +982,11 @@
 
                 		applyPaxInvite(data.invitation);
 
+                	} else if (data && data.already_done) {
+                		// finished earlier: say so instead of "wrong code"
+                		$scope.alreadyDone = true;
+                		$scope.codeError = '';
+                		$scope.alreadyDoneMessage = data.message;
                 	} else {
                 		// Shake the inputs and show error
                 		$scope.codeError = data.message || 'Invalid code. Please try again.';

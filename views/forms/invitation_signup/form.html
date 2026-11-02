@@ -13,7 +13,7 @@
   <div class="inv-card">
 
     <!-- ── Progress stepper ── -->
-    <div class="inv-stepper" ng-hide="invite_load_failed || invite_existing_account">
+    <div class="inv-stepper" ng-hide="invite_load_failed || invite_existing_account || invMergeDone">
       <div class="inv-step" ng-class="{'active': invStep === 1, 'completed': invStep > 1}">
         <div class="inv-step__dot"><span ng-if="invStep <= 1">1</span><i ng-if="invStep > 1" class="fa fa-check"></i></div>
         <div class="inv-step__label">Welcome</div>
@@ -58,17 +58,60 @@
          style="margin:24px 16px; padding:20px 22px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:12px; text-align:center;">
       <i class="fa fa-user-check" style="font-size:28px; color:#2d5a8e;"></i>
       <h3 style="margin:12px 0 6px; font-size:17px; color:#1e293b;">You already have a ToAviate account</h3>
-      <p style="margin:0 0 16px; font-size:14px; color:#64748b;">
+      <p style="margin:0 0 16px; font-size:14px; color:#64748b;" ng-hide="invMerge">
         Log in with the invited email address and this club invitation will be
         accepted onto your existing account automatically.
+      </p>
+      <p style="margin:0 0 16px; font-size:14px; color:#64748b;" ng-show="invMerge">
+        {{ club.title || 'Your club' }} has moved its bookings to ToAviate, and the email on this invitation already has an account.
+        Log in with it and the club - with your booking history - is added to that account. There's nothing to retype.
       </p>
       <a ui-sref="login" class="snazzy-page__btn snazzy-page__btn--primary" style="display:inline-block;">
         <i class="fa fa-sign-in-alt"></i> Log in to accept
       </a>
     </div>
 
+    <!-- ── Account exists, payment unfinished — log in as it to continue ── -->
+    <div class="inv-load-error inv-existing" ng-if="invResumeLogin"
+         style="margin:24px 16px; padding:20px 22px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:12px; text-align:center;">
+      <i class="fa fa-user-clock" style="font-size:28px; color:#2d5a8e;"></i>
+      <h3 style="margin:12px 0 6px; font-size:17px; color:#1e293b;">Your account is already set up</h3>
+      <p style="margin:0 0 16px; font-size:14px; color:#64748b;">
+        Only the membership payment is left. Log in with the email you signed up with and we'll bring you straight back here to finish it.
+      </p>
+      <a ui-sref="login" class="snazzy-page__btn snazzy-page__btn--primary" style="display:inline-block;">
+        <i class="fa fa-sign-in-alt"></i> Log in to finish
+      </a>
+    </div>
+
+    <!-- ── Merge accepted while logged in — nothing to pay ── -->
+    <div class="inv-load-error inv-existing" ng-if="invMergeDone"
+         style="margin:24px 16px; padding:20px 22px; border:1px solid #bbf7d0; background:#f0fdf4; border-radius:12px; text-align:center;">
+      <i class="fa fa-check-circle" style="font-size:28px; color:#16a34a;"></i>
+      <h3 style="margin:12px 0 6px; font-size:17px; color:#1e293b;">You're in</h3>
+      <p style="margin:0 0 16px; font-size:14px; color:#64748b;">
+        {{ club.title || 'The club' }} has been added to your account, along with your booking history. Nothing more to do here.
+      </p>
+      <a href="#/dashboard/my_account" class="snazzy-page__btn snazzy-page__btn--primary" style="display:inline-block;">
+        <i class="fa fa-plane"></i> Go to My Account
+      </a>
+    </div>
+
+    <!-- ── Already completed ── -->
+    <div class="inv-load-error inv-existing" ng-if="invAlreadyDone"
+         style="margin:24px 16px; padding:20px 22px; border:1px solid #bbf7d0; background:#f0fdf4; border-radius:12px; text-align:center;">
+      <i class="fa fa-check-circle" style="font-size:28px; color:#16a34a;"></i>
+      <h3 style="margin:12px 0 6px; font-size:17px; color:#1e293b;">You've already signed up</h3>
+      <p style="margin:0 0 16px; font-size:14px; color:#64748b;">
+        This invitation has been completed - there's nothing more to do here. Sign in to get flying.
+      </p>
+      <a ui-sref="login" class="snazzy-page__btn snazzy-page__btn--primary" style="display:inline-block;">
+        <i class="fa fa-sign-in-alt"></i> Sign in
+      </a>
+    </div>
+
     <!-- ── Form content ── -->
-    <form id="signup-form" ng-submit="processForm()" novalidate ng-hide="invite_load_failed || invite_existing_account">
+    <form id="signup-form" ng-submit="processForm()" novalidate ng-hide="invite_load_failed || invite_existing_account || invResumeLogin || invAlreadyDone || invMergeDone">
       <div class="inv-content" ui-view></div>
     </form>
 

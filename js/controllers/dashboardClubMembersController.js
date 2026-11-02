@@ -1679,7 +1679,12 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                 MemberService.send_invite_by_club(vm.club.member)
                     .then(function(data){
-                        ////console.log(data);
+                        if (!data || data.success === false) {
+                            var msg = data && (data.message || data.error);
+                            ToastService.error('Invitation Not Sent', (typeof msg === 'string' && msg) ? msg : 'The invitation could not be sent - please try again.');
+                            return;
+                        }
+                        ToastService.success('Invitation Sent', (data && data.message) || 'The member has been emailed their signup link.');
                         $state.go('dashboard.manage_club.members');
                     });
 

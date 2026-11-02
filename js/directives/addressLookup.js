@@ -12,18 +12,24 @@
 //  (no key on this environment) it hides itself entirely; on
 //  LOOKUP_FAILED it shows the message briefly — the host form's
 //  manual fields must always remain usable.
+//  The API's /addresses endpoints need a signed-in user, so on the
+//  public signup / invitation wizards a logged-out visitor gets no
+//  lookup at all (hidden up front, and again if a call comes back 401)
+//  rather than a call that can only fail.
 //  Backend contract: FRONTEND_ADDRESS_LOOKUP_GUIDE.md
 // ═══════════════════════════════════════════════════════════════════
 
-app.directive('addressLookup', ['AddressLookupService', '$timeout', function (AddressLookupService, $timeout) {
+app.directive('addressLookup', ['AddressLookupService', '$timeout', '$rootScope', function (AddressLookupService, $timeout, $rootScope) {
     return {
         restrict: 'E',
         scope: {
             onSelect: '&',
-            placeholder: '@'
+            placeholder: '@',
+            label: '@'
         },
         template:
             '<div class="addrlk" ng-show="!unavailable">' +
+            '  <label class="addrlk__label" ng-if="label">{{ label }}</label>' +
             '  <div class="addrlk__inputwrap">' +
             '    <i class="fas addrlk__icon" ng-class="busy ? \'fa-circle-notch fa-spin\' : \'fa-search-location\'"></i>' +
             '    <input type="text" class="addrlk__input" ng-model="q" ng-change="changed()"' +
@@ -54,7 +60,9 @@ app.directive('addressLookup', ['AddressLookupService', '$timeout', function (Ad
             scope.suggestions = [];
             scope.open = false;
             scope.busy = false;
-            scope.unavailable = false;
+            // logged-out visitor (public signup pages): the API would refuse — manual entry only
+            var g = $rootScope.globals;
+            scope.unavailable = !(g && g.currentUser && g.currentUser.id);
             scope.error = '';
             scope.hi = -1;
 
@@ -76,8 +84,8 @@ app.directive('addressLookup', ['AddressLookupService', '$timeout', function (Ad
                 AddressLookupService.Autocomplete(q, session).then(function (data) {
                     if (q !== lastQuery) { return; }   // superseded by newer keystrokes
                     scope.busy = false;
-                    if (data && data.error === 'LOOKUP_UNAVAILABLE') {
-                        scope.unavailable = true;      // no key here — manual entry only
+                    if (data && (data.error === 'LOOKUP_UNAVAILABLE' || data.fail === 'AUTHENTICATION')) {
+                        scope.unavailable = true;      // no key here / not signed in — manual entry only
                         return;
                     }
                     if (data && data.success === false) {

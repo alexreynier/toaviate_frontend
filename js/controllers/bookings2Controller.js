@@ -1,7 +1,7 @@
  app.controller('Bookings2Controller', Bookings2Controller);
 
-    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService', '$interval'];
-    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService, $interval) {
+    Bookings2Controller.$inject = ['UserService', 'BookoutService',  'MemberService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$timeout', 'uiCalendarConfig', 'BookingService', 'InstructorCharges', 'CourseService', 'ToastService', '$interval', 'StudentSnapshotService'];
+    function Bookings2Controller(UserService, BookoutService,  MemberService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $timeout, uiCalendarConfig, BookingService, InstructorCharges, CourseService, ToastService, $interval, StudentSnapshotService) {
         
         var vm = this;
         var defaultStartTime = 480;
@@ -780,6 +780,28 @@
     $scope.close_details = function(){
             vm.see_booking.visible = 0;
     }
+
+    // "Student snapshot" on the booking popup: an instructional booking (not a
+    // maintenance flight) and the viewer is staff of that booking's club. The
+    // backend re-checks, so this only decides whether the button is worth showing.
+    vm.canSeeSnapshot = function(booking) {
+        if (!booking || !booking.id || !booking.user_id) { return false; }
+        if (!booking.instructor || typeof booking.instructor !== 'object' || !(booking.instructor.id > 0)) { return false; }
+        if (booking.maintenance_flight == 1) { return false; }
+        var access = vm.user && vm.user.access;
+        if (!access) { return false; }
+        var club_id = parseInt(booking.club_id, 10);
+        var lists = [access.instructor, access.manager, access.super_admin];
+        for (var i = 0; i < lists.length; i++) {
+            if (angular.isArray(lists[i]) && (lists[i].indexOf(club_id) > -1 || lists[i].indexOf(String(club_id)) > -1)) { return true; }
+        }
+        return false;
+    };
+
+    vm.openStudentSnapshot = function(booking) {
+        if (!vm.canSeeSnapshot(booking)) { return; }
+        StudentSnapshotService.open(booking.user_id, { booking_id: booking.id });
+    };
 
 
     $scope.changeLang = function() {

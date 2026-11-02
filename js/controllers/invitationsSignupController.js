@@ -1,7 +1,7 @@
  app.controller('InvitationsSignupController', InvitationsSignupController);
 
-    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService', 'PaymentService', 'EnvConfig', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService'];
-    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService, PaymentService, EnvConfig, SignupDraftService, SignupPreviewService, PasswordPolicyService) {
+    InvitationsSignupController.$inject = ['UserService', 'MemberService', 'GoCardService', '$http', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$cookies', '$log', 'ToastService', 'PaymentService', 'EnvConfig', 'SignupDraftService', 'SignupPreviewService', 'PasswordPolicyService', 'AuthenticationService'];
+    function InvitationsSignupController(UserService, MemberService, GoCardService, $http, $rootScope, $location, $scope, $state, $stateParams, $cookies, $log, ToastService, PaymentService, EnvConfig, SignupDraftService, SignupPreviewService, PasswordPolicyService, AuthenticationService, LogbookSignupService) {
         	
         	var vm = this;
 
@@ -14,6 +14,41 @@
         	$scope.invPaymentResult = null;     // 'direct_debit' | 'stripe' | 'skipped'
         	$scope.invShowSkipConfirm = false;
         	var invStripeElements = null;        // Stripe Elements instance (kept in closure)
+
+        	// ── The invitee's account ──
+        	// Known once the signup response (or a resumed invitation) says so.
+        	// Never a cookie: a stale `uid` cookie on a shared machine sent the
+        	// SMS code — and would have attached the card — to the wrong person.
+        	$scope.signup_uid = null;
+        	$scope.account_created = false;   // from here on the wizard runs AS the account (logged in)
+        	$scope.invResumed = false;        // came back to finish payment
+        	$scope.invResumeLogin = false;    // account exists, but this browser isn't logged in as it
+        	$scope.invAlreadyDone = false;    // this invitation was completed earlier
+        	$scope.invPaymentError = '';
+        	$scope.codeSent = false;
+        	var PAYMENT_GATE_KEY = 'toaviate_payment_setup_required';
+        	function loggedInUserId(){ var g = $rootScope.globals; return (g && g.currentUser && g.currentUser.id) ? Number(g.currentUser.id) : 0; }
+        	function inviteeUid(){
+        		if ($scope.signup_uid) { return $scope.signup_uid; }
+        		var inv = $scope.all || {};
+        		if (Number(inv.user_id) > 0) { return Number(inv.user_id); }   // BS conversion / merge: the account is known up front
+        		return null;
+        	}
+        	$scope.loggedInAsInvitee = function(){ var u = inviteeUid(); return !!(u && loggedInUserId() === Number(u)); };
+        	function clearPaymentGate(){ try { localStorage.removeItem(PAYMENT_GATE_KEY); } catch (e) {} }
+        	// After the account is created: remember it, log it in (the payment
+        	// step and the phone check run as this user), then carry on.
+        	function afterAccountCreated(data, next){
+        		if (data && data.uid) { $scope.signup_uid = Number(data.uid); }
+        		else if (data && data.user && data.user.id) { $scope.signup_uid = Number(data.user.id); }
+        		$scope.account_created = true;
+        		SignupDraftService.Clear(DRAFT_KEY);
+        		if (data && data.login && data.login.session && data.login.user) {
+        			AuthenticationService.SetCredentials2($scope.formData.email, $scope.formData.password, data.login.user, data.login.session, function(){ next(); });
+        			return;
+        		}
+        		next();
+        	}
 
         	// ── Step tracking ──
         	$scope.setInvStep = function(n) {
@@ -53,6 +88,7 @@
         	// Steps 5-6 run AFTER the account exists — never bounce those.
         	function guardStep(stateName) {
         		if (stateName !== 'invitations.next_of_kin' && stateName !== 'invitations.your_club' && stateName !== 'invitations.tnc') { return; }
+        		if ($scope.account_created) { return; }   // resumed: the account exists, no password needed
         		if (!$scope.formData.password) {
         			ToastService.warning('Please Re-enter Your Password', 'For security we never store your password — your other details have been kept. Please choose your password again to continue.');
         			$state.go('invitations.your_details', { token: $stateParams.token }, { location: 'replace' });
@@ -70,11 +106,14 @@
         		}
         	}
 
+        	// The guard needs to know whether the account already exists
+        	// (signup_status from the invitation) — so on a cold load it runs
+        	// once the invitation has been applied, not before.
+        	var inviteLoaded = false;
         	if ($state.current.name === 'invitations') {
         		goToDefaultChild();
         	} else {
         		syncStepFromState($state.current.name);
-        		guardStep($state.current.name);
         	}
 
         	$scope.$on('$stateChangeSuccess', function (event, toState) {
@@ -83,7 +122,7 @@
         			return;
         		}
         		syncStepFromState(toState.name);
-        		guardStep(toState.name);
+        		if (inviteLoaded) { guardStep(toState.name); }
         	});
 
         	// Read any existing draft NOW (synchronously) — the auto-save
@@ -1275,32 +1314,8 @@ vm.selected_phone;
 
 
     		
-    		//automatically sort stuff out! :)
-    		if($state.params.verify){
-    			ToastService.warning('Verification', 'VERIFY?');
-    			////console.log("SEND VERIFICATION");
-    			UserService.Verify($state.params.user_id, $state.params.verify)
-                .then(function (data) {
-	    			// //console.log("SENT VERIFICATION");
-        //         	//console.log(data);
-                    if(data.success){
-                    	$state.go("verified");
-                    } else {
-                    	ToastService.error('Error', data.message);
-                    	$state.go("login");
-                    }
-                });
-    		}
-
-    		var loc = $location.path().split("/");
-    		if(loc[loc.length -1] == "verified"){
-
-    			//alert("testing the sent");
-
-    			sendVerification();
-
-    		}
-
+    		// (The phone code is sent from the payment-result page's button, never
+    		// on page load — reloading /verified used to re-send an SMS.)
 
     		// Apply an invitation payload (real or design-preview) to the scope.
     		function applyInvite(data){
@@ -1318,10 +1333,6 @@ vm.selected_phone;
 		    			//maybe?
 		    			$scope.formData.invited_by = data.invited_by;
 
-		    			if(data.user_id > 0){
-		    				// //console.log("UID set", data.user_id);
-		    				$cookies.put("uid", data.user_id);
-		    			}
 
 		    			//$cookies.set("rid", data.membership.request.membership_request_id);
 		    			//other data::
@@ -1331,6 +1342,47 @@ vm.selected_phone;
 		    			$scope.membership = data.membership;
 
 		    			$scope.all = data;
+
+		    			// ── Resume ──
+		    			// completed: nothing to do but log in. account_created: the
+		    			// account exists but payment never finished — straight to the
+		    			// payment step when this browser is logged in as that account,
+		    			// otherwise ask for a login (the login gate brings them back).
+		    			if (data.signup_status === 'completed') {
+		    				$scope.invAlreadyDone = true;
+		    				clearPaymentGate();
+		    			} else if (data.signup_status === 'pending' && Number(data.bs_merge) === 1 && Number(data.user_id) > 0) {
+		    				// BookedScheduler "merge into existing account": the person
+		    				// already has a ToAviate account — nothing to retype. Logged in
+		    				// as it: accept now (bookings + logbook fold in) and go straight
+		    				// to the payment step if a fee is due. Otherwise: log in to accept.
+		    				$scope.invMerge = true;
+		    				if (loggedInUserId() === Number(data.user_id)) {
+		    					acceptMergeAsLoggedIn(data);
+		    				} else {
+		    					try { localStorage.setItem('toaviate_accept_invitation', $stateParams.token); } catch (e) {}
+		    					$scope.invite_existing_account = true;
+		    				}
+		    			} else if (data.signup_status === 'account_created' && Number(data.user_id) > 0) {
+		    				if (loggedInUserId() === Number(data.user_id)) {
+		    					$scope.signup_uid = Number(data.user_id);
+		    					$scope.account_created = true;
+		    					$scope.invResumed = true;
+		    					if (!$location.search().redirect_flow_id && !$location.search().setup_intent && !$location.search().stripe_success) {
+		    						$scope.invStep = 4;
+		    						$state.go('invitations.your_club', { token: $stateParams.token }, { location: 'replace' });
+		    					}
+		    				} else {
+		    					$scope.invResumeLogin = true;
+		    				}
+		    			}
+		    			if ($scope.pendingSetupIntent) {
+		    				var psi = $scope.pendingSetupIntent; $scope.pendingSetupIntent = null;
+		    				confirmCardSetup(psi);
+		    			}
+		    			// now the guard knows whether an account exists
+		    			inviteLoaded = true;
+		    			if ($state.current.name !== 'invitations') { guardStep($state.current.name); }
 
 		    			// Restore anything the user had already typed on this
 		    			// device (draft never contains passwords / T&C ticks).
@@ -1393,40 +1445,68 @@ vm.selected_phone;
     			ToastService.error('Invalid Invitation Link', 'This invitation link is missing its access token. Please use the full link from your invitation email.');
     		}
 	    
-		    if($cookies.get("session") !== "" && $location.search().redirect_flow_id){
-		    	//console.log("let's sort this shizzle out eh?");
+		    // ── Payment-provider returns ──
+		    // GoCardless comes back with ?redirect_flow_id: complete the mandate
+		    // (the request is matched by flow id / token server-side) and only
+		    // THEN show success. Stripe comes back with ?setup_intent&redirect_status:
+		    // confirm the SetupIntent as the logged-in account — that is what
+		    // creates the membership (Cards::confirm_setup → complete_stripe_signup).
+		    if ($location.search().redirect_flow_id) {
 		    	$scope.invStep = 5;
-		    	$scope.invPaymentResult = 'direct_debit';
-
-		    	var object = {
-                    mandate: $location.search().redirect_flow_id,
-                    session: $cookies.get("session"),
-                    member_accepted: true
-                };
-
-                GoCardService.SetupMandate(object).then(function (data) {
-                    if(data.success){
-                        //vm.requests = data.requests;
-						// $cookies.set("uid");
-                        //vm.club = data.club;
-                        // //console.log("memberships", vm.memberships);
-                        //vm.success = true;
-
-                    } else {
-                        // //console.log("WOOOPSIES...");
-                        //vm.success = false;
-                        //this should be very very rare...
-                    }
-
-                });
-
+		    	$scope.invPaymentResult = 'pending';
+		    	GoCardService.SetupMandate({
+		    		mandate: $location.search().redirect_flow_id,
+		    		session: $cookies.get("gcl_session") || "",
+		    		token: $stateParams.token,
+		    		member_accepted: true
+		    	}).then(function (data) {
+		    		if (data && data.success) {
+		    			$scope.invPaymentResult = 'direct_debit';
+		    			$cookies.remove("gcl_session");
+		    			clearPaymentGate();
+		    		} else {
+		    			$scope.invPaymentResult = 'failed';
+		    			$scope.invPaymentError = (data && data.message) || "The Direct Debit could not be completed.";
+		    		}
+		    	});
 		    }
-
-		    // Handle Stripe redirect return (setup_intent in URL)
-		    if ($location.search().stripe_success || $location.search().setup_intent) {
+		    if ($location.search().setup_intent || $location.search().stripe_success) {
 		    	$scope.invStep = 5;
-		    	$scope.invPaymentResult = 'stripe';
+		    	var redirectStatus = $location.search().redirect_status;
+		    	if (redirectStatus && redirectStatus !== 'succeeded') {
+		    		$scope.invPaymentResult = 'failed';
+		    		$scope.invPaymentError = "Your card wasn't saved - your bank didn't authorise it. Please try again.";
+		    	} else if ($location.search().setup_intent) {
+		    		$scope.invPaymentResult = 'pending';
+		    		$scope.pendingSetupIntent = $location.search().setup_intent;   // confirmed once the invitation (club, account) has loaded
+		    	} else {
+		    		$scope.invPaymentResult = 'stripe';
+		    	}
 		    }
+		    function confirmCardSetup(setupIntentId){
+		    	PaymentService.ConfirmSetup({
+		    		setup_intent_id: setupIntentId,
+		    		user_id: inviteeUid() || loggedInUserId(),
+		    		club_id: ($scope.all && $scope.all.club_id) || $scope.formData.club_id
+		    	}).then(function (data) {
+		    		if (data && data.success) {
+		    			$scope.invPaymentResult = 'stripe';
+		    			clearPaymentGate();
+		    		} else {
+		    			$scope.invPaymentResult = 'failed';
+		    			$scope.invPaymentError = (data && (data.message || data.error)) || "We couldn't confirm your card. Please try again.";
+		    		}
+		    	});
+		    }
+		    // Payment failed or was abandoned: back to the payment step (the
+		    // account already exists, so this is just choosing how to pay).
+		    $scope.retryPayment = function(){
+		    	$scope.invPaymentResult = null;
+		    	$scope.invPaymentError = '';
+		    	$scope.invPaymentMethod = null;
+		    	$scope.invStep = 4;
+		    	$state.go('invitations.your_club');
+		    };
 
 
 		    //may need to alter this one to reflect most common one depending on
@@ -1517,6 +1597,7 @@ vm.selected_phone;
 		    }
 
 		    function check_user_is_valid(){
+		    	if($scope.account_created){ return true; }
 
 		    	if(		!$scope.formData.first_name
 		    		|| !$scope.formData.last_name
@@ -1637,6 +1718,27 @@ vm.selected_phone;
 		    	$state.go('invitations.your_club');
 		    };
 
+		    // One payload for every way to pay (card / direct debit / skip).
+		    function signupPayload(method){
+		    	var to_send = angular.copy($scope.formData);
+		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
+		    	// date-only: a Date serialises as UTC and lands a day early in BST
+		    	if (to_send.dob instanceof Date && !isNaN(to_send.dob.getTime())) {
+		    		var d = to_send.dob;
+		    		to_send.dob = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+		    	}
+		    	to_send.request_id = $scope.all.membership_request_id;
+		    	to_send.invitation = $stateParams.token;
+		    	to_send.payment_now = $scope.payment_now;
+		    	to_send.first_payment = $scope.first_payment;
+		    	to_send.payment_method = method;
+		    	return to_send;
+		    }
+		    function signupErrorText(data){
+		    	var m = data && (data.message || data.error);
+		    	return (typeof m === 'string' && m) ? m : "Something went wrong - nothing you entered has been lost. Please try again.";
+		    }
+
 		    $scope.validateAndSetupDD = function() {
 		    	if (!validateTerms()) return;
 
@@ -1646,7 +1748,7 @@ vm.selected_phone;
 		    		$state.go('invitations.your_details');
 		    		return;
 		    	}
-		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    	if (!$scope.account_created && (!$scope.formData.nok || !$scope.formData.nok.first_name)) {
 		    		$scope.invStep = 3;
 		    		$state.go('invitations.next_of_kin');
 		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
@@ -1678,13 +1780,12 @@ vm.selected_phone;
 		    	$scope.invPaymentMethod = method;
 		    	$scope.invShowStripeForm = false;
 
-		    	if (method === 'stripe') {
-		    		// Initialise the Stripe card form after a digest cycle
+		    	// Card: the form mounts once the account exists — a card belongs
+		    	// to an account, and the SetupIntent is created as that account.
+		    	// A brand-new invitee gets it after "Create account & add card".
+		    	if (method === 'stripe' && $scope.account_created) {
 		    		$scope.invShowStripeForm = true;
-		    		// We wait for the DOM element to exist, then mount
-		    		setTimeout(function() {
-		    			initStripeForm();
-		    		}, 150);
+		    		setTimeout(function() { initStripeForm(); }, 150);
 		    	}
 		    };
 
@@ -1694,10 +1795,11 @@ vm.selected_phone;
 		    		return;
 		    	}
 		    	// Only init once — if user toggles back we re-mount
-		    	var uid = $cookies.get('uid');
+		    	var uid = inviteeUid();
+		    	if (!uid) { ToastService.error('Card Setup', 'Create your account first, then add the card.'); return; }
 		    	var send = {
 		    		club_id: $scope.formData.club_id,
-		    		user_id: uid || 0
+		    		user_id: uid
 		    	};
 
 		    	PaymentService.CreateNewCustomer(send)
@@ -1754,7 +1856,7 @@ vm.selected_phone;
 		    		$state.go('invitations.your_details');
 		    		return;
 		    	}
-		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    	if (!$scope.account_created && (!$scope.formData.nok || !$scope.formData.nok.first_name)) {
 		    		$scope.invStep = 3;
 		    		$state.go('invitations.next_of_kin');
 		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
@@ -1769,59 +1871,50 @@ vm.selected_phone;
 		    		return;
 		    	}
 
+		    	// Step 1 of 2: no account yet — create it (logged in), then show
+		    	// the card form. If they stop here, the login gate brings them
+		    	// back to this step next time.
+		    	if (!$scope.account_created) {
+		    		$scope.invLoading = true;
+		    		UserService.InviteSignup(signupPayload('stripe')).then(function (data) {
+		    			$scope.invLoading = false;
+		    			if (data && data.success) {
+		    				afterAccountCreated(data, function(){
+		    					$scope.invShowStripeForm = true;
+		    					setTimeout(function(){ initStripeForm(); }, 150);
+		    					ToastService.success('Account Created', 'Now add your card to finish setting up your membership.');
+		    				});
+		    			} else if (handleExistingAccount(data)) {
+		    				return;
+		    			} else {
+		    				ToastService.error('Signup Error', signupErrorText(data));
+		    			}
+		    		});
+		    		return;
+		    	}
+
+		    	// Step 2 of 2: save the card. Stripe returns to
+		    	// /direct_debit?stripe_success=1&setup_intent=… where it is confirmed.
 		    	if (!invStripeElements) {
 		    		ToastService.error('Card Not Ready', 'The card form is still loading. Please wait a moment.');
 		    		return;
 		    	}
-
 		    	$scope.invLoading = true;
-
-		    	// First create the user account (same as DD flow)
-		    	var to_send = angular.copy($scope.formData);
-		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
-		    	to_send.request_id = $scope.all.membership_request_id;
-		    	to_send.invitation = $stateParams.token;
-		    	to_send.payment_now = $scope.payment_now;
-		    	to_send.first_payment = $scope.first_payment;
-		    	to_send.payment_method = 'stripe';
-		    	// Pass the SetupIntent secret so backend can link the Stripe Customer to the new user
-		    	if (invStripeElements && invStripeElements.clientSecret) {
-		    		to_send.stripe_setup_secret = invStripeElements.clientSecret;
-		    	}
-
-		    	UserService.InviteSignup(to_send)
-		    	.then(function(data) {
-		    		if (data.success) {
-		    			// Account created — the typed draft is no longer needed
-		    			SignupDraftService.Clear(DRAFT_KEY);
-
-		    			// Store session
-		    			if (data.uid) $cookies.put('uid', data.uid);
-		    			if (data.session) $cookies.put('session', data.session);
-
-		    			// Now confirm the Stripe SetupIntent
-		    			invStripeElements.stripe.confirmSetup({
-		    				elements: invStripeElements.elements,
-		    				confirmParams: {
-		    					return_url: window.location.origin + '/invitations/' + $stateParams.token + '/direct_debit?stripe_success=1'
-		    				}
-		    			}).then(function(result) {
-		    				if (result.error) {
-		    					$scope.$apply(function() {
-		    						$scope.invLoading = false;
-		    						ToastService.error('Card Error', result.error.message);
-		    						var errEl = document.querySelector('#inv-stripe-error');
-		    						if (errEl) errEl.textContent = result.error.message;
-		    					});
-		    				}
-		    				// If no error, user is redirected to return_url
-		    			});
-		    		} else if (handleExistingAccount(data)) {
-		    			return;
-		    		} else {
-		    			$scope.invLoading = false;
-		    			ToastService.error('Signup Error', 'An error occurred: ' + (data.error || 'Unknown error'));
+		    	invStripeElements.stripe.confirmSetup({
+		    		elements: invStripeElements.elements,
+		    		confirmParams: {
+		    			return_url: window.location.origin + '/invitations/' + $stateParams.token + '/direct_debit?stripe_success=1'
 		    		}
+		    	}).then(function(result) {
+		    		if (result && result.error) {
+		    			$scope.$apply(function() {
+		    				$scope.invLoading = false;
+		    				ToastService.error('Card Error', result.error.message);
+		    				var errEl = document.querySelector('#inv-stripe-error');
+		    				if (errEl) errEl.textContent = result.error.message;
+		    			});
+		    		}
+		    		// otherwise Stripe redirects to return_url
 		    	});
 		    };
 
@@ -1830,6 +1923,37 @@ vm.selected_phone;
 		    // log-in-to-accept state (form.html). After login, loginController
 		    // calls invitations/accept_existing with the stored token.
 		    // (FRONTEND_LOGBOOK_SIGNUP_GUIDE.md §5)
+		    function acceptMergeAsLoggedIn(data) {
+		    	$scope.invLoading = true;
+		    	LogbookSignupService.AcceptExisting($stateParams.token).then(function(res){
+		    		$scope.invLoading = false;
+		    		if (res && res.success && res.mode === 'payment_pending') {
+		    			$scope.signup_uid = Number(data.user_id);
+		    			$scope.account_created = true;
+		    			$scope.invResumed = true;
+		    			try { localStorage.setItem(PAYMENT_GATE_KEY, JSON.stringify({ user_id: Number(data.user_id), token: $stateParams.token, club_title: (data.club && data.club.title) || '' })); } catch (e) {}
+		    			ToastService.success('Invitation Accepted', 'Your existing account now belongs to ' + ((data.club && data.club.title) || 'the club') + ' - choose how to pay for the membership to finish.');
+		    			$scope.invStep = 4;
+		    			$state.go('invitations.your_club', { token: $stateParams.token }, { location: 'replace' });
+		    			return;
+		    		}
+		    		if (res && res.success) {
+		    			// nothing to pay — all done
+		    			clearPaymentGate();
+		    			try { localStorage.removeItem('toaviate_accept_invitation'); } catch (e) {}
+		    			$scope.invMergeDone = true;
+		    			return;
+		    		}
+		    		if (res && res.error === 'FORBIDDEN') {
+		    			ToastService.error('Different Email', 'This invitation was sent to a different email address - please log in with the invited email to accept it.');
+		    		} else {
+		    			ToastService.error('Invitation', (res && res.message) || 'The invitation could not be accepted right now. Please try again.');
+		    		}
+		    		try { localStorage.setItem('toaviate_accept_invitation', $stateParams.token); } catch (e) {}
+		    		$scope.invite_existing_account = true;
+		    	});
+		    }
+
 		    function handleExistingAccount(data) {
 		    	if (!data || !data.existing_account) { return false; }
 		    	try { localStorage.setItem('toaviate_accept_invitation', $stateParams.token); } catch (e) {}
@@ -1865,7 +1989,7 @@ vm.selected_phone;
 		    		$state.go('invitations.your_details');
 		    		return;
 		    	}
-		    	if (!$scope.formData.nok || !$scope.formData.nok.first_name) {
+		    	if (!$scope.account_created && (!$scope.formData.nok || !$scope.formData.nok.first_name)) {
 		    		$scope.invStep = 3;
 		    		$state.go('invitations.next_of_kin');
 		    		ToastService.warning('Missing Next of Kin', 'Please fill in your next of kin details.');
@@ -1889,24 +2013,17 @@ vm.selected_phone;
 
 		    	$scope.invLoading = true;
 
-		    	// Create user without payment
-		    	var to_send = angular.copy($scope.formData);
-		    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
-		    	to_send.request_id = $scope.all.membership_request_id;
-		    	to_send.invitation = $stateParams.token;
-		    	to_send.payment_now = $scope.payment_now;
-		    	to_send.first_payment = $scope.first_payment;
-		    	to_send.payment_method = 'skip';
-
-		    	UserService.InviteSignup(to_send)
+		    	// Create the account without payment (free tier / payment waived)
+		    	UserService.InviteSignup(signupPayload('skip'))
 		    	.then(function(data) {
 		    		$scope.invLoading = false;
-		    		if (data.success) {
-		    			SignupDraftService.Clear(DRAFT_KEY);
-		    			if (data.uid) $cookies.put('uid', data.uid);
-		    			$scope.invPaymentResult = 'skipped';
-		    			$scope.invStep = 5;
-		    			$state.go('invitations.direct_debit');
+		    		if (data && data.success) {
+		    			afterAccountCreated(data, function(){
+		    				clearPaymentGate();
+		    				$scope.invPaymentResult = 'skipped';
+		    				$scope.invStep = 5;
+		    				$state.go('invitations.direct_debit');
+		    			});
 		    		} else if (handleExistingAccount(data)) {
 		    			return;
 		    		} else {
@@ -1957,44 +2074,36 @@ vm.selected_phone;
 
 		    	if($scope.checkValid("verify_account", 1)){
 
-			    	//build the payload on a copy — never mutate the live form
-			    	//data (it feeds the auto-saved draft)
-			    	var to_send = angular.copy($scope.formData);
-			    	to_send.phone_number = e164Phone(vm.selected_phone && vm.selected_phone.CountryCode, to_send.phone_number);
-			    	to_send.request_id = $scope.all.membership_request_id;
-			    	to_send.invitation = $stateParams.token;
-
-			    	to_send.payment_now = $scope.payment_now;
-			    	to_send.first_payment = $scope.first_payment;
-			    	to_send.payment_method = 'direct_debit';
-			    	// //console.log("OBJ = ", to_send);
-
-			    	//return false;
-			    	//send the create user to the invitation
-			    	//create_user
-			    	//expect the gocardless link back
-			    	UserService.InviteSignup(to_send)
+			    	UserService.InviteSignup(signupPayload('direct_debit'))
 		                .then(function (data) {
-			    			// //console.log("INVITATION BEING SENT NOW...", data);
-		                    if(data.success){
-		                    	// //console.log("YAY we created stuff");
-
-		                    	//account created — the typed draft is no longer needed
-		                    	SignupDraftService.Clear(DRAFT_KEY);
-
-		                    	//store the session::::::
-		                    	$cookies.put("session", data.mandate.session);
-
-		                    	////console.log("GO TO "+data.mandate.link);
-
-		                    	window.location = data.mandate.link;
-
-
+		                    if(data && data.success){
+		                    	afterAccountCreated(data, function(){
+		                    		if (data.signup_status === 'completed') {
+		                    			// retry after the mandate was already saved
+		                    			$scope.invLoading = false;
+		                    			$scope.invPaymentResult = 'direct_debit';
+		                    			$scope.invStep = 5;
+		                    			$state.go('invitations.direct_debit');
+		                    			return;
+		                    		}
+		                    		if (data.mandate && data.mandate.link) {
+		                    			// GoCardless hosted page; it returns to /direct_debit?redirect_flow_id=…
+		                    			// (its own cookie — the app's `session` cookie is the LOGIN)
+		                    			if (data.mandate.session) { $cookies.put("gcl_session", data.mandate.session); }
+		                    			window.location = data.mandate.link;
+		                    			return;
+		                    		}
+		                    		// Account made, mandate not started (the club's GoCardless is
+		                    		// unavailable): offer the other ways to pay.
+		                    		$scope.invLoading = false;
+		                    		$scope.invPaymentMethod = null;
+		                    		ToastService.error('Direct Debit Unavailable', (data.message || "The Direct Debit could not be started.") + " Your account has been created - please choose another way to pay.");
+		                    	});
 		                    } else if (handleExistingAccount(data)) {
 		                    	return false;
 		                    } else {
 		                    	$scope.invLoading = false;
-		                    	ToastService.error('Signup Error', 'An error occurred: ' + data.error);
+		                    	ToastService.error('Signup Error', signupErrorText(data));
 		                    	return false;
 		                    }
 		            });
@@ -2030,7 +2139,8 @@ vm.selected_phone;
 				    	$state.go("invitations.your_details");
 		    			return false;
 		    		}
-		    		if(!$scope.formData.nok){
+		    		if(!$scope.formData.nok && !$scope.account_created){
+		    			// (an existing account already has its next of kin on file)
 		    			//console.log("missing second bit...");
 				    	$state.go("invitations.next_of_kin");
 		    			return false;
@@ -2075,66 +2185,57 @@ vm.selected_phone;
 		    	}
 		    }
 
+		    // "Verify My Account": text the code to the invitee. The request
+		    // carries the invitation token (or the login) so only THIS signup can
+		    // trigger an SMS to this account.
 		    $scope.sendVerification = function(){
-		    	var user_id = $cookies.get("uid");
 		    	$scope.invStep = 6;
-
 		    	if(isPreview){
-		    		ToastService.success('Preview', 'Verification email simulated.');
+		    		ToastService.success('Preview', 'Verification SMS simulated.');
+		    		$scope.codeSent = true;
 		    		$state.go('invitations.verified');
 		    		return;
 		    	}
+		    	var user_id = inviteeUid();
+		    	if (!user_id) {
+		    		ToastService.error('Verification', "We couldn't find your new account - please reload the page from your invitation link.");
+		    		return;
+		    	}
+		    	MemberService.VerifyInvitedUser(user_id, $stateParams.token).then(function (data) {
+		    		if(data && data.success){
+		    			$scope.codeSent = true;
+		    			$scope.checkedcode = 0;
+		    			$state.go("invitations.verified");
+		    		} else {
+		    			ToastService.error('Code Not Sent', (data && data.message) || "We couldn't text you the code just now. Please try again in a moment.");
+		    			$state.go("invitations.verified");
+		    		}
+		    	});
+		    };
 
-		    	MemberService.VerifyInvitedUser(user_id)
-		                .then(function (data) {
-		                    // //console.log(data);
-		                    if(data.success){
-		                        //use GB airfields first...
-		                        //$scope.verified_mobile = true;
-
-		                        // $scope.link = data.link.url;
-		                    	// $cookies.put('mid', last);
-		                    	// $cookies.put('bid', data.bid);
-
-		                    	$state.go("invitations.verified");
-
-
-
-		                    } else {
-		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
-		                    }
-
-		                });
-		    }
-
-
-		    function sendVerification(){
-
-		    	var user_id = $cookies.get("uid");
-
-		    	MemberService.VerifyInvitedUser(user_id)
-		                .then(function (data) {
-		                    // //console.log(data);
-		                    if(data.success){
-		                        //use GB airfields first...
-		                        //$scope.verified_mobile = true;
-
-		                        // $scope.link = data.link.url;
-		                    	// $cookies.put('mid', last);
-		                    	// $cookies.put('bid', data.bid);
-
-		                    	$state.go("invitations.verified");
-
-
-
-		                    } else {
-		                    	ToastService.error('Verification Failed', 'Your verification code is incorrect.');
-    							//$scope.verified_mobile = false;
-		                    }
-
-		                });
-
-		    }
+		    // "Didn't get it?" — a fresh code (the backend regenerates it, which
+		    // also clears a too-many-attempts lock). Rate-limited server-side.
+		    $scope.resendBusy = false;
+		    $scope.resendCode = function(){
+		    	if ($scope.resendBusy) { return; }
+		    	if (isPreview) { ToastService.success('Preview', 'Code re-sent (simulated).'); return; }
+		    	var user_id = inviteeUid();
+		    	if (!user_id) { return; }
+		    	$scope.resendBusy = true;
+		    	MemberService.ResendPhoneCode(user_id).then(function (data) {
+		    		$scope.resendBusy = false;
+		    		if (data && data.success) {
+		    			$scope.codeSent = true;
+		    			$scope.checkedcode = 0;
+		    			$scope.codeError = '';
+		    			$scope.formcode = [];
+		    			for (var i = 0; i < 6; i++) { var el = document.getElementById('index' + i); if (el) { el.value = ''; } }
+		    			ToastService.success('Code Sent', (data.message) || 'A new code is on its way to your phone.');
+		    		} else {
+		    			ToastService.error('Not Sent', (data && data.message) || "We couldn't send a new code just now.");
+		    		}
+		    	});
+		    };
 
 
 		    // ── Stripe-style smooth code input ──
@@ -2226,6 +2327,9 @@ vm.selected_phone;
 		            return;
 		        }
 
+		        // Mobile keyboards report 229 / "Unidentified" / "Process" on keydown
+		        // and deliver the digit through the input event instead.
+		        if (key === 229 || key === 'Unidentified' || key === 'Process') { return; }
 		        if (key !== 'Tab' && key !== 9) {
 		            event.preventDefault();
 		        }
@@ -2266,6 +2370,13 @@ vm.selected_phone;
 		                    el.addEventListener('focus', function() {
 		                        this.select();
 		                    });
+		                    // ng-input is not an AngularJS directive: bind the input event here
+		                    if (!el.getAttribute('data-code-input-bound')) {
+		                        el.setAttribute('data-code-input-bound', '1');
+		                        el.addEventListener('input', function(e) {
+		                            $scope.$apply(function() { $scope.onCodeInput({ target: el }, idx); });
+		                        });
+		                    }
 		                }
 		            })(i);
 		        }
@@ -2306,8 +2417,7 @@ vm.selected_phone;
 		        $scope.checkedcode++;
 
 		        if ($scope.checkedcode > 4) {
-		            $scope.codeError = '';
-		            ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times. Please request a new code.');
+		            $scope.codeError = 'Too many attempts - tap "Send a new code" below to get a fresh one.';
 		            return;
 		        }
 
@@ -2321,7 +2431,7 @@ vm.selected_phone;
 		            return;
 		        }
 
-		        MemberService.VerifyPhoneInvite(combine, $cookies.get("uid"))
+		        MemberService.VerifyPhoneInvite(combine, inviteeUid())
 		            .then(function (data) {
 		                $scope.codeVerifying = false;
 		                if (data && data.success) {

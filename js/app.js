@@ -59,6 +59,23 @@ var app = angular
             return true;
         }
 
+        // Is anyone actually logged in? A 401 only means "your session expired"
+        // when there WAS a session. A logged-out visitor on a public page (an
+        // invitation / signup wizard) can reach a login-only endpoint — the
+        // next-of-kin address lookup did — and that must stay a plain failed
+        // call, never the "You've been logged out" freeze over their half-filled form.
+        function hasSession() {
+            var g = $injector.get('$rootScope').globals;
+            return !!(g && g.currentUser && g.currentUser.id);
+        }
+        // ...and on a public page (signup / invitation wizards, public boards) a
+        // 401 isn't a session expiry even with a stale login in the browser: the
+        // page needs no session. The next authed page's own 401 freezes as usual.
+        function onPublicPage() {
+            var rs = $injector.get('$rootScope');
+            return !!(rs.isPublicPath && rs.isPublicPath($injector.get('$location').path()));
+        }
+
         // Run the one-shot logout. Uses $injector to avoid a circular
         // dependency ($http -> interceptor -> services that use $http).
         // Instead of bouncing straight to /login, FREEZE the app: clear the
@@ -151,7 +168,7 @@ var app = angular
                 // _sessionExpired and skip straight through.
                 if (rejection && rejection.status === 401 && !rejection._sessionExpired) {
                     var url = cfg && cfg.url ? cfg.url : '';
-                    if (isProtectedApiUrl(url)) {
+                    if (isProtectedApiUrl(url) && hasSession() && !onPublicPage()) {
                         handleSessionExpired();
                     }
                 }
@@ -319,12 +336,9 @@ var app = angular
                 controllerAs: 'vm'
             })
  
-            .state('register', {
-                url: '/register',
-                controller: 'RegisterController',
-                templateUrl: 'views/register.html',
-                controllerAs: 'vm'
-            })
+            // (/register and /registration_success — the old self-serve account form —
+            // were unlinked 2026-11-02: POST users was never public and the form had no
+            // confirm-password field. Members arrive via club invitations, pilots via /free_logbook.)
 
             // ── FREE DIGITAL LOGBOOK — public growth funnel ──
             // Contracts: FRONTEND_LOGBOOK_SIGNUP_GUIDE.md /
@@ -388,12 +402,6 @@ var app = angular
                 controllerAs: 'vm'
             })
 
-            .state('registration_success', {
-                url: '/registration_success',
-                controller: 'RegisterController',
-                templateUrl: 'views/registration_success.html',
-                controllerAs: 'vm'
-            })
 
             .state('registration_verification', {
                 url: '/registration_verification/:userId/:token',
@@ -3065,25 +3073,7 @@ var app = angular
         //         controllerAs: 'vm'
         //     })
 
-        .state('club_signup2.payment', {
-            url: '/payment',
-            templateUrl: 'views/forms/club_signup_continued/form-payment.html'
-        })
-        
-        .state('club_signup2.payment_setup_confirmation', {
-            url: '/payment_setup_confirmation',
-            templateUrl: 'views/forms/club_signup_continued/form-payment-confirmation.html'
-        })
-
-        .state('club_signup2.payment2', {
-            url: '/card_payment_confirmation',
-            templateUrl: 'views/forms/club_signup_continued/form-payment-stripe.html'
-        })
-
-        .state('club_signup2.payment_setup_confirmation2', {
-            url: '/payment_confirmation',
-            templateUrl: 'views/forms/club_signup_continued/form-payment-confirmation.html'
-        })
+        // (club_signup2.payment — legacy terms page whose submit went to a nonexistent state — removed 2026-11-02)
 
         .state('club_signup2.complete', {
             url: '/complete',
@@ -3163,10 +3153,9 @@ var app = angular
             templateUrl: 'views/forms/invitation_signup/form-direct-debit.html'
         })
 
-        .state('invitations.tnc', {
-            url: '/terms-and-conditions',
-            templateUrl: 'views/forms/invitation_signup/form-tnc.html'
-        })
+        // (invitations.tnc — the old standalone terms page — was removed 2026-11-02:
+        // linked from nowhere, and its submit created the account with no
+        // payment method. Terms + payment live on invitations.your_club.)
 
         .state('invitations.verified', {
             url: '/verified',
@@ -3616,7 +3605,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'register', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_success', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel'];
+        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3626,7 +3615,7 @@ var app = angular
                 // records, the CAA form…) to work out where BACK should go.
                 // Null when arriving from a public page. Registered on
                 // $rootScope, so it is set before the new view's controller runs.
-                $rootScope.previousState = (publicStates.indexOf(fromState.name) === -1)
+                $rootScope.previousState = (!isPublicStateName(fromState.name))
                     ? { name: fromState.name, params: angular.copy(fromParams) || {} }
                     : null;
             }
@@ -3637,8 +3626,20 @@ var app = angular
             return !!($rootScope.previousState && $rootScope.previousState.name === name);
         };
 
+        // Signup wizards have child states (invitations.your_club, club_signup.terms…):
+        // match them by prefix too.
+        var publicStatePrefixes = ['invitations', 'club_signup', 'club_signup2', 'passenger_signup', 'passenger_signup_complete', 'signup_maintenance'];
+        function isPublicStateName(name) {
+            if (!name) { return false; }
+            if (publicStates.indexOf(name) > -1) { return true; }
+            for (var i = 0; i < publicStatePrefixes.length; i++) {
+                if (name === publicStatePrefixes[i] || name.indexOf(publicStatePrefixes[i] + '.') === 0) { return true; }
+            }
+            return false;
+        }
+
         $rootScope.safeBack = function() {
-            if (previousStateName && publicStates.indexOf(previousStateName) === -1) {
+            if (previousStateName && !isPublicStateName(previousStateName)) {
                 $state.go(previousStateName, previousStateParams);
             } else {
                 $state.go('dashboard');
@@ -3666,6 +3667,42 @@ var app = angular
         }
         }
  
+        // Pre-auth pages a logged-out user must reach (login, all signup/invite
+        // wizards, password reset, email verification, public displays/boards).
+        // Matched as exact path OR prefix (path === entry || path startsWith entry + '/').
+        // NB: nested authed routes like /dashboard/my_account/bookout are NOT
+        // matched by '/bookout' here because the guard requires the prefix at
+        // index 0 (they start with /dashboard).
+        var publicPages = [
+            '/login', '/gallery', '/disabled',
+            '/password_reset', '/registration_verification',
+            '/display',
+            '/club_signup',                 // club signup wizard
+            '/club_signup2',                // club signup, post email-verification (token)
+            // '/user_signup' removed — dead demo wizard, states unlinked (see route block)
+            '/passenger_signup',            // passenger invitation (token)
+            '/passenger_signup_complete',   // returning passenger post-signup (token)
+            '/invitations',                 // member invitation / BS-import conversion (token)
+            '/signup/maintenance',          // maintenance organisation signup
+            '/bookout',                     // public airfield book-out form (/bookout/:icao)
+            '/bookout-display',             // public airfield board (token)
+            '/free_logbook',                // free digital logbook signup
+            '/logbook_invite',              // invite-a-pilot landing (token, in emails)
+            '/endorsement_confirm',         // endorsement confirmation (token, in emails)
+            '/caa_form_confirm',            // CAA form external signing (token, in emails)
+            '/email_confirm',               // account email confirmation (token, in emails)
+            '/email_cancel'                 // account email recovery veto (token, in emails)
+        ];
+        // Shared with the HTTP interceptor: a 401 on a public page is never a
+        // session expiry (the page needs no session), so it must not freeze it.
+        $rootScope.isPublicPath = function (path) {
+            path = path || '';
+            for (var i = 0; i < publicPages.length; i++) {
+                if (path === publicPages[i] || path.indexOf(publicPages[i] + '/') === 0) { return true; }
+            }
+            return false;
+        };
+
         $rootScope.$on('$locationChangeStart', function (event, next, current) {
             // ── Session-expired freeze ──
             // While the logged-out overlay is up, hold the app perfectly
@@ -3680,7 +3717,7 @@ var app = angular
 
             // redirect to login page if not logged in and trying to access a restricted page
             //console.log($location.path());
-            var restrictedPage = $.inArray($location.path(), ['/login', '/register', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup']) === -1;
+            var restrictedPage = $.inArray($location.path(), ['/login', '/gallery', '/disabled', '/club_signup', '/user_signup', '/passenger_signup']) === -1;
 
             //check if display page
             if($location.path().indexOf("/display/") > -1){
@@ -3704,32 +3741,6 @@ var app = angular
 
             // Save the current path as a return destination when being redirected to /login
             // (auto-logout due to session timeout, 401, etc.). Manual logouts clear this separately.
-            // Pre-auth pages a logged-out user must reach (login, all signup/invite
-            // wizards, password reset, email verification, public displays/boards).
-            // Matched as exact path OR prefix (path === entry || path startsWith entry + '/').
-            // NB: nested authed routes like /dashboard/my_account/bookout are NOT
-            // matched by '/bookout' here because the guard requires the prefix at
-            // index 0 (they start with /dashboard).
-            var publicPages = [
-                '/login', '/register', '/gallery', '/disabled',
-                '/password_reset', '/registration_success', '/registration_verification',
-                '/display',
-                '/club_signup',                 // club signup wizard
-                '/club_signup2',                // club signup, post email-verification (token)
-                // '/user_signup' removed — dead demo wizard, states unlinked (see route block)
-                '/passenger_signup',            // passenger invitation (token)
-                '/passenger_signup_complete',   // returning passenger post-signup (token)
-                '/invitations',                 // member invitation / BS-import conversion (token)
-                '/signup/maintenance',          // maintenance organisation signup
-                '/bookout',                     // public airfield book-out form (/bookout/:icao)
-                '/bookout-display',             // public airfield board (token)
-                '/free_logbook',                // free digital logbook signup
-                '/logbook_invite',              // invite-a-pilot landing (token, in emails)
-                '/endorsement_confirm',         // endorsement confirmation (token, in emails)
-                '/caa_form_confirm',            // CAA form external signing (token, in emails)
-                '/email_confirm',               // account email confirmation (token, in emails)
-                '/email_cancel'                 // account email recovery veto (token, in emails)
-            ];
             var navigatingToLogin = $location.path() === '/login';
             if (navigatingToLogin && current) {
                 // Extract the path portion from the full current URL
@@ -3798,6 +3809,19 @@ var app = angular
                     currentPath !== securityPath) {
                     event.preventDefault();
                     $location.path(securityPath);
+                    return;
+                }
+
+                // Invitation signup with its paid membership unfinished: the
+                // account's only destination is that invitation's payment
+                // step (public page). Set by loginController from the login
+                // response, cleared by the wizard once payment is on file.
+                var paymentGate = null;
+                try { paymentGate = JSON.parse(localStorage.getItem('toaviate_payment_setup_required') || 'null'); } catch(e) { paymentGate = null; }
+                if (paymentGate && paymentGate.token &&
+                    String($rootScope.globals.currentUser.id) === String(paymentGate.user_id)) {
+                    event.preventDefault();
+                    $location.path('/invitations/' + paymentGate.token + '/your_club');
                 }
             }
 

@@ -93,10 +93,17 @@ app.factory('SignupDraftService', SignupDraftService);
 
         // Deep-watch `getter()` on the given scope and auto-save (debounced).
         // Returns the deregistration function should a controller need it.
+        function isBlank(v) {
+            if (v === null || v === undefined || v === '' || v === false) { return true; }
+            if (angular.isArray(v)) { return v.length === 0 || v.every(isBlank); }
+            if (angular.isObject(v) && !(v instanceof Date)) { return Object.keys(v).every(function (k) { return isBlank(v[k]); }); }
+            return false;
+        }
+
         function Watch(scope, flowKey, getter) {
             var pending = null;
             var unwatch = scope.$watch(getter, function (value, old) {
-                if (value === undefined) { return; }
+                if (value === undefined || isBlank(value)) { return; }   // the empty form on load must not overwrite a saved draft
                 if (pending) { $timeout.cancel(pending); }
                 pending = $timeout(function () {
                     pending = null;

@@ -1,7 +1,7 @@
 app.controller('LoginController', LoginController);
  
-    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope', 'authGate', 'WebauthnService', 'LogbookSignupService'];
-    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope, authGate, WebauthnService, LogbookSignupService) {
+    LoginController.$inject = ['$location', 'AuthenticationService', 'FlashService', '$timeout', 'ToastService', '$rootScope', 'authGate', 'WebauthnService', 'LogbookSignupService', 'MaintenanceOrganisationService'];
+    function LoginController($location, AuthenticationService, FlashService, $timeout, ToastService, $rootScope, authGate, WebauthnService, LogbookSignupService, MaintenanceOrganisationService) {
         var vm = this;
 
         vm.login = login;
@@ -10,12 +10,18 @@ app.controller('LoginController', LoginController);
         vm.login_key;
 
         // ── Two-factor step (shown when login2 returns two_factor_required) ──
-        vm.stage = 'password';            // 'password' | 'code'
+        vm.stage = 'password';            // 'password' | 'email_code' | 'code'
+        vm.email_verify_token = null;     // login_stages token while the email code is pending
+        vm.emailHint = '';                // masked address the code went to
+        vm.emailCode = '';
+        vm.resendIn = 0;                  // seconds until "Send a new code" is allowed again
         vm.two_factor_token = null;       // 64-char token from login2 — 5 min / 6 attempts
         vm.code = '';
         vm.codeType = 'totp';             // 'totp' | 'recovery'
         vm.attemptsRemaining = null;
         vm.submitCode = submitCode;
+        vm.submitEmailCode = submitEmailCode;
+        vm.resendEmailCode = resendEmailCode;
         vm.toggleRecovery = toggleRecovery;
         vm.backToPassword = backToPassword;
 
@@ -128,22 +134,19 @@ app.controller('LoginController', LoginController);
                     AuthenticationService.Login2(vm.password, login_key, function (response) {
                     if (response.success) {
 
+                        if (response.email_verification_required) {
+                            // Correct password, unconfirmed email address: a 6-digit
+                            // code has just been emailed — no session until it is
+                            // entered. (2FA, if enabled, follows after.)
+                            enterEmailCodeStage(response);
+                            return;
+                        }
+
                         if (response.two_factor_required) {
                             // Shape C — 2FA is enabled on this account, so there is
                             // NO session yet. Pivot to the code screen; the token is
                             // valid for 5 minutes / 6 attempts.
-                            vm.two_factor_token = response.two_factor_token;
-                            vm.methods = response.methods || ['totp'];
-                            vm.codeType = 'totp';
-                            vm.code = '';
-                            vm.attemptsRemaining = null;
-                            vm.error = null;
-                            vm.stage = 'code';
-                            vm.dataLoading = false;
-                            $timeout(function () {
-                                var el = document.getElementById('two_factor_code');
-                                if (el) { el.focus(); }
-                            }, 100);
+                            enterTwoFactorStage(response);
                             return;
                         }
 
@@ -220,6 +223,20 @@ app.controller('LoginController', LoginController);
                 try { localStorage.setItem('toaviate_2fa_setup_required', String(response.user.id)); } catch(e) {}
             }
 
+            // An invitation signup whose paid membership was never completed
+            // (payment skipped / abandoned): the only thing this account can do
+            // until it pays is finish that step. Flag read by the route guard in
+            // app.js and cleared by the invitation wizard on completion; the
+            // backend re-asserts it at every login.
+            var paymentGate = response.payment_setup_required || null;
+            try {
+                if (paymentGate && paymentGate.token) {
+                    localStorage.setItem('toaviate_payment_setup_required', JSON.stringify({ user_id: response.user.id, token: paymentGate.token, club_title: paymentGate.club_title || '' }));
+                } else {
+                    localStorage.removeItem('toaviate_payment_setup_required');
+                }
+            } catch(e) {}
+
             // Logged in via a recovery code — nag when they're running low.
             if (typeof response.recovery_codes_remaining !== 'undefined' && response.recovery_codes_remaining < 10) {
                 ToastService.warning('Recovery Codes Running Low',
@@ -270,6 +287,11 @@ app.controller('LoginController', LoginController);
                     $location.path('/dashboard/my_account/security');
                     return;
                 }
+                if (paymentGate && paymentGate.token) {
+                    ToastService.warning('Finish Your Membership', 'Your ' + (paymentGate.club_title ? paymentGate.club_title + ' ' : '') + 'membership still needs a payment method - let\'s finish that first.');
+                    $location.path('/invitations/' + paymentGate.token + '/your_club');
+                    return;
+                }
 
                  // Check for a stored return URL from a prior auto-logout
                  var returnUrl = null;
@@ -294,9 +316,17 @@ app.controller('LoginController', LoginController);
                  } else if(response && response.access && (response.access.instructor.length > 0 || response.access.manager.length > 0)){
                      $location.path('/dashboard');
                  } else if(response && response.access && response.access.pilot && response.access.pilot.length === 0){
-                     // Club-less free-logbook account — land on the logbook,
-                     // not a club dashboard (FRONTEND_LOGBOOK_SIGNUP_GUIDE).
-                     $location.path('/dashboard/my_account/logbook');
+                     // No club as a pilot: a passenger lands on My Account, a
+                     // maintenance-organisation founder in their workspace, and a
+                     // club-less free-logbook account on the logbook.
+                     if (response.access.passenger && response.access.passenger.length > 0) {
+                         $location.path('/dashboard/my_account');
+                     } else {
+                         MaintenanceOrganisationService.GetForUser(response.id).then(function(res){
+                             var orgs = (res && res.success !== false && res.organisations) ? res.organisations : [];
+                             $location.path(orgs.length ? '/dashboard/maintenance' : '/dashboard/my_account/logbook');
+                         }, function(){ $location.path('/dashboard/my_account/logbook'); });
+                     }
                  } else if(response) {
                      $location.path('/dashboard/my_account');
                  } else {
@@ -312,6 +342,21 @@ app.controller('LoginController', LoginController);
         // keeps the token so logging in with the invited email still works.
         function acceptPendingInvitation(token, done) {
             LogbookSignupService.AcceptExisting(token).then(function(data) {
+                if (data && data.success && data.mode === 'payment_pending') {
+                    // Accepted onto this account; the membership fee is paid AS the
+                    // account on the invitation's payment step. The same gate the
+                    // backend re-asserts at every login pins the app there.
+                    try {
+                        localStorage.removeItem('toaviate_accept_invitation');
+                        localStorage.setItem('toaviate_payment_setup_required', JSON.stringify({
+                            user_id: ($rootScope.globals && $rootScope.globals.currentUser) ? $rootScope.globals.currentUser.id : 0,
+                            token: token, club_title: ''
+                        }));
+                    } catch(e) {}
+                    ToastService.success('Invitation Accepted', 'Now choose how to pay for the membership to finish.');
+                    $location.path('/invitations/' + token + '/your_club');
+                    return;
+                }
                 if (data && data.success) {
                     try { localStorage.removeItem('toaviate_accept_invitation'); } catch(e) {}
                     ToastService.success('Welcome to the Club!',
@@ -332,6 +377,102 @@ app.controller('LoginController', LoginController);
             });
         }
 
+
+        function enterTwoFactorStage(response) {
+            vm.two_factor_token = response.two_factor_token;
+            vm.methods = response.methods || ['totp'];
+            vm.codeType = 'totp';
+            vm.code = '';
+            vm.attemptsRemaining = null;
+            vm.error = null;
+            vm.stage = 'code';
+            vm.dataLoading = false;
+            $timeout(function () {
+                var el = document.getElementById('two_factor_code');
+                if (el) { el.focus(); }
+            }, 100);
+        }
+
+        // ── Email confirmation screen ──
+        // "Please confirm your email address - we've sent a code": shown when the
+        // password is right but users.verified is still 0 (an account whose
+        // verification link was never clicked). The code is emailed by login2;
+        // the resend button cools down for 45 s to match the backend.
+
+        var resendTimer = null;
+        function startResendCooldown(seconds) {
+            vm.resendIn = seconds;
+            if (resendTimer) { $timeout.cancel(resendTimer); }
+            (function tick() {
+                if (vm.resendIn <= 0) { resendTimer = null; return; }
+                resendTimer = $timeout(function () { vm.resendIn -= 1; tick(); }, 1000);
+            })();
+        }
+
+        function enterEmailCodeStage(response) {
+            vm.email_verify_token = response.email_verify_token;
+            vm.emailHint = response.email_hint || vm.email;
+            vm.emailCode = '';
+            vm.attemptsRemaining = null;
+            vm.error = null;
+            vm.stage = 'email_code';
+            vm.dataLoading = false;
+            startResendCooldown(response.code_sent === false ? 0 : 45);
+            $timeout(function () {
+                var el = document.getElementById('email_code');
+                if (el) { el.focus(); }
+            }, 100);
+        }
+
+        function submitEmailCode() {
+            var code = String(vm.emailCode || '').replace(/\D/g, '');
+            if (code.length !== 6) {
+                ToastService.highlightField('email_code');
+                ToastService.warning('Code Required', 'Please enter the 6-digit code from the email we just sent you.');
+                return;
+            }
+            vm.dataLoading = true;
+            vm.error = null;
+            AuthenticationService.LoginVerifyEmail(vm.email_verify_token, code, function (response) {
+                if (response.success) {
+                    ToastService.success('Email Confirmed', 'Thanks - your email address is verified.');
+                    if (response.two_factor_required) { enterTwoFactorStage(response); return; }
+                    completeLogin(response);
+                    return;
+                }
+                vm.dataLoading = false;
+                if (response.error === 'WRONG_CODE') {
+                    vm.attemptsRemaining = (typeof response.attempts_remaining === 'number') ? response.attempts_remaining : null;
+                    vm.emailCode = '';
+                    ToastService.error('Code Not Recognised', response.message || 'That code was not recognised. Please check the email and try again.');
+                    $timeout(function () { var el = document.getElementById('email_code'); if (el) { el.focus(); } }, 50);
+                    return;
+                }
+                // EXPIRED / TOO_MANY_ATTEMPTS / lockout — start again
+                ToastService.error('Please Sign In Again', response.message || response.error || 'That confirmation has expired - please sign in again.');
+                backToPassword();
+            });
+        }
+
+        function resendEmailCode() {
+            if (vm.resendIn > 0 || vm.dataLoading) { return; }
+            vm.resending = true;
+            AuthenticationService.ResendLoginEmailCode(vm.email_verify_token, function (response) {
+                vm.resending = false;
+                if (response && response.success) {
+                    vm.attemptsRemaining = null;
+                    vm.emailCode = '';
+                    ToastService.success('New Code Sent', response.message || 'A new code is on its way to ' + vm.emailHint + '.');
+                    startResendCooldown(45);
+                } else if (response && response.error === 'EXPIRED') {
+                    ToastService.error('Please Sign In Again', response.message || 'That sign-in has expired.');
+                    backToPassword();
+                } else {
+                    ToastService.warning('Not Sent', (response && (response.message || response.error)) || 'Could not send a new code right now - please wait a moment and try again.');
+                    startResendCooldown(15);
+                }
+            });
+        }
 
         // ── 2FA code screen ──
 
@@ -383,6 +524,10 @@ app.controller('LoginController', LoginController);
         function backToPassword() {
             vm.stage = 'password';
             vm.two_factor_token = null;
+            vm.email_verify_token = null;
+            vm.emailCode = '';
+            vm.resendIn = 0;
+            if (resendTimer) { $timeout.cancel(resendTimer); resendTimer = null; }
             vm.code = '';
             vm.password = '';
             vm.attemptsRemaining = null;

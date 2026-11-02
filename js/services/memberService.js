@@ -38,6 +38,7 @@ app.factory('MemberService', MemberService);
         service.VerifyPhone = VerifyPhone;
         service.VerifyPhoneInvite = VerifyPhoneInvite;
         service.VerifyInvitedUser = VerifyInvitedUser;
+        service.ResendPhoneCode = ResendPhoneCode;
         service.GetMandate = GetMandate;
 
 
@@ -51,9 +52,15 @@ app.factory('MemberService', MemberService);
             return $http.get('/api/v1/members/'+user_id+'/info/'+club_id).then(handleSuccess, handleError2);
         }
         
-        function VerifyInvitedUser(id){
-                
-            return $http.post('/api/v1/users/verify_invited_user', {"id": id}).then(handleSuccess, handleError2);
+        // Text the signup's phone code. token = the invitation that created the
+        // account (proof it's theirs); the backend also accepts the logged-in user.
+        function VerifyInvitedUser(id, token){
+            return $http.post('/api/v1/users/verify_invited_user', {"id": id, "token": token || ""}).then(handleSuccess, handleError2);
+        }
+
+        // A fresh code (rate-limited server-side).
+        function ResendPhoneCode(id){
+            return $http.post('/api/v1/users/resend_phone_code', {"id": id}).then(handleSuccess, handleError2);
         }
 
         function VerifyPhoneInvite(verification, id){

@@ -298,7 +298,8 @@
         <!-- Every row shown is one instructor's: confirm them all for that instructor -->
         <div class="rtf-bulk-bar" ng-if="vm.can_confirm_for_instructor && !vm.awaiting_loading && vm.awaitingFiltered().length > 1 && vm.awaitingInstructor()">
           <span class="rtf-muted">{{ vm.awaitingFiltered().length }} records awaiting {{ vm.awaitingInstructor().label }}
-            <span class="rtf-chip rtf-chip--left" ng-if="vm.awaitingInstructor().left"><i class="fas fa-user-slash"></i> left the club</span></span>
+            <span class="rtf-chip rtf-chip--left" ng-if="vm.awaitingInstructor().status === 'left'"><i class="fas fa-user-slash"></i> left the club</span>
+            <span class="rtf-chip rtf-chip--left" ng-if="vm.awaitingInstructor().status === 'not_instructing'"><i class="fas fa-user-slash"></i> no longer instructing</span></span>
           <button type="button" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
                   ng-click="vm.openConfirmFor(vm.awaitingFiltered())" no-busy-guard>
             <i class="fas fa-user-check"></i> Confirm all {{ vm.awaitingFiltered().length }} for {{ vm.awaitingInstructor().label }}
@@ -334,7 +335,7 @@
                   <th>Student</th>
                   <th>Lesson</th>
                   <th>Instructor</th>
-                  <th>Entered by</th>
+                  <th>Entered / edited by</th>
                   <th class="rtf-table__actions">Record</th>
                 </tr>
               </thead>
@@ -353,10 +354,13 @@
                     {{ r.instructor_first_name }} {{ r.instructor_last_name }}
                     <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 0"
                           uib-tooltip="No longer a current member of the club"><i class="fas fa-user-slash"></i> left</span>
+                    <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 1 && r.instructor_instructing == 0"
+                          uib-tooltip="Still a member, but no longer flagged as an instructor at the club"><i class="fas fa-user-slash"></i> not instructing</span>
                     <span class="rtf-chip rtf-chip--awaiting rtf-block-chip"><i class="fas fa-hourglass-half"></i> awaiting confirmation</span>
                   </td>
                   <td>
-                    {{ r.entered_by_first_name }} {{ r.entered_by_last_name }}
+                    {{ vm.writtenBy(r) }}
+                    <span class="snazzy-table__muted rtf-block" ng-if="r.on_behalf_edit == 1">edited the record</span>
                     <span class="snazzy-table__muted rtf-block" ng-if="r.created_at">{{ r.created_at | asDate | date:'dd MMM yyyy' }}</span>
                   </td>
                   <td class="rtf-table__actions">
@@ -396,11 +400,12 @@
               <div class="snazzy-mobile-card__row">
                 <span class="snazzy-mobile-card__label">Instructor</span>
                 <span class="snazzy-mobile-card__value">{{ r.instructor_first_name }} {{ r.instructor_last_name }}
-                  <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 0"><i class="fas fa-user-slash"></i> left</span></span>
+                  <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 0"><i class="fas fa-user-slash"></i> left</span>
+                  <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 1 && r.instructor_instructing == 0"><i class="fas fa-user-slash"></i> not instructing</span></span>
               </div>
               <div class="snazzy-mobile-card__row">
-                <span class="snazzy-mobile-card__label">Entered by</span>
-                <span class="snazzy-mobile-card__value">{{ r.entered_by_first_name }} {{ r.entered_by_last_name }}</span>
+                <span class="snazzy-mobile-card__label">{{ r.on_behalf_edit == 1 ? 'Edited by' : 'Entered by' }}</span>
+                <span class="snazzy-mobile-card__value">{{ vm.writtenBy(r) }}</span>
               </div>
             </div>
             <div class="snazzy-mobile-card__actions rtf-card-actions">

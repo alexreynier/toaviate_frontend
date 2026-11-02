@@ -53,7 +53,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
         vm.awaiting_instructors = [];
         vm.can_confirm_for_instructor = false;   // super-admin of this club / ToAviate staff (server says)
         vm.cfi = null;                           // the "confirm for the instructor" dialog
-        vm.cfi_reasons = ['Instructor has left the club', 'Instructor cannot be reached'];
+        vm.cfi_reasons = ['Instructor has left the club', 'Instructor no longer instructs at the club', 'Instructor cannot be reached'];
 
         var seq = 0;                       // drops stale responses when filters change quickly
 
@@ -312,6 +312,21 @@ app.controller('RecordsToFileController', RecordsToFileController);
             return ((r.instructor_first_name || '') + ' ' + (r.instructor_last_name || '')).trim() || 'the instructor';
         }
 
+        // 'left' (no longer a member) | 'not_instructing' (member, instructor flag off) | 'active'
+        function instructorStatus(r) {
+            if (Number(r.instructor_at_club) === 0) { return 'left'; }
+            return Number(r.instructor_instructing) === 0 ? 'not_instructing' : 'active';
+        }
+
+        // Who wrote it for the instructor: the editor when someone else changed it
+        // later (a TPC import files under the instructor), else the filer.
+        vm.writtenBy = function(r) {
+            if (r.on_behalf_by_first_name || r.on_behalf_by_last_name) {
+                return ((r.on_behalf_by_first_name || '') + ' ' + (r.on_behalf_by_last_name || '')).trim();
+            }
+            return ((r.entered_by_first_name || '') + ' ' + (r.entered_by_last_name || '')).trim();
+        };
+
         // The single instructor of the rows shown, or null when they are mixed.
         vm.awaitingInstructor = function() {
             var rows = vm.awaitingFiltered();
@@ -320,18 +335,18 @@ app.controller('RecordsToFileController', RecordsToFileController);
             for (var i = 1; i < rows.length; i++) {
                 if (String(rows[i].instructor_id) !== id) { return null; }
             }
-            return { id: id, label: instructorName(rows[0]), left: Number(rows[0].instructor_at_club) === 0 };
+            return { id: id, label: instructorName(rows[0]), status: instructorStatus(rows[0]) };
         };
 
         vm.openConfirmFor = function(rows) {
             if (!vm.can_confirm_for_instructor || !rows || !rows.length) { return; }
-            var left = rows.every(function(r) { return Number(r.instructor_at_club) === 0; });
+            // all one instructor (bulk only offers that), so the first row's status speaks for them
+            var status = instructorStatus(rows[0]);
             vm.cfi = {
                 ids: rows.map(function(r) { return r.id; }),
                 instructor: instructorName(rows[0]),
                 row: rows.length === 1 ? rows[0] : null,
-                left: left,
-                reason: left ? vm.cfi_reasons[0] : '',
+                reason: status === 'left' ? vm.cfi_reasons[0] : (status === 'not_instructing' ? vm.cfi_reasons[1] : ''),
                 error: false,
                 saving: false
             };

@@ -18,10 +18,16 @@
                 return false;
             }
 
-            if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(vm.email)){
+            // any plausible address (.aero / .info / plus-addresses were being refused)
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(vm.email.trim())){
 
-                  AuthenticationService.ResetPassword(vm.email, function(data){
-                        ////console.log(data);
+                  AuthenticationService.ResetPassword(vm.email.trim(), function(data){
+                        // Neutral by design (never confirms whether the address exists),
+                        // but a failed request must not pretend an email went out.
+                        if (data && data.success === false && data.message && !/not found|no account|unknown/i.test(String(data.message))) {
+                            ToastService.error('Request Failed', String(data.message));
+                            return;
+                        }
                         vm.show_thankyou = true;
                         vm.show_error = false;
 
@@ -69,7 +75,14 @@
             }
 
                 AuthenticationService.ResetPassword2(vm.password, $stateParams.token, function(data){
-                        ////console.log(data);
+                        if (!data || data.success === false) {
+                            // expired / used link: say so, offer a new one — not a success panel
+                            vm.reset_failed = true;
+                            vm.reset_failed_message = (data && typeof data.message === 'string' && data.message) ? data.message : 'This reset link has expired or has already been used.';
+                            ToastService.error('Password Not Changed', vm.reset_failed_message);
+                            return;
+                        }
+                        vm.reset_failed = false;
                         vm.show_thankyou = true;
                         vm.show_error = false;
                         vm.show_error2 = false;

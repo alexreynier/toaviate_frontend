@@ -317,10 +317,13 @@
 		           return;
 		       }
 
+		       // Mobile keyboards report 229 / "Unidentified" / "Process" on keydown
+		       // and deliver the digit through the input event instead.
+		       if (key === 229 || key === 'Unidentified' || key === 'Process') { return; }
 		       if (key !== 'Tab' && key !== 9) {
 		           event.preventDefault();
 		       }
-		   };
+    };
 
 		   $scope.onCodeInput = function(event, idx) {
 		       var el = event.target || event.srcElement;
@@ -357,6 +360,13 @@
 		                   el.addEventListener('focus', function() {
 		                       this.select();
 		                   });
+		                   // ng-input is not an AngularJS directive: bind the input event here
+		                   if (!el.getAttribute('data-code-input-bound')) {
+		                       el.setAttribute('data-code-input-bound', '1');
+		                       el.addEventListener('input', function() {
+		                           $scope.$apply(function() { $scope.onCodeInput({ target: el }, idx); });
+		                       });
+		                   }
 		               }
 		           })(i);
 		       }
@@ -505,8 +515,11 @@
 		    		return;
 		    	}
 
+	    		if ($scope.submitting) { return; }   // the backend burns the invitation on the first call
+	    		$scope.submitting = true;
 	    		UserService.SignupUserFromPassenger($stateParams.token, to_send)
                 .then(function (data) {
+                	$scope.submitting = false;
                 	// //console.log("GET SECURE INVITE", data);
                 	if(data.success){
 				    	

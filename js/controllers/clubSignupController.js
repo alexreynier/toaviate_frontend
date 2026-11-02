@@ -1199,12 +1199,14 @@ app.controller('ClubSignupController', ClubSignupController);
 	            //console.log("THIS IS A VERIFY TOKEN VERIFICATION", pre);
 
 	    		if(last && pre){
-
-		            //console.log("THIS IS A VERIFY TOKEN VERIFICATION", last);
+		             // The page says "verified" only once the API has said so.
+		             $scope.emailVerifyStatus = 'pending';
+		             $scope.verify_user_id = last;
 
 		             UserService.Verify(last, pre)
 		                .then(function (response) {
-		                    if (response.success) {
+		                    if (response && response.success) {
+		                    	$scope.emailVerifyStatus = 'ok';
 		                    	//alert("verified");
 
 		                    	//lets create a temp create cookie here...
@@ -1212,6 +1214,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		                        // vm.title = "Thank You!";
 		                        // vm.verify_status = "Your email address has been verified.";
 		                    } else {
+		                    	$scope.emailVerifyStatus = 'failed';
 		                    	ToastService.error('Verification Failed', 'Sorry - your verification link seems to be incorrect.')
 		                        // vm.title = "Sorry!";
 		                        // vm.verify_status = "Sorry - something went wrong here! Please try clicking the link your email again. Should this still be a problem, please contact support.";
@@ -1229,13 +1232,14 @@ app.controller('ClubSignupController', ClubSignupController);
 
 	    		var mid = $cookies.get('mid');
 	    		var bid = $cookies.get('bid');
+	    		$scope.gocardStatus = 'pending';
 
-	    		// //console.log("PARAMS123123", mid);
-
-	    		 GoCardService.SetupGoCard({mid: mid, bid: bid, code: $location.search().code})
+	    		 // `state` is the OAuth state token the backend issued — it binds this
+	    		 // return to the signup that started it (and identifies it without cookies).
+	    		 GoCardService.SetupGoCard({mid: mid, bid: bid, code: $location.search().code, state: $location.search().state})
 		                .then(function (response) {
-		                	//console.log("response", response);
-		                    if (response.success) {
+		                    if (response && response.success) {
+		                    	$scope.gocardStatus = 'ok';
 		                    	//alert("verified");
 		                    	
 		                    	//SetupGoCard
@@ -1243,6 +1247,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		                        // vm.title = "Thank You!";
 		                        // vm.verify_status = "Your email address has been verified.";
 		                    } else {
+		                    	$scope.gocardStatus = 'failed';
 		                    	ToastService.error('Setup Failed', 'Sorry - we were unable to setup your connection to our payment provider GoCardless.')
 		                        // vm.title = "Sorry!";
 		                        // vm.verify_status = "Sorry - something went wrong here! Please try clicking the link your email again. Should this still be a problem, please contact support.";
@@ -1257,6 +1262,36 @@ app.controller('ClubSignupController', ClubSignupController);
     		$scope.go_to_login = function(){
 				$state.go("login");
     		}
+
+    		// A fresh phone code (regenerated server-side, clears a lockout; rate-limited)
+    		$scope.resendBusy = false;
+    		$scope.resendPhoneCode = function(){
+    			if ($scope.resendBusy || !$scope.verify_user_id) { return; }
+    			$scope.resendBusy = true;
+    			MemberService.ResendPhoneCode($scope.verify_user_id).then(function(data){
+    				$scope.resendBusy = false;
+    				if (data && data.success) {
+    					$scope.checkedcode = 0; $scope.codeError = ''; $scope.formcode = [];
+    					for (var i = 0; i < 6; i++) { var el = document.getElementById('index' + i); if (el) { el.value = ''; } }
+    					ToastService.success('Code Sent', data.message || 'A new code is on its way to your phone.');
+    				} else {
+    					ToastService.error('Not Sent', (data && data.message) || "We couldn't send a new code just now.");
+    				}
+    			});
+    		};
+
+    		// The verification email again (after submit the form is cleared, so the
+    		// address is kept separately)
+    		$scope.resendEmailBusy = false;
+    		$scope.resendEmail = function(){
+    			if ($scope.resendEmailBusy || !$scope.submittedEmail) { return; }
+    			$scope.resendEmailBusy = true;
+    			UserService.ResendVerification($scope.submittedEmail).then(function(data){
+    				$scope.resendEmailBusy = false;
+    				if (data && data.success) { ToastService.success('Email Sent', data.message || 'We have re-sent your verification email.'); }
+    				else { ToastService.error('Not Sent', (data && data.message) || "We couldn't re-send the email just now."); }
+    			});
+    		};
 
     		
 
@@ -1349,10 +1384,13 @@ app.controller('ClubSignupController', ClubSignupController);
     		        return;
     		    }
 
+    		    // Mobile keyboards report 229 / "Unidentified" / "Process" on keydown
+    		    // and deliver the digit through the input event instead.
+    		    if (key === 229 || key === 'Unidentified' || key === 'Process') { return; }
     		    if (key !== 'Tab' && key !== 9) {
     		        event.preventDefault();
     		    }
-    		};
+    };
 
     		$scope.onCodeInput = function(event, idx) {
     		    var el = event.target || event.srcElement;
@@ -1389,6 +1427,13 @@ app.controller('ClubSignupController', ClubSignupController);
     		                el.addEventListener('focus', function() {
     		                    this.select();
     		                });
+    		                // ng-input is not an AngularJS directive: bind the input event here
+    		                if (!el.getAttribute('data-code-input-bound')) {
+    		                    el.setAttribute('data-code-input-bound', '1');
+    		                    el.addEventListener('input', function() {
+    		                        $scope.$apply(function() { $scope.onCodeInput({ target: el }, idx); });
+    		                    });
+    		                }
     		            }
     		        })(i);
     		    }
@@ -1429,8 +1474,7 @@ app.controller('ClubSignupController', ClubSignupController);
     		    $scope.checkedcode++;
 
     		    if ($scope.checkedcode > 4) {
-    		        $scope.codeError = '';
-    		        ToastService.error('Too Many Attempts', 'Sorry - you have tried too many times. Please request a new code.');
+    		        $scope.codeError = 'Too many attempts - tap "Send a new code" below to get a fresh one.';
     		        return;
     		    }
 
@@ -1513,6 +1557,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		        $scope.set_company = function(){
 		        	
 
+		        	 if (!vm.selected_company || !vm.selected_company.company_number) { return; }   // free text, not a Companies House pick
 		        	 MemberService.GetCompanyDetail(vm.selected_company.company_number)
 		                .then(function (data) {
 		                    //console.log(data);
@@ -1576,10 +1621,7 @@ app.controller('ClubSignupController', ClubSignupController);
 		        'club_signup.verify':     4,
 		        'club_signup2':           5,
 		        'club_signup2.verify':    5,
-		        'club_signup2.payment':   6,
-		        'club_signup2.payment2':  6,
 		        'club_signup2.payment_setup_confirmation':  7,
-		        'club_signup2.payment_setup_confirmation2': 7,
 		        'club_signup2.complete':  8
 		    };
 
@@ -1592,6 +1634,11 @@ app.controller('ClubSignupController', ClubSignupController);
 		    // Steps 2-3 need the profile from step 1. (Step 4+ are post-submit
 		    // informational screens — never bounce those.)
 		    function guardStep(stateName) {
+		        // "we've emailed you" without a submit this session: start over
+		        if (stateName === 'club_signup.verify' && !$scope.submittedEmail) {
+		            $state.go('club_signup.my_profile', {}, { location: 'replace' });
+		            return;
+		        }
 		        if (stateName !== 'club_signup.my_club' && stateName !== 'club_signup.terms') { return; }
 		        var user = $scope.formData.user || {};
 		        if (!user.first_name || !user.email) {
@@ -1793,8 +1840,9 @@ app.controller('ClubSignupController', ClubSignupController);
 
 		    function sort_company_data(data){
 
-		    	vm.officers = data.officer;
-		    	vm.company_details = data.company;
+		    	vm.officers = (data && data.officer) || [];
+		    	vm.company_details = data && data.company;
+		    	if (!vm.company_details) { return; }
 
 		    	//match the firstname and last name entered with a director of the company
 		    	var user_is_named_on_company_selected = false;
@@ -1823,11 +1871,13 @@ app.controller('ClubSignupController', ClubSignupController);
 		    		ToastService.success('Match Found', 'We have matched you!');
 
 		    		//now that we have some basic setup then we can get into the nitty gritty of adding
-		    		$scope.formData.club = {};
+		    		// (keep anything already typed — the match only fills gaps and company facts)
+		    		var typed = $scope.formData.club || {};
+		    		$scope.formData.club = { title: typed.title, email: typed.email, website: typed.website };
 
 		    		$scope.formData.club.company_name = data.company.company_name;
 		    		$scope.formData.club.trading_as = data.company.company_name;
-		    		$scope.formData.club.title = data.company.company_name.replace("LTD", "").replace("LIMITED", "").replace("LLC", "");
+		    		if (!$scope.formData.club.title) { $scope.formData.club.title = data.company.company_name.replace("LTD", "").replace("LIMITED", "").replace("LLC", "").trim(); }
 		    		$scope.formData.club.company_number = data.company.company_number;
 		    		$scope.formData.club.date_of_creation = data.company.date_of_creation;
 		    		$scope.formData.club.address_line_1 = data.company.registered_office_address.address_line_1;
@@ -1835,9 +1885,12 @@ app.controller('ClubSignupController', ClubSignupController);
 		    		$scope.formData.club.city = data.company.registered_office_address.locality;
 		    		$scope.formData.club.post_code = data.company.registered_office_address.postal_code;
 
-		    		$scope.formData.user.dob_year = data.officer[matched].date_of_birth.year;
-		    		$scope.formData.user.dob_month = data.officer[matched].date_of_birth.month;
-		    		$scope.formData.user.role = data.officer[matched].officer_role;
+		    		var officerDob = (data.officer[matched] && data.officer[matched].date_of_birth) || null;   // corporate officers have none
+		    		if (officerDob) {
+		    			$scope.formData.user.dob_year = officerDob.year;
+		    			$scope.formData.user.dob_month = officerDob.month;
+		    		}
+		    		$scope.formData.user.role = data.officer[matched] ? data.officer[matched].officer_role : '';
 		    		$scope.formData.club.is_company = true;
 		    		
 
@@ -2003,13 +2056,16 @@ app.controller('ClubSignupController', ClubSignupController);
 		                .then(function(data){
 		                    //console.log(data);
 		                    $scope.submitting = false;
-		                    if(data.success){
+		                    if(data && data.success){
+			                    $scope.submittedEmail = payload.user.email;
 			                    SignupDraftService.Clear(DRAFT_KEY);
 			                    $state.go("club_signup.verify");
 			                    $scope.formData = {};
+		                    } else if (data && data.existing_account) {
+		                    	ToastService.warning('You Already Have An Account', 'An account with this email address already exists. Please log in with it instead - nothing you entered has been lost.');
 		                    } else {
-		                    	$("#error_message").html(data.message);
-		                    	ToastService.error('Signup Failed', data.message || 'Something went wrong — please check your details and try again. Nothing you entered has been lost.');
+		                    	var failMsg = data && (data.message || data.error);
+		                    	ToastService.error('Signup Failed', (typeof failMsg === 'string' && failMsg) ? failMsg : 'Something went wrong — please check your details and try again. Nothing you entered has been lost.');
 		                    }
 		                });
 

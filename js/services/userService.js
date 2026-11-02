@@ -16,6 +16,7 @@ app.factory('UserService', UserService);
         service.GetPaxSecureInvite = GetPaxSecureInvite;
         service.InviteSignup = InviteSignup;
         service.GetAccess = GetAccess;
+        service.ResendVerification = ResendVerification;
         service.DeleteInvitation = DeleteInvitation;
         service.ChangeInvitation = ChangeInvitation;
         service.GetInvoices = GetInvoices;
@@ -118,6 +119,11 @@ app.factory('UserService', UserService);
             // verify_token is the canonical body key (the backend also accepts
             // verify_link as a legacy alias — see FRONTEND_LOGBOOK_SIGNUP_GUIDE.md).
             return $http.post('/api/v1/users/' + id + '/verify', {"verify_token": verify_token}).then(handleSuccess, handleError2);
+        }
+
+        // Public: re-send the signup verification email (rate-limited server-side).
+        function ResendVerification(email) {
+            return $http.post('/api/v1/users/resend_verification', { email: email }).then(handleSuccess, handleError2);
         }
 
         function GetAccess(id) {

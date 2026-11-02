@@ -479,11 +479,17 @@
                                         <span class="rtf-sr-by" ng-if="vm.log_entered_by(log)">Entered by {{ vm.log_entered_by(log) }}</span>
                                         <span class="rtf-chip rtf-chip--awaiting" ng-if="vm.log_awaiting(log)"
                                               uib-tooltip="Entered on the instructor's behalf — it counts, but waits for them to confirm it"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+                                        <span class="rtf-chip rtf-chip--confirmed-for" ng-if="vm.log_confirmed_for(log)"
+                                              uib-tooltip="Reason given: {{ vm.confirmed_for_note(log.training_record_id) }}"><i class="fas fa-user-check"></i> Confirmed for the instructor by {{ vm.confirmed_for_label(log) }}</span>
                                     </td>
                                     <td class="sr-table__actions">
                                         <button type="button" class="sr-btn sr-btn--success sr-btn--sm rtf-sr-confirm-btn" ng-if="vm.can_confirm_record(log.training_record_id)"
                                                 ng-click="vm.confirm_record(log.training_record_id)" uib-tooltip="You gave this lesson — confirm the record entered for you">
                                             <i class="fas fa-check"></i> Confirm
+                                        </button>
+                                        <button type="button" class="sr-btn sr-btn--outline sr-btn--sm rtf-sr-confirm-btn" ng-if="vm.can_confirm_for(log.training_record_id)"
+                                                ng-click="vm.open_confirm_for(log.training_record_id)" uib-tooltip="The instructor has left or can't be reached — confirm it for them, with a reason">
+                                            <i class="fas fa-user-check"></i> Confirm for instructor
                                         </button>
                                         <button type="button" class="sr-btn sr-btn--primary sr-btn--sm" ng-if="log.import_note_only == 1" ng-click="vm.fill_import_note(log)"
                                                 uib-tooltip="Debrief this flight — the record replaces the import note">
@@ -545,10 +551,17 @@
                             <div class="rtf-sr-chip-row" ng-if="vm.log_entered_by(log) || vm.log_awaiting(log)">
                                 <span class="rtf-sr-by" ng-if="vm.log_entered_by(log)">Entered by {{ vm.log_entered_by(log) }}</span>
                                 <span class="rtf-chip rtf-chip--awaiting" ng-if="vm.log_awaiting(log)"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+                                <span class="rtf-chip rtf-chip--confirmed-for" ng-if="vm.log_confirmed_for(log)"><i class="fas fa-user-check"></i> Confirmed for the instructor by {{ vm.confirmed_for_label(log) }}</span>
+                                <span class="rtf-sr-by" ng-if="vm.log_confirmed_for(log) && vm.confirmed_for_note(log.training_record_id)">Reason: {{ vm.confirmed_for_note(log.training_record_id) }}</span>
                             </div>
                             <div class="sr-card__actions" ng-if="vm.can_confirm_record(log.training_record_id)">
                                 <button type="button" class="sr-btn sr-btn--success sr-btn--sm" ng-click="vm.confirm_record(log.training_record_id)">
                                     <i class="fas fa-check"></i> Confirm this record
+                                </button>
+                            </div>
+                            <div class="sr-card__actions" ng-if="vm.can_confirm_for(log.training_record_id)">
+                                <button type="button" class="sr-btn sr-btn--outline sr-btn--sm" ng-click="vm.open_confirm_for(log.training_record_id)">
+                                    <i class="fas fa-user-check"></i> Confirm for the instructor
                                 </button>
                             </div>
                         </div>
@@ -794,7 +807,9 @@
                     <span ng-if="vm.this_entry.entered_on_behalf != 1">Recorded by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
                     <span ng-if="vm.this_entry.entered_on_behalf == 1">Entered by <strong>{{ vm.this_entry.completed_by_first_name }} {{ vm.this_entry.completed_by_last_name }}</strong></span>
                     <span class="rtf-chip rtf-chip--awaiting rtf-sr-audit-chip" ng-if="vm.entry_awaiting()"><i class="fas fa-hourglass-half"></i> Awaiting instructor confirmation</span>
-                    <span class="rtf-chip rtf-chip--confirmed rtf-sr-audit-chip" ng-if="vm.this_entry.entered_on_behalf == 1 && vm.this_entry.instructor_confirmed_at"><i class="fas fa-check"></i> Confirmed by the instructor {{ vm.this_entry.instructor_confirmed_at | asDate | date:"dd MMM yyyy" }}</span>
+                    <span class="rtf-chip rtf-chip--confirmed rtf-sr-audit-chip" ng-if="vm.this_entry.entered_on_behalf == 1 && vm.this_entry.instructor_confirmed_at && vm.this_entry.confirmed_for_instructor != 1"><i class="fas fa-check"></i> Confirmed by the instructor {{ vm.this_entry.instructor_confirmed_at | asDate | date:"dd MMM yyyy" }}</span>
+                    <span class="rtf-chip rtf-chip--confirmed-for rtf-sr-audit-chip" ng-if="vm.this_entry.confirmed_for_instructor == 1"><i class="fas fa-user-check"></i> Confirmed for the instructor by {{ vm.confirmed_for_label(vm.this_entry) }} {{ vm.this_entry.instructor_confirmed_at | asDate | date:"dd MMM yyyy" }}</span>
+                    <span ng-if="vm.this_entry.confirmed_for_instructor == 1 && vm.this_entry.instructor_confirm_note">Reason given <strong>{{ vm.this_entry.instructor_confirm_note }}</strong></span>
                     <span>Created <strong>{{ vm.this_entry.created_at | asDate | date:"dd MMM yyyy" || "no date" }}</strong></span>
                     <span ng-if="vm.this_entry.edited_by > 0"
                           uib-tooltip="Reason given: {{ vm.this_entry.edit_reason }}">
@@ -817,6 +832,9 @@
         <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_popup()">Close</button>
         <button type="button" class="sr-btn sr-btn--success" ng-if="vm.this_entry.id && vm.can_confirm_record(vm.this_entry.id)" ng-click="vm.confirm_record(vm.this_entry.id)">
             <i class="fas fa-check"></i> Confirm record
+        </button>
+        <button type="button" class="sr-btn sr-btn--outline" ng-if="vm.this_entry.id && vm.can_confirm_for(vm.this_entry.id)" ng-click="vm.open_confirm_for(vm.this_entry.id)">
+            <i class="fas fa-user-check"></i> Confirm for instructor
         </button>
         <button type="button" class="sr-btn sr-btn--primary" ng-if="vm.user_can_edit" ng-click="vm.show_edit_record()">
             <i class="fas fa-pen"></i> Edit record
@@ -1247,6 +1265,52 @@
         <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.show_add_exam = false">Cancel</button>
         <button type="button" class="sr-btn sr-btn--primary" ng-click="vm.add_exam_record()">
             <i class="fas fa-plus"></i> Add examination
+        </button>
+    </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     Confirm a record FOR its instructor (club super-admin / ToAviate staff)
+     — the instructor has left or can't be reached. Reason required; the
+     record shows who confirmed it for them, and why.
+     ══════════════════════════════════════════════════════════════ -->
+<div class="sr-modal__bg sr-modal__bg--confirm" ng-if="vm.cfi_dialog" ng-click="vm.close_confirm_for()"></div>
+
+<div class="sr-modal sr-modal--confirm" ng-if="vm.cfi_dialog" style="max-width: 520px;">
+
+    <div class="sr-modal__head">
+        <div>
+            <h3 class="sr-modal__title"><i class="fas fa-user-check"></i> Confirm for {{ vm.cfi_dialog.instructor }}</h3>
+            <p class="sr-modal__sub" ng-if="vm.cfi_dialog.entered_by">Entered by {{ vm.cfi_dialog.entered_by }}</p>
+        </div>
+        <button type="button" class="sr-modal__close" ng-click="vm.close_confirm_for()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="sr-modal__body">
+        <p class="rtf-cfi-lead">Use this when {{ vm.cfi_dialog.instructor }} can't confirm the record themselves. It will show as
+            <strong>confirmed for the instructor by you</strong>, with your reason.</p>
+
+        <div class="sr-form-group">
+            <label class="sr-form-group__label" for="cfi-reason">Reason</label>
+            <div class="rtf-reason-chips">
+                <button type="button" class="rtf-reason-chip" ng-repeat="r in vm.cfi_reasons"
+                        ng-class="{'rtf-reason-chip--on': vm.cfi_dialog.reason === r}"
+                        ng-click="vm.cfi_dialog.reason = r; vm.cfi_dialog.error = false">{{ r }}</button>
+            </div>
+            <textarea class="sr-textarea" id="cfi-reason" maxlength="255"
+                      ng-class="{'sr-textarea--error': vm.cfi_dialog.error}"
+                      ng-model="vm.cfi_dialog.reason"
+                      ng-change="vm.cfi_dialog.error = false"
+                      placeholder="Why are you confirming this for the instructor?"></textarea>
+            <span class="sr-field-error" ng-if="vm.cfi_dialog.error">Give a reason (at least 5 characters).</span>
+        </div>
+    </div>
+
+    <div class="sr-modal__foot">
+        <button type="button" class="sr-btn sr-btn--outline" ng-click="vm.close_confirm_for()">Cancel</button>
+        <button type="button" class="sr-btn sr-btn--success" ng-click="vm.submit_confirm_for()" ng-disabled="vm.cfi_dialog.saving">
+            <i class="fas" ng-class="vm.cfi_dialog.saving ? 'fa-spinner fa-spin' : 'fa-user-check'"></i> Confirm for instructor
         </button>
     </div>
 

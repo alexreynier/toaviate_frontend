@@ -407,7 +407,10 @@ Optional TOTP 2FA + WebAuthn passkeys (added 2026-08). Backend contract:
   interceptor): the first authenticated 401 no longer bounces to /login — it sets
   `$rootScope.sessionFrozen`, blurs the whole app under a "You've been logged out"
   overlay, and the `$locationChangeStart` guard swallows ALL navigation until the
-  user clicks through (return-URL then works as usual). Separately, 5 min of
+  user clicks through (return-URL then works as usual). A 401 only freezes when a user is
+  logged in AND the page isn't public (`$rootScope.isPublicPath` — the same `publicPages` list as the
+  route guard): a logged-out invitee hitting a login-only endpoint on a signup wizard froze their form
+  (2026-11-02). Separately, 5 min of
   inactivity sets `$rootScope.idleBlurred` (privacy blur, nothing logged out);
   waking probes `two_factor/status` — a 401 converts it into the frozen overlay.
   ToastService suppresses per-controller 401 toasts (object OR message-string
@@ -515,6 +518,24 @@ whose save/BACK return here), `not_required`, `no_student`. A "Records outstandi
 the last-opened flight live in sessionStorage (`toaviate_ih_view` / `toaviate_ih_focus`) so the return trip lands on the same
 view with that row pulsed once.
 
+## Bookings calendar — instructor rows & "hide unavailable instructors"
+
+`/dashboard/bookings` ([bookingsController.js](js/controllers/bookingsController.js) + the inline FullCalendar Scheduler
+1.8 setup in [views/bookings.html](views/bookings.html)) lists every current instructor of the viewer's clubs as a row,
+then the planes. Club setting (2026-11-02) `clubs.hide_unavailable_instructors` (Manage Club → Settings → Booking
+Settings; migration `2026_11_02_000002`): when on, `GET bookings/{user}/{start}/{end}` (`Bookings::get_all_fast` →
+`get_schedule_instructors(…, $all_instructors = 0, …, $bookings)`) keeps only instructors available on at least one
+viewed day. The ONE rule is `InstructorAvailability::available_on()` — a booking that day always shows the row; else not
+on holiday (`instructor_holidays`) AND (regular weekday enabled with hours, or an ad-hoc date that day; ad-hoc mode needs
+the date); no availability row = hidden. The viewer's own row is never hidden. The Schedule Display (TV) uses the same
+helper behind its OWN token-level `show_all_instructors` toggle — the two settings are independent on purpose.
+- Response carries `instructor_filter {club_setting, applied, hidden}`; the calendar shows a `.bkcal-filter` bar
+  ([css/bookings-calendar.css](css/bookings-calendar.css)) only when `club_setting == 1`, with a per-browser "Show all
+  instructors" override (localStorage `toaviate_bookings_show_all_instructors` → `?show_all_instructors=1`,
+  `BookingService.GetAll(user, start, end, showAll)`).
+- **Resources change per day now**, so the inline script calls `fullCalendar('refetchResources')` when `all_resources`
+  changes after the first delivery (the old late `callback(newValue)` was a no-op in Scheduler 1.x).
+
 ## Student records — return path & URL syncing
 
 `dashboard.manage_user.student_records` has many ways in (instructor dashboard tile, My Schedule, Hours Instructed,
@@ -545,6 +566,55 @@ satis", a lesson, a grade) makes it a real record; "Ex: 8b [TPC import …]" cou
 - UI: `.rtf-chip--import` ("import note only", info blue, dashed) everywhere; Records to File filter `record_kind`
   (`none` | `import_note`) + `summary.import_notes`; the debrief page shows a "saving replaces the note" banner
   (`import_note` on `bookings/for_debrief_pls`). No migration: plain LIKE/LOCATE SQL, same on every MySQL.
+
+## Signup flows (invitations, club, maintenance, passenger) — contract since 2026-11-02
+
+Audited and reworked end to end; every flow was driven against the real local backend (scratchpad Playwright
+scripts). Rules to keep:
+- **Backend `$auth_exlusions` (api.class.php) is the gate.** A public page may only call endpoints on that list;
+  everything else returns 401 (which the interceptor no longer turns into a freeze on public pages, but the call still
+  fails). `<address-lookup>` needs a login and hides itself when there is none (pass `label="…"` so the label hides too).
+- **Invitation signup = account FIRST, then pay AS that account.** `POST invitations/signup` creates the user, logs it
+  in (`login: {user, session}` → `AuthenticationService.SetCredentials2`), and the invitation record — not the body —
+  decides club / tier / request. Card: "Create Account & Add Card" → SetupIntent as the user → Stripe return →
+  `cards/confirm_setup` → `Invitations::complete_stripe_signup` creates the membership. Direct debit: mandate link, own
+  `gcl_session` cookie (the app's `session` cookie is the LOGIN). Skip: membership immediately (free / waived).
+  The "account ready" email goes out only when the membership exists (`send_welcome_email`). Never read `uid` from a cookie.
+- **Payment gate:** login returns `payment_setup_required {token}` for an accepted invitation whose paid request never
+  completed → loginController stores `toaviate_payment_setup_required`, the app.js guard pins `/dashboard*` to
+  `/invitations/{token}/your_club`, the wizard resumes at step 4 (logged in) or asks to log in, and clears the flag on completion.
+- **Phone codes are 6 digits everywhere**; `users/verify_invited_user` needs the invitation token (or the login) and is
+  rate-limited; every code screen has a resend. `ng-input` is not a directive — the input event is bound in JS.
+- **Club / maintenance signup:** the verification email IS sent (club → `club_signup2/verified/…`, maintenance →
+  `registration_verification/…`); a verified existing email returns `existing_account` (nothing created, "log in");
+  only whitelisted club / organisation columns are inserted; result screens reflect the API's answer; a signed-in user
+  creating a maintenance org uses `maintenance_organisations/register`.
+- **Passengers:** `invitations/{booking}/passengers` is no longer public and `pax_code` never leaves the API; a finished
+  link says so (`already_done`); resend works on the create-password step; passengers land on My Account after login.
+- **Email confirmation at login (2026-11-02):** a correct password on an account with `users.verified = 0` returns
+  `email_verification_required {email_verify_token, email_hint, code_sent}` instead of a session; loginController pivots to
+  `vm.stage = 'email_code'` (login.html, `.login-email-code`), `AuthenticationService.LoginVerifyEmail(token, code)` →
+  `users/login_verify_email` (same `Base64("token,code")` convention as 2FA; errors `WRONG_CODE {attempts_remaining}`,
+  `EXPIRED`, `TOO_MANY_ATTEMPTS`), `ResendLoginEmailCode(token)` → `users/login_resend_email_code` (45 s cooldown, mirrored
+  by `vm.resendIn`). Success verifies the account, then continues into 2FA if enabled, else `completeLogin`. Backend:
+  `UsersTwo::complete_login_email_code` / `send_login_email_code`; migration `users.email_verification_code` +
+  `email_code_sent_at`, guarded by `email_verification_supported()` (publish-before-migrate safe). `login_2fa` refuses an
+  unverified account (`EMAIL_UNVERIFIED`). Both routes are in `$auth_exlusions` and match the interceptor's `users/login` prefix.
+- **Existing-account acceptance (`invitations/accept_existing`)** — incl. BookedScheduler merge invitations (GET exposes
+  `bs_merge: 1`, `user_id` = the real account): the wizard never asks for details — it shows "log in to accept"
+  (`invite_existing_account` + `invMerge` wording) or, when already logged in as that user, auto-accepts via
+  `LogbookSignupService.AcceptExisting`. The backend merges the stub first, then: free / waived → `accepted_existing`
+  (the transferred member row takes the inviter's tier + dates, the request is closed); paid → `mode: 'payment_pending'`
+  and the caller pays AS the account on `/invitations/{token}/your_club` (loginController and the wizard both set the
+  payment gate; `pending_payment_setup` / `signup_status_for` treat a merge's transferred member row as unpaid).
+  `Memberships::club_accepts_request` UPGRADES an existing current row (no duplicate), honours `membership_ends` and skips
+  the initial charge when `payment_required = 0`; `complete_stripe_signup` completes the open request whatever method was
+  pencilled in. Existing-account paths skip the next-of-kin checks (`account_created`). Verified on the REAL Stripe and
+  GoCardless sandboxes (club 3) — card: Payment Element → `setup_intent` return → one upgraded row with `stripe_id`;
+  DD: hosted pages → `redirect_flow_id` return → `save_mandate` → one upgraded row with `gcl`.
+- `/register` + `/registration_success` are REMOVED from the router (RegisterController stays for `registration_verification`).
+- Known / not changed: hardcoded Companies House / ClickSend keys (accepted for now); passkey login does not run the
+  email-confirmation step (a passkey can only be enrolled from a logged-in session).
 
 ## Logbook Endorsements & Free-Logbook Signup Funnel
 
@@ -601,6 +671,9 @@ takes a postal address:
 - **The lookup is an accelerator, never a gate**: manual fields stay visible
   and editable; `LOOKUP_UNAVAILABLE` hides the component entirely,
   `LOOKUP_FAILED` shows a transient message.
+- `/addresses/*` needs a signed-in user, so the component hides itself for logged-out
+  visitors (and on a 401): the public signup / invitation wizards get manual entry only.
+  Opening it to the public would expose paid Google calls behind the client-side Api-Key.
 - The old postcode → pick-your-house flow is dead upstream and fully removed
   (`PaymentService.GetAddresses` deleted) — don't reintroduce it. The only
   address field deliberately NOT migrated is the voucher form's Stripe billing

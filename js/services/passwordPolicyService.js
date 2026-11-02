@@ -24,7 +24,7 @@ app.factory('PasswordPolicyService', PasswordPolicyService);
                 upper:   /[A-Z]/.test(pw),
                 lower:   /[a-z]/.test(pw),
                 number:  /[0-9]/.test(pw),
-                special: /[^A-Za-z0-9]/.test(pw)
+                special: /[^A-Za-z0-9_]/.test(pw)   // matches the backend's [^\w]: "_" is not a symbol
             };
             r.all = r.len && r.upper && r.lower && r.number && r.special;
             return r;

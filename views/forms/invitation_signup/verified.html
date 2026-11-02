@@ -2,7 +2,8 @@
   <!-- Pending verification -->
   <div ng-if="!verified_mobile">
     <h2 class="inv-title">Verify Your Mobile</h2>
-    <p class="inv-subtitle">We've sent a 6-digit code to your mobile number. Enter it below to complete your registration.</p>
+    <p class="inv-subtitle" ng-if="codeSent">We've sent a 6-digit code to your mobile number. Enter it below to complete your registration.</p>
+    <p class="inv-subtitle" ng-if="!codeSent">We need to text a 6-digit code to your mobile number. Send it, then enter it below.</p>
 
     <div class="inv-info">
       <i class="fa fa-sms"></i>
@@ -26,6 +27,13 @@
     <div class="inv-btn-group">
       <button class="inv-btn inv-btn--primary" ng-click="submitCode()" ng-disabled="codeVerifying">Verify</button>
     </div>
+    <p class="inv-code-hint" style="margin-top:14px;">
+      <span ng-if="codeSent">Didn't get it?</span>
+      <a ng-click="resendCode()" style="cursor:pointer; font-weight:600;" ng-class="{'inv-link--busy': resendBusy}">
+        <i class="fa" ng-class="resendBusy ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+        {{ codeSent ? 'Send a new code' : 'Send me the code' }}
+      </a>
+    </p>
   </div>
 
   <!-- Verified success -->
@@ -43,8 +51,11 @@
       </p>
     </div>
 
-    <a ui-sref="login" class="inv-btn inv-btn--success">
+    <a ng-if="!loggedInAsInvitee()" ui-sref="login" class="inv-btn inv-btn--success">
       <i class="fa fa-sign-in-alt"></i> Login Now
+    </a>
+    <a ng-if="loggedInAsInvitee()" href="/dashboard" class="inv-btn inv-btn--success">
+      <i class="fa fa-arrow-right"></i> Go to My Account
     </a>
   </div>
 </div>

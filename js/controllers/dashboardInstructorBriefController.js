@@ -1,8 +1,15 @@
  app.controller('DashboardInstructorBriefController', DashboardInstructorBriefController);
 
-    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService', 'PlaneService', 'TimeDisplayService', 'RecordsToFileService'];
-    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService, PlaneService, TimeDisplayService, RecordsToFileService) {
+    DashboardInstructorBriefController.$inject = ['UserService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'CourseService', 'BookingService', 'ToastService', 'QuestionnaireService', 'MissingStudentsService', 'PlaneService', 'TimeDisplayService', 'RecordsToFileService', 'StudentSnapshotService'];
+    function DashboardInstructorBriefController(UserService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, CourseService, BookingService, ToastService, QuestionnaireService, MissingStudentsService, PlaneService, TimeDisplayService, RecordsToFileService, StudentSnapshotService) {
         var vm = this;
+
+        // Briefing list: one screen of the student before the lesson (the viewer
+        // is the booking's instructor, so the backend lets them through).
+        vm.openStudentSnapshot = function(brief) {
+            if (!brief || !brief.user_id) { return; }
+            StudentSnapshotService.open(brief.user_id, { booking_id: brief.id });
+        };
 
         // ── Pre-lesson questionnaire flag (shown on the briefing screen) ──
         // When the student + lesson are known, fetch the student's attempts for

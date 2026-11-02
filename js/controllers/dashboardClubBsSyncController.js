@@ -67,6 +67,8 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
 
         // ── Resources ──
         vm.resources = [];
+        vm.resourceGaps = [];               // resources the last full sync could not import (see _stampResourceFlags)
+        vm.instructorBlocked = [];          // linked instructors who still can't see their upcoming lessons
         vm.clubPlanes = [];
         vm.clubMembersForResources = [];   // members/instructors for resource mapping dropdown
         vm.resourceMapOptions = [];         // flat array for ng-options: [{value, label, group}]
@@ -87,7 +89,9 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         vm._filteredImported = [];
 
         // ── Sync ──
-        vm.syncForm = { sync_type: 'incremental', start_date: null, end_date: null };
+        // Full by default: an incremental run only fetches reservations CHANGED in
+        // BS since the last sync, so after linking a resource it imports nothing old.
+        vm.syncForm = { sync_type: 'full', start_date: null, end_date: null };
         vm.syncRunning = false;
         vm.syncResult = null;
         vm.logs = [];
@@ -194,11 +198,24 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
         }
 
         // Stamp _isMapped and _isMappedToUser flags directly on each resource object
+        // vm.resourceGaps: resources whose reservations the last full/manual sync
+        // could not import (backend import_gap) — the banner above the table.
+        // vm.instructorBlocked: linked instructors with upcoming lessons who can't
+        // see them — an imported account (no login) or no instructor flag here.
         function _stampResourceFlags() {
+            vm.resourceGaps = [];
+            vm.instructorBlocked = [];
             for (var i = 0; i < vm.resources.length; i++) {
                 var r = vm.resources[i];
                 r._isMapped = !!((r.ta_plane_id && r.ta_club_plane_id) || r.ta_user_id);
                 r._isMappedToUser = !!(r.ta_user_id && !r.ta_plane_id);
+                var g = r.import_gap;
+                r._gap = (g && (Number(g.not_imported) > 0 || Number(g.imported_without) > 0)) ? g : null;
+                if (r._gap) { vm.resourceGaps.push(r); }
+                var upcoming = Number(r.upcoming_lessons) || 0;
+                r._noLogin = !!(r._isMappedToUser && Number(r.ta_imported_user) === 1 && upcoming > 0);
+                r._notInstructor = !!(r._isMappedToUser && Number(r.ta_is_instructor) === 0 && upcoming > 0);
+                if (r._noLogin || r._notInstructor) { vm.instructorBlocked.push(r); }
             }
         }
 

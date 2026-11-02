@@ -63,8 +63,11 @@ app.factory('BookingService', BookingService);
             return $http.get('/api/v1/bookings/user_club/'+user_id+'/'+club_id+'/'+start+'/'+end).then(handleSuccess, handleError2);
         }
 
-        function GetAll(user_id, start, end) {
-            return $http.get('/api/v1/bookings/'+user_id+'/'+start+'/'+end).then(handleSuccess, handleError2);
+        function GetAll(user_id, start, end, show_all_instructors) {
+            // show_all_instructors: the viewer's override of the club's
+            // hide_unavailable_instructors calendar setting (bookings page toggle)
+            var q = show_all_instructors ? '?show_all_instructors=1' : '';
+            return $http.get('/api/v1/bookings/'+user_id+'/'+start+'/'+end + q).then(handleSuccess, handleError2);
         }
 
         function GetAllInstructor(user_id, start, end) {

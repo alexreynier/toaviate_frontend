@@ -13,16 +13,25 @@
       <div class="mxo-card" style="text-align:center; padding:36px 24px;">
         <div style="font-size:48px; color:#16a34a; margin-bottom:10px;"><i class="fas fa-check-circle"></i></div>
         <h2 style="margin:0 0 6px; font-size:22px;">You're in!</h2>
-        <p style="color:#64748b; max-width:480px; margin:0 auto 18px;">
+        <p ng-if="!vm.autoVerified" style="color:#64748b; max-width:480px; margin:0 auto 18px;">
           We've created your maintenance organisation and sent a verification email to
           <strong>{{ vm.user.email }}</strong>. Verify your address, then sign in to start setting things up.
+        </p>
+        <p ng-if="vm.autoVerified && !vm.loggedIn" style="color:#64748b; max-width:480px; margin:0 auto 18px;">
+          We've created your maintenance organisation and your email is already verified from the invitation. Sign in to start setting things up.
+        </p>
+        <p ng-if="vm.loggedIn" style="color:#64748b; max-width:480px; margin:0 auto 18px;">
+          Your maintenance organisation has been created on your account.
         </p>
         <p ng-if="vm.tracker_invite" style="color:#64748b; max-width:480px; margin:0 auto 18px;">
           <i class="fas fa-map-marker-alt"></i> When you first open your <strong>Maintenance workspace</strong> after signing in,
           the trackers from {{ vm.tracker_invite.club_title || 'the club' }} will be linked to your organisation automatically.
         </p>
-        <a class="mxo-btn mxo-btn--primary" ui-sref="login">
+        <a class="mxo-btn mxo-btn--primary" ng-if="!vm.loggedIn" ui-sref="login">
           <i class="fas fa-sign-in-alt"></i> Go to login
+        </a>
+        <a class="mxo-btn mxo-btn--primary" ng-if="vm.loggedIn" href="/dashboard/maintenance">
+          <i class="fas fa-wrench"></i> Open the maintenance workspace
         </a>
       </div>
     </div>
@@ -83,7 +92,22 @@
         </div>
       </div>
 
+      <!-- Existing account: log in and come back -->
+      <div class="mxo-invite-banner" ng-if="vm.existingAccount" style="border-color:#bfdbfe; background:#eff6ff;">
+        <div>
+          <strong>You already have a ToAviate account with this email.</strong>
+          <p style="margin:6px 0 0;">Log in with it and create the organisation from there - nothing you entered has been lost.</p>
+          <a class="mxo-btn mxo-btn--primary" style="margin-top:10px;" ui-sref="login"><i class="fas fa-sign-in-alt"></i> Log in</a>
+        </div>
+      </div>
+
+      <!-- Signed in: the org is created on this account -->
+      <div class="mxo-invite-banner" ng-if="vm.loggedIn">
+        <div><strong>Signed in as {{ vm.loggedInName }}</strong><p style="margin:6px 0 0;">The organisation will be created on your account - no new login needed.</p></div>
+      </div>
+
       <!-- About you -->
+      <div ng-if="!vm.loggedIn">
       <h3 class="mxo-signup-section-title"><i class="fas fa-user"></i> About you (founder admin)</h3>
       <div class="mxo-form-grid">
         <div class="mxo-field">
@@ -136,6 +160,8 @@
         </div>
       </div>
 
+      </div>
+
       <!-- Organisation -->
       <h3 class="mxo-signup-section-title"><i class="fas fa-building"></i> Your organisation</h3>
       <div class="mxo-form-grid">
@@ -156,8 +182,7 @@
           <input type="text" ng-model="vm.org.approval_ref" placeholder="Optional" />
         </div>
         <div class="mxo-field mxo-field--full">
-          <label>Find the address</label>
-          <address-lookup placeholder="Start typing the organisation's address…"
+          <address-lookup label="Find the address" placeholder="Start typing the organisation's address…"
                           on-select="vm.org.address_line_1 = address.line1; vm.org.address_line_2 = address.line2; vm.org.city = address.city; vm.org.post_code = address.postcode; vm.org.country = address.country"></address-lookup>
         </div>
         <div class="mxo-field mxo-field--full">
@@ -198,7 +223,7 @@
       <div class="mxo-card" style="margin-top:22px; background:#f0fdfa; border-color:#99f6e4;">
         <label class="mxo-checkbox" for="mxo_tnc">
           <input id="mxo_tnc" type="checkbox" ng-model="vm.tnc" />
-          <span>I have read and agree to the <a href="/terms" target="_blank">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span>
+          <span>I have read and agree to the <a ng-click="vm.openDoc('2av8_terms'); $event.preventDefault();" href="">Terms &amp; Conditions</a> and <a ng-click="vm.openDoc('2av8_privacy'); $event.preventDefault();" href="">Privacy Policy</a>.</span>
         </label>
       </div>
 
