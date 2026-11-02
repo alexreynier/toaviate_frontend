@@ -51,6 +51,9 @@ app.controller('RecordsToFileController', RecordsToFileController);
         vm.awaiting_loaded = false;
         vm.awaiting_filter = '';           // instructor id (client-side filter)
         vm.awaiting_instructors = [];
+        vm.can_confirm_for_instructor = false;   // super-admin of this club / ToAviate staff (server says)
+        vm.cfi = null;                           // the "confirm for the instructor" dialog
+        vm.cfi_reasons = ['Instructor has left the club', 'Instructor cannot be reached'];
 
         var seq = 0;                       // drops stale responses when filters change quickly
 
@@ -283,6 +286,7 @@ app.controller('RecordsToFileController', RecordsToFileController);
                 vm.awaiting_loaded = true;
                 if (data && data.success) {
                     vm.awaiting = data.records || [];
+                    vm.can_confirm_for_instructor = !!data.can_confirm_for_instructor;
                     if (vm.summary) { vm.summary.awaiting_confirmation = data.count || vm.awaiting.length; }
                     buildAwaitingInstructors();
                 } else {
@@ -297,6 +301,71 @@ app.controller('RecordsToFileController', RecordsToFileController);
         vm.awaitingFiltered = function() {
             if (!vm.awaiting_filter) { return vm.awaiting; }
             return vm.awaiting.filter(function(r) { return String(r.instructor_id) === vm.awaiting_filter; });
+        };
+
+        // ── Confirm FOR the instructor ──
+        // A super-admin of the club (or ToAviate staff) confirms records whose
+        // instructor has left or can't be reached — one row, or every row shown
+        // when they are all one instructor's. Reason required; the record then
+        // shows who confirmed it for the instructor, and why.
+        function instructorName(r) {
+            return ((r.instructor_first_name || '') + ' ' + (r.instructor_last_name || '')).trim() || 'the instructor';
+        }
+
+        // The single instructor of the rows shown, or null when they are mixed.
+        vm.awaitingInstructor = function() {
+            var rows = vm.awaitingFiltered();
+            if (!rows.length) { return null; }
+            var id = String(rows[0].instructor_id);
+            for (var i = 1; i < rows.length; i++) {
+                if (String(rows[i].instructor_id) !== id) { return null; }
+            }
+            return { id: id, label: instructorName(rows[0]), left: Number(rows[0].instructor_at_club) === 0 };
+        };
+
+        vm.openConfirmFor = function(rows) {
+            if (!vm.can_confirm_for_instructor || !rows || !rows.length) { return; }
+            var left = rows.every(function(r) { return Number(r.instructor_at_club) === 0; });
+            vm.cfi = {
+                ids: rows.map(function(r) { return r.id; }),
+                instructor: instructorName(rows[0]),
+                row: rows.length === 1 ? rows[0] : null,
+                left: left,
+                reason: left ? vm.cfi_reasons[0] : '',
+                error: false,
+                saving: false
+            };
+        };
+
+        vm.closeConfirmFor = function() { vm.cfi = null; };
+
+        vm.submitConfirmFor = function() {
+            var d = vm.cfi;
+            if (!d || d.saving) { return; }
+            var reason = (d.reason || '').trim();
+            if (reason.length < 5) { d.error = true; return; }
+            d.saving = true;
+            var call = d.ids.length === 1
+                ? RecordsToFileService.Confirm(d.ids[0], reason)
+                : RecordsToFileService.ConfirmMany(d.ids, reason);
+            call.then(function(data) {
+                d.saving = false;
+                if (data && data.error === 'REASON_REQUIRED') { d.error = true; return; }
+                if (!data || !data.success) {
+                    if (!handleForbidden(data)) {
+                        ToastService.error('Not Confirmed', (data && data.message) || 'The records could not be confirmed.');
+                    }
+                    return;
+                }
+                vm.cfi = null;
+                var done = d.ids.length === 1 ? 1 : (data.confirmed || 0);
+                var failed = d.ids.length === 1 ? 0 : (data.failed || 0);
+                ToastService.success('Records Confirmed', done + (done === 1 ? ' record' : ' records') + ' confirmed for ' + d.instructor + '.', { confetti: false });
+                if (failed > 0) {
+                    ToastService.warning('Some Not Confirmed', failed + (failed === 1 ? ' record was' : ' records were') + ' not confirmed — they had changed or no longer needed it. The list has been reloaded.');
+                }
+                vm.loadAwaiting();
+            });
         };
 
         vm.setTab = function(tab) {

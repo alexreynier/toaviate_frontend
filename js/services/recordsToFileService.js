@@ -11,7 +11,10 @@ app.factory('RecordsToFileService', RecordsToFileService);
         //   Unconfirmed(club_id, p)    records entered on an instructor's behalf
         //                              that the instructor has not confirmed yet
         //   AwaitingConfirmation()     the CALLER's own records entered for them
-        //   Confirm(id)                the record's instructor confirms it
+        //   Confirm(id, reason)        the record's instructor confirms it — or a
+        //                              super-admin of the club / ToAviate staff
+        //                              confirms it FOR them (reason required)
+        //   ConfirmMany(ids, reason)   the same for several records
         //
         // Writing the record itself stays in CourseService.CreateTrainingRecord /
         // UpdateTrainingRecord (the debrief form and the student record page).
@@ -23,6 +26,7 @@ app.factory('RecordsToFileService', RecordsToFileService);
         service.Unconfirmed = Unconfirmed;             // ?instructor_id
         service.AwaitingConfirmation = AwaitingConfirmation;
         service.Confirm = Confirm;
+        service.ConfirmMany = ConfirmMany;
 
         return service;
 
@@ -38,8 +42,12 @@ app.factory('RecordsToFileService', RecordsToFileService);
             return $http.get(base + '/awaiting_confirmation').then(handleSuccess, handleError2);
         }
 
-        function Confirm(id) {
-            return $http.post(base + '/confirm/' + id, {}).then(handleSuccess, handleError2);
+        function Confirm(id, reason) {
+            return $http.post(base + '/confirm/' + id, reason ? { reason: reason } : {}).then(handleSuccess, handleError2);
+        }
+
+        function ConfirmMany(ids, reason) {
+            return $http.post(base + '/confirm_many', { ids: ids, reason: reason }).then(handleSuccess, handleError2);
         }
 
         // { a: 1, b: null, c: '' } → "?a=1" (empty values are left out)

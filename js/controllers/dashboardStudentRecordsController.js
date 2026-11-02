@@ -373,6 +373,7 @@
                     vm.all_items = data.all_items;
                     vm.student = data.student;
                     vm.training_records = data.training_records;
+                    vm.can_confirm_for_instructor = !!data.can_confirm_for_instructor;
                     vm.exams = data.exams;
                     vm.exam_records = data.exam_records;
                     vm.course_totals = data.course_hours;
@@ -851,6 +852,7 @@
                         vm.all_items = data.all_items;
                         vm.student = data.student;
                         vm.training_records = data.training_records;
+                        vm.can_confirm_for_instructor = !!data.can_confirm_for_instructor;
                         vm.exams = data.exams;
                         vm.exam_records = data.exam_records;
                         vm.course_totals = data.course_hours;
@@ -1757,6 +1759,7 @@
                     vm.all_items = data.all_items;
                     vm.student = data.student;
                     vm.training_records = data.training_records;
+                    vm.can_confirm_for_instructor = !!data.can_confirm_for_instructor;
                     vm.exams = data.exams;
                     vm.exam_records = data.exam_records;
                     vm.course_totals = data.course_hours;
@@ -1867,6 +1870,70 @@
         vm.entry_awaiting = function(){
             var e = vm.this_entry;
             return !!(e && e.id && Number(e.entered_on_behalf) === 1 && !e.instructor_confirmed_at);
+        };
+
+        // Flights-table row / drawer: someone confirmed it FOR the instructor
+        // (instructor left / unreachable) — who, and the reason they gave.
+        vm.log_confirmed_for = function(log){
+            return !!(log && log.training_record_id && Number(log.confirmed_for_instructor) === 1);
+        };
+        vm.confirmed_for_label = function(row){
+            if(!row){ return ''; }
+            return ((row.confirmed_by_first_name || '') + ' ' + (row.confirmed_by_last_name || '')).trim() || 'an administrator';
+        };
+        vm.confirmed_for_note = function(record_id){
+            var r = vm.record_by_id[record_id];
+            return (r && r.instructor_confirm_note) || '';
+        };
+
+        // ── Confirm FOR the instructor ──
+        // A super-admin of the club (or ToAviate staff) — data.can_confirm_for_instructor —
+        // can confirm a record whose instructor has left or can't be reached. A
+        // reason is required; the record then shows who confirmed it for them.
+        vm.can_confirm_for_instructor = false;
+        vm.cfi_reasons = ['Instructor has left the club', 'Instructor cannot be reached'];
+        vm.cfi_dialog = null;
+        vm.can_confirm_for = function(record_id){
+            var r = vm.record_by_id[record_id];
+            return !!(vm.can_confirm_for_instructor && r && Number(r.awaiting_instructor_confirmation) === 1
+                && Number(r.instructor_id) !== Number(vm.user_id));
+        };
+        vm.open_confirm_for = function(record_id){
+            var r = vm.record_by_id[record_id];
+            if(!r){ return; }
+            vm.cfi_dialog = {
+                record_id: record_id,
+                instructor: ((r.record_instructor_first_name || '') + ' ' + (r.record_instructor_last_name || '')).trim() || 'the instructor',
+                entered_by: ((r.entered_by_first_name || '') + ' ' + (r.entered_by_last_name || '')).trim(),
+                reason: '',
+                error: false,
+                saving: false
+            };
+        };
+        vm.close_confirm_for = function(){ vm.cfi_dialog = null; };
+        vm.submit_confirm_for = function(){
+            var d = vm.cfi_dialog;
+            if(!d || d.saving){ return; }
+            var reason = (d.reason || '').trim();
+            if(reason.length < 5){ d.error = true; return; }
+            d.saving = true;
+            RecordsToFileService.Confirm(d.record_id, reason).then(function(data){
+                d.saving = false;
+                if(data && data.success){
+                    vm.cfi_dialog = null;
+                    ToastService.success('Record Confirmed', 'Confirmed for ' + d.instructor + ' — the record shows you confirmed it for them.', { confetti: false });
+                } else if(data && data.error === 'REASON_REQUIRED'){
+                    d.error = true;
+                    return;
+                } else if(data && data.error === 'ALREADY_SUPERSEDED'){
+                    vm.cfi_dialog = null;
+                    ToastService.warning('Record Changed', 'This record was edited since you opened it — the records have been reloaded.');
+                } else {
+                    ToastService.error('Not Confirmed', (data && data.message) || 'The record could not be confirmed.');
+                    return;
+                }
+                reload_after_save();
+            });
         };
 
         vm.confirm_record = function(record_id){

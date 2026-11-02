@@ -290,7 +290,19 @@
         <div class="rtf-note">
           <i class="fa fa-info-circle"></i>
           <span>Records entered on an instructor's behalf count straight away, and show as awaiting confirmation until
-            that instructor confirms them from their Debriefings list (or edits the record themselves).</span>
+            that instructor confirms them from their Debriefings list (or edits the record themselves).
+            <span ng-if="vm.can_confirm_for_instructor">If the instructor has left or can't be reached, you can confirm them
+              <strong>for the instructor</strong> — the record shows that you did, and why.</span></span>
+        </div>
+
+        <!-- Every row shown is one instructor's: confirm them all for that instructor -->
+        <div class="rtf-bulk-bar" ng-if="vm.can_confirm_for_instructor && !vm.awaiting_loading && vm.awaitingFiltered().length > 1 && vm.awaitingInstructor()">
+          <span class="rtf-muted">{{ vm.awaitingFiltered().length }} records awaiting {{ vm.awaitingInstructor().label }}
+            <span class="rtf-chip rtf-chip--left" ng-if="vm.awaitingInstructor().left"><i class="fas fa-user-slash"></i> left the club</span></span>
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
+                  ng-click="vm.openConfirmFor(vm.awaitingFiltered())" no-busy-guard>
+            <i class="fas fa-user-check"></i> Confirm all {{ vm.awaitingFiltered().length }} for {{ vm.awaitingInstructor().label }}
+          </button>
         </div>
 
         <div class="snazzy-page__filter-bar rtf-filters" ng-if="vm.awaiting.length > 0 && vm.awaiting_instructors.length > 2">
@@ -339,6 +351,8 @@
                   </td>
                   <td>
                     {{ r.instructor_first_name }} {{ r.instructor_last_name }}
+                    <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 0"
+                          uib-tooltip="No longer a current member of the club"><i class="fas fa-user-slash"></i> left</span>
                     <span class="rtf-chip rtf-chip--awaiting rtf-block-chip"><i class="fas fa-hourglass-half"></i> awaiting confirmation</span>
                   </td>
                   <td>
@@ -346,10 +360,16 @@
                     <span class="snazzy-table__muted rtf-block" ng-if="r.created_at">{{ r.created_at | asDate | date:'dd MMM yyyy' }}</span>
                   </td>
                   <td class="rtf-table__actions">
-                    <a class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
-                       ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: r.student_id, course_id: r.course_id})">
-                      <i class="fa fa-folder-open"></i> Open record
-                    </a>
+                    <span class="rtf-actions">
+                      <button type="button" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-if="vm.can_confirm_for_instructor"
+                              ng-click="vm.openConfirmFor([r])" uib-tooltip="The instructor has left or can't be reached — confirm it for them, with a reason" no-busy-guard>
+                        <i class="fas fa-user-check"></i> Confirm for instructor
+                      </button>
+                      <a class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"
+                         ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: r.student_id, course_id: r.course_id})">
+                        <i class="fa fa-folder-open"></i> Open record
+                      </a>
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -375,7 +395,8 @@
               </div>
               <div class="snazzy-mobile-card__row">
                 <span class="snazzy-mobile-card__label">Instructor</span>
-                <span class="snazzy-mobile-card__value">{{ r.instructor_first_name }} {{ r.instructor_last_name }}</span>
+                <span class="snazzy-mobile-card__value">{{ r.instructor_first_name }} {{ r.instructor_last_name }}
+                  <span class="rtf-chip rtf-chip--left" ng-if="r.instructor_at_club == 0"><i class="fas fa-user-slash"></i> left</span></span>
               </div>
               <div class="snazzy-mobile-card__row">
                 <span class="snazzy-mobile-card__label">Entered by</span>
@@ -383,6 +404,10 @@
               </div>
             </div>
             <div class="snazzy-mobile-card__actions rtf-card-actions">
+              <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-if="vm.can_confirm_for_instructor"
+                      ng-click="vm.openConfirmFor([r])" no-busy-guard>
+                <i class="fas fa-user-check"></i> Confirm for instructor
+              </button>
               <a class="snazzy-page__btn snazzy-page__btn--outline"
                  ui-sref="dashboard.manage_user.student_records({club_id: vm.club_id, student_id: r.student_id, course_id: r.course_id})">
                 <i class="fa fa-folder-open"></i> Open record
@@ -391,6 +416,46 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- ── Confirm for the instructor (super-admin of the club / ToAviate staff) ── -->
+      <div class="snazzy-modal-backdrop" ng-if="vm.cfi" ng-click="vm.closeConfirmFor()"></div>
+      <div class="snazzy-modal" ng-if="vm.cfi">
+        <div class="snazzy-modal__header">
+          <h3><i class="fas fa-user-check"></i> Confirm for {{ vm.cfi.instructor }}</h3>
+          <button type="button" class="snazzy-modal__close" ng-click="vm.closeConfirmFor()" no-busy-guard><i class="fa fa-times"></i></button>
+        </div>
+        <div class="snazzy-modal__body">
+          <div class="rtf-cfi-summary" ng-if="vm.cfi.row">
+            <strong>{{ vm.cfi.row.student_first_name }} {{ vm.cfi.row.student_last_name }}</strong>
+            &middot; {{ vm.cfi.row.flight_date | asDate | date:'dd MMM yyyy' }}<span ng-if="vm.cfi.row.registration"> &middot; {{ vm.cfi.row.registration }}</span>
+            <span class="rtf-block" ng-if="vm.cfi.row.lesson_title">{{ vm.cfi.row.lesson_title }}</span>
+          </div>
+          <div class="rtf-cfi-summary" ng-if="!vm.cfi.row">
+            <strong>{{ vm.cfi.ids.length }} records</strong> entered on {{ vm.cfi.instructor }}'s behalf
+          </div>
+          <p class="rtf-cfi-lead">Use this when {{ vm.cfi.instructor }} can't confirm <span ng-if="vm.cfi.row">the record</span><span ng-if="!vm.cfi.row">them</span>
+            themselves. <span ng-if="vm.cfi.row">It</span><span ng-if="!vm.cfi.row">Each one</span> will show as
+            <strong>confirmed for the instructor by you</strong>, with your reason.</p>
+          <label for="rtf-cfi-reason">Reason</label>
+          <div class="rtf-reason-chips">
+            <button type="button" class="rtf-reason-chip" ng-repeat="reason in vm.cfi_reasons"
+                    ng-class="{'rtf-reason-chip--on': vm.cfi.reason === reason}"
+                    ng-click="vm.cfi.reason = reason; vm.cfi.error = false" no-busy-guard>{{ reason }}</button>
+          </div>
+          <textarea id="rtf-cfi-reason" class="rtf-cfi-textarea" maxlength="255"
+                    ng-class="{'rtf-cfi-textarea--error': vm.cfi.error}"
+                    ng-model="vm.cfi.reason" ng-change="vm.cfi.error = false"
+                    placeholder="Why are you confirming for the instructor?"></textarea>
+          <span class="rtf-cfi-error" ng-if="vm.cfi.error">Give a reason (at least 5 characters).</span>
+        </div>
+        <div class="snazzy-modal__footer">
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.closeConfirmFor()" no-busy-guard>Cancel</button>
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--success" ng-click="vm.submitConfirmFor()" ng-disabled="vm.cfi.saving">
+            <i class="fas" ng-class="vm.cfi.saving ? 'fa-spinner fa-spin' : 'fa-user-check'"></i>
+            Confirm <span ng-if="!vm.cfi.row">{{ vm.cfi.ids.length }}</span> for instructor
+          </button>
+        </div>
       </div>
 
     </div>
