@@ -130,6 +130,7 @@
                         if(one){
                             callback(one);
                         } else {
+                            var resources_delivered = false;
                             angular.element(document.getElementById('calendar')).scope().$watch('all_resources', function(newValue, oldValue) {
                                 // console.log("RESOURCES", newValue);
                                 $('#calendar').fullCalendar('removeEventSources');
@@ -146,7 +147,15 @@
 
                                     all_events = angular.element(document.getElementById('calendar')).scope().all_events;
                                     console.log("now", newValue);
-                                    callback(newValue);
+                                    if(!resources_delivered){
+                                        resources_delivered = true;
+                                        callback(newValue);
+                                    } else {
+                                        // The row set can change from day to day (the club's
+                                        // "hide instructors who aren't available" setting), so
+                                        // ask FullCalendar to re-read `all_resources`.
+                                        $('#calendar').fullCalendar('refetchResources');
+                                    }
                                 }
 
                                 
@@ -308,6 +317,25 @@
                     <button type="button" class="btn btn-default" ng-click="open2()"><i class="glyphicon glyphicon-calendar"></i></button>
                 </span>
             </p>
+
+            <!-- Instructor rows filter (only when the club hides unavailable instructors) -->
+            <div class="bkcal-filter" ng-if="vm.instructor_filter.club_setting == 1">
+                <span class="bkcal-filter__text" ng-if="!vm.show_all_instructors">
+                    <i class="fas fa-user-slash"></i>
+                    <span ng-if="vm.instructor_filter.hidden > 0">Hiding {{ vm.instructor_filter.hidden }} instructor{{ vm.instructor_filter.hidden == 1 ? '' : 's' }} not available on the day{{ vm.instructor_filter.hidden == 1 ? '' : 's' }} shown</span>
+                    <span ng-if="vm.instructor_filter.hidden == 0">Only instructors available on the day{{ vm.instructor_filter.hidden == 1 ? '' : 's' }} shown are listed</span>
+                </span>
+                <span class="bkcal-filter__text" ng-if="vm.show_all_instructors">
+                    <i class="fas fa-users"></i> Showing all instructors, including those not available
+                </span>
+                <label class="bkcal-filter__toggle" title="Your view only — the club default is set in Manage Club → Settings">
+                    <span class="snazzy-toggle">
+                        <input type="checkbox" ng-checked="vm.show_all_instructors" ng-click="vm.toggleShowAllInstructors()" no-busy-guard />
+                        <span class="snazzy-toggle__slider"></span>
+                    </span>
+                    <span class="bkcal-filter__toggle-text">Show all instructors</span>
+                </label>
+            </div>
 
 
         <div id='calendar'></div>

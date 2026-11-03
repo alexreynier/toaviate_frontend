@@ -95,6 +95,41 @@
     </div>
   </div>
 
+  <!-- ═══ Stage 1b — confirm email address (account never verified) ═══ -->
+  <div ng-show="vm.stage === 'email_code'" class="login-2fa login-email-code">
+    <h2>Confirm Your Email Address</h2>
+    <p class="login-2fa__hint">
+        Your password is correct, but this email address hasn't been confirmed yet.
+        We've just sent a 6-digit code to <strong class="login-email-code__addr">{{ vm.emailHint }}</strong> -
+        enter it below to finish signing in.
+    </p>
+
+    <form name="emailCodeForm" ng-submit="vm.submitEmailCode()" role="form">
+        <div class="form-group">
+            <label for="email_code">Confirmation code</label>
+            <input type="text" name="email_code" id="email_code"
+                   class="form-control login-2fa__input"
+                   ng-model="vm.emailCode" maxlength="6" placeholder="123456"
+                   inputmode="numeric" pattern="[0-9]*"
+                   autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            <span class="help-block login-2fa__attempts" ng-show="vm.attemptsRemaining != null">
+                {{ vm.attemptsRemaining }} attempt{{ vm.attemptsRemaining === 1 ? '' : 's' }} remaining
+            </span>
+            <span class="help-block login-email-code__spam">Not there? Check your junk folder - it can take a minute to arrive.</span>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-link" ng-click="vm.backToPassword()" ng-disabled="vm.dataLoading">Back</button>
+            <button type="button" class="btn btn-link" ng-click="vm.resendEmailCode()" ng-disabled="vm.dataLoading || vm.resending || vm.resendIn > 0" no-busy-guard>
+                <span ng-show="vm.resendIn > 0">Send a new code ({{ vm.resendIn }}s)</span>
+                <span ng-hide="vm.resendIn > 0">{{ vm.resending ? 'Sending…' : 'Send a new code' }}</span>
+            </button>
+            <button type="submit" class="btn btn-primary" ng-disabled="!vm.emailCode || vm.dataLoading">
+                {{ vm.dataLoading ? 'Verifying…' : 'Confirm' }}
+            </button>
+        </div>
+    </form>
+  </div>
+
   <!-- ═══ Stage 2 — two-factor code ═══ -->
   <div ng-show="vm.stage === 'code'" class="login-2fa">
     <h2>Two-Factor Verification</h2>

@@ -720,6 +720,37 @@
           <i class="fas fa-plane-slash"></i> No resources found. Click "Discover Resources" to pull them from BookedScheduler.
         </div>
 
+        <!-- What the last full sync could not import (bs_resource_mapping.import_gap) -->
+        <div class="bs-notice bs-notice--amber bs-gap-banner" ng-if="!vm.loading.resources && vm.resourceGaps.length > 0">
+          <div class="bs-notice__main">
+            <i class="fa fa-exclamation-triangle bs-notice__icon"></i>
+            <div class="bs-notice__body">
+              <div class="bs-notice__title">Some BookedScheduler reservations are not reaching ToAviate</div>
+              <div class="bs-notice__line" ng-repeat="r in vm.resourceGaps track by r.bs_resource_id">
+                <strong>{{ r.bs_resource_name }}</strong>:
+                <span ng-if="r._gap.not_imported > 0">{{ r._gap.not_imported }} not imported</span><span ng-if="r._gap.not_imported > 0 && r._gap.imported_without > 0">, </span>
+                <span ng-if="r._gap.imported_without > 0">{{ r._gap.imported_without }} imported without {{ r.resource_type === 'instructor' ? 'an instructor' : 'this resource' }}</span>
+              </div>
+              <div class="bs-notice__line">Link each one to a ToAviate instructor or aircraft below, then run a sync. An instructor is linked automatically once they are flagged as an instructor at the club under the same name.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Linked instructors who still can't see their lessons -->
+        <div class="bs-notice bs-notice--amber bs-gap-banner" ng-if="!vm.loading.resources && vm.instructorBlocked.length > 0">
+          <div class="bs-notice__main">
+            <i class="fa fa-user-clock bs-notice__icon"></i>
+            <div class="bs-notice__body">
+              <div class="bs-notice__title">Instructors who can't see their lessons yet</div>
+              <div class="bs-notice__line" ng-repeat="r in vm.instructorBlocked track by r.bs_resource_id">
+                <strong>{{ r.ta_first_name }} {{ r.ta_last_name }}</strong> ({{ r.upcoming_lessons }} upcoming):
+                <span ng-if="r._noLogin">imported account, so they can't log in — convert it on the Imported Users tab (their lessons move with it)</span><span ng-if="r._noLogin && r._notInstructor">; </span>
+                <span ng-if="r._notInstructor">not flagged as an instructor at the club — flag them in Manage Club → Members</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="bs-table-wrap" ng-if="!vm.loading.resources && vm.resources.length > 0">
           <table class="bs-table">
             <thead>
@@ -731,10 +762,17 @@
               </tr>
             </thead>
             <tbody>
-              <tr ng-repeat="res in vm.resources track by res.bs_resource_id" ng-class="{'bs-row--mapped': res._isMapped, 'bs-row--unmapped': !res._isMapped}">
+              <tr ng-repeat="res in vm.resources track by res.bs_resource_id" ng-class="{'bs-row--mapped': res._isMapped, 'bs-row--unmapped': !res._isMapped, 'bs-row--gap': res._gap}">
                 <td data-label="BS Resource">
                   <strong>{{ res.bs_resource_name }}</strong>
                   <span class="bs-sub">ID: {{ res.bs_resource_id }}</span>
+                  <span class="bs-gap" ng-if="res._gap"
+                        title="Last checked {{ res._gap.checked_at }} over {{ res._gap.window }}">
+                    <i class="fa fa-exclamation-triangle"></i>
+                    <span ng-if="res._gap.not_imported > 0">{{ res._gap.not_imported }} not imported</span><span ng-if="res._gap.not_imported > 0 && res._gap.imported_without > 0"> · </span>
+                    <span ng-if="res._gap.imported_without > 0">{{ res._gap.imported_without }} without {{ res.resource_type === 'instructor' ? 'instructor' : 'it' }}</span>
+                    <span class="bs-gap__dates">{{ res._gap.from | date:'d MMM' }} – {{ res._gap.to | date:'d MMM yyyy' }}</span>
+                  </span>
                 </td>
                 <td data-label="TA Match">
                   <!-- Mapped to aircraft (view mode) -->
@@ -747,6 +785,12 @@
                     <i class="fa fa-user-tie bs-text--green" style="margin-right:4px;"></i>
                     {{ res.ta_first_name }} {{ res.ta_last_name }}
                     <span class="bs-sub" ng-if="res.ta_email">({{ res.ta_email }})</span>
+                    <span class="bs-gap" ng-if="res._noLogin" title="Their lessons are imported, but an imported account can't log in. Convert it on the Imported Users tab — the lessons move with it.">
+                      <i class="fa fa-user-clock"></i> imported account — can't log in yet
+                    </span>
+                    <span class="bs-gap" ng-if="res._notInstructor" title="Their lessons are imported, but schedules only list members flagged as instructors (Manage Club → Members).">
+                      <i class="fa fa-user-slash"></i> not an instructor in ToAviate — {{ res.upcoming_lessons }} upcoming lessons hidden
+                    </span>
                   </span>
                   <!-- Mapped (remap mode) — dropdown to pick new match -->
                   <select class="bs-select" ng-if="res._isMapped && res._remapping" ng-model="res._selected_resource"
@@ -760,7 +804,7 @@
                   </select>
                 </td>
                 <td data-label="Match">
-                  <span class="bs-badge bs-badge--green" ng-if="res.match_type === 'auto_registration' || res.match_type === 'auto'">Auto</span>
+                  <span class="bs-badge bs-badge--green" ng-if="res.match_type === 'auto_registration' || res.match_type === 'auto' || res.match_type === 'auto_instructor' || res.match_type === 'auto_name'">Auto</span>
                   <span class="bs-badge bs-badge--orange" ng-if="res.match_type === 'manual' || !res.match_type">Manual</span>
                 </td>
                 <td data-label="Action" class="bs-table__actions-col">
@@ -1006,8 +1050,8 @@
           <div class="bs-form-group">
             <label>Sync Type</label>
             <select class="bs-select" ng-model="vm.syncForm.sync_type">
-              <option value="incremental">Incremental</option>
-              <option value="full">Full</option>
+              <option value="full">Full — every reservation in the dates</option>
+              <option value="incremental">Incremental — only changes since the last sync</option>
             </select>
           </div>
           <div class="bs-form-group">
@@ -1019,6 +1063,12 @@
             <input type="date" class="bs-input" ng-model="vm.syncForm.end_date" />
           </div>
         </div>
+
+        <p class="bs-sub bs-sync-hint" ng-if="vm.syncForm.sync_type === 'incremental'">
+          Incremental only fetches reservations changed in BookedScheduler since the last sync. After linking a
+          resource, use Full so its existing reservations are imported. Empty dates use the club's sync window
+          (a whole-window sync takes a few minutes).
+        </p>
 
         <button class="bs-btn bs-btn--primary bs-btn--lg" ng-click="vm.runSync()" ng-disabled="vm.syncRunning">
           <i class="fa" ng-class="{'fa-spinner fa-spin': vm.syncRunning, 'fa-play': !vm.syncRunning}"></i>

@@ -1,0 +1,220 @@
+<!-- Student snapshot modal — StudentSnapshotModalController (controllerAs vm).
+     Opened by StudentSnapshotService.open() from the Scheduler booking popup and
+     the instructor Briefing list. Styles: css/student-snapshot.css (.ssn-*) -->
+<div class="ssn">
+
+  <!-- ── Header: who, and how to reach them ── -->
+  <div class="ssn__header">
+    <div class="ssn__header-main">
+      <div class="ssn__avatar"><i class="fa fa-user-graduate"></i></div>
+      <div class="ssn__who">
+        <h3 class="ssn__name" ng-if="vm.data">{{ vm.data.student.first_name }} {{ vm.data.student.last_name }}</h3>
+        <h3 class="ssn__name" ng-if="!vm.data">Student snapshot</h3>
+        <div class="ssn__sub" ng-if="vm.data">
+          <span ng-if="vm.data.student.membership_name">{{ vm.data.student.membership_name }}</span>
+          <span ng-if="!vm.data.student.membership_name && vm.data.student.member">Member</span>
+          <span ng-if="!vm.data.student.member">Not a current member</span>
+          <span ng-if="vm.data.student.membership_ends">until {{ vm.data.student.membership_ends | asDate | date:"dd MMM yyyy" }}</span>
+          <span ng-if="vm.data.student.dob">DOB {{ vm.data.student.dob | asDate | date:"dd MMM yyyy" }}</span>
+        </div>
+        <div class="ssn__imported" ng-if="vm.data && vm.data.student.imported_user">
+          <i class="fa fa-file-import"></i> Imported account (not yet converted)
+        </div>
+      </div>
+    </div>
+    <button type="button" class="ssn__close" ng-click="vm.close()" aria-label="Close"><i class="fa fa-times"></i></button>
+  </div>
+
+  <!-- ── Loading / error ── -->
+  <div class="ssn__body" ng-if="vm.loading">
+    <div class="ssn__loading"><i class="fa fa-spinner fa-spin"></i> Loading student…</div>
+  </div>
+
+  <div class="ssn__body" ng-if="!vm.loading && vm.error">
+    <div class="ssn__error">
+      <i class="fa fa-lock" ng-if="vm.error.error === 'FORBIDDEN'"></i>
+      <i class="fa fa-exclamation-circle" ng-if="vm.error.error !== 'FORBIDDEN'"></i>
+      <span>{{ vm.error.message }}</span>
+    </div>
+  </div>
+
+  <!-- ── Loaded ── -->
+  <div class="ssn__body" ng-if="!vm.loading && vm.data">
+
+    <!-- Contact -->
+    <div class="ssn__contact">
+      <a class="ssn__contact-item" ng-if="vm.data.student.phone_number" ng-href="{{ vm.telHref(vm.data.student.phone_number) }}">
+        <i class="fa fa-phone"></i>
+        <span class="ssn__contact-label">Call</span>
+        <span class="ssn__contact-value">{{ vm.data.student.phone_number }}</span>
+      </a>
+      <span class="ssn__contact-item ssn__contact-item--empty" ng-if="!vm.data.student.phone_number">
+        <i class="fa fa-phone"></i>
+        <span class="ssn__contact-label">Call</span>
+        <span class="ssn__contact-value">No phone number</span>
+      </span>
+      <a class="ssn__contact-item" ng-if="vm.data.student.email" ng-href="mailto:{{ vm.data.student.email }}">
+        <i class="fa fa-envelope"></i>
+        <span class="ssn__contact-label">Email</span>
+        <span class="ssn__contact-value">{{ vm.data.student.email }}</span>
+      </a>
+      <span class="ssn__contact-item ssn__contact-item--empty" ng-if="!vm.data.student.email">
+        <i class="fa fa-envelope"></i>
+        <span class="ssn__contact-label">Email</span>
+        <span class="ssn__contact-value">No email address</span>
+      </span>
+    </div>
+
+    <!-- Booking -->
+    <div class="ssn__booking" ng-if="vm.data.booking">
+      <div class="ssn__booking-item">
+        <i class="fa fa-calendar-alt"></i>
+        <span>{{ vm.data.booking.start | asDate | date:"EEE dd MMM yyyy HH:mm" }} – {{ vm.data.booking.end | asDate | date:"HH:mm" }}</span>
+      </div>
+      <div class="ssn__booking-item" ng-if="vm.data.booking.registration">
+        <i class="fa fa-plane"></i>
+        <span class="snazzy-table__badge">{{ vm.data.booking.registration }}</span>
+        <span class="ssn__muted" ng-if="vm.data.booking.plane_type">{{ vm.data.booking.plane_type }}</span>
+      </div>
+      <div class="ssn__booking-item" ng-if="vm.data.booking.instructor">
+        <i class="fa fa-chalkboard-teacher"></i>
+        <span>{{ vm.data.booking.instructor }}</span>
+      </div>
+      <div class="ssn__booking-item ssn__booking-item--notes" ng-if="vm.data.booking.description">
+        <i class="fa fa-sticky-note"></i>
+        <span>{{ vm.data.booking.description }}</span>
+      </div>
+    </div>
+
+    <!-- Focus course: booked for, or their only course -->
+    <div class="ssn__section" ng-if="vm.focus_course">
+      <div class="ssn__section-title">
+        <i class="fa fa-book"></i>
+        <span ng-if="vm.data.known_course_id > 0">Booked for</span>
+        <span ng-if="!(vm.data.known_course_id > 0)">Course</span>
+      </div>
+      <div class="ssn__course ssn__course--focus">
+        <div class="ssn__course-head">
+          <div class="ssn__course-title">{{ vm.focus_course.title }}</div>
+          <span class="rtf-chip rtf-chip--awaiting" ng-if="vm.focus_course.awaiting_confirmation > 0" uib-tooltip="Records entered on an instructor's behalf, not yet confirmed">
+            <i class="fa fa-hourglass-half"></i> {{ vm.focus_course.awaiting_confirmation }} awaiting confirmation
+          </span>
+        </div>
+        <div class="ssn__progress" ng-if="vm.focus_course.items_total > 0">
+          <div class="ssn__progress-bar"><div class="ssn__progress-fill" ng-style="{ width: vm.focus_course.progress_pct + '%' }"></div></div>
+          <div class="ssn__progress-label">{{ vm.focus_course.items_graded }} of {{ vm.focus_course.items_total }} syllabus items graded · {{ vm.focus_course.progress_pct }}%</div>
+        </div>
+        <div class="ssn__stats">
+          <div class="ssn__stat">
+            <span class="ssn__stat-value">{{ vm.focus_course.records }}</span>
+            <span class="ssn__stat-label">record<span ng-if="vm.focus_course.records !== 1">s</span></span>
+          </div>
+          <div class="ssn__stat">
+            <span class="ssn__stat-value">{{ vm.hours(vm.focus_course.hours) }}</span>
+            <span class="ssn__stat-label">hours</span>
+          </div>
+          <div class="ssn__stat">
+            <span class="ssn__stat-value" ng-if="vm.focus_course.last_flight">{{ vm.focus_course.last_flight | asDate | date:"dd MMM yy" }}</span>
+            <span class="ssn__stat-value" ng-if="!vm.focus_course.last_flight">—</span>
+            <span class="ssn__stat-label">last flight</span>
+          </div>
+        </div>
+        <div class="ssn__next" ng-if="vm.data.next_lesson">
+          <i class="fa fa-angle-double-right"></i>
+          <span class="ssn__next-label">Next lesson</span>
+          <span class="ssn__next-title">{{ vm.data.next_lesson.title }}</span>
+          <span class="ssn__muted" ng-if="vm.lessonNumber(vm.data.next_lesson)">{{ vm.lessonNumber(vm.data.next_lesson) }}</span>
+        </div>
+        <div class="ssn__next ssn__next--empty" ng-if="!vm.data.next_lesson && vm.focus_course.records === 0">
+          <i class="fa fa-info-circle"></i>
+          <span>No records on this course yet</span>
+        </div>
+        <div class="ssn__course-actions">
+          <button type="button" class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.openRecord(vm.focus_course.id)">
+            <i class="fa fa-external-link-alt"></i> Open full student record
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Other courses with records -->
+    <div class="ssn__section" ng-if="vm.other_courses.length > 0">
+      <div class="ssn__section-title">
+        <i class="fa fa-layer-group"></i>
+        <span ng-if="vm.focus_course">Other courses</span>
+        <span ng-if="!vm.focus_course">Courses</span>
+      </div>
+      <div class="ssn__course ssn__course--row" ng-repeat="c in vm.other_courses">
+        <div class="ssn__course-row-main">
+          <div class="ssn__course-title">{{ c.title }}</div>
+          <div class="ssn__course-meta">
+            <span>{{ c.records }} record<span ng-if="c.records !== 1">s</span></span>
+            <span>{{ vm.hours(c.hours) }} h</span>
+            <span ng-if="c.last_flight">last {{ c.last_flight | asDate | date:"dd MMM yy" }}</span>
+            <span ng-if="c.items_total > 0">{{ c.progress_pct }}% graded</span>
+            <span class="rtf-chip rtf-chip--awaiting" ng-if="c.awaiting_confirmation > 0"><i class="fa fa-hourglass-half"></i> {{ c.awaiting_confirmation }} awaiting</span>
+          </div>
+        </div>
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline ssn__course-row-btn" ng-click="vm.openRecord(c.id)">
+          <i class="fa fa-external-link-alt"></i> Open record
+        </button>
+      </div>
+    </div>
+
+    <!-- No courses at all -->
+    <div class="ssn__section" ng-if="!vm.focus_course && vm.other_courses.length === 0">
+      <div class="ssn__empty">
+        <i class="fa fa-folder-open"></i>
+        <span>No training records at this club yet</span>
+      </div>
+      <div class="ssn__course-actions ssn__course-actions--centre">
+        <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.openRecord(0)">
+          <i class="fa fa-external-link-alt"></i> Open student record
+        </button>
+      </div>
+    </div>
+
+    <!-- Recent records -->
+    <div class="ssn__section" ng-if="vm.data.recent_records.length > 0">
+      <div class="ssn__section-title">
+        <i class="fa fa-history"></i>
+        <span>Recent records</span>
+        <span class="ssn__muted" ng-if="vm.focus_course">on {{ vm.focus_course.title }}</span>
+      </div>
+      <div class="ssn__record" ng-repeat="r in vm.data.recent_records">
+        <div class="ssn__record-top">
+          <span class="ssn__record-date" ng-if="r.flight_date">{{ r.flight_date | asDate | date:"dd MMM yyyy" }}</span>
+          <span class="ssn__record-date ssn__muted" ng-if="!r.flight_date">No flight date</span>
+          <span class="snazzy-table__badge" ng-if="r.registration">{{ r.registration }}</span>
+          <span class="ssn__muted" ng-if="r.brakes_times_rounded > 0">{{ vm.hours(r.brakes_times_rounded) }} h</span>
+          <span class="rtf-chip rtf-chip--awaiting" ng-if="r.awaiting_instructor_confirmation == 1"><i class="fa fa-hourglass-half"></i> Awaiting instructor confirmation</span>
+          <span class="rtf-chip rtf-chip--import" ng-if="r.import_note_only == 1"><i class="fa fa-file-import"></i> import note only</span>
+        </div>
+        <div class="ssn__record-lesson">{{ vm.recordLesson(r) }}</div>
+        <div class="ssn__record-meta">
+          <span ng-if="r.instructor"><i class="fa fa-chalkboard-teacher"></i> {{ r.instructor }}</span>
+          <span><i class="fa fa-check-square"></i> {{ r.items_graded }} item<span ng-if="r.items_graded !== 1">s</span> graded</span>
+          <span ng-if="!vm.focus_course && r.course_title" class="ssn__muted">{{ r.course_title }}</span>
+        </div>
+        <div class="ssn__record-remarks" ng-if="r.general_remarks"
+             ng-class="{ 'ssn__record-remarks--open': vm.expanded[r.id] }"
+             ng-click="vm.toggleRemarks(r)"
+             uib-tooltip="{{ vm.expanded[r.id] ? 'Click to collapse' : 'Click to expand' }}" tooltip-placement="top-left">{{ r.general_remarks }}</div>
+      </div>
+    </div>
+
+    <div class="ssn__section" ng-if="(vm.focus_course || vm.other_courses.length > 0) && vm.data.recent_records.length === 0">
+      <div class="ssn__empty ssn__empty--small">
+        <i class="fa fa-history"></i>
+        <span>No records to show yet</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="ssn__footer">
+    <button type="button" class="snazzy-page__btn snazzy-page__btn--outline" ng-click="vm.close()">Close</button>
+  </div>
+
+</div>

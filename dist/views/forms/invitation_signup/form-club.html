@@ -5,6 +5,16 @@
 
   <!-- Payment summary (only when price > 0). For paid-up members this is a
        renewal preview, NOT an amount due today. -->
+  <!-- Came back to finish paying (account already exists) -->
+  <div class="inv-info" ng-if="invResumed">
+    <i class="fa fa-user-check"></i>
+    <span>Welcome back - your account is ready. Choose how you'd like to pay to finish setting up your membership.</span>
+  </div>
+  <!-- A paid tier but the club can take neither card nor direct debit online -->
+  <div class="inv-info" ng-if="membership.price > 0 && membership.request.payment_required != 0 && club.has_gocardless == 0 && !(club.has_stripe == 1 || club.club_stripe_id) && membership.skip_payment_allowed != 1">
+    <i class="fa fa-exclamation-triangle"></i>
+    <span>This club hasn't set up online payments yet, so a membership can't be paid for here. Please contact <strong>{{ club.title }}</strong> to arrange payment.</span>
+  </div>
   <div class="inv-payment-banner" ng-if="membership.price > 0">
     <div>
       <div class="inv-payment-banner__label" ng-if="membership.request.payment_required != 0">Membership Payment</div>
@@ -75,7 +85,7 @@
   <div class="inv-payment-options">
 
     <!-- Direct Debit option -->
-    <div class="inv-payment-option" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'direct_debit'}" ng-click="selectPaymentMethod('direct_debit')">
+    <div class="inv-payment-option" ng-if="club.has_gocardless != 0" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'direct_debit'}" ng-click="selectPaymentMethod('direct_debit')">
       <div class="inv-payment-option__radio"></div>
       <div class="inv-payment-option__icon"><i class="fa fa-university"></i></div>
       <div class="inv-payment-option__body">
@@ -85,7 +95,7 @@
     </div>
 
     <!-- Stripe Card option (only if club has Stripe) -->
-    <div class="inv-payment-option" ng-if="club.club_stripe_id" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'stripe'}" ng-click="selectPaymentMethod('stripe')">
+    <div class="inv-payment-option" ng-if="club.has_stripe == 1 || club.club_stripe_id" ng-class="{'inv-payment-option--selected': invPaymentMethod === 'stripe'}" ng-click="selectPaymentMethod('stripe')">
       <div class="inv-payment-option__radio"></div>
       <div class="inv-payment-option__icon"><i class="fa fa-credit-card"></i></div>
       <div class="inv-payment-option__body">
@@ -133,7 +143,8 @@
     <!-- Stripe button -->
     <a ng-if="invPaymentMethod === 'stripe'" class="inv-btn inv-btn--success" ng-class="{'inv-btn--loading': invLoading}" ng-click="validateAndSetupStripe()">
       <i class="fa" ng-class="invLoading ? 'fa-spinner' : 'fa-credit-card'"></i>
-      <span ng-if="!invLoading">Add Card &amp; Continue</span>
+      <span ng-if="!invLoading && !account_created">Create Account &amp; Add Card</span>
+      <span ng-if="!invLoading && account_created">Save Card &amp; Continue</span>
       <span ng-if="invLoading">Processing&hellip;</span>
     </a>
 
