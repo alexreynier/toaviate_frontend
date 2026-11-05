@@ -1,0 +1,212 @@
+<div class="wrp">
+  <div class="wrp__hd">
+    <span class="wrp__hd-icon"><i class="fas fa-user-clock"></i></span>
+    <div>
+      <h3 class="wrp__title">Waiting list</h3>
+      <p class="wrp__sub">First come, first served — the longest wait is at the top. Status is kept per day.</p>
+    </div>
+    <button type="button" class="wrp__close" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+  </div>
+
+  <!-- ── View: this day / everyone waiting (+ club when the viewer has several) ── -->
+  <div class="wrp__views">
+    <div class="wrp__seg wrp__seg--views" role="tablist">
+      <button type="button" class="wrp__view-btn" role="tab" ng-class="{'wrp__view-btn--on': vm.view === 'day'}" ng-click="vm.setView('day')" no-busy-guard><i class="fas fa-calendar-day"></i> This day</button>
+      <button type="button" class="wrp__view-btn" role="tab" ng-class="{'wrp__view-btn--on': vm.view === 'everyone'}" ng-click="vm.setView('everyone')" no-busy-guard><i class="fas fa-users"></i> Everyone waiting</button>
+    </div>
+    <div class="wrp__filter wrp__filter--club" ng-show="vm.clubs.length > 1">
+      <label class="wrp__label" for="wrp-club">Club</label>
+      <select id="wrp-club" class="wrp__select" ng-model="vm.club_id" ng-options="c.id as c.title for c in vm.clubs" ng-change="vm.setClub()" no-busy-guard></select>
+    </div>
+  </div>
+
+  <!-- ── Matches for a freed slot — the top block of the day view, in queue order ── -->
+  <div class="wrp__matches" ng-show="vm.slot && vm.view === 'day'">
+    <div class="wrp__matches-hd">
+      <div>
+        <strong><i class="fas fa-bell"></i> Who could take the freed slot</strong>
+        <span class="wrp__muted">{{ vm.fmtShort(vm.slot.start) }} · {{ vm.fmtRange(vm.slot.start, vm.slot.end) }}<span ng-show="vm.slotSummary.plane"> · {{ vm.slotSummary.plane.registration }}</span><span ng-show="vm.slotSummary.instructor"> · {{ vm.slotSummary.instructor.name }}</span></span>
+      </div>
+      <button type="button" class="wrp__btn wrp__btn--quiet" ng-click="vm.clearSlot()" no-busy-guard>Hide</button>
+    </div>
+    <div class="wrp__state" ng-show="vm.loadingMatches"><span class="sv2-spinner"></span> Checking the list…</div>
+    <div class="wrp__empty wrp__empty--small" ng-show="!vm.loadingMatches && vm.matches && !vm.matches.length">Nobody on the waiting list fits this slot.</div>
+    <div class="wrp__req wrp__req--match" ng-repeat="r in vm.matches track by r.id" ng-class="{'wrp__req--busy': r._busy, 'wrp__req--out': r._out}">
+      <div class="wrp__req-main">
+        <div class="wrp__req-top">
+          <span class="wrp__queue" ng-show="r.queue_position" title="Place in the queue for this day">#{{ r.queue_position }}</span>
+          <span class="wrp__name">{{ r.user.name }}</span>
+          <span class="wrp__score" title="Match score">{{ r.score }}</span>
+          <span class="wrp__req-kind">{{ r.kind_label || vm.labelOf.kind(r.kind) }}</span>
+          <span class="wrp__status wrp__status--day" ng-class="'wrp__status--' + vm.labelOf.dateTone(r.day)" ng-show="r.day">{{ vm.dateLabel(r.day.date) }} · {{ vm.labelOf.dateStatus(r.day) }}</span>
+          <span class="wrp__added">{{ vm.addedAgo(r) }}</span>
+        </div>
+        <div class="wrp__reasons"><span class="wrp__reason" ng-repeat="x in r.reasons track by $index">{{ x }}</span></div>
+        <div class="wrp__contact">
+          <span ng-show="r.user.phone"><i class="fas fa-phone-alt"></i> {{ r.user.phone }} <a ng-href="{{ vm.telHref(r.user.phone) }}">Call</a></span>
+          <span ng-show="r.user.email"><i class="fas fa-envelope"></i> {{ r.user.email }} <a ng-href="{{ vm.mailHref(r.user.email) }}">Email</a></span>
+        </div>
+        <div class="wrp__req-notes" ng-show="r.notes">{{ r.notes }}</div>
+        <div class="wrp__stamp" ng-show="r.day.status === 'contacted'"><i class="fas fa-phone-alt"></i> Contacted{{ vm.stamp(r.day) }} <a class="wrp__undo" ng-click="vm.undo(r, r.day)" no-busy-guard>Undo</a></div>
+      </div>
+      <div class="wrp__req-act">
+        <button type="button" class="wrp__btn wrp__btn--contact" ng-click="vm.contact(r, r.day)" ng-disabled="r._busy" ng-show="r.day.status !== 'contacted'"><i class="fas fa-phone-alt"></i> Contacted</button>
+        <button type="button" class="wrp__btn wrp__btn--book" ng-click="vm.book(r, r.day)" ng-disabled="r._busy" no-busy-guard><i class="fas fa-calendar-plus"></i> Book</button>
+        <button type="button" class="wrp__btn wrp__btn--quiet" ng-click="vm.decline(r, r.day)" ng-disabled="r._busy">Couldn't take it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ THIS DAY ══ -->
+  <div ng-show="vm.view === 'day'">
+    <div class="wrp__filters">
+      <div class="wrp__filter wrp__filter--day">
+        <span class="wrp__label">Day</span>
+        <div class="wrp__day">
+          <button type="button" class="wrp__day-arrow" ng-click="vm.prevDay()" no-busy-guard aria-label="Previous day"><i class="fas fa-chevron-left"></i></button>
+          <ta-date-picker ng-model="vm.day" options="vm.pickerOptions" format="short" placeholder="Pick a day"></ta-date-picker>
+          <button type="button" class="wrp__day-arrow" ng-click="vm.nextDay()" no-busy-guard aria-label="Next day"><i class="fas fa-chevron-right"></i></button>
+          <button type="button" class="wrp__day-today" ng-class="{'wrp__day-today--on': vm.isToday()}" ng-click="vm.goToday()" ng-disabled="vm.isToday()" no-busy-guard>Today</button>
+        </div>
+      </div>
+      <div class="wrp__filter wrp__filter--status">
+        <span class="wrp__label">Show <span class="wrp__label-hint">(that day's state)</span></span>
+        <div class="wrp__seg">
+          <button type="button" class="wrp__seg-btn" ng-repeat="f in vm.filters track by f.id" ng-class="{'wrp__seg-btn--on': vm.status === f.id}" ng-click="vm.setStatus(f.id)" no-busy-guard>{{ f.label }}</button>
+        </div>
+      </div>
+    </div>
+    <div class="wrp__dayline">
+      <strong>{{ vm.dayTitle() }}</strong>
+      <span class="wrp__muted" ng-show="!vm.loading && !vm.error">{{ vm.countLine() }}</span>
+      <span class="wrp__muted wrp__dayline-past" ng-show="vm.isPast()"><i class="fas fa-history"></i> a past day</span>
+    </div>
+
+    <div class="wrp__body">
+      <div class="wrp__state" ng-show="vm.loading"><span class="sv2-spinner"></span> Loading…</div>
+      <div class="wrp__state wrp__state--error" ng-show="vm.error"><i class="fas fa-exclamation-triangle"></i> {{ vm.error }}</div>
+      <div class="wrp__empty" ng-show="!vm.loading && !vm.error && !vm.requests.length">
+        <i class="fas fa-inbox"></i>
+        <div>{{ vm.emptyLine() }}</div>
+        <button type="button" class="wrp__btn wrp__btn--primary" ng-click="vm.addRequest()" no-busy-guard><i class="fas fa-user-plus"></i> Add a request for a member</button>
+      </div>
+
+      <!-- one row per request that includes the day, oldest first -->
+      <div class="wrp__req" ng-repeat="r in vm.requests track by r.id" ng-class="{'wrp__req--busy': r._busy, 'wrp__req--out': r._out, 'wrp__req--settled': vm.isLive(r) && vm.isSettled(r), 'wrp__req--off': !vm.isLive(r)}">
+        <div class="wrp__req-main">
+          <div class="wrp__req-top">
+            <span class="wrp__queue" ng-show="r.queue_position" title="Place in the queue for this day">#{{ r.queue_position }}</span>
+            <span class="wrp__name">{{ r.user.name }}</span>
+            <span class="wrp__req-kind">{{ r.kind_label || vm.labelOf.kind(r.kind) }}</span>
+            <!-- THIS day's state (never blank); the whole-request pill only when it is cancelled / expired -->
+            <span class="wrp__status wrp__status--day" ng-class="['wrp__status--' + vm.dayTone(r), {'wrp__status--elsewhere': vm.isElsewhere(vm.rowDay(r))}]" ng-show="vm.isLive(r)" title="Status for {{ vm.dateLabel(vm.day) }}">{{ vm.dayPill(r) }}<em ng-show="vm.rowDay(r).preference && vm.rowDay(r).preference !== 'any'"> · {{ vm.labelOf.pref(vm.rowDay(r).preference) }}</em></span>
+            <span class="wrp__status" ng-class="'wrp__status--' + vm.labelOf.tone(r.status)" ng-show="!vm.isLive(r)">{{ vm.labelOf.status(r.status) }}</span>
+            <span class="wrp__added">{{ vm.addedAgo(r) }}</span>
+          </div>
+          <div class="wrp__req-line">
+            <span><i class="fas fa-plane"></i> {{ r.plane_type_label || r.plane_type || 'Any aircraft' }}</span>
+            <span ng-show="r.kind === 'dual'"><i class="fas fa-user-tie"></i> {{ r.instructor_label || (r.instructor && r.instructor.name) || 'Any instructor' }}</span>
+            <span><i class="fas fa-hourglass-half"></i> {{ r.notice_label || vm.labelOf.notice(r.notice) }}</span>
+          </div>
+          <!-- every day of the request: the day shown is highlighted, the others carry their own state -->
+          <div class="wrp__dates" ng-show="r.dates.length > 1">
+            <span class="wrp__chip" ng-repeat="d in r.dates track by d.date" ng-class="['wrp__chip--' + vm.labelOf.dateTone(d), {'wrp__chip--day': vm.isDay(d), 'wrp__chip--elsewhere': vm.isElsewhere(d)}]" title="{{ vm.labelOf.dateStatus(d) }}">
+              {{ vm.dateLabel(d.date) }}<em ng-show="d.preference !== 'any'"> · {{ vm.labelOf.pref(d.preference) }}</em><em class="wrp__chip-state" ng-show="!vm.isDay(d) && d.status && d.status !== 'open'">— {{ vm.labelOf.dateStatus(d) }}</em>
+            </span>
+            <span class="wrp__muted wrp__dates-note" ng-show="vm.isLive(r) && vm.isSettled(r) && vm.otherLive(r) > 0">still waiting on {{ vm.otherLive(r) }} other day{{ vm.otherLive(r) == 1 ? '' : 's' }}</span>
+          </div>
+          <div class="wrp__contact">
+            <span ng-show="r.user.phone"><i class="fas fa-phone-alt"></i> {{ r.user.phone }} <a ng-href="{{ vm.telHref(r.user.phone) }}">Call</a></span>
+            <span ng-show="r.user.email"><i class="fas fa-envelope"></i> {{ r.user.email }} <a ng-href="{{ vm.mailHref(r.user.email) }}">Email</a></span>
+          </div>
+          <div class="wrp__req-notes" ng-show="r.notes">{{ r.notes }}</div>
+          <!-- contacted: who / when, with Undo; the member stays in the queue -->
+          <div class="wrp__stamp wrp__req-foot" ng-show="vm.isLive(r) && vm.isContacted(r)"><i class="fas fa-phone-alt"></i> Contacted{{ vm.stamp(vm.rowDay(r)) }} <a class="wrp__undo" ng-click="vm.undo(r)" no-busy-guard>Undo</a></div>
+        </div>
+        <!-- live day: the three actions; settled day: its state + Undo -->
+        <div class="wrp__req-act" ng-show="vm.isLive(r) && !vm.isSettled(r)">
+          <button type="button" class="wrp__btn wrp__btn--contact" ng-click="vm.contact(r)" ng-disabled="r._busy" ng-show="!vm.isContacted(r)"><i class="fas fa-phone-alt"></i> Contacted</button>
+          <button type="button" class="wrp__btn wrp__btn--book" ng-click="vm.book(r)" ng-disabled="r._busy" no-busy-guard><i class="fas fa-calendar-plus"></i> Book</button>
+          <button type="button" class="wrp__btn wrp__btn--quiet" ng-click="vm.decline(r)" ng-disabled="r._busy">Couldn't take it</button>
+        </div>
+        <div class="wrp__req-act wrp__req-act--settled" ng-show="vm.isLive(r) && vm.isSettled(r)">
+          <span class="wrp__settled wrp__settled--booked" ng-show="vm.dayStatus(r) === 'fulfilled'">
+            <i class="fas fa-check-circle"></i>
+            <a class="wrp__booked-link" ng-show="vm.bookingVisible(vm.rowDay(r))" ng-click="vm.openBooking(vm.rowDay(r))" no-busy-guard title="Open the booking">{{ vm.bookedLabel(vm.rowDay(r)) }}</a>
+            <span ng-show="!vm.bookingVisible(vm.rowDay(r))">{{ vm.bookedLabel(vm.rowDay(r)) }}</span>
+          </span>
+          <span class="wrp__settled wrp__settled--declined" ng-show="vm.dayStatus(r) === 'declined'"><i class="fas fa-minus-circle"></i> Couldn't take it</span>
+          <span class="wrp__stamp" ng-show="vm.stamp(vm.rowDay(r))">{{ vm.stamp(vm.rowDay(r)).replace(' · ', '') }}</span>
+          <a class="wrp__undo" ng-click="vm.undo(r)" no-busy-guard ng-hide="r._busy">Undo</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ EVERYONE WAITING — every live request of the club, oldest first; click a day chip to act on that day ══ -->
+  <div ng-show="vm.view === 'everyone'">
+    <div class="wrp__dayline">
+      <strong>Everyone on the waiting list</strong>
+      <span class="wrp__muted" ng-show="!vm.loadingEveryone && !vm.errorEveryone">{{ vm.everyone.length }} live request{{ vm.everyone.length == 1 ? '' : 's' }} · waiting or contacted on at least one day</span>
+    </div>
+    <div class="wrp__body">
+      <div class="wrp__state" ng-show="vm.loadingEveryone"><span class="sv2-spinner"></span> Loading…</div>
+      <div class="wrp__state wrp__state--error" ng-show="vm.errorEveryone"><i class="fas fa-exclamation-triangle"></i> {{ vm.errorEveryone }}</div>
+      <div class="wrp__empty" ng-show="!vm.loadingEveryone && !vm.errorEveryone && !vm.everyone.length">
+        <i class="fas fa-inbox"></i>
+        <div>Nobody is on the waiting list right now.</div>
+        <button type="button" class="wrp__btn wrp__btn--primary" ng-click="vm.addRequest()" no-busy-guard><i class="fas fa-user-plus"></i> Add a request for a member</button>
+      </div>
+
+      <div class="wrp__req wrp__req--everyone" ng-repeat="r in vm.everyone track by r.id" ng-class="{'wrp__req--busy': r._busy, 'wrp__req--out': r._out}">
+        <div class="wrp__req-main">
+          <div class="wrp__req-top">
+            <span class="wrp__queue" ng-show="r.queue_position" title="Place in the club's queue">#{{ r.queue_position }}</span>
+            <span class="wrp__name">{{ r.user.name }}</span>
+            <span class="wrp__req-kind">{{ r.kind_label || vm.labelOf.kind(r.kind) }}</span>
+            <span class="wrp__added">{{ vm.addedAgo(r) }}</span>
+          </div>
+          <div class="wrp__req-line">
+            <span><i class="fas fa-plane"></i> {{ r.plane_type_label || r.plane_type || 'Any aircraft' }}</span>
+            <span ng-show="r.kind === 'dual'"><i class="fas fa-user-tie"></i> {{ r.instructor_label || (r.instructor && r.instructor.name) || 'Any instructor' }}</span>
+            <span><i class="fas fa-hourglass-half"></i> {{ r.notice_label || vm.labelOf.notice(r.notice) }}</span>
+          </div>
+          <!-- all the days, each with its state; the picked one is what the buttons act on -->
+          <div class="wrp__dates wrp__dates--pick">
+            <button type="button" class="wrp__chip wrp__chip-btn" ng-repeat="d in r.dates track by d.date" ng-class="['wrp__chip--' + vm.labelOf.dateTone(d), {'wrp__chip--pick': vm.isPicked(r, d), 'wrp__chip--elsewhere': vm.isElsewhere(d)}]" ng-click="vm.pickDay(r, d)" no-busy-guard title="Act on {{ vm.dateLabel(d.date) }}">
+              {{ vm.dateLabel(d.date) }}<em ng-show="d.preference !== 'any'"> · {{ vm.labelOf.pref(d.preference) }}</em><em class="wrp__chip-state">— {{ vm.labelOf.dateStatus(d) }}</em>
+            </button>
+          </div>
+          <div class="wrp__contact">
+            <span ng-show="r.user.phone"><i class="fas fa-phone-alt"></i> {{ r.user.phone }} <a ng-href="{{ vm.telHref(r.user.phone) }}">Call</a></span>
+            <span ng-show="r.user.email"><i class="fas fa-envelope"></i> {{ r.user.email }} <a ng-href="{{ vm.mailHref(r.user.email) }}">Email</a></span>
+          </div>
+          <div class="wrp__req-notes" ng-show="r.notes">{{ r.notes }}</div>
+          <div class="wrp__pickline" ng-show="vm.rowDay(r)">
+            <span>Acting on <strong>{{ vm.dateLabel(vm.rowDay(r).date) }}</strong> · <span class="wrp__pick-state" ng-class="'wrp__pick-state--' + vm.dayTone(r)">{{ vm.dayPill(r) }}</span><span ng-show="vm.isContacted(r)">{{ vm.stamp(vm.rowDay(r)) }}</span></span>
+            <a class="wrp__undo" ng-click="vm.showDay(vm.rowDay(r))" no-busy-guard>Open that day</a>
+          </div>
+        </div>
+        <div class="wrp__req-act" ng-show="vm.rowDay(r) && !vm.isSettled(r)">
+          <button type="button" class="wrp__btn wrp__btn--contact" ng-click="vm.contact(r)" ng-disabled="r._busy" ng-show="!vm.isContacted(r)"><i class="fas fa-phone-alt"></i> Contacted</button>
+          <a class="wrp__undo wrp__undo--block" ng-show="vm.isContacted(r)" ng-click="vm.undo(r)" no-busy-guard>Undo contacted</a>
+          <button type="button" class="wrp__btn wrp__btn--book" ng-click="vm.book(r)" ng-disabled="r._busy" no-busy-guard><i class="fas fa-calendar-plus"></i> Book</button>
+          <button type="button" class="wrp__btn wrp__btn--quiet" ng-click="vm.decline(r)" ng-disabled="r._busy">Couldn't take it</button>
+        </div>
+        <div class="wrp__req-act wrp__req-act--settled" ng-show="vm.rowDay(r) && vm.isSettled(r)">
+          <span class="wrp__settled wrp__settled--booked" ng-show="vm.dayStatus(r) === 'fulfilled'"><i class="fas fa-check-circle"></i> {{ vm.bookedLabel(vm.rowDay(r)) }}</span>
+          <span class="wrp__settled wrp__settled--declined" ng-show="vm.dayStatus(r) === 'declined'"><i class="fas fa-minus-circle"></i> Couldn't take it</span>
+          <a class="wrp__undo" ng-click="vm.undo(r)" no-busy-guard ng-hide="r._busy">Undo</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrp__ft">
+    <span class="wrp__muted" ng-show="vm.view === 'day'">{{ vm.requests.length }} request{{ vm.requests.length == 1 ? '' : 's' }} · {{ vm.dateLabel(vm.day) }}</span>
+    <span class="wrp__muted" ng-show="vm.view === 'everyone'">{{ vm.everyone.length }} waiting</span>
+    <span class="wrp__sp"></span>
+    <button type="button" class="wrp__btn wrp__btn--primary" ng-click="vm.addRequest()" no-busy-guard><i class="fas fa-user-plus"></i> Add a request</button>
+    <button type="button" class="wrp__btn" ng-click="vm.close()" no-busy-guard>Close</button>
+  </div>
+</div>

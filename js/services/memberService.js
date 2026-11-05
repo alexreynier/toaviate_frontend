@@ -31,6 +31,7 @@ app.factory('MemberService', MemberService);
         service.GetUserClubs = GetUserClubs;
         service.GetAllByPics = GetAllByPics;
         service.GetAllActiveByClub = GetAllActiveByClub;
+        service.SearchClubMembers = SearchClubMembers;    // every CURRENT member by name/email (2026-11-04)
         service.GetAllByPics = GetAllByPics;
         service.GetAllByPicsBookinout = GetAllByPicsBookinout;
         service.GetCompany = GetCompany;
@@ -100,6 +101,11 @@ app.factory('MemberService', MemberService);
 
         function GetUserClubs(user_id){
             return $http.get('/api/v1/users/'+user_id+'/clubs').then(handleSuccess, handleError2);
+        }
+
+        // userId: that one current member (the booking panel resolving a waiting-list request's member) — same row shape
+        function SearchClubMembers(club_id, q, limit, instructorsOnly, userId){
+            return $http.get('/api/v1/members/search/' + club_id + '?q=' + encodeURIComponent(q || '') + '&limit=' + (limit || 25) + (instructorsOnly ? '&instructors=1' : '') + (parseInt(userId, 10) > 0 ? '&user_id=' + parseInt(userId, 10) : '')).then(handleSuccess, handleError2);
         }
 
         function GetAllActiveByClub(club_id, end){

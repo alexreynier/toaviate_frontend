@@ -51,7 +51,8 @@ var app = angular
                 '/api/v1/logbook_endorsement_confirm', // public endorsement confirm page
                 '/api/v1/logbook_signup', // public free-logbook signup + invite landing
                 '/api/v1/caa_form_confirm', // public CAA-form external signing page (token)
-                '/api/v1/account_email_confirm' // public email confirm / cancel pages (token)
+                '/api/v1/account_email_confirm', // public email confirm / cancel pages (token)
+                '/api/v1/passenger_decline'     // public passenger "can't make it" page (token)
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -392,6 +393,13 @@ var app = angular
                 url: '/email_confirm/:token',
                 controller: 'EmailConfirmController',
                 templateUrl: 'views/public/email_confirm.html',
+                controllerAs: 'vm'
+            })
+
+            .state('passenger_decline', {       // passenger "can't make it" link (token, in invitation emails)
+                url: '/passenger_decline/:token',
+                controller: 'PassengerDeclineController',
+                templateUrl: 'views/public/passenger_decline.html',
                 controllerAs: 'vm'
             })
 
@@ -2377,6 +2385,60 @@ var app = angular
             })
 
 
+            // Scheduler v2 — the new timeline / phone day view alongside v1
+            // (CLAUDE.md "Scheduler v2"). ?date&days are mirrored into the URL with a
+            // notify:false + location:'replace' $state.go, so reloadOnSearch must be
+            // off (same orphan-view trap as student_records above).
+            .state('dashboard.scheduler_v2', {
+                url: '/bookings_v2?date&days',
+                controller: 'SchedulerV2Controller',
+                templateUrl: 'views/scheduler_v2.html',
+                controllerAs: 'vm',
+                reloadOnSearch: false,
+                data: {
+                    action: 'list'
+                }
+            })
+
+            // Scheduler v2 booking panel (CLAUDE.md "Scheduler v2 booking panel"):
+            // CHILD states so the scheduler behind stays mounted — they render into
+            // <ui-view name="panel"> of views/scheduler_v2.html and inherit ?date&days.
+            // Same Bookings2Controller + data.action as the v1 add/edit pages; data.v2
+            // is what tells the controller to pre-select from the params, skip the
+            // embedded calendar and return to the parent with an 'sv2:refresh' broadcast.
+            // ?request_id&request_date = "Book" from the waiting-list panel: the form pre-fills from that
+            // request and marks its day fulfilled on save (CLAUDE.md "Scheduler v2" → Waiting list).
+            .state('dashboard.scheduler_v2.add', {
+                url: '/new?plane_id&instructor_id&start&duration&request_id&request_date',
+                views: {
+                    'panel@dashboard.scheduler_v2': {
+                        templateUrl: 'views/scheduler_v2/booking_add.html',
+                        controller: 'Bookings2Controller',
+                        controllerAs: 'vm'
+                    }
+                },
+                data: {
+                    action: 'list',
+                    v2: true
+                }
+            })
+            .state('dashboard.scheduler_v2.edit', {
+                url: '/edit/:booking_id',
+                views: {
+                    'panel@dashboard.scheduler_v2': {
+                        templateUrl: 'views/scheduler_v2/booking_edit.html',
+                        controller: 'Bookings2Controller',
+                        controllerAs: 'vm'
+                    }
+                },
+                data: {
+                    action: 'edit',
+                    return_to: 'bookings',
+                    v2: true
+                }
+            })
+
+
             .state('dashboard.slot_search', {
                 url: '/find_a_slot',
                 controller: 'SlotSearchController',
@@ -3605,7 +3667,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel'];
+        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel', 'passenger_decline'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3691,7 +3753,8 @@ var app = angular
             '/endorsement_confirm',         // endorsement confirmation (token, in emails)
             '/caa_form_confirm',            // CAA form external signing (token, in emails)
             '/email_confirm',               // account email confirmation (token, in emails)
-            '/email_cancel'                 // account email recovery veto (token, in emails)
+            '/email_cancel',                // account email recovery veto (token, in emails)
+            '/passenger_decline'            // passenger "can't make it" (token, in invitation emails)
         ];
         // Shared with the HTTP interceptor: a 401 on a public page is never a
         // session expiry (the page needs no session), so it must not freeze it.

@@ -1,0 +1,604 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Scheduler v2 booking form — the body of the slide-out panel. Shared by
+     booking_add.html (state dashboard.scheduler_v2.add, vm.action 'list') and
+     booking_edit.html (dashboard.scheduler_v2.edit, vm.action 'edit');
+     Bookings2Controller, exactly the logic of the v1 pages.
+     Every ng-model / ng-click / id here is one the controller relies on —
+     restructure the markup around them, never rename them.
+     Card order (2026-11-04): When → Who → What → Extras. The instructor list is
+     club-level for the slot (bookings/club_instructors) and narrows the aircraft
+     and tuition lists (CLAUDE.md "Scheduler v2 booking panel").
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- Booking from the waiting list (?request_id&request_date — "Book" on the staff panel). The save marks that
+     day Booked; the other live days become "Booked elsewhere" unless the switch is on. -->
+<div class="bkf-wrq" ng-if="vm.is_v2 && vm.bkf_wrq" id="bkf-wrq">
+  <div class="bkf-wrq__hd">
+    <span class="bkf-wrq__icon"><i class="fa fa-user-clock"></i></span>
+    <div class="bkf-wrq__text">
+      <strong>Booking from the waiting list</strong>
+      <span>for <b>{{ vm.bkf_wrq.name }}</b> · {{ vm.bkf_wrq.date_label }} · {{ vm.bkf_wrq.pref_label }}<span ng-if="vm.bkf_wrq.request.queue_position"> · #{{ vm.bkf_wrq.request.queue_position }} in the queue</span></span>
+    </div>
+  </div>
+  <div class="bkf-wrq__row">
+    <div class="bkf-toggle-row bkf-wrq__switch" ng-class="{'bkf-toggle-row--on': vm.bkf_wrq.still_wants}" ng-if="vm.bkf_wrq.others > 0">
+      <label class="snazzy-toggle">
+        <input type="checkbox" ng-model="vm.bkf_wrq.still_wants" no-busy-guard>
+        <span class="snazzy-toggle__slider"></span>
+      </label>
+      <div class="bkf-toggle-row__text">
+        <span class="bkf-toggle-row__label">Still wants the other days</span>
+        <span class="bkf-field__hint">{{ vm.bkf_wrq.still_wants ? 'The other ' + vm.bkf_wrq.others + (vm.bkf_wrq.others == 1 ? ' day stays' : ' days stay') + ' on the waiting list.' : 'Saving closes the whole request — the other ' + vm.bkf_wrq.others + (vm.bkf_wrq.others == 1 ? ' day is' : ' days are') + ' marked "Booked elsewhere".' }}</span>
+      </div>
+    </div>
+    <span class="bkf-field__hint" ng-if="!(vm.bkf_wrq.others > 0)">Saving marks this request as booked.</span>
+    <a class="bkf-wrq__cancel" ng-click="vm.bkf_wrq_cancel()" no-busy-guard><i class="fa fa-arrow-left"></i> Cancel — back to the waiting list</a>
+  </div>
+</div>
+<div class="bkf-wrq bkf-wrq--loading" ng-if="vm.is_v2 && vm.bkf_wrq_loading"><i class="fa fa-circle-notch fa-spin"></i> Loading the waiting-list request…</div>
+
+<!-- Read-only (slot-based) members — new bookings only -->
+<div class="bkf-card" ng-if="vm.is_restricted_member && vm.action != 'edit'">
+  <div class="bkf-card__hd">
+    <span class="bkf-card__icon"><i class="fa fa-eye"></i></span>
+    <div>
+      <h3>Read-only calendar</h3>
+      <p>Your membership uses slot-based booking — use the slot finder to book.</p>
+    </div>
+  </div>
+  <a ui-sref="dashboard.slot_search" class="bkf-btn bkf-btn--primary"><i class="fa fa-search"></i> Find a slot</a>
+</div>
+
+<form name="booking" class="bkf-main" novalidate ng-show="!vm.is_restricted_member || vm.action == 'edit'"
+      ng-submit="vm.action == 'edit' ? update_booking(booking.$valid) : make_booking(booking.$valid)">
+
+  <!-- ══════════ YOUR SLOT — follows the form as it changes (hidden for now: vm.bkf_show_slot_card) ══════════ -->
+  <div class="bkf-slot" ng-if="vm.is_v2 && vm.bkf_show_slot_card">
+    <div class="bkf-slot__hd"><i class="fa fa-calendar-check"></i><h3>Your slot</h3><span class="bkf-chip bkf-chip--solo bkf-slot__chip" ng-if="vm.bkf_solo_on()" title="Potential solo"><i class="fa fa-user"></i> Solo</span><span>updates as you go</span></div>
+    <div class="bkf-slot__body">
+      <div class="bkf-slot__when">
+        <div class="bkf-slot__date">
+          {{ vm.new_booking.start_date | date:'EEEE d MMMM yyyy' }}
+          <small ng-if="vm.bkf.end_date && vm.bkf.end_date != vm.bkf.start_date">to {{ vm.new_booking.end_date | date:'EEE d MMM yyyy' }}</small>
+        </div>
+        <div class="bkf-slot__time">
+          <b>{{ vm.new_booking.start_time.time || '--:--' }} – {{ vm.new_booking.end_time.time || '--:--' }}</b>
+          <span ng-show="vm.new_booking.end_time.duration">{{ vm.new_booking.end_time.duration.replace('( ', '').replace(' )', '') }}</span>
+        </div>
+      </div>
+      <div class="bkf-slot__kv">
+        <div>
+          <div class="bkf-slot__k">Aircraft</div>
+          <div class="bkf-slot__v bkf-slot__v--ac" ng-if="vm.new_booking.plane"><i class="fa fa-plane"></i>{{ vm.new_booking.plane.title || vm.new_booking.plane.registration }}</div>
+          <div class="bkf-slot__v bkf-slot__v--empty" ng-if="!vm.new_booking.plane">Not chosen</div>
+        </div>
+        <div>
+          <div class="bkf-slot__k">Instructor</div>
+          <div class="bkf-slot__v" ng-if="vm.new_booking.instructor.id > 0"><i class="fa fa-chalkboard-teacher"></i>{{ vm.new_booking.instructor.first_name }} {{ vm.new_booking.instructor.last_name }}</div>
+          <div class="bkf-slot__v bkf-slot__v--empty" ng-if="!(vm.new_booking.instructor.id > 0)">None</div>
+        </div>
+        <div>
+          <div class="bkf-slot__k">Pilot</div>
+          <div class="bkf-slot__v" ng-if="vm.booking_self"><i class="fa fa-user"></i>You</div>
+          <div class="bkf-slot__v" ng-if="!vm.booking_self && vm.new_booking.user.first_name"><i class="fa fa-user"></i>{{ vm.new_booking.user.first_name }} {{ vm.new_booking.user.last_name }}</div>
+          <div class="bkf-slot__v bkf-slot__v--empty" ng-if="!vm.booking_self && !vm.new_booking.user.first_name">Member to pick</div>
+        </div>
+        <div>
+          <div class="bkf-slot__k">Course</div>
+          <div class="bkf-slot__v" ng-if="vm.new_booking.tuition_required.title">{{ vm.new_booking.tuition_required.title }}</div>
+          <div class="bkf-slot__v bkf-slot__v--empty" ng-if="!vm.new_booking.tuition_required.title">—</div>
+        </div>
+        <div class="bkf-slot__kv-span" ng-if="vm.bkf_lesson_visible() && vm.new_booking.lesson.id">
+          <div class="bkf-slot__k">Lesson</div>
+          <div class="bkf-slot__v"><i class="fa fa-book-open"></i>{{ vm.bkf_lesson_label(vm.new_booking.lesson) }}</div>
+        </div>
+      </div>
+      <div class="bkf-slot__foot" ng-show="vm.new_booking.passengers.length || vm.new_booking.rental_items.length">
+        <i class="fa fa-check-circle"></i>
+        <span ng-show="vm.new_booking.passengers.length">{{ vm.new_booking.passengers.length }} passenger{{ vm.new_booking.passengers.length == 1 ? '' : 's' }}</span>
+        <span ng-show="vm.new_booking.passengers.length && vm.new_booking.rental_items.length">·</span>
+        <span ng-show="vm.new_booking.rental_items.length">{{ vm.new_booking.rental_items.length }} rental item{{ vm.new_booking.rental_items.length == 1 ? '' : 's' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit window closed (from the booking's end + the club's edit windows) -->
+  <div class="bkf-note bkf-note--danger bkf-note--top" ng-if="vm.action == 'edit' && vm.new_booking.after_booking_end">
+    <i class="fa fa-lock"></i>
+    <div>The edit window for this booking has passed — changes can no longer be saved.</div>
+  </div>
+
+  <!-- ══════════ WHEN ══════════ -->
+  <section class="bkf-card" id="card-when">
+    <div class="bkf-card__hd">
+      <span class="bkf-card__icon"><i class="fa fa-clock"></i></span>
+      <div>
+        <h3>When</h3>
+        <p>Date and time of the slot</p>
+      </div>
+      <span class="bkf-card__hd-right bkf-chip bkf-chip--muted" ng-show="vm.new_booking.end_time.duration"><i class="fa fa-hourglass-half"></i> {{ vm.new_booking.end_time.duration.replace('( ', '').replace(' )', '') }}</span>
+    </div>
+
+    <div class="bkf-grid bkf-grid--when">
+      <!-- FROM: date · time, then TO: date · time — one row each -->
+      <div class="bkf-field bkf-field--date" id="field-start-date">
+        <label><i class="fa fa-calendar-day"></i> From</label>
+        <ta-date-picker ng-model="vm.bkf.start_date" ng-change="vm.bkf_date_picked('start')" options="vm.bkf_picker_options" block="true" format="short" placeholder="Pick a date"></ta-date-picker>
+      </div>
+      <div class="bkf-field" id="field-start-time">
+        <label><i class="fa fa-play"></i> Start time</label>
+        <ui-select class="bkf-us bkf-us--compact" ng-model="vm.new_booking.start_time" theme="bootstrap" append-to-body="true" on-select="update_dateTime('start_time')" title="Select Time" ng-class="{'has-error': !vm.new_booking.start_time && submitted }" required>
+          <ui-select-match placeholder="Select a start time">
+            {{ vm.bkf_pad_time(vm.new_booking.start_time.time) }}
+          </ui-select-match>
+          <ui-select-choices repeat="times in vm.start_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+            <span ng-bind-html="vm.bkf_pad_time(times.time) | highlight: $select.search"></span>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>Nothing available during selected times</span>
+          </ui-select-no-choice>
+        </ui-select>
+        <p ng-show="!vm.new_booking.start_time && submitted" class="field-error-msg">Please select a start time</p>
+      </div>
+      <div class="bkf-field bkf-field--date" id="field-end-date">
+        <label><i class="fa fa-calendar-check"></i> To <span class="bkf-field__hint" ng-show="!vm.bkf_end_explicit">(same day)</span></label>
+        <ta-date-picker ng-model="vm.bkf.end_date" ng-change="vm.bkf_date_picked('end')" options="vm.bkf_picker_options" block="true" format="short" placeholder="Pick a date"></ta-date-picker>
+      </div>
+      <div class="bkf-field" id="field-end-time">
+        <label><i class="fa fa-stop"></i> End time</label>
+        <ui-select class="bkf-us bkf-us--compact" ng-model="vm.new_booking.end_time" theme="bootstrap" on-select="update_dateTime('end_time')" title="Select Time" append-to-body="true" ng-class="{'has-error': !vm.new_booking.end_time && submitted }" required>
+          <ui-select-match placeholder="Select an end time">
+            <!-- compact duration ("11h", "1h30", "30m") — the model keeps v1's "( 11 hours 30 minutes )" -->
+            <span class="bkf-us-match bkf-us-match--time">{{ vm.bkf_pad_time(vm.new_booking.end_time.time) }}<span class="bkf-dur" ng-if="vm.new_booking.end_time.duration">{{ vm.bkf_short_duration(vm.new_booking.end_time.duration) }}</span></span>
+          </ui-select-match>
+          <ui-select-choices repeat="times in vm.end_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+            <span ng-bind-html="vm.bkf_pad_time(times.time) | highlight: $select.search"></span> <span class="time_duration">{{ times.duration }}</span>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>Nothing available during selected times</span>
+          </ui-select-no-choice>
+        </ui-select>
+        <p ng-show="!vm.new_booking.end_time && submitted" class="field-error-msg">Please select an end time</p>
+      </div>
+    </div>
+    <p class="bkf-note bkf-note--hours" ng-show="vm.bkf_hours_note()"><i class="fa fa-clock"></i> {{ vm.bkf_hours_note() }}</p>
+  </section>
+
+  <!-- ══════════ WHO — before What: the instructor list is club-level for the slot (bookings/club_instructors),
+       and the chosen instructor narrows the aircraft + tuition lists below ══════════ -->
+  <section class="bkf-card" id="card-who">
+    <div class="bkf-card__hd">
+      <span class="bkf-card__icon"><i class="fa fa-user-friends"></i></span>
+      <div>
+        <h3>Who</h3>
+        <p>Pilot and instructor</p>
+      </div>
+      <!-- club chooser (several clubs, nothing picked yet) / the club the booking belongs to -->
+      <div class="bkf-card__hd-right bkf-clubpick" ng-if="vm.bkf_show_club_chooser()" id="field-who-club">
+        <select class="bkf-select bkf-select--sm" ng-model="vm.bkf_club_pick" ng-options="c.id as c.title for c in vm.bkf_clubs" ng-change="vm.bkf_set_club(vm.bkf_club_pick)" aria-label="Club" no-busy-guard></select>
+      </div>
+      <span class="bkf-card__hd-right bkf-chip bkf-chip--muted bkf-clubchip" ng-if="!vm.bkf_show_club_chooser() && vm.bkf_club_title(vm.bkf_who_club())" title="The club this booking belongs to"><i class="fa fa-home"></i> {{ vm.bkf_club_title(vm.bkf_who_club()) }}</span>
+    </div>
+
+    <!-- Booking for — staff of any club see this from the start; vm.booking_self stays the one flag
+         the controller reads (members load, instructor show_all, payload user_id). Members never see it. -->
+    <div class="bkf-field bkf-bookingfor" ng-if="vm.bkf_show_booking_for()" id="field-booking-for">
+      <label><i class="fa fa-user-check"></i> Booking for</label>
+      <div class="bkf-seg" role="radiogroup" aria-label="Booking for">
+        <button type="button" class="bkf-seg__btn bkf-seg__btn--self" ng-class="{'bkf-seg__btn--on': vm.booking_self}" ng-click="vm.bkf_set_self(true)" role="radio" aria-checked="{{ vm.booking_self ? 'true' : 'false' }}" no-busy-guard><i class="fa fa-user"></i> Myself</button>
+        <button type="button" class="bkf-seg__btn bkf-seg__btn--other" ng-class="{'bkf-seg__btn--on': !vm.booking_self}" ng-click="vm.bkf_set_self(false)" ng-disabled="!vm.bkf_others_allowed()" role="radio" aria-checked="{{ !vm.booking_self ? 'true' : 'false' }}" no-busy-guard><i class="fa fa-user-friends"></i> Another member</button>
+      </div>
+      <p class="bkf-field__hint bkf-field__hint--note" ng-if="!vm.bkf_others_allowed()"><i class="fa fa-info-circle"></i> You're not staff at this club, so this booking is for you.</p>
+    </div>
+    <div class="bkf-checks" ng-if="vm.show_self_option">
+      <label class="bkf-check" ng-class="{'bkf-check--on': vm.new_booking.maintenance_flight}" uib-tooltip="No charge to arise from flights on this booking - ie: maintenance flights">
+        <input type="checkbox" id="maintenance_flight" ng-model="vm.new_booking.maintenance_flight" />
+        <i class="fa fa-wrench"></i> Free flight
+      </label>
+    </div>
+
+    <div class="bkf-grid">
+      <!-- Instructor: the club's current instructors for the slot, each row annotated (available / booked / holiday / not working) -->
+      <div class="bkf-field" ng-class="{'bkf-field--span': vm.booking_self || !vm.show_self_option}" ng-if="!vm.bkf_auto_instructor()" id="field-instructor">
+        <label><i class="fa fa-chalkboard-teacher"></i> Instructor <span class="bkf-field__hint" ng-if="vm.booking_self">(optional)</span><span class="bkf-field__hint bkf-field__hint--right" ng-if="vm.bkf_ins_loading"><i class="fa fa-circle-notch fa-spin"></i> loading</span></label>
+        <ui-select class="bkf-us bkf-us--ins" ng-model="vm.new_booking.instructor" theme="bootstrap" on-select="select_plane($selected)" ng-disabled="disabled" title="Select Available Instructor" append-to-body="true">
+          <ui-select-match placeholder="{{ vm.booking_self ? 'No instructor — select one if needed' : 'Select an instructor' }}" allow-clear="true">
+            <span class="bkf-us-match"><span class="bkf-opt__av bkf-opt__av--sm">{{ vm.bkf_initials(vm.new_booking.instructor) }}</span><span class="bkf-us-match__txt">{{ vm.new_booking.instructor.first_name }} {{ vm.new_booking.instructor.last_name }}</span></span>
+          </ui-select-match>
+          <ui-select-choices repeat="instructor in vm.instructors | propsFilterA: {first_name: $select.search, last_name: $select.search,  id: $select.search}">
+            <div class="bkf-opt" ng-class="{'bkf-opt--off': vm.bkf_ins_note(instructor).kind == 'warn' || vm.bkf_ins_note(instructor).kind == 'danger'}">
+              <span class="bkf-opt__av">{{ vm.bkf_initials(instructor) }}</span>
+              <div class="bkf-opt__body">
+                <div class="bkf-opt__nm"><span ng-bind-html="instructor.first_name | highlight: $select.search"></span> <span ng-bind-html="instructor.last_name | highlight: $select.search"></span></div>
+                <div class="bkf-opt__sub bkf-opt__note" ng-if="vm.bkf_ins_note(instructor)" ng-class="'bkf-opt__note--' + vm.bkf_ins_note(instructor).kind">
+                  <i class="fa" ng-class="{'fa-check-circle': vm.bkf_ins_note(instructor).kind == 'ok', 'fa-moon': vm.bkf_ins_note(instructor).kind == 'warn', 'fa-calendar-times': vm.bkf_ins_note(instructor).kind == 'danger'}"></i> {{ vm.bkf_ins_note(instructor).text }}
+                </div>
+                <div class="bkf-opt__sub" ng-if="!vm.bkf_ins_note(instructor) && instructor.club.title">{{ instructor.club.title }}</div>
+              </div>
+            </div>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>{{ vm.bkf_ins_loading ? 'Loading the instructors…' : "The instructor you're looking for doesn't seem to be available!" }}</span>
+          </ui-select-no-choice>
+        </ui-select>
+        <p class="bkf-field__hint bkf-field__hint--note" ng-if="vm.bkf_from_instructor_row && vm.new_booking.instructor.id > 0"><i class="fa fa-info-circle"></i> Pre-selected from the scheduler row.</p>
+      </div>
+      <!-- an instructor (not a manager) booking for a member is the instructor on it (make_booking) -->
+      <div class="bkf-field" ng-if="vm.bkf_auto_instructor()" id="field-instructor-auto">
+        <label><i class="fa fa-chalkboard-teacher"></i> Instructor</label>
+        <div class="bkf-stub bkf-stub--info"><i class="fa fa-user-check"></i> You'll be the instructor on this booking</div>
+      </div>
+      <div class="bkf-field" ng-if="!vm.booking_self && vm.show_self_option" id="field-member">
+        <label><i class="fa fa-id-badge"></i> Member</label>
+        <ui-select class="bkf-us bkf-us--mem" ng-model="vm.new_booking.user" theme="bootstrap" ng-disabled="disabled" title="Select a Member" append-to-body="true">
+          <ui-select-match placeholder="Select member" allow-clear="true">
+            <span class="bkf-us-match"><span class="bkf-opt__av bkf-opt__av--sm bkf-opt__av--mem"><i class="fa fa-user"></i></span><span class="bkf-us-match__txt">{{ vm.new_booking.user.first_name }} {{ vm.new_booking.user.last_name }}</span></span>
+          </ui-select-match>
+          <ui-select-choices repeat="student in vm.members | propsFilterA: {first_name: $select.search, last_name: $select.search, email: $select.search, id: $select.search}" refresh="vm.get_members($select.search)"refresh-delay="250">
+            <div class="bkf-opt">
+              <span class="bkf-opt__av bkf-opt__av--mem"><i class="fa fa-user"></i></span>
+              <div class="bkf-opt__body">
+                <div class="bkf-opt__nm"><span ng-bind-html="student.first_name | highlight: $select.search"></span> <span ng-bind-html="student.last_name | highlight: $select.search"></span></div>
+                <div class="bkf-opt__sub" ng-if="student.email" ng-bind-html="student.email | highlight: $select.search"></div>
+              </div>
+            </div>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>No current member matches — try another spelling.</span>
+          </ui-select-no-choice>
+        </ui-select>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ WHAT — aircraft and tuition, narrowed to what the chosen instructor may instruct on / teach ══════════ -->
+  <section class="bkf-card" id="card-what">
+    <div class="bkf-card__hd">
+      <span class="bkf-card__icon"><i class="fa fa-plane"></i></span>
+      <div>
+        <h3>What</h3>
+        <p>Aircraft and tuition</p>
+      </div>
+      <span class="bkf-card__hd-right bkf-chip bkf-chip--solo bkf-what__chip" ng-if="vm.bkf_solo_on()" title="Potential solo"><i class="fa fa-user"></i> Solo</span>
+    </div>
+
+    <div class="bkf-grid">
+      <div class="bkf-field" ng-class="{'bkf-field--span': !((vm.new_booking.instructor.id && vm.new_booking.instructor.id > 0) || !vm.booking_self)}" id="field-aircraft">
+        <label><i class="fa fa-plane"></i> Aircraft
+          <!-- admin override: a club manager / super-admin may lift the instructor's list -->
+          <a class="bkf-field__link" ng-if="vm.bkf_can_override() && vm.bkf_ins_plane_ids" ng-click="vm.bkf_toggle_all_planes()" no-busy-guard>{{ vm.bkf_show_all_planes ? "Only " + vm.bkf_ins_name() + "'s" : 'Show all' }}</a>
+        </label>
+        <ui-select class="bkf-us bkf-us--ac" ng-model="vm.new_booking.plane" theme="bootstrap" ng-disabled="disabled" on-select="getPlaneInstructors(vm.new_booking.plane.id)" title="Select Aircraft" append-to-body="true" ng-class="{'has-error': !vm.new_booking.plane && submitted }" required>
+          <ui-select-match placeholder="Select an aircraft">
+            <span class="bkf-us-match"><span class="bkf-opt__swatch bkf-opt__swatch--sm" ng-if="vm.new_booking.plane.colour && vm.new_booking.plane.waiting != 1" ng-style="{'background': vm.new_booking.plane.colour}"></span><span class="bkf-opt__wait bkf-opt__wait--sm" ng-if="vm.new_booking.plane.waiting == 1"><i class="fa fa-user-clock"></i> waiting list</span><span class="bkf-us-match__txt">{{ vm.new_booking.plane.waiting == 1 ? (vm.new_booking.plane.registration || vm.new_booking.plane.title) : vm.new_booking.plane.title }}</span></span>
+          </ui-select-match>
+          <ui-select-choices repeat="plane in vm.bkf_planes_list | propsFilterA: {title: $select.search, plane_type: $select.search, club_title: $select.search, id: $select.search}" group-by="vm.bkf_plane_group">
+            <div class="bkf-opt" ng-class="{'bkf-opt--dim': vm.bkf_plane_off(plane)}">
+              <span class="bkf-opt__swatch" ng-if="plane.waiting != 1" ng-class="{'bkf-opt__swatch--none': !plane.colour}" ng-style="plane.colour ? {'background': plane.colour} : {}"></span>
+              <span class="bkf-opt__wait" ng-if="plane.waiting == 1" title="This aircraft is booked for the slot — join its waiting list"><i class="fa fa-user-clock"></i> waiting list</span>
+              <div class="bkf-opt__body">
+                <div class="bkf-opt__nm"><b ng-bind-html="(plane.waiting == 1 ? (plane.registration || plane.title) : plane.title) | highlight: $select.search"></b> <span class="bkf-opt__type" ng-if="plane.plane_type" ng-bind-html="plane.plane_type | highlight: $select.search"></span></div>
+                <div class="bkf-opt__sub" ng-if="plane.club_title && !vm.bkf_plane_off(plane)" ng-bind-html="plane.club_title | highlight: $select.search"></div>
+                <div class="bkf-opt__sub bkf-opt__off" ng-if="vm.bkf_plane_off(plane)"><i class="fa fa-minus-circle"></i> Not on {{ vm.bkf_ins_name() }}'s list</div>
+              </div>
+            </div>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>{{ vm.bkf_planes_narrowed() ? ('No aircraft on ' + vm.bkf_ins_name() + "'s list for this slot") : 'No aircraft available during selected times' }}</span>
+          </ui-select-no-choice>
+        </ui-select>
+        <p ng-show="!vm.new_booking.plane && submitted" class="field-error-msg">Please select an aircraft</p>
+        <p class="bkf-field__hint bkf-field__hint--off" ng-if="vm.new_booking.plane && vm.bkf_plane_off(vm.new_booking.plane)" id="note-aircraft-off"><i class="fa fa-minus-circle"></i> Not on {{ vm.bkf_ins_name() }}'s list — kept as you chose it.</p>
+        <p class="bkf-field__hint" ng-if="vm.bkf_planes_narrowed() && !(vm.new_booking.plane && vm.bkf_plane_off(vm.new_booking.plane))">Aircraft are limited to the ones {{ vm.bkf_ins_name() }} instructs on.</p>
+      </div>
+      <div class="bkf-field" ng-if="(vm.new_booking.instructor.id && vm.new_booking.instructor.id > 0) || !vm.booking_self" id="field-course">
+        <label><i class="fa fa-graduation-cap"></i> Course / tuition
+          <a class="bkf-field__link" ng-if="vm.bkf_can_override() && vm.bkf_effective_instructor().courses_restricted" ng-click="vm.bkf_toggle_all_courses()" no-busy-guard>{{ vm.bkf_show_all_courses ? "Only " + vm.bkf_ins_name() + "'s" : 'Show all' }}</a>
+        </label>
+        <ui-select class="bkf-us" ng-model="vm.new_booking.tuition_required" theme="bootstrap" ng-disabled="disabled" title="Select Tuition Required" append-to-body="true">
+          <ui-select-match placeholder="Select course" allow-clear="true">
+            {{ vm.new_booking.tuition_required.title }}
+          </ui-select-match>
+          <ui-select-choices repeat="course in vm.bkf_courses_list | propsFilterA: {title: $select.search, id: $select.search}">
+            <div class="bkf-opt bkf-opt--plain" ng-class="{'bkf-opt--dim': vm.bkf_course_off(course)}">
+              <div class="bkf-opt__body">
+                <div class="bkf-opt__nm" ng-bind-html="course.title | highlight: $select.search"></div>
+                <div class="bkf-opt__sub bkf-opt__off" ng-if="vm.bkf_course_off(course)"><i class="fa fa-minus-circle"></i> Not on {{ vm.bkf_ins_name() }}'s list</div>
+              </div>
+            </div>
+          </ui-select-choices>
+          <ui-select-no-choice>
+            <span>It doesn't look like this instructor can teach what you're looking for.</span>
+          </ui-select-no-choice>
+        </ui-select>
+        <p class="bkf-field__hint bkf-field__hint--off" ng-if="vm.new_booking.tuition_required && vm.bkf_course_off(vm.new_booking.tuition_required)" id="note-course-off"><i class="fa fa-minus-circle"></i> Not on {{ vm.bkf_ins_name() }}'s list — kept as you chose it.</p>
+      </div>
+    </div>
+
+    <!-- Lesson (v2 panel only): bookings.lesson_id — the course's lessons, pre-selected with the
+         student's suggested next lesson (bookings/next_lesson). Shown once there is a course + student. -->
+    <div class="bkf-field bkf-field--lesson bkf-mt" ng-if="vm.bkf_lesson_visible()" id="field-lesson">
+      <label><i class="fa fa-book-open"></i> Lesson <span class="bkf-field__hint">(optional)</span></label>
+      <ui-select class="bkf-us" ng-model="vm.new_booking.lesson" theme="bootstrap" ng-disabled="disabled" title="Select the lesson" append-to-body="true">
+        <ui-select-match placeholder="{{ vm.bkf_lesson_loading ? 'Loading lessons…' : 'Which lesson will be flown?' }}" allow-clear="true">
+          {{ vm.bkf_lesson_label(vm.new_booking.lesson) }}
+        </ui-select-match>
+        <ui-select-choices repeat="lesson in vm.bkf_lessons | filter: $select.search">
+          <div ng-bind-html="vm.bkf_lesson_label(lesson) | highlight: $select.search"></div>
+          <small ng-if="lesson.course_reference" ng-bind-html="lesson.course_reference | highlight: $select.search"></small>
+        </ui-select-choices>
+        <ui-select-no-choice>
+          <span>No lessons on this course yet.</span>
+        </ui-select-no-choice>
+      </ui-select>
+      <p class="bkf-field__hint bkf-field__hint--suggest" ng-show="vm.bkf_lesson_is_suggested()"><i class="fa fa-lightbulb"></i> Suggested next lesson from the training record</p>
+    </div>
+
+    <!-- Potential solo (v2 panel, club staff only): bookings.solo — prefilled from the lesson's solo flag,
+         switchable either way. Solo colour on the scheduler; the book-out pre-sets the student-solo intent. -->
+    <div class="bkf-field bkf-field--solo bkf-mt" ng-if="vm.bkf_solo_visible()" id="field-solo">
+      <div class="bkf-toggle-row" ng-class="{'bkf-toggle-row--on': vm.bkf_solo_on()}">
+        <label class="snazzy-toggle">
+          <input type="checkbox" ng-model="vm.new_booking.solo" ng-true-value="1" ng-false-value="0" ng-change="vm.bkf_solo_touched()" no-busy-guard>
+          <span class="snazzy-toggle__slider"></span>
+        </label>
+        <div class="bkf-toggle-row__text">
+          <span class="bkf-toggle-row__label"><i class="fa fa-user"></i> Potential solo</span>
+          <span class="bkf-field__hint">Shown in the solo colour on the scheduler; the book-out is pre-set to a solo</span>
+          <span class="bkf-field__hint bkf-field__hint--suggest" ng-show="vm.bkf_solo_on() && vm.bkf_solo_from_lesson() && !vm.bkf_solo_explicit"><i class="fa fa-lightbulb"></i> Set from the lesson — it is a solo lesson</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- currency self-certification -->
+    <div class="bkf-note bkf-note--warn" ng-if="vm.new_booking.instructor.id < 1 || !vm.is_current">
+      <input type="checkbox" id="override" ng-model="vm.new_booking.override" />
+      <label for="override">I confirm that I am (or will be) within the currency requirements of the club for this plane. I have flown the same <b>{{ vm.currency_type }}</b> of aeroplane within the last <b>{{ vm.currency_days }} days</b>.</label>
+    </div>
+  </section>
+
+  <!-- ══════════ EXTRAS ══════════ -->
+  <section class="bkf-card" id="card-extras">
+    <div class="bkf-card__hd">
+      <span class="bkf-card__icon"><i class="fa fa-suitcase"></i></span>
+      <div>
+        <h3>Extras</h3>
+        <p>Passengers, rental items and notes</p>
+      </div>
+    </div>
+
+    <!-- rental items -->
+    <div ng-if="vm.rental_items.length > 0 || vm.new_booking.rental_items.length > 0">
+      <div class="bkf-sub"><h4>Rental items</h4><span class="bkf-sub__n" ng-show="vm.new_booking.rental_items.length">{{ vm.new_booking.rental_items.length }}</span></div>
+      <div class="bkf-add-row">
+        <div class="bkf-field">
+          <ui-select class="bkf-us" ng-model="vm.rental_item" theme="bootstrap" ng-disabled="disabled" title="Select Available Rental Item" append-to-body="true">
+            <ui-select-match placeholder="Select a rental item">
+              {{ vm.rental_item.title }}
+            </ui-select-match>
+            <ui-select-choices repeat="rental_item in vm.rental_items | propsFilterA: {title: $select.search, description: $select.search, id: $select.search}">
+              <span ng-bind-html="rental_item.title | highlight: $select.search"></span>
+            </ui-select-choices>
+            <ui-select-no-choice>
+              <span>The item you're looking for doesn't seem to be available!</span>
+            </ui-select-no-choice>
+          </ui-select>
+        </div>
+        <button type="button" ng-click="add_rental_item()" class="bkf-btn bkf-btn--quiet"><i class="fa fa-plus"></i> Add</button>
+      </div>
+      <div class="bkf-list" ng-if="vm.new_booking.rental_items.length > 0">
+        <div class="bkf-row" ng-repeat="item in vm.new_booking.rental_items">
+          <span class="bkf-row__av"><i class="fa fa-box"></i></span>
+          <div class="bkf-row__body">
+            <div class="bkf-row__nm">{{ item.title }}</div>
+            <div class="bkf-row__sub">Number of items</div>
+          </div>
+          <div class="bkf-row__act">
+            <select class="bkf-select" ng-model="vm.new_booking.rental_items[$index].number_to_book" ng-init="vm.new_booking.rental_items[$index].number_to_book = 1" ng-options="n for n in [] | range:1:(item.number_available - item.bookings)"></select>
+            <button type="button" class="bkf-iconbtn bkf-iconbtn--danger" ng-click="rental_item_remove(item.id)" uib-tooltip="Remove this item"><i class="fa fa-times"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- passengers -->
+    <div class="bkf-sub"><h4>Passengers</h4><span class="bkf-sub__n" ng-show="vm.new_booking.passengers.length">{{ vm.new_booking.passengers.length }}</span></div>
+    <!-- add a passenger: the member picker grows, the invite button keeps its width (grid — no stray
+         styles.css .add_pax_select bar: that class is deliberately NOT used here) -->
+    <div class="bkf-add-row bkf-add-row--pax bkf-mb" id="row-add-pax">
+      <div class="bkf-field">
+        <ui-select class="bkf-us bkf-us--mem" ng-model="vm.new_pax" theme="bootstrap" title="Add a passenger" append-to-body="true" reset-search-input="0">
+          <ui-select-match placeholder="Name or email">
+            <!-- vm.new_pax is an object even when nothing is picked, so ui-select's own placeholder never shows; ONE wrapper
+                 span like the Member picker (loose text nodes beside the placeholder wrapped to a second line) -->
+            <span class="bkf-us-match"><span class="bkf-us-match__ph" ng-if="!vm.new_pax.first_name && !vm.new_pax.last_name && !vm.new_pax.email">Name or email</span><span class="bkf-us-match__txt" ng-if="vm.new_pax.first_name || vm.new_pax.last_name || vm.new_pax.email">{{ ((vm.new_pax.first_name || '') + ' ' + (vm.new_pax.last_name || '')).trim() || vm.new_pax.email }}</span></span>
+          </ui-select-match>
+          <!-- vm.bkf_pax_members: its own list (current members, minus the pilot, the instructor and anyone already added);
+               the refresh also REMEMBERS the typed text so "Invite passenger" can pre-fill the form with it -->
+          <ui-select-choices repeat="member in vm.bkf_pax_members" refresh="vm.bkf_pax_search_members($select.search)" refresh-delay="250">
+            <div class="bkf-opt">
+              <span class="bkf-opt__av bkf-opt__av--mem"><i class="fa fa-user"></i></span>
+              <div class="bkf-opt__body">
+                <div class="bkf-opt__nm" ng-bind-html="member.name | highlight: $select.search"></div>
+                <div class="bkf-opt__sub" ng-bind-html="member.email | highlight: $select.search"></div>
+              </div>
+            </div>
+          </ui-select-choices>
+          <!-- without this, ui-select leaves an EMPTY <div class="ui-select-no-choice"> in flow — the stray rounded bar under the row -->
+          <ui-select-no-choice>
+            <span ng-if="vm.bkf_pax_search.length">Not a member — press <b>Invite passenger</b> and we'll email them</span>
+            <span ng-if="!vm.bkf_pax_search.length">{{ vm.bkf_is_staff() ? 'Type a name or email' : 'Type your passenger\'s email, then press Invite passenger' }}</span>
+          </ui-select-no-choice>
+        </ui-select>
+      </div>
+      <a ng-click="vm.add_new_passenger()" class="bkf-btn bkf-btn--quiet"><i class="fa fa-user-plus"></i> Invite passenger</a>
+    </div>
+
+    <div class="bkf-empty" ng-if="vm.new_booking.passengers && vm.new_booking.passengers.length < 1">
+      <i class="fa fa-user-plus"></i> No passengers on this booking yet.
+    </div>
+    <div class="bkf-list" ng-if="vm.new_booking.passengers && vm.new_booking.passengers.length > 0">
+      <div class="bkf-row" ng-repeat="passenger in vm.new_booking.passengers track by $index">
+        <span class="bkf-row__av">{{ (passenger.first_name || passenger.email || '?').charAt(0) }}{{ (passenger.last_name || '').charAt(0) }}</span>
+        <div class="bkf-row__body">
+          <div class="bkf-row__nm">{{ passenger.first_name || passenger.email }} {{ passenger.last_name }}</div>
+          <div class="bkf-row__sub">
+            <!-- ONE chip, from the saved status or (not saved yet) the backend's preview of what saving will do -->
+            <span class="bkf-chip" ng-class="'bkf-chip--' + vm.bkf_pax_chip(passenger).tone" uib-tooltip="{{ vm.bkf_pax_chip(passenger).tip }}" tooltip-append-to-body="true"><i class="fa" ng-class="vm.bkf_pax_chip(passenger).icon"></i> {{ vm.bkf_pax_chip(passenger).text }}</span>
+            <span ng-if="passenger.email && passenger.first_name">{{ passenger.email }}</span>
+          </div>
+        </div>
+        <div class="bkf-row__act">
+          <a ng-if="passenger.booking_id && (passenger.status == 'invited' || passenger.status == 'declined')" ng-click="vm.resend_invitation(passenger)" class="bkf-iconbtn" uib-tooltip="{{ passenger.status == 'declined' ? 'Invite them again' : 'Resend the invitation email' }}" tooltip-append-to-body="true"><i class="fas fa-paper-plane"></i></a>
+          <a ng-if="passenger.status == 'invited'" ng-click="vm.update_passenger_list()" class="bkf-iconbtn" uib-tooltip="Refresh the invitation status"><i class="fas fa-sync"></i></a>
+          <a ng-click="vm.remove_passenger($index)" class="bkf-iconbtn bkf-iconbtn--danger" uib-tooltip="Remove this passenger"><i class="fas fa-trash"></i></a>
+        </div>
+      </div>
+    </div>
+    <!-- notes -->
+    <div class="bkf-field bkf-mt">
+      <label><i class="fa fa-sticky-note"></i> Notes</label>
+      <textarea class="bkf-textarea" rows="3" ng-model="vm.new_booking.description" placeholder="Anything the club or instructor should know"></textarea>
+    </div>
+  </section>
+
+  <!-- ══════════ ACTIONS — fixed to the panel's bottom edge (the body keeps --bkf-bar-h clear) ══════════ -->
+  <div class="bkf-actions">
+    <button type="button" class="bkf-btn bkf-btn--quiet" ng-click="vm.go_back()"><i class="fa fa-arrow-left"></i> Back</button>
+    <button type="button" class="bkf-btn bkf-btn--quiet" ng-if="vm.action != 'edit'" ng-click="clear_booking()"><i class="fa fa-eraser"></i> Clear</button>
+    <span class="bkf-actions__sp"></span>
+    <button type="button" class="bkf-btn bkf-btn--danger" ng-if="vm.action == 'edit' && vm.new_booking.id" ng-click="confirm_cancel_booking(vm.new_booking)"><i class="fa fa-trash"></i> Delete</button>
+    <button type="submit" class="bkf-btn bkf-btn--primary" ng-disabled="vm.action == 'edit' && vm.new_booking.after_booking_end">
+      <i class="fa" ng-class="vm.action == 'edit' ? 'fa-save' : 'fa-calendar-plus'"></i> {{ vm.action == 'edit' ? 'Save changes' : 'Make booking' }}
+    </button>
+  </div>
+</form>
+
+<!-- ═══ Cancel-booking confirmation (the v1 styled popup, .cancel-confirm in styles.css) ═══ -->
+<div class="cancel-confirm" ng-if="vm.cancel_confirm.visible" ng-click="close_cancel_confirm()">
+  <div class="cancel-confirm__box" ng-click="$event.stopPropagation()">
+    <div class="cancel-confirm__icon"><i class="fa fa-exclamation-triangle"></i></div>
+    <h3 class="cancel-confirm__title">Cancel this booking?</h3>
+    <p class="cancel-confirm__sub">This will remove the booking from the schedule. This can't be undone.</p>
+    <div class="cancel-confirm__details" ng-if="vm.cancel_confirm.booking">
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.title">
+        <span class="cancel-confirm__label">Booked for</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.title }}</span>
+      </div>
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.plane.registration">
+        <span class="cancel-confirm__label">Aircraft</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.plane.registration }}</span>
+      </div>
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.start_datetime">
+        <span class="cancel-confirm__label">When</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.start_datetime | date:"dd/MM/yyyy HH:mm" }}<span ng-if="vm.cancel_confirm.booking.end_datetime"> – {{ vm.cancel_confirm.booking.end_datetime | date:"HH:mm" }}</span></span>
+      </div>
+    </div>
+    <div class="cancel-confirm__reason" ng-if="vm.is_v2">
+      <cancel-reason-fields club-id="vm.new_booking.club_id" state="vm.cancel_confirm.state" pilot-name="vm.cancel_confirm.booking.title" notes-id="bkf-cancel-notes"></cancel-reason-fields>
+    </div>
+    <div class="cancel-confirm__actions">
+      <button class="cancel-confirm__btn cancel-confirm__btn--keep" ng-click="close_cancel_confirm()" ng-disabled="vm.cancel_confirm.working">Keep Booking</button>
+      <button class="cancel-confirm__btn cancel-confirm__btn--cancel" ng-click="do_cancel_booking()" ng-disabled="vm.cancel_confirm.working">
+        <i class="fa" ng-class="{'fa-spinner fa-spin': vm.cancel_confirm.working, 'fa-trash': !vm.cancel_confirm.working}"></i>
+        {{ vm.cancel_confirm.working ? 'Cancelling…' : ((vm.cancel_confirm.state.claim && vm.cancel_confirm.state.fee > 0) ? 'Cancel & charge fee' : 'Cancel Booking') }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Invite a passenger ═══ -->
+<div class="popup_bg bkf-popup" ng-if="vm.show_new_passenger_invitation">
+  <div class="popup_box">
+    <div class="bkf-popup__icon bkf-popup__icon--info"><i class="fa fa-envelope"></i></div>
+    <h3>Invite a passenger <a uib-tooltip="The easiest way to invite a passenger who is not a member of the club, and ensure they adhere to regulations is to invite them by email. By pressing the 'SEND INVITATION' button, they will receive an email with a link to quickly add their details, add emergency contact details and agree to the terms and conditions of the club (if required).">(?)</a></h3>
+    <p class="bkf-popup__msg">They'll get an email link to add their details and accept the club's terms.</p>
+    <p class="bkf-popup__msg bkf-popup__msg--hint" ng-if="vm.bkf_pax_from_text"><i class="fa fa-info-circle"></i> Not a member of the club — filled in from what you typed.<span ng-if="!vm.new_pax.email"> Add their email address to send the invitation.</span></p>
+    <div class="bkf-field">
+      <label>Email address (required)</label>
+      <input type="email" class="bkf-input" ng-model="vm.new_pax.email" />
+    </div>
+    <div class="bkf-field">
+      <label>First name (optional)</label>
+      <input type="text" class="bkf-input" ng-model="vm.new_pax.first_name" />
+    </div>
+    <div class="bkf-field">
+      <label>Last name (optional)</label>
+      <input type="text" class="bkf-input" ng-model="vm.new_pax.last_name" />
+    </div>
+    <div class="bkf-popup-actions">
+      <button ng-click="vm.close_passenger_invitation()" class="bkf-btn bkf-btn--quiet">Cancel</button>
+      <button ng-click="vm.new_passenger_invite_ready(vm.new_pax)" class="bkf-btn bkf-btn--primary"><i class="fa fa-paper-plane"></i> Send invitation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Conflicts on an EDIT — three override tiers, built by check_before_changing_event ═══ -->
+<div class="popup_bg bkf-popup" ng-if="vm.booking_errors.length > 0" ng-click="decline_booking_change()">
+  <div class="popup_box" ng-class="{'popup_box--hardblock': error.is_hard_block}" ng-repeat="error in vm.booking_errors" ng-click="$event.stopPropagation()">
+    <div ng-if="error.is_hard_block">
+      <div class="hardblock-icon"><i class="fa fa-ban"></i></div>
+      <h3 class="hardblock-title">Booking Blocked</h3>
+    </div>
+    <div ng-if="!error.is_hard_block">
+      <div class="bkf-popup__icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <h3>Booking Conflict</h3>
+    </div>
+    <p class="bkf-popup__msg">{{ error.message }}</p>
+    <p ng-if="error.api && error.type !== 'rental_items' && !error.is_hard_block" class="bkf-popup__api">{{ error.api }}</p>
+    <div ng-if="error.type == 'rental_items'" class="bkf-popup__api">
+      <span ng-repeat="rental in error.api">
+        {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.
+      </span>
+    </div>
+    <p ng-if="error.is_hard_block && error.can_force" class="hardblock-warn">
+      <i class="fa fa-exclamation-triangle"></i>
+      Forcing this booking accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
+    </p>
+    <div class="bkf-popup-actions">
+      <button ng-click="decline_booking_change()" class="bkf-btn bkf-btn--quiet">Cancel Change</button>
+      <!-- Tier 1: soft conflict — normal override (admin path) -->
+      <button ng-if="(error.type === 'instructor' || error.type === 'plane') && !error.is_hard_block && error.can_override" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button || 'OVERRIDE CHANGE' }}</button>
+      <!-- Tier 2: hard block — force override (managers / super-admins only) -->
+      <button ng-if="(error.type === 'instructor' || error.type === 'plane') && error.is_hard_block && error.can_force" ng-click="force_booking_change(error.override)" class="bkf-btn bkf-btn--force">
+        <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+      </button>
+      <!-- Other conflicts (currency / rental items) — their own override button -->
+      <button ng-if="error.type !== 'instructor' && error.type !== 'plane' && error.button" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Conflicts on a NEW booking — built by make_booking ═══ -->
+<div class="popup_bg bkf-popup" ng-if="vm.new_booking_errors.length > 0" ng-click="vm.decline_new_booking_error()">
+  <div class="popup_box" ng-class="{'popup_box--hardblock': error.is_hard_block}" ng-repeat="error in vm.new_booking_errors" ng-click="$event.stopPropagation()">
+    <div ng-if="error.is_hard_block">
+      <div class="hardblock-icon"><i class="fa fa-ban"></i></div>
+      <h3 class="hardblock-title">Booking Blocked</h3>
+    </div>
+    <div ng-if="!error.is_hard_block">
+      <div class="bkf-popup__icon"><i class="fa fa-exclamation-triangle"></i></div>
+      <h3>Booking Conflict</h3>
+    </div>
+    <p class="bkf-popup__msg">{{ error.message }}</p>
+    <p ng-if="error.api && error.type !== 'rental_items' && !error.is_hard_block" class="bkf-popup__api">{{ error.api }}</p>
+    <div ng-if="error.type == 'rental_items'" class="bkf-popup__api">
+      <span ng-repeat="rental in error.api">
+        {{ rental.rental_item_title }} : you requested <b>{{ rental.required_number }}</b> but there is only <b>{{ rental.number_available }}</b> available.
+      </span>
+    </div>
+    <p ng-if="error.is_hard_block && error.can_force" class="hardblock-warn">
+      <i class="fa fa-exclamation-triangle"></i>
+      Forcing this booking accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
+    </p>
+    <div class="bkf-popup-actions">
+      <button ng-click="vm.decline_new_booking_error()" class="bkf-btn bkf-btn--quiet">Cancel</button>
+      <!-- Soft conflict — normal override -->
+      <button ng-if="!error.is_hard_block && error.button" ng-click="vm.override_new_booking_errors(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button }}</button>
+      <!-- Hard block — force override (managers / super-admins only) -->
+      <button ng-if="error.is_hard_block && error.can_force" ng-click="vm.force_new_booking_errors(error.override)" class="bkf-btn bkf-btn--force">
+        <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+      </button>
+    </div>
+  </div>
+</div>

@@ -149,6 +149,8 @@
                 CourseService.GetLessonById($stateParams.lesson_id)
                     .then(function(data){
                         vm.club.lesson = data.item;   
+                        // lessons.solo comes back as a string ("0"/"1") — the toggle binds 0/1
+                        vm.club.lesson.solo = (parseInt(vm.club.lesson.solo, 10) === 1) ? 1 : 0;
             
                     });
 

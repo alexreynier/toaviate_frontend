@@ -1,0 +1,38 @@
+<div class="crf">
+  <div class="crf__reasons" role="radiogroup" aria-label="Why is this booking being cancelled?">
+    <button type="button" class="crf__reason" ng-repeat="r in crf.reasons track by r.key" no-busy-guard
+            id="{{ crf.uid }}-reason-{{ r.key }}"
+            role="radio" aria-checked="{{ crf.state.key === r.key }}"
+            ng-class="{'crf__reason--on': crf.state.key === r.key, 'crf__reason--staff': r.staff_only, 'crf__reason--fee': r.fee > 0}"
+            ng-click="crf.pick(r)">
+      <i class="fas fa-user-shield crf__staff-icon" ng-if="r.staff_only" title="Staff only"></i>
+      <span>{{ r.label }}</span>
+      <span class="crf__fee-tag" ng-if="r.fee > 0">{{ crf.money(r.fee) }}</span>
+    </button>
+  </div>
+
+  <textarea id="{{ crf.notesId || (crf.uid + '-notes') }}" class="crf__notes" rows="2" ng-model="crf.state.notes"
+            placeholder="{{ crf.isOther() ? 'Please specify…' : 'Anything the member should know (optional)' }}"></textarea>
+
+  <!-- the fee: a switch for whoever may claim it, a plain note for everyone else -->
+  <div class="crf__fee" ng-if="crf.picked && crf.picked.fee > 0" ng-class="{'crf__fee--on': crf.state.claim}">
+    <label class="crf__fee-switch" for="{{ crf.uid }}-claim" ng-if="crf.policy.can_claim">
+      <span class="snazzy-toggle crf__toggle">
+        <input type="checkbox" id="{{ crf.uid }}-claim" ng-model="crf.state.claim" />
+        <span class="snazzy-toggle__slider"></span>
+      </span>
+      <span class="crf__fee-text">
+        <strong>Charge the {{ crf.feeName() }} of {{ crf.money(crf.picked.fee) }}</strong>
+        <span ng-if="crf.state.claim">Invoiced to {{ crf.pilotName || 'the pilot' }}: collected with their next direct debit if they have a mandate, otherwise left on their account to pay.</span>
+        <span ng-if="!crf.state.claim">Not charged. You can still claim it later from Cancellations.</span>
+      </span>
+    </label>
+    <p class="crf__fee-note" ng-if="!crf.policy.can_claim">
+      <i class="fas fa-receipt"></i>
+      <span>The club may charge a {{ crf.feeName() }} of {{ crf.money(crf.picked.fee) }} for this.<span ng-if="crf.policy.is_staff"> Only club admins can claim it.</span></span>
+    </p>
+  </div>
+  <p class="crf__free" ng-if="crf.anyFees && crf.picked && !(crf.picked.fee > 0)">
+    <i class="fas fa-check-circle"></i> No fee for this reason.
+  </p>
+</div>

@@ -1,0 +1,250 @@
+/* ═══════════════════════════════════════════════════════════════
+   CLUB OPENING HOURS  —  weekly editor on Manage Club → Settings
+   (clubs.opening_hours: {"1":{open,close}|null,…,"7"}, ISO weekday keys)
+
+   .coh                 the setting row (stacks: info on top, editor under it)
+     __summary          "Mon–Fri 08:30–17:30 · Sat 09:00–16:00 · Sun closed"
+     __editor           card holding the seven day rows + the helper buttons
+     __day              one weekday: name · toggle · times (or "Closed all day")
+       --closed / --unset / --invalid
+     __name / __name-short / __toggle / __state / __times / __time / __dash
+     __hint / __hint--bad / __closed-txt
+     __helpers / __btn
+   Soft setting: the scheduler shades outside these hours and the booking form
+   warns — nothing is blocked, so the editor is calm, not alarming.
+   ═══════════════════════════════════════════════════════════════ */
+
+.coh {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+.coh .snazzy-setting-info { flex: none; }
+.coh__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 100%;
+}
+.coh__summary i { font-size: 11px; opacity: 0.85; }
+.coh__summary--unset {
+  background: #f1f5f9;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ── Editor card ── */
+.coh__editor {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px 16px 14px;
+  box-sizing: border-box;
+}
+
+/* ── One weekday ── */
+.coh__day {
+  display: grid;
+  grid-template-columns: 110px auto 1fr;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e2e8f0;
+  transition: opacity 0.2s ease;
+}
+.coh__day:last-of-type { border-bottom: none; }
+.coh__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.coh__name-short { display: none; }
+.coh__day--closed .coh__name { color: #64748b; }
+
+.coh__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.coh__toggle .snazzy-toggle { margin: 0; flex: none; }
+.coh__state {
+  min-width: 52px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #16a34a;
+}
+.coh__day--closed .coh__state { color: #94a3b8; }
+
+.coh__times {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-width: 0;
+}
+.coh__time {
+  flex: 0 1 128px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.coh__time:focus {
+  outline: none;
+  border-color: #2d5a8e;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.coh__time.field-error,
+.coh__day--invalid .coh__time--close {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.10);
+}
+.coh__dash {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.coh__hint {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+  white-space: nowrap;
+}
+.coh__hint--bad {
+  color: #dc2626;
+  font-style: normal;
+  font-weight: 600;
+}
+.coh__closed-txt {
+  font-size: 13px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.coh__day--closed .coh__closed-txt::before {
+  content: '';
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: #cbd5e1;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+
+/* ── Helper buttons ── */
+.coh__helpers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+.coh__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.coh__btn i { font-size: 11px; color: #2d5a8e; }
+.coh__btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+.coh__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.coh__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.coh__btn--quiet { margin-left: auto; color: #64748b; }
+.coh__btn--quiet i { color: #94a3b8; }
+.coh__btn--quiet:hover { color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
+.coh__btn--quiet:hover i { color: #dc2626; }
+
+/* ── Phone: rows stack, times take the full width, nothing overflows ── */
+@media (max-width: 640px) {
+  .coh__editor { padding: 2px 12px 12px; }
+  .coh__day {
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    padding: 10px 0;
+  }
+  .coh__name { font-size: 15px; }
+  .coh__times,
+  .coh__closed-txt { grid-column: 1 / -1; }
+  .coh__times { flex-wrap: nowrap; }
+  .coh__time { flex: 1 1 0; height: 44px; }   /* ≥16px font from the global iOS zoom guard */
+  .coh__hint { flex-basis: 100%; white-space: normal; }
+  .coh__times:has(.coh__hint:not(.ng-hide)) { flex-wrap: wrap; }   /* ng-show toggles .ng-hide */
+  .coh__dash { flex: none; }
+  .coh__state { display: none; }
+  .coh__helpers { padding-top: 12px; }
+  .coh__btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-height: 40px; }
+  .coh__btn--quiet { margin-left: 0; flex-basis: 100%; }
+}
+@media (max-width: 420px) {
+  .coh__summary { font-size: 12px; padding: 5px 10px; }
+  .coh__btn { flex-basis: 100%; }
+}
+
+/* ── Night mode ── */
+body.night-mode .coh__summary { background: rgba(59,130,246,0.18); color: #bfdbfe; }
+body.night-mode .coh__summary--unset { background: #16213e; color: #94a3b8; }
+body.night-mode .coh__editor { background: #16213e; border-color: #334155; }
+body.night-mode .coh__day { border-bottom-color: #334155; }
+body.night-mode .coh__name { color: #e2e8f0; }
+body.night-mode .coh__day--closed .coh__name { color: #94a3b8; }
+body.night-mode .coh__time {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+  color-scheme: dark;
+}
+body.night-mode .coh__time:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96,165,250,0.18); }
+body.night-mode .coh__day--invalid .coh__time--close,
+body.night-mode .coh__time.field-error { border-color: #f87171; box-shadow: 0 0 0 3px rgba(248,113,113,0.15); }
+body.night-mode .coh__hint--bad { color: #fca5a5; }
+body.night-mode .coh__day--closed .coh__closed-txt::before { background: #334155; }
+body.night-mode .coh__helpers { border-top-color: #334155; }
+body.night-mode .coh__btn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+body.night-mode .coh__btn i { color: #93c5fd; }
+body.night-mode .coh__btn:hover { background: #2d3748; border-color: #475569; color: #f8fafc; }
+body.night-mode .coh__btn--quiet:hover { background: rgba(220,38,38,0.15); border-color: #7f1d1d; color: #fca5a5; }
+body.night-mode .coh__btn--quiet:hover i { color: #fca5a5; }

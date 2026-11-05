@@ -53,7 +53,8 @@
                     vm.loading = false;
 
                     if (!data.success) {
-                        if (data.status === 403) {
+                        // The backend now refuses non-participants with error:'FORBIDDEN' (status 403 kept for older builds)
+                        if (data.status === 403 || data.error === 'FORBIDDEN' || (data.message && data.message.error === 'FORBIDDEN')) {
                             vm.accessDenied = true;
                         } else {
                             vm.error = true;

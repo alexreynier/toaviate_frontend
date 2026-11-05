@@ -1,0 +1,158 @@
+<div class="wrq">
+  <div class="wrq__hd">
+    <span class="wrq__hd-icon"><i class="fas fa-user-clock"></i></span>
+    <div>
+      <h3 class="wrq__title">{{ vm.staff ? 'Add a waiting-list request' : 'Waiting list' }}</h3>
+      <p class="wrq__sub" ng-show="!vm.staff">Tell the club when you could fly — they'll call you if a slot frees up.</p>
+      <p class="wrq__sub" ng-show="vm.staff">On a member's behalf — they get the confirmation email and it shows in their own list.</p>
+    </div>
+    <button type="button" class="wrq__close" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+  </div>
+
+  <div class="wrq__tabs" ng-show="!vm.staff">
+    <button type="button" class="wrq__tab" ng-class="{'wrq__tab--on': vm.tab === 'new'}" ng-click="vm.showNew()" no-busy-guard>New request</button>
+    <button type="button" class="wrq__tab" ng-class="{'wrq__tab--on': vm.tab === 'mine'}" ng-click="vm.showMine()" no-busy-guard>My requests</button>
+  </div>
+
+  <!-- ── New request ── -->
+  <div class="wrq__body" ng-show="vm.tab === 'new'">
+
+    <div class="wrq__field" ng-show="vm.clubs.length > 1">
+      <label class="wrq__label" for="wrq-club">Club</label>
+      <select id="wrq-club" class="wrq__select" ng-model="vm.form.club_id" ng-options="c.id as c.title for c in vm.clubs" no-busy-guard></select>
+    </div>
+
+    <div class="wrq__field" ng-show="vm.staff">
+      <label class="wrq__label" for="wrq-member">Member</label>
+      <div class="wrq__picked" ng-show="vm.member">
+        <span class="wrq__picked-av wrq__picked-av--member"><i class="fas fa-user"></i></span>
+        <span class="wrq__picked-nm">{{ vm.memberName(vm.member) }}</span>
+        <button type="button" class="wrq__date-x" ng-click="vm.clearMember()" no-busy-guard aria-label="Change member">×</button>
+      </div>
+      <div ng-show="!vm.member">
+        <input id="wrq-member" type="text" class="wrq__input" ng-model="vm.memberSearch" placeholder="Start typing a name…" autocomplete="off" />
+        <div class="wrq__hint" ng-show="vm.memberSearch.length < 2 && !vm.membersLoading">Searches every current member of the club by name or email.</div>
+        <div class="wrq__hint" ng-show="vm.membersLoading"><span class="sv2-spinner sv2-spinner--xs"></span> Searching…</div>
+        <div class="wrq__members" ng-show="vm.memberSearch.length >= 2 && !vm.membersLoading">
+          <button type="button" class="wrq__member" ng-repeat="m in vm.memberMatches() track by m.user_id" ng-click="vm.pickMember(m)" no-busy-guard>
+            <span class="wrq__picked-av wrq__picked-av--member"><i class="fas fa-user"></i></span>
+            <span class="wrq__member-nm">{{ m.first_name }} {{ m.last_name }}</span>
+          </button>
+          <div class="wrq__hint" ng-show="!vm.memberMatches().length">No current member matches "{{ vm.memberSearch }}".</div>
+          <div class="wrq__hint" ng-show="vm.memberMatches().length && vm.memberMore">Showing the first 25 — keep typing to narrow it down.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrq__field">
+      <span class="wrq__label">What kind of flight?</span>
+      <div class="wrq__seg">
+        <button type="button" class="wrq__seg-btn" ng-repeat="k in vm.enums.kinds" ng-class="{'wrq__seg-btn--on': vm.form.kind === k.id}" ng-click="vm.setKind(k.id)" no-busy-guard title="{{ k.hint }}">{{ k.label }}</button>
+      </div>
+    </div>
+
+    <div class="wrq__row">
+      <div class="wrq__field">
+        <label class="wrq__label" for="wrq-type">Aircraft</label>
+        <select id="wrq-type" class="wrq__select" ng-model="vm.form.plane_type" no-busy-guard>
+          <option value="">Any aircraft</option>
+          <option ng-repeat="f in vm.fleetFor()" value="{{ f.type }}">{{ f.label }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="wrq__field" ng-show="vm.form.kind === 'dual'">
+      <label class="wrq__label" for="wrq-instructor">Instructor <span class="wrq__muted">(any, or one in particular)</span></label>
+      <div class="wrq__picked" ng-show="vm.instructor">
+        <span class="wrq__picked-av wrq__picked-av--ins">{{ vm.instructorInitials(vm.instructor) }}</span>
+        <span class="wrq__picked-nm">{{ vm.instructor.name || (vm.instructor.first_name + ' ' + vm.instructor.last_name) }}</span>
+        <button type="button" class="wrq__date-x" ng-click="vm.clearInstructor()" no-busy-guard aria-label="Any instructor instead">×</button>
+      </div>
+      <div ng-show="!vm.instructor">
+        <input id="wrq-instructor" type="text" class="wrq__input" ng-model="vm.instructorSearch" placeholder="Any instructor — type a name to pick one" autocomplete="off" />
+        <div class="wrq__hint" ng-show="vm.instructorsLoading"><span class="sv2-spinner sv2-spinner--xs"></span> Loading instructors…</div>
+        <div class="wrq__members wrq__members--short" ng-show="vm.instructorSearch && !vm.instructorsLoading">
+          <button type="button" class="wrq__member" ng-repeat="i in vm.instructorMatches() track by i.user_id" ng-click="vm.pickInstructor(i)" no-busy-guard>
+            <span class="wrq__picked-av wrq__picked-av--ins">{{ vm.instructorInitials(i) }}</span>
+            <span class="wrq__member-nm">{{ i.name || (i.first_name + ' ' + i.last_name) }}</span>
+          </button>
+          <div class="wrq__hint" ng-show="!vm.instructorMatches().length">No instructor matches "{{ vm.instructorSearch }}".</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrq__field">
+      <span class="wrq__label">Days you could fly <span class="wrq__muted">(up to 10)</span></span>
+      <div class="wrq__dates">
+        <div class="wrq__date" ng-repeat="d in vm.form.dates">
+          <span class="wrq__date-label">{{ vm.dateLabel(d.date) }}</span>
+          <span class="wrq__pref">
+            <button type="button" class="wrq__pref-btn" ng-repeat="p in vm.enums.preferences" ng-class="{'wrq__pref-btn--on': d.preference === p.id}" ng-click="vm.setPref(d, p.id)" no-busy-guard>{{ p.id === 'any' ? 'Any' : (p.id === 'am' ? 'AM' : 'PM') }}</button>
+          </span>
+          <button type="button" class="wrq__date-x" ng-click="vm.removeDate(d)" no-busy-guard aria-label="Remove {{ vm.dateLabel(d.date) }}">×</button>
+        </div>
+        <button type="button" id="wrq-add-date" class="wrq__add-date" ng-show="vm.pickerReady" no-busy-guard>
+          <i class="fas fa-calendar-plus"></i> {{ vm.form.dates.length ? 'Add another day' : 'Add a day' }}
+        </button>
+        <div class="wrq__native" ng-show="!vm.pickerReady">
+          <input type="date" class="wrq__input" ng-model="vm.nativeDate" />
+          <button type="button" class="wrq__add-date" ng-click="vm.addNativeDate()" no-busy-guard><i class="fas fa-plus"></i> Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrq__field">
+      <label class="wrq__label" for="wrq-notice">{{ vm.staff ? 'How much notice do they need?' : 'How much notice do you need?' }}</label>
+      <select id="wrq-notice" class="wrq__select" ng-model="vm.form.notice" ng-options="n.id as n.label for n in vm.enums.notices" no-busy-guard></select>
+      <div class="wrq__hint">Time from the phone call to being at the airfield.</div>
+    </div>
+
+    <div class="wrq__field">
+      <label class="wrq__label" for="wrq-notes">Notes <span class="wrq__muted">(optional)</span></label>
+      <textarea id="wrq-notes" class="wrq__textarea" ng-model="vm.form.notes" rows="2" placeholder="e.g. Happy to do circuits or a nav; not Thursday mornings"></textarea>
+    </div>
+  </div>
+  <div class="wrq__ft" ng-show="vm.tab === 'new'">
+    <button type="button" class="wrq__btn" ng-click="vm.close()" no-busy-guard>Close</button>
+    <span class="wrq__sp"></span>
+    <button type="button" class="wrq__btn wrq__btn--primary" ng-click="vm.submit()" ng-disabled="vm.saving">
+      <i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : (vm.staff ? 'fa-user-plus' : 'fa-paper-plane')"></i> {{ vm.saving ? 'Saving…' : (vm.staff ? 'Add to the waiting list' : 'Join the waiting list') }}
+    </button>
+  </div>
+
+  <!-- ── My requests ── -->
+  <div class="wrq__body" ng-show="vm.tab === 'mine'">
+    <div class="wrq__state" ng-show="vm.loadingMine"><span class="sv2-spinner"></span> Loading your requests…</div>
+    <div class="wrq__empty" ng-show="!vm.loadingMine && !vm.mine.length">
+      <i class="fas fa-inbox"></i>
+      <div>You have no open requests.</div>
+      <button type="button" class="wrq__btn wrq__btn--primary" ng-click="vm.showNew()" no-busy-guard>Make one</button>
+    </div>
+    <div class="wrq__req" ng-repeat="r in vm.mine" ng-class="{'wrq__req--busy': r._busy}">
+      <div class="wrq__req-top">
+        <span class="wrq__req-kind">{{ r.kind_label || vm.labelOf.kind(r.kind) }}</span>
+        <span class="wrq__status" ng-class="'wrq__status--' + vm.labelOf.tone(r.status)">{{ vm.labelOf.status(r.status) }}</span>
+      </div>
+      <div class="wrq__req-line">
+        <span><i class="fas fa-plane"></i> {{ r.plane_type_label || r.plane_type || 'Any aircraft' }}</span>
+        <span ng-show="r.kind === 'dual'"><i class="fas fa-user-tie"></i> {{ r.instructor_label || (r.instructor && r.instructor.name) || 'Any instructor' }}</span>
+        <span><i class="fas fa-hourglass-half"></i> {{ r.notice_label || vm.labelOf.notice(r.notice) }}</span>
+      </div>
+      <!-- every day with ITS state: "Sat 7 Nov · PM — Couldn't take it", "Thu 5 Nov · AM — Waiting", "Fri 6 Nov — Booked elsewhere" -->
+      <div class="wrq__req-dates">
+        <span class="wrq__chip" ng-repeat="d in r.dates" ng-class="['wrq__chip--' + vm.labelOf.dateTone(d), {'wrq__chip--elsewhere': d.status === 'fulfilled' && d.fulfilled_elsewhere == 1}]" title="{{ vm.labelOf.dateStatus(d) }}">{{ vm.dateLabel(d.date) }}<em ng-show="d.preference !== 'any'"> · {{ vm.labelOf.pref(d.preference) }}</em><em class="wrq__chip-state">— {{ vm.labelOf.dateStatus(d) }}</em></span>
+      </div>
+      <div class="wrq__req-notes" ng-show="r.notes">{{ r.notes }}</div>
+      <div class="wrq__req-act">
+        <span class="wrq__muted" ng-show="r.status === 'contacted'">The club has been in touch{{ vm.liveDays(r) > 1 ? ' about ' + vm.liveDays(r) + ' days' : '' }}.</span>
+        <span class="wrq__muted" ng-show="r.status === 'open' && vm.settledDays(r) > 0">Still waiting on {{ vm.liveDays(r) }} day{{ vm.liveDays(r) == 1 ? '' : 's' }}.</span>
+        <span class="wrq__muted" ng-show="r.status === 'open' && vm.settledDays(r) === 0 && r.queue_position">#{{ r.queue_position }} in the club's queue.</span>
+        <span class="wrq__sp"></span>
+        <button type="button" class="wrq__btn wrq__btn--quiet" ng-click="vm.cancelRequest(r)" ng-disabled="r._busy">Cancel request</button>
+      </div>
+    </div>
+  </div>
+  <div class="wrq__ft" ng-show="vm.tab === 'mine'">
+    <button type="button" class="wrq__btn" ng-click="vm.close()" no-busy-guard>Close</button>
+  </div>
+</div>

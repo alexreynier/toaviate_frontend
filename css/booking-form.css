@@ -1,0 +1,858 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   BOOKING FORM PANEL — Scheduler v2's New booking / Edit booking
+   (views/scheduler_v2/booking_add.html, booking_edit.html, the shared
+   _booking_form.html; states dashboard.scheduler_v2.add / .edit rendered
+   into <ui-view name="panel"> of views/scheduler_v2.html).
+   Snazzy tokens (CLAUDE.md "Design System"); .bkf-* BEM, everything scoped
+   under the .bkf root so nothing leaks into the v1 booking pages.
+   A fixed slide-out on the LEFT over the scheduler (the v1 #mini_view_left
+   idea): 460px / max 92vw, under the 50px fixed header, scrollable body,
+   sticky action bar; a full-width sheet under 768px. Night mode at the end.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.bkf, .bkf * { box-sizing: border-box; }
+.bkf { text-align: left; font-size: 14px; color: #1e293b; }
+
+/* ── backdrop + panel ── */
+.bkf-backdrop {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1040;
+  background: rgba(15, 23, 42, 0.32);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: bkf-fade-in 0.25s ease-out backwards;
+}
+.bkf-panel {
+  --bkf-bar-h: 68px;        /* measured by the controller (ResizeObserver on .bkf-actions); this is the fallback */
+  position: fixed;
+  top: 50px;
+  left: 0;
+  width: 460px;
+  max-width: 92vw;
+  height: calc(100vh - 50px);
+  height: calc(100dvh - 50px);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.16), 1px 0 4px rgba(15, 23, 42, 0.06);
+  /* fill-mode backwards on purpose: a persisting transform would make the panel
+     the containing block for the fixed popups inside it (cancel-confirm, conflicts). */
+  animation: bkf-slide-in 0.32s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+@keyframes bkf-slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes bkf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .bkf-panel, .bkf-backdrop { animation: none; }
+}
+/* ── open / close without a flash ──
+   The panel renders into <ui-view name="panel">. snazzy-pages.css fades EVERY ui-view in (opacity animation on
+   the view element) and display:none's it on leave. Opacity < 1 on an ancestor makes it the backdrop root for
+   backdrop-filter, so for the 0.3 s of that fade the blur did not apply and the scheduler's grid showed sharp
+   through the dimmed backdrop, snapping blurred when the fade ended (frame capture 2026-11-04). The panel owns
+   its own entrance (backdrop fade + slide-in above), so the view itself must not animate: enter = no animation.
+   Leave: a short exit — the view animates a harmless property (colour, never opacity / transform) just long
+   enough for ngAnimate to keep it in the DOM while the backdrop fades and the panel slides out.
+   Specificity: the global leave rule is `[ui-view].ng-leave:not(#form-views)` (1,2,0) — hence the :not(#…)s. */
+ui-view[name="panel"].ng-enter, [ui-view][name="panel"].ng-enter { animation: none !important; }
+ui-view[name="panel"].ng-leave:not(#bkf-leave-a):not(#bkf-leave-b),
+[ui-view][name="panel"].ng-leave:not(#bkf-leave-a):not(#bkf-leave-b) { display: block !important; animation: bkf-view-hold 0.22s linear both; pointer-events: none; }
+@keyframes bkf-view-hold { from { color: #000; } to { color: #001; } }
+.ng-leave .bkf-backdrop { animation: bkf-fade-out 0.22s ease-in forwards; }
+.ng-leave .bkf-panel { animation: bkf-slide-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards; }
+@keyframes bkf-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes bkf-slide-out { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ng-leave .bkf-backdrop, .ng-leave .bkf-panel { animation: none; }
+}
+
+/* panel header: brand band, title + close */
+.bkf-panel__hd {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+}
+.bkf-panel__title { flex: 1; min-width: 0; }
+.bkf-panel__title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bkf-panel__title h2 i { font-size: 16px; opacity: 0.85; }
+.bkf-panel__title p { margin: 2px 0 0; font-size: 12.5px; color: rgba(255, 255, 255, 0.72); }
+.bkf-panel__close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+.bkf-panel__close:hover { background: rgba(255, 255, 255, 0.26); }
+.bkf-panel__link { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 12.5px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background 0.15s ease; }
+.bkf-panel__link:hover, .bkf-panel__link:focus { background: rgba(255, 255, 255, 0.24); color: #fff; text-decoration: none; }
+.bkf-panel__link i { font-size: 11px; opacity: 0.9; }
+.bkf-panel__close:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* scrollable body */
+.bkf-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 18px calc(var(--bkf-bar-h) + 16px);          /* the action bar sits over the bottom edge */
+  scroll-padding-bottom: calc(var(--bkf-bar-h) + 16px);     /* scrollIntoView / focus clear it too */
+  scrollbar-width: thin;
+}
+.bkf-panel__body::-webkit-scrollbar { width: 6px; }
+.bkf-panel__body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.bkf-main { display: grid; gap: 14px; min-width: 0; }
+
+/* ── cards ── */
+.bkf-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 16px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+.bkf-card__hd { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.bkf-card__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex: none;
+}
+.bkf-card__hd h3 { margin: 0; font-size: 15px; font-weight: 700; color: #1e293b; letter-spacing: -0.01em; line-height: 1.2; }
+.bkf-card__hd p { margin: 2px 0 0; font-size: 12.5px; color: #64748b; }
+.bkf-card__hd-right { margin-left: auto; }
+
+/* styles.css ships a global `.fa.fa-plane { color: #38405D }` (0,2,0) that paints the aircraft
+   glyph dark wherever it should inherit — the brand square of the What card, the field labels,
+   the Your-slot card. Every selector here is ≥ (0,2,1) and scoped to the panel. */
+.bkf .fa.fa-plane { color: inherit; margin: 0; }
+.bkf .bkf-card__icon i.fa-plane,
+.bkf .bkf-panel__hd i.fa-plane,
+.bkf .bkf-btn--primary i.fa-plane { color: #fff; }
+.bkf .bkf-field > label i.fa-plane { color: #94a3b8; }
+.bkf .bkf-slot__v i.fa-plane { color: #94a3b8; }
+
+/* ── fields ── */
+.bkf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 12px; }
+/* When: FROM date · start time on one row, TO date · end time on the next. The date
+   buttons use the short format ("Tue 3 Nov 2026") so both rows fit two columns, phones too. */
+.bkf-grid--when { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.bkf-grid--when .tadp-btn__text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ── booking from the waiting list (?request_id) — banner above the cards ── */
+.bkf .bkf-wrq { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: #ebf4fc; border: 1px solid #bfdbfe; display: grid; gap: 10px; text-align: left; }
+.bkf .bkf-wrq--loading { display: flex; align-items: center; gap: 8px; color: #1e40af; font-size: 13px; font-weight: 600; }
+.bkf .bkf-wrq__hd { display: flex; align-items: center; gap: 10px; }
+.bkf .bkf-wrq__icon { width: 34px; height: 34px; border-radius: 9px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; font-size: 14px; }
+.bkf .bkf-wrq__text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #334155; min-width: 0; }
+.bkf .bkf-wrq__text strong { color: #1e3a5f; font-size: 14px; }
+.bkf .bkf-wrq__text b { color: #1e293b; }
+.bkf .bkf-wrq__row { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.bkf .bkf-wrq__switch { flex: 1 1 260px; margin: 0; }
+.bkf .bkf-wrq__cancel { font-size: 13px; font-weight: 700; color: #2d5a8e; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.bkf .bkf-wrq__cancel:hover { color: #1e3a5f; text-decoration: underline; }
+body.night-mode .bkf .bkf-wrq { background: #1e3a5f; border-color: #2d5a8e; }
+body.night-mode .bkf .bkf-wrq__text, body.night-mode .bkf .bkf-wrq__text strong, body.night-mode .bkf .bkf-wrq__text b { color: #dbeafe; }
+body.night-mode .bkf .bkf-wrq__cancel { color: #93c5fd; }
+@media (max-width: 480px) { .bkf .bkf-wrq__cancel { white-space: normal; } }
+
+.bkf-note { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: #64748b; display: flex; gap: 8px; align-items: flex-start; }
+.bkf-note--hours { color: #92400e; background: #fef3c7; border-radius: 8px; padding: 9px 12px; }
+.bkf-note--hours i { margin-top: 2px; flex: none; }
+.bkf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bkf-field--span { grid-column: 1 / -1; }
+.bkf-field > label,
+.bkf-label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bkf-field > label i { color: #94a3b8; font-size: 11px; }
+.bkf-field__hint { font-size: 12px; color: #94a3b8; margin: 0; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.bkf-field__hint--right { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+/* "Show all" — the club manager's override of the instructor → aircraft / tuition narrowing */
+.bkf-field__link { margin-left: auto; font-size: 11.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: #2d5a8e; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.bkf-field__link:hover { color: #1e3a5f; text-decoration: underline; }
+/* a pick that is off the chosen instructor's list stays — with this note */
+.bkf-field__hint--off { display: flex; align-items: center; gap: 6px; color: #b45309; font-weight: 600; }
+.bkf-field__hint--off i { font-size: 11px; }
+/* compact duration in the closed End-time field: never wraps */
+.bkf-us-match--time { white-space: nowrap; }
+.bkf-dur { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 12px; font-weight: 700; letter-spacing: 0.01em; vertical-align: 1px; white-space: nowrap; }
+/* Who card: club chooser (several clubs) / club chip */
+.bkf-clubpick { flex: none; max-width: 55%; }
+.bkf-select--sm { min-height: 32px; padding: 4px 26px 4px 10px; font-size: 12.5px; font-weight: 600; color: #334155; border-radius: 999px; background-color: #f8fafc; background-position: calc(100% - 13px) 50%, calc(100% - 8px) 50%; }
+.bkf-clubchip { max-width: 55%; overflow: hidden; text-overflow: ellipsis; }
+.bkf-clubchip i { font-size: 10px; color: #94a3b8; }
+/* Lesson field: the "suggested next lesson" note under the picker */
+.bkf-field__hint--suggest { display: flex; align-items: center; gap: 6px; color: #1e40af; font-weight: 600; }
+.bkf-field__hint--suggest i { color: #f59e0b; font-size: 12px; }
+.bkf-input, .bkf-textarea, .bkf-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bkf-textarea { min-height: 84px; resize: vertical; line-height: 1.45; }
+.bkf-input:focus, .bkf-textarea:focus, .bkf-select:focus { outline: none; border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+.bkf-select { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
+
+/* ui-select (bootstrap theme) dressed as a snazzy input */
+.bkf-field .ui-select-container, .bkf-field .ui-select-bootstrap { width: 100%; display: block; }
+.bkf-field .ui-select-bootstrap > .ui-select-match > .btn,
+.bkf-field .ui-select-bootstrap .ui-select-toggle {
+  min-height: 42px;
+  height: auto;
+  padding: 9px 34px 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  box-shadow: none;
+  line-height: 1.4;
+  white-space: normal;
+}
+.bkf-field .ui-select-bootstrap > .ui-select-match > .btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+.bkf-field .ui-select-bootstrap > .ui-select-match > .btn:focus,
+.bkf-field .ui-select-bootstrap.open > .ui-select-match > .btn { outline: none; border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+.bkf-field .ui-select-bootstrap .ui-select-match-text { width: auto; padding-right: 0; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text span { font-weight: 500; color: #1e293b; }
+.bkf-field .ui-select-placeholder, .bkf-field .ui-select-match-text .text-muted { color: #94a3b8 !important; font-weight: 400; }
+.bkf-field .ui-select-bootstrap .ui-select-toggle > .caret { right: 14px; margin-top: -2px; color: #64748b; }
+.bkf-field .ui-select-bootstrap .ui-select-search { min-height: 42px; border-radius: 8px; border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); font-size: 14px; }
+.bkf-field .ui-select-bootstrap .ui-select-match .close { line-height: 1.1; margin-right: 4px; }
+.bkf-field .ui-select-bootstrap[disabled] > .ui-select-match > .btn,
+.bkf-field .ui-select-bootstrap .ui-select-match > .btn[disabled] { background: #f8fafc; color: #64748b; opacity: 1; cursor: default; }
+.bkf-field .time_duration { color: #64748b; font-weight: 500; font-size: 12.5px; margin-left: 8px; }
+.bkf-field .ui-select-match .time_duration { margin-left: 6px; }
+
+/* <ta-date-picker block="true"> matches the input height */
+.bkf-field ta-date-picker { display: block; width: 100%; }
+.bkf-field .tadp-btn { min-height: 42px; font-weight: 600; }
+.bkf-field .tadp-btn__text { font-size: 14px; }
+
+/* validation — validateBookingFields (bookings2Controller) flags the wrapper */
+.bkf-field.field-error > label { color: #dc2626; }
+.bkf-field.field-error .ui-select-bootstrap > .ui-select-match > .btn,
+.bkf-field.field-error .tadp-btn,
+.bkf-field.field-error .bkf-input { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15); animation: field-shake 0.4s ease-out; }
+.bkf-field .field-error-msg, .bkf-field .help-block { display: block; margin: 0; font-size: 12px; font-weight: 600; color: #dc2626; }
+
+/* checkbox pills (self / free flight) */
+.bkf-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.bkf-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.2;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.bkf-check input { margin: 0; width: 16px; height: 16px; accent-color: #2d5a8e; cursor: pointer; }
+.bkf-check--on { background: #dbeafe; border-color: #bfdbfe; color: #1e40af; }
+.bkf-check i { color: #94a3b8; font-size: 12px; }
+.bkf-check--on i { color: #1e40af; }
+
+/* notes / banners */
+.bkf-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bkf-note input { margin: 3px 0 0; width: 16px; height: 16px; flex: none; accent-color: #92400e; cursor: pointer; }
+.bkf-note label { margin: 0; font-weight: 500; cursor: pointer; }
+.bkf-note b { font-weight: 700; }
+.bkf-note--info { background: #dbeafe; color: #1e40af; }
+.bkf-note--warn { background: #fef3c7; color: #92400e; }
+.bkf-note--danger { background: #fee2e2; color: #991b1b; }
+.bkf-note--top { margin: 0; }
+.bkf-note > i { margin-top: 2px; flex: none; }
+
+/* chips */
+.bkf-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: #f1f5f9; color: #334155; white-space: nowrap; }
+.bkf-chip--brand { background: #ebf4fc; color: #1e3a5f; border: 1.5px dashed #2d5a8e; }
+.bkf-chip--ok { background: #dcfce7; color: #166534; }
+.bkf-chip--wait { background: #fef3c7; color: #92400e; }
+.bkf-chip--no { background: #fee2e2; color: #991b1b; }
+.bkf-chip--muted { background: #f1f5f9; color: #64748b; }
+.bkf-popup__msg--hint { background: #dbeafe; color: #1e40af; border-radius: 8px; padding: 9px 12px; font-size: 13px; text-align: left; }
+.bkf-popup__msg--hint .fa { margin-right: 6px; }
+.bkf-chip--solo { background: #ede9fe; color: #5b21b6; }
+.bkf-slot__hd .bkf-slot__chip { margin-left: 0; color: #5b21b6; font-size: 11px; }
+
+/* Potential solo toggle row (What card, club staff only) */
+.bkf-toggle-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.bkf-toggle-row--on { border-color: #c4b5fd; background: #f5f3ff; }
+.bkf-toggle-row .snazzy-toggle { flex: none; margin-top: 1px; }
+.bkf-toggle-row .snazzy-toggle input:checked + .snazzy-toggle__slider { background: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
+.bkf-toggle-row__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bkf-toggle-row__label { font-size: 13px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; }
+.bkf-toggle-row__label i { color: #7c3aed; font-size: 12px; }
+
+/* ── extras: rental items / passengers ── */
+.bkf-add-row { display: flex; gap: 8px; align-items: flex-end; }
+.bkf-add-row .bkf-field { flex: 1; }
+.bkf-list { display: grid; gap: 8px; margin-top: 10px; }
+.bkf-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; min-width: 0; }
+.bkf-row__av { width: 34px; height: 34px; border-radius: 50%; background: #dbeafe; color: #1e40af; font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none; letter-spacing: 0.02em; }
+.bkf-row__body { flex: 1; min-width: 0; }
+.bkf-row__nm { font-weight: 700; font-size: 13.5px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bkf-row__sub { font-size: 12px; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }   /* wraps: an email never hides under the row's buttons */
+.bkf-row__sub > span:not(.bkf-chip) { overflow-wrap: anywhere; min-width: 0; }
+.bkf-row__act { display: inline-flex; gap: 6px; flex: none; align-items: center; }
+.bkf-row .bkf-select { width: 84px; min-height: 34px; padding: 5px 26px 5px 9px; font-size: 13px; }
+.bkf-iconbtn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: none; transition: all 0.15s ease; }
+.bkf-iconbtn:hover { background: #f1f5f9; color: #1e3a5f; border-color: #cbd5e1; text-decoration: none; }
+.bkf-iconbtn--danger:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+.bkf-empty { font-size: 13px; color: #94a3b8; padding: 4px 0 2px; display: flex; align-items: center; gap: 8px; }
+.bkf-empty i { color: #cbd5e1; }
+.bkf-sub { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; }
+.bkf-sub:first-child { margin-top: 0; }
+.bkf-sub h4 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+.bkf-sub__n { font-size: 11px; font-weight: 700; color: #1e40af; background: #dbeafe; border-radius: 999px; padding: 2px 8px; }
+.bkf-mt { margin-top: 12px; }
+.bkf-mb { margin-bottom: 12px; }
+
+/* ── buttons ── */
+.bkf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.bkf-btn i { font-size: 12px; }
+.bkf-btn--primary { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; box-shadow: 0 2px 8px rgba(30, 58, 95, 0.22); }
+.bkf-btn--primary:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(30, 58, 95, 0.3); }
+.bkf-btn--quiet { background: #fff; color: #475569; border-color: #e2e8f0; }
+.bkf-btn--quiet:hover { background: #f8fafc; color: #1e293b; border-color: #cbd5e1; text-decoration: none; }
+.bkf-btn--danger { background: transparent; color: #dc2626; border-color: transparent; }
+.bkf-btn--danger:hover { background: #dc2626; color: #fff; }
+.bkf-btn--force { background: #dc2626; color: #fff; }
+.bkf-btn--force:hover { background: #b91c1c; color: #fff; }
+.bkf-btn[disabled] { opacity: 0.55; cursor: default; transform: none; box-shadow: none; }
+
+/* in-panel ui-selects: select.css gives every .ui-select-container.dropdown z-index 9999 — a closed picker must not
+   float above the action bar or a later card; an OPEN one is on <body> (append-to-body) and skinned separately */
+.bkf-panel__body .ui-select-container.dropdown:not(.open) { z-index: auto; }
+
+/* action bar — pinned to the panel's bottom edge (absolute inside the fixed .bkf-panel, so the body's
+   overflow never clips it); the body's bottom padding / scroll-padding = its measured height (--bkf-bar-h) + 16px,
+   so the last field (and its focus ring) is always reachable above it. Body-level dropdowns (.bkf-us, z 1061) sit
+   above the panel (1050) and so above this bar. */
+.bkf-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10010;           /* above EVERY in-panel ui-select container — select.css gives a closed one 1000 but
+                               .ui-select-container.dropdown 9999 (Select2 legacy), which covered this bar on phones.
+                               Body-level open menus (.bkf-us.open, 1061) are outside the panel's stacking context
+                               (the panel itself is 1050), so they still sit above the bar. */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(241, 245, 249, 0.97);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.06);
+}
+.bkf-actions__sp { flex: 1; }
+.bkf-actions .bkf-btn--primary { order: 10; min-width: 150px; }
+
+/* "Find a slot" link (add only) */
+.bkf-findslot { display: flex; justify-content: flex-end; margin: -4px 0 0; }
+.bkf-findslot a { font-size: 12.5px; font-weight: 600; color: #2d5a8e; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.bkf-findslot a:hover { color: #1e3a5f; text-decoration: underline; }
+
+/* ── "Your slot" summary card (top of the panel, follows the form) ── */
+.bkf-slot { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); }
+.bkf-slot__hd { background: #ebf4fc; color: #1e3a5f; padding: 8px 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dbeafe; }
+.bkf-slot__hd i { opacity: 0.8; font-size: 12px; }
+.bkf-slot__hd h3 { margin: 0; font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #1e3a5f; line-height: 1.2; }
+.bkf-slot__hd span { margin-left: auto; font-size: 11px; color: #64748b; }
+.bkf-slot__body { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.bkf-slot__when { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.bkf-slot__date { font-size: 14px; font-weight: 700; color: #1e293b; }
+.bkf-slot__date small { display: block; font-weight: 500; color: #64748b; font-size: 12px; margin-top: 2px; }
+.bkf-slot__time { display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.bkf-slot__time b { font-size: 22px; font-weight: 800; color: #1e3a5f; letter-spacing: -0.02em; line-height: 1; }
+.bkf-slot__time span { font-size: 12px; color: #64748b; }
+.bkf-slot__kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bkf-slot__kv > div { background: #f8fafc; border-radius: 8px; padding: 7px 10px; min-width: 0; }
+.bkf-slot__kv > .bkf-slot__kv-span { grid-column: 1 / -1; }
+.bkf-slot__k { font-size: 10.5px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.bkf-slot__v { font-weight: 700; font-size: 13px; color: #1e293b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bkf-slot__v--empty { color: #94a3b8; font-weight: 500; }
+.bkf-slot__v--ac { color: #1e3a5f; }
+.bkf-slot__v i { color: #94a3b8; font-size: 11px; margin-right: 4px; }
+.bkf-slot__foot { font-size: 12px; color: #64748b; display: flex; gap: 6px; align-items: center; }
+.bkf-slot__foot i { color: #16a34a; }
+
+/* ── popups (conflicts, passenger invite): the legacy .popup_box stays,
+   its buttons are dressed ── */
+.bkf-popup-actions { margin-top: 22px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.bkf-popup__icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #fff3e0; margin-bottom: 8px; }
+.bkf-popup__icon i { font-size: 22px; color: #f59e0b; }
+.bkf-popup__icon--info { background: #dbeafe; }
+.bkf-popup__icon--info i { color: #1e40af; }
+.bkf-popup__msg { color: #475569; font-size: 14px; line-height: 1.6; margin: 0; }
+.bkf-popup__api { margin: 8px 0 0; font-size: 13px; color: #64748b; line-height: 1.5; }
+.bkf-popup .bkf-field { text-align: left; margin-top: 12px; }
+
+/* ── "Booking for" segmented control (Who card; staff of any club, members never see it) ── */
+.bkf-bookingfor { margin-bottom: 12px; }
+.bkf-seg { display: flex; width: 100%; padding: 4px; gap: 4px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.bkf-seg__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.bkf-seg__btn i { color: #94a3b8; font-size: 12px; }
+.bkf-seg__btn:hover { background: #f1f5f9; color: #1e3a5f; }
+.bkf-seg__btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.bkf-seg__btn--on, .bkf-seg__btn--on:hover { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; box-shadow: 0 2px 8px rgba(30, 58, 95, 0.22); }
+.bkf-seg__btn--on i { color: #fff; }
+.bkf-seg__btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.bkf-seg__btn[disabled]:hover { background: transparent; color: #475569; }
+.bkf-field__hint--note { display: flex; align-items: flex-start; gap: 6px; color: #64748b; }
+.bkf-field__hint--note i { margin-top: 2px; color: #94a3b8; }
+
+/* placeholder stub — the Instructor field before an aircraft is chosen (the list is per aircraft) */
+.bkf-stub {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.bkf-stub i { font-size: 12px; color: #cbd5e1; }
+.bkf .bkf-stub i.fa-plane { color: #cbd5e1; }
+.bkf-stub--info { border-style: solid; border-color: #bfdbfe; background: #eff6ff; color: #1e40af; }
+.bkf-stub--info i { color: #1e40af; }
+
+/* ── ui-select dropdowns (.bkf-us) ──
+   append-to-body moves the WHOLE .ui-select-container to <body> while open, so nothing here may
+   depend on .bkf / .bkf-field; the class set on <ui-select> rides along (replace:true merges it).
+   Rounded card + shadow, 44px rows, light hover with the brand colour — not a solid navy block. */
+body > .ui-select-bootstrap.bkf-us.open { z-index: 1061; }           /* above the panel (1050) */
+.ui-select-bootstrap.bkf-us > .ui-select-choices,
+.ui-select-bootstrap.bkf-us > .ui-select-no-choice {
+  margin-top: 6px;
+  padding: 6px;
+  min-width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08);
+  max-height: min(340px, 55vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+.ui-select-bootstrap.bkf-us.direction-up > .ui-select-choices { margin-top: 0; margin-bottom: 6px; }
+/* a <ui-select> without <ui-select-no-choice> keeps an EMPTY in-flow <div class="ui-select-no-choice"> that the card
+   skin above would paint as a stray rounded bar (the passengers row, 2026-11-04) — never show one */
+.ui-select-bootstrap.bkf-us > div.ui-select-no-choice:empty { display: none !important; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  white-space: normal;
+  line-height: 1.3;
+  color: #1e293b;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.ui-select-bootstrap.bkf-us--compact .ui-select-choices-row > span { min-height: 38px; padding: 6px 10px; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span > div,
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span > small { flex: 1 1 100%; min-width: 0; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span > small { color: #94a3b8; font-size: 12px; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover,
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span:focus,
+.ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span { background: #f1f5f9; color: #1e3a5f; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span .bkf-opt__nm,
+.ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover .bkf-opt__nm { color: #1e3a5f; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row.disabled > span,
+.ui-select-bootstrap.bkf-us .ui-select-choices-row.active.disabled > span { background: transparent; color: #94a3b8; opacity: 0.6; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-row + .ui-select-choices-row { margin-top: 2px; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-group-label { padding: 10px 10px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; line-height: 1.2; }
+.ui-select-bootstrap.bkf-us .ui-select-choices-group-label:empty { display: none; }
+.ui-select-bootstrap.bkf-us .divider { margin: 6px 4px; height: 1px; background: #e2e8f0; }
+/* typed-match highlight: brand colour, bold + underline, NO block — also inside the active / hovered row, where
+   styles.css paints `body > .ui-select-bootstrap .ui-select-choices-row.active .ui-select-highlight` white on a
+   pale block (0,4,1); these are (0,5,1)+ */
+.ui-select-bootstrap.bkf-us .ui-select-highlight,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .ui-select-highlight,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .ui-select-highlight { color: #1e3a5f; background: transparent; border-radius: 0; padding: 0; font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+/* hovered / active row: light surface + dark text, never white-on-light (styles.css `body > … .active > span` and its
+   strong / small / .text-muted descendants are (0,3,2)–(0,4,1)) */
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row > span,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover > span,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span { background: transparent; color: #1e293b; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover > span,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span { background: #f1f5f9; color: #1e3a5f; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active strong,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover strong,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active b,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover b,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__nm,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__nm { color: #1e3a5f; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active small,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover small,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .text-muted,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .time_duration,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .time_duration,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__sub:not(.bkf-opt__note):not(.bkf-opt__off),
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__sub:not(.bkf-opt__note):not(.bkf-opt__off),
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__type,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__type { color: #64748b; }
+/* the availability notes keep their meaning colours on the active / hovered row */
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--ok,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--ok { color: #16a34a; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--warn,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--warn { color: #b45309; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--danger,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--danger { color: #dc2626; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__off,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__off { color: #b45309; }
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.disabled > span,
+body > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active.disabled > span { background: transparent; color: #94a3b8; }
+.ui-select-bootstrap.bkf-us > .ui-select-no-choice > li { padding: 10px 12px; color: #64748b; font-size: 13px; }
+.ui-select-bootstrap.bkf-us .time_duration { color: #64748b; font-size: 12.5px; }
+
+/* row content */
+.bkf-opt { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+.bkf-opt__swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08); }
+.bkf-opt__swatch--none { background: #e2e8f0; }
+.bkf-opt__swatch--sm { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+.bkf-opt__av {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+}
+.bkf-opt__av--mem { background: #e2e8f0; color: #64748b; font-size: 12px; }   /* neutral: the initials circle means INSTRUCTOR on the scheduler */
+.bkf-opt__av--sm { width: 22px; height: 22px; font-size: 9px; margin-right: 8px; vertical-align: middle; }
+.bkf-opt__body { flex: 1; min-width: 0; }
+.bkf-opt__nm { font-weight: 600; font-size: 14px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bkf-opt__nm b { font-weight: 800; }
+.bkf-opt__type { color: #64748b; font-weight: 500; font-size: 12.5px; margin-left: 4px; }
+.bkf-opt__sub { font-size: 12px; color: #94a3b8; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.bkf-opt__note { display: flex; align-items: flex-start; gap: 5px; font-weight: 600; white-space: normal; line-height: 1.3; }
+.bkf-opt__note i { margin-top: 2px; }
+/* people lists carry a note / an email: give them room beyond the half-width field */
+.ui-select-bootstrap.bkf-us--ins > .ui-select-choices,
+.ui-select-bootstrap.bkf-us--mem > .ui-select-choices { min-width: 320px; max-width: calc(100vw - 24px); }
+.bkf-opt__note i { font-size: 11px; }
+.bkf-opt__note--ok { color: #16a34a; }
+.bkf-opt__note--warn { color: #b45309; }
+.bkf-opt__note--danger { color: #dc2626; }
+.bkf-opt--off .bkf-opt__av { background: #cbd5e1; color: #fff; }
+/* waiting-list pseudo-rows ("G-BNSN Waiting List"): an amber chip instead of the colour swatch */
+.bkf-opt__wait { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 7px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; line-height: 1.3; }
+.bkf-opt__wait i { font-size: 9.5px; }
+/* a row that is off the chosen instructor's list (admin "Show all"): muted, with its note */
+.bkf-opt--dim .bkf-opt__nm, .bkf-opt--dim .bkf-opt__type { color: #94a3b8; }
+.bkf-opt--dim .bkf-opt__swatch { opacity: 0.45; }
+.bkf-opt__off { display: flex; align-items: center; gap: 5px; color: #b45309; font-weight: 600; white-space: normal; }
+.bkf-opt__off i { font-size: 10.5px; }
+.bkf-opt--plain .bkf-opt__nm { font-weight: 500; }
+/* the closed field's content: a real inline-flex row — select.css gives EVERY span in .ui-select-match-text
+   `display:inline-block; width:100%; overflow:hidden` (0,2,1), which clipped the 22px avatar circle into a block
+   and pushed the name under it; these are (0,4,x) */
+.bkf-us-match { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match { display: inline-flex; width: 100%; align-items: center; gap: 8px; overflow: visible; vertical-align: middle; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match__txt { display: block; flex: 1 1 auto; width: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match--time { width: auto; white-space: nowrap; overflow: visible; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match--time .bkf-dur { display: inline-block; width: auto; overflow: visible; color: #64748b; font-weight: 700; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__av--sm { display: inline-flex; width: 22px; height: 22px; margin: 0; flex: none; overflow: visible; line-height: 1; color: #fff; font-weight: 800; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__swatch--sm { display: inline-block; width: 10px; height: 10px; margin: 0; flex: none; overflow: visible; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__wait { display: inline-flex; width: auto; flex: none; overflow: visible; color: #92400e; font-weight: 700; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__av--sm.bkf-opt__av--mem { color: #1e40af; }
+.bkf-field .ui-select-bootstrap[disabled] .ui-select-match-text .bkf-opt__av--sm { background: #cbd5e1; }
+/* Extras: add-a-passenger row — the picker grows, the Invite button keeps its width, both top-aligned */
+.bkf-add-row--pax { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.bkf-add-row--pax .bkf-field { min-width: 0; }
+.bkf-add-row--pax .bkf-btn { min-height: 42px; }
+.bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match__ph { color: #94a3b8; font-weight: 400; }
+.bkf-what__chip { color: #5b21b6; }
+
+/* ── responsive: full-width sheet on phones ── */
+@media (max-width: 768px) {
+  .bkf-panel { width: 100%; max-width: 100vw; border-right: 0; box-shadow: none; }
+  .bkf-panel__hd { padding: 12px 14px 12px; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+  .bkf-panel__title h2 { font-size: 17px; }
+  .bkf-panel__body { padding: 12px 14px calc(var(--bkf-bar-h) + 16px); padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+  .bkf-card { padding: 14px 14px 16px; }
+  .bkf-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .bkf-grid--when { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 10px 8px; }
+  .bkf-grid--when .ui-select-match .time_duration { display: none; }   /* (legacy long form) the compact .bkf-dur stays */
+  .bkf-field .ui-select-bootstrap > .ui-select-match > .btn,
+  .bkf-field .ui-select-bootstrap .ui-select-toggle,
+  .bkf-field .tadp-btn,
+  .bkf-input, .bkf-textarea, .bkf-select { font-size: 16px; min-height: 46px; }
+  .bkf-add-row { flex-direction: column; align-items: stretch; }
+  .bkf-add-row .bkf-btn { width: 100%; }
+  .bkf-add-row--pax { grid-template-columns: minmax(0, 1fr); }
+  .bkf-add-row--pax .bkf-btn { min-height: 46px; }
+  .bkf-clubpick, .bkf-clubchip { max-width: 48%; }
+  .bkf-select--sm { font-size: 13px; min-height: 34px; }
+  .bkf-panel { --bkf-bar-h: 124px; }
+  .bkf-actions { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+  .bkf-actions .bkf-btn--primary { flex: 1 1 100%; order: -1; min-height: 48px; font-size: 15px; }
+  .bkf-actions .bkf-btn--quiet, .bkf-actions .bkf-btn--danger { flex: 1 1 auto; }
+  .bkf-actions__sp { display: none; }
+  .bkf-row { flex-wrap: wrap; }
+  .bkf-row__body { flex-basis: calc(100% - 44px); }
+  .bkf-row__act { margin-left: auto; }
+  .bkf-seg__btn { min-height: 44px; font-size: 14px; }
+  .bkf-stub { min-height: 46px; font-size: 15px; }
+  /* the dropdown lives on <body> while open: keep it inside a 390px viewport and the search ≥16px (iOS zoom rule) */
+  /* snazzy-pages.css restyles every body-level ui-select menu on phones with !important (flat top, 220px):
+     the panel's menus keep the card look — same !important, higher specificity */
+  body > .ui-select-bootstrap.bkf-us > .ui-select-choices,
+  body > .ui-select-bootstrap.bkf-us > .ui-select-no-choice {
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08) !important;
+    max-height: min(300px, 46vh) !important;
+  }
+  .ui-select-bootstrap.bkf-us--ins > .ui-select-choices,
+  .ui-select-bootstrap.bkf-us--mem > .ui-select-choices { min-width: 0; }
+  /* snazzy-pages.css paints every body-level menu row on phones with !important (a pale gradient on
+     .active / :hover, #334155 text): the panel's rows keep their own surface + colours — same !important,
+     higher specificity */
+  body > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row > span { color: #1e293b !important; padding: 8px 10px !important; font-size: 14px !important; }
+  body > .ui-select-bootstrap.bkf-us--compact .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row > span { padding: 6px 10px !important; }
+  body > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row.active > span,
+  body > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row:hover > span,
+  body > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row > span:hover { background: #f1f5f9 !important; color: #1e3a5f !important; }
+  body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row > span { color: #e2e8f0 !important; }
+  body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row.active > span,
+  body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row:hover > span,
+  body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices.dropdown-menu[style*="position"] .ui-select-choices-row > span:hover { background: #273449 !important; color: #bfdbfe !important; }
+  .ui-select-bootstrap.bkf-us .ui-select-choices-row > span { min-height: 48px; }
+  .ui-select-bootstrap.bkf-us .ui-select-search { font-size: 16px; min-height: 46px; }
+  .bkf-opt__nm { font-size: 15px; }
+  .bkf-opt__sub { font-size: 12.5px; white-space: normal; }
+}
+@media (max-width: 420px) {
+  .bkf-checks { flex-direction: column; }
+  .bkf-check { justify-content: flex-start; }
+}
+
+/* ── night mode ── */
+body.night-mode .bkf-panel { background: #0f172a; border-right-color: #334155; }
+body.night-mode .bkf-card, body.night-mode .bkf-slot { background: #1e293b; border-color: #334155; box-shadow: none; }
+body.night-mode .bkf-slot__hd { background: #1e3a5f; color: #bfdbfe; border-bottom-color: #334155; }
+body.night-mode .bkf-slot__hd span { color: #94a3b8; }
+body.night-mode .bkf-slot__hd h3 { color: #bfdbfe; }
+body.night-mode .bkf-card__hd h3, body.night-mode .bkf-row__nm, body.night-mode .bkf-slot__date, body.night-mode .bkf { color: #f1f5f9; }
+body.night-mode .bkf-card__hd p, body.night-mode .bkf-field > label, body.night-mode .bkf-row__sub, body.night-mode .bkf-slot__k, body.night-mode .bkf-slot__time span, body.night-mode .bkf-sub h4, body.night-mode .bkf-empty, body.night-mode .bkf-field__hint { color: #94a3b8; }
+body.night-mode .bkf-input, body.night-mode .bkf-textarea, body.night-mode .bkf-select,
+body.night-mode .bkf-field .ui-select-bootstrap > .ui-select-match > .btn,
+body.night-mode .bkf-field .ui-select-bootstrap .ui-select-toggle,
+body.night-mode .bkf-field .ui-select-bootstrap .ui-select-search { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+body.night-mode .bkf-field .ui-select-bootstrap > .ui-select-match > .btn:hover { background: #172033; }
+body.night-mode .bkf-field .ui-select-bootstrap .ui-select-match-text span { color: #e2e8f0; }
+body.night-mode .bkf-field .ui-select-bootstrap[disabled] > .ui-select-match > .btn,
+body.night-mode .bkf-field .ui-select-bootstrap .ui-select-match > .btn[disabled] { background: #172033; color: #94a3b8; }
+body.night-mode .bkf-check { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+body.night-mode .bkf-check--on { background: #1e3a8a; border-color: #1e40af; color: #bfdbfe; }
+body.night-mode .bkf-row { background: #172033; border-color: #334155; }
+body.night-mode .bkf-row__av { background: #1e3a8a; color: #bfdbfe; }
+body.night-mode .bkf-iconbtn { background: #1e293b; border-color: #334155; color: #94a3b8; }
+body.night-mode .bkf-iconbtn:hover { background: #273449; color: #e2e8f0; }
+body.night-mode .bkf-iconbtn--danger:hover { background: #7f1d1d; color: #fecaca; border-color: #991b1b; }
+body.night-mode .bkf-btn--quiet { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+body.night-mode .bkf-btn--quiet:hover { background: #273449; color: #f1f5f9; }
+body.night-mode .bkf-actions { background: rgba(15, 23, 42, 0.92); border-top-color: #334155; }
+body.night-mode .bkf-slot__kv > div { background: #172033; }
+body.night-mode .bkf-slot__v { color: #e2e8f0; }
+body.night-mode .bkf-slot__v--ac, body.night-mode .bkf-slot__time b { color: #bfdbfe; }
+body.night-mode .bkf-note--warn, body.night-mode .bkf-note { background: #4a2f0b; color: #fde68a; }
+body.night-mode .bkf-note--info { background: #1e3a8a; color: #bfdbfe; }
+body.night-mode .bkf-note--danger { background: #450a0a; color: #fecaca; }
+body.night-mode .bkf-chip--brand { background: #1e3a5f; color: #bfdbfe; border-color: #60a5fa; }
+body.night-mode .bkf-chip--muted { background: #273449; color: #94a3b8; }
+body.night-mode .bkf-chip--solo, body.night-mode .bkf-slot__hd .bkf-slot__chip { background: #3b2a6b; color: #ddd6fe; }
+body.night-mode .bkf-toggle-row { background: #1e293b; border-color: #334155; }
+body.night-mode .bkf-toggle-row--on { background: #2e1f52; border-color: #7c3aed; }
+body.night-mode .bkf-toggle-row__label { color: #e2e8f0; }
+body.night-mode .bkf-sub__n { background: #1e3a8a; color: #bfdbfe; }
+body.night-mode .bkf-findslot a { color: #93c5fd; }
+body.night-mode .bkf-field__hint--suggest { color: #93c5fd; }
+body.night-mode .bkf-popup__msg { color: #cbd5e1; }
+body.night-mode .bkf-popup__api { color: #94a3b8; }
+body.night-mode .bkf-seg { background: #0f172a; border-color: #334155; }
+body.night-mode .bkf-seg__btn { color: #cbd5e1; }
+body.night-mode .bkf-seg__btn:hover { background: #172033; color: #f1f5f9; }
+body.night-mode .bkf-seg__btn--on, body.night-mode .bkf-seg__btn--on:hover { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); color: #fff; }
+body.night-mode .bkf-stub { background: #0f172a; border-color: #334155; color: #64748b; }
+body.night-mode .bkf-stub--info { background: #1e3a8a; border-color: #1e40af; color: #bfdbfe; }
+body.night-mode .bkf-stub--info i { color: #bfdbfe; }
+body.night-mode .ui-select-bootstrap.bkf-us > .ui-select-choices,
+body.night-mode .ui-select-bootstrap.bkf-us > .ui-select-no-choice { background: #1e293b; border-color: #334155 !important; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5) !important; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row > span { color: #e2e8f0; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover,
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row > span:focus,
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span { background: #273449; color: #bfdbfe; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span .bkf-opt__nm,
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover .bkf-opt__nm,
+body.night-mode .bkf-opt__nm { color: #e2e8f0; }
+body.night-mode .bkf-opt__sub, body.night-mode .bkf-opt__type { color: #94a3b8; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-choices-group-label { color: #64748b; }
+body.night-mode .ui-select-bootstrap.bkf-us .divider { background: #334155; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-highlight { background: transparent; color: #93c5fd; }
+body.night-mode .bkf-opt__av--mem { background: #1e3a8a; color: #bfdbfe; }
+body.night-mode .bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__av--sm.bkf-opt__av--mem { color: #bfdbfe; }
+
+body.night-mode .bkf-note--hours { background: #3b2f0e; color: #fde68a; }
+body.night-mode .bkf-dur, body.night-mode .bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-us-match--time .bkf-dur { background: #273449; color: #94a3b8; }
+body.night-mode .bkf-field__link { color: #93c5fd; }
+body.night-mode .bkf-field__hint--off, body.night-mode .bkf-opt__off { color: #fcd34d; }
+body.night-mode .bkf-opt__wait, body.night-mode .bkf-field .ui-select-bootstrap .ui-select-match-text .bkf-opt__wait { background: #4a2f0b; color: #fde68a; }
+body.night-mode .bkf-opt--dim .bkf-opt__nm, body.night-mode .bkf-opt--dim .bkf-opt__type { color: #64748b; }
+body.night-mode .bkf-select--sm { background-color: #0f172a; border-color: #334155; color: #cbd5e1; }
+body.night-mode .bkf-clubchip { background: #273449; color: #94a3b8; }
+body.night-mode .ui-select-bootstrap.bkf-us .ui-select-highlight,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .ui-select-highlight,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .ui-select-highlight { background: transparent; color: #93c5fd; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row > span,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover > span { color: #e2e8f0; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row > span:hover,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover > span,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active > span { background: #273449; color: #bfdbfe; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__nm,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__nm,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active b,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover b { color: #bfdbfe; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__sub,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__sub,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .time_duration,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .time_duration,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__type,
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__type { color: #94a3b8; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--ok, body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--ok { color: #4ade80; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--warn, body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--warn { color: #fcd34d; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__note--danger, body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__note--danger { color: #f87171; }
+body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row.active .bkf-opt__off, body.night-mode > .ui-select-bootstrap.bkf-us .ui-select-choices-row:hover .bkf-opt__off { color: #fcd34d; }
+
+body.night-mode .bkf-popup__msg--hint { background: #1e3a5f; color: #dbeafe; }

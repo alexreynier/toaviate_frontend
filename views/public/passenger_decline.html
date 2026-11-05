@@ -1,0 +1,65 @@
+<!-- Public passenger "can't make it" page (/passenger_decline/:token) — the link in every passenger
+     invitation email. No account session, no app chrome. GET shows the flight; the invitation is only
+     declined by the explicit POST behind the button (mail scanners prefetch links). Every failure is the
+     one uniform panel. Reuses the .ec-* public-page styles (css/email-confirm.css). -->
+<div class="ec-page">
+
+    <div class="ec-page__topbar">
+        <img src="images/main_logo.png" class="ec-page__logo" alt="ToAviate" />
+    </div>
+
+    <div class="ec-card snazzy-reveal">
+
+        <div class="ec-card__band">
+            <i class="fas fa-plane ec-card__band-icon"></i>
+            <span class="ec-card__band-title">Flight invitation</span>
+        </div>
+
+        <!-- Loading -->
+        <div class="ec-card__body" ng-if="vm.state === 'loading'">
+            <div class="sec-spinner ec-spinner"></div>
+            <p class="ec-text">Checking your link…</p>
+        </div>
+
+        <!-- Invalid / expired — the ONE uniform panel -->
+        <div class="ec-card__body" ng-if="vm.state === 'invalid'">
+            <i class="fas fa-unlink ec-icon ec-icon--muted"></i>
+            <h2 class="ec-title">This link is invalid or has expired.</h2>
+            <p class="ec-text">The flight may have been changed or cancelled. If you still have questions, contact the person who invited you.</p>
+        </div>
+
+        <!-- Summary → decline -->
+        <div class="ec-card__body" ng-if="vm.state === 'summary'">
+            <i class="fas fa-user-friends ec-icon ec-icon--warn"></i>
+            <h2 class="ec-title">Can't make it<span ng-show="vm.flight.first_name">, {{ vm.flight.first_name }}</span>?</h2>
+            <p class="ec-text">
+                {{ vm.flight.pilot_name }} invited you to join a flight<span ng-show="vm.flight.registration"> in {{ vm.flight.registration }}</span><span ng-show="vm.flight.club_title"> with {{ vm.flight.club_title }}</span>.
+                Let them know you can't come and we'll take you off the passenger list.
+            </p>
+            <p class="ec-meta" ng-show="vm.flight.whenLabel"><i class="far fa-clock"></i> {{ vm.flight.whenLabel }}</p>
+            <div class="ec-actions">
+                <button type="button" class="sec-btn sec-btn--danger ec-btn" ng-click="vm.decline()" ng-disabled="vm.busy">
+                    <i class="fas" ng-class="vm.busy ? 'fa-spinner fa-spin' : 'fa-times'"></i>
+                    {{ vm.busy ? 'Sending…' : "I can't make it" }}
+                </button>
+            </div>
+            <p class="ec-meta">Changed your mind later? Ask {{ vm.flight.pilot_name }} to send the invitation again.</p>
+        </div>
+
+        <!-- Already declined -->
+        <div class="ec-card__body" ng-if="vm.state === 'already'">
+            <i class="fas fa-check-circle ec-icon ec-icon--good"></i>
+            <h2 class="ec-title">You've already told them.</h2>
+            <p class="ec-text">{{ vm.flight.pilot_name }} knows you can't make this flight. If plans change, ask them to invite you again.</p>
+        </div>
+
+        <!-- Done -->
+        <div class="ec-card__body" ng-if="vm.state === 'done'">
+            <i class="fas fa-check-circle ec-icon ec-icon--good"></i>
+            <h2 class="ec-title">Thanks — we've let {{ vm.flight.pilot_name }} know.</h2>
+            <p class="ec-text">You're off the passenger list for this flight. If plans change, ask them to invite you again.</p>
+        </div>
+
+    </div>
+
+</div>

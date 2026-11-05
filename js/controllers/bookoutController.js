@@ -1437,6 +1437,15 @@
                 //console.log("BOOKING HERE IS : ", booking);
                 vm.bookout.tuition_required = booking.tuition_required;
 
+                // Potential solo (bookings.solo — set on the scheduler v2 panel or by a solo lesson):
+                // pre-set "I may send this student solo" so the provisional STUDENT SOLO airfield
+                // book-out is created on save, and show the pre-solo readiness straight away.
+                // Other bookings are untouched (the instructor still picks the intent by hand).
+                if(parseInt(booking.solo, 10) === 1 && !vm.solo_intent){
+                    vm.solo_intent = 'student_solo';
+                    vm.fetchSoloReadiness();
+                }
+
                 // vm.bookout.tuition_required
                 CourseService.GetCoursesByClubId(vm.bookout.club_id)
                                 .then(function(data){

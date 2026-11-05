@@ -71,7 +71,7 @@ module.exports = function (grunt) {
               dest: 'dist/js/services.js',
             },
             libs: { //
-                src: ['libs/js/jquery.min.js', 'libs/js/isotope.js', 'libs/js/angular.min.js', 'libs/js/angular-bootstrap.js', 'libs/js/touch.js', 'libs/js/boostrap.collapse.js', 'libs/js/ui.bootstrap.js', 'libs/js/angular-ui-route.js', 'libs/js/angular-drag-drop.js', 'libs/js/angular-cookies.js', 'libs/js/angular-toggle.js', 'libs/js/angular-edit.js', 'libs/js/typeahead.js', 'libs/js/angular-tags-input.js', 'libs/js/angular-isotope.js', 'libs/js/angular-animate.js', 'libs/js/angular-sanitize.js', 'libs/js/select.js', 'libs/js/datetime.js', 'libs/js/moment.js', 'libs/js/angular-credit-cards.js', 'libs/js/phone.js', 'libs/js/phone2.js', 'libs/js/timepicker.js', 'libs/js/datetimepicker.js', 'libs/js/slider.js', 'libs/js/daterangepicker.min.js', 'libs/js/fullcalendar.js', 'libs/js/gcal.min.js', 'libs/js/scheduler.js', 'libs/js/flow.js', 'libs/js/ng-flow.js', 'libs/js/luxon.js', 'libs/js/qrcode-generator.js', 'libs/js/signature_pad.js'],
+                src: ['libs/js/jquery.min.js', 'libs/js/isotope.js', 'libs/js/angular.min.js', 'libs/js/angular-bootstrap.js', 'libs/js/touch.js', 'libs/js/boostrap.collapse.js', 'libs/js/ui.bootstrap.js', 'libs/js/angular-ui-route.js', 'libs/js/angular-drag-drop.js', 'libs/js/angular-cookies.js', 'libs/js/angular-toggle.js', 'libs/js/angular-edit.js', 'libs/js/typeahead.js', 'libs/js/angular-tags-input.js', 'libs/js/angular-isotope.js', 'libs/js/angular-animate.js', 'libs/js/angular-sanitize.js', 'libs/js/select.js', 'libs/js/datetime.js', 'libs/js/moment.js', 'libs/js/angular-credit-cards.js', 'libs/js/phone.js', 'libs/js/phone2.js', 'libs/js/timepicker.js', 'libs/js/datetimepicker.js', 'libs/js/slider.js', 'libs/js/daterangepicker.min.js', 'libs/js/fullcalendar.js', 'libs/js/gcal.min.js', 'libs/js/scheduler.js', 'libs/js/flow.js', 'libs/js/ng-flow.js', 'libs/js/luxon.js', 'libs/js/qrcode-generator.js', 'libs/js/signature_pad.js', 'libs/js/toaviate-scheduler.js', 'libs/js/toaviate-datepicker.js'],
                 dest: 'dist/js/libs.js'
             },
             css: {
@@ -170,7 +170,14 @@ module.exports = function (grunt) {
                     // After trackers.css: overrides .trk-tab for the manage_club hub tab bars.
                     'css/manage-club-hubs.css',
                     'css/busy-guard.css',
-                    'libs/css/scheduler.css'
+                    'libs/css/scheduler.css',
+                    // Scheduler v2: the two libraries, then the page chrome on top (same order as index.html).
+                    'libs/css/toaviate-scheduler.css',
+                    'libs/css/toaviate-datepicker.css',
+                    'css/scheduler-v2.css',
+                    'css/booking-form.css',
+                    'css/club-opening-hours.css',
+                    'css/cancellation-fees.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL
                     // `body { padding: 24px }` rule. It isn't linked in index.html

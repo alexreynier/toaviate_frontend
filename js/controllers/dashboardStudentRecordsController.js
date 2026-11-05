@@ -46,7 +46,8 @@
             'dashboard.manage_user.debriefing': 'Debrief',
             'dashboard.manage_user.caa_forms': 'CAA Forms',
             'dashboard.manage_user.caa_forms_new': 'CAA Form',
-            'dashboard.manage_club.records_to_file': 'Records to File'
+            'dashboard.manage_club.records_to_file': 'Records to File',
+            'dashboard.scheduler_v2': 'Scheduler'
         };
 
         

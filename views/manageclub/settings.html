@@ -214,6 +214,151 @@
               </div>
             </div>
 
+            <!-- ── Double bookings / aircraft waiting list (clubs.double_booking_by) ── -->
+            <div class="snazzy-setting-row">
+              <div class="snazzy-setting-info">
+                <label class="snazzy-setting-label" id="double-booking-by-label">
+                  <i class="fas fa-layer-group"></i>
+                  Who Can Add a Second Booking on a Taken Slot
+                </label>
+                <p class="snazzy-setting-description">
+                  When an aircraft slot is already booked, a second booking goes on that aircraft's
+                  <strong>waiting list</strong> (a "double booking"). Choose who may add one &mdash; by
+                  creating a booking there or by dragging one onto a taken slot. Moving a waiting booking
+                  back onto a free slot is always allowed.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <div class="snazzy-seg" role="radiogroup" aria-labelledby="double-booking-by-label">
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.double_booking_by === 'everyone'}">
+                    <input type="radio" name="double_booking_by" id="double-booking-by-everyone"
+                           ng-model="vm.club.settings.double_booking_by" value="everyone" />
+                    <span class="snazzy-seg__txt">Everyone</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.double_booking_by === 'staff'}">
+                    <input type="radio" name="double_booking_by" id="double-booking-by-staff"
+                           ng-model="vm.club.settings.double_booking_by" value="staff" />
+                    <span class="snazzy-seg__txt">Instructors and admins</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.double_booking_by === 'admins'}">
+                    <input type="radio" name="double_booking_by" id="double-booking-by-admins"
+                           ng-model="vm.club.settings.double_booking_by" value="admins" />
+                    <span class="snazzy-seg__txt">Admins only</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Opening hours (clubs.opening_hours — per weekday, soft: shading + warnings only) ── -->
+            <div class="snazzy-setting-row coh" id="club-opening-hours">
+              <div class="snazzy-setting-info">
+                <label class="snazzy-setting-label" id="opening-hours-label">
+                  <i class="fas fa-clock"></i>
+                  Opening Hours
+                </label>
+                <p class="coh__summary" ng-class="{'coh__summary--unset': !vm.oh.isSet}" id="opening-hours-summary">
+                  <i class="fas" ng-class="vm.oh.isSet ? 'fa-calendar-check' : 'fa-calendar'"></i>
+                  <span>{{ vm.oh.summary }}</span>
+                </p>
+                <p class="snazzy-setting-description">
+                  When the club is open each day. Used softly: the scheduler <strong>shades</strong> the hours
+                  outside these for your aircraft and the booking form <strong>warns</strong> when a slot falls
+                  outside them &mdash; a booking is never blocked by this. Switch a day off for "closed all day";
+                  leave the times empty for "not set". Use 00:00 as the closing time for midnight.
+                </p>
+              </div>
+              <div class="coh__editor" role="group" aria-labelledby="opening-hours-label">
+                <div class="coh__day" ng-repeat="d in vm.oh.days track by d.n"
+                     ng-class="{'coh__day--closed': !d.open, 'coh__day--unset': d.open && !(d.openTime && d.closeTime), 'coh__day--invalid': d.invalid}">
+                  <span class="coh__name">{{ d.name }}<span class="coh__name-short">{{ d.short }}</span></span>
+                  <div class="coh__toggle">
+                    <label class="snazzy-toggle">
+                      <input type="checkbox" id="opening-hours-open-{{ d.n }}" ng-model="d.open" ng-change="vm.ohChanged()"
+                             aria-label="{{ d.name }}: open" />
+                      <span class="snazzy-toggle__slider"></span>
+                    </label>
+                    <span class="coh__state">{{ d.open ? 'Open' : 'Closed' }}</span>
+                  </div>
+                  <div class="coh__times" ng-show="d.open">
+                    <input type="time" step="900" class="coh__time coh__time--open" id="field-oh-open-{{ d.n }}"
+                           ng-model="d.openTime" ng-change="vm.ohChanged()" aria-label="{{ d.name }} opens at" />
+                    <span class="coh__dash">to</span>
+                    <input type="time" step="900" class="coh__time coh__time--close" id="field-oh-close-{{ d.n }}"
+                           ng-model="d.closeTime" ng-change="vm.ohChanged()" aria-label="{{ d.name }} closes at" />
+                    <span class="coh__hint" ng-show="!d.invalid && !(d.openTime && d.closeTime)">not set</span>
+                    <span class="coh__hint coh__hint--bad" ng-show="d.invalid">Closing time must be after opening time</span>
+                  </div>
+                  <div class="coh__closed-txt" ng-show="!d.open">Closed all day</div>
+                </div>
+                <div class="coh__helpers">
+                  <button type="button" class="coh__btn" id="opening-hours-copy-weekdays" ng-click="vm.ohCopyMonday(false)">
+                    <i class="fas fa-copy"></i> Copy Monday to Tue&ndash;Fri
+                  </button>
+                  <button type="button" class="coh__btn" id="opening-hours-copy-all" ng-click="vm.ohCopyMonday(true)">
+                    <i class="fas fa-calendar-week"></i> Copy Monday to all days
+                  </button>
+                  <button type="button" class="coh__btn coh__btn--quiet" id="opening-hours-clear" ng-click="vm.ohClear()" ng-disabled="!vm.oh.isSet">
+                    <i class="fas fa-eraser"></i> Clear (not set)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Cancellation fees (clubs.cancellation_fees + cancellation_fee_claimers) — claimed at staff discretion ── -->
+            <div class="snazzy-setting-row cxf" id="club-cancellation-fees" ng-show="vm.cxf.supported">
+              <div class="snazzy-setting-info">
+                <label class="snazzy-setting-label" id="cancellation-fees-label">
+                  <i class="fas fa-receipt"></i>
+                  Cancellation Fees
+                </label>
+                <p class="cxf__summary" ng-class="{'cxf__summary--unset': !vm.cxf.isSet}" id="cancellation-fees-summary">
+                  <i class="fas" ng-class="vm.cxf.isSet ? 'fa-receipt' : 'fa-ban'"></i>
+                  <span>{{ vm.cxf.summary }}</span>
+                </p>
+                <p class="snazzy-setting-description">
+                  The fee the club <strong>may</strong> charge when a booking is cancelled for one of these reasons.
+                  Nothing is charged automatically: an instructor or admin decides each time, when they cancel the
+                  booking or later from <strong>Cancellations</strong> on the scheduler. A charge is invoiced to the
+                  pilot, collected with their next direct debit if they have a mandate, otherwise left on their
+                  account to pay. Leave an amount empty for no fee.
+                </p>
+              </div>
+              <div class="cxf__editor" role="group" aria-labelledby="cancellation-fees-label">
+                <div class="cxf__row" ng-repeat="r in vm.cxf.rows track by r.key" ng-class="{'cxf__row--set': r.amount > 0, 'cxf__row--invalid': r.invalid}">
+                  <label class="cxf__name" for="field-cxf-{{ r.key }}">
+                    <span>{{ r.label }}</span>
+                    <small ng-show="r.hint">{{ r.hint }}</small>
+                  </label>
+                  <div class="cxf__amount">
+                    <span class="cxf__cur">{{ vm.cxf.symbol }}</span>
+                    <input type="number" min="0" max="10000" step="0.01" inputmode="decimal" class="cxf__input" id="field-cxf-{{ r.key }}"
+                           ng-model="r.amount" ng-change="vm.cxfChanged()" placeholder="No fee" aria-label="{{ r.label }} fee" />
+                  </div>
+                  <span class="cxf__hint cxf__hint--bad" ng-show="r.invalid">Enter an amount between 0 and 10,000</span>
+                </div>
+                <div class="cxf__never">
+                  <span class="cxf__never-k"><i class="fas fa-shield-alt"></i> Never charged</span>
+                  <span class="cxf__chip" ng-repeat="n in vm.cxf.never">{{ n }}</span>
+                </div>
+                <div class="cxf__who">
+                  <span class="cxf__who-k" id="cancellation-fee-claimers-label">Who can charge or waive a fee</span>
+                  <div class="snazzy-seg" role="radiogroup" aria-labelledby="cancellation-fee-claimers-label">
+                    <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.cancellation_fee_claimers === 'staff'}">
+                      <input type="radio" name="cancellation_fee_claimers" id="cancellation-fee-claimers-staff"
+                             ng-model="vm.club.settings.cancellation_fee_claimers" value="staff" />
+                      <span class="snazzy-seg__txt">Instructors and admins</span>
+                    </label>
+                    <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.cancellation_fee_claimers === 'admins'}">
+                      <input type="radio" name="cancellation_fee_claimers" id="cancellation-fee-claimers-admins"
+                             ng-model="vm.club.settings.cancellation_fee_claimers" value="admins" />
+                      <span class="snazzy-seg__txt">Admins only</span>
+                    </label>
+                  </div>
+                  <span class="cxf__who-note">Reversing a charge is always admins only.</span>
+                </div>
+              </div>
+            </div>
+
             <!-- ── Booking Name Visibility Setting ── -->
             <div class="snazzy-setting-row">
               <div class="snazzy-setting-info">

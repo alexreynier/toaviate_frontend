@@ -18,6 +18,7 @@ app.factory('BookingService', BookingService);
         service.updateBooking = updateBooking;
         service.GetAllUserClub = GetAllUserClub;
         service.GetPlaneInstructorsEdit = GetPlaneInstructorsEdit;
+        service.GetClubInstructors = GetClubInstructors;
         service.GetIfCurrent = GetIfCurrent;
         service.GetTodayBookingsUser = GetTodayBookingsUser;
         service.GetForBookout = GetForBookout;
@@ -43,7 +44,11 @@ app.factory('BookingService', BookingService);
         service.GetInstructorByUser = GetInstructorByUser;
         service.GetInstructorPlanes = GetInstructorPlanes;
         service.GetBookingsToApproveClub = GetBookingsToApproveClub;
+        service.GetNextLesson = GetNextLesson;
         service.GetScheduleVersion = GetScheduleVersion;
+        service.PassengerPreview = PassengerPreview;          // what saving will do for each passenger (accepted | invited)
+        service.PassengerDeclineGet = PassengerDeclineGet;    // public "can't make it" page (token) — shows only
+        service.PassengerDeclinePost = PassengerDeclinePost;  // … and the explicit POST that declines
 
         return service;
 
@@ -52,6 +57,12 @@ app.factory('BookingService', BookingService);
         }
         function GetBookingsToApproveClub(club_id){
             return $http.get('/api/v1/bookings/to_approve_club/'+club_id).then(handleSuccess, handleError2);
+        }
+
+        // Scheduler v2 booking panel: the suggested next lesson for a student on a course
+        // (the briefing / debrief rule). → { success, lesson: {id,title,organise,course_reference}|null, reason }
+        function GetNextLesson(user_id, course_id){
+            return $http.get('/api/v1/bookings/next_lesson/'+user_id+'/'+course_id).then(handleSuccess, handleError2);
         }
 
         function GetForBookIn(id){
@@ -136,6 +147,15 @@ app.factory('BookingService', BookingService);
         //     return $http.get('/api/v1/bookings/plane_instructors3/'+user_id+'/'+plane_id+'/'+start+'/'+end+"?show_all="+show_all).then(handleSuccess, handleError('Error getting all Image'));
         // }
 
+        // Scheduler v2 booking panel, Who BEFORE What (2026-11-04): the club's current instructors for the slot,
+        // before any aircraft is chosen. Same rows as plane_instructors (+ available / reason / busy_with) plus
+        // course_ids / courses_restricted / plane_ids for the aircraft + tuition cascade. show_all=0 keeps only the
+        // available rows (members); booking_id (optional) excludes that booking from the busy check (an edit).
+        function GetClubInstructors(user_id, club_id, start, end, show_all, booking_id){
+            var q = '?show_all=' + (show_all ? 1 : 0) + (booking_id ? '&booking_id=' + booking_id : '');
+            return $http.get('/api/v1/bookings/club_instructors/'+user_id+'/'+club_id+'/'+start+'/'+end + q).then(handleSuccess, handleError2);
+        }
+
         function GetPlaneInstructorsEdit(user_id, plane_id, start, end, show_all, booking_id){
             return $http.get('/api/v1/bookings/plane_instructors2/'+user_id+'/'+plane_id+'/'+start+'/'+end+"/"+booking_id+"?show_all="+show_all).then(handleSuccess, handleError2);
         }
@@ -150,6 +170,23 @@ app.factory('BookingService', BookingService);
         }
 
         
+        // GET bookings/passenger_preview?club_id&booking_end[&booking_id]&passengers=<json [{user_id, email}]>
+        //   → {success, passengers:[{email, user_id, name, has_account, status_after_save: 'accepted'|'invited'}]}
+        function PassengerPreview(club_id, booking_end, passengers, booking_id){
+            var q = '?club_id=' + encodeURIComponent(club_id || 0) + '&booking_end=' + encodeURIComponent(booking_end || '') +
+                    (booking_id ? '&booking_id=' + encodeURIComponent(booking_id) : '') +
+                    '&passengers=' + encodeURIComponent(JSON.stringify(passengers || []));
+            return $http.get('/api/v1/bookings/passenger_preview' + q).then(handleSuccess, handleError2);
+        }
+
+        // PUBLIC (token, no session): GET only displays, POST acts — mail scanners prefetch links
+        function PassengerDeclineGet(token){
+            return $http.get('/api/v1/passenger_decline/' + encodeURIComponent(token)).then(handleSuccess, handleError2);
+        }
+        function PassengerDeclinePost(token){
+            return $http.post('/api/v1/passenger_decline/' + encodeURIComponent(token), {}).then(handleSuccess, handleError2);
+        }
+
         function ResendInvitation(content, id){
                // /resend_invitation
             return $http.post('/api/v1/invitations/resend_invitation/'+id, content).then(handleSuccess, handleError2);
@@ -173,9 +210,12 @@ app.factory('BookingService', BookingService);
         //     return $http.put('/api/v1/instructor_holiday/' + holiday.id, send).then(handleSuccess, handleError('Error updating Image'));
         // }
 
-        function DeleteBooking(user_id, delete_id) {
-            //this should be a disabled function only available for people working for the software
-            return $http.delete('/api/v1/bookings/' + delete_id + '?user_id=' + user_id).then(handleSuccess, handleError2);
+        function DeleteBooking(user_id, delete_id, reason, notes) {
+            // reason / notes (optional) are stored on the audit trail entry and the archived booking
+            var q = '?user_id=' + user_id;
+            if (reason) { q += '&reason=' + encodeURIComponent(reason); }
+            if (notes) { q += '&notes=' + encodeURIComponent(notes); }
+            return $http.delete('/api/v1/bookings/' + delete_id + q).then(handleSuccess, handleError2);
         }
 
 

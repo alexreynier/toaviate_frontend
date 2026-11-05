@@ -1,0 +1,117 @@
+<div class="sbk" ng-class="'sbk--' + vm.kind">
+
+  <!-- header in the aircraft's colour -->
+  <div class="sbk__hd" ng-style="{'border-left-color': vm.acColour}">
+    <div class="sbk__handle" aria-hidden="true"></div>
+    <h3 class="sbk__title">
+      <span class="sbk__kind" ng-style="{'background': vm.kindColour}" title="{{ vm.kindLabel }}">
+        <i class="fas" ng-class="{'fa-user-friends': vm.kind === 'dual', 'fa-user': vm.kind === 'solo', 'fa-key': vm.kind === 'hire', 'fa-star': vm.kind === 'trial', 'fa-wrench': vm.kind === 'maint'}"></i>
+      </span>
+      <span ng-show="vm.b">{{ vm.b.aircraft.reg }} <span class="sbk__actag" ng-show="vm.b.aircraft.type">{{ vm.b.aircraft.type }}</span></span>
+      <span ng-show="!vm.b && vm.loading">Booking</span>
+    </h3>
+    <div class="sbk__range" ng-show="vm.b">{{ vm.dateText }} · <b>{{ vm.rangeText }}</b> <span ng-show="vm.durationText">· {{ vm.durationText }}</span></div>
+    <button type="button" class="sbk__close" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+  </div>
+
+  <!-- loading / error -->
+  <div class="sbk__state" ng-show="vm.loading"><span class="sv2-spinner"></span> Loading booking…</div>
+  <div class="sbk__state sbk__state--error" ng-show="vm.error"><i class="fas fa-exclamation-triangle"></i> {{ vm.error }}</div>
+
+  <!-- ── card ── -->
+  <div ng-show="vm.b && vm.step === 'card'">
+    <div class="sbk__body">
+      <div class="sbk__chips">
+        <span class="sbk__pill">{{ vm.kindLabel }}</span>
+        <span class="sbk__pill" ng-class="vm.b.status === 'pending' ? 'sbk__pill--pend' : 'sbk__pill--ok'" ng-show="!vm.isMaint">{{ vm.statusLabel }}</span>
+        <span class="sbk__pill sbk__pill--wait" ng-show="vm.waiting"><i class="fas fa-hourglass-half"></i> Waiting list</span>
+        <span class="sbk__pill sbk__pill--live" ng-show="vm.inProgress"><i class="fas fa-plane"></i> Booked out</span>
+        <span class="sbk__pill sbk__pill--done" ng-show="vm.done"><i class="fas fa-check"></i> Completed</span>
+        <span class="sbk__pill sbk__pill--solo" ng-show="vm.b.solo" title="{{ vm.soloTip }}"><i class="fas fa-user"></i> Potential solo<span ng-show="vm.b.solo_source === 'lesson' && vm.b.lesson"> · {{ vm.b.lesson }}</span></span>
+        <span class="sbk__pill" ng-show="vm.b.lesson && !(vm.b.solo && vm.b.solo_source === 'lesson')">{{ vm.b.lesson }}</span>
+        <span class="sbk__pill" ng-show="vm.b.course">{{ vm.b.course }}</span>
+        <span class="sbk__pill" ng-show="vm.b.tuition && !vm.b.course">{{ vm.b.tuition }}</span>
+      </div>
+
+      <div class="sbk__people" ng-show="!vm.isMaint">
+        <div class="sbk__person">
+          <div class="sbk__av sbk__av--plain" ng-class="{'sbk__av--hidden': vm.hiddenPilot}" title="{{ vm.hiddenPilot ? 'The club does not show this member\'s name' : '' }}"><i class="fas fa-user" ng-show="vm.hiddenPilot"></i><span ng-show="!vm.hiddenPilot">{{ vm.pilotInitials || '—' }}</span></div>
+          <div>
+            <div class="sbk__role">Pilot</div>
+            <div class="sbk__nm" ng-class="{'sbk__nm--hidden': vm.hiddenPilot}">{{ vm.pilotName }}</div>
+            <div class="sbk__sub" ng-show="vm.pilotSub">{{ vm.pilotSub }}</div>
+          </div>
+        </div>
+        <div class="sbk__person" ng-show="vm.b.instructor && vm.b.instructor.id > 0">
+          <div class="sbk__av" ng-style="{'background': vm.instructorColour}">{{ vm.instructorInitials }}</div>
+          <div>
+            <div class="sbk__role">Instructor</div>
+            <div class="sbk__nm">{{ vm.b.instructor.name }}</div>
+          </div>
+        </div>
+        <div class="sbk__person" ng-show="!vm.b.instructor || !(vm.b.instructor.id > 0)">
+          <div class="sbk__av sbk__av--plain">—</div>
+          <div>
+            <div class="sbk__role">Instructor</div>
+            <div class="sbk__nm">None</div>
+            <div class="sbk__sub" ng-show="vm.noInstructorSub">{{ vm.noInstructorSub }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- staff only: how to reach the pilot -->
+      <div class="sbk__contact" ng-show="vm.contact">
+        <div class="sbk__k">Contact</div>
+        <div class="sbk__contact-row" ng-show="vm.contact.phone"><i class="fas fa-phone-alt"></i> <span>{{ vm.contact.phone }}</span> <a ng-href="{{ vm.telHref }}" class="sbk__contact-link">Call</a></div>
+        <div class="sbk__contact-row" ng-show="vm.contact.email"><i class="fas fa-envelope"></i> <span>{{ vm.contact.email }}</span> <a ng-href="{{ vm.mailHref }}" class="sbk__contact-link">Email</a></div>
+      </div>
+
+      <div class="sbk__notes" ng-show="vm.notes">
+        <div class="sbk__k">{{ vm.isMaint ? 'Reason' : 'Notes' }}</div>
+        <div class="sbk__notes-text">{{ vm.notes }}</div>
+      </div>
+
+      <div class="sbk__meta">
+        <div ng-show="vm.passengers.length" class="sbk__pax"><span class="sbk__k">Passengers</span>
+          <span class="sbk__pax-row" ng-repeat="p in vm.passengers"><span class="sbk__pax-nm">{{ ((p.first_name || '') + ' ' + (p.last_name || '')).trim() || p.name || p.email }}</span> <span class="sbk__pax-st" ng-class="'sbk__pax-st--' + vm.paxTone(p)">{{ vm.paxLabel(p) }}</span></span></div>
+        <div ng-show="vm.rentalItems.length"><span class="sbk__k">Rental items</span> <span ng-repeat="r in vm.rentalItems">{{ r.title || r.rental_item_title || r.name }}{{ r.number || r.quantity ? ' × ' + (r.number || r.quantity) : '' }}{{ $last ? '' : ', ' }}</span></div>
+        <div ng-show="vm.bookedText"><span class="sbk__k">Booked</span>
+          <a href="" class="sbk__link" ng-show="vm.canViewHistory" ng-click="vm.history()" no-busy-guard title="Open the booking history">{{ vm.bookedText }} <i class="fas fa-history"></i></a>
+          <span ng-show="!vm.canViewHistory">{{ vm.bookedText }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sbk__act">
+      <button type="button" class="sbk__btn sbk__btn--shortcut" ng-show="vm.canBookOut" ng-click="vm.bookOut()" no-busy-guard><i class="fas fa-plane-departure"></i> Book out</button>
+      <button type="button" class="sbk__btn sbk__btn--shortcut" ng-show="vm.canBookIn" ng-click="vm.bookIn()" no-busy-guard><i class="fas fa-plane-arrival"></i> Book in</button>
+      <button type="button" class="sbk__btn" ng-show="vm.canViewRecords" ng-click="vm.trainingRecord()" no-busy-guard title="This student's training records"><i class="fas fa-graduation-cap"></i> Training record</button>
+      <button type="button" class="sbk__btn" ng-show="vm.canViewHistory" ng-click="vm.history()" no-busy-guard title="Who booked, moved or edited this booking"><i class="fas fa-history"></i> History</button>
+      <button type="button" class="sbk__btn sbk__btn--primary" ng-show="vm.canEdit" ng-click="vm.edit()" no-busy-guard>{{ vm.isMaint ? 'Edit' : 'Edit booking' }}</button>
+      <span class="sbk__sp"></span>
+      <button type="button" class="sbk__btn sbk__btn--noshow" ng-show="vm.canMarkNoShow" ng-click="vm.startNoShow()" no-busy-guard
+              title="The pilot didn't turn up: take the booking off the schedule as a no-show"><i class="fas fa-user-times"></i> No-show</button>
+      <button type="button" class="sbk__btn sbk__btn--danger" ng-show="vm.canCancel" ng-click="vm.startCancel()" no-busy-guard>{{ vm.isMaint ? 'Remove' : 'Cancel booking' }}</button>
+    </div>
+  </div>
+
+  <!-- ── cancel step: reason (+ the club's cancellation fee) → DELETE bookings/{id}, then claim the fee if switched on ── -->
+  <div class="sbk__cancel" ng-show="vm.b && vm.step === 'cancel'">
+    <div class="sbk__body">
+      <h4 class="sbk__cancel-title"><i class="fas" ng-class="vm.noShow ? 'fa-user-times' : 'fa-times-circle'"></i> {{ vm.noShow ? 'Mark as a no-show?' : 'Cancel this booking?' }}</h4>
+      <p class="sbk__cancel-sub" ng-show="!vm.noShow">{{ vm.b.aircraft.reg }} · {{ vm.rangeText }} on {{ vm.dateText }}. Pick the reason — anyone on the waiting list for this aircraft is moved up automatically.</p>
+      <p class="sbk__cancel-sub" ng-show="vm.noShow">{{ vm.pilotName }} · {{ vm.b.aircraft.reg }} · {{ vm.rangeText }} on {{ vm.dateText }}. The booking comes off the schedule and is recorded as a no-show.</p>
+      <div ng-if="vm.step === 'cancel'">
+        <cancel-reason-fields club-id="vm.b.club_id" state="vm.cancel" pilot-name="vm.pilotName" preset="vm.cancelPreset" notes-id="sbk-cancel-notes"></cancel-reason-fields>
+      </div>
+    </div>
+    <div class="sbk__act">
+      <button type="button" class="sbk__btn" ng-click="vm.backToCard()" no-busy-guard ng-disabled="vm.cancelling">Keep booking</button>
+      <span class="sbk__sp"></span>
+      <button type="button" class="sbk__btn sbk__btn--danger-solid" ng-click="vm.confirmCancel()" ng-disabled="vm.cancelling">
+        <i class="fas" ng-class="vm.cancelling ? 'fa-circle-notch fa-spin' : 'fa-times'"></i> {{ vm.cancelling ? (vm.noShow ? 'Saving…' : 'Cancelling…') : vm.confirmLabel() }}
+      </button>
+    </div>
+  </div>
+
+</div>

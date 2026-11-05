@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService', 'TimeDisplayService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService, TimeDisplayService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService', 'TimeDisplayService', 'CancellationFeesService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService, TimeDisplayService, CancellationFeesService) {
         var vm = this;
 
         vm.user = null;
@@ -914,6 +914,125 @@
             });
         };
 
+        // ── Opening hours (clubs.opening_hours) ──────────────────────────────────────
+        // Contract: {"1":{open:"HH:MM",close:"HH:MM"}|null, …, "7"} keyed by ISO weekday (1 = Monday);
+        // a missing key = not set for that day, null = closed all day, the whole thing null = not
+        // configured. Soft everywhere: the scheduler shades outside these hours and the booking form
+        // warns — nothing is blocked. The editor rows hold Date objects because input[type=time]
+        // binds to a Date in this Angular; the object is rebuilt from them on save (ohBuild).
+        var OH_DAYS = [[1, 'Monday', 'Mon'], [2, 'Tuesday', 'Tue'], [3, 'Wednesday', 'Wed'], [4, 'Thursday', 'Thu'],
+                       [5, 'Friday', 'Fri'], [6, 'Saturday', 'Sat'], [7, 'Sunday', 'Sun']];
+        vm.oh = { days: [], summary: '', isSet: false };
+        function ohToDate(hhmm) {
+            var m = /^\s*(\d{1,2}):(\d{2})/.exec(hhmm || '');
+            return m ? new Date(1970, 0, 1, parseInt(m[1], 10), parseInt(m[2], 10), 0, 0) : null;
+        }
+        function ohPad(n) { return (n < 10 ? '0' : '') + n; }
+        function ohToStr(d) {
+            return (d instanceof Date && !isNaN(d.getTime())) ? ohPad(d.getHours()) + ':' + ohPad(d.getMinutes()) : null;
+        }
+        // one day → its contract value: undefined (not set) | null (closed) | {open, close}
+        function ohDayValue(d) {
+            if (!d.open) { return null; }
+            var o = ohToStr(d.openTime), c = ohToStr(d.closeTime);
+            if (!o || !c) { return undefined; }
+            return { open: o, close: c };
+        }
+        function ohDayLabel(v) {
+            if (v === undefined) { return 'not set'; }
+            if (v === null) { return 'closed'; }
+            return v.open + '–' + v.close;
+        }
+        // Rows from the stored object (string / object / null all accepted; pre-migration GETs omit the key)
+        vm.ohInit = function(raw) {
+            var src = raw;
+            if (typeof src === 'string') { try { src = JSON.parse(src); } catch (e) { src = null; } }
+            if (!src || typeof src !== 'object' || angular.isArray(src)) { src = {}; }
+            vm.oh.days = OH_DAYS.map(function(def) {
+                var key = String(def[0]);
+                var v = src.hasOwnProperty(key) ? src[key] : undefined;
+                return {
+                    n: def[0], name: def[1], short: def[2],
+                    open: v !== null,                                   // toggled off only for an explicit null
+                    openTime: (v && v.open) ? ohToDate(v.open) : null,
+                    closeTime: (v && v.close) ? ohToDate(v.close) : null,
+                    invalid: false
+                };
+            });
+            vm.ohChanged();
+        };
+        // Recomputes the summary line + per-day validity; returns the contract object (or null = not set)
+        vm.ohChanged = function() {
+            var out = {}, any = false, groups = [];
+            vm.oh.days.forEach(function(d) {
+                var v = ohDayValue(d);
+                d.invalid = !!(v && v.close !== '00:00' && v.close <= v.open);   // "00:00" close = midnight
+                if (v !== undefined) { out[String(d.n)] = v; any = true; }
+                var lbl = ohDayLabel(v), last = groups[groups.length - 1];
+                if (last && last.lbl === lbl) { last.to = d.short; } else { groups.push({ from: d.short, to: d.short, lbl: lbl }); }
+            });
+            vm.oh.isSet = any;
+            vm.oh.summary = any
+                ? groups.map(function(g) { return (g.from === g.to ? g.from : g.from + '–' + g.to) + ' ' + g.lbl; }).join(' · ')
+                : 'Not set — the scheduler shows no opening hours';
+            return any ? out : null;
+        };
+        vm.ohBuild = function() { return vm.ohChanged(); };
+        vm.ohInvalid = function() {
+            return vm.oh.days.some(function(d) { return d.invalid; });
+        };
+        // Copy Monday onto Tue–Fri (all = false) or onto every other day (all = true)
+        vm.ohCopyMonday = function(all) {
+            var mon = vm.oh.days[0];
+            vm.oh.days.forEach(function(d, i) {
+                if (i === 0 || (!all && i > 4)) { return; }
+                d.open = mon.open;
+                d.openTime = mon.openTime ? new Date(mon.openTime.getTime()) : null;
+                d.closeTime = mon.closeTime ? new Date(mon.closeTime.getTime()) : null;
+            });
+            vm.ohChanged();
+        };
+        vm.ohClear = function() { vm.ohInit(null); };
+        vm.ohInit(null);
+
+        // ── Cancellation fees (clubs.cancellation_fees + cancellation_fee_claimers) ─────────
+        // Contract: {reason_key: gross amount} for the chargeable reasons only (no_show,
+        // late_cancellation, pilot_unwell, pilot_unavailable, other); null = no fees. The fee is the
+        // MOST the club may charge — staff decide per cancellation (CancellationFeesService).
+        // Hidden while the GET has no cancellation_fees key (backend not migrated yet).
+        vm.cxf = { rows: [], summary: '', isSet: false, symbol: '£', supported: false,
+                   never: CancellationFeesService.neverCharged };
+        vm.cxfInit = function(raw, currency) {
+            var src = raw;
+            if (typeof src === 'string') { try { src = JSON.parse(src); } catch (e) { src = null; } }
+            if (!src || typeof src !== 'object' || angular.isArray(src)) { src = {}; }
+            vm.cxf.symbol = CancellationFeesService.symbol(currency);
+            vm.cxf.currency = currency || 'GBP';
+            vm.cxf.rows = CancellationFeesService.chargeable.map(function(def) {
+                var v = parseFloat(src[def.key]);
+                return { key: def.key, label: def.label, hint: def.hint, amount: (v > 0) ? v : null, invalid: false };
+            });
+            vm.cxfChanged();
+        };
+        // Recomputes validity + the summary line; returns the contract object (or null = no fees)
+        vm.cxfChanged = function() {
+            var out = {}, parts = [];
+            vm.cxf.rows.forEach(function(r) {
+                var raw = r.amount, n = parseFloat(raw);
+                // an emptied number input reads null; anything typed that isn't a number reads undefined
+                r.invalid = (raw === undefined) || (raw !== null && raw !== '' && (isNaN(n) || n < 0 || n > 10000));
+                if (!r.invalid && n > 0) {
+                    out[r.key] = Math.round(n * 100) / 100;
+                    parts.push(r.label + ' ' + CancellationFeesService.money(n, vm.cxf.currency));
+                }
+            });
+            vm.cxf.isSet = parts.length > 0;
+            vm.cxf.summary = parts.length ? parts.join(' · ') : 'No fees — cancellations are never charged';
+            return parts.length ? out : null;
+        };
+        vm.cxfInvalid = function() { return vm.cxf.rows.some(function(r) { return r.invalid; }); };
+        vm.cxfInit(null);
+
         vm.action = $state.current.data.action;
 
 
@@ -930,6 +1049,15 @@
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors == 1)? true : false;
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
+                        // who may add a second booking on a taken slot (the aircraft waiting list); pre-migration GETs omit it
+                        vm.club.settings.double_booking_by = (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) > -1)
+                            ? vm.club.settings.double_booking_by : 'everyone';
+                        // opening hours arrive DECODED ({"1":{open,close}|null…} or null); the editor rows are built from them
+                        vm.ohInit(vm.club.settings.opening_hours);
+                        // cancellation fees arrive DECODED ({reason_key: amount} or null); absent before the migration
+                        vm.cxf.supported = data && data.hasOwnProperty('cancellation_fees');
+                        vm.cxfInit(vm.club.settings.cancellation_fees, vm.club.settings.currency);
+                        vm.club.settings.cancellation_fee_claimers = (vm.club.settings.cancellation_fee_claimers === 'admins') ? 'admins' : 'staff';
                         vm.club.settings.airworthiness_booking_policy = vm.club.settings.airworthiness_booking_policy || 'allow';
                         vm.club.settings.airworthiness_bookout_policy = vm.club.settings.airworthiness_bookout_policy || 'allow';
                         vm.club.settings.pilot_checks_bookout_policy = vm.club.settings.pilot_checks_bookout_policy || 'allow';
@@ -1045,6 +1173,29 @@
             }
             if (!ToastService.validateForm(checks)) return;
 
+            // opening hours: the exact contract object (a day toggled on with empty times is dropped,
+            // a day toggled off is null, nothing set at all → null = not configured)
+            vm.club.settings.opening_hours = vm.ohBuild();
+            if (vm.ohInvalid()) {
+                ToastService.warning('Opening Hours', 'Closing time must be after opening time (use 00:00 for midnight).');
+                return;
+            }
+            // cancellation fees: {reason_key: amount} for the amounts set, null when none
+            if (vm.cxf.supported) {
+                if (vm.cxfInvalid()) {
+                    var bad = vm.cxf.rows.filter(function(r) { return r.invalid; })[0];
+                    ToastService.warning('Cancellation Fees', 'Enter an amount between 0 and 10,000, or leave it empty for no fee.');
+                    // the row is already red (.cxf__row--invalid) until the amount is fixed — just take the admin there
+                    var badEl = bad && document.getElementById('field-cxf-' + bad.key);
+                    if (badEl) { badEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); try { badEl.focus(); } catch (e) {} }
+                    return;
+                }
+                vm.club.settings.cancellation_fees = vm.cxfChanged();
+            } else {
+                delete vm.club.settings.cancellation_fees;
+                delete vm.club.settings.cancellation_fee_claimers;
+            }
+
             if(!vm.club.settings.update_logo){
                     delete vm.club.settings.logo;
             }
@@ -1084,6 +1235,9 @@
             vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages)? 1 : 0;
             vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation)? 1 : 0;
             vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors)? 1 : 0;
+            if (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) < 0) {
+                vm.club.settings.double_booking_by = 'everyone';
+            }
 
             // ── Booking Edit Time Limits ──
             vm.club.settings.edit_window_admin_minutes = parseInt(vm.club.settings.edit_window_admin_minutes) || 0;

@@ -152,7 +152,13 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         OTHER_LEG_ACKNOWLEDGEMENT_REQUIRED: 1,  // cancel-claim on a split pair → checkbox in the modal
         // Records entered on an instructor's behalf (BACKEND_ADMIN_STUDENT_RECORDS_GUIDE.md):
         // the debrief flags its instructor picker; confirm/edit toast their own outcome.
-        INSTRUCTOR_REQUIRED: 1, NOTHING_TO_CONFIRM: 1, ALREADY_SUPERSEDED: 1
+        INSTRUCTOR_REQUIRED: 1, NOTHING_TO_CONFIRM: 1, ALREADY_SUPERSEDED: 1,
+        // clubs.double_booking_by (scheduler v2 drag / booking panel): the controller toasts its own
+        // "this club only lets instructors and admins add a second booking" line.
+        DOUBLE_BOOKING_NOT_ALLOWED: 1,
+        // Cancellation fees (CancellationFeesService): the booking card / panel popup / Cancellations
+        // panel toast their own "fee not added / not reversed" line.
+        ALREADY_CLAIMED: 1, NO_FEE: 1, NO_PILOT: 1, NOT_CLAIMED: 1, ALREADY_COLLECTED: 1, NOT_AVAILABLE: 1
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes

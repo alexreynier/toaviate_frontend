@@ -35,6 +35,24 @@
         vm.return_to = $state.current.data.return_to;
         vm.club_id = 0;
 
+        // ── Scheduler v2 opt-in (CLAUDE.md "Scheduler v2") ──
+        // Once someone has pressed "Try the new scheduler" the classic list state
+        // hands over to /dashboard/bookings_v2 on entry (the add-booking page's
+        // BACK and every old link keep working); "Classic scheduler" on the v2
+        // page clears the flag. The edit state (action 'edit') is left alone.
+        var SV2_FLAG = 'toaviate_scheduler_v2';
+        var sv2_opted_in = false;
+        try { sv2_opted_in = localStorage.getItem(SV2_FLAG) === '1'; } catch (e) {}
+        if (vm.action == 'list' && sv2_opted_in) {
+            $state.go('dashboard.scheduler_v2', {}, { location: 'replace' });
+            return;
+        }
+        vm.tryNewScheduler = function(){
+            try { localStorage.setItem(SV2_FLAG, '1'); } catch (e) {}
+            var d = (vm.default_date && moment(vm.default_date).isValid()) ? moment(vm.default_date).format('YYYY-MM-DD') : null;
+            $state.go('dashboard.scheduler_v2', { date: d });
+        };
+
         // ── Edit window helper: mirrors backend is_within_edit_window logic ──
         function isWithinEditWindow(bookingEnd) {
             var endMoment = moment(Date.parse(bookingEnd));
