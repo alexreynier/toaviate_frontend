@@ -173,6 +173,12 @@
                 PlaneService.GetIncompleteClub(vm.club_id)
                     .then(function(data){
                         vm.flights_loading = false;
+                        // club staff only (FORBIDDEN otherwise — BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §15)
+                        if(!data || data.success === false){
+                            vm.club.flights = [];
+                            ToastService.warning('Open book-outs not loaded', (data && data.message) || 'The club\'s open book-outs could not be loaded.');
+                            return;
+                        }
                         vm.club.flights = data.bookouts;
                         // vm.club.member.membership_id.selected = vm.club.member.membership_id;
                         // vm.membership = vm.club.member.membership_name;

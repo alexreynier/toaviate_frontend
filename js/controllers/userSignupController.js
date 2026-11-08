@@ -477,15 +477,16 @@
 
 
 
+		// Platform T&Cs / privacy links ('2av8_terms' / '2av8_privacy'). Public
+		// route (no session here): the server picks the file, the page never
+		// names one — see BACKEND_PUBLIC_TERMS_GUIDE.md in the backend repo.
 		$scope.downloadClubDocument = function(doc) {
-            var data = $.param({
-                id: doc
-            });
+            var kind = (doc === '2av8_privacy') ? 'privacy' : ((doc === '2av8_terms') ? 'terms' : null);
+            if (!kind) { return; }
 
-            var ddd = doc.replace(/^.*[\\\/]/, '');
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
 
-            $http.get('api/v1/term_documents/show_file/'+ddd, {
+            $http.get('api/v1/public_terms/toaviate/'+kind, {
                     responseType: 'arraybuffer'
                 })
                 .success(function(data, status, headers) {

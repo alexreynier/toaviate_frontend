@@ -174,6 +174,15 @@ app.controller('BookingSlotsAdminController', BookingSlotsAdminController);
             var val = parseInt(vm.max_future_bookings) || 0;
             ClubService.Update({ id: vm.club_id, max_future_bookings: val })
                 .then(function(res) {
+                    // e.g. FORBIDDEN (only the club's admins may change its settings) — it
+                    // used to say "Saved" whatever came back
+                    if (res && res.success === false) {
+                        var why = res.message;
+                        if (why && typeof why === 'object') { why = why.message; }
+                        ToastService.error('Not saved',
+                            (typeof why === 'string' && why && !/^\s*</.test(why)) ? why : 'Max future bookings was not updated. Please try again.');
+                        return;
+                    }
                     ToastService.success('Saved', 'Max future bookings updated');
                 });
         };

@@ -45,6 +45,102 @@
       </div>
     </div>
 
+    <!-- ═══ Held Direct Debits (DashboardClubInvoicesController.ddHolds — backend BACKEND_DD_COLLECTION_GUIDE.md §5) ═══ -->
+    <div class="snazzy-page__table-card" ng-if="vm.ddHolds.length > 0" style="margin-bottom: 16px;">
+      <div class="snazzy-page__summary-header">
+        <h3><i class="fa fa-hand-paper"></i> Held Direct Debits ({{ vm.ddHolds.length }})</h3>
+        <span class="snazzy-page__summary-sub">
+          Not collected: each matches a GoCardless payment of the same member and amount that is not linked to any invoice — it may
+          already have been paid. Check in GoCardless, then <b>link</b> it to that payment (it is paid by it), <b>release</b> it to be
+          collected at the next Direct Debit collection, or <b>void</b> it.
+        </span>
+      </div>
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Member</th>
+              <th>Amount</th>
+              <th class="snazzy-table__hide-mobile">Raised</th>
+              <th>Matching GoCardless payment</th>
+              <th style="text-align:right;">Settle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="h in vm.ddHolds track by h.id">
+              <td class="snazzy-table__name">{{ h.invoice_number }}</td>
+              <td>{{ h.member_name }}</td>
+              <td class="snazzy-table__name">{{ h.payment_currency }} {{ h.invoice_total | number:2 }}</td>
+              <td class="snazzy-table__hide-mobile">{{ h.invoice_created_at | asDate | date:'dd MMM yyyy' }}</td>
+              <td>
+                {{ h.transaction_id || '(never confirmed by GoCardless)' }} — {{ h.payment_currency }} {{ h.payment_amount | number:2 }},
+                {{ h.payment_status }}, {{ h.payment_created_at | asDate | date:'dd MMM yyyy' }}
+                <span ng-if="h.rule === 'sum_of_invoices'"> (together with this member's other held invoices)</span>
+              </td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-page__btn" ng-if="h.can_link == 1" ng-click="vm.askDdHold(h, 'link')" ng-disabled="vm.ddSaving">Link</button>
+                <button class="snazzy-page__btn" ng-click="vm.askDdHold(h, 'release')" ng-disabled="vm.ddSaving">Release</button>
+                <button class="snazzy-page__btn" ng-click="vm.askDdHold(h, 'void')" ng-disabled="vm.ddSaving">Void</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- inline confirmation -->
+      <div class="snazzy-page__summary-header" ng-if="vm.ddConfirm && !vm.ddConfirm.small">
+        <span ng-if="vm.ddConfirm.action === 'link'"><b>Link invoice {{ vm.ddConfirm.hold.invoice_number }} to GoCardless payment {{ vm.ddConfirm.hold.transaction_id }}?</b> It is then paid by that payment (now '{{ vm.ddConfirm.hold.payment_status }}') and never collected again.</span>
+        <span ng-if="vm.ddConfirm.action === 'release'"><b>Release invoice {{ vm.ddConfirm.hold.invoice_number }}?</b> It is collected from {{ vm.ddConfirm.hold.member_name }}'s Direct Debit at the next collection — only if it is NOT the payment above.</span>
+        <span ng-if="vm.ddConfirm.action === 'void'"><b>Void invoice {{ vm.ddConfirm.hold.invoice_number }}?</b> Nothing will be collected for it.</span>
+        <div style="margin-top: 8px;">
+          <button class="snazzy-page__btn" ng-click="vm.cancelDdHold()" ng-disabled="vm.ddSaving">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runDdHold()" ng-disabled="vm.ddSaving">{{ vm.ddSaving ? 'Saving…' : 'Yes' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Small balances (DashboardClubInvoicesController.ddSmall — backend BACKEND_DD_COLLECTION_GUIDE.md §11b) ═══ -->
+    <div class="snazzy-page__table-card" ng-if="vm.ddSmall.length > 0" style="margin-bottom: 16px;">
+      <div class="snazzy-page__summary-header">
+        <h3><i class="fa fa-coins"></i> Small balances waiting over 90 days ({{ vm.ddSmall.length }})</h3>
+        <span class="snazzy-page__summary-sub">
+          Queued for Direct Debit but under the £1.00 minimum collection, so carried forward for more than 90 days. They are collected
+          with the member's next charges — keep waiting (nothing to do), or <b>void</b> them.
+        </span>
+      </div>
+      <div class="snazzy-page__table-scroll">
+        <table class="snazzy-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Member</th>
+              <th>Amount</th>
+              <th class="snazzy-table__hide-mobile">Raised</th>
+              <th style="text-align:right;">Settle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="h in vm.ddSmall track by h.invoice_id">
+              <td class="snazzy-table__name">{{ h.invoice_number }}</td>
+              <td>{{ h.member_name }}</td>
+              <td class="snazzy-table__name">{{ h.currency }} {{ h.invoice_total | number:2 }}</td>
+              <td class="snazzy-table__hide-mobile">{{ h.invoice_created_at | asDate | date:'dd MMM yyyy' }}</td>
+              <td class="snazzy-table__td-actions">
+                <button class="snazzy-page__btn" ng-click="vm.askDdHold(h, 'void', true)" ng-disabled="vm.ddSaving">Void</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="snazzy-page__summary-header" ng-if="vm.ddConfirm && vm.ddConfirm.small">
+        <span><b>Void invoice {{ vm.ddConfirm.hold.invoice_number }}?</b> Nothing will be collected for it.</span>
+        <div style="margin-top: 8px;">
+          <button class="snazzy-page__btn" ng-click="vm.cancelDdHold()" ng-disabled="vm.ddSaving">Cancel</button>
+          <button class="snazzy-page__btn snazzy-page__btn--primary" ng-click="vm.runDdHold()" ng-disabled="vm.ddSaving">{{ vm.ddSaving ? 'Saving…' : 'Yes' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ Summary Card ═══ -->
     <div class="snazzy-page__summary-card">
       <div class="snazzy-page__summary-header">
@@ -114,7 +210,7 @@
                 <span class="snazzy-table__badge"
                   ng-class="{
                     'snazzy-table__badge--success': invoice.status == 'paid' || invoice.status == 'confirmed',
-                    'snazzy-table__badge--warning': invoice.status == 'pending_submission' || invoice.status == 'submitted' || invoice.status == 'pending_customer_approval',
+                    'snazzy-table__badge--warning': invoice.status == 'pending_submission' || invoice.status == 'submitted' || invoice.status == 'pending_customer_approval' || invoice.status == 'payment_pending' || invoice.status == 'dd_held',
                     'snazzy-table__badge--danger': invoice.status == 'failed' || invoice.status == 'cancelled' || invoice.status == 'charged_back',
                     'snazzy-table__badge--info': invoice.status == 'created' || invoice.status == 'issued'
                   }">{{ get_human_status(invoice.status) }}</span>
@@ -251,7 +347,7 @@
           <span class="snazzy-table__badge"
             ng-class="{
               'snazzy-table__badge--success': invoice.status == 'paid' || invoice.status == 'confirmed',
-              'snazzy-table__badge--warning': invoice.status == 'pending_submission' || invoice.status == 'submitted' || invoice.status == 'pending_customer_approval',
+              'snazzy-table__badge--warning': invoice.status == 'pending_submission' || invoice.status == 'submitted' || invoice.status == 'pending_customer_approval' || invoice.status == 'payment_pending' || invoice.status == 'dd_held',
               'snazzy-table__badge--danger': invoice.status == 'failed' || invoice.status == 'cancelled' || invoice.status == 'charged_back',
               'snazzy-table__badge--info': invoice.status == 'created' || invoice.status == 'issued'
             }">{{ get_human_status(invoice.status) }}</span>

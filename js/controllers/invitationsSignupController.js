@@ -1534,24 +1534,34 @@ vm.selected_phone;
 		    }
 
 		    $scope.downloadClubDocument = function(doc) {
-	            // Club T&C links call this with no argument — resolve the
-	            // club's own terms document from the invitation payload.
+	            // Public route (no session here): GET public_terms/{owner}/{kind}
+	            // — the server picks the file, the page never names one (see
+	            // BACKEND_PUBLIC_TERMS_GUIDE.md in the backend repo).
+	            //  - no argument (club T&C links): the club's own membership
+	            //    terms; the payload's file name only says whether it has one.
+	            //  - '2av8_terms' / '2av8_privacy': the platform documents.
+	            var path = null;
 	            if (!doc) {
-	                doc = ($scope.club && ($scope.club.membership_terms || ($scope.club.settings && $scope.club.settings.membership_terms))) || null;
-	            }
-	            if (!doc) {
-	                ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+	                var club = $scope.club;
+	                var clubId = parseInt((club && club.id) || $scope.formData.club_id, 10);
+	                if (club && clubId > 0 && (club.membership_terms || (club.settings && club.settings.membership_terms))) {
+	                    path = clubId + '/membership';
+	                }
+	                if (!path) {
+	                    ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+	                    return;
+	                }
+	            } else if (doc === '2av8_terms') {
+	                path = 'toaviate/terms';
+	            } else if (doc === '2av8_privacy') {
+	                path = 'toaviate/privacy';
+	            } else {
 	                return;
 	            }
 
-	            var data = $.param({
-	                id: doc
-	            });
-
-	            var ddd = doc.replace(/^.*[\\\/]/, '');
 	            $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
 
-	            $http.get('api/v1/term_documents/show_file/'+ddd, {
+	            $http.get('api/v1/public_terms/'+path, {
 	                    responseType: 'arraybuffer'
 	                })
 	                .success(function(data, status, headers) {

@@ -63,45 +63,23 @@
         };
         
 
-        UserService.GetAdminClubs(vm.user.id)
-        .then(function(data){
+        // The admin clubs (header switcher) and the full row of the selected
+        // one come from AuthenticationService.Rehydrate() — once per page load /
+        // login, shared with the Manage Club route guard. It also restores what
+        // the slim `globals` cookie leaves out (access rows, the full club row)
+        // and picks the club saved in localStorage 'toaviate_selected_club_id'.
+        AuthenticationService.Rehydrate()
+        .then(function(hydrated){
+            if(!hydrated){ return; }   // logged out meanwhile
+            var data = hydrated.clubs || {};
             if(data.success){
-                 vm.clubs = data.clubs;   
-
-                // Try to restore previously selected club from localStorage
-                var savedClubId = null;
-                try {
-                    var stored = localStorage.getItem('toaviate_selected_club_id');
-                    if (stored !== null) {
-                        savedClubId = stored; // keep as string for comparison
-                    }
-                } catch(e) {}
-
-                var selectedClub = null;
-                if (savedClubId !== null) {
-                    for (var i = 0; i < vm.clubs.length; i++) {
-                        // Compare as strings to avoid type mismatch (API may return int or string)
-                        if (String(vm.clubs[i].id) === String(savedClubId)) {
-                            selectedClub = vm.clubs[i];
-                            break;
-                        }
-                    }
+                vm.clubs = data.clubs || [];
+                var current = $rootScope.globals.currentUser && $rootScope.globals.currentUser.current_club_admin;
+                vm.club = null;
+                for (var i = 0; current && i < vm.clubs.length; i++) {
+                    if (String(vm.clubs[i].id) === String(current.id)) { vm.club = vm.clubs[i]; break; }
                 }
-
-                // Fall back to first club if no saved selection (or saved club no longer valid)
-                if (!selectedClub) {
-                    selectedClub = vm.clubs[0];
-                }
-
-                vm.club = selectedClub;
-                $rootScope.globals.currentUser.current_club_admin = selectedClub;
-                $cookieStore.put('globals', $rootScope.globals);
-
-                // Persist the selection
-                try {
-                    localStorage.setItem('toaviate_selected_club_id', String(selectedClub.id));
-                } catch(e) {}
-
+                if (!vm.club && current) { vm.club = current; }
             } else {
                 // The admin-clubs call failed. Only bounce to login on a genuine
                 // auth failure (401). A transient/unreachable-server error (status
@@ -124,7 +102,7 @@
         vm.onClubSelected = function(club) {
             vm.club = club;
             $rootScope.globals.currentUser.current_club_admin = club;
-            $cookieStore.put('globals', $rootScope.globals);
+            AuthenticationService.PersistGlobals();   // the slim cookie keeps the club's id/title
 
             // Persist to localStorage so it survives page reloads
             try {

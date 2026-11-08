@@ -16,18 +16,26 @@
 
   <div class="snazzy-page__body">
 
-    <!-- Club chips when a member of several clubs -->
+    <!-- Club chips when several clubs (current + any club that sold them an exam, by name) -->
     <div class="exadmin__filters" ng-if="vm.clubs.length > 1">
       <a class="exadmin__filter" ng-repeat="club in vm.clubs"
          ng-class="{'exadmin__filter--on': vm.club.id === club.id}"
-         ng-click="vm.selectClub(club)">{{ club.title }}</a>
+         ng-click="vm.selectClub(club)">{{ club.title }}<span class="myexams__past" ng-if="!club.member">past membership</span></a>
     </div>
+    <p class="myexams__clubnote" ng-if="vm.clubs.length === 1 && !vm.clubs[0].member">
+      Your exams with <strong>{{ vm.clubs[0].title }}</strong> &middot; past membership
+    </p>
 
     <div class="exadmin__loading" ng-if="vm.loading">
       <div class="solo-req__spinner"></div> Loading your exams&hellip;
     </div>
 
-    <div class="exadmin__empty" ng-if="!vm.loading && vm.items.length === 0">
+    <div class="exadmin__empty" ng-if="!vm.loading && vm.loadFailed">
+      <i class="fas fa-exclamation-circle"></i>
+      <p>Your exams could not be loaded just now — please try again.</p>
+    </div>
+
+    <div class="exadmin__empty" ng-if="!vm.loading && !vm.loadFailed && vm.items.length === 0">
       <i class="fas fa-award"></i>
       <p>No ground exams yet — they'll appear here once the club sells you one.</p>
     </div>

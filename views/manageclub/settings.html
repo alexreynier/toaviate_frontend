@@ -214,6 +214,30 @@
               </div>
             </div>
 
+            <!-- ── Require a payment method to self-book (clubs.require_payment_method, batch 9.1 — backend
+                 BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §5.2; hidden until the backend migration has run) ── -->
+            <div class="snazzy-setting-row" ng-if="vm.paymentMethodRuleSupported">
+              <div class="snazzy-setting-info">
+                <label for="require-payment-method" class="snazzy-setting-label">
+                  <i class="fas fa-credit-card"></i>
+                  Require a Payment Method to Book
+                </label>
+                <p class="snazzy-setting-description">
+                  Members booking themselves as PIC on a paid flight must have a Direct Debit or saved card; admins can override.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <label class="snazzy-toggle">
+                  <input type="checkbox"
+                         id="require-payment-method"
+                         ng-model="vm.club.settings.require_payment_method" />
+                  <span class="snazzy-toggle__slider"></span>
+                </label>
+                <span class="snazzy-toggle-label" ng-if="vm.club.settings.require_payment_method">Enabled</span>
+                <span class="snazzy-toggle-label snazzy-toggle-label--off" ng-if="!vm.club.settings.require_payment_method">Disabled</span>
+              </div>
+            </div>
+
             <!-- ── Double bookings / aircraft waiting list (clubs.double_booking_by) ── -->
             <div class="snazzy-setting-row">
               <div class="snazzy-setting-info">
@@ -572,6 +596,48 @@
           </div>
         </div>
         <!-- End Booking Edit Time Limits -->
+
+
+        <!-- ── Membership Renewals: when members are e-mailed before an automatic renewal is charged
+             (clubs.renewal_reminder_days, 3–60, default 14 — backend BACKEND_MEMBERSHIP_RENEWALS_GUIDE.md §6a).
+             Hidden until the backend migration has run (the GET omits the column). ── -->
+        <div class="club_docs_all" ng-if="vm.renewalReminderSupported">
+          <h2><i class="fas fa-sync-alt" style="margin-right:8px;color:#2563eb;"></i> Membership Renewals</h2>
+          <div class="center_if_large">
+            <div class="snazzy-setting-row">
+              <div class="snazzy-setting-info">
+                <label for="field-renewal_reminder_days" class="snazzy-setting-label">
+                  <i class="fas fa-envelope-open-text"></i>
+                  Renewal Reminder
+                </label>
+                <p class="snazzy-setting-description">
+                  Members whose membership renews automatically are e-mailed this many days before the payment is taken
+                  (renewal payments are taken 7 days before the membership ends): the amount, the date, the Direct Debit
+                  or card that will be used, and how to change it or switch automatic renewal off. Members whose renewal
+                  cannot be taken automatically (no Direct Debit, no saved card&hellip;) are told to renew by hand instead.
+                  Between 3 and 60 days. Nobody is charged before this e-mail is that many days old, and a membership is
+                  never renewed automatically once it has ended.
+                </p>
+                <p class="snazzy-setting-description" ng-if="vm.club.settings.renewals_paused == 1" style="color:#c2410c;font-weight:600;">
+                  <i class="fas fa-pause-circle"></i>
+                  Automatic renewals are paused for your club by ToAviate: nobody is charged automatically, and members whose
+                  membership would renew are e-mailed that it will not renew automatically &mdash; renew them by hand, or
+                  contact ToAviate to resume.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <input type="number" min="3" max="60" step="1"
+                       class="edit-window-input"
+                       id="field-renewal_reminder_days"
+                       ng-model="vm.club.settings.renewal_reminder_days"
+                       ng-focus="vm.clearFieldError($event)"
+                       placeholder="14" />
+                <span class="edit-window-unit">days before</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- End Membership Renewals -->
 
 
         <div class="club_docs_all">

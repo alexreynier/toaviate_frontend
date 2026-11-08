@@ -69,6 +69,12 @@
 
                        } else {
                            //alert("Something happened which was not supposed to happen... Please try again");
+                           // refusals say why (payments/process_payment: FORBIDDEN / NOT_FOUND — backend
+                           // BACKEND_MONEY_ACCESS_GUIDE.md §5b); FORBIDDEN is a writeGuard HANDLED code, so say it here
+                           if (data && data.error) {
+                               ToastService.error('Payment Not Taken', (typeof data.message === 'string' && data.message) || 'This payment could not be made.');
+                               vm.show_loading = false;
+                           }
                            console.log("===== ERROR =====");
                            console.log(data);
                            console.log("===== ERROR =====");
@@ -113,10 +119,11 @@
         }
 
         vm.show_payment_option = function(invoice){
+            // No Pay Now while a payment exists or may exist (2026-11-07): pending_submission = a Direct Debit
+            // is already being collected; payment_pending = the provider has not confirmed a payment yet
+            // (the server refuses both - INVOICE_NOT_PAYABLE).
             var status = invoice.status;
-            if(status == "pending_submission"){
-                return true;
-            } else if(status == "issued"){
+            if(status == "issued"){
                 return true;
             } else if(status == "created"){
                 return true;
@@ -410,6 +417,23 @@
               case 'pending_submission':
                   
                     returned = "Requesting";
+
+              break;
+
+              case 'payment_pending':
+                    // the payment provider has not confirmed the payment yet: checked hourly (2026-11-07)
+                    returned = "Payment being confirmed";
+
+              break;
+
+              case 'dd_held':
+                    // held back from the Direct Debit collection: it may already have been paid — the club is checking (2026-11-07)
+                    returned = "Being checked by the club";
+
+              break;
+
+              case 'direct_debit':
+                    returned = "To be collected by Direct Debit";
 
               break;
 

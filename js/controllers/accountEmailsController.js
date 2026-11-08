@@ -18,9 +18,9 @@
 app.controller('AccountEmailsController', AccountEmailsController);
 
 AccountEmailsController.$inject = ['$scope', '$rootScope', '$timeout', '$interval', '$uibModal', '$cookieStore',
-                                   'AccountEmailsService', 'StepUpService', 'ToastService'];
+                                   'AccountEmailsService', 'StepUpService', 'ToastService', 'AuthenticationService'];
 function AccountEmailsController($scope, $rootScope, $timeout, $interval, $uibModal, $cookieStore,
-                                 AccountEmailsService, StepUpService, ToastService) {
+                                 AccountEmailsService, StepUpService, ToastService, AuthenticationService) {
     var ae = this;
 
     var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -308,14 +308,14 @@ function AccountEmailsController($scope, $rootScope, $timeout, $interval, $uibMo
         return '';
     }
 
-    // Plan §6: update the email in place and re-persist the globals the
-    // way AuthenticationService.SetCredentials does ($cookieStore 'globals').
+    // Plan §6: update the email in place and re-persist the globals
+    // (AuthenticationService.PersistGlobals — the slim `globals` cookie).
     // Deliberately NOT SetCredentials itself — that re-runs the access
     // fetch and resets the auth gate for nothing.
     function applyNewPrimary(email) {
         if (!email || !$rootScope.globals || !$rootScope.globals.currentUser) { return; }
         $rootScope.globals.currentUser.email = email;
-        $cookieStore.put('globals', $rootScope.globals);
+        AuthenticationService.PersistGlobals();
     }
 
     // ── Error copy (plan §7) ──

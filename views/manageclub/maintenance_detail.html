@@ -203,21 +203,29 @@
             </tr>
           </thead>
           <tbody>
-            <!-- ARC / Permit -->
+            <!-- ARC (CofA aircraft) / Permit to Fly: airworthiness_document — the record airworthiness
+                 judges (a CofA aircraft's ARC renewal is saved as its ARC since 2026-11-07; a CofA
+                 with no ARC on file shows the CofA, which does not expire) -->
             <tr>
-              <td class="snazzy-table__name">{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+              <td class="snazzy-table__name">{{ vm.club.plane.airworthiness_document.label || (vm.club.plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'Airworthiness Review Certificate (ARC)') }}
+                <!-- the uploader (user_id, stamped since 2026-11-07; older rows have none) -->
+                <div ng-if="vm.club.plane.airworthiness_document.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.airworthiness_document.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
-                <a ng-click="downloadDocument(vm.club.plane.certificate.certificate, 'certificate')" class="snazzy-table__action-btn" uib-tooltip="Download document">
-                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.certificate.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                <a ng-click="downloadDocument(vm.club.plane.airworthiness_document.certificate, vm.club.plane.airworthiness_document.document_route === 'plane_arc' ? 'arc' : 'certificate')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.airworthiness_document.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
                 </a>
               </td>
-              <td class="snazzy-table__date">{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td class="snazzy-table__date">{{ vm.club.plane.airworthiness_document.date_expiry | date:"dd/MM/yyyy" }}<span ng-if="vm.club.plane.airworthiness_document.expires === false">Does not expire</span>
+                <!-- the form's "Certificate Issue Date" (date_issued — it was never stored) -->
+                <div ng-if="vm.club.plane.airworthiness_document.date_issued && vm.club.plane.airworthiness_document.date_issued !== '0000-00-00'" class="snazzy-table__muted">Issued {{ vm.club.plane.airworthiness_document.date_issued | date:"dd/MM/yyyy" }}</div>
+              </td>
               <td>
                 <span class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
-                  'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
-                  'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
-                }">{{ vm.club.plane.certificate.status }}</span>
+                  'snazzy-table__badge--success': vm.club.plane.airworthiness_document.status === 'ok' || vm.club.plane.airworthiness_document.status === 'green',
+                  'snazzy-table__badge--warning': vm.club.plane.airworthiness_document.status === 'yellow',
+                  'snazzy-table__badge--danger': vm.club.plane.airworthiness_document.status === 'expired' || vm.club.plane.airworthiness_document.status === 'red'
+                }">{{ vm.club.plane.airworthiness_document.status }}</span>
               </td>
               <td class="snazzy-table__td-actions">
                 <button class="snazzy-table__action-btn" ng-click="show_overlay('cert')" uib-tooltip="Update certificate">
@@ -227,7 +235,9 @@
             </tr>
             <!-- Insurance -->
             <tr>
-              <td class="snazzy-table__name">Insurance</td>
+              <td class="snazzy-table__name">Insurance
+                <div ng-if="vm.club.plane.insurance.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.insurance.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
                 <a ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')" class="snazzy-table__action-btn" uib-tooltip="Download document">
                   <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
@@ -249,13 +259,18 @@
             </tr>
             <!-- Radio Licence -->
             <tr>
-              <td class="snazzy-table__name">Radio Licence</td>
+              <td class="snazzy-table__name">Radio Licence
+                <div ng-if="vm.club.plane.radio_licence.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.radio_licence.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
                 <a ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')" class="snazzy-table__action-btn" uib-tooltip="Download document">
                   <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
                 </a>
               </td>
-              <td class="snazzy-table__date">{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td class="snazzy-table__date">{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}
+                <!-- a licence on file without an expiry (none entered) — status "ok", not "expired" -->
+                <span ng-if="vm.club.plane.radio_licence.certificate && !vm.club.plane.radio_licence.date_expiry" class="snazzy-table__muted">No expiry</span>
+              </td>
               <td>
                 <span class="snazzy-table__badge" ng-class="{
                   'snazzy-table__badge--success': vm.club.plane.radio_licence.status === 'ok' || vm.club.plane.radio_licence.status === 'green',
@@ -271,7 +286,9 @@
             </tr>
             <!-- Noise Certificate -->
             <tr>
-              <td class="snazzy-table__name">Noise Certificate</td>
+              <td class="snazzy-table__name">Noise Certificate
+                <div ng-if="vm.club.plane.noise.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.noise.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
                 <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate">
                   <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')" class="snazzy-table__action-btn" uib-tooltip="Download document">
@@ -280,7 +297,10 @@
                 </span>
                 <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
               </td>
-              <td class="snazzy-table__date">N/A</td>
+              <td class="snazzy-table__date">N/A
+                <!-- non-expiring: show the issue date the form saves (date_issued) -->
+                <div ng-if="vm.club.plane.noise.date_issued && vm.club.plane.noise.date_issued !== '0000-00-00'" class="snazzy-table__muted">Issued {{ vm.club.plane.noise.date_issued | date:"dd/MM/yyyy" }}</div>
+              </td>
               <td>
                 <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="snazzy-table__badge" ng-class="{
                   'snazzy-table__badge--success': vm.club.plane.noise.status === 'ok' || vm.club.plane.noise.status === 'green',
@@ -296,7 +316,9 @@
             </tr>
             <!-- CRS -->
             <tr>
-              <td class="snazzy-table__name">Certificate of Release to Service (CRS)</td>
+              <td class="snazzy-table__name">Certificate of Release to Service (CRS)
+                <div ng-if="vm.club.plane.crs.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.crs.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
                 <span ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
                   <a ng-click="downloadDocument(vm.club.plane.crs.certificate, 'crs')" class="snazzy-table__action-btn" uib-tooltip="Download CRS">
@@ -324,24 +346,28 @@
 
       <!-- Mobile cards for documents -->
       <div class="mx-docs-mobile">
-        <!-- ARC -->
+        <!-- ARC / Permit to Fly (airworthiness_document, as the desktop row) -->
         <div class="snazzy-mobile-card" style="margin:8px 12px;">
           <div class="snazzy-mobile-card__header">
-            <span class="snazzy-mobile-card__title">{{ vm.club.plane.maintenance_type == "cofa" ? "ARC" : "Permit to Fly" }}</span>
+            <span class="snazzy-mobile-card__title">{{ vm.club.plane.airworthiness_document.kind === 'permit' ? 'Permit to Fly' : (vm.club.plane.airworthiness_document.kind === 'cofa' ? 'CofA' : 'ARC') }}</span>
             <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('cert')"><i class="fa fa-edit"></i></button>
           </div>
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Expiry</span>
-              <span>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</span>
+              <span>{{ vm.club.plane.airworthiness_document.date_expiry | date:"dd/MM/yyyy" }}<span ng-if="vm.club.plane.airworthiness_document.expires === false">Does not expire</span></span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.club.plane.airworthiness_document.date_issued && vm.club.plane.airworthiness_document.date_issued !== '0000-00-00'">
+              <span class="snazzy-mobile-card__label">Issued</span>
+              <span>{{ vm.club.plane.airworthiness_document.date_issued | date:"dd/MM/yyyy" }}</span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Status</span>
               <span class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
-                'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
-                'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
-              }">{{ vm.club.plane.certificate.status }}</span>
+                'snazzy-table__badge--success': vm.club.plane.airworthiness_document.status === 'ok' || vm.club.plane.airworthiness_document.status === 'green',
+                'snazzy-table__badge--warning': vm.club.plane.airworthiness_document.status === 'yellow',
+                'snazzy-table__badge--danger': vm.club.plane.airworthiness_document.status === 'expired' || vm.club.plane.airworthiness_document.status === 'red'
+              }">{{ vm.club.plane.airworthiness_document.status }}</span>
             </div>
           </div>
         </div>
@@ -375,7 +401,7 @@
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Expiry</span>
-              <span>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</span>
+              <span>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}<span ng-if="vm.club.plane.radio_licence.certificate && !vm.club.plane.radio_licence.date_expiry" class="snazzy-table__muted">No expiry</span></span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Status</span>
@@ -401,6 +427,10 @@
                 'snazzy-table__badge--danger': vm.club.plane.noise.status === 'expired'
               }">{{ vm.club.plane.noise.status }}</span>
               <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.club.plane.noise.date_issued && vm.club.plane.noise.date_issued !== '0000-00-00'">
+              <span class="snazzy-mobile-card__label">Issued</span>
+              <span>{{ vm.club.plane.noise.date_issued | date:"dd/MM/yyyy" }}</span>
             </div>
           </div>
         </div>
@@ -1345,13 +1375,15 @@
 
             <div class="wp-section" ng-if="vm.show_maintenance || vm.show_cert">
 
-                    <h3 class="wp-section-title"><i class="fa fa-file-alt"></i> {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} Document</h3>
+                    <!-- a CofA aircraft's upload here is its ARC renewal (saved as the ARC that
+                         airworthiness reads); a Permit aircraft's is the permit -->
+                    <h3 class="wp-section-title"><i class="fa fa-file-alt"></i> {{ vm.club.plane.airworthiness_type === 'ptf' ? "Permit to Fly" : "Airworthiness Review Certificate (ARC)" }} Document</h3>
 
                    <!--  <label for="cert">Certificate PDF</label>
                     <input type="file" class="form-control" name="plane_type" id="cert" ng-model="vm.obj.cert" /> -->
 
                     <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} in PDF format</span>
+                        <span for="licence_type" ng-if="!vm.document.id">Please upload {{ vm.club.plane.airworthiness_type === 'ptf' ? "the Permit to Fly" : "the renewed Airworthiness Review Certificate (ARC)" }} in PDF format</span>
                         <br />
                         
 
@@ -1456,12 +1488,12 @@
                     </div>
 
                     <div class="form-group">
-                      <label for="certificate_expiry">Certificate Issue Date</label>
+                      <label for="certificate_issue">{{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit' : 'ARC' }} Issue Date</label>
                       <input type="date" class="form-control inputtext" name="certificate_issue" id="certificate_issue" ng-model="vm.obj.certificate_issue" />
                     </div>
 
                     <div class="form-group">
-                      <label for="certificate_expiry">Certificate Expiry</label>
+                      <label for="certificate_expiry">{{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit' : 'ARC' }} Expiry</label>
                       <input type="date" class="form-control inputtext" name="certificate_expiry" id="certificate_expiry" ng-model="vm.obj.certificate_expiry" />
                     </div>
 
@@ -1706,8 +1738,10 @@
                     </div>
 
                     <div class="form-group">
-                      <label for="radio_expiry">Radio Licence Expiry</label>
+                      <label for="radio_expiry">Radio Licence Expiry <small>(blank = no expiry)</small></label>
                       <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.obj.radio_expiry" />
+                      <!-- informational only: shown and reminded about, never blocks a booking or book-out -->
+                      <small class="text-muted">Usually valid for 3 years. For information and reminders only — it never stops a booking or book-out.</small>
                     </div>
 
             </div>
@@ -1781,7 +1815,8 @@
                     </div>
 
                     <div class="form-group">
-                      <label for="radio_expiry">Noise Certificate Date</label>
+                      <!-- sent as noise_cert.date_issued → plane_noise_certificate.date_issued -->
+                      <label for="noise_date">Noise Certificate Issue Date</label>
                       <input type="date" class="form-control inputtext" name="noise_date" id="noise_date" ng-model="vm.obj.noise_date" />
                     </div>
 

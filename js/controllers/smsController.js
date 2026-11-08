@@ -7,14 +7,125 @@
 // ─────────────────────────────────────────────────────
 app.controller('SmsController', SmsController);
 
-    SmsController.$inject = ['SmsService', 'SmsAccessService', 'ToastService', 'PlaneService', 'MemberService', '$rootScope', '$scope', '$state', '$stateParams', '$uibModal', '$q'];
-    function SmsController(SmsService, SmsAccessService, ToastService, PlaneService, MemberService, $rootScope, $scope, $state, $stateParams, $uibModal, $q) {
+    SmsController.$inject = ['SmsService', 'SmsAccessService', 'ToastService', 'PlaneService', 'MemberService', 'ClubService', '$rootScope', '$scope', '$state', '$stateParams', '$uibModal', '$q'];
+    function SmsController(SmsService, SmsAccessService, ToastService, PlaneService, MemberService, ClubService, $rootScope, $scope, $state, $stateParams, $uibModal, $q) {
         var vm = this;
 
         vm.screen = $state.current.data.screen;
         vm.user = $rootScope.globals.currentUser;
-        vm.club_id = vm.user.current_club_admin.id;
         vm.enums = SmsService.enums;
+
+        // ── Which club ──
+        // The SMS clubs of a user are the clubs they run (manager / super-admin)
+        // and the clubs where they hold an SMS post (access.sms_post — the
+        // backend's AccessControl::isClubSafetyAdmin gives both the SMS admin
+        // screens). BACKEND_SMS_GUIDE.md §2.
+        //  - A club admin (or ToAviate staff — whom Manage Club is for) works on
+        //    the club picked in Manage Club (header club switcher). If they ALSO
+        //    hold a post at clubs they don't run, the picker in _nav.html lists
+        //    the Manage Club club + those post clubs (2026-11-07: an admin of
+        //    club A with a post at club B only ever saw club A). A post club
+        //    picked there is remembered against the Manage Club club it was
+        //    picked from, so switching club in the header goes back to that club.
+        //  - An SMS post holder who is not a club admin (let in by the Manage
+        //    Club route guard on access.sms_post, see app.js) works on their post
+        //    club — the one last picked here or on My Account → Safety (shared
+        //    key) when it is one of theirs, else the first; picker when several.
+        var SMS_CLUB_KEY = 'toaviate_sms_club_id';
+        var SMS_ADMIN_POST_KEY = 'toaviate_sms_admin_post_club';   // {club, over}: an admin's post club, picked over Manage Club club `over`
+        var MANAGE_CLUB_KEY = 'toaviate_selected_club_id';           // DashboardController's Manage Club pick
+        var userAccess = vm.user.access || {};
+        function idList(list) { return angular.isArray(list) ? list.map(String) : []; }
+        function has(list, id) { return id !== undefined && id !== null && list.indexOf(String(id)) > -1; }
+        function readKey(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+        var adminClubIds = idList(userAccess.manager).concat(idList(userAccess.super_admin));
+        var postClubIds = idList(userAccess.sms_post);
+        var isClubAdmin = adminClubIds.length > 0 || $rootScope.isToAviateStaff();
+        // post clubs an admin does not run — the Manage Club switcher can't reach them
+        var postOnlyIds = postClubIds.filter(function(id) { return adminClubIds.indexOf(id) === -1; });
+        vm.postHolderOnly = !isClubAdmin;
+        vm.clubPicker = [];  // [{id, name}] — shown by _nav.html when it has more than one club
+        vm.club_id = null;
+        var manageClubId = null;   // an admin's Manage Club club
+
+        function adminPostPick() {
+            var raw = readKey(SMS_ADMIN_POST_KEY), pick = null;
+            try { pick = raw ? JSON.parse(raw) : null; } catch (e) { pick = null; }
+            return (pick && has(postOnlyIds, pick.club) && String(pick.over) === String(manageClubId)) ? String(pick.club) : null;
+        }
+
+        // The club names for the picker (clubs/get_all_for_user: every club the
+        // user is a current member of, the post clubs included).
+        function loadPicker(ids, knownNames) {
+            if (ids.length < 2) { return; }
+            ClubService.GetAllForUser(vm.user.id).then(function(data) {
+                var list = angular.isArray(data) ? data : (data && data.clubs ? data.clubs : []);
+                var names = angular.extend({}, knownNames || {});
+                list.forEach(function(c) { if (!names[String(c.id)]) { names[String(c.id)] = c.title || c.name; } });
+                vm.clubPicker = ids.map(function(id) { return { id: id, name: names[id] || ('Club ' + id) }; });
+            });
+        }
+
+        // An admin's club: the Manage Club club, or a post club picked over it.
+        // After a refresh the slim `globals` cookie carries the club's id and the
+        // Manage Club guard waits for AuthenticationService.Rehydrate(), so it is
+        // normally known here; belt and braces, fall back to the id the
+        // dashboard persisted, else wait for it — SMS calls once went out for
+        // club "undefined".
+        function adminClubKnown() {
+            var cca = vm.user.current_club_admin;
+            if (cca && cca.id) { return String(cca.id); }
+            var saved = readKey(MANAGE_CLUB_KEY);
+            return (saved && (has(adminClubIds, saved) || $rootScope.isToAviateStaff())) ? String(saved) : null;
+        }
+        function chooseAdminClub(manageId) {
+            manageClubId = manageId;
+            vm.club_id = adminPostPick() || manageClubId;
+            if (postOnlyIds.length) {
+                var cca = vm.user.current_club_admin, known = {};
+                if (cca && cca.id && String(cca.id) === manageClubId && cca.title) { known[manageClubId] = cca.title; }
+                loadPicker([manageClubId].concat(postOnlyIds), known);
+            }
+        }
+
+        var clubReady = $q.defer();
+        if (isClubAdmin) {
+            var known = adminClubKnown();
+            if (known) {
+                chooseAdminClub(known);
+                clubReady.resolve();
+            } else {
+                var stopWatch = $scope.$watch(function() {
+                    var cca = vm.user.current_club_admin;
+                    return cca && cca.id ? String(cca.id) : null;
+                }, function(id) {
+                    if (!id) { return; }
+                    stopWatch();
+                    chooseAdminClub(id);
+                    clubReady.resolve();
+                });
+            }
+        } else {
+            var savedClub = readKey(SMS_CLUB_KEY);
+            vm.club_id = has(postClubIds, savedClub) ? String(savedClub) : postClubIds[0];
+            loadPicker(postClubIds);
+            clubReady.resolve();
+        }
+
+        vm.selectSmsClub = function(id) {
+            if (String(id) === String(vm.club_id)) return;
+            try {
+                if (vm.postHolderOnly) {
+                    localStorage.setItem(SMS_CLUB_KEY, String(id));
+                } else if (String(id) === String(manageClubId)) {
+                    localStorage.removeItem(SMS_ADMIN_POST_KEY);
+                } else {
+                    localStorage.setItem(SMS_ADMIN_POST_KEY, JSON.stringify({ club: String(id), over: String(manageClubId) }));
+                }
+            } catch (e) {}
+            $state.reload();
+        };
+        vm.selectPostClub = vm.selectSmsClub;   // older name, kept for any template still using it
 
         vm.loading = false;
         vm.access = { isAdmin: false, isSafetyManager: false };   // resolved async
@@ -38,7 +149,8 @@ app.controller('SmsController', SmsController);
             { screen: 'settings',    state: 'dashboard.manage_club.sms_settings',    label: 'Settings',    icon: 'fa-cog' }
         ];
 
-        vm.back = function() { $state.go('dashboard.manage_club'); };
+        // Post holders can't open the Manage Club landing — back to My Account → Safety.
+        vm.back = function() { $state.go(vm.postHolderOnly ? 'dashboard.my_account.sms' : 'dashboard.manage_club'); };
         vm.go = function(state) { $state.go(state); };
 
         // ── Shared helpers (used across screens + templates) ──
@@ -74,12 +186,23 @@ app.controller('SmsController', SmsController);
         }
         vm.isForbidden = function(data) { return data && data.success === false && data.error === 'FORBIDDEN'; };
 
-        // Resolve SMS access, then run the screen init.
-        SmsAccessService.resolve(vm.club_id).then(function(acc) {
-            vm.access = acc;
-            init();
-        }, function() {
-            init();   // even without settings, member-level screens still work
+        // Once the club is known: resolve SMS access, then run the screen init.
+        // One request per SMS endpoint — the second entry a browser's network
+        // log shows for each is its CORS preflight (OPTIONS), not a second call.
+        // The Settings screen reuses the settings row that resolve() has just
+        // fetched (its form used to fetch the same row a second time on a
+        // fresh load); a cached access may be stale, so then it fetches anew.
+        var freshSettings = null;
+        clubReady.promise.then(function() {
+            if (!vm.club_id) { return; }   // no SMS club at all: nothing to load
+            var fetchingNow = !SmsAccessService.isCached(vm.club_id);
+            SmsAccessService.resolve(vm.club_id).then(function(acc) {
+                vm.access = acc;
+                if (fetchingNow && acc && acc.settings && acc.settings.club_id) { freshSettings = acc.settings; }
+                init();
+            }, function() {
+                init();   // even without settings, member-level screens still work
+            });
         });
 
         function init() {
@@ -416,7 +539,7 @@ app.controller('SmsController', SmsController);
         function initSettings() {
             vm.loading = true;
             $q.all([
-                SmsService.GetSettings(vm.club_id),
+                freshSettings ? $q.when(freshSettings) : SmsService.GetSettings(vm.club_id),
                 MemberService.GetAllByClub ? MemberService.GetAllByClub(vm.club_id) : $q.when([])
             ]).then(function(res) {
                 vm.loading = false;

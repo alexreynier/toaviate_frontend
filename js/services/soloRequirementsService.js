@@ -80,8 +80,12 @@ app.factory('SoloRequirementsService', SoloRequirementsService);
         //     satisfied, via, state, detail, evidence, sign_off } ] }
         // With no course_id the backend derives the student's active courses;
         // pass the booking's/record's course whenever you have one.
-        function GetStatus(club_id, user_id, course_id) {
-            return $http.get('/api/v1/solo_requirements/status/' + club_id + '/' + user_id + (course_id ? '/' + course_id : '')).then(handleSuccess, handleError2);
+        // date (optional, 'YYYY-MM-DD') evaluates expiries for that day — the
+        // book-out passes the flight's date (?date=); omitted = today.
+        function GetStatus(club_id, user_id, course_id, date) {
+            var url = '/api/v1/solo_requirements/status/' + club_id + '/' + user_id + (course_id ? '/' + course_id : '');
+            if (date) { url += '?date=' + encodeURIComponent(date); }
+            return $http.get(url).then(handleSuccess, handleError2);
         }
 
         // signoff = { club_id, user_id, requirement_id, expires_at?: 'YYYY-MM-DD', notes? }

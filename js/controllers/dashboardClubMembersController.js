@@ -133,7 +133,11 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                            
 
                        } else {
-                           ToastService.error('Error', 'Something happened which was not supposed to happen... Please try again');
+                           // refusals say why (payments/process_payment: FORBIDDEN / NOT_FOUND — backend
+                           // BACKEND_MONEY_ACCESS_GUIDE.md §5b)
+                           ToastService.error(data && data.error ? 'Payment Not Taken' : 'Error',
+                               (data && data.error && typeof data.message === 'string' && data.message) || 'Something happened which was not supposed to happen... Please try again');
+                           if (data && data.error) { vm.show_loading = false; }
                            console.log("===== ERROR =====");
                            console.log(data);
                            console.log("===== ERROR =====");
@@ -362,6 +366,11 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                         DifferencesService.GetByUserIdClub(vm.club.member.user_id, vm.club_id)
                         .then(function (data) {
+                                // FORBIDDEN (not staff of a club this member is in) or a
+                                // failed call: leave the section empty, like the other documents
+                                if(!data || !data.success || !data.differences || !angular.isArray(data.differences.differences)){
+                                    return;
+                                }
                                 var diff = data.differences.differences;
                                 for(var i=0;i<diff.length;i++){
                                     if(diff[i].sign_off_date == "0000-00-00"){
@@ -640,7 +649,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                             vm.show_package_popup = false;
                                             vm.show_loading = false;
                                         } else {
-                                            ToastService.error('Error', 'An error happened - please try again');
+                                            // FORBIDDEN (only the club's admins) / ALREADY_COMPLETED carry their own sentence
+                                            ToastService.error('Error', (data && data.message) || 'An error happened - please try again');
                                             vm.show_package_popup = false;
                                             vm.show_loading = false;
                                         }
@@ -669,7 +679,7 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                     vm.packages = data.items;
                                     vm.show_package_popup = false;
                                 } else {
-                                    ToastService.error('Error', 'An error happened - please try again');
+                                    ToastService.error('Error', (data && data.message) || 'An error happened - please try again');
                                     vm.show_package_popup = false;
                                 }
                             vm.show_loading = false;
@@ -838,6 +848,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                 } else {
                                     //console.log("WOOOPSIES...", data);
                                     //this should be very very rare...
+                                    // refusals say why (payments/custom_credit — backend BACKEND_MONEY_ACCESS_GUIDE.md §5c)
+                                    ToastService.error('Credit Not Added', (data && typeof data.message === 'string' && data.message) || 'The credit could not be added - please try again.');
                                     vm.show_loading = false;
 
                                 }
@@ -955,7 +967,13 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                         //vm.club.member.membership_start = Date.parse(vm.club.member.membership_start);
                         vm.page_title = "Edit a Member - "+vm.club.member.first_name+" "+vm.club.member.last_name;
 
-                        vm.club.member.membership_start = new Date(vm.club.member.membership_start);
+                        // The stored dates: as loaded (YYYY-MM-DD, so a save sends a date only when
+                        // the admin changed it) and as local-midnight Dates for <input type="date">
+                        // (new Date("YYYY-MM-DD") is UTC midnight - the day before west of UTC).
+                        vm.loadedDates = { start: storedYmd(vm.club.member.membership_start), end: storedYmd(vm.club.member.membership_ends) };
+                        vm.club.member.membership_start = ymdToDate(vm.loadedDates.start);
+                        vm.club.member.membership_ends = ymdToDate(vm.loadedDates.end);
+                        vm.endsOverridden = false;
 
                         MemberService.GetMemberPlanes(vm.club.member.user_id, vm.club_id)
                         .then(function(data){
@@ -1028,6 +1046,15 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                 // Initial load
                 vm.loadMembers(true);
+
+                // Memberships with no end date (2026-11-07): a non-staff one is NOT live (no login access
+                // to the club, no booking) until an admin sets its end date — listed above the table.
+                vm.noEndDate = null;
+                vm.noEndDateOpen = false;
+                MemberService.GetNoEndDate(vm.club_id)
+                    .then(function(data) {
+                        vm.noEndDate = (data && data.success) ? data : null;
+                    });
 
                 // Debounced server-side search
                 var membersSearchTimeout = null;
@@ -1458,7 +1485,12 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
             MemberService.Verify(verify)
                 .then(function(data){
-                    // //console.log(data);
+                    // refused (not this club's staff, or your own documents): put the toggle back and say why
+                    if (data && data.success === false) {
+                        obj.verified = val ? 0 : 1;
+                        ToastService.error('Not Verified', (typeof data.message === 'string' && data.message) || 'That check could not be saved.');
+                        check_member_requirements();
+                    }
             });
 
             //call the put request here
@@ -1527,6 +1559,10 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                             //console.log("blank");
                         }
                     }
+                    // the start as the YYYY-MM-DD shown (a Date serialises as UTC: a day early in summer)
+                    if (obj.membership_start) {
+                        obj.membership_start = toYmd(obj.membership_start) || obj.membership_start;
+                    }
                     to_import_users.push(obj);
                 }
                 // //console.log("--==--");
@@ -1536,7 +1572,16 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 //now that we have what we want to add to our 
                 MemberService.CreateMany(to_import_users)
                 .then(function(data){
-                    // //console.log(data);
+                    if (!data || data.success === false) {
+                        ToastService.error('Import Failed', memberWriteMessage(data, 'The members could not be imported - please try again.'));
+                        return;
+                    }
+                    // per-row outcomes: a membership id, or {success:false, message} (e.g. a missing e-mail)
+                    var rows = angular.isArray(data.message) ? data.message : [];
+                    var failed = rows.filter(function (r) { return r && typeof r === 'object' && r.success === false; });
+                    if (failed.length) {
+                        ToastService.warning('Some Rows Not Imported', failed.length + ' of ' + rows.length + ' rows were not imported: ' + memberWriteMessage(failed[0], 'please check them.'));
+                    }
                     $state.go('dashboard.manage_club.members');
                 });
 
@@ -1598,7 +1643,10 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             vm.club.member.club_id = vm.club_id;
             MemberService.Create(vm.club.member)
                 .then(function(data){
-                    //console.log(data);
+                    if (!data || data.success === false) {
+                        ToastService.error('Member Not Added', memberWriteMessage(data, 'The member could not be added - please try again.'));
+                        return;
+                    }
                     $state.go('dashboard.manage_club.members');
                 });
         }
@@ -1677,7 +1725,15 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
 
                 vm.club.member.club_id = vm.club_id;
 
-                MemberService.send_invite_by_club(vm.club.member)
+                // Dates as the YYYY-MM-DD the admin picked: a Date serialises as UTC, and a
+                // date-input's local midnight in summer (BST) is the previous day in UTC.
+                var invite = angular.extend({}, vm.club.member);
+                invite.membership_start = toYmd(vm.club.member.membership_start);
+                if (vm.club.member.first_payment) {
+                    invite.first_payment = toYmd(vm.club.member.first_payment);
+                }
+
+                MemberService.send_invite_by_club(invite)
                     .then(function(data){
                         if (!data || data.success === false) {
                             var msg = data && (data.message || data.error);
@@ -1699,37 +1755,141 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 });
         }
 
+        // ── Membership dates on the edit form (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §8a) ──
+        // A save sends a date only when the admin changed it, as YYYY-MM-DD. Unchanged dates stay
+        // as they are - saving e.g. "instructor" no longer restarts the membership (the old code
+        // tested Date.isValid, which does not exist, so every save sent TODAY as the start and the
+        // backend moved the end to today + one period - expiring members who had renewed, or
+        // extending lapsed ones). A new start date starts a new period: the end follows from the
+        // tier's payment term (shown before saving) unless the admin sets the end themselves.
+        // Changing only the membership type keeps both dates.
+
+        // A Date (or date string) → "YYYY-MM-DD" in local time; null when empty / invalid.
+        function toYmd(d) {
+            if (!d) { return null; }
+            var m = moment(d);
+            return m.isValid() ? m.format('YYYY-MM-DD') : null;
+        }
+
+        // A stored DATE → "YYYY-MM-DD"; null for empty / the zero date / unreadable.
+        function storedYmd(s) {
+            if (!s || typeof s !== 'string') { return null; }
+            var m = moment(s.substr(0, 10), 'YYYY-MM-DD', true);
+            return m.isValid() ? m.format('YYYY-MM-DD') : null;
+        }
+
+        // "YYYY-MM-DD" → local-midnight Date for <input type="date">; null when empty.
+        function ymdToDate(ymd) {
+            return ymd ? moment(ymd, 'YYYY-MM-DD', true).toDate() : null;
+        }
+
+        // The payment_term of one of the club's tiers (vm.club.memberships: their current versions).
+        function termFor(membership_id) {
+            var list = vm.club.memberships || [];
+            for (var i = 0; i < list.length; i++) {
+                if (String(list[i].membership_id) === String(membership_id)) { return list[i].payment_term; }
+            }
+            return null;
+        }
+
+        // start ("YYYY-MM-DD") + one period of the term → "YYYY-MM-DD" (the backend's
+        // Members::term_modifier table); null when the term is unknown (the backend works it out).
+        function endForTerm(startYmd, term) {
+            if (!startYmd || !term) { return null; }
+            var steps = { daily: [1, 'days'], monthly: [1, 'months'], quarterly: [3, 'months'], annually: [1, 'years'], once: [100, 'years'], free: [100, 'years'] };
+            var step = steps[term] || [1, 'years'];
+            return moment(startYmd, 'YYYY-MM-DD', true).add(step[0], step[1]).format('YYYY-MM-DD');
+        }
+
+        // A new start (or a tier picked after one): show the end it gives, unless the admin set the
+        // end. Back to the stored start: the stored end again.
+        function previewEnd() {
+            if (vm.action !== 'edit' || !vm.loadedDates || vm.endsOverridden) { return; }
+            var start = toYmd(vm.club.member.membership_start);
+            if (!start || start === vm.loadedDates.start) {
+                vm.club.member.membership_ends = ymdToDate(vm.loadedDates.end);
+                return;
+            }
+            var end = endForTerm(start, termFor(vm.club.member.membership_id));
+            if (end) { vm.club.member.membership_ends = ymdToDate(end); }
+        }
+
+        vm.onStartChange = function () { previewEnd(); };
+        vm.onEndChange = function () { vm.endsOverridden = true; };
+
+        // The note under the dates: what saving will do to them.
+        vm.datesNote = function () {
+            if (!vm.loadedDates) { return ''; }
+            var start = toYmd(vm.club.member.membership_start);
+            var end = toYmd(vm.club.member.membership_ends);
+            var startChanged = !!start && start !== vm.loadedDates.start;
+            var endChanged = !!end && end !== vm.loadedDates.end;
+            if (!startChanged && !endChanged) {
+                return 'Saving keeps these dates. A new start date starts a new period: the end date follows from the membership\'s payment term.';
+            }
+            if (startChanged && (!end || (!vm.endsOverridden && !endChanged))) {
+                // no preview (the tier's term is not known here): the backend works the end out
+                return 'A new period starts on ' + moment(start).format('D MMM YYYY') + ' - the end date is worked out from the payment term when you save.';
+            }
+            if (end && start && end < start) {
+                return 'The end date is before the start date.';
+            }
+            return 'Saving sets the membership to ' + (start ? moment(start).format('D MMM YYYY') : '-') + ' - ' + moment(end).format('D MMM YYYY') + '.';
+        };
+
         $scope.update = function(){
             //console.log("CLICK");
             vm.club.member.club_id = vm.club_id;
 
-            var process_member_start_dt = new Date(vm.club.member.membership_start);
-            if(!process_member_start_dt.isValid){
-                process_member_start_dt = new Date();
+            var loaded = vm.loadedDates || { start: null, end: null };
+            var startYmd = toYmd(vm.club.member.membership_start);
+            var endYmd = toYmd(vm.club.member.membership_ends);
+            var body = angular.extend({}, vm.club.member);
+            delete body.membership_start;
+            delete body.membership_ends;
+            if (startYmd && startYmd !== loaded.start) {
+                body.membership_start = startYmd;
+                // the end the form showed (the preview, or the admin's own) - else the backend works it out
+                if (endYmd && (vm.endsOverridden || endYmd !== loaded.end)) { body.membership_ends = endYmd; }
+            } else if (endYmd && endYmd !== loaded.end) {
+                body.membership_ends = endYmd;
+            }
+            var finalStart = body.membership_start || loaded.start;
+            if (body.membership_ends && finalStart && body.membership_ends < finalStart) {
+                ToastService.error('Membership Not Saved', 'The membership end date is before its start date.');
+                return;
             }
 
-
-            vm.club.member.membership_start = process_member_start_dt; //.toISOString().split('T')[0];
-           
-            // console.log(vm.club.member);
-            // return false;
-
-            MemberService.Update(vm.club.member)
+            // The backend refuses (FORBIDDEN, with a sentence) when the caller is not an admin of the
+            // member's club, when a manager changes super-admin rights or a super-admin's membership,
+            // and VALIDATION_ERROR for another club's membership type or a bad date — stay on the
+            // form and say why.
+            MemberService.Update(body)
                         .then(function(data){
-                            // //console.log(data);
-                            // //console.log("saved");
+                            if (!data || data.success === false) {
+                                ToastService.error('Membership Not Saved', memberWriteMessage(data, 'The membership could not be saved - please try again.'));
+                                return;
+                            }
                             $state.go('dashboard.manage_club.members');
                         });
-                        
+
             MemberService.SaveMemberPlanes(vm.club.member.user_id, vm.club.member.club_id, vm.club.planes)
                 .then(function(data){
-                    ////console.log(data);
-                    // //console.log("saved THE PLANES");
-                     
+                    if (!data || data.success === false) {
+                        ToastService.error('Aircraft Permissions Not Saved', memberWriteMessage(data, 'The aircraft permissions could not be saved - please try again.'));
+                    }
                 });
 
                 //         function SaveMemberPlanes(user_id, club_id, planes){
 
+        }
+
+        // The server's sentence for a refused / failed members write (FORBIDDEN, VALIDATION_ERROR …
+        // are writeGuard HANDLED_CODES, so this controller toasts them itself), else the fallback.
+        function memberWriteMessage(data, fallback) {
+            var m = data && data.message;
+            if (m && typeof m === 'object') { m = m.message || m.error || null; }
+            return (typeof m === 'string' && m) ? m : fallback;
         }
 
         function refresh_members(){
@@ -1768,6 +1928,9 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             //type is the action required...
             
 
+            // one toast for the batch: the first refusal's sentence (e.g. a manager can't change a
+            // super-admin's membership) — the list reload below shows what was saved
+            var bulkFailureShown = false;
             for(var j=0;j < vm.selected_members.length; j++){
 
                 if(type == "approve"){
@@ -1778,8 +1941,10 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                 //console.log("here");
                 MemberService.Update(vm.selected_members[j])
                     .then(function(data){
-                        //console.log(data);
-                        //console.log("saved");
+                        if ((!data || data.success === false) && !bulkFailureShown) {
+                            bulkFailureShown = true;
+                            ToastService.error('Not All Members Updated', memberWriteMessage(data, 'Some memberships could not be updated - please try again.'));
+                        }
                     });
             }
             console.log("refresh members");
@@ -1817,6 +1982,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             vm.club.member.membership_id = item.membership_id;
             vm.club.member.membership_name = item.membership_name;
             vm.club.selected_membership = item; // Store full item to check price
+            // edit form: a new tier alone keeps the dates; with a new start, the end follows the new term
+            previewEnd();
         }
 
         initController();
@@ -2000,6 +2167,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                          doc_id: document_id
                                      }
 
+                                } else if(data.error == "FORBIDDEN"){
+                                    ToastService.error('No Access', data.message || "You do not have access to this member's proof of ID.");
                                 }
                                     vm.show_loading = false;
 
@@ -2086,6 +2255,8 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
                                          doc_id: document_id
                                      }
 
+                                } else if(data.error == "FORBIDDEN"){
+                                    ToastService.error('No Access', data.message || "You do not have access to this member's licences.");
                                 }
 
 
@@ -2182,11 +2353,14 @@ app.controller('DashboardClubMembersController', DashboardClubMembersController)
             modalInstance.result.then(function (member_id) {
               $log.info('PRESSED GO: '+member_id);
               MemberService.Delete(member_id)
-              .then(function(){
-                //console.log("HELLO DELETE");
+              .then(function(data){
+                if (!data || data.success === false) {
+                    ToastService.error('Membership Not Removed', memberWriteMessage(data, 'The membership could not be removed - please try again.'));
+                    return;
+                }
                 //update view?
-                 vm.club.members = $.grep(vm.club.members, function(e){ 
-                    return e.id != member_id; 
+                 vm.club.members = $.grep(vm.club.members, function(e){
+                    return e.id != member_id;
                 });
               })
             }, function () {

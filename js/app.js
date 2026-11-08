@@ -211,6 +211,11 @@ var app = angular
         // button (see js/services/writeGuardService.js).
         $httpProvider.interceptors.push('writeGuardInterceptor');
         $httpProvider.interceptors.push('apiUrlInterceptor');
+        // LAST: refuses an API write carrying an emoji (any character outside
+        // the BMP) before it is sent and toasts which field — the database
+        // can't store them (js/services/writeGuardService.js). Being last, a
+        // blocked request never reaches the network or the circuit breaker.
+        $httpProvider.interceptors.push('unsupportedCharactersInterceptor');
     }]);
 
     // Start all datepickers on Monday
@@ -454,11 +459,18 @@ var app = angular
                 controllerAs: 'vm'
             })
 
+            // fleet.html has no <ui-view>, so this child used to render nowhere
+            // ("Open" left the fleet list on screen). It takes over the workspace's
+            // own ui-view (views/maintenance/home.html) instead, replacing the list.
             .state('dashboard.maintenance.fleet.aircraft', {
                 url: '/aircraft/:plane_id',
-                controller: 'MaintenanceFleetController',
-                templateUrl: 'views/maintenance/fleet.html',
-                controllerAs: 'vm'
+                views: {
+                    '@dashboard.maintenance': {
+                        controller: 'MaintenanceFleetController',
+                        templateUrl: 'views/maintenance/fleet.html',
+                        controllerAs: 'vm'
+                    }
+                }
             })
 
             .state('dashboard.maintenance.members', {
@@ -500,11 +512,14 @@ var app = angular
             // (dashboard.manage_instructor_bookings now lives in the Members hub — see below dashboard.manage_club)
 
 
+            // No controller of its own (2026-11-07): manage_club.html has no
+            // bindings, and a second DashboardController here (the parent
+            // `dashboard` state already runs one) repeated its calls —
+            // clubs/get_all_admin_for_user, bookings/user_bookings_today,
+            // plane_log_sheets/incomplete — on every Manage Club screen.
             .state('dashboard.manage_club', {
                 url: '/manage_club',
-                controller: 'DashboardController',
-                templateUrl: 'views/manage_club.html',
-                controllerAs: 'vm'
+                templateUrl: 'views/manage_club.html'
             })
 
             // ── MEMBERS HUB — one header + tab bar, four child screens ──
@@ -781,6 +796,24 @@ var app = angular
                 url: '/security',
                 controller: 'SuperAdminSecurityController',
                 templateUrl: 'views/manageclub/super_admin_security.html',
+                controllerAs: 'vm'
+            })
+
+            // MEMBERSHIP RENEWALS — automatic renewals run for every club; per-club
+            // pause (ToAviate staff). Contract: backend BACKEND_MEMBERSHIP_RENEWALS_GUIDE.md §7.
+            .state('dashboard.super_admin.renewals', {
+                url: '/renewals',
+                controller: 'SuperAdminRenewalsController',
+                templateUrl: 'views/manageclub/super_admin_renewals.html',
+                controllerAs: 'vm'
+            })
+
+            // AIRCRAFT AIRWORTHINESS — an aircraft's type (CofA / Permit to Fly), ToAviate staff
+            // only, logged. Contract: backend BACKEND_AIRCRAFT_DOCUMENTS_ACCESS_GUIDE.md §10.7.
+            .state('dashboard.super_admin.airworthiness', {
+                url: '/airworthiness',
+                controller: 'SuperAdminAirworthinessController',
+                templateUrl: 'views/manageclub/super_admin_airworthiness.html',
                 controllerAs: 'vm'
             })
 
@@ -3137,6 +3170,15 @@ var app = angular
 
         // (club_signup2.payment — legacy terms page whose submit went to a nonexistent state — removed 2026-11-02)
 
+        // GoCardless OAuth return (the redirect URL the backend registers for club signup AND for an
+        // admin's reconnect): ClubSignupController posts {code, state} to go_card/setup. It was removed
+        // with the legacy payment pages on 2026-11-02, which sent every GoCardless return to /login —
+        // no club could connect or reconnect GoCardless (restored 2026-11-07).
+        .state('club_signup2.payment_setup_confirmation', {
+            url: '/payment_setup_confirmation',
+            templateUrl: 'views/forms/club_signup_continued/form-payment-confirmation.html'
+        })
+
         .state('club_signup2.complete', {
             url: '/complete',
             templateUrl: 'views/forms/club_signup_continued/form-complete.html'
@@ -3554,8 +3596,8 @@ var app = angular
 
  	
  	//RUN INJECT
-    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state', '$uibModalStack', 'TwoFactorService'];
-    function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state, $uibModalStack, TwoFactorService) {
+    run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state', '$uibModalStack', 'TwoFactorService', '$injector'];
+    function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state, $uibModalStack, TwoFactorService, $injector) {
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
@@ -3719,6 +3761,10 @@ var app = angular
         $rootScope.uploadDocumentsUrl = EnvConfig.getApiBaseUrl() + '/upload_documents.php';
         $rootScope.uploadUrl = EnvConfig.getApiBaseUrl() + '/upload.php';
 
+        // The SLIM login copy (AuthenticationService.PersistGlobals): identity,
+        // session, role arrays, the admin club's id/title. The rest comes back
+        // from AuthenticationService.Rehydrate() (DashboardController, and the
+        // Manage Club guard below, which waits for it).
         $rootScope.globals = $cookieStore.get('globals') || {};
         if ($rootScope.globals.currentUser) {
             $http.defaults.headers.common['Authorization'] = 'Basic ' + $rootScope.globals.currentUser.authdata; // jshint ignore:line
@@ -3888,5 +3934,112 @@ var app = angular
                 }
             }
 
+        });
+
+        // ── Manage Club is for club admins (2026-11-06) ──
+        // dashboard.manage_club and EVERY state below it — dotted children and
+        // the states re-parented into it with `parent:` (the Members hub tabs,
+        // dashboard.manage_instructor_bookings) — open only for a manager or
+        // club super-admin of at least one club, or ToAviate staff.
+        // Exceptions for non-admins — MANAGE_CLUB_ROLE_STATES maps a state to the
+        // `access` role (AuthenticationService.ProcessAccess) that opens it:
+        //   instructor — the questionnaire marking screen, which they open from
+        //     the book-out pre-solo panel, the briefing, Student Records and
+        //     Student Questionnaires (its API is instructor-gated);
+        //   sms_post — the SMS screens, for the club's SMS post holders
+        //     (accountable manager, head of training, safety / compliance
+        //     manager, CFI in sms_settings — the backend's
+        //     AccessControl::isClubSafetyAdmin). Reached from the "Safety
+        //     Management" menu entry; SmsController picks their post club.
+        // UX only — the backend gates every endpoint.
+        var MANAGE_CLUB_ROOT = 'dashboard.manage_club';
+        var MANAGE_CLUB_ROLE_STATES = {
+            'dashboard.manage_club.questionnaire_review': 'instructor'
+        };
+        ['sms', 'sms_hazards', 'sms_occurrences', 'sms_risks', 'sms_actions', 'sms_audits',
+         'sms_documents', 'sms_meetings', 'sms_change', 'sms_instructors', 'sms_students',
+         'sms_erp', 'sms_bulletins', 'sms_settings', 'sms_audit_view'].forEach(function (s) {
+            MANAGE_CLUB_ROLE_STATES[MANAGE_CLUB_ROOT + '.' + s] = 'sms_post';
+        });
+        var manageClubAccessRechecked = false;   // at most one server re-check per page load
+        var manageClubWaitGaveUp = false;        // the server copy never came (API hung) — stop waiting for it
+        var MANAGE_CLUB_WAIT_MS = 15000;
+
+        function isManageClubState(st) {
+            for (var depth = 0; st && depth < 25; depth++) {
+                var name = st.name || '';
+                if (name === MANAGE_CLUB_ROOT || name.indexOf(MANAGE_CLUB_ROOT + '.') === 0) { return true; }
+                var parentName = (typeof st.parent === 'string') ? st.parent
+                               : (st.parent && st.parent.name) ? st.parent.name
+                               : (name.lastIndexOf('.') > 0 ? name.substring(0, name.lastIndexOf('.')) : '');
+                if (!parentName) { return false; }
+                st = $state.get(parentName);
+            }
+            return false;
+        }
+
+        function hasRole(access, key) {
+            return !!(access && angular.isArray(access[key]) && access[key].length > 0);
+        }
+
+        function manageClubAllowed(toState, access) {
+            if ($rootScope.isToAviateStaff()) { return true; }
+            if (hasRole(access, 'manager') || hasRole(access, 'super_admin')) { return true; }
+            var role = MANAGE_CLUB_ROLE_STATES.hasOwnProperty(toState.name) ? MANAGE_CLUB_ROLE_STATES[toState.name] : null;
+            return !!role && hasRole(access, role);
+        }
+
+        function refuseManageClub(fromState) {
+            $injector.get('ToastService').warning('Club admins only', 'Manage Club is only available to club admins.');
+            // A click inside the app just doesn't navigate; a deep link / refresh
+            // (no page on screen yet) lands on My Account.
+            if (!fromState || !fromState.name || fromState.abstract) {
+                $state.go('dashboard.my_account');
+            }
+        }
+
+        $rootScope.$on('$stateChangeStart', function (event, toState, toParams, fromState, fromParams) {
+            if (!isManageClubState(toState)) { return; }
+            var user = $rootScope.globals && $rootScope.globals.currentUser;
+            if (!user || !user.id) { return; }   // logged out: the $locationChangeStart guard owns this
+
+            // After a refresh / deep link the login comes from the slim `globals`
+            // cookie (AuthenticationService.PersistGlobals): role arrays that may
+            // be stale and only the id/title of the Manage Club club. So the
+            // first Manage Club page of a page load waits for the server copy —
+            // AuthenticationService.Rehydrate(), the same call DashboardController
+            // makes — which restores the access rows and the full club row
+            // before any Manage Club controller runs. After that, decide on the
+            // spot with the data the menu uses.
+            var auth = $injector.get('AuthenticationService');
+            var ready = auth.IsHydrated() || manageClubWaitGaveUp;
+            var access = user.access;
+            if (ready && access && angular.isArray(access.manager) && manageClubAllowed(toState, access)) { return; }
+
+            event.preventDefault();
+            if (ready && manageClubAccessRechecked) {
+                refuseManageClub(fromState);
+                return;
+            }
+            // Not loaded yet: load it, then decide. Loaded but it says no: it may
+            // predate a role change, so ask the server once more (forced) before
+            // refusing. Either way that is this page load's one server re-check.
+            manageClubAccessRechecked = true;
+            var decided = false;
+            var $timeout = $injector.get('$timeout');
+            var giveUp = $timeout(function () { manageClubWaitGaveUp = true; decide(); }, MANAGE_CLUB_WAIT_MS);
+            function decide() {
+                if (decided) { return; }
+                decided = true;
+                $timeout.cancel(giveUp);
+                var current = $rootScope.globals && $rootScope.globals.currentUser;
+                if (!current || String(current.id) !== String(user.id)) { return; }   // logged out meanwhile
+                if (manageClubAllowed(toState, current.access)) {
+                    $state.go(toState.name, toParams);
+                } else {
+                    refuseManageClub(fromState);
+                }
+            }
+            auth.Rehydrate(ready).then(decide, decide);
         });
     }

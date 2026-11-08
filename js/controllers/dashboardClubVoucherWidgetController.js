@@ -151,7 +151,8 @@ app.controller('DashboardClubVoucherWidgetController', DashboardClubVoucherWidge
                         ToastService.success('Stripe Redirect', 'You will be redirected to Stripe — please complete the setup and you will be returned to ToAviate.');
                         window.location = data.onboarding_link;
                     } else {
-                        ToastService.error('Stripe Error', "Stripe didn't seem to want to connect. Please try again.");
+                        // FORBIDDEN (not an admin of this club) carries its own sentence
+                        ToastService.error('Stripe Error', (data && data.error === 'FORBIDDEN' && data.message) ? data.message : "Stripe didn't seem to want to connect. Please try again.");
                         vm.called_stripe_setup = false;
                     }
                 }, function() {

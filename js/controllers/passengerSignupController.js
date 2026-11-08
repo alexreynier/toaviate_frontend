@@ -470,25 +470,40 @@
 
 
 		    $scope.downloadClubDocument = function(doc) {
-            // Club T&C links call this with no argument — resolve the club's
-            // own passenger terms document from the invitation payload.
+            // Public route (no session here): GET public_terms/{owner}/{kind}
+            // — the server picks the file, the page never names one (see
+            // BACKEND_PUBLIC_TERMS_GUIDE.md in the backend repo).
+            //  - no argument (club T&C links): the club's passenger terms, else
+            //    its membership terms; the payload's file names only say which
+            //    the club has.
+            //  - '2av8_terms' / '2av8_privacy': the platform documents.
+            var path = null;
             if (!doc) {
                 var club = $scope.formData.club;
-                doc = (club && (club.passenger_terms || club.membership_terms || (club.settings && (club.settings.passenger_terms || club.settings.membership_terms)))) || null;
-            }
-            if (!doc) {
-                ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+                var clubId = parseInt((club && club.id) || $scope.formData.club_id, 10);
+                var settings = (club && club.settings) || {};
+                if (club && clubId > 0) {
+                    if (club.passenger_terms || settings.passenger_terms) {
+                        path = clubId + '/passenger';
+                    } else if (club.membership_terms || settings.membership_terms) {
+                        path = clubId + '/membership';
+                    }
+                }
+                if (!path) {
+                    ToastService.warning('Document Unavailable', "The club hasn't uploaded its terms & conditions document yet — please ask the club for a copy.");
+                    return;
+                }
+            } else if (doc === '2av8_terms') {
+                path = 'toaviate/terms';
+            } else if (doc === '2av8_privacy') {
+                path = 'toaviate/privacy';
+            } else {
                 return;
             }
 
-            var data = $.param({
-                id: doc
-            });
-
-            var ddd = doc.replace(/^.*[\\\/]/, '');
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
 
-            $http.get('api/v1/term_documents/show_file/'+ddd, {
+            $http.get('api/v1/public_terms/'+path, {
                     responseType: 'arraybuffer'
                 })
                 .success(function(data, status, headers) {

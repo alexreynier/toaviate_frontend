@@ -988,7 +988,7 @@
 
         <div class="pf__card">
           <div class="pf__upload-intro" ng-if="!vm.document.id">
-            Please upload {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "the Annual Review Certificate" : "the Permit to Fly Certificate" }} in PDF format
+            Please upload {{ vm.club.plane.airworthiness_type === 'ptf' ? "the Permit to Fly" : "the Airworthiness Review Certificate (ARC)" }} in PDF format
           </div>
 
           <div flow-init="{target: '/upload_documents.php', singleFile: true}"
@@ -1001,7 +1001,7 @@
                  ng-if="!vm.uploaded_document.file && $flow.files.length < 1">
               <i class="fas fa-cloud-upload-alt pf__drop-icon"></i>
               <span class="pf__drop-title">Click to upload</span>
-              <span class="pf__drop-sub">or drag &amp; drop {{ (vm.club.plane.cofa_category.indexOf("Airworthiness") > -1) ? "the ARC" : "the Permit" }}</span>
+              <span class="pf__drop-sub">or drag &amp; drop {{ vm.club.plane.airworthiness_type === 'ptf' ? "the Permit" : "the ARC" }}</span>
             </div>
 
             <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
@@ -1037,15 +1037,24 @@
 
           <div class="pf__grid">
             <div class="pf__field">
-              <label for="cert_type"><i class="fas fa-certificate"></i> Certificate Type</label>
-              <select class="pf__input" id="cert_type" ng-model="vm.plane_maintenance.cofa_category"
+              <!-- sent as airworthiness_type: cofa = the CofA does not expire, the ARC does;
+                   ptf = the Permit to Fly carries the expiry (BACKEND_AIRCRAFT_DOCUMENTS_ACCESS_GUIDE.md §10) -->
+              <label for="cert_type"><i class="fas fa-certificate"></i> Airworthiness</label>
+              <select class="pf__input" id="cert_type" ng-model="vm.club.plane.airworthiness_type"
                       required ng-focus="vm.clearFieldError($event)">
                 <option value="" disabled>Please Choose</option>
-                <option ng-repeat="x in vm.certificates">{{x.title}}</option>
+                <option value="cofa">Certificate of Airworthiness (CofA + ARC)</option>
+                <option value="ptf">Permit to Fly</option>
               </select>
             </div>
             <div class="pf__field">
-              <label for="cert_expiry"><i class="fas fa-calendar-times"></i> Certificate Expiry</label>
+              <!-- sent as maintenance.certificate_issue → the ARC's (and the CofA's) / the permit's date_issued -->
+              <label for="cert_issue"><i class="fas fa-calendar-check"></i> {{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit' : 'ARC' }} Issue Date</label>
+              <input type="date" class="pf__input" name="cert_issue" id="cert_issue"
+                     ng-model="vm.plane_maintenance.certificate_issue" />
+            </div>
+            <div class="pf__field">
+              <label for="cert_expiry"><i class="fas fa-calendar-times"></i> {{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit' : 'ARC' }} Expiry</label>
               <input type="date" class="pf__input" name="cert_expiry" id="cert_expiry"
                      ng-model="vm.plane_maintenance.certificate_expiry" required ng-focus="vm.clearFieldError($event)" />
             </div>
@@ -1193,9 +1202,11 @@
 
           <div class="pf__grid">
             <div class="pf__field">
-              <label for="radio_expiry"><i class="fas fa-calendar-times"></i> Radio Licence Expiry</label>
+              <label for="radio_expiry"><i class="fas fa-calendar-times"></i> Radio Licence Expiry <small>(blank = no expiry)</small></label>
               <input type="date" class="pf__input" name="radio_expiry" id="radio_expiry"
                      ng-model="vm.plane_radio.radio_expiry" />
+              <!-- informational only: shown and reminded about, never blocks a booking or book-out -->
+              <span class="pf__hint">Usually valid for 3 years. For information and reminders only — it never stops a booking or book-out.</span>
             </div>
           </div>
         </div>

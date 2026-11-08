@@ -689,6 +689,11 @@
                         $state.go('dashboard.manage_club', {}, { reload: true });
                       }, 2000); // delay in milliseconds (2 seconds here)
 
+                    } else {
+                      // refusals say why (payments/complete_custom: FORBIDDEN / NOT_FOUND / AMOUNT_MISMATCH … —
+                      // backend BACKEND_MONEY_ACCESS_GUIDE.md §5b/§5c)
+                      ToastService.error('Payment Not Recorded', (data && typeof data.message === 'string' && data.message) || 'The payment could not be recorded - please try again.');
+                      vm.show_loading = false;
                     }
               });
 
@@ -809,6 +814,9 @@
                   } else {
                       //console.log("WOOOPSIES...", data);
                       //this should be very very rare...
+                      // refusals say why (payments/custom: FORBIDDEN / NOT_A_MEMBER / VALIDATION_ERROR … —
+                      // backend BACKEND_MONEY_ACCESS_GUIDE.md §5c)
+                      ToastService.error('Sale Not Recorded', (data && typeof data.message === 'string' && data.message) || 'The sale could not be recorded - please try again.');
                       vm.show_loading = false;
 
                   }

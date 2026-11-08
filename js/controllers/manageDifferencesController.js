@@ -17,6 +17,13 @@
 
           DifferencesService.GetByUserId(vm.user.id)
                 .then(function (data) {
+                        if(!data || !data.success || !data.differences || !angular.isArray(data.differences.differences)){
+                            ToastService.error('Differences', (data && typeof data.message === 'string' && data.message) ? data.message : "We couldn't load your differences.");
+                            return;
+                        }
+                        // images come back as {id, data_uri, updated_at}: a kept image is
+                        // sent back by id on save (no storage names — see
+                        // BACKEND_PERSONAL_DOCUMENTS_ACCESS_GUIDE.md)
                         var diff = data.differences.differences;
                         for(var i=0;i<diff.length;i++){
                             if(diff[i].sign_off_date == "0000-00-00"){

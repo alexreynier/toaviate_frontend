@@ -112,6 +112,11 @@
             MembershipService.Create(vm.club.membership)
                 .then(function(data){
                     //console.log(data);
+                    // FORBIDDEN / VALIDATION_ERROR carry their own sentence (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §9)
+                    if(!data || data.success === false){
+                        ToastService.error('Not Saved', (data && typeof data.message === 'string' && data.message) || 'The membership could not be created - please try again.');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.memberships');
                 });
         }
@@ -132,6 +137,12 @@
                 .then(function(data){
                     //console.log("new membership is : ",data);
                     //console.log("saved");
+
+                    // success = the new version id; a refusal (FORBIDDEN / VALIDATION_ERROR / NOT_FOUND) is an object
+                    if(!data || typeof data === 'object'){
+                        ToastService.error('Not Saved', (data && typeof data.message === 'string' && data.message) || 'The membership could not be saved - please try again.');
+                        return;
+                    }
 
                     if(vm.club.membership.plane_access == 1){
                         //sort out what we need from the club_planes
@@ -246,8 +257,12 @@
 
 
                 MembershipService.Delete(memberships.id)
-              .then(function(){
+              .then(function(data){
                 //console.log("HELLO DELETE");
+                if(!data || data.success === false){
+                    ToastService.error('Not Removed', (data && typeof data.message === 'string' && data.message) || 'The membership could not be removed - please try again.');
+                    return;
+                }
                 //update view?
                  vm.club.memberships = $.grep(vm.club.memberships, function(e){ 
                     return e.id != memberships.id; 

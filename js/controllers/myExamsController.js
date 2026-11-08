@@ -1,7 +1,7 @@
 app.controller('MyExamsController', MyExamsController);
 
-    MyExamsController.$inject = ['ExamSalesService', 'ClubService', '$rootScope', '$scope', '$state', '$uibModal'];
-    function MyExamsController(ExamSalesService, ClubService, $rootScope, $scope, $state, $uibModal) {
+    MyExamsController.$inject = ['ExamSalesService', '$rootScope', '$scope', '$state', '$uibModal'];
+    function MyExamsController(ExamSalesService, $rootScope, $scope, $state, $uibModal) {
 
         // Student view of their own ground exams: purchases, results and CAA
         // certificates (tap to view the decrypted file). Read-only — no
@@ -11,32 +11,33 @@ app.controller('MyExamsController', MyExamsController);
 
         vm.user = $rootScope.globals.currentUser;
         vm.loading = true;
+        vm.loadFailed = false;
         vm.items = [];
-        vm.clubs = [];          // [{id, title, currency}] — chips when a member of several
+        vm.clubs = [];          // [{id, title, currency, member, exams}] — chips when more than one
         vm.club = null;
 
-        // Any club the user belongs to in any capacity can have sold them exams.
-        var club_ids = [];
-        angular.forEach(['pilot', 'instructor', 'manager'], function(role) {
-            angular.forEach(vm.user.access[role] || [], function(id) {
-                if (club_ids.indexOf(id) === -1) { club_ids.push(id); }
+        // The clubs, by name, from exam_sales/user_clubs: every club the user is
+        // a member of plus every club that sold them an exam — one they have
+        // left, or whose membership lapsed, included. (The list used to come
+        // from current memberships, named through clubs/{id}, which refuses an
+        // ex-member: "Club #id", or no clubs at all for a student who had left.)
+        ExamSalesService.GetUserClubs(vm.user.id).then(function(data) {
+            if (!data || data.success !== true || !angular.isArray(data.items)) {
+                vm.loading = false;
+                vm.loadFailed = true;
+                return;
+            }
+            vm.clubs = data.items.map(function(c) {
+                return { id: c.id, title: c.title || '', currency: c.currency_symbol || '£',
+                         member: Number(c.member) === 1, exams: Number(c.exams) || 0 };
             });
-        });
-
-        if (!club_ids.length) {
-            vm.loading = false;
-        }
-
-        var pending = club_ids.length;
-        angular.forEach(club_ids, function(id) {
-            ClubService.GetById(id).then(function(data) {
-                vm.clubs.push({ id: id, title: (data && data.title) || ('Club #' + id), currency: (data && data.account_currency) || '£' });
-                pending--;
-                if (pending === 0) {
-                    vm.clubs.sort(function(a, b) { return a.title.localeCompare(b.title); });
-                    vm.selectClub(vm.clubs[0]);
-                }
-            });
+            if (!vm.clubs.length) {
+                vm.loading = false;
+                return;
+            }
+            // already in title order — open the first club that has exams
+            var withExams = vm.clubs.filter(function(c) { return c.exams > 0; });
+            vm.selectClub(withExams.length ? withExams[0] : vm.clubs[0]);
         });
 
         vm.selectClub = function(club) {
@@ -44,7 +45,9 @@ app.controller('MyExamsController', MyExamsController);
             vm.loading = true;
             vm.items = [];
             ExamSalesService.GetByUser(club.id, vm.user.id).then(function(data) {
+                if (vm.club !== club) { return; }   // a newer chip was picked meanwhile
                 vm.loading = false;
+                vm.loadFailed = !data || data.success === false;
                 vm.items = (data && (data.purchases || data.items)) || [];
             });
         };

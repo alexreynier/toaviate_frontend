@@ -58,9 +58,22 @@
             break;
             case "list_member":
                 //console.log("view list of existing courses");
+                // The syllabus is for CURRENT members: courses/user also names the
+                // courses a student has records in at a club they have left
+                // (club.member = 0 / course.records_only = 1) — those belong to
+                // Training Records, not here (BACKEND_CLUB_CONTENT_ACCESS_GUIDE.md §5).
+                vm.clubs_loaded = false;
                 CourseService.GetCoursesByUserId(vm.user.id)
                     .then(function(data){
-                        vm.clubs = data.items;   
+                        vm.clubs_loaded = true;
+                        var items = (data && data.success !== false && angular.isArray(data.items)) ? data.items : [];
+                        vm.clubs = items.filter(function(club){
+                            return Number(club.member) !== 0;
+                        }).map(function(club){
+                            return angular.extend({}, club, {
+                                courses: (club.courses || []).filter(function(course){ return Number(course.records_only) !== 1; })
+                            });
+                        });
                     });
             break;
             default:

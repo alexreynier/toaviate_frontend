@@ -34,9 +34,32 @@
 
         vm.this_pls_id_raw = 0;
 
+        // PUT plane_log_sheets/booking_in refusals that come back before anything is
+        // saved (BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §16.2) → toast title. FORBIDDEN is a
+        // writeGuard HANDLED code, so this page must say it.
+        var BOOK_IN_REFUSALS = {
+            FORBIDDEN: 'Not Allowed',
+            ALREADY_BOOKED_IN: 'Already Booked In',
+            NOT_OPEN: 'Flight Not Open',
+            NOT_FOUND: 'Flight Not Found',
+            INVALID_TIMES: 'Check the Times',
+            SPLIT_SAVE_FAILED: 'Split Not Saved',
+            // the tracker flight picked is already booked in on someone's flight
+            // (BACKEND_FOX_CLAIM_ACCESS_GUIDE.md §7) — a writeGuard HANDLED code too
+            ALREADY_CLAIMED: 'Already Claimed'
+        };
+
+        // instructor_charges reads (club / course): the rates, or [] when refused (§16.5)
+        function charges_of(data){
+            if(data && data.error === 'FORBIDDEN'){
+                ToastService.warning('Tuition Rates Not Loaded', (typeof data.message === 'string' && data.message) || "You can't see this club's tuition rates.");
+            }
+            return (data && angular.isArray(data.items)) ? data.items : [];
+        }
+
         vm.instructors = [];
         vm.pics = [];
-        vm.instructor_charges = []; 
+        vm.instructor_charges = [];
         vm.club_courses = [];      
 
         vm.can_authorise = false;
@@ -446,7 +469,12 @@
                     PlaneService.GetUpdatedCharges(vm.bookout.club_id, vm.bookout.plane_id, vm.bookout.pic_id)
                     .then(function (data) {
                             ////console.log("data is : ", data);
-                            vm.bookout.plane_charges = data.plane_charges;
+                            // a refusal (FORBIDDEN, §15) keeps the charges already on the form
+                            if(data && data.plane_charges){
+                                vm.bookout.plane_charges = data.plane_charges;
+                            } else {
+                                ToastService.warning('Charges not updated', (data && data.message) || 'The charges for this pilot could not be loaded.');
+                            }
 
 
                             vm.bookout.put_id = 0;
@@ -574,6 +602,11 @@
                 PlaneService.GetUpdatedCharges(vm.bookout.club_id, vm.bookout.plane_id, vm.bookout.put_id)
                     .then(function (data) {
                             ////console.log("data is : ", data);
+                            // a refusal (FORBIDDEN, §15) keeps the charges already on the form
+                            if(!data || !data.plane_charges){
+                                ToastService.warning('Charges not updated', (data && data.message) || 'The charges for this pilot could not be loaded.');
+                                return;
+                            }
                             vm.bookout.plane_charges = data.plane_charges;
                             vm.calculate_invoice_for_flight();
                     });
@@ -1294,7 +1327,7 @@
 
                      InstructorCharges.GetByCourseId(vm.bookout.course.id)
                     .then(function(data){
-                        vm.instructor_charges = data.items;  
+                        vm.instructor_charges = charges_of(data);
 
                         //check if updates selected tuition received list?
                         if(vm.instructor_charges.length == 1){
@@ -1309,7 +1342,7 @@
                 } else {
                      InstructorCharges.GetByClubId(vm.bookout.club_id)
                     .then(function(data){
-                        vm.instructor_charges = data.items;  
+                        vm.instructor_charges = charges_of(data);
 
                         //check if updates selected tuition received list?
                         if(vm.instructor_charges.length == 1){
@@ -1344,6 +1377,12 @@
                     InstructorCharges.GetUpdatedCharges(vm.bookout.tuition_required.id)
                     .then(function (data) {
                         //console.log("data is : ", data);
+                        // refused (FORBIDDEN, §15) or not found: keep the tuition already on the form
+                        if(!data || data.success === false || !data.tuition_required){
+                            ToastService.warning('Tuition not updated', (data && data.message) || 'That tuition rate could not be loaded.');
+                            vm.ignore_next_tuition_change = false;
+                            return;
+                        }
 
                         vm.bookout.tuition_charges = data.tuition_charges;
                         vm.bookout.tuition_required = data.tuition_required;
@@ -1375,10 +1414,19 @@
                  PlaneService.DeleteReceipt(id)
                 .then(function (rcpt) {
 
+                    // FORBIDDEN (not yours / no longer pending / flight booked in — see
+                    // BACKEND_MONEY_ACCESS_GUIDE.md §3) is in writeGuard's HANDLED_CODES
+                    if (rcpt && rcpt.success === false) {
+                        ToastService.error('Receipt not deleted', rcpt.message || 'The receipt could not be deleted.');
+                        return;
+                    }
+
                     PlaneService.GetAllSheetReceipts(vm.bookout.id)
                     .then(function (data) {
                         ////console.log("data is : ", data);
-                        vm.lubricant_receipts = data;
+                        if (angular.isArray(data)) {
+                            vm.lubricant_receipts = data;
+                        }
                         vm.calculate_invoice_for_flight();
 
                     });
@@ -1402,6 +1450,15 @@
                 PlaneService.CheckReimbursement(obj)
                     .then(function (data) {
                         //console.log("conversion", data);
+
+                        // no exchange rate (Transferwise unreachable - RATE_UNAVAILABLE): say so; saving the
+                        // receipt asks again (and refuses with the same message rather than save no amount)
+                        if (!data || data.success === false || !data.reimburse) {
+                            vm.receipt.reimbursed_amount = null;
+                            vm.receipt.reimbursed_rate = null;
+                            ToastService.warning('Exchange rate unavailable', (data && typeof data.message === 'string' && data.message) || "We couldn't get today's exchange rate - please try again in a few minutes.");
+                            return;
+                        }
 
                         vm.receipt.reimbursed_amount = data.reimburse.reimbursed_amount;
                         vm.receipt.reimbursed_currency = data.reimburse.reimbursed_currency;
@@ -1440,7 +1497,13 @@
 
                 PlaneService.AddReceipt(obj)
                 .then(function (rcpt) {
-                            //console.log("RECEIPTS", rcpt);          
+                            //console.log("RECEIPTS", rcpt);
+                            // refused (FORBIDDEN: not a member of this club / not your own
+                            // receipt — BACKEND_MONEY_ACCESS_GUIDE.md §3) or not saved
+                            if (!rcpt || rcpt.success === false || !rcpt.item) {
+                                ToastService.error('Receipt not saved', (rcpt && rcpt.message) || 'The receipt could not be saved. Please try again.');
+                                return;
+                            }
                             vm.lubricant_receipts.push(rcpt.item);
 
 
@@ -2472,8 +2535,14 @@
                             }
 
 
-                        
 
+
+                    } else {
+                        // GET plane_log_sheets/{id} refused (FORBIDDEN: not on the flight and not a
+                        // current member / staff of its club — BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §15)
+                        // or the sheet is gone (NOT_FOUND): say so and leave the empty form.
+                        ToastService.warning('Flight not available', (data && data.message) || 'This flight could not be loaded.');
+                        $state.go('dashboard.my_account');
                     }
                 });
 
@@ -3993,6 +4062,13 @@
                       }); // end GetClubStripeKey().then for booking 3DS auth
 
 
+                    } else if(data.error && BOOK_IN_REFUSALS[data.error]){
+
+                        // refused before anything was saved (§16.2) — this used to fall into
+                        // the card-machine branch below
+                        ToastService.warning(BOOK_IN_REFUSALS[data.error], (typeof data.message === 'string' && data.message) || 'This flight could not be booked in.');
+                        vm.show_loading = false;
+
                     } else if(data.error){
 
                         //there was an error with the link to the card machine...
@@ -4359,7 +4435,8 @@
             if (!members || !members.length) return members || [];
             var bsPattern = /^bs\d+@toaviate\.com$/i;
             for (var i = 0; i < members.length; i++) {
-                members[i]._isBsMember = !!(members[i].email && bsPattern.test(members[i].email));
+                // a plain member's list carries no e-mails — the backend flags the stub as bs_placeholder
+                members[i]._isBsMember = !!(members[i].bs_placeholder == 1 || (members[i].email && bsPattern.test(members[i].email)));
             }
             return members;
         }
@@ -4448,6 +4525,11 @@
                     InvoicesService.GetAllByBooking(booking.booking_id)
                     .then(function (data) {
                             //console.log("invoice data is : ", data);
+                            // FORBIDDEN: not on this booking and not the club's instructor / admin
+                            // (BACKEND_MONEY_ACCESS_GUIDE.md §5) — say so; the invoices list stays empty
+                            if(data && data.error === 'FORBIDDEN'){
+                                ToastService.error('Invoices Not Loaded', (typeof data.message === 'string' && data.message) || "You can't see this booking's invoices.");
+                            }
                             if(data.success){
                                 //console.log("data", data.invoices);
                                 // vm.previous_invoice = data.invoice;
@@ -4520,7 +4602,7 @@
 
                 InstructorCharges.GetByClubId(booking.club_id)
                 .then(function(data){
-                    vm.instructor_charges = data.items;  
+                    vm.instructor_charges = charges_of(data);
                 });
 
                 

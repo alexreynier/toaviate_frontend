@@ -91,6 +91,9 @@ module.exports = function (grunt) {
                     'libs/css/toggle.css',
                     'css/styles.css',
                     'css/snazzy-pages.css',
+                    // ToAviate design system — shared base + night mode for new / redesigned pages (DESIGN_GUIDELINES.md)
+                    'css/ta-base.css',
+                    'css/ta-night.css',
                     'libs/css/slider.css',
                     'css/calendar.css',
                     'css/instructor-schedule.css',
@@ -154,6 +157,8 @@ module.exports = function (grunt) {
                     'css/payment-methods.css',
                     'css/missing-students.css',
                     'css/records-to-file.css',
+                    'css/bookout.css',
+                    'css/booked-out.css',
                     'css/student-snapshot.css',
                     'css/snazzy-pager.css',
                     'css/platform-keys.css',
@@ -177,7 +182,8 @@ module.exports = function (grunt) {
                     'css/scheduler-v2.css',
                     'css/booking-form.css',
                     'css/club-opening-hours.css',
-                    'css/cancellation-fees.css'
+                    'css/cancellation-fees.css',
+                    'css/bookout-presolo.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL
                     // `body { padding: 24px }` rule. It isn't linked in index.html

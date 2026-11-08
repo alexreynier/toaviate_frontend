@@ -84,6 +84,13 @@
              //console.log("PARAMS", $state);
             CourseService.GetCourseById($stateParams.course_id)
                     .then(function(data){
+                        // The syllabus is for current members of the course's club (a
+                        // student whose membership has ended keeps their records in
+                        // Training Records) — say so instead of rendering an empty page.
+                        if(!data || data.success === false || !data.item){
+                            vm.load_error = (data && data.message) || 'This course could not be loaded.';
+                            return;
+                        }
                         vm.course = data.item;   
                             
 
@@ -116,6 +123,10 @@
 
             CourseService.GetLessonById($stateParams.lesson_id)
                     .then(function(data){
+                        if(!data || data.success === false || !data.item){
+                            vm.load_error = (data && data.message) || 'This lesson could not be loaded.';
+                            return;
+                        }
                         vm.lesson = data.item;   
 
                         CourseService.GetBulletsByLessonId($stateParams.lesson_id)

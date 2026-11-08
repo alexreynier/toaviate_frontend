@@ -49,7 +49,7 @@
                 .then(function(data){
                     plane._loading_more = false;
                     if (!data || data.success === false) {
-                        ToastService.error('Could not load more', (data && data.message) || 'Please try again.');
+                        ToastService.error('Could not load more', (data && typeof data.message === 'string' && data.message) || 'Please try again.');
                         return;
                     }
                     var seen = {};
@@ -164,6 +164,14 @@
                 .then(function (data) {
                     console.log("GetFoxEntries was called here");
                     vm.loading = false;
+                    if (!data || data.success === false) {
+                        // refused (FORBIDDEN) or failed: say so instead of an empty page
+                        var msg = (data && typeof data.message === 'string') ? data.message : 'Please try again.';
+                        ToastService.error('Could not load flights to claim', msg);
+                        vm.unclaimed = { to_claim: [] };
+                        buildHelperLists();
+                        return;
+                    }
                     vm.unclaimed = data;
                     console.log("vm.unclaimed", vm.unclaimed);
                     buildHelperLists();

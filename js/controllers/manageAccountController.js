@@ -133,7 +133,7 @@
                             if(data.message == "Password entered failed"){
                                 ToastService.error('Incorrect Password', 'The password entered was incorrect');
                             } else {
-                                ToastService.error('Update Failed', 'Something horrible happened!');
+                                ToastService.error('Update Failed', data.message || 'Your changes could not be saved — please try again.');
                             }
                             //this should be very very rare...
                         }

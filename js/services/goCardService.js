@@ -8,7 +8,8 @@ app.factory('GoCardService', GoCardService);
 
         service.SetupGoCard = SetupGoCard;
         service.SetupMandate = SetupMandate;
-        service.GenerateLink = GenerateLink;
+        // (GenerateLink → go_card/generate_link was never called and the route is retired,
+        // 2026-11-06: a Direct Debit is set up from the membership request — MembershipService)
         service.GenerateUpdateLink = GenerateUpdateLink;
         service.UpdateMandate = UpdateMandate;
 
@@ -34,11 +35,6 @@ app.factory('GoCardService', GoCardService);
         function SetupGoCard(details){
             $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
             return $http.post('/api/v1/go_card/setup', details).then(handleSuccess, handleError2);
-        }
-
-        function GenerateLink(details){
-            $http.defaults.headers.common['Api-Key'] = "eW91a25vd25vdGhpbmdqb25zbm93";
-            return $http.post('/api/v1/go_card/generate_link', details).then(handleSuccess, handleError2);
         }
 
         function GetAll() {

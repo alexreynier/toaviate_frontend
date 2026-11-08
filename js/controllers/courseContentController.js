@@ -587,8 +587,30 @@ app.controller('CourseContentController', CourseContentController);
         // ════════════════════════════════════════════
         function initReview() {
             vm.attemptId = $stateParams.attempt_id;
+            vm.boReturn = readBookoutReturn();
             loadReview();
         }
+
+        // ── Return to a book-out ──
+        // <bo-presolo> ("Review now" on the book-out's pre-solo list) leaves a
+        // sessionStorage bo_return { state, params, label, at, attempt_id } and
+        // saves the book-out form's draft first. While it is fresh (< 3 h) and
+        // for this attempt, the screen offers a prominent "Back to book-out";
+        // once the attempt is reviewed that becomes the obvious next step.
+        function readBookoutReturn() {
+            var ret = null;
+            try { ret = JSON.parse(sessionStorage.getItem('bo_return') || 'null'); } catch (e) { ret = null; }
+            if (!ret || !ret.state || !ret.at || (Date.now() - ret.at) > 3 * 60 * 60 * 1000) { return null; }
+            if (ret.attempt_id && String(ret.attempt_id) !== String($stateParams.attempt_id)) { return null; }
+            var st = $state.get(ret.state);
+            return (st && !st.abstract) ? ret : null;
+        }
+        vm.backToBookout = function() {
+            var ret = vm.boReturn;
+            if (!ret) { return; }
+            try { sessionStorage.removeItem('bo_return'); } catch (e) {}
+            $state.go(ret.state, ret.params || {});
+        };
         function loadReview() {
             vm.loading = true;
             QuestionnaireService.Review(vm.attemptId).then(function(data) {

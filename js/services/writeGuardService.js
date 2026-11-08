@@ -158,7 +158,14 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         DOUBLE_BOOKING_NOT_ALLOWED: 1,
         // Cancellation fees (CancellationFeesService): the booking card / panel popup / Cancellations
         // panel toast their own "fee not added / not reversed" line.
-        ALREADY_CLAIMED: 1, NO_FEE: 1, NO_PILOT: 1, NOT_CLAIMED: 1, ALREADY_COLLECTED: 1, NOT_AVAILABLE: 1
+        ALREADY_CLAIMED: 1, NO_FEE: 1, NO_PILOT: 1, NOT_CLAIMED: 1, ALREADY_COLLECTED: 1, NOT_AVAILABLE: 1,
+        // Book-out refusals (POST plane_log_sheets): the book-out page opens its airworthiness /
+        // pilot-checks dialogs or toasts and scrolls to the pre-flight check card itself.
+        airworthiness: 1, pilot_checks: 1, aircraft_check_required: 1, booking_invalid: 1, not_allowed: 1,
+        already_booked_out: 1, save_failed: 1,
+        // Emoji / 4-byte characters: unsupportedCharactersInterceptor (below) toasts its own
+        // warning — for a request it blocked before sending AND for the backend's refusal.
+        UNSUPPORTED_CHARACTERS: 1
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes
@@ -240,4 +247,146 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
             return $q.reject(rejection);
         }
     };
+}]);
+
+// ═══════════════════════════════════════════════════════════════════
+//  unsupportedCharactersInterceptor — emoji & other 4-byte characters
+//  (backend: BACKEND_UNSUPPORTED_CHARACTERS_GUIDE.md).
+//
+//  The database connection can't store a character outside the Basic
+//  Multilingual Plane (every emoji is one), so the API refuses any write
+//  that carries one: {success:false, error:"UNSUPPORTED_CHARACTERS",
+//  message:"Emoji and some special symbols can't be saved — please remove
+//  them from: <fields>.", fields:[...]} (HTTP 200).
+//
+//  This interceptor catches it BEFORE sending: it scans the JSON body of
+//  every API write for a surrogate pair, and when it finds one it does not
+//  send the request — the caller gets exactly what the server would have
+//  answered (a 200 whose body is that refusal, so every handler that reads
+//  data.success / data.message behaves as for the real one) — and it toasts
+//  the message, naming the field(s). It toasts the backend's refusal too
+//  (UNSUPPORTED_CHARACTERS is in writeGuard's HANDLED_CODES, so the generic
+//  "Not saved" toast stays out of the way). Never scanned: file uploads
+//  (FormData / Blob / File / binary), password fields (hashed server-side,
+//  never stored as text), non-API URLs, reads.
+//
+//  Registered LAST in app.js (after apiUrlInterceptor): a blocked request
+//  never reaches the network or the circuit breaker's failure count.
+// ═══════════════════════════════════════════════════════════════════
+app.factory('unsupportedCharactersInterceptor', ['$q', '$injector', '$window', function ($q, $injector, $window) {
+    var CODE = 'UNSUPPORTED_CHARACTERS';
+    var SURROGATE_PAIR = /[\uD800-\uDBFF][\uDC00-\uDFFF]/;
+    var SECRET_KEY = /password|passwd|passphrase/i;
+    var MAX_NAMED = 5;
+    var MAX_DEPTH = 40;
+
+    function isWrite(config) {
+        var m = ((config && config.method) || 'GET').toUpperCase();
+        return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
+    }
+
+    function isApiUrl(url) {
+        return typeof url === 'string' && url.indexOf('api/v1/') > -1;
+    }
+
+    function isOpaque(v) {
+        var w = $window || {};
+        if (w.FormData && v instanceof w.FormData) { return true; }
+        if (w.Blob && v instanceof w.Blob) { return true; }              // File is a Blob
+        if (w.ArrayBuffer && (v instanceof w.ArrayBuffer || (w.ArrayBuffer.isView && w.ArrayBuffer.isView(v)))) { return true; }
+        if (w.URLSearchParams && v instanceof w.URLSearchParams) { return true; }
+        if (v instanceof Date || typeof v.toJSON === 'function') { return true; }   // serialises to a date string
+        return false;
+    }
+
+    // Field paths, in the backend's format: "nok.first_name", "items[2].title".
+    function scan(value, path, depth, seen, out) {
+        if (typeof value === 'string') {
+            if (SURROGATE_PAIR.test(value)) { out.push(path || 'the request'); }
+            return out;
+        }
+        if (!value || typeof value !== 'object' || depth > MAX_DEPTH || isOpaque(value)) { return out; }
+        if (seen.indexOf(value) > -1) { return out; }
+        seen.push(value);
+        if (Array.isArray(value)) {
+            for (var i = 0; i < value.length; i++) { scan(value[i], path + '[' + i + ']', depth + 1, seen, out); }
+            return out;
+        }
+        for (var k in value) {
+            if (!Object.prototype.hasOwnProperty.call(value, k)) { continue; }
+            if (k.charAt(0) === '$' && k.charAt(1) === '$') { continue; }   // angular.toJson drops $$hashKey & co.
+            if (typeof value[k] === 'function' || SECRET_KEY.test(k)) { continue; }
+            if (SURROGATE_PAIR.test(k)) { out.push(path || '(a field name)'); continue; }
+            scan(value[k], path ? path + '.' + k : k, depth + 1, seen, out);
+        }
+        return out;
+    }
+
+    function fieldsOf(data) {
+        if (data === null || data === undefined) { return []; }
+        if (typeof data === 'string') {
+            if (!SURROGATE_PAIR.test(data)) { return []; }
+            try { return scan(JSON.parse(data), '', 0, [], []); } catch (e) { return ['the request']; }
+        }
+        return scan(data, '', 0, [], []);
+    }
+
+    // "nok.first_name" → "nok › first name" — the backend's wording, word for word.
+    function label(path) {
+        return String(path).replace(/\[\d+\]/g, '').replace(/_/g, ' ').split('.').join(' › ').replace(/^\s+|\s+$/g, '');
+    }
+
+    function refusal(fields) {
+        var labels = [];
+        for (var i = 0; i < fields.length; i++) {
+            var l = label(fields[i]);
+            if (l && labels.indexOf(l) === -1) { labels.push(l); }
+        }
+        var list = labels.slice(0, MAX_NAMED).join(', ');
+        if (labels.length > MAX_NAMED) { list += ' and ' + (labels.length - MAX_NAMED) + ' more'; }
+        return {
+            success: false,
+            error: CODE,
+            message: "Emoji and some special symbols can't be saved — please remove them from: " + list + '.',
+            fields: fields
+        };
+    }
+
+    function toast(data) {
+        try {
+            $injector.get('ToastService').warning('Not saved', data.message, { duration: 7000 });
+        } catch (e) {}
+    }
+
+    function isRefusal(data) {
+        return !!(data && typeof data === 'object' && data.error === CODE);
+    }
+
+    var service = {
+        request: function (config) {
+            if (!config || !isWrite(config) || !isApiUrl(config.url)) { return config; }
+            var fields = fieldsOf(config.data);
+            if (!fields.length) { return config; }
+            return $q.reject({ data: refusal(fields), status: 200, config: config, _blockedClientSide: true,
+                               statusText: 'Not sent: emoji / unsupported characters in the request.' });
+        },
+        response: function (response) {
+            if (response && isRefusal(response.data)) { toast(response.data); }
+            return response;
+        },
+        responseError: function (rejection) {
+            if (rejection && rejection._blockedClientSide) {
+                // Answer the caller the way the server would have: a 200 carrying the refusal.
+                toast(rejection.data);
+                return { data: rejection.data, status: 200, config: rejection.config, statusText: rejection.statusText,
+                         headers: function () { return null; }, _blockedClientSide: true };
+            }
+            if (rejection && isRefusal(rejection.data)) { toast(rejection.data); }
+            return $q.reject(rejection);
+        },
+        // exposed for tests
+        _fieldsOf: fieldsOf,
+        _refusal: refusal
+    };
+    return service;
 }]);

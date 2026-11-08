@@ -100,6 +100,12 @@
             .then(function(data){
                 ////console.log("CHANGE ::: ", data.reimburse.reimbursed_amount);
 
+                // no exchange rate (Transferwise unreachable - RATE_UNAVAILABLE): the amounts are left as they were
+                if(!data || data.success === false || !data.reimburse){
+                    ToastService.error('Exchange rate unavailable', (data && typeof data.message === 'string' && data.message) || "We couldn't get today's exchange rate - please try again in a few minutes.");
+                    return;
+                }
+
                 //maybe that's where we re-calculate the price?
                 receipt.modified_reimbursed_amount = data.reimburse.reimbursed_amount;
                 receipt.modified_reimbursed_rate = data.reimburse.rate;

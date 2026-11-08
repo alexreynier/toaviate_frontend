@@ -663,7 +663,17 @@
             }
 
             vm.plane_maintenance.certificate_expiry = new Date(vm.plane_search.cofa_expiry);
-            
+
+            // the register's certificate category pre-selects the Airworthiness choice (the
+            // club can change it): "Permit to Fly" → ptf, a C of A → cofa. Sent as
+            // airworthiness_type — without it every aircraft was created as a CofA aircraft.
+            var reg_cat = String(vm.plane_search.cofa_category || '').toLowerCase();
+            if (reg_cat.indexOf('permit') > -1) {
+                vm.club.plane.airworthiness_type = 'ptf';
+            } else if (reg_cat.indexOf('airworthiness') > -1 || reg_cat.indexOf('c of a') > -1) {
+                vm.club.plane.airworthiness_type = 'cofa';
+            }
+
             vm.club.plane.cofa_category = vm.plane_maintenance.cofa_category;//(vm.plane_search.cofa_category.indexOf("EASA") > -1)? "easa_cofa" : ((vm.plane_search.cofa_category.indexOf("Certificate of Airworthiness") > -1)? "n_cofa" : "permit")
 
             vm.club.plane.gear_type = vm.plane_search.gear_type;
@@ -724,8 +734,8 @@
                 checks.push({ ok: vm.plane_propeller_1.total_hours_at_start != null && vm.plane_propeller_1.total_hours_at_start !== '', field: 'prop1_hours', label: 'Propeller Hours' });
 
                 // Maintenance
-                checks.push({ ok: vm.plane_maintenance.cofa_category,       field: 'cert_type',          label: 'Certificate Type' });
-                checks.push({ ok: vm.plane_maintenance.certificate_expiry,  field: 'cert_expiry',        label: 'Certificate Expiry' });
+                checks.push({ ok: vm.club.plane.airworthiness_type === 'cofa' || vm.club.plane.airworthiness_type === 'ptf', field: 'cert_type', label: 'Airworthiness (CofA or Permit to Fly)' });
+                checks.push({ ok: vm.plane_maintenance.certificate_expiry,  field: 'cert_expiry',        label: (vm.club.plane.airworthiness_type === 'ptf' ? 'Permit Expiry' : 'ARC Expiry') });
                 checks.push({ ok: vm.plane_maintenance.next_maintenance,    field: 'next_maintenance',   label: 'Next Maintenance' });
                 checks.push({ ok: vm.plane_maintenance.hours_remaining != null && vm.plane_maintenance.hours_remaining !== '', field: 'hours_remaining', label: 'Hours Remaining' });
 
@@ -764,6 +774,13 @@
                 FoxService.FixUncombinedLogs(vm.club_id)
                 .then(function(data){
                     ////console.log(data);
+                    if(!data || data.success === false){
+                        // ToAviate staff only (a platform-wide repair) — FORBIDDEN for club admins
+                        vm.disable_reset2 = false;
+                        vm.show_loading = false;
+                        ToastService.error('Not run', (data && typeof data.message === 'string') ? data.message : 'The uncombined logs could not be fixed.');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.planes', {reload: true});
                     vm.disable_reset2 = true;
                     vm.show_loading = false;
@@ -784,6 +801,19 @@
                 FoxService.ResetAllClubPlanes(vm.club_id)
                 .then(function(data){
                     ////console.log(data);
+                    if(!data || data.success === false){
+                        // the club's admins or ToAviate staff only — FORBIDDEN otherwise
+                        vm.disable_reset = false;
+                        vm.show_loading = false;
+                        ToastService.error('Not reset', (data && typeof data.message === 'string') ? data.message : 'The logbooks could not be reset.');
+                        return;
+                    }
+                    // aircraft whose unclaimed tracker flights were left as they were (no tracker
+                    // fitted / no current tracker assignment — BACKEND_FOX_CLAIM_ACCESS_GUIDE.md §8)
+                    if(angular.isArray(data.not_rebuilt) && data.not_rebuilt.length > 0){
+                        var left = data.not_rebuilt.map(function(n){ return (n && typeof n.message === 'string') ? n.message : ''; }).filter(function(m){ return m !== ''; });
+                        ToastService.warning('Some aircraft not rebuilt', left.join(' '));
+                    }
                     $state.go('dashboard.manage_club.planes', {reload: true});
                     vm.disable_reset = true;
                     vm.show_loading = false;
@@ -876,9 +906,10 @@
             vm.club.plane.add_documents = vm.plane_documents;
             vm.club.plane.registration = vm.plane_search.registration;
 
-            vm.club.maintenance_type = vm.plane_maintenance.cofa_category.value;
-
-            console.log("vm.plane_maintenance.cofa_category ", vm.club.maintenance_type );
+            // CofA or Permit to Fly — the Airworthiness choice (cofa | ptf). The old
+            // "Certificate Type" select was never sent on, so a Permit aircraft was created
+            // as a CofA aircraft (BACKEND_AIRCRAFT_DOCUMENTS_ACCESS_GUIDE.md §10).
+            vm.club.plane.airworthiness_type = (vm.club.plane.airworthiness_type === 'ptf') ? 'ptf' : 'cofa';
             //return false;
             
             vm.plane_maintenance.file = vm.files.cert[0];
@@ -918,8 +949,20 @@
             if (vm.plane_radio && vm.plane_radio.expiry) {
                 vm.plane_radio.expiry = _dateOnly(vm.plane_radio.expiry);
             }
+            // the form's field is radio_expiry (what planeRadioLicence::add2 reads) — it went
+            // out as UTC (a UK summer date stored a day early). Blank = no expiry entered:
+            // stored as NULL (it used to become the creation day).
+            if (vm.plane_radio) {
+                vm.plane_radio.radio_expiry = vm.plane_radio.radio_expiry ? _dateOnly(vm.plane_radio.radio_expiry) : '';
+            }
             if (vm.plane_insurance && vm.plane_insurance.expiry) {
                 vm.plane_insurance.expiry = _dateOnly(vm.plane_insurance.expiry);
+            }
+            // the form's field is insurance_expiry (what planeInsurance::add2 reads) —
+            // only "expiry" was normalised, so a UK summer date went out as the
+            // previous day's 23:00Z and was stored a day early
+            if (vm.plane_insurance && vm.plane_insurance.insurance_expiry) {
+                vm.plane_insurance.insurance_expiry = _dateOnly(vm.plane_insurance.insurance_expiry);
             }
             if (vm.plane_noise) {
                 if (vm.plane_noise.noise_cert_issue) {
@@ -1375,8 +1418,10 @@
                         $scope.processFiles(current_files);
 
                     } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
+                        // e.g. FORBIDDEN (not an admin of this aircraft's club) — writeGuard
+                        // leaves FORBIDDEN to the caller; put the row back and say why
+                        vm.club.plane.plane_documents.push(file);
+                        ToastService.error('Document not removed', (data && typeof data.message === 'string' && data.message) || 'The document could not be removed.');
                     }
 
                 });

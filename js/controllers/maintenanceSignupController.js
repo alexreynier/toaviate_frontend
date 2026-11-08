@@ -43,9 +43,13 @@ function MaintenanceSignupController($rootScope, $scope, $state, $location, Toas
     vm.loggedInName = vm.loggedIn ? ((me.first_name || '') + ' ' + (me.last_name || '')).trim() : '';
     vm.existingAccount = false;
     vm.autoVerified = false;
-    // Terms / privacy (the stored platform documents, same as the other wizards)
+    // Terms / privacy (the platform documents, same as the other wizards).
+    // Public route: the server picks the file, the page never names one —
+    // see BACKEND_PUBLIC_TERMS_GUIDE.md in the backend repo.
     vm.openDoc = function(name){
-        var url = EnvConfig.getApiBaseUrl() + '/api/v1/term_documents/show_file/' + name;
+        var kind = (name === '2av8_privacy') ? 'privacy' : ((name === '2av8_terms') ? 'terms' : null);
+        if (!kind) { return; }
+        var url = EnvConfig.getApiBaseUrl() + '/api/v1/public_terms/toaviate/' + kind;
         $http.get(url, { responseType: 'arraybuffer' }).then(function(res){
             var blob = new Blob([res.data], { type: (res.headers('Content-Type') || 'application/pdf') });
             var w = window.open(URL.createObjectURL(blob), '_blank');

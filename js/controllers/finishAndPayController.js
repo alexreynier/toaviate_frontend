@@ -615,7 +615,14 @@
                 //console.log("SENT - ", data);
                 if(data.success){
                         vm.show_loading = false;
-                        $state.go('dashboard.my_account', {}, { reload: true });                    
+                        $state.go('dashboard.my_account', {}, { reload: true });
+                } else if(data.error === 'FORBIDDEN' || data.error === 'NOT_FREE' || data.error === 'NOT_FOUND'){
+                    // payment_for refusals (BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §16.3): not on this
+                    // flight / not the club's desk, a "free" flight that has an amount to pay, or an
+                    // unknown booking. FORBIDDEN is a writeGuard HANDLED code — say it here.
+                    ToastService.warning(data.error === 'NOT_FREE' ? 'Not a Free Flight' : 'Payment Not Taken',
+                        (typeof data.message === 'string' && data.message) || 'This payment could not be made.');
+                    vm.show_loading = false;
                 } else {
                     ToastService.error('Error', 'An error occurred: ' + data.message);
                     vm.show_loading = false;
@@ -659,6 +666,11 @@
             InvoicesService.GetAllByBooking(booking.id)
             .then(function (data) {
                     console.log("invoice data is : ", data);
+                    // FORBIDDEN: not on this booking and not the club's instructor / admin
+                    // (BACKEND_MONEY_ACCESS_GUIDE.md §5) — say so; the invoices list stays empty
+                    if(data && data.error === 'FORBIDDEN'){
+                        ToastService.error('Invoices Not Loaded', (typeof data.message === 'string' && data.message) || "You can't see this booking's invoices.");
+                    }
                     console.log("number of invoices returned: ", data.invoices ? Object.keys(data.invoices).length : 0);
                     if(data.success){
                         console.log("we already have invoices for this booking");

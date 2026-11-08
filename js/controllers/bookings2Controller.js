@@ -2186,7 +2186,15 @@
         $('#calendar').fullCalendar('addEventSource', all_events);
     }
 
-    vm.override_new_booking_errors = function(){
+    vm.override_new_booking_errors = function(which){
+        // The payment method (no_payment_method, 2026-11-08): an admin books without the member's payment
+        // method — that flag alone (never the currency / overbooking overrides with it).
+        if(which === "payment_override"){
+            vm.new_booking.payment_override = 1;
+            vm.new_booking_errors = {};
+            $scope.make_booking(true);
+            return;
+        }
         vm.new_booking.admin_override = true;
         vm.new_booking.override_overbooking = 1;   // the member-already-booked check reads this (admin_override is honoured too)
         vm.new_booking.override = 1;
@@ -2458,6 +2466,12 @@
 
     $scope.override_booking_change2 = function(override){
 
+        // payment method (2026-11-08): that flag alone
+        if(override === "payment_override"){
+            vm.error_event.payment_override = true;
+            check_before_changing_event(vm.error_event, true);
+            return;
+        }
         vm.error_event.admin_override = true;
         vm.error_event.override = 1;
         if(override){
@@ -2794,6 +2808,16 @@
                             override: "currency_override",
                             can_override: data.can_override,
                             button: "I am Current"
+                        });
+                    } else if(data.check_user_reason === "no_payment_method"){
+                        // no payment method in the club (2026-11-08) — an admin of the club may book it anyway
+                        errors.push({
+                            type: "check_user",
+                            message: "No payment method is set up for this flight.",
+                            api: data.check_user,
+                            override: "payment_override",
+                            can_override: data.can_payment_override === true,
+                            button: (data.can_payment_override === true) ? "BOOK WITHOUT A PAYMENT METHOD" : ""
                         });
                     } else {
                         errors.push({
@@ -5317,6 +5341,16 @@
                                         button: "",
                                         force_button: "FORCE BOOKING ANYWAY"
                                     }, ncMeta()));
+                                }
+                                if(data.reason == "no_payment_method"){
+                                    // no payment method in the club (2026-11-08) — only an admin of the club gets here
+                                    errors.push({
+                                        type: "payment",
+                                        message: "No payment method is set up for this flight.",
+                                        api: data.message,
+                                        override: "payment_override",
+                                        button: "BOOK WITHOUT A PAYMENT METHOD"
+                                    });
                                 }
                                 if(data.reason == "overbooked"){
                                     errors.push({

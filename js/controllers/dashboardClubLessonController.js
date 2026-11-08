@@ -229,7 +229,7 @@
                             mitigation: ""
                         }
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -249,7 +249,7 @@
                         vm.tem[index].edit_me = false;
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -274,7 +274,7 @@
                     if(data.success){
                         vm.tem.splice(index, 1);
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                 });
@@ -314,7 +314,7 @@
                         vm.new[type].bullet_format = "0";
                         
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -334,7 +334,7 @@
                         vm.bullets[type][index].edit_me = false;
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -359,7 +359,7 @@
                     if(data.success){
                         vm.bullets[type].splice(index, 1);
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                 });
@@ -385,11 +385,10 @@
 
             CourseService.UpdateBulletOrder({"order": update_order})
                 .then(function(data){
-                   // //console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    // FORBIDDEN is in writeGuard's HANDLED_CODES — say why here
+                    if (!data || !data.success) {
+                        ToastService.error('Order not saved', (data && data.message) || 'The bullet order could not be saved.');
+                    }
                 });
 
         }
@@ -409,11 +408,10 @@
 
             CourseService.UpdateItemsOrder({"order": update_order})
                 .then(function(data){
-                    //console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    // FORBIDDEN is in writeGuard's HANDLED_CODES — say why here
+                    if (!data || !data.success) {
+                        ToastService.error('Order not saved', (data && data.message) || 'The marking item order could not be saved.');
+                    }
                 });
 
         }
@@ -432,11 +430,10 @@
 
             CourseService.UpdateTemOrder({"order": update_order})
                 .then(function(data){
-                    //console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    // FORBIDDEN is in writeGuard's HANDLED_CODES — say why here
+                    if (!data || !data.success) {
+                        ToastService.error('Order not saved', (data && data.message) || 'The TEM order could not be saved.');
+                    }
                 });
 
         }
@@ -473,7 +470,7 @@
                             title: ""
                         }
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -493,7 +490,7 @@
                         vm.items[index].edit_me = false;
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -518,7 +515,7 @@
                     if(data.success){
                         vm.items.splice(index, 1);
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                 });
@@ -582,6 +579,12 @@
 
             CourseService.CreateLesson(vm.club.lesson)
                 .then(function(data){
+                    // Refused (FORBIDDEN / NOT_FOUND …): say why and stop — never create
+                    // marking items against an undefined lesson id.
+                    if (!data || !data.success || !data.id) {
+                        ToastService.error('Lesson not added', (data && data.message) || 'An error occurred');
+                        return;
+                    }
                     var lessonId = data.id;
                     var promises = [];
                     for (var i = 0; i < vm.pendingItems.length; i++) {
@@ -611,7 +614,9 @@
             ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this lesson?');
             CourseService.DeleteLesson(vm.club.lesson.id)
                 .then(function(data){
-                    //console.log(data);
+                    if (!data || !data.success) {
+                        ToastService.error('Not deleted', (data && data.message) || 'An error occurred');
+                    }
                 });
         }
 
@@ -643,8 +648,12 @@
 
             CourseService.UpdateLesson(vm.club.lesson)
                 .then(function(data){
-                    //console.log(data);
-                    //console.log("saved");
+                    // Stay on the form when the save is refused — it used to navigate
+                    // away as if it had saved.
+                    if (!data || !data.success) {
+                        ToastService.error('Lesson not saved', (data && data.message) || 'An error occurred');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.edit_course', {course_id: vm.club.lesson.course_id, reload: true});
                 });
         }
@@ -1317,10 +1326,12 @@
                     refresh_content_files();
                     ToastService.success('Upload Complete', 'Your lesson content files have been uploaded successfully.');
                 });
-            }).catch(function() {
+            }).catch(function(err) {
                 $scope.$apply(function() {
                     vm.isUploading = false;
-                    ToastService.error('Upload Error', 'One or more files failed to upload. Please try again.');
+                    // The backend's reason (e.g. FORBIDDEN "Only the club's admins can change
+                    // this lesson's files.") — FORBIDDEN is in writeGuard's HANDLED_CODES.
+                    ToastService.error('Upload Error', (err && err.message) || 'One or more files failed to upload. Please try again.');
                 });
             });
         };
@@ -1369,6 +1380,8 @@
                 .then(function(data) {
                     if (data.success) {
                         ToastService.success('Order Saved', 'File order has been updated.');
+                    } else {
+                        ToastService.error('Order Not Saved', (data && data.message) || 'The file order could not be saved.');
                     }
                 });
         };
@@ -1383,7 +1396,7 @@
                         vm.contentFiles.splice(index, 1);
                         ToastService.success('Deleted', 'File has been removed.');
                     } else {
-                        ToastService.error('Error', 'Failed to delete the file.');
+                        ToastService.error('Error', (data && data.message) || 'Failed to delete the file.');
                     }
                 });
         };
@@ -1425,7 +1438,7 @@
                             refresh_content_files();
                             ToastService.success('Replaced', 'File has been updated.');
                         } else {
-                            ToastService.error('Error', 'Failed to replace the file.');
+                            ToastService.error('Error', (data && data.message) || 'Failed to replace the file.');
                         }
                     });
             };

@@ -277,11 +277,14 @@
                     FoxService.ResetOneClubPlane(vm.this_plane_id)
                     .then(function(data){
                         console.log(data);
-                        if(data.success){
+                        if(data && data.success){
                             ToastService.success('Placeholders Rebuilt', 'Unclaimed tracker flights were regenerated from the tracker\'s recordings.');
                             // Re-fetch so the recalculated hours / next-check show
                             // without a manual page refresh.
                             loadMaintenanceDetail();
+                        } else {
+                            // the club's admins or ToAviate staff only — FORBIDDEN otherwise
+                            ToastService.error('Not rebuilt', (data && typeof data.message === 'string') ? data.message : 'The tracker placeholders could not be rebuilt.');
                         }
                         // //console.log(vm.club.planes);
                     });
@@ -484,15 +487,17 @@
                }
             }
 
-            if((vm.files.radio[0] && vm.obj.radio_expiry == null) || (!vm.files.radio[0] && vm.obj.radio_expiry)){
-                ToastService.warning('Radio Incomplete', 'Please add both the expiry date and the new certificate.');
+            // The expiry is optional: a radio licence may have none (blank → stored as
+            // NULL, shown as "No expiry" — it used to be stored as the save day).
+            if(!vm.files.radio[0] && vm.obj.radio_expiry){
+                ToastService.warning('Radio Incomplete', 'Please upload the new radio licence with its expiry date.');
                 return false;
-            } else if(vm.files.radio[0] && vm.obj.radio_expiry){
+            } else if(vm.files.radio[0]){
                 send_obj.radio = {
                     file: (vm.files.radio[0]) ? vm.files.radio[0].file : {},
                     // Date-only field — format from picker value in LOCAL
                     // time to avoid UTC drift via Date.toISOString().
-                    expiry: toDateOnly(vm.obj.radio_expiry)
+                    expiry: vm.obj.radio_expiry ? toDateOnly(vm.obj.radio_expiry) : ''
                 };
                 send_update = true;
             }
@@ -658,8 +663,10 @@
                           extension_hours: vm.obj.extension_hours,
                           extension_days: vm.obj.extension_days,
                           extension_granted: extension_granted,
+                          // required above for every type — stored since 2026-11-06
+                          checked_by: vm.obj.checked_by,
                           description: vm.obj.notes
-                      } 
+                      }
                       send_update = true;
                   } else {
                       ToastService.warning('Maintenance Incomplete', 'Please add check date, next check, and hours remaining.');
@@ -755,7 +762,13 @@
                 // Helper: also create CRS if one was provided
                 var saveCrs = function () {
                     if (send_obj.crs) {
-                        return CrsService.Create(send_obj.crs);
+                        // a refused CRS (bad date, invalid upload) used to vanish silently
+                        return CrsService.Create(send_obj.crs).then(function (crsData) {
+                            if (!crsData || crsData.success === false) {
+                                ToastService.error('CRS Not Saved', (crsData && typeof crsData.message === 'string') ? crsData.message : 'The Certificate of Release to Service could not be saved.');
+                            }
+                            return crsData;
+                        });
                     }
                     // Return resolved promise if no CRS
                     return { then: function (cb) { cb({}); } };
@@ -773,6 +786,18 @@
                         }
 
                         ToastService.success('Maintenance Saved', 'The update has been recorded.');
+
+                        // A document the server refused while the rest of the save went
+                        // through (bad date, failed upload) — documents_refused: [{label, message}].
+                        // It used to vanish whenever a check was saved in the same request.
+                        if (angular.isArray(data.documents_refused) && data.documents_refused.length > 0) {
+                            var refusedMsgs = [];
+                            for (var r = 0; r < data.documents_refused.length; r++) {
+                                var ref = data.documents_refused[r] || {};
+                                refusedMsgs.push((ref.label || ref.document || 'Document') + ': ' + (ref.message || 'not saved'));
+                            }
+                            ToastService.warning('Not Saved', refusedMsgs.join(' '));
+                        }
 
                         // Save CRS alongside (fire and forget alongside workpack)
                         saveCrs();
@@ -2626,8 +2651,12 @@
                  case "insurance": 
                     controller = "plane_insurance";
                 break;
-                 case "certificate": 
+                 case "certificate":
                     controller = "plane_certificate";
+                break;
+                // the ARC (airworthiness_document.document_route === 'plane_arc')
+                case "arc":
+                    controller = "plane_arc";
                 break;
                 case "noise":
                     controller = "plane_noise_certificate";

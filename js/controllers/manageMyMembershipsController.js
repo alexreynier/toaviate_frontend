@@ -238,7 +238,8 @@
                     vm.setting_default = false;
 
                     if(data && data.success === false){
-                        ToastService.error('Update Failed', 'Could not change your default payment method - please try again.');
+                        // the server says why (NO_MANDATE / NO_CARD / VALIDATION_ERROR — PLAN_PAYMENT_CHECKS #2)
+                        ToastService.error('Update Failed', (typeof data.message === 'string' && data.message) ? data.message : 'Could not change your default payment method - please try again.');
                         return;
                     }
 
@@ -302,7 +303,8 @@
                         vm.membership_now.default_card = data.default_card;
                         ToastService.success('Default Card Updated', 'The card ending ' + card.last4 + ' is now your default card.');
                     } else {
-                        ToastService.error('Update Failed', 'Could not update your default card - please try again.');
+                        // FORBIDDEN / CARD_NOT_FOUND carry their own sentence (BACKEND_MONEY_ACCESS_GUIDE.md §4)
+                        ToastService.error('Update Failed', (data && data.message) || 'Could not update your default card - please try again.');
                     }
 
                 });
@@ -327,7 +329,7 @@
                                 });
                         ToastService.success('Card Removed', 'The card ending ' + card.last4 + ' has been removed.');
                     } else {
-                        ToastService.error('Removal Failed', 'Could not remove this card - please try again.');
+                        ToastService.error('Removal Failed', (data && data.message) || 'Could not remove this card - please try again.');
                     }
 
                 });
@@ -339,8 +341,12 @@
                 .then(function (data) {
                     //console.log("DELETE HERE", data);
                     //vm.memberships = data;
+                    // FORBIDDEN / REQUEST_NOT_FOUND carry their own sentence (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §9)
+                    if(data && data.success === false){
+                        ToastService.error('Not Removed', (typeof data.message === 'string' && data.message) || 'Could not remove this request - please try again.');
+                    }
                     update_requests();
-                }); 
+                });
             }
 
 
@@ -373,16 +379,20 @@
                     return false;
                 }
 
-                //basic checks...
+                //basic checks... (the server takes club / person from the request itself)
                 var obj = {
-                    club_id: vm.this_req.club_id,
-                    user_id: vm.user_id,
                     request_id: vm.this_req.id
                 };
 
                 MembershipService.AcceptRequest(vm.this_req.id, obj)
                 .then(function (data) {
                     ////console.log("ACCEPT HERE", data);
+
+                    // FORBIDDEN (not your offer) / REQUEST_NOT_FOUND / NO_DD_INTEGRATION: say why instead of failing on data.mandate
+                    if(!data || data.success === false || !data.mandate){
+                        ToastService.error(data && data.error === 'NO_DD_INTEGRATION' ? 'Direct Debit Unavailable' : 'Could Not Accept', (data && typeof data.message === 'string' && data.message) || 'This membership offer could not be accepted - please try again.');
+                        return;
+                    }
 
                     $cookies.put('gcl_sess', data.mandate.session);
                     $cookies.put('gcl_member_accepted', true);
@@ -455,7 +465,8 @@
                         vm.receiveNotifications    = (vm.membership_now.mute_booking_emails == 0);
                         vm.receiveBookingReminders = (vm.membership_now.mute_booking_reminders == 0);
                         vm.receiveDailySummary     = (vm.membership_now.instructor_daily_summary == 1);
-                        ToastService.error('Error', 'Could not save email preferences.');
+                        // FORBIDDEN carries its own sentence (a member may change only their own e-mail switches)
+                        ToastService.error('Error', (data && typeof data.message === 'string' && data.message) || 'Could not save email preferences.');
                     }
                 });
             };
@@ -500,7 +511,10 @@
                         window.location = data.link;
                         
                     } else {
-                        ToastService.error('Direct Debit Error', 'An error occurred when generating the link to update your direct debit instructions - please contact support@toaviate.com');
+                        // a refusal says why — FORBIDDEN (not your own membership), NO_DD_INTEGRATION (the
+                        // club has no working GoCardless connection), DD_SETUP_FAILED; writeGuard leaves it to us
+                        var dd_refusal = (data && typeof data.error === 'string' && typeof data.message === 'string') ? data.message : null;
+                        ToastService.error('Direct Debit Error', dd_refusal || 'An error occurred when generating the link to update your direct debit instructions - please contact support@toaviate.com');
                     }
                    
 
@@ -909,31 +923,43 @@
 
 
               if(vm.club_tnc && vm.card_tnc && vm.club.id && vm.membership.id){
-                ToastService.success('Thank You', 'Your request has been submitted.');
 
+                // membership_id is the TIER (memberships.id) — the club_available rows are tier
+                // versions, whose own id is the version's. The server sets everything else
+                // (you, no roles, the tier's price): BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §9.
                 var obj = {
                     user_id: vm.user.id,
                     club_id: vm.club.id,
-                    membership_id: vm.membership.id,
-                    requested_by: "user",
-                    paid: 0
+                    membership_id: vm.membership.membership_id
                     //,card_id: vm.payment_card.id
                 };
 
                 MembershipService.SendRequest(obj)
                 .then(function (data) {
                     // //console.log("SENT HERE", data);
-                    if(data.success){
+                    if(data && data.success && data.mandate && data.mandate.on_file){
+                        // asked again where your earlier request is still with the club: it was updated
+                        // (latest choice wins) and its Direct Debit is already set up - no GoCardless step
+                        ToastService.success('Request Updated', 'Your request to join has been updated - your Direct Debit is already set up, so the club just needs to accept it.');
+                        $state.go('dashboard.my_account.memberships', {}, {reload: true});
+                    } else if(data && data.success && data.mandate){
                         //$state.go('dashboard.my_account.memberships');
+                        ToastService.success('Thank You', data.merged ? 'Your earlier request has been updated - please complete the Direct Debit set-up.' : 'Your request has been submitted.');
 
                         // //console.log("DATA", data);
                         // //console.log(data.mandate.link);
                         $cookies.put('gcl_sess', data.mandate.session);
+                        // your own request is accepted by the club, not on return from GoCardless
+                        $cookies.remove('gcl_member_accepted');
 
 
                         window.location = data.mandate.link;
 
 
+                    } else {
+                        // FORBIDDEN / INVALID_MEMBERSHIP / NO_DD_INTEGRATION (the club has no working
+                        // GoCardless connection) / REQUEST_PAYMENT_PENDING carry their own sentence
+                        ToastService.error(data && data.error === 'NO_DD_INTEGRATION' ? 'Direct Debit Unavailable' : 'Request Not Sent', (data && typeof data.message === 'string' && data.message) || 'Your request could not be sent - please try again.');
                     }
 
                 });

@@ -133,6 +133,10 @@ app.factory('UserService', UserService);
 
         
 
+        // LEGACY MODE as of 7/11/26 — do not use. POST /invitations (no sub-route) was removed on the backend: it
+        // inserted the raw body as an invitation (any club / tier / to_pay). It now answers NOT_FOUND. The only
+        // caller (BookoutController vm.invite_passenger) is in no view. Passengers are invited with
+        // POST invitations/new_passenger/{booking_id}.
         function InvitePassenger(email, invited_by, club_id, membership_id, booking_id){
             var obj = {
                 email: email,

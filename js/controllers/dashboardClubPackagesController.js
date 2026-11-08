@@ -160,7 +160,7 @@
                                 vm.aircraft.splice(index, 1);
                                 vm.clean_aircraft_selection();
                             } else {
-                                ToastService.error('Error', 'An error occurred');
+                                ToastService.error('Error', (data && data.message) || 'An error occurred');
                             }
                             //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                         });
@@ -202,7 +202,7 @@
                             vm.new_aircraft2 = {};
 
                         } else {
-                            ToastService.error('Error', 'An error occurred');
+                            ToastService.error('Error', (data && data.message) || 'An error occurred');
                         }
 
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -378,7 +378,8 @@
                         if(data.success){
                             vm.packages.splice(index, 1);
                         } else {
-                            ToastService.error('Error', 'An error occurred');
+                            // FORBIDDEN: only the club's admins (BACKEND_MONEY_ACCESS_GUIDE.md §2)
+                            ToastService.error('Error', (data && data.message) || 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
@@ -396,6 +397,11 @@
             PackageService.CreatePackage(vm.package)
                 .then(function(data){
                     ////console.log(data);
+                    // refused (FORBIDDEN — only the club's admins) or not saved: stay and say why
+                    if (!data || data.success === false) {
+                        ToastService.error('Package not saved', (data && data.message) || 'The package could not be saved. Please try again.');
+                        return;
+                    }
                         
                     $state.go('dashboard.manage_club.package', {reload: true});
 
@@ -410,6 +416,9 @@
             PackageService.DeletePackage(vm.package.id)
                 .then(function(data){
                     //console.log(data);
+                    if (data && data.success === false) {
+                        ToastService.error('Package not deleted', data.message || 'The package could not be deleted.');
+                    }
                 });
         }
 
@@ -443,6 +452,10 @@
                 .then(function(data){
                     //console.log(data);
                     //console.log("saved");
+                    if (!data || data.success === false) {
+                        ToastService.error('Package not saved', (data && data.message) || 'Your changes were not saved. Please try again.');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.package');
                 });
         }

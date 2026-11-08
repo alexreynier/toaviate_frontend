@@ -20,7 +20,11 @@ app.factory('SmsAccessService', SmsAccessService);
 
         service.resolve = resolve;
         service.fromSettings = fromSettings;
+        service.isCached = isCached;
         return service;
+
+        // True when resolve(club_id) will answer from the cache (no request).
+        function isCached(club_id) { return !!_cache[club_id]; }
 
         // Returns a promise of the access object for a club. Cached per club_id.
         function resolve(club_id) {
@@ -38,8 +42,11 @@ app.factory('SmsAccessService', SmsAccessService);
             var user = $rootScope.globals.currentUser || {};
             var uid = user.id;
             var access = user.access || {};
-            var isClubManager = !!(access.manager && access.manager.indexOf(club_id) > -1);
-            var isSuperAdmin  = !!(access.super_admin && access.super_admin.indexOf(club_id) > -1);
+            // ids compared as strings — club_id may come from the Manage Club club
+            // (current_club_admin) or a post holder's access.sms_post
+            function inList(list) { return angular.isArray(list) && list.map(String).indexOf(String(club_id)) > -1; }
+            var isClubManager = inList(access.manager);
+            var isSuperAdmin  = inList(access.super_admin);
 
             settings = settings || {};
             function isPost(field) { return settings[field] && String(settings[field]) === String(uid); }

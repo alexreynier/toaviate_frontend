@@ -20,6 +20,7 @@ app.factory('ExamSalesService', ExamSalesService);
         service.GetPending = GetPending;           // outstanding results, oldest first
         service.GetByClub = GetByClub;             // all purchases (optional status filter)
         service.GetByUser = GetByUser;             // a student's purchases
+        service.GetUserClubs = GetUserClubs;       // My Exams' clubs by name (current + left/lapsed with exams)
         service.Get = Get;
         service.EnterResult = EnterResult;         // writes the exam_records row
         service.CancelPurchase = CancelPurchase;   // closes an unfulfilled purchase
@@ -93,6 +94,13 @@ app.factory('ExamSalesService', ExamSalesService);
 
         function GetByUser(club_id, user_id) {
             return $http.get('/api/v1/exam_sales/user/' + club_id + '/' + user_id).then(handleSuccess, handleError2);
+        }
+
+        // → { success, items: [{ id, title, currency, currency_symbol, member: 0|1, exams }] }
+        // Every club the user is a live member of, plus every club that sold
+        // them an exam (a club they have left included), by title.
+        function GetUserClubs(user_id) {
+            return $http.get('/api/v1/exam_sales/user_clubs/' + user_id).then(handleSuccess, handleError2);
         }
 
         function Get(id) {

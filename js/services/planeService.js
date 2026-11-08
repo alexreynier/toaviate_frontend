@@ -78,8 +78,24 @@ app.factory('PlaneService', PlaneService);
 
         service.GetMaintenanceEvents = GetMaintenanceEvents;
         service.UpdateMaintenanceEvent = UpdateMaintenanceEvent;
+
+        // ToAviate staff — an aircraft's airworthiness type (CofA / Permit to Fly), logged.
+        // Backend BACKEND_AIRCRAFT_DOCUMENTS_ACCESS_GUIDE.md §10.7 (non-staff → FORBIDDEN)
+        service.GetAirworthinessTypes = GetAirworthinessTypes;
+        service.SetAirworthinessType = SetAirworthinessType;
        
         return service; 
+
+        // → {success, migrated, aircraft: [{plane_id, registration, airworthiness_type, document, clubs,
+        //    register_category, register_mismatch, last_change}], recent_changes: [...]}
+        function GetAirworthinessTypes(){
+            return $http.get('/api/v1/planes/airworthiness_types').then(handleSuccess, handleError2);
+        }
+
+        // type: 'cofa' | 'ptf' → {success, changed, airworthiness_type, document, warnings: [...], message}
+        function SetAirworthinessType(plane_id, type, reason){
+            return $http.put('/api/v1/planes/' + plane_id + '/airworthiness_type', {airworthiness_type: type, reason: reason || ''}).then(handleSuccess, handleError2);
+        }
 
         function UpdateOrder(planes){
             return $http.post('/api/v1/planes/organise', planes).then(handleSuccess, handleError2);

@@ -27,6 +27,17 @@
         // //console.log(vm.action);
          //console.log($stateParams);
         // //console.log($stateParams.id);
+        // instructor_charges refusals (BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §16.5): writes are
+        // the club's admins / ToAviate staff only. FORBIDDEN is a writeGuard HANDLED code and
+        // GETs are never auto-toasted, so this page says it.
+        function refused(data, title){
+            if(data && data.success === false){
+                ToastService.warning(title, (typeof data.message === 'string' && data.message) || 'That could not be done.');
+                return true;
+            }
+            return false;
+        }
+
         switch(vm.action){
             case "add":
                 //console.log("adding a new plane please");
@@ -37,7 +48,8 @@
                  //console.log($stateParams);
                 InstructorCharges.GetById($stateParams.id)
                     .then(function(data){
-                        vm.club.item = data.item;   
+                        if(refused(data, 'Charge Not Loaded') || !data.item){ return; }
+                        vm.club.item = data.item;
                         //console.log(vm.club);
                         vm.page_title = "Edit an instructor charge - "+vm.club.item.title;
                     });
@@ -49,7 +61,8 @@
                 //to find out club id
                 InstructorCharges.GetByClubId(vm.club_id)
                     .then(function(data){
-                        vm.club.items = data.items;   
+                        if(refused(data, 'Charges Not Loaded')){ vm.club.items = []; return; }
+                        vm.club.items = (data && data.items) || [];
                         //console.log(vm.club.items);
                     });
             break;
@@ -87,6 +100,7 @@
                 .then(function(data){
                     //console.log(data);
                     //$state.reload();
+                    if(refused(data, 'Charge Not Saved')){ return; }
                     $state.go('dashboard.manage_club.instructor_charges', {}, {reload: true});
 
                 });
@@ -131,6 +145,7 @@
                     //console.log(data);
                     //console.log("saved");
                     //$state.reload();
+                    if(refused(data, 'Charge Not Saved')){ return; }
                     $state.go('dashboard.manage_club.instructor_charges', {}, {reload: true});
                 });
         }
@@ -794,10 +809,11 @@
             modalInstance.result.then(function (plane_id) {
               $log.info('PRESSED GO: '+plane_id.id);
               InstructorCharges.Delete(vm.user.id, plane_id.id)
-              .then(function(){
+              .then(function(data){
                 //console.log("HELLO DELETE");
+                if(refused(data, 'Charge Not Deleted')){ return; }
                 //update view?
-                 vm.club.items = $.grep(vm.club.items, function(e){ 
+                 vm.club.items = $.grep(vm.club.items, function(e){
                     return e.id != plane_id.id; 
                 });
               })

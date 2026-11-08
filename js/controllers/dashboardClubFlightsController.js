@@ -99,9 +99,21 @@
         vm.aircraft = "";
 
         vm.from_date.setMonth(vm.from_date.getMonth() - 1);
+
+        // The list is for the club's staff (FORBIDDEN otherwise —
+        // BACKEND_BOOKOUT_PILOT_CHECKS_GUIDE.md §15): stop the spinner and say so.
+        function flightsRefused(data){
+            if(data && data.success !== false){ return false; }
+            vm.flights = [];
+            vm.show_loading = false;
+            ToastService.warning('Flights not loaded', (data && data.message) || 'The club\'s flights could not be loaded.');
+            return true;
+        }
+
         vm.show_loading = true;
         PlaneService.GetAllFlightsByClub(vm.club_id, vm.from_date, vm.to_date, vm.selected_aircraft)
         .then(function(data){
+            if(flightsRefused(data)){ return; }
             vm.flights = data.flights;
             syncTimeDisplayFromFlights(vm.flights);  
             vm.totals = data.totals; 
@@ -412,6 +424,7 @@
             }
              PlaneService.GetAllFlightsByClub(vm.club_id, vm.from_date, vm.to_date, plane_id)
                 .then(function(data){
+                    if(flightsRefused(data)){ return; }
                     vm.flights = data.flights;
             syncTimeDisplayFromFlights(vm.flights);  
                     vm.totals = data.totals; 

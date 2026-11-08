@@ -31,6 +31,8 @@ function DashboardAccountingExportController(AccountingExportService, $scope, $s
         stripe_fee_code: '7901',
         gocardless_fee_code: '7902',
         platform_fee_code: '7903',
+        fx_difference_code: '7906',   // batch 12.5: converted Direct Debits' margin / exchange differences
+        member_credit_code: '2109',   // batch 12.5: member credit used to pay invoices (set the club's own account)
         bank_account_code: '1200',
         cash_account_code: '1230',
         card_account_code: '',
@@ -106,6 +108,8 @@ function DashboardAccountingExportController(AccountingExportService, $scope, $s
             stripe_fee_code: vm.settings.stripe_fee_code,
             gocardless_fee_code: vm.settings.gocardless_fee_code,
             platform_fee_code: vm.settings.platform_fee_code,
+            fx_difference_code: vm.settings.fx_difference_code,
+            member_credit_code: vm.settings.member_credit_code,
             bank_account_code: vm.settings.bank_account_code,
             cash_account_code: vm.settings.cash_account_code,
             card_account_code: vm.settings.card_account_code,

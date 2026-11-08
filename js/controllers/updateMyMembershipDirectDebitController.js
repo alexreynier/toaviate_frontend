@@ -36,7 +36,12 @@
 
 
                 GoCardService.UpdateMandate(object).then(function (data) {
-                    if(data.error){
+                    // success is explicit: a refusal ({error: FORBIDDEN}) and a failed request
+                    // (handleError2: {success: false, status}) are both failures
+                    if(!data || !data.success){
+                        // FORBIDDEN (not your own membership): the page shows the server's sentence
+                        // FORBIDDEN (not your membership), NO_DD_INTEGRATION (the club has no working GoCardless connection)
+                        vm.error_message = (data && typeof data.error === 'string' && typeof data.message === 'string') ? data.message : null;
                         //vm.requests = data.requests;
                         //vm.club = data.club;
                         // //console.log("memberships", vm.memberships);

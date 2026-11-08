@@ -290,11 +290,9 @@
 
             InstructorService.UpdateInstructor(instructor, vm.club_id)
                 .then(function(data){
-                    //console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    if (!data || data.success === false) {
+                        ToastService.error('Not Saved', instructorWriteMessage(data, 'Could not save instructor settings.'));
+                    }
                 });
 
 
@@ -335,7 +333,7 @@
                         instructor._receiveNotifications = (instructor.mute_booking_emails == 0);
                         instructor._receiveReminders     = (instructor.mute_booking_reminders == 0);
                         instructor._receiveDailySummary  = (instructor.instructor_daily_summary == 1);
-                        ToastService.error('Error', 'Could not save email preferences.');
+                        ToastService.error('Error', instructorWriteMessage(data, 'Could not save email preferences.'));
                     }
                 });
         };
@@ -460,7 +458,7 @@
                         ToastService.success('Saved', instructor.first_name + '\'s settings updated.');
                         vm.show_instructor_panel = false;
                     } else {
-                        ToastService.error('Error', 'Could not save instructor settings.');
+                        ToastService.error('Error', instructorWriteMessage(data, 'Could not save instructor settings.'));
                     }
                 })
                 .catch(function() {
@@ -810,13 +808,20 @@
 
             InstructorService.UpdateOrder({"order": update_order}, vm.club_id)
                 .then(function(data){
-                    console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    if (!data || data.success === false) {
+                        ToastService.error('Order Not Saved', instructorWriteMessage(data, 'Could not save the instructor order.'));
+                    }
                 });
 
+        }
+
+        // The server's sentence for a refused / failed members write — FORBIDDEN (only the club's
+        // admins; super-admin rights only from a super-admin) is a writeGuard HANDLED_CODE, so the
+        // callers here toast it themselves.
+        function instructorWriteMessage(data, fallback) {
+            var m = data && data.message;
+            if (m && typeof m === 'object') { m = m.message || m.error || null; }
+            return (typeof m === 'string' && m) ? m : fallback;
         }
 
 

@@ -1,7 +1,7 @@
     app.factory('AuthenticationService', AuthenticationService);
  
-    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', 'UserService', 'EnvConfig', 'authGate'];
-    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, UserService, EnvConfig, authGate) {
+    AuthenticationService.$inject = ['$http', '$cookieStore', '$rootScope', '$timeout', '$q', 'UserService', 'EnvConfig', 'authGate'];
+    function AuthenticationService($http, $cookieStore, $rootScope, $timeout, $q, UserService, EnvConfig, authGate) {
         var service = {};
  
         service.Login = Login;
@@ -24,10 +24,202 @@
         service.ClearCredentials = ClearCredentials;
         service.GetCredentials = GetCredentials;
         service.CheckLoggedIn = CheckLoggedIn;
-        
+        // users/{id}/access rows → the currentUser.access shape
+        service.ProcessAccess = processAccess;
+        // Persisted login state — see "Persisted login state" below
+        service.PersistGlobals = PersistGlobals;
+        service.Rehydrate = Rehydrate;
+        service.IsHydrated = IsHydrated;
+        service.PickAdminClub = pickAdminClub;
+
         $http.defaults.headers.common['Api-Key'] = EnvConfig.getApiKey();
 
+        // ── Persisted login state (the `globals` cookie) ──
+        // A page refresh restores $rootScope.globals from the `globals` cookie
+        // (app.js run block). Browsers silently DROP a cookie over 4 KB, and the
+        // full currentUser — every membership row plus the whole Manage Club
+        // club row (80+ columns) — grew past that for admins (user 5: 4152 B),
+        // so their club vanished on refresh and Manage Club pages threw on
+        // `current_club_admin.id`. So the cookie holds a SLIM copy only:
+        //   id, email, first_name, last_name, authdata (the Basic user:session),
+        //   current_club_instructor, the access role arrays + show_* flags the
+        //   menus and route guards read synchronously, and current_club_admin
+        //   cut down to CLUB_FIELDS;
+        // and Rehydrate() puts the rest back from the server (access rows →
+        // ProcessAccess, the full admin club row) once per page load / login.
+        // The Manage Club route guard (app.js) waits for it before any Manage
+        // Club page renders; DashboardController uses the same call for its
+        // club list. Always write the cookie through PersistGlobals() — never
+        // $cookieStore.put('globals', …) directly. Contract: frontend CLAUDE.md
+        // "Persisted login state".
+        var GLOBALS_COOKIE_BUDGET = 3500;   // bytes of `globals=<encoded JSON>` (browsers drop > 4096)
+        var ACCESS_ARRAYS = ['manager', 'pilot', 'instructor', 'super_admin', 'passenger', 'sms_post'];
+        var ACCESS_FLAGS = ['show_manager', 'show_sms', 'show_instructor', 'show_booking', 'show_approval_warning'];
+        // the admin club fields code may read before Rehydrate lands: the id
+        // everywhere, the title (headers / trackers), the booking edit windows
+        // (bookings / scheduler edit checks)
+        var CLUB_FIELDS = ['id', 'title', 'edit_window_admin_minutes', 'edit_window_instructor_minutes', 'edit_window_member_minutes'];
+        var SELECTED_CLUB_KEY = 'toaviate_selected_club_id';   // the Manage Club club, shared with DashboardController
+        var hydration = null;   // { uid, promise, settled, ok } — this page load's / login's server copy
+
         return service;
+
+        // The slim copy of `globals` for the cookie. level 0 = everything the
+        // contract lists; each higher level drops more, for the (so far
+        // theoretical) account whose role arrays alone overflow the budget —
+        // Rehydrate restores the dropped parts on every page load.
+        function slimGlobals(globals, level) {
+            var cu = globals.currentUser;
+            var out = {
+                id: cu.id,
+                email: cu.email,
+                authdata: cu.authdata
+            };
+            if (level < 4) {
+                out.first_name = cu.first_name;
+                out.last_name = cu.last_name;
+                if (cu.current_club_instructor !== undefined && cu.current_club_instructor !== null) {
+                    out.current_club_instructor = cu.current_club_instructor;
+                }
+            }
+            var access = cu.access || {};
+            out.access = {};
+            for (var a = 0; a < ACCESS_ARRAYS.length; a++) {
+                var key = ACCESS_ARRAYS[a];
+                var list = angular.isArray(access[key]) ? access[key] : [];
+                // level 2 empties the arrays nothing gates a page on; level 3+ all
+                // of them (empty, not absent — code calls .indexOf on them)
+                if (level >= 3 || (level === 2 && (key === 'pilot' || key === 'passenger'))) { list = []; }
+                out.access[key] = list.slice();
+            }
+            for (var f = 0; f < ACCESS_FLAGS.length; f++) {
+                out.access[ACCESS_FLAGS[f]] = !!access[ACCESS_FLAGS[f]];
+            }
+            var club = cu.current_club_admin;
+            if (club && club.id !== undefined && club.id !== null && level < 4) {
+                var fields = level === 0 ? CLUB_FIELDS : ['id', 'title'];
+                out.current_club_admin = {};
+                for (var c = 0; c < fields.length; c++) {
+                    if (club[fields[c]] !== undefined) { out.current_club_admin[fields[c]] = club[fields[c]]; }
+                }
+            }
+            return { currentUser: out };
+        }
+
+        // What angular-cookies' $$cookieWriter measures: name=value, both URI-encoded.
+        function cookieBytes(value) {
+            return ('globals=' + encodeURIComponent(angular.toJson(value))).length;
+        }
+
+        // Write the slim `globals` cookie from $rootScope.globals (which keeps
+        // the full in-memory copy). Never over GLOBALS_COOKIE_BUDGET: trims
+        // level by level and logs when it has to.
+        function PersistGlobals() {
+            var g = $rootScope.globals;
+            if (!g || !g.currentUser || !g.currentUser.id) { return; }
+            var slim = null, bytes = 0, level;
+            for (level = 0; level <= 4; level++) {
+                slim = slimGlobals(g, level);
+                bytes = cookieBytes(slim);
+                if (bytes <= GLOBALS_COOKIE_BUDGET) { break; }
+            }
+            if (level > 4) {
+                console.error('globals cookie: still ' + bytes + ' bytes at the smallest level — not written; a refresh will need a new login.');
+                return;
+            }
+            if (level > 0) {
+                console.warn('globals cookie: trimmed to level ' + level + ' (' + bytes + ' bytes) to stay under ' + GLOBALS_COOKIE_BUDGET + '; the rest is rehydrated from the server.');
+            }
+            $cookieStore.put('globals', slim);
+        }
+
+        // The admin club to select from a get_all_admin_for_user list: the one
+        // saved in localStorage, else `fallbackId` (the cookie's club), else the
+        // first; null for an empty list.
+        function pickAdminClub(clubs, fallbackId) {
+            if (!angular.isArray(clubs) || clubs.length === 0) { return null; }
+            var saved = null;
+            try { saved = localStorage.getItem(SELECTED_CLUB_KEY); } catch (e) {}
+            var wanted = [saved, fallbackId];
+            for (var w = 0; w < wanted.length; w++) {
+                if (wanted[w] === null || wanted[w] === undefined || wanted[w] === '') { continue; }
+                for (var i = 0; i < clubs.length; i++) {
+                    if (clubs[i] && String(clubs[i].id) === String(wanted[w])) { return clubs[i]; }
+                }
+            }
+            return clubs[0];
+        }
+
+        function rememberAdminClub(club) {
+            if (!club || club.id === undefined || club.id === null) { return; }
+            try { localStorage.setItem(SELECTED_CLUB_KEY, String(club.id)); } catch (e) {}
+        }
+
+        // True once this page load's (or login's) server copy has landed for
+        // the logged-in user — successfully or not.
+        function IsHydrated() {
+            var u = $rootScope.globals && $rootScope.globals.currentUser;
+            return !!(u && u.id && hydration && hydration.uid === String(u.id) && hydration.settled);
+        }
+
+        // Put back what the slim cookie leaves out: GET users/{id}/access →
+        // currentUser.access (ProcessAccess) and GET clubs/get_all_admin_for_user
+        // → currentUser.current_club_admin (the full row of the saved / cookie /
+        // first admin club), then re-write the slim cookie. Once per page load
+        // and per login (SetCredentials2 seeds it): later calls get the same
+        // promise unless `force` (the guard's one re-check before refusing) or
+        // the last attempt failed. Resolves (never rejects) with the two raw
+        // responses { access, clubs } — or null when nobody is logged in.
+        function Rehydrate(force) {
+            var u = $rootScope.globals && $rootScope.globals.currentUser;
+            if (!u || !u.id) { return $q.when(null); }
+            var uid = String(u.id);
+            if (!force && hydration && hydration.uid === uid && (!hydration.settled || hydration.ok)) {
+                return hydration.promise;
+            }
+            var h = { uid: uid, settled: false, ok: false, promise: null };
+            hydration = h;
+            h.promise = $q.all([UserService.GetAccess(u.id), UserService.GetAdminClubs(u.id)]).then(function (res) {
+                var result = { access: res[0], clubs: res[1] };
+                var current = $rootScope.globals && $rootScope.globals.currentUser;
+                if (current && String(current.id) === uid && hydration === h) {
+                    h.ok = applyServerState(current, result.access, result.clubs);
+                    PersistGlobals();
+                }
+                h.settled = true;
+                return result;
+            }, function () {
+                h.settled = true;
+                return { access: null, clubs: null };
+            });
+            return h.promise;
+        }
+
+        // Apply the two server responses to the in-memory currentUser; true when both were good.
+        function applyServerState(current, accessRes, clubsRes) {
+            var accessOk = !!(accessRes && accessRes.success && angular.isArray(accessRes.access));
+            if (accessOk) {
+                current.access = processAccess(accessRes.access);
+                var ins = current.access.instructor;
+                if (ins.length === 0) {
+                    delete current.current_club_instructor;
+                } else if (ins.indexOf(current.current_club_instructor) === -1) {
+                    current.current_club_instructor = ins[0];
+                }
+            }
+            var clubsOk = !!(clubsRes && clubsRes.success);
+            if (clubsOk) {
+                var had = current.current_club_admin;
+                var picked = pickAdminClub(clubsRes.clubs, had ? had.id : null);
+                if (picked) {
+                    current.current_club_admin = picked;
+                    rememberAdminClub(picked);
+                } else {
+                    delete current.current_club_admin;   // not a club admin (any more)
+                }
+            }
+            return accessOk && clubsOk;
+        }
 
 
         function Logout(callback){
@@ -272,8 +464,10 @@
                 instructor: [],
                 super_admin: [],
                 passenger: [],      // pax memberships (is_pax) — not pilots, land on My Account
+                sms_post: [],       // clubs where the user holds an SMS post (sms_settings) — opens Manage Club's SMS screens
                 items: access,
                 show_manager: false,
+                show_sms: false,
                 show_instructor: false,
                 show_booking: false,
                 show_approval_warning: false
@@ -303,12 +497,23 @@
                     obj.super_admin.push(access[i].club_id);
                 }
 
+                if(access[i].sms_post == 1){
+                    obj.sms_post.push(access[i].club_id);
+                }
+
 
             }
 
 
-            if(obj.manager.length > 0){
+            // Manage Club is for club admins: a manager OR a club super-admin of
+            // any club (ToAviate staff are let in by the route guard in app.js).
+            if(obj.manager.length > 0 || obj.super_admin.length > 0){
                 obj.show_manager = true;
+            }
+            // SMS post holders get a "Safety Management" menu entry straight into
+            // Manage Club's SMS screens (the guard in app.js opens those to them).
+            if(obj.sms_post.length > 0){
+                obj.show_sms = true;
             }
             if(obj.instructor.length > 0){
                 obj.show_instructor = true;
@@ -380,7 +585,7 @@
 
                         $http.defaults.headers.common['Authorization'] = 'Basic ' + authdata; // jshint ignore:line
 
-                        $cookieStore.put('globals', $rootScope.globals);
+                        PersistGlobals();
                         $cookieStore.put('session', session);
 
                         // console.log("access is ", $rootScope.globals.currentUser.access);
@@ -449,46 +654,28 @@
 
                         $http.defaults.headers.common['Authorization'] = 'Basic ' + authdata; // jshint ignore:line
 
-                        $cookieStore.put('globals', $rootScope.globals);
+                        PersistGlobals();
                         $cookieStore.put('session', session);
 
                         // console.log("access is", $rootScope.globals.currentUser.access);
 
-                        // If user has manager access, fetch admin clubs and set current_club_admin before callback
+                        // If user has manager / super-admin access, fetch admin clubs and set current_club_admin before callback
                         // This ensures child controllers have current_club_admin available immediately
-                        if ($rootScope.globals.currentUser.access.manager.length > 0) {
+                        if ($rootScope.globals.currentUser.access.show_manager) {
                             UserService.GetAdminClubs(user.id)
                                 .then(function (clubData) {
-                                    if (clubData.success && clubData.clubs && clubData.clubs.length > 0) {
-                                        // Try to restore previously selected club from localStorage
-                                        var savedClubId = null;
-                                        try {
-                                            var stored = localStorage.getItem('toaviate_selected_club_id');
-                                            if (stored !== null) {
-                                                savedClubId = stored;
-                                            }
-                                        } catch(e) {}
-
-                                        var selectedClub = null;
-                                        if (savedClubId !== null) {
-                                            for (var i = 0; i < clubData.clubs.length; i++) {
-                                                if (String(clubData.clubs[i].id) === String(savedClubId)) {
-                                                    selectedClub = clubData.clubs[i];
-                                                    break;
-                                                }
-                                            }
+                                    if (clubData.success) {
+                                        // saved selection (localStorage) else the first club
+                                        var selectedClub = pickAdminClub(clubData.clubs, null);
+                                        if (selectedClub) {
+                                            $rootScope.globals.currentUser.current_club_admin = selectedClub;
+                                            rememberAdminClub(selectedClub);
+                                            PersistGlobals();   // slim: the club's id/title only
                                         }
-                                        // Fall back to first club if no saved selection
-                                        if (!selectedClub) {
-                                            selectedClub = clubData.clubs[0];
-                                        }
-
-                                        $rootScope.globals.currentUser.current_club_admin = selectedClub;
-                                        $cookieStore.put('globals', $rootScope.globals);
-
-                                        try {
-                                            localStorage.setItem('toaviate_selected_club_id', String(selectedClub.id));
-                                        } catch(e) {}
+                                        // this login IS the page's server copy — DashboardController
+                                        // and the Manage Club guard reuse it instead of re-fetching
+                                        hydration = { uid: String(user.id), settled: true, ok: true,
+                                                      promise: $q.when({ access: data, clubs: clubData }) };
                                     }
                                     callback($rootScope.globals.currentUser);
                                 })
@@ -516,6 +703,7 @@
         }
  
         function ClearCredentials() {
+            hydration = null;
             $rootScope.globals = {};
             $cookieStore.remove('globals');
             $cookieStore.remove('session');

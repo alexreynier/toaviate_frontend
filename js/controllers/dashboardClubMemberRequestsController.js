@@ -121,18 +121,21 @@
                 return dt.getFullYear() + '-' + m + '-' + day;
             }
 
-            // term-start Date + tier's payment_term → expiry Date (null if no expiry).
+            // term-start Date + tier's payment_term → expiry Date (null if no expiry): the backend's
+            // Members::term_end — one period on the SAME calendar day, the day clamped to the month's
+            // last (31 Jan monthly → 28/29 Feb; Date.setMonth overflowed to 3 Mar); the membership works
+            // until the day before (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §8a).
             function computeExpiry(start, paymentTerm){
                 if (!start) return null;
                 var d = (start instanceof Date) ? new Date(start.getTime()) : new Date(start);
                 if (isNaN(d.getTime())) return null;
-                switch (paymentTerm) {
-                    case 'daily':    d.setDate(d.getDate() + 1); break;
-                    case 'monthly':  d.setMonth(d.getMonth() + 1); break;
-                    case 'annually': d.setFullYear(d.getFullYear() + 1); break;
-                    default: return null;   // free / once (lifetime) → backend decides
-                }
-                return d;
+                var months = { monthly: 1, quarterly: 3, annually: 12 }[paymentTerm];
+                if (paymentTerm === 'daily') { d.setDate(d.getDate() + 1); return d; }
+                if (!months) return null;   // free / once (lifetime) → backend decides
+                var day = d.getDate();
+                var target = new Date(d.getFullYear(), d.getMonth() + months, 1);
+                var last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+                return new Date(target.getFullYear(), target.getMonth(), Math.min(day, last));
             }
 
             function findJoinable(id){
@@ -324,6 +327,12 @@
                     // //console.log("ACCEPT HERE", data);
                     //vm.memberships = data;
 
+                    // FORBIDDEN / REQUEST_NOT_FOUND / ALREADY_COMPLETED carry their own sentence
+                    // (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §9)
+                    if (data && data.success === false) {
+                        ToastService.error('Not Accepted', (typeof data.message === 'string' && data.message) || 'Could not accept this request - please try again.');
+                    }
+
                     update_requests();
 
                     // $state.go('dashboard.my_account.memberships', {}, {reload: true});
@@ -334,16 +343,19 @@
 
 
             $scope.decline_request = function(id){
-                // Mirror accept_request: the generic request-update endpoint sets
-                // the status (Accept → "Accepted", Decline → "Declined"). The view
-                // passes request.id, so take it as a parameter (the old version used
-                // an unset vm.this_req and a non-existent ClubDeclineRequest).
-                MembershipService.UpdateRequests(id, { status: "Declined" })
+                // Decline = withdraw the member's request (DELETE memberships/request/{id}; the
+                // club's admins may, and its Direct Debit mandate set-up is cancelled with it).
+                // The request-update endpoint it used to call only re-assigns tier / dates, so
+                // every decline came back INVALID_MEMBERSHIP (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §9).
+                MembershipService.DeleteRequest(id)
                 .then(function (data) {
-                    if (data && data.success !== false) {
+                    if (data && data.success !== false && data.mandate_cancelled === false) {
+                        // declined, but its Direct Debit could not be cancelled at GoCardless (the club's connection is gone)
+                        ToastService.warning('Request Declined', data.message);
+                    } else if (data && data.success !== false) {
                         ToastService.success('Request Declined', 'The membership request has been declined.');
                     } else {
-                        ToastService.error('Error', (data && data.message) || 'Could not decline this request.');
+                        ToastService.error('Error', (data && typeof data.message === 'string' && data.message) || 'Could not decline this request.');
                     }
                     update_requests();
                 }, function () {
@@ -380,10 +392,14 @@
                 MembershipService.DeleteRequest(id)
                 .then(function (data) {
                     //console.log("DELETE HERE", data);
-
+                    if (data && data.success === false) {
+                        ToastService.error('Not Cancelled', (typeof data.message === 'string' && data.message) || 'Could not cancel this request - please try again.');
+                    } else if (data && data.mandate_cancelled === false) {
+                        ToastService.warning('Request Cancelled', data.message);
+                    }
 
                     update_requests();
-                }); 
+                });
             }
 
              $scope.resend_request = function(id){
@@ -391,8 +407,11 @@
                 .then(function (data) {
                     //vm.memberships = data;
 
-                    if(data.success){
+                    if(data && data.success){
                         ToastService.success('Request Sent', 'Request re-sent. Please ask them to check their junk / spam folders if they do not see it within the next 5 minutes.')
+                    } else {
+                        // FORBIDDEN / no invitation to resend: the server's sentence
+                        ToastService.error('Not Sent', (data && typeof data.message === 'string' && data.message) || 'Could not resend this request - please try again.');
                     }
 
                     update_requests();

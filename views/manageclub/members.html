@@ -2,6 +2,32 @@
 
           <div class="members-page__body">
 
+                <!-- Memberships with no end date (2026-11-07, BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §8a): only an admin,
+                     super-admin or instructor membership may be open-ended; anyone else's does not work until it has an end date -->
+                <div class="members-noend" ng-if="vm.noEndDate && vm.noEndDate.counts.needs_end_date > 0">
+                    <div class="members-noend__head">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <strong>{{ vm.noEndDate.counts.needs_end_date }} {{ vm.noEndDate.counts.needs_end_date == 1 ? 'membership needs' : 'memberships need' }} an end date</strong>
+                        <span class="members-noend__why">- they don't work (no log in to the club, no booking) until one is set. Open each member and set Membership Ends.</span>
+                        <button type="button" class="btn btn-link members-noend__toggle" ng-click="vm.noEndDateOpen = !vm.noEndDateOpen">{{ vm.noEndDateOpen ? 'Hide' : 'Show' }}</button>
+                    </div>
+                    <table class="members-noend__table" ng-if="vm.noEndDateOpen">
+                        <thead><tr><th>Member</th><th>Membership</th><th>Started</th><th>Suggested end</th><th></th></tr></thead>
+                        <tbody>
+                            <tr ng-repeat="m in vm.noEndDate.needs_end_date">
+                                <td>{{ m.first_name }} {{ m.last_name }}</td>
+                                <td>{{ m.membership_name || (m.membership_id == 0 ? 'Passenger' : '-') }}</td>
+                                <td>{{ m.membership_start || '-' }}</td>
+                                <td>{{ m.suggested_end | asDate | date:"dd MMM yyyy" }}</td>
+                                <td><a ui-sref="dashboard.manage_club.edit_member({member_id: m.member_id, club_id: vm.club_id, action: 'edit'})">Set end date</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="members-noend__staff" ng-if="vm.noEndDateOpen && vm.noEndDate.counts.staff_open_ended > 0">
+                        {{ vm.noEndDate.counts.staff_open_ended }} admin / instructor {{ vm.noEndDate.counts.staff_open_ended == 1 ? 'membership has' : 'memberships have' }} no end date - that's fine for staff.
+                    </div>
+                </div>
+
                 <div class="members-page__toolbar">
                     <div class="members-page__search-wrap">
                         <i class="fa fa-search members-page__search-icon"></i>
@@ -114,7 +140,7 @@
                               <span class="members-table__membership-badge">{{ (member.membership_id == 0) ? "Passenger" : member.membership_name }}</span>
                             </td>
                             <td class="members-table__date">{{ member.membership_start }}</td>
-                            <td class="members-table__date">{{ member.membership_ends }}</td>
+                            <td class="members-table__date">{{ member.membership_ends }}<span class="members-table__noend" ng-if="member.needs_end_date" uib-tooltip="No end date: this membership doesn't work until one is set">Needs an end date</span></td>
                             <td class="members-table__td-status">
                               <span class="members-table__status-dot" ng-class="{'members-table__status-dot--yes': member.approved == 1, 'members-table__status-dot--no': member.approved != 1}"></span>
                             </td>

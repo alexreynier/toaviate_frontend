@@ -56,7 +56,8 @@
                     vm.default_card = data.default_card;
                     ToastService.success('Default Card Updated', 'The card ending ' + card.last4 + ' is now your default card.');
                 } else {
-                    ToastService.error('Update Failed', 'We could not update your default card - please try again.');
+                    // FORBIDDEN / CARD_NOT_FOUND carry their own sentence (BACKEND_MONEY_ACCESS_GUIDE.md §4)
+                    ToastService.error('Update Failed', (data && data.message) || 'We could not update your default card - please try again.');
                 }
             });
         }
@@ -80,7 +81,7 @@
                     ToastService.success('Card Removed', 'The card ending ' + card.last4 + ' has been removed.');
                     load_cards();
                 } else {
-                    ToastService.error('Removal Failed', 'We could not remove that card - please try again.');
+                    ToastService.error('Removal Failed', (data && data.message) || 'We could not remove that card - please try again.');
                 }
             });
         }

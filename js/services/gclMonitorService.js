@@ -43,7 +43,7 @@ app.factory('GclMonitorService', GclMonitorService);
             sources:          ['club', 'tracker'],
             deliveryStatuses: ['ok', 'failed', '403', '498', '500'],
             deliveryOutcomes: ['ok', 'invalid_signature', 'no_secret', 'event_errors', 'gate_rejected'],
-            eventOutcomes:    ['processed', 'duplicate', 'unmatched', 'unhandled', 'error'],
+            eventOutcomes:    ['processed', 'duplicate', 'unmatched', 'unhandled', 'voided_kept', 'error'],   // voided_kept: 2026-11-08 — a payment event left a voided invoice alone
             granularities:    ['day', 'week', 'month', 'year']
         };
 
@@ -55,7 +55,7 @@ app.factory('GclMonitorService', GclMonitorService);
             outcome: {
                 processed: 'trk-badge--green', duplicate: 'trk-badge--grey',
                 unmatched: 'trk-badge--amber', unhandled: 'trk-badge--blue',
-                error: 'trk-badge--red'
+                voided_kept: 'trk-badge--amber', error: 'trk-badge--red'
             }
         };
 

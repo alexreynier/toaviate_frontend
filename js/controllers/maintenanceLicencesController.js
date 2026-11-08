@@ -21,6 +21,14 @@ function MaintenanceLicencesController($rootScope, $scope, $window, ToastService
     vm.is_admin  = !!ctx.is_admin;
     vm.is_senior = !!ctx.is_senior;
     vm.can_edit  = vm.is_admin || vm.is_senior;
+    vm.me        = ($rootScope.globals && $rootScope.globals.currentUser) ? $rootScope.globals.currentUser.id : null;
+
+    // Decrypted numbers + licence documents: the licence holder, or a senior /
+    // admin of the organisation — the backend refuses everyone else with
+    // FORBIDDEN (BACKEND_PERSONAL_DOCUMENTS_ACCESS_GUIDE.md), so only offer it to them.
+    vm.canReveal = function(member) {
+        return vm.can_edit || (!!member && vm.me !== null && String(member.user_id) === String(vm.me));
+    };
 
     vm.loading   = true;
     vm.members   = [];        // [{id, user_id, first_name, last_name, licences:[...]}]

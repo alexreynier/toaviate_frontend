@@ -30,9 +30,15 @@ function DashboardMaintenanceController($rootScope, $scope, $state, $cookies, To
         }
         MaintenanceOrganisationService.GetForUser(vm.user_id).then(function(res) {
             vm.loading = false;
-            if (res && res.success !== false && (res.organisations || res.success)) {
-                vm.orgs = (res.organisations || res.data || res || []).slice();
-                if (!angular.isArray(vm.orgs)) vm.orgs = [];
+            // GET maintenance_organisations/for_user/{id} answers with a BARE array
+            // (MaintenanceOrganisations::get_all_for_user). This used to accept only
+            // {organisations: …} / {success: …}, so every engineer got "Unable to
+            // load your organisations" and the workspace never opened.
+            var list = angular.isArray(res) ? res
+                     : (res && res.success !== false && angular.isArray(res.organisations || res.data)) ? (res.organisations || res.data)
+                     : null;
+            if (list) {
+                vm.orgs = list.slice();
                 if (!vm.orgs.length) {
                     vm.error = 'You are not a member of any maintenance organisation yet.';
                     return;

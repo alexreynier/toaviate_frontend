@@ -155,7 +155,7 @@
 
                  CourseService.GetChargesByCourseId($stateParams.course_id)
                     .then(function(data){
-                        vm.instructor_charges = data.items;   
+                        vm.instructor_charges = (data && data.items) || [];
                 
 
 
@@ -200,11 +200,11 @@
 
             CourseService.UpdateLessonOrder({"order": update_order})
                 .then(function(data){
-                    //console.log(data);
-
-                    // vm.items = data.items;
-                    //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
-
+                    // The backend's reason (FORBIDDEN is in writeGuard's HANDLED_CODES,
+                    // so nothing else toasts it — BACKEND_CLUB_CONTENT_ACCESS_GUIDE.md §2).
+                    if (!data || !data.success) {
+                        ToastService.error('Order not saved', (data && data.message) || 'The lesson order could not be saved.');
+                    }
                 });
 
         }
@@ -218,7 +218,7 @@
                     if(data.success){
                         vm.club.lessons.splice(index, 1);
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Not deleted', (data && data.message) || 'An error occurred');
                     }
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                 });
@@ -239,7 +239,7 @@
                         vm.exams[index].edit_me = false;
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -266,7 +266,7 @@
                         if(data.success){
                             vm.exams.splice(index, 1);
                         } else {
-                            ToastService.error('Error', 'An error occurred');
+                            ToastService.error('Error', (data && data.message) || 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
@@ -293,7 +293,7 @@
                         }
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Error', (data && data.message) || 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -406,7 +406,9 @@
                         vm.instructor_charges[index].edit_me = false;
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        // FORBIDDEN (not the club's admin — §16.5 of the book-out guide) is a
+                        // writeGuard HANDLED code: show the server's message
+                        ToastService.error('Charge Not Saved', (typeof data.message === 'string' && data.message) || 'An error occurred');
                     }
                     //refresh_tem();
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -433,7 +435,7 @@
                         if(data.success){
                             vm.instructor_charges.splice(index, 1);
                         } else {
-                            ToastService.error('Error', 'An error occurred');
+                            ToastService.error('Charge Not Deleted', (typeof data.message === 'string' && data.message) || 'An error occurred');
                         }
                         //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
                     });
@@ -461,7 +463,7 @@
                         }
 
                     } else {
-                        ToastService.error('Error', 'An error occurred');
+                        ToastService.error('Charge Not Added', (typeof data.message === 'string' && data.message) || 'An error occurred');
                     }
 
                     //$state.go('dashboard.manage_club.edit_lesson', {course_id: vm.club.lesson.course_id, lesson_id: data.id, reload: true});
@@ -584,6 +586,8 @@
                     ////console.log(data);
                     if(data.success){
                         $state.go('dashboard.manage_club.edit_course', {course_id: data.id, reload: true});
+                    } else {
+                        ToastService.error('Course not added', (data && data.message) || 'An error occurred');
                     }
 
                 });
@@ -596,7 +600,9 @@
             ToastService.warning('Delete Course', 'Are you sure you would like to delete this course?');
             CourseService.DeleteCourse(vm.club.course.id)
                 .then(function(data){
-                    //console.log(data);
+                    if (!data || !data.success) {
+                        ToastService.error('Not deleted', (data && data.message) || 'An error occurred');
+                    }
                 });
         }
 
@@ -628,8 +634,12 @@
 
             CourseService.UpdateCourse(vm.club.course)
                 .then(function(data){
-                    //console.log(data);
-                    //console.log("saved");
+                    // Stay on the form when the save is refused (FORBIDDEN etc.) — it used
+                    // to navigate away as if it had saved.
+                    if (!data || !data.success) {
+                        ToastService.error('Course not saved', (data && data.message) || 'An error occurred');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.courses');
                 });
         }

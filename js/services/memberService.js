@@ -45,6 +45,7 @@ app.factory('MemberService', MemberService);
 
         service.GetAllByClubStudents = GetAllByClubStudents;
         service.GetAllByClubPaginated = GetAllByClubPaginated;
+        service.GetNoEndDate = GetNoEndDate;   // memberships with no end date (2026-11-07)
        
         return service; 
 
@@ -120,6 +121,13 @@ app.factory('MemberService', MemberService);
             return $http.get('/api/v1/members/club/'+club_id).then(handleSuccess, handleError2);
         }
 
+        // GET members/needs_end_date/{club_id} — the club's current memberships with no end date:
+        // needs_end_date (not staff: NOT live, suggested_end given) and staff_open_ended (fine).
+        // club_id 0 = ToAviate staff's per-club counts. BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §8a.
+        function GetNoEndDate(club_id) {
+            return $http.get('/api/v1/members/needs_end_date/' + club_id).then(handleSuccess, handleError2);
+        }
+
         function GetAllByClubPaginated(club_id, page, per_page, search) {
             var params = '?page=' + page + '&per_page=' + per_page;
             if (search && search.trim() !== '') {
@@ -181,7 +189,8 @@ app.factory('MemberService', MemberService);
 
         function Create(member) {
             //this is actually where we invite the user to join
-            member.club_id = "6";
+            // (the caller sets member.club_id — it was overwritten with club "6" here; the backend
+            // only lets the club's admins add members to it)
             var url = '/api/v1/members/';
             return $http.post(url, member).then(handleSuccess, handleError2);
         }

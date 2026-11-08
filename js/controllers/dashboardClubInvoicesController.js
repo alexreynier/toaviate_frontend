@@ -11,6 +11,15 @@
         
         vm.club_id = vm.user.current_club_admin.id;
 
+        // POST invoices/get_all_for_club answers FORBIDDEN (+ empty lists) to anyone but the
+        // club's admins / ToAviate staff — a writeGuard HANDLED_CODE, so say it here
+        // (BACKEND_MONEY_ACCESS_GUIDE.md §5).
+        function toastIfRefused(data){
+            if (data && data.error === 'FORBIDDEN') {
+                ToastService.error('Not Allowed', (typeof data.message === 'string' && data.message) || "Only the club's admins can see its invoices.");
+            }
+        }
+
         vm.to_date = new Date();
         vm.from_date = new Date();
 
@@ -69,6 +78,7 @@
                            ClubService.GetClubInvoices(vm.club_id, vm.from_date, vm.to_date)
                             .then(function (data) {
                                    console.log("data is : ", data);
+                   toastIfRefused(data);
                                    vm.invoices = data.invoices;
                                    vm.totals = data.totals;
 
@@ -83,6 +93,12 @@
 
                        } else {
                           // alert("Something happened which was not supposed to happen... Please try again");
+                           // refusals say why (payments/process_payment: FORBIDDEN / NOT_FOUND — backend
+                           // BACKEND_MONEY_ACCESS_GUIDE.md §5b); FORBIDDEN is a writeGuard HANDLED code, so say it here
+                           if (data && data.error) {
+                               ToastService.error('Payment Not Taken', (typeof data.message === 'string' && data.message) || 'This payment could not be made.');
+                               vm.show_loading = false;
+                           }
                            console.log("===== ERROR =====");
                            console.log(data);
                            console.log("===== ERROR =====");
@@ -99,10 +115,11 @@
            }
 
            vm.show_payment_option = function(invoice){
+            // No Pay Now while a payment exists or may exist (2026-11-07): pending_submission = a Direct Debit
+            // is already being collected; payment_pending = the provider has not confirmed a payment yet
+            // (the server refuses both - INVOICE_NOT_PAYABLE).
             var status = invoice.status;
-            if(status == "pending_submission"){
-                return true;
-            } else if(status == "issued"){
+            if(status == "issued"){
                 return true;
             } else if(status == "created"){
                 return true;
@@ -288,6 +305,7 @@
             ClubService.GetClubInvoices(vm.club_id, vm.from_date, vm.to_date)
             .then(function (data) {
                    console.log("data is : ", data);
+                   toastIfRefused(data);
                    vm.invoices = data.invoices;
                    vm.totals = data.totals;
                 });
@@ -338,9 +356,49 @@
         ClubService.GetClubInvoices(vm.club_id, vm.from_date, vm.to_date)
             .then(function (data) {
                    console.log("data is : ", data);
+                   toastIfRefused(data);
                    vm.invoices = data.invoices;
                    vm.totals = data.totals;
                 });
+
+        // ── Held Direct Debits (2026-11-07, backend BACKEND_DD_COLLECTION_GUIDE.md §5) ──
+        // The Direct Debit collection does not collect a queued invoice that matches a GoCardless payment not linked to
+        // any invoice (it may already have been paid). The club settles it: link it to that payment, release it for
+        // collection, or void it. GET invoices/dd_holds/{club}, PUT invoices/{id}/dd_hold {action}.
+        // Small balances (batch 12.1): queued invoices under the £1.00 minimum for over 90 days — void, or keep waiting
+        // (same GET, data.small_balances; void = the same PUT {action: 'void'}).
+        vm.ddHolds = [];
+        vm.ddSmall = [];
+        vm.ddConfirm = null;     // {hold, action, small}
+        vm.ddSaving = false;
+        vm.loadDdHolds = function () {
+            ClubService.GetDdHolds(vm.club_id).then(function (data) {
+                vm.ddHolds = [];
+                angular.forEach((data && angular.isArray(data.holds)) ? data.holds : [], function (h) {
+                    if (h.status === 'held') { vm.ddHolds.push(h); }
+                });
+                vm.ddSmall = (data && angular.isArray(data.small_balances)) ? data.small_balances : [];
+            });
+        };
+        vm.askDdHold = function (hold, action, small) { vm.ddConfirm = { hold: hold, action: action, small: !!small }; };
+        vm.cancelDdHold = function () { vm.ddConfirm = null; };
+        vm.runDdHold = function () {
+            if (!vm.ddConfirm || vm.ddSaving) { return; }
+            var c = vm.ddConfirm;
+            vm.ddSaving = true;
+            ClubService.ResolveDdHold(c.hold.invoice_id, c.action, c.hold.payment_id).then(function (data) {
+                vm.ddSaving = false;
+                vm.ddConfirm = null;
+                if (!data || data.success === false) {
+                    ToastService.error('Not Changed', (data && typeof data.message === 'string' && data.message) || 'Please try again.');
+                    return;
+                }
+                ToastService.success(c.action === 'link' ? 'Linked' : (c.action === 'release' ? 'Released' : 'Voided'), data.message, { confetti: false });
+                vm.loadDdHolds();
+                vm.update_date_range();
+            });
+        };
+        vm.loadDdHolds();
 
 
         // ClubService.GetClubTotals(vm.user.id, from_date, to_date)
@@ -529,6 +587,23 @@
               case 'pending_submission':
                   
                     returned = "Requesting";
+
+              break;
+
+              case 'payment_pending':
+                    // the payment provider has not confirmed the payment yet: checked hourly (2026-11-07)
+                    returned = "Payment being confirmed";
+
+              break;
+
+              case 'dd_held':
+                    // held back from the Direct Debit collection as a possible duplicate — see Held Direct Debits (2026-11-07)
+                    returned = "Held — possible duplicate";
+
+              break;
+
+              case 'direct_debit':
+                    returned = "Queued for Direct Debit";
 
               break;
 

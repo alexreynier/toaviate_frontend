@@ -1048,6 +1048,9 @@
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors == 1)? true : false;
+                        // payment method to self-book (clubs.require_payment_method; absent before the backend migration)
+                        vm.paymentMethodRuleSupported = !!(data && data.hasOwnProperty('require_payment_method'));
+                        vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method == 1)? true : false;
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
                         // who may add a second booking on a taken slot (the aircraft waiting list); pre-migration GETs omit it
                         vm.club.settings.double_booking_by = (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) > -1)
@@ -1075,6 +1078,12 @@
                         vm.club.settings.edit_window_instructor_minutes = parseInt(vm.club.settings.edit_window_instructor_minutes) || 0;
                         vm.club.settings.edit_window_member_minutes = parseInt(vm.club.settings.edit_window_member_minutes) || 0;
                         vm.initEditWindowPresets();
+
+                        // ── Membership Renewals: reminder days before the charge (3–60; absent before the backend migration) ──
+                        vm.renewalReminderSupported = !!(data && data.hasOwnProperty('renewal_reminder_days'));
+                        if (vm.renewalReminderSupported) {
+                            vm.club.settings.renewal_reminder_days = parseInt(vm.club.settings.renewal_reminder_days, 10) || 14;
+                        }
 
                         vm.club.settings.vat_rate = parseFloat(vm.club.settings.vat_rate);
                         //console.log(vm.club);
@@ -1113,11 +1122,18 @@
                 //need to update this to be part of the authentication
                 //to find out club id
                 vm.stripe_id = $stateParams.stripe_id;
-                //generate a link here and do something cool with it!!
+                // The backend links the account only for an admin of this club (or ToAviate
+                // staff) and only if Stripe says it was created for this club
+                // (BACKEND_MONEY_ACCESS_GUIDE.md §1). FORBIDDEN is in writeGuard's
+                // HANDLED_CODES, so say why here.
                 PaymentService.SaveStripeLink(vm.club_id, vm.stripe_id)
                 .then(function(data){
-                    console.log(data);
-
+                    if (data && data.success === false) {
+                        ToastService.error('Stripe not connected',
+                            (typeof data.message === 'string' && data.message) ? data.message : 'The Stripe account could not be connected. Please try again.');
+                    } else if (data && data.success) {
+                        ToastService.success('Stripe connected', 'Card payments for this club will now be paid into its Stripe account.');
+                    }
                     //$state.go('dashboard.manage_club');
                 });
 
@@ -1235,6 +1251,11 @@
             vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages)? 1 : 0;
             vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation)? 1 : 0;
             vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors)? 1 : 0;
+            if (vm.paymentMethodRuleSupported) {
+                vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method)? 1 : 0;
+            } else {
+                delete vm.club.settings.require_payment_method;
+            }
             if (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) < 0) {
                 vm.club.settings.double_booking_by = 'everyone';
             }
@@ -1244,9 +1265,48 @@
             vm.club.settings.edit_window_instructor_minutes = parseInt(vm.club.settings.edit_window_instructor_minutes) || 0;
             vm.club.settings.edit_window_member_minutes = parseInt(vm.club.settings.edit_window_member_minutes) || 0;
 
-            ClubService.Update(vm.club.settings)
+            // ── Membership Renewals: whole days 3–60 (an out-of-range number input leaves the model undefined) ──
+            if (vm.renewalReminderSupported) {
+                var rrd = vm.club.settings.renewal_reminder_days;
+                if (typeof rrd !== 'number' || isNaN(rrd) || rrd % 1 !== 0 || rrd < 3 || rrd > 60) {
+                    ToastService.warning('Renewal Reminder', 'Enter a whole number of days between 3 and 60.');
+                    var rrdEl = document.getElementById('field-renewal_reminder_days');
+                    if (rrdEl) { rrdEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); try { rrdEl.focus(); } catch (e) {} }
+                    return;
+                }
+            } else {
+                delete vm.club.settings.renewal_reminder_days;
+            }
+
+            // Columns this page never edits stay out of the save: ToAviate-owned ones (fees,
+            // activation, currencies, card machine — only ToAviate staff may change them),
+            // payment_mode (the Payment Mode switch below), require_two_factor (ToAviate's
+            // Account Security page) and server-kept ones (GoCardless / Stripe ids, switch
+            // stamps, schedule version). The value read at page load can only be stale —
+            // e.g. after a payment-mode switch — and the backend refuses a changed one.
+            // Backend: BACKEND_CLUB_SETTINGS_ACCESS_GUIDE.md. A copy, so the page keeps
+            // showing e.g. the Stripe connection if the save is refused.
+            var body = angular.extend({}, vm.club.settings);
+            ['app_fee', 'charge_per_flight', 'activated', 'currency', 'account_currency', 'card_machine',
+             'payment_mode', 'payment_mode_switched_at', 'payment_mode_switched_by', 'require_two_factor',
+             'g_id', 'stripe_id', 'schedule_version', 'created_by',
+             'renewals_paused', 'renewals_paused_at', 'renewals_paused_by'].forEach(function(key) {   // ToAviate's renewals pause (super-admin hub)
+                delete body[key];
+            });
+
+            ClubService.Update(body)
                 .then(function(data){
                     //console.log(data);
+                    // A refusal (FORBIDDEN — only the club's admins may change its settings —
+                    // INVALID_UPLOAD, VALIDATION_ERROR, or an HTTP failure) keeps the page and
+                    // says why; FORBIDDEN is in writeGuard's HANDLED_CODES, so nobody else toasts it.
+                    if (data && data.success === false) {
+                        var why = data.message;
+                        if (why && typeof why === 'object') { why = why.message; }
+                        ToastService.error('Settings not saved',
+                            (typeof why === 'string' && why && !/^\s*</.test(why)) ? why : 'Your changes were not saved. Please try again.');
+                        return;
+                    }
                     // every <flight-times> on screen follows the new convention immediately
                     TimeDisplayService.setClubMode(vm.club_id, vm.club.settings.time_display);
                     $state.go('dashboard.manage_club');
@@ -1273,7 +1333,8 @@
                         ToastService.success('Stripe Redirect', 'You will be redirected to Stripe - please complete the setup and you will be returned to ToAviate');
                         window.location = data.onboarding_link;
                     } else {
-                        ToastService.error('Stripe Error', "Please try the link again! Stripe didn't seem to want to connect to ToAviate");
+                        // FORBIDDEN (not an admin of this club) carries its own sentence
+                        ToastService.error('Stripe Error', (data && data.error === 'FORBIDDEN' && data.message) ? data.message : "Please try the link again! Stripe didn't seem to want to connect to ToAviate");
                         vm.called_stripe_setup = false;
                     }
 

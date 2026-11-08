@@ -20,6 +20,14 @@ app.factory('ClubService', ClubService);
 
         service.GetAllForUser = GetAllForUser;
 
+        // Automatic membership renewals — the per-club pause (ToAviate staff only; backend refuses anyone else).
+        // BACKEND_MEMBERSHIP_RENEWALS_GUIDE.md §7
+        service.GetRenewalsPaused = GetRenewalsPaused;
+        service.SetRenewalsPaused = SetRenewalsPaused;
+        service.SetDdCollectionPaused = SetDdCollectionPaused;
+        service.GetDdHolds = GetDdHolds;
+        service.ResolveDdHold = ResolveDdHold;
+
         //get_all_for_user
        
         return service; 
@@ -30,6 +38,33 @@ app.factory('ClubService', ClubService);
 
         function GetAll() {
             return $http.get('/api/v1/clubs/').then(handleSuccess, handleError2);
+        }
+
+        // {success, migrated, disabled (the global kill switch), clubs: [{id, title, payment_mode, has_gocardless, has_stripe,
+        //  renewal_reminder_days, renewals_paused, renewals_paused_at, renewals_paused_by_name, auto_renew_paid, due_30}]}
+        function GetRenewalsPaused() {
+            return $http.get('/api/v1/clubs/renewals_paused').then(handleSuccess, handleError2);
+        }
+
+        // pause (true) / resume (false) a club's automatic renewals → {success, changed, ...the club's row as above}
+        function SetRenewalsPaused(club_id, paused) {
+            return $http.put('/api/v1/clubs/' + club_id + '/renewals_paused', {paused: paused ? 1 : 0}).then(handleSuccess, handleError2);
+        }
+
+        // pause (true) / resume (false) a club's Direct Debit collection — ToAviate staff only
+        // (backend BACKEND_DD_COLLECTION_GUIDE.md §7) → {success, changed, ...the club's row as GetRenewalsPaused}
+        function SetDdCollectionPaused(club_id, paused) {
+            return $http.put('/api/v1/clubs/' + club_id + '/dd_collection_paused', {paused: paused ? 1 : 0}).then(handleSuccess, handleError2);
+        }
+
+        // invoices the Direct Debit collection held as possible duplicates (club admins) → {success, holds: [...]}
+        function GetDdHolds(club_id) {
+            return $http.get('/api/v1/invoices/dd_holds/' + club_id).then(handleSuccess, handleError2);
+        }
+
+        // settle a held invoice: action 'link' (it is that GoCardless payment's) | 'release' (collect it) | 'void'
+        function ResolveDdHold(invoice_id, action, payment_id) {
+            return $http.put('/api/v1/invoices/' + invoice_id + '/dd_hold', {action: action, payment_id: payment_id || 0}).then(handleSuccess, handleError2);
         }
 
         function GetById(club_id) {

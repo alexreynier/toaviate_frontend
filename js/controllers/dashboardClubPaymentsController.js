@@ -30,11 +30,19 @@
         vm.user = $rootScope.globals.currentUser;
         vm.user_id = vm.user.id;
 
-        ClubPaymentService.GetPaymentsByClub(vm.club_id)
+        // the club's admins / ToAviate staff only (backend BACKEND_MONEY_ACCESS_GUIDE.md §5c) — FORBIDDEN is a
+        // writeGuard HANDLED code, so say it here
+        function load_payments(){
+            ClubPaymentService.GetPaymentsByClub(vm.club_id)
                 .then(function(data){
                     //console.log("ALL PAYMENTS...", data);
-                    vm.payments = data.payments;
+                    if (data && data.success === false && data.error) {
+                        ToastService.error('Not Allowed', (typeof data.message === 'string' && data.message) || "Only the club's admins can see its payments.");
+                    }
+                    vm.payments = (data && data.payments) || [];
                 });
+        }
+        load_payments();
 
         //'9' needs to refer the the user's account set to manage
        
@@ -225,9 +233,13 @@
                 ClubPaymentService.Refund(refund)
                 .then(function(data){
                     //console.log("HELLO REFUND", data);
-                    //update view?
-                    
-
+                    // say what happened (it said nothing before) and show the new refunded amount
+                    if (data && data.success) {
+                        ToastService.success('Refunded', 'The refund has been sent to the card' + (data.fully_refunded ? '.' : ' (part of the payment).'));
+                        load_payments();
+                    } else {
+                        ToastService.error('Refund Not Made', (data && typeof data.message === 'string' && data.message) || 'The refund could not be made - please try again.');
+                    }
                  });
 
 

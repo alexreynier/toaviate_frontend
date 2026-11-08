@@ -1318,9 +1318,12 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             if (!termStart) return null;
             var m = moment(termStart);
             if (!m.isValid()) return null;
+            // one period on the same calendar day, the day clamped in a short month (moment does
+            // that) — the backend's Members::term_end (BACKEND_MEMBER_DATA_ACCESS_GUIDE.md §8a)
             switch (paymentTerm) {
                 case 'daily':    return m.add(1, 'day').toDate();
                 case 'monthly':  return m.add(1, 'month').toDate();
+                case 'quarterly': return m.add(3, 'months').toDate();
                 case 'annually': return m.add(1, 'year').toDate();
                 // 'free' / 'once' (lifetime) → no expiry; let the backend decide.
                 default: return null;

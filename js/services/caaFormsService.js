@@ -53,6 +53,10 @@ app.factory('CaaFormsService', CaaFormsService);
         s.SendExternal   = function(id, d){ return $http.post(base + '/' + id + '/send_external', d).then(handleSuccess, handleError); };
         s.ResendExternal = function(id, role){ return $http.post(base + '/' + id + '/resend_external', { role: role }).then(handleSuccess, handleError); };
 
+        // Every form ABOUT me, every club — a club I left included (read_only) —
+        // plus my clubs {club_id, title, member 1|0, forms}. My Account → CAA Forms.
+        s.Mine     = function(){ return $http.get(base + '/mine').then(handleSuccess, handleError); };
+
         // ── Queues (per-club; hot_queue FORBIDDEN → user is not HoT/deputy there) ──
         s.Queue    = function(club_id){ return $http.get(base + '/queue' + qs({ club_id: club_id })).then(handleSuccess, handleError); };
         s.HotQueue = function(club_id){ return $http.get(base + '/hot_queue' + qs({ club_id: club_id })).then(handleSuccess, handleError); };

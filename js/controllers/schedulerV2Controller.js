@@ -486,6 +486,15 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
                     override: "currency_override",
                     button: "I am Current"
                 });
+            } else if (data.check_user_reason === "no_payment_method") {
+                // no payment method in the club (2026-11-08) — an admin of the club may book it anyway
+                push({
+                    type: "check_user",
+                    message: "No payment method is set up for this flight.",
+                    api: data.check_user,
+                    override: (data.can_payment_override === true) ? "payment_override" : "",
+                    button: (data.can_payment_override === true) ? "Book without a payment method" : ""
+                });
             } else {
                 push({
                     type: "check_user",

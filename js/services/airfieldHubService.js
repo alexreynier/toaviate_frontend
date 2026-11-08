@@ -154,9 +154,10 @@ function AirfieldHubService($http, $q) {
 
     // Drains the queue on demand. The cron does this on a schedule; exposing
     // it gives admins a "send now" and makes the §7 walkthrough testable
-    // without waiting.
+    // without waiting. POST …/drain (ToAviate staff): GET …/cron is the
+    // crontab's and needs the server's cron key (BACKEND_CRON_JOBS_GUIDE.md).
     function RunCron() {
-        return $http.get(BASE + '/cron').then(handleSuccess, handleError);
+        return $http.post(BASE + '/drain', {}).then(handleSuccess, handleError);
     }
 
 

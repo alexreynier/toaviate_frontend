@@ -104,7 +104,8 @@ function MemberService($http, $location) {
 - Always declare `$inject`.
 - Read the logged-in user/role/club from `$rootScope.globals.currentUser`:
   - `.id`, `.email`, `.first_name`, `.last_name`
-  - `.current_club_admin` (selected admin club object, persisted in `localStorage`)
+  - `.current_club_admin` (selected Manage Club club — full row in memory; its id is
+    saved in localStorage `toaviate_selected_club_id`)
   - `.current_club_instructor` (default instructor club id)
   - `.access.manager` / `.instructor` / `.pilot` / `.super_admin` — **arrays of club IDs**.
     Check a role with `vm.user.access.manager.indexOf(vm.club_id) > -1`.
@@ -112,12 +113,50 @@ function MemberService($http, $location) {
   `vm.action = $state.current.data.action` (the `data.action` set on the route).
 - Route params come from `$stateParams`.
 
+### Persisted login state — the `globals` cookie is SLIM (2026-11-07)
+
+A refresh restores `$rootScope.globals` from the `globals` cookie (app.js run block).
+Browsers silently drop a cookie over 4 KB — the full `currentUser` (all membership rows +
+the 80-column club row) passed that for admins, so their club vanished on refresh. The
+cookie now holds only `id`, `email`, `first_name`, `last_name`, `authdata`,
+`current_club_instructor`, the `access` role arrays + `show_*` flags, and
+`current_club_admin` cut to `{id, title, edit_window_*_minutes}` (~0.9 KB).
+**Write it only via `AuthenticationService.PersistGlobals()`** (never
+`$cookieStore.put('globals', …)`) — it caps the cookie at 3.5 KB, trimming further with a
+`console.warn` if needed. The rest (`access.items`, the full club row) comes back from
+`AuthenticationService.Rehydrate()` (`GET users/{id}/access` + `GET
+clubs/get_all_admin_for_user/{id}`, once per page load / login): DashboardController uses
+it for the club list, and the Manage Club guard waits for it before the first Manage Club
+page renders (it doubles as the guard's one server re-check). Elsewhere, read only the
+persisted fields at controller init. It stays a session cookie cleared by logout — not
+localStorage, which would outlive the browser session.
+
 ### Routing — all in `js/app.js`
 
 States are nested (`dashboard.manage_club.members`, `dashboard.my_account.bookout`,
 …). Each defines `url`, `controller`, `templateUrl`, `controllerAs: 'vm'`, and usually
 `data: { action: 'list' | 'add' | 'edit' | … }`. Add new screens here following the
 existing grouping/comment blocks.
+
+**Manage Club is admins-only.** A `$stateChangeStart` guard in the `run` block lets
+`dashboard.manage_club` and every state under it (dotted children *and* states
+re-parented into it with `parent:`) open only for a manager / super-admin of some club
+or ToAviate staff. Everyone else gets a toast; a deep link lands on My Account.
+Non-admin exceptions live in one map, `MANAGE_CLUB_ROLE_STATES` (state name → the
+`currentUser.access` role that opens it):
+- `instructor` → `questionnaire_review`;
+- `sms_post` → every `dashboard.manage_club.sms*` screen, for the club's SMS post
+  holders (accountable manager, head of training, safety / compliance manager, CFI in
+  `sms_settings` — the backend's `AccessControl::isClubSafetyAdmin`). `access.sms_post`
+  comes from the per-membership `sms_post` flag of `GET users/{id}/access`; they reach
+  SMS from the "Safety Management" menu entry (`access.show_sms`, shown when they
+  aren't club admins), and `SmsController` works on their post club, not
+  `current_club_admin` (which only club admins have).
+
+If you link non-admins into a new `dashboard.manage_club.*` screen, add it to that map,
+or put the screen outside Manage Club — engineers (maintenance-org members) are not
+club admins, so the maintenance workspace's "Add maintenance check" is its own form
+(`maintenance_access/occurrence`), not Manage Club's maintenance page.
 
 ### Modals — `$uibModal` (ui-bootstrap)
 
@@ -151,6 +190,13 @@ protection**; the guard already covers direct save/edit/delete handlers.
   with its own UI are in `HANDLED_CODES` (CONFIRM_REQUIRED, FORBIDDEN, requires_action…)
   and pre-auth endpoints in `SILENT_URLS` — add to those lists rather than suppressing
   the toast elsewhere.
+- **Emoji are refused before sending** (2026-11-07): `unsupportedCharactersInterceptor`
+  (same file, registered last in app.js) blocks any API write whose JSON body holds a
+  character outside the BMP (every emoji — the DB connection can't store them), answers
+  the caller with the backend's own refusal (`{success:false, error:'UNSUPPORTED_CHARACTERS',
+  message, fields}`, as a 200) and toasts a warning naming the field(s). It toasts the
+  backend's refusal too. FormData / files / password fields are never scanned.
+  Backend: BACKEND_UNSUPPORTED_CHARACTERS_GUIDE.md; test `tests/unsupported-characters-interceptor-test.js`.
 - **Not covered:** flows whose write starts after an external step (Stripe.js
   `createToken`/`confirmSetup`/`confirmPayment`, a preceding GET, `$timeout`) and the
   three data-changing GET endpoints (`fox/reset_*`, `fox/fix_uncombined`,
@@ -168,6 +214,20 @@ See [AGENT_GUIDE_ERROR_HANDLING.md](AGENT_GUIDE_ERROR_HANDLING.md) (authoritativ
 ---
 
 ## Design System (snazzy)
+
+> **New design system — draft under review (2026-11-06):** [DESIGN_GUIDELINES.md](DESIGN_GUIDELINES.md) with ONE shared
+> stylesheet set, [css/ta-base.css](css/ta-base.css) (tokens `--ta-*` + `.ta-*` primitives) and [css/ta-night.css](css/ta-night.css)
+> (night-mode token swap), registered in index.html and the Gruntfile right after snazzy-pages.css. Once approved it replaces
+> the snazzy rules below for new / redesigned pages. Redesigns are mocked first in `../mockups/` (kit: `../mockups/_kit/`,
+> README = the brief; My Account set: `../mockups/my-account/index.html`; Instructor Dashboard set: `../mockups/instructor-dashboard/index.html`,
+> whose debrief design is shared with the book-in mockup via `debrief-core.js`/`.css`; living reference: `../mockups/design-system.html`)
+> and implemented one page at a time after the owner's review. **Shared components** that several mockups had re-invented
+> (readiness rail `.ta-ready`, final card `.ta-final`/`.ta-sum`/`.ta-left`/`.ta-cta`, picker A `.ta-pick`+`.ta-pickmenu`,
+> picker B `.ta-combo`, `.ta-stepper`, `.ta-confirm`, `.ta-drop`, `.ta-ic`, `.ta-sh`, `.ta-req`, `.ta-mark`, `.ta-desk-only`/
+> `.ta-phone-only`) now live once in ta-base.css (guidelines 4.15); naming rules are in guidelines §9 ("Naming and
+> structure": `ta-` only in ta-base, one page prefix + BEM, no `body.night-mode` in page CSS, `kit-` = mockup-only).
+> Refactor a mockup with `../mockups/_kit/baseline.js` (screenshots every page × scenario × width × theme) before and
+> after, then `python3 ../mockups/_kit/diff.py BEFORE AFTER` — the bar is 0 changed pixels.
 
 The new look lives in [css/snazzy-pages.css](css/snazzy-pages.css). It uses **BEM with
 page-prefixed blocks**: a block per page, `__element`, `--modifier`.
@@ -365,6 +425,9 @@ view. Per-club and role-gated. Backend contract: `FRONTEND_SMS_GUIDE.md` /
   and `views/my_account/sms/` (member). **Design system:** [css/sms.css](css/sms.css) — `.sms-*` BEM,
   snazzy + mobile + animations. Reuse these classes; don't invent new ones.
 - **Entry points:** admin tile in `views/manage_club.html` → `dashboard.manage_club.sms`;
+  "Safety Management" menu entry (`views/dashboard.html`) → the same, for SMS post holders
+  who aren't club admins (the Manage Club guard opens only the SMS screens to them; their
+  BACK goes to My Account → Safety; settings stay club-admin only);
   member tile in `views/my_account/home.html` → `dashboard.my_account.sms`.
 - **Role gating:** the backend is authoritative — an `error:'FORBIDDEN'` response means
   hide/disable the control. The service normalises that onto `data.error`; controllers

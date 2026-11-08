@@ -815,8 +815,12 @@
                  case "insurance": 
                     controller = "plane_insurance";
                 break;
-                 case "certificate": 
+                 case "certificate":
                     controller = "plane_certificate";
+                break;
+                // the ARC (airworthiness_document.document_route === 'plane_arc')
+                case "arc":
+                    controller = "plane_arc";
                 break;
                 case "noise":
                     controller = "plane_noise_certificate";

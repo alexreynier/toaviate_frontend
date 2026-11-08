@@ -85,6 +85,11 @@
             ShopItemService.Create(vm.club.item)
                 .then(function(data){
                     //console.log(data);
+                    // refused (FORBIDDEN — only the club's admins, BACKEND_MONEY_ACCESS_GUIDE.md §2)
+                    if (!data || data.success === false) {
+                        ToastService.error('Item not saved', (data && data.message) || 'The item could not be saved. Please try again.');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.shop_items');
 
                 });
@@ -105,7 +110,7 @@
                         });
 
                     } else {
-                        ToastService.error('Delete Error', 'An error occurred when trying to delete this item.');
+                        ToastService.error('Delete Error', (data && data.message) || 'An error occurred when trying to delete this item.');
                     }
 
                 });
@@ -142,6 +147,10 @@
                 .then(function(data){
                     //console.log(data);
                     //console.log("saved");
+                    if (!data || data.success === false) {
+                        ToastService.error('Item not saved', (data && data.message) || 'Your changes were not saved. Please try again.');
+                        return;
+                    }
                     $state.go('dashboard.manage_club.shop_items');
                 });
         }

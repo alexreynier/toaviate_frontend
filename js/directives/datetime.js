@@ -562,6 +562,14 @@ app.directive('collapsible', ['$timeout', function($timeout){
         PaymentService.CreatePaymentIntentNewCard(vm.send)
             .then(function (data) {
                 console.log("DATA HERE", data);
+              // Refused before Stripe (e.g. BELOW_MINIMUM: "Payments under £1.00 can't be taken by card …", RATE_UNAVAILABLE,
+              // INVOICE_NOT_PAYABLE — backend BACKEND_MONEY_ACCESS_GUIDE.md "Card fees"): say why, stop here.
+              if (!data || data.success === false || !data.client_secret) {
+                  vm.paymentNo = true;
+                  vm.payment_status_message = (data && typeof data.message === 'string' && data.message) ? data.message : 'The payment could not be started - please try again or use another payment method.';
+                  vm.show_loading = false;
+                  return;
+              }
               // Initialize Stripe.js with this club's per-club publishable key
               PaymentService.GetClubStripeKey(_clubId).then(function(stripeKey){
                 var stripe = Stripe(stripeKey);
@@ -1037,7 +1045,8 @@ app.directive('collapsible', ['$timeout', function($timeout){
                             } else {
 
                               vm.paymentNo = true;
-                              vm.payment_status_message = "We had an issue talking to the card machine - please try again by using the buttons below";
+                              // a refusal says why (e.g. BELOW_MINIMUM — backend BACKEND_MONEY_ACCESS_GUIDE.md "Card fees")
+                              vm.payment_status_message = (data && typeof data.message === 'string' && data.message) ? data.message : "We had an issue talking to the card machine - please try again by using the buttons below";
                               vm.show_loading = false;
                               vm.show_cardmachine = true;
 
@@ -1090,6 +1099,15 @@ app.directive('collapsible', ['$timeout', function($timeout){
                                 ////console.log("CARDS", vm.cards);
                             } else {
                                console.log("WOOOPSIES...", data);
+                              // Refused (FORBIDDEN: only the card holder or the club's admins
+                              // can charge a saved card — BACKEND_MONEY_ACCESS_GUIDE.md §4) or
+                              // any other failure without a 3DS step: say why, stop here.
+                              if (!data || !data.client_secret) {
+                                  vm.paymentNo = true;
+                                  vm.payment_status_message = (data && typeof data.message === 'string' && data.message) ? data.message : 'The payment could not be taken - please try again or use another payment method.';
+                                  vm.show_loading = false;
+                                  return;
+                              }
                                 //this shows the user the 3DS confirmation
 
                               PaymentService.GetClubStripeKey(_clubId).then(function(stripeKey){

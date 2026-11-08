@@ -1019,7 +1019,8 @@ app.controller('CaaFormsController', CaaFormsController);
             vm.canSign = function(box) {
                 if (!vm.form || box.status !== 'pending' || box.is_external) { return false; }
                 if (box.role === 'applicant') {
-                    return vm.isSubject && vm.form.status === 'awaiting_signatures';
+                    // read_only: the subject's membership of the club has ended — view + download only
+                    return vm.isSubject && !vm.form.read_only && vm.form.status === 'awaiting_signatures';
                 }
                 if (box.role === 'instructor' || box.role === 'examiner') {
                     if (vm.form.status !== 'awaiting_signatures' || vm.isSubject) { return false; }
@@ -1204,33 +1205,36 @@ app.controller('CaaFormsController', CaaFormsController);
         //  MEMBER — My Account: forms waiting for MY signature
         // ═════════════════════════════════════════════════════════════
         function initMember() {
-            vm.rows = [];       // boxes waiting for MY signature
-            vm.myForms = [];    // my forms across clubs (history — subject access)
+            vm.rows = [];       // boxes waiting for MY signature (clubs I'm a live member of)
+            vm.myForms = [];    // every form ABOUT me, every club (history — subject access)
+            vm.pastClubs = [];  // clubs I left / whose membership lapsed, with forms of mine
 
-            ClubService.GetAllForUser(vm.user.id).then(function(data) {
-                var clubs = (data && data.clubs) || [];
-                if (!clubs.length) { vm.loading = false; return; }
-                function tag(club) {
-                    return function(rows) { rows.forEach(function(r){ r._club_title = club.title; }); return rows; };
+            // caa_forms/mine: my forms in EVERY club — one I have left included —
+            // plus my clubs {member 1|0}. A club I'm no longer a live member of
+            // keeps my forms there readable and downloadable (read_only), never
+            // signable, so its signature queue isn't asked for. Replaced
+            // clubs/get_all_for_user + a listing per club, which hid them
+            // (FRONTEND_CAA_FORMS_GUIDE.md "Former members").
+            CaaFormsService.Mine().then(function(data) {
+                if (!data || data.success === false) {
+                    vm.loading = false;
+                    ToastService.warning('Could Not Load', (data && data.message) || 'Your CAA forms could not be loaded — please try again.');
+                    return;
                 }
-                $q.all(clubs.map(function(club) {
-                    return $q.all([
-                        CaaFormsService.Queue(club.id).then(function(res) {
-                            return (res && res.success === false) ? [] : tag(club)(asList(res, 'queue'));
-                        }),
-                        // subject_user_id: ONLY forms where I'm the applicant —
-                        // without it, instructors get the whole club listing
-                        // on their own My Account page.
-                        CaaFormsService.List(club.id, { subject_user_id: vm.user.id }).then(function(res) {
-                            return (res && res.success === false) ? [] : tag(club)(asList(res, 'forms'));
-                        })
-                    ]);
+                var clubs = data.clubs || [];
+                vm.myForms = (data.forms || []).map(function(f) { f._club_title = f.club_title; return f; });
+                vm.pastClubs = clubs.filter(function(c) { return Number(c.member) !== 1; });
+                var live = clubs.filter(function(c) { return Number(c.member) === 1; });
+                if (!live.length) { vm.loading = false; return; }
+                $q.all(live.map(function(club) {
+                    return CaaFormsService.Queue(club.club_id).then(function(res) {
+                        var rows = (res && res.success === false) ? [] : asList(res, 'queue');
+                        rows.forEach(function(r) { r._club_title = club.title; });
+                        return rows;
+                    });
                 })).then(function(perClub) {
                     vm.loading = false;
-                    perClub.forEach(function(pair) {
-                        vm.rows = vm.rows.concat(pair[0]);
-                        vm.myForms = vm.myForms.concat(pair[1]);
-                    });
+                    perClub.forEach(function(rows) { vm.rows = vm.rows.concat(rows); });
                 });
             });
 

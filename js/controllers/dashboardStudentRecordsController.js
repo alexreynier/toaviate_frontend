@@ -119,33 +119,36 @@
                 
 
 
-                    //get clubs
-                    ClubService.GetAllForUser(vm.user_id).then(function(data){
-
-                        vm.clubs = data.clubs;
+                    // Clubs + courses in one call: the courses of the clubs the user is
+                    // a current member of, PLUS the courses they have their own records
+                    // in at a club they have left or whose membership lapsed
+                    // (club.member = 0, course.records_only = 1 — names only; the
+                    // records themselves are always theirs to read). The syllabus of a
+                    // records-only course stays closed (BACKEND_CLUB_CONTENT_ACCESS_GUIDE.md §5),
+                    // so this page must not ask courses/club/{id} for those clubs.
+                    vm.clubs = [];
+                    vm.clubs_loaded = false;
+                    CourseService.GetCoursesByUserId(vm.user_id).then(function(data){
+                        vm.clubs_loaded = true;
+                        var items = (data && data.success !== false && angular.isArray(data.items)) ? data.items : [];
+                        vm.clubs = items.map(function(c){
+                            // the club's rounding without a clubs/{id} read (refused to ex-members)
+                            if(c.time_display){ TimeDisplayService.setClubMode(c.club_id, c.time_display); }
+                            return {
+                                id: c.club_id,
+                                title: c.title,
+                                member: Number(c.member) === 1,
+                                courses: CourseService.sortByDisplayOrder(c.courses || [])
+                            };
+                        }).filter(function(c){ return c.member || c.courses.length > 0; });
                         if(vm.clubs.length == 1){
                             vm.club_id = vm.clubs[0].id;
                             vm.selected_club = vm.clubs[0];
                             vm.update_club_selector();
-                        } else if(vm.clubs.length > 1){
-                            // Multiple clubs — user must pick one
                         }
+                        // several clubs — the user picks one
                     });
 
-                    // CourseService.GetCoursesByUserId(vm.student_id)
-                    // .then(function(data){
-
-                    //     vm.courses = data.items;
-
-                    // });
-
-                    // CourseService.GetCoursesByClubId(vm.club_id)
-                    // .then(function(data){
-
-                    //     vm.courses = data.items;
-
-                    // });
-                    
 
               
 
@@ -282,21 +285,21 @@
                 });
         };
 
+        // My Account → Training Records: the selected club's courses come with the
+        // club (courses/user/{id}) — current clubs list every course, a club the
+        // student has left only the courses they have records in.
         vm.update_club_selector = function(){
-
-            // Set club_id from the selected club dropdown before fetching courses
             if (vm.selected_club && vm.selected_club.id) {
                 vm.club_id = vm.selected_club.id;
             }
             vm.td.setClub(vm.club_id);
-
-            CourseService.GetCoursesByClubId(vm.club_id)
-                    .then(function(data){
-
-                        vm.courses = CourseService.sortByDisplayOrder(data.items);
-
-                    });
+            vm.courses = (vm.selected_club && vm.selected_club.courses) || [];
         }
+
+        // Shown beside a course the student can no longer open in Syllabus.
+        vm.course_records_only = function(course){
+            return !!(course && Number(course.records_only) === 1);
+        };
 
         // Called when a club is selected from the ui-select dropdown
         vm.onClubSelected = function(club) {
@@ -849,7 +852,15 @@
 
                  CourseService.GetStudentTrainingRecords(vm.student_id, vm.course_id)
                     .then(function(data){
+                        if(!data || data.success === false){
+                            vm.show_record = false;
+                            ToastService.warning('Records Unavailable', (data && data.message) || 'Your training records for this course could not be loaded.');
+                            return;
+                        }
                         vm.show_record = true;
+                        // false = the student's membership of the course's club has ended:
+                        // every record, but only the objectives / exams they name
+                        vm.records_only = (data.syllabus_access === false);
                         vm.all_items = data.all_items;
                         vm.student = data.student;
                         vm.training_records = data.training_records;
@@ -895,7 +906,9 @@
                 var lesson = byId[lid];
                 // Progress: how many objectives have been graded by an instructor.
                 lesson.graded_count = lesson.items.filter(function(i){ return !!i.last_entry; }).length;
-                lesson.total_count = lesson.items.length;
+                // lesson_items_total = the lesson's objective count: a student whose
+                // membership has ended is only sent the objectives they were graded on
+                lesson.total_count = Math.max(lesson.items.length, Number(lesson.items[0] && lesson.items[0].lesson_items_total) || 0);
                 // "Lesson complete" = the instructor's stored sign-off (training_records.
                 // completed). The backend exposes it on each objective's last_entry once
                 // added; a lesson counts complete when its latest entries are flagged.
