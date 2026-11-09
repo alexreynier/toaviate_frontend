@@ -23,11 +23,14 @@
  * label's tooltip says "Closed on Sundays"). Rows of clubs without hours get nothing; the legend gains "Outside opening
  * hours" only when a row's club has hours. The phone list shows no shading, only a "Club closed" line in the header on a
  * closed day. Purely informative — the host's booking rules decide what can be booked.
+ *
+ * 1.3.1 (2026-11-09): the time axis reads in 24-hour club time ("07:00", "13:00") like every booking time in the app
+ * (it said "7AM", "1PM"). `labels.am` / `labels.pm` are kept for hosts that still pass them, but no longer used.
  */
 (function (global) {
     'use strict';
 
-    var VERSION = '1.3.0';
+    var VERSION = '1.3.1';
     var ROOT = 'tas';
     var STORAGE_KEY = 'tas.groups';
     var LIST_BREAKPOINT = 700;
@@ -688,8 +691,7 @@
         grid.innerHTML = html;
     };
     Scheduler.prototype._axisLabel = function (h) {
-        var L = this.L, h12 = h % 12 === 0 ? 12 : h % 12;
-        return h12 + (h % 24 >= 12 ? L.pm : L.am);
+        return pad2(h % 24) + ':00';          // 24-hour club time, like the chips ("10:30 – 12:30")
     };
     Scheduler.prototype._groupHead = function (key, title, count, hint, open) {
         var L = this.L, gname = key === 'instructors' ? L.instructors.toLowerCase() : L.aircraft.toLowerCase();

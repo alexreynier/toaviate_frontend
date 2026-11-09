@@ -1051,6 +1051,15 @@
                         // payment method to self-book (clubs.require_payment_method; absent before the backend migration)
                         vm.paymentMethodRuleSupported = !!(data && data.hasOwnProperty('require_payment_method'));
                         vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method == 1)? true : false;
+                        // members may use the card machine (clubs.card_machine_members, default 1; absent before the migration)
+                        vm.cardMachineRuleSupported = !!(data && data.hasOwnProperty('card_machine_members'));
+                        // split flights: taxi time once per flight / on each leg (clubs.split_taxi_mode; absent before the migration)
+                        vm.splitTaxiSupported = !!(data && data.hasOwnProperty('split_taxi_mode'));
+                        // who can see flight tracks (clubs.flight_tracks, C30; absent before the migration)
+                        vm.flightTracksSupported = !!(data && data.hasOwnProperty('flight_tracks'));
+                        vm.club.settings.flight_tracks = (vm.club.settings.flight_tracks === 'all_members') ? 'all_members' : 'crew_once_booked_in';
+                        vm.club.settings.split_taxi_mode = (vm.club.settings.split_taxi_mode === 'each_leg') ? 'each_leg' : 'once';
+                        vm.club.settings.card_machine_members = (vm.club.settings.card_machine_members === undefined || vm.club.settings.card_machine_members == 1)? true : false;
                         vm.club.settings.booking_name_visibility = vm.club.settings.booking_name_visibility || 'everyone';
                         // who may add a second booking on a taken slot (the aircraft waiting list); pre-migration GETs omit it
                         vm.club.settings.double_booking_by = (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) > -1)
@@ -1256,6 +1265,13 @@
             } else {
                 delete vm.club.settings.require_payment_method;
             }
+            if (vm.cardMachineRuleSupported) {
+                vm.club.settings.card_machine_members = (vm.club.settings.card_machine_members)? 1 : 0;
+            } else {
+                delete vm.club.settings.card_machine_members;
+            }
+            if (!vm.splitTaxiSupported) { delete vm.club.settings.split_taxi_mode; }
+            if (!vm.flightTracksSupported) { delete vm.club.settings.flight_tracks; }
             if (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) < 0) {
                 vm.club.settings.double_booking_by = 'everyone';
             }

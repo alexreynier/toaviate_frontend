@@ -1,0 +1,64 @@
+<!-- v2 · My vouchers (design: mockups/my-account/vouchers-documents.html, page "My vouchers").
+     State dashboard.v2.my_vouchers → VouchersV2Controller (js/v2/documents/documents.js). CSS: css/v2/documents.css (vd-). -->
+<main class="ta-page vd-page">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-ticket-alt" aria-hidden="true"></i></span>
+        <div>
+          <h2>My vouchers</h2>
+          <p>Gift and trial-flight vouchers in your name</p>
+          <span class="vd-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="vd-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" title="Back to My Account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+      </span>
+    </div>
+  </section>
+
+  <!-- loading / error / empty -->
+  <div class="vd-vgrid vd-vgrid--skel" ng-show="vm.loading" aria-busy="true" aria-label="Loading your vouchers">
+    <div class="vd-vc"><div class="vd-vc__top"><span class="ta-skel vd-skel__ic"></span><span class="ta-skel vd-skel__t"></span></div><div class="vd-vc__body"><span class="ta-skel vd-skel__box"></span><span class="ta-skel vd-skel__t vd-skel__t--short"></span></div></div>
+    <div class="vd-vc ta-desk-only"><div class="vd-vc__top"><span class="ta-skel vd-skel__ic"></span><span class="ta-skel vd-skel__t"></span></div><div class="vd-vc__body"><span class="ta-skel vd-skel__box"></span><span class="ta-skel vd-skel__t vd-skel__t--short"></span></div></div>
+  </div>
+  <div class="ta-note ta-note--bad vd-note" ng-show="!vm.loading && vm.error">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+    <div class="vd-note__body">{{ vm.error }}</div>
+    <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+  </div>
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.vouchers.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-ticket-alt" aria-hidden="true"></i></span>
+      <h4>No vouchers yet</h4>
+      <p>When a club sends you a gift or trial-flight voucher, it appears here with its code and a button to book your flight. If you think you should have one, contact the club.</p>
+    </div>
+  </section>
+
+  <!-- expiring soon -->
+  <div class="ta-note ta-note--warn vd-note" ng-repeat="v in vm.groups.soon">
+    <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+    <div class="vd-note__body"><b>Your {{ v.experience_title || 'experience' }} voucher {{ v._left <= 0 ? 'expires today' : ('expires in ' + vm.F.plural(v._left, 'day')) }}.</b> Book a flight before {{ vm.F.fDayLong(v.expiry_date) }}.</div>
+    <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.goBook(v)" no-busy-guard>Book now</button>
+  </div>
+
+  <div class="vd-vcols" ng-class="{'vd-vcols--2': vm.groups.cols > 1}" ng-show="!vm.loading && !vm.error && vm.vouchers.length">
+    <div class="vd-vcol" ng-show="vm.groups.ready.length || vm.groups.booked.length">
+      <section class="vd-vsec" ng-show="vm.groups.ready.length">
+        <div class="vd-vsec__hd"><h3>Ready to use<span class="vd-count">{{ vm.groups.ready.length }}</span></h3><p>Book a slot online — the club confirms by email</p></div>
+        <div class="vd-vgrid"><article class="vd-vc" ng-repeat="v in vm.groups.ready" ng-class="{'vd-vc--attn': v._soon}" ng-include="'views/v2/documents/_voucher_card.html'"></article></div>
+      </section>
+      <section class="vd-vsec" ng-show="vm.groups.booked.length">
+        <div class="vd-vsec__hd"><h3>Booked<span class="vd-count">{{ vm.groups.booked.length }}</span></h3><p>Your upcoming voucher flights</p></div>
+        <div class="vd-vgrid"><article class="vd-vc" ng-repeat="v in vm.groups.booked" ng-include="'views/v2/documents/_voucher_card.html'"></article></div>
+      </section>
+    </div>
+    <div class="vd-vcol" ng-show="vm.groups.past.length">
+      <section class="vd-vsec">
+        <div class="vd-vsec__hd"><h3>Used and expired<span class="vd-count">{{ vm.groups.past.length }}</span></h3><p>Kept here for your records</p></div>
+        <div class="vd-vgrid"><article class="vd-vc vd-vc--past" ng-repeat="v in vm.groups.past" ng-include="'views/v2/documents/_voucher_card.html'"></article></div>
+      </section>
+    </div>
+  </div>
+</main>

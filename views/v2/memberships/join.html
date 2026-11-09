@@ -1,0 +1,94 @@
+<!-- v2 JOIN A CLUB — mockups/my-account/memberships-cards.html (page "Join a club"). MembershipJoinV2Controller.
+     Joining is by direct debit as today; joining by card waits for the backend (payment_method on memberships/request). -->
+<main class="ta-page ta-page--has-bar" data-e2e="mem-join-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-user-plus"></i></span>
+        <div><h2>Join a club</h2><p>Choose a club and a membership — the club approves your request</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account.memberships" aria-label="Back to Memberships"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Memberships</span></a>
+    </div>
+  </section>
+
+  <!-- 1 · club -->
+  <section class="ta-card">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.club}" aria-hidden="true"><i class="fas" ng-class="vm.club ? 'fa-check' : 'fa-search'"></i><span class="ta-card__step">1</span></span>
+      <div class="ta-card__ttl"><h3>Find the club</h3><p>{{ vm.club ? 'You\'re joining ' + vm.club.title : 'Search by club name, town or address' }}</p></div>
+    </div>
+    <div class="mem-picked" ng-if="vm.club">
+      <span class="mem-mono" aria-hidden="true">{{ vm.club.mono }}</span>
+      <div><span class="mem-result__t">{{ vm.club.title }}</span><span class="mem-result__s">{{ vm.club.address }}</span></div>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.change()" ng-disabled="vm.busy">Change</button>
+    </div>
+      <label class="ta-search mem-search" ng-if="!vm.club"><i class="fas fa-search" aria-hidden="true"></i>
+        <input id="mem-q" type="search" ng-model="vm.q" ng-change="vm.filter()" ng-model-options="{ debounce: 120 }" placeholder="Club, town or address" autocomplete="off" aria-label="Search for a club"></label>
+      <div class="ta-skel mem-skel-a" ng-if="!vm.club && vm.loading"></div>
+      <div class="mem-results" role="listbox" ng-if="!vm.club && !vm.loading && vm.results.length">
+        <button type="button" class="mem-result" role="option" ng-repeat="c in vm.results | limitTo: 40 track by c.id" ng-click="vm.pick(c)" ng-disabled="c.mine" data-e2e="mem-result">
+          <span class="mem-mono mem-mono--sm" aria-hidden="true">{{ c.mono }}</span>
+          <span class="mem-min"><span class="mem-result__t">{{ c.title }}</span><span class="mem-result__s">{{ c.address || '—' }}</span></span>
+          <span class="mem-result__end">
+            <span class="ta-tag" ng-if="c.mine"><i class="fas fa-check"></i>{{ c.mine === 'req' ? 'Request sent' : 'You\'re a member' }}</span>
+            <span class="ta-icao" ng-if="!c.mine && c.icao">{{ c.icao }}</span><i class="fas fa-chevron-right" ng-if="!c.mine" aria-hidden="true"></i>
+          </span>
+        </button>
+      </div>
+      <div class="ta-note" ng-if="!vm.club && !vm.loading && !vm.results.length"><i class="fas fa-search" aria-hidden="true"></i><div>No club matches “{{ vm.q }}”. Check the spelling, or ask the club to invite you — the invitation then appears on Memberships.</div></div>
+  </section>
+
+  <!-- 2 · membership -->
+  <section class="ta-card" ng-class="{'mem-card--later': !vm.club}">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.tier}" aria-hidden="true"><i class="fas" ng-class="vm.tier ? 'fa-check' : 'fa-id-card'"></i><span class="ta-card__step">2</span></span>
+      <div class="ta-card__ttl"><h3>Choose a membership</h3><p>{{ !vm.club ? 'Pick a club first' : vm.tiersLoading ? 'Loading…' : vm.tiers.length ? vm.tiers.length + ' membership' + (vm.tiers.length > 1 ? 's' : '') + ' you can join online' : 'Nothing to join online' }}</p></div>
+    </div>
+    <div class="ta-note" ng-if="vm.club && !vm.tiersLoading && !vm.tiers.length"><i class="fas fa-info-circle" aria-hidden="true"></i><div>{{ vm.club.title }} has no memberships you can join online. Ask the club to invite you.</div></div>
+      <div class="mem-topts" role="radiogroup" aria-label="Membership" ng-if="vm.club && vm.tiers.length">
+        <button type="button" class="ta-opt mem-topt" role="radio" ng-repeat="t in vm.tiers track by t.id" ng-class="{'ta-opt--on': vm.tier === t}" aria-checked="{{ vm.tier === t }}" ng-click="vm.pickTier(t)" data-e2e="mem-tier">
+          <span class="ta-opt__ic" aria-hidden="true"><i class="fas" ng-class="t.planes ? 'fa-plane' : 'fa-user-friends'"></i></span>
+          <span class="mem-min"><span class="mem-topt__hd"><span class="ta-opt__t">{{ t.name }}</span><span class="mem-topt__price">{{ t.priceTxt }} <small ng-if="!t.free && t.per">{{ t.per }}</small></span></span>
+            <span class="mem-perks"><span class="ta-tag" ng-repeat="p in t.perks"><i class="fas {{ p[0] }}"></i>{{ p[1] }}</span></span></span>
+          <span class="ta-opt__dot"></span>
+        </button>
+      </div>
+      <span class="ta-field__msg" ng-if="vm.club && vm.tiers.length && vm.err.tier">Choose a membership</span>
+  </section>
+
+  <!-- 3 · confirm -->
+  <section class="ta-card" ng-class="{'mem-card--later': !vm.tier}">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-university"></i><span class="ta-card__step">3</span></span>
+      <div class="ta-card__ttl"><h3>Confirm and set up the direct debit</h3><p>{{ vm.tier ? 'Nothing is collected until the club approves' : 'Choose a membership first' }}</p></div>
+    </div>
+      <div class="ta-cols ta-cols--2" ng-if="vm.club && vm.tier">
+        <div class="ta-panel">
+          <div class="mem-sum">
+            <div class="mem-sum__row"><span>Club</span><b>{{ vm.club.title }}</b></div>
+            <div class="mem-sum__row"><span>Membership</span><b>{{ vm.tier.name }}</b></div>
+            <div class="mem-sum__row"><span>Paid by</span><b>Direct debit</b></div>
+            <div class="mem-sum__row mem-sum__row--total"><span>First payment</span><b class="ta-num">{{ vm.tier.priceTxt }}</b></div>
+          </div>
+          <span class="mem-k">{{ vm.tier.free ? 'No fee.' : 'Collected when ' + vm.club.title + ' approves' + (vm.D.nextTxt(vm.tier.raw) ? ', ' + vm.D.nextTxt(vm.tier.raw) : '') + '.' }}</span>
+        </div>
+        <div class="ta-panel ta-panel--white"><span class="ta-sec-k">What happens next</span>
+          <ol class="mem-flow"><li ng-repeat="s in vm.steps"><b>{{ s[0] }}</b><span>{{ s[1] }}</span></li></ol></div>
+      </div>
+      <div class="mem-checks" ng-if="vm.club && vm.tier">
+        <label class="ta-check" ng-class="{'mem-check--err': vm.err.terms}"><input type="checkbox" ng-model="vm.terms" ng-change="vm.err.terms = false" no-busy-guard id="field-terms">
+          <span>I agree to {{ vm.club.title }}'s <button type="button" class="mem-inl" ng-click="vm.doc(vm.club.membership_terms, 'Membership terms')">terms and conditions</button> and <button type="button" class="mem-inl" ng-click="vm.doc(vm.club.privacy_terms, 'Privacy policy')">privacy policy</button>.</span></label>
+        <span class="mem-check__msg" ng-if="vm.err.terms">Agree to the club's terms to continue</span>
+        <label class="ta-check" ng-class="{'mem-check--err': vm.err.ack}"><input type="checkbox" ng-model="vm.ack" ng-change="vm.err.ack = false" no-busy-guard id="field-ack">
+          <span>I understand {{ vm.tier.free ? 'my direct debit is only used for club charges' : vm.tier.priceTxt + ' is taken by direct debit as soon as ' + vm.club.title + ' approves my request' }}.</span></label>
+        <span class="mem-check__msg" ng-if="vm.err.ack">Confirm you understand how you'll be charged</span>
+      </div>
+  </section>
+
+  <div class="ta-actionbar">
+    <span class="ta-actionbar__hint">{{ vm.left() }}</span><span class="ta-sp"></span>
+    <button type="button" class="ta-btn ta-btn--quiet ta-desk-only" ui-sref="dashboard.my_account.memberships">Cancel</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.submit()" ng-disabled="vm.busy" data-e2e="mem-join-submit" no-busy-guard><span class="ta-spin" ng-if="vm.busy"></span><i class="fas fa-university" ng-if="!vm.busy && vm.club"></i>{{ vm.busy ? 'Opening GoCardless…' : vm.club ? 'Set up direct debit' : 'Continue' }}</button>
+  </div>
+</main>

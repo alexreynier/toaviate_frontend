@@ -1,0 +1,100 @@
+<!-- v2 · Training → Questionnaires (design: mockups/my-account/questionnaires-exams.html, page "Questionnaires").
+     State dashboard.v2.questionnaires (also opened from /assigned) → QxHubV2Controller (js/v2/exams/exams.js). CSS: css/v2/exams.css (qx-). -->
+<main class="ta-page qx-main">
+  <div ng-include="'views/v2/training/_hub.html'"></div>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__box"></span></section>
+  <div class="ta-note ta-note--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-circle"></i><div>{{ vm.error }} <button type="button" class="ta-link" ng-click="vm.reload()" no-busy-guard>Try again</button></div></div>
+
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.rows.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-clipboard-check"></i></span>
+      <h4>Nothing set yet</h4>
+      <p>When your instructor sets a questionnaire or something to read before or after a lesson, it appears here — and you get an email.</p>
+    </div>
+  </section>
+
+  <div class="qx-stack" ng-if="!vm.loading && vm.rows.length">
+    <!-- the next thing to do -->
+    <section class="ta-card qx-next" ng-if="vm.next" ng-class="{'ta-card--attn': vm.X.overdue(vm.next)}">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.X.overdue(vm.next)}"><i class="fas" ng-class="vm.next.item === 'material' ? 'fa-book-open' : 'fa-clipboard-check'"></i></span>
+        <div class="ta-card__ttl">
+          <span class="qx-kicker" ng-class="{'qx-kicker--bad': vm.X.overdue(vm.next)}"><i class="fas fa-exclamation-circle" ng-show="vm.X.overdue(vm.next)"></i>{{ vm.X.overdue(vm.next) ? ('Overdue · was due ' + vm.X.fDay(vm.next.due)) : ('Next up' + (vm.next.due ? ' · due ' + vm.X.fDay(vm.next.due) : '')) }}</span>
+          <h3>{{ vm.next.title }}</h3>
+          <p>{{ vm.next.target || (vm.next.item === 'material' ? 'Reading from your instructor' : 'Questionnaire from your instructor') }}{{ vm.next.booking && vm.next.booking.start ? ' · ' + vm.X.lessonLine(vm.next.booking.start).replace('Lesson', 'lesson') + (vm.next.by ? ' with ' + vm.next.by : '') : (vm.next.setAt ? ' · set ' + vm.X.fDay(vm.next.setAt) : '') }}</p>
+        </div>
+      </div>
+      <div class="qx-quote" ng-if="vm.next.message">
+        <span class="ta-av" ng-if="vm.next.by" title="{{ vm.next.by }} (instructor)">{{ vm.X.initials(vm.next.by) }}</span><span class="ta-av" ng-if="!vm.next.by" title="Your instructor"><i class="fas fa-chalkboard-teacher"></i></span>
+        <div class="qx-quote__txt"><p>{{ vm.next.message }}</p><span class="qx-quote__by"><b>{{ vm.next.by || 'Your instructor' }}</b>{{ vm.next.setAt ? ' · set ' + vm.X.fDay(vm.next.setAt) : '' }}</span></div>
+      </div>
+      <div class="qx-next__foot">
+        <span class="ta-tag" ng-if="vm.next.item === 'material'"><i class="fas" ng-class="vm.next.ft === 'video' ? 'fa-film' : 'fa-book-open'"></i>{{ vm.next.ft === 'video' ? 'A video to watch' : (vm.next.ft ? 'Something to read' : 'Something to read or watch') }}</span>
+        <span class="ta-tag" ng-if="vm.next.item !== 'material' && vm.next.qn"><i class="fas fa-list-ol"></i>{{ vm.X.plural(vm.next.qn, 'question') }}</span>
+        <span class="ta-tag" ng-if="vm.next.item !== 'material' && vm.next.limit"><i class="far fa-clock"></i>About {{ vm.next.limit }} min</span>
+        <span class="ta-tag" ng-if="vm.next.item !== 'material' && vm.next.instant"><i class="fas fa-star"></i>Score as soon as you submit</span>
+        <span class="ta-tag" ng-if="vm.next.item !== 'material' && vm.next.isRetake"><i class="fas fa-redo"></i>Retake</span>
+        <span class="ta-tag" ng-if="vm.next.inProgress"><i class="fas fa-save"></i>Saved — pick up where you were</span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go(vm.next)" no-busy-guard><i class="fas" ng-class="vm.next.item === 'material' ? 'fa-book-open' : 'fa-play'"></i>{{ vm.next.act }}</button>
+      </div>
+    </section>
+    <div class="ta-note ta-note--good" ng-if="!vm.next"><i class="fas fa-check-circle"></i><div><b>You’re all caught up.</b> Nothing to do right now. New work from your instructor appears here, and you get an email when it does.</div></div>
+
+    <!-- everything -->
+    <section class="ta-list qx-list" aria-label="Questionnaires and reading">
+      <div class="ta-list__tools">
+        <div class="ta-chips">
+          <button type="button" class="ta-chip" ng-repeat="c in vm.chips" ng-class="{'ta-chip--on': vm.filter === c.k, 'ta-chip--attn': c.attn}" ng-click="vm.setFilter(c.k)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+        </div>
+      </div>
+      <div class="ta-list__cols"><span></span><span>Questionnaire or reading</span><span>When</span><span>Status</span><span class="ta-r">Score</span><span></span></div>
+      <div class="qx-gwrap" ng-repeat="g in vm.groups">
+        <div class="ta-group" ng-class="{'ta-group--attn': g.attn}"><span><i class="fas {{ g.ic }}"></i>{{ g.label }}</span><span>{{ g.list.length }}</span></div>
+        <div class="ta-row" ng-repeat="r in g.list" ng-class="{'ta-row--open': vm.open === r.key}">
+          <button type="button" class="ta-row__main" ng-click="vm.toggle(r)" aria-expanded="{{ vm.open === r.key }}" no-busy-guard>
+            <span class="ta-row__lead">
+              <span class="ta-ic" ng-class="{'ta-ic--brand': vm.X.isTodo(r) && r.item !== 'material', 'ta-ic--good': vm.X.isDone(r) && !r.failed, 'ta-ic--bad': r.failed}"><i class="fas" ng-class="r.item === 'material' ? (r.ft === 'video' ? 'fa-film' : 'fa-file-pdf') : 'fa-clipboard-check'"></i></span>
+            </span>
+            <span class="ta-row__txt">
+              <span class="ta-row__title">{{ r.title }}</span>
+              <span class="ta-row__sub">{{ r.item === 'material' ? ((r.ft === 'video' ? 'Video' : (r.ft ? 'PDF' : 'Reading')) + (r.target ? ' · ' + r.target : '')) : (r.target || 'Questionnaire') }}{{ r.isRetake && vm.X.isTodo(r) ? ' · retake' : '' }}</span>
+            </span>
+            <span class="ta-row__meta">
+              <span class="qx-when" ng-class="{'qx-when--bad': vm.X.when(r).bad}"><b>{{ vm.X.when(r).l1 }}</b><span ng-show="vm.X.when(r).l2">{{ vm.X.when(r).l2 }}</span></span>
+              <span class="ta-pill ta-pill--{{ r.st.tone }}"><i class="fas {{ r.st.ic }}"></i>{{ r.st.label }}</span>
+            </span>
+            <span class="ta-row__end"><span class="qx-score" ng-if="r.score">{{ r.score.auto }}<small>/{{ r.score.max }}</small></span><span class="ta-muted ta-desk-only" ng-if="!r.score">—</span></span>
+            <span class="ta-row__acts"><span class="ta-btn ta-btn--sm" ng-class="{'ta-btn--primary': vm.X.isTodo(r) && !r.failed}" role="button" tabindex="0" ng-click="$event.stopPropagation(); vm.go(r)">{{ r.act }}</span></span>
+            <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="ta-detail" ng-if="vm.open === r.key">
+            <div class="qx-quote" ng-if="r.message"><span class="ta-av" ng-if="r.by" title="{{ r.by }} (instructor)">{{ vm.X.initials(r.by) }}</span><span class="ta-av" ng-if="!r.by" title="Your instructor"><i class="fas fa-chalkboard-teacher"></i></span><div class="qx-quote__txt"><p>{{ r.message }}</p><span class="qx-quote__by"><b>{{ r.by || 'Your instructor' }}</b>{{ r.setAt ? ' · set ' + vm.X.fDay(r.setAt) : '' }}</span></div></div>
+            <p class="ta-muted" ng-if="!r.message && r.setAt">Set on {{ vm.X.fDayLong(r.setAt) }}</p>
+            <div class="ta-panel ta-panel--white">
+              <dl class="ta-facts ta-facts--3">
+                <div class="ta-fact"><dt>Type</dt><dd>{{ r.item === 'material' ? 'Something to read or watch' : 'Questionnaire' }}</dd></div>
+                <div class="ta-fact" ng-if="r.due"><dt>Due</dt><dd>{{ vm.X.fDayLong(r.due) }}</dd></div>
+                <div class="ta-fact" ng-if="r.attempt && r.attempt.submitted_at"><dt>Submitted</dt><dd>{{ vm.X.fDayLong(r.attempt.submitted_at) }}</dd></div>
+                <div class="ta-fact" ng-if="r.attempt && r.attempt.time_spent_seconds"><dt>Time spent</dt><dd>{{ vm.X.mins(r.attempt.time_spent_seconds) }}</dd></div>
+                <div class="ta-fact" ng-if="r.score"><dt>Score</dt><dd>{{ r.score.auto }} / {{ r.score.max }}</dd></div>
+              </dl>
+            </div>
+            <div class="ta-panel ta-panel--white" ng-if="r.history.length">
+              <div class="ta-panel__hd"><i class="fas fa-history"></i>Previous attempts</div>
+              <div class="qx-hist__row" ng-repeat="at in r.history">
+                <span class="qx-hist__n">Attempt {{ at.attempt_number || (r.history.length - $index) }}</span>
+                <span class="ta-pill ta-pill--{{ vm.X.histStatus(at).tone }}"><i class="fas {{ vm.X.histStatus(at).ic }}" ng-show="vm.X.histStatus(at).ic"></i>{{ vm.X.histStatus(at).label }}</span>
+                <span class="qx-score" ng-if="at.score_released == 1 && at.max_score">{{ at.auto_score }}<small>/{{ at.max_score }}</small></span>
+                <span class="ta-row__date" ng-if="at.submitted_at">{{ vm.X.fDay(at.submitted_at) }}</span>
+                <span class="ta-sp"></span>
+                <button type="button" class="ta-link" ng-if="vm.X.histViewable(at)" ng-click="vm.goAttempt(at)" no-busy-guard>See result <i class="fas fa-arrow-right"></i></button>
+              </div>
+            </div>
+            <div class="ta-detail__foot"><span class="ta-sp"></span><button type="button" class="ta-btn" ng-class="{'ta-btn--primary': vm.X.isTodo(r)}" ng-click="vm.go(r)" no-busy-guard><i class="fas" ng-class="r.item === 'material' ? 'fa-book-open' : (vm.X.isTodo(r) ? 'fa-play' : 'fa-eye')"></i>{{ r.act }}</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>

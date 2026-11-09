@@ -1,0 +1,52 @@
+<!-- one CAA form (f) — opens in place: progress, notes, signatures, facts, actions -->
+<button type="button" class="ta-row__main" ng-click="vm.toggle(f)" aria-expanded="{{ vm.open === f.key }}" no-busy-guard>
+  <span class="ta-row__lead"><span class="ta-ic" ng-class="{'ta-ic--brand': f.need, 'ta-ic--good': !f.need && f.status === 'completed', 'ta-ic--bad': !f.need && f.status === 'declined'}"><i class="fas" ng-class="f.need ? 'fa-file-signature' : 'fa-file-contract'"></i></span></span>
+  <span class="ta-row__txt">
+    <span class="ta-row__title">{{ f.titleText }}</span>
+    <span class="ta-row__sub">{{ f.initiated_by_name ? 'Started by ' + f.initiated_by_name + ' · ' + f.club_title : f.club_title + (f.created_at ? ' · started ' + vm.X.fDate(f.created_at) : '') }}{{ f.need && f.role ? ' · signing as ' + (vm.X.ROLE[f.role] || f.role) : '' }}</span>
+  </span>
+  <span class="ta-row__meta">
+    <span class="qx-mini"><span class="ta-steps"><span class="qx-stepwrap" ng-repeat="s in f.steps.steps"><span class="ta-steps__line" ng-if="$index" ng-class="{'ta-steps__line--done': s.s === 'done'}"></span><span class="ta-steps__s" ng-class="s.s ? 'ta-steps__s--' + s.s : ''" title="{{ s.t }}"><i></i></span></span></span><span>{{ f.steps.label }}</span></span>
+    <span class="ta-pill ta-pill--{{ f.st.tone }}"><i class="fas {{ f.st.ic }}" ng-show="f.st.ic"></i>{{ f.st.label }}</span>
+  </span>
+  <span class="ta-row__acts">
+    <span class="ta-btn ta-btn--primary ta-btn--sm" ng-if="f.need" role="button" tabindex="0" ng-click="$event.stopPropagation(); vm.openForm(f)"><i class="fas fa-pen-nib"></i>Review and sign</span>
+    <span class="ta-ib" ng-if="f.status === 'completed'" role="button" tabindex="0" ng-click="$event.stopPropagation(); vm.pdf(f)" title="Download PDF" aria-label="Download PDF"><i class="fas" ng-class="f._pdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i></span>
+    <span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.open === f.key ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span>
+  </span>
+  <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+</button>
+<div class="ta-detail" ng-if="vm.open === f.key">
+  <div class="ta-panel ta-panel--white">
+    <div class="ta-panel__hd"><i class="fas fa-route"></i>Progress</div>
+    <span class="ta-steps qx-bigsteps"><span class="qx-stepwrap" ng-repeat="s in f.steps.steps"><span class="ta-steps__line" ng-if="$index" ng-class="{'ta-steps__line--done': s.s === 'done'}"></span><span class="ta-steps__s" ng-class="s.s ? 'ta-steps__s--' + s.s : ''"><i></i>{{ s.t }}</span></span></span>
+  </div>
+  <div class="ta-note ta-note--warn" ng-if="f.need"><i class="fas fa-pen-nib"></i><div><b>Your signature is needed.</b> Read the form through, then sign as the {{ (vm.X.ROLE[f.role] || 'applicant').replace(' (you)', '').toLowerCase() }}.</div></div>
+  <div class="ta-note ta-note--bad" ng-if="f.declined"><i class="fas fa-times-circle"></i><div><b>Declined{{ f.declined.signer_name ? ' by ' + f.declined.signer_name : '' }}:</b> “{{ f.declined.decline_reason || 'no reason given' }}” The instructor can correct it and send it round again.</div></div>
+  <div class="ta-note ta-note--info" ng-if="f.status === 'awaiting_hot'"><i class="fas fa-user-tie"></i><div>Nothing for you to do — the Head of Training checks and countersigns it next.</div></div>
+  <div class="ta-note ta-note--good" ng-if="f.status === 'completed'"><i class="fas fa-check-circle"></i><div>Completed{{ f.completed_at ? ' ' + vm.X.fDayLong(f.completed_at) : '' }}. Download the signed PDF for your records or your CAA application.</div></div>
+  <div class="ta-note" ng-if="f.read_only"><i class="fas fa-lock"></i><div>Your membership of this club has ended: this form is read-only.</div></div>
+  <div class="ta-panel ta-panel--white" ng-if="f.signatures.length">
+    <div class="ta-panel__hd"><i class="fas fa-signature"></i>Signatures</div>
+    <div class="qx-sig" ng-repeat="s in f.signatures">
+      <span class="ta-av" ng-if="s.role !== 'applicant' && s.signer_name" style="--av:{{ s.signer_colour || 'var(--ta-brand-2)' }}" title="{{ s.signer_name }}">{{ vm.X.initials(s.signer_name) }}</span>
+      <span class="ta-av ta-av--member" ng-if="s.role === 'applicant' || !s.signer_name"><i class="fas" ng-class="s.role === 'applicant' ? 'fa-user' : (s.role === 'hot' ? 'fa-user-tie' : 'fa-chalkboard-teacher')"></i></span>
+      <div><b>{{ s.role === 'applicant' ? (f.subject_name ? f.subject_name + ' (you)' : 'You') : (s.signer_name || 'Not signed yet') }}</b><small>{{ vm.X.ROLE[s.role] || s.role }}</small></div>
+      <span class="ta-pill ta-pill--{{ vm.X.sigPill(f, s).tone }}"><i class="fas {{ vm.X.sigPill(f, s).ic }}" ng-show="vm.X.sigPill(f, s).ic"></i>{{ vm.X.sigPill(f, s).label }}</span>
+    </div>
+  </div>
+  <div class="ta-panel ta-panel--white">
+    <dl class="ta-facts ta-facts--3">
+      <div class="ta-fact"><dt>Form</dt><dd>{{ f.titleText }}</dd></div>
+      <div class="ta-fact" ng-if="f.docs"><dt>Documents</dt><dd>{{ f.docs.charAt(0).toUpperCase() + f.docs.slice(1) }}</dd></div>
+      <div class="ta-fact"><dt>Club</dt><dd>{{ f.club_title || '—' }}</dd></div>
+      <div class="ta-fact" ng-if="f.created_at"><dt>Started</dt><dd>{{ vm.X.fDay(f.created_at) }} <small ng-if="f.initiated_by_name">· {{ f.initiated_by_name }}</small></dd></div>
+    </dl>
+  </div>
+  <div class="ta-detail__foot">
+    <button type="button" class="ta-btn" ng-click="vm.openForm(f)" no-busy-guard><i class="fas fa-eye"></i>Open the form</button>
+    <span class="ta-sp"></span>
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="f.need" ng-click="vm.openForm(f)" no-busy-guard><i class="fas fa-pen-nib"></i>Review and sign</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="f.status === 'completed'" ng-click="vm.pdf(f)" ng-disabled="f._pdf" no-busy-guard><i class="fas" ng-class="f._pdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>{{ f._pdf ? 'Preparing…' : 'Download PDF' }}</button>
+  </div>
+</div>

@@ -25,6 +25,37 @@ app.controller('LoginController', LoginController);
         vm.toggleRecovery = toggleRecovery;
         vm.backToPassword = backToPassword;
 
+        // ── "Lost your phone and your recovery codes?" (C28) — stage 'lost' on top of the code screen ──
+        vm.lost = { why: '', err: '', busy: false, sent: false, message: '' };
+        vm.lostOpen = function () {
+            vm.lost = { why: '', err: '', busy: false, sent: false, message: '' };
+            vm.stage = 'lost';
+            $timeout(function () { var el = document.getElementById('two_factor_lost_why'); if (el) { el.focus(); } }, 100);
+        };
+        vm.lostBack = function () {
+            if (vm.lost.busy) { return; }
+            vm.stage = 'code';
+            $timeout(function () { var el = document.getElementById('two_factor_code'); if (el) { el.focus(); } }, 100);
+        };
+        vm.lostSend = function () {
+            var L = vm.lost; if (L.busy) { return; }
+            var why = String(L.why || '').trim();
+            if (!why) { L.err = 'Tell us what happened.'; ToastService.highlightField('two_factor_lost_why'); return; }
+            L.err = ''; L.busy = true;
+            AuthenticationService.TwoFactorHelp(vm.two_factor_token, why.slice(0, 1000), function (response) {
+                $timeout(function () {
+                    L.busy = false;
+                    if (response && response.success !== false) {
+                        var m = response.message;
+                        L.message = (typeof m === 'string' && m.length < 400 && m.indexOf('<') === -1) ? m : '';
+                        L.sent = true;
+                        return;
+                    }
+                    L.err = 'Your request could not be sent just now. Try again in a moment.';
+                });
+            });
+        };
+
         // ── Passkey (biometric) sign-in ──
         vm.passkeySupported = WebauthnService.isSupported();
         vm.passkeyLoading = false;

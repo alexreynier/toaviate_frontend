@@ -1,0 +1,218 @@
+<!-- v2 · My details → Security (mockups/my-account/security.html). SecurityV2Controller (js/v2/security/security.js). -->
+<div class="sc-wrap">
+<main class="ta-page sc-page">
+
+    <pro-details-bar active="security" locked="vm.locked" icon="fa-lock" heading="Security" sub="How you sign in, and the addresses we email"></pro-details-bar>
+
+    <!-- loading -->
+    <div class="ta-stack" ng-if="vm.loading">
+        <section class="ta-card"><span class="ta-skel sc-skel sc-skel--42"></span><div class="ta-tiles"><span class="ta-skel sc-skel sc-skel--84"></span><span class="ta-skel sc-skel sc-skel--84"></span><span class="ta-skel sc-skel sc-skel--84"></span></div></section>
+        <div class="sc-cols">
+            <section class="ta-card"><span class="ta-skel sc-skel sc-skel--36"></span><span class="ta-skel sc-skel sc-skel--56"></span><span class="ta-skel sc-skel sc-skel--56"></span></section>
+            <section class="ta-card"><span class="ta-skel sc-skel sc-skel--46"></span><span class="ta-skel sc-skel sc-skel--48"></span><span class="ta-skel sc-skel sc-skel--48"></span></section>
+        </div>
+    </div>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your security settings</h4><p>Check your connection, then try again. Nothing has changed on your account.</p>
+            <button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <!-- ═══ the club's enrolment lock: two ways out ═══ -->
+    <section class="ta-card ta-card--attn" ng-if="!vm.loading && !vm.loadError && vm.locked" aria-label="Two-factor required">
+        <div class="ta-card__hd"><span class="ta-card__icon ta-card__icon--warn"><i class="fas fa-user-shield"></i></span>
+            <div class="ta-card__ttl"><h3>Your club requires two-factor authentication</h3><p>Add a second step to your sign-in to keep using ToAviate. It takes about two minutes.</p></div></div>
+        <div class="ta-note ta-note--warn"><i class="fas fa-lock"></i><div>Until you do, every other page brings you back here.</div></div>
+        <span class="ta-sec-k">Choose one — you can add the other later</span>
+        <div class="sc-choices">
+            <button type="button" class="ta-opt sc-choice" ng-click="vm.tfaOn()" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-mobile-alt"></i></span><span><span class="ta-opt__t">Authenticator app</span><span class="ta-opt__s">A 6-digit code from Google Authenticator, 1Password or Authy each time you sign in. Works on any device.</span></span><i class="fas fa-chevron-right sc-chev"></i></button>
+            <button type="button" class="ta-opt sc-choice" ng-click="vm.pkAdd()" ng-disabled="!vm.supported" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-fingerprint"></i></span><span><span class="ta-opt__t">Passkey</span><span class="ta-opt__s">{{ vm.supported ? 'Face ID, Touch ID or your device PIN on this device. Nothing to type.' : 'This browser can\'t create passkeys — use the app, or a recent Safari, Chrome or Edge.' }}</span></span><i class="fas fa-chevron-right sc-chev"></i></button>
+        </div>
+    </section>
+
+    <div class="ta-stack" ng-if="!vm.loading && !vm.loadError && !vm.locked">
+
+        <!-- ═══ status band: one verdict + the tiles ═══ -->
+        <section class="ta-card sc-band" aria-label="Security summary">
+            <div class="sc-band__head">
+                <span class="ta-card__icon sc-band__ic" ng-class="{'ta-card__icon--done': vm.verdict().tone === 'good', 'ta-card__icon--warn': vm.verdict().tone === 'warn'}"><i class="fas" ng-class="vm.verdict().ic"></i></span>
+                <div><h3>{{ vm.verdict().t }}</h3><p>{{ vm.verdict().s }}</p></div>
+            </div>
+            <div class="ta-tiles" ng-class="{'sc-tiles-3': !vm.status.enabled}">
+                <div class="ta-tile" ng-class="vm.status.enabled ? 'ta-tile--good' : 'ta-tile--attn'">
+                    <span class="ta-tile__k"><i class="fas fa-mobile-alt"></i>Two-factor</span>
+                    <span class="ta-tile__v ta-tile__v--words">{{ vm.status.enabled ? 'On' : 'Off' }}</span>
+                    <span class="ta-tile__s">{{ vm.status.enabled ? 'Code from your app at every sign-in' + (vm.status.confirmed_at ? ' · since ' + vm.U.fDate(vm.status.confirmed_at) : '') : 'Only your password protects this account' }}</span>
+                    <button type="button" class="ta-tile__go" ng-if="!vm.status.enabled" ng-click="vm.tfaOn()" no-busy-guard>Turn it on <i class="fas fa-arrow-right"></i></button>
+                </div>
+                <div class="ta-tile">
+                    <span class="ta-tile__k"><i class="fas fa-fingerprint"></i>Passkeys</span>
+                    <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.passkeys.length}">{{ vm.passkeys.length || 'None' }}</span>
+                    <span class="ta-tile__s" ng-if="vm.passkeys.length">{{ vm.lastPk() ? 'Last used ' + vm.W.when(vm.lastPk()) : 'Added ' + vm.W.when(vm.newestPk()) + ' · not used yet' }}</span>
+                    <span class="ta-tile__s" ng-if="!vm.passkeys.length">{{ vm.supported ? 'Sign in with Face ID, Touch ID or your PIN' : 'This browser can\'t add one' }}</span>
+                </div>
+                <div class="ta-tile" ng-if="vm.em.loading || vm.em.error">
+                    <span class="ta-tile__k"><i class="fas fa-envelope"></i>Email addresses</span><span class="ta-tile__v ta-tile__v--quiet">—</span>
+                    <span class="ta-tile__s">{{ vm.em.loading ? 'Loading…' : 'Couldn\'t load — see the card below' }}</span>
+                </div>
+                <div class="ta-tile" ng-if="!vm.em.loading && !vm.em.error" ng-class="{'ta-tile--attn': vm.pendingCount()}">
+                    <span class="ta-tile__k"><i class="fas fa-envelope"></i>Email addresses</span>
+                    <span class="ta-tile__v">{{ vm.verifiedCount() }} verified</span>
+                    <span class="ta-tile__s">{{ vm.pendingCount() ? vm.pendingCount() + ' awaiting confirmation — check your inbox' : 'Notifications go to ' + (vm.primary() ? vm.primary().email : '—') }}</span>
+                </div>
+                <div class="ta-tile" ng-if="vm.status.enabled" ng-class="{'ta-tile--bad': vm.codes() === 0, 'ta-tile--attn': vm.codes() > 0 && vm.codes() <= vm.W.LOW_CODES}">
+                    <span class="ta-tile__k"><i class="fas fa-life-ring"></i>Recovery codes</span>
+                    <span class="ta-tile__v">{{ vm.codes() }} left</span>
+                    <span class="ta-tile__s">{{ vm.codes() <= vm.W.LOW_CODES ? 'Running low — make new ones' : 'Of 10 · each signs you in once' }}</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="sc-cols">
+            <div class="ta-stack">
+                <!-- ═══ Sign-in: password · two-factor · passkeys ═══ -->
+                <section class="ta-card ta-card--flush" aria-label="Sign-in">
+                    <div class="sc-hd ta-card__hd"><span class="ta-card__icon"><i class="fas fa-sign-in-alt"></i></span><div class="ta-card__ttl"><h3>Sign-in</h3><p>What it takes to get into your account</p></div></div>
+                    <div class="sc-rows">
+                        <div class="sc-meth">
+                            <span class="ta-ic"><i class="fas fa-key"></i></span>
+                            <div class="sc-meth__txt"><span class="sc-meth__t">Password</span><span class="sc-meth__s">You'll need your current password to change it.</span></div>
+                            <div class="sc-meth__act"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.pwOpen()" no-busy-guard><i class="fas fa-key"></i>Change password</button></div>
+                        </div>
+                        <div class="sc-meth">
+                            <span class="ta-ic"><i class="fas fa-mobile-alt"></i></span>
+                            <div class="sc-meth__txt">
+                                <span class="sc-meth__t">Two-factor authentication
+                                    <span class="ta-pill ta-pill--good" ng-if="vm.status.enabled"><i class="fas fa-check"></i>On</span>
+                                    <span class="ta-pill ta-pill--muted" ng-if="!vm.status.enabled"><i class="fas fa-minus-circle"></i>Off</span></span>
+                                <span class="sc-meth__s">{{ vm.status.enabled ? 'A 6-digit code from your authenticator app at every sign-in.' + (vm.status.confirmed_at ? ' On since ' + vm.U.fDate(vm.status.confirmed_at) + '.' : '') : 'After your password, a 6-digit code from an app such as Google Authenticator, 1Password or Authy.' }}</span>
+                                <span class="ta-tag" ng-if="vm.status.club_requires_two_factor"><i class="fas fa-building"></i>Required by your club</span>
+                            </div>
+                            <div class="sc-meth__act" ng-if="vm.status.enabled"><button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.tfaOff()" no-busy-guard><i class="fas fa-power-off"></i>Turn off</button></div>
+                            <div class="sc-meth__act sc-meth__act--wide" ng-if="!vm.status.enabled"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.tfaOn()" no-busy-guard><i class="fas fa-shield-alt"></i>Turn on two-factor</button></div>
+                        </div>
+                    </div>
+                    <div class="sc-sec">
+                        <span class="ta-ic"><i class="fas fa-fingerprint"></i></span>
+                        <div class="sc-meth__txt"><span class="sc-meth__t">Passkeys <span class="ta-tag ta-num">{{ vm.passkeys.length }}</span></span><span class="sc-meth__s">Sign in with Face ID, Touch ID or your device PIN — no password, no code.</span></div>
+                    </div>
+                    <div class="sc-list" ng-if="vm.passkeys.length">
+                        <div class="ta-row" ng-repeat="pk in vm.passkeys" ng-class="{'ta-row--open': vm.pkOpen === pk.id}">
+                            <button type="button" class="ta-row__main" ng-click="vm.pkToggle(pk)" aria-expanded="{{ vm.pkOpen === pk.id }}" no-busy-guard>
+                                <span class="ta-row__lead"><span class="ta-ic"><i ng-class="vm.W.pkKind(pk).ic"></i></span></span>
+                                <span class="ta-row__txt"><span class="ta-row__title">{{ pk.label }}</span><span class="ta-row__sub">{{ vm.W.pkKind(pk).name }} · {{ pk.last_used_at ? 'last used ' + vm.W.when(pk.last_used_at) : 'not used yet' }}</span></span>
+                                <span class="ta-row__meta"><span class="ta-row__date">Added {{ vm.U.fDate(pk.created_at) }}</span></span>
+                                <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.pkOpen === pk.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+                                <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+                            </button>
+                            <div class="ta-detail" ng-if="vm.pkOpen === pk.id">
+                                <div class="ta-panel ta-panel--white"><dl class="ta-facts">
+                                    <div class="ta-fact"><dt>Stored in</dt><dd>{{ vm.W.pkKind(pk).name }}</dd></div>
+                                    <div class="ta-fact"><dt>Works on</dt><dd>{{ vm.W.pkKind(pk).works }}</dd></div>
+                                    <div class="ta-fact"><dt>Added</dt><dd>{{ vm.U.fDate(pk.created_at) }}</dd></div>
+                                    <div class="ta-fact"><dt>Last used</dt><dd>{{ pk.last_used_at ? vm.W.Cap(vm.W.when(pk.last_used_at)) : 'Not used yet' }}</dd></div>
+                                </dl></div>
+                                <form class="ta-field" ng-class="{'ta-field--error': vm.pkNameErr}" ng-submit="vm.pkRename(pk)" novalidate>
+                                    <label class="ta-label" for="passkey-rename-label">Name</label>
+                                    <div class="sc-inline"><input class="ta-input" id="passkey-rename-label" maxlength="60" ng-model="vm.pkName" ng-change="vm.pkNameErr = false" spellcheck="false"><button type="submit" class="ta-btn">Save name</button></div>
+                                    <span class="ta-field__msg" ng-if="vm.pkNameErr">Give it a name, like “Sam's iPhone”.</span>
+                                    <span class="ta-hint" ng-if="!vm.pkNameErr">So you can tell your devices apart.</span>
+                                </form>
+                                <div class="ta-detail__foot"><span class="ta-hint">Removing it here stops it working; you can also delete it from that device's password manager.</span><span class="ta-sp"></span>
+                                    <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.pkRemove(pk)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove passkey</button></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sc-empty" ng-if="!vm.passkeys.length"><i class="fas fa-fingerprint"></i><span>No passkeys yet. Add one on each phone or computer you sign in from.</span></div>
+                    <div class="sc-foot" ng-if="vm.supported"><div class="sc-foot__row"><button type="button" class="ta-btn" ng-click="vm.pkAdd()" no-busy-guard><i class="fas fa-plus"></i>Add a passkey</button><span class="ta-hint">Adds one for the device you're using now.</span></div></div>
+                    <div class="sc-foot" ng-if="!vm.supported"><div class="ta-note"><i class="fas fa-info-circle"></i><div>This browser can't create passkeys. You can still rename or remove the ones above. To add one, use a recent Safari, Chrome or Edge on a device with a screen lock.</div></div></div>
+                </section>
+            </div>
+
+            <div class="ta-stack">
+                <!-- ═══ Email addresses ═══ -->
+                <section class="ta-card ta-card--flush" aria-label="Email addresses">
+                    <div class="sc-hd ta-card__hd"><span class="ta-card__icon"><i class="fas fa-envelope"></i></span><div class="ta-card__ttl"><h3>Email addresses</h3><p>Sign in with any verified address. Notifications go to your primary.</p></div>
+                        <span class="ta-card__right" ng-if="!vm.em.loading && !vm.em.error"><span class="ta-tag ta-num">{{ vm.verifiedCount() }} of {{ vm.em.limits.max_verified }}</span></span></div>
+                    <div class="sc-foot sc-skelrows" ng-if="vm.em.loading"><span class="ta-skel sc-skel sc-skel--44"></span><span class="ta-skel sc-skel sc-skel--44"></span><span class="ta-skel sc-skel sc-skel--60w"></span></div>
+                    <div class="sc-errbox" ng-if="!vm.em.loading && vm.em.error"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your addresses</h4><p>Check your connection, then try again. Nothing has changed on your account.</p>
+                        <button type="button" class="ta-btn" ng-click="vm.loadEmails()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+                    <div ng-if="!vm.em.loading && !vm.em.error">
+                        <div class="sc-list">
+                            <div class="ta-row" ng-repeat="r in vm.em.rows track by r.id" ng-class="{'ta-row--open': vm.emOpen === r.id, 'sc-row--static': +r.is_primary}">
+                                <div class="ta-row__main" ng-if="+r.is_primary">
+                                    <span class="ta-row__lead"><span class="ta-ic ta-ic--group"><i class="fas fa-star"></i></span></span>
+                                    <span class="ta-row__txt"><span class="ta-row__title sc-email">{{ r.email }}</span><span class="ta-row__sub">Sign-in, notifications and password resets</span></span>
+                                    <span class="ta-row__meta"><span class="ta-pill ta-pill--info"><i class="fas fa-star"></i>Primary</span></span>
+                                    <span class="ta-row__acts"></span>
+                                </div>
+                                <button type="button" class="ta-row__main" ng-if="!+r.is_primary" ng-click="vm.emToggle(r)" aria-expanded="{{ vm.emOpen === r.id }}" no-busy-guard>
+                                    <span class="ta-row__lead"><span class="ta-ic" ng-class="{'sc-ic--pend': r.pending}"><i class="fas" ng-class="r.pending ? 'fa-envelope-open-text' : 'fa-envelope'"></i></span></span>
+                                    <span class="ta-row__txt"><span class="ta-row__title sc-email">{{ r.email }}</span>
+                                        <span class="ta-row__sub">{{ r.pending ? 'Can\'t sign in yet · ' + vm.W.expires(r) : 'Can sign in · no notifications' }}</span></span>
+                                    <span class="ta-row__meta"><span class="ta-pill" ng-class="'ta-pill--' + vm.W.email(r).tone"><i class="fas" ng-class="vm.W.email(r).icon"></i>{{ vm.W.email(r).label }}</span></span>
+                                    <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.emOpen === r.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+                                    <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+                                </button>
+                                <div class="ta-detail" ng-if="vm.emOpen === r.id && !+r.is_primary">
+                                    <div class="ta-panel ta-panel--white"><dl class="ta-facts">
+                                        <div class="ta-fact" ng-if="r.pending"><dt>Confirmation link</dt><dd>Sent · {{ vm.W.expires(r) }}</dd></div>
+                                        <div class="ta-fact" ng-if="r.pending"><dt>Until it's confirmed</dt><dd>It can't sign in or get email</dd></div>
+                                        <div class="ta-fact" ng-if="!r.pending"><dt>Verified</dt><dd>{{ vm.U.fDate(r.verified_at) || '—' }}</dd></div>
+                                        <div class="ta-fact" ng-if="!r.pending"><dt>Gets notifications</dt><dd>No — only your primary does</dd></div>
+                                    </dl></div>
+                                    <div class="ta-confirm ta-confirm--inline" role="group" aria-label="Confirm removal" ng-if="vm.emConfirm === r.id">
+                                        <span>Remove <b>{{ r.email }}</b>? You'll confirm it's you next.</span>
+                                        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.emRemoveNo()" no-busy-guard>Keep it</button>
+                                        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.emRemoveYes(r)" no-busy-guard><i class="fas fa-trash-alt"></i>Yes, remove</button>
+                                    </div>
+                                    <div class="ta-detail__foot" ng-if="vm.emConfirm !== r.id">
+                                        <button type="button" class="ta-btn" ng-if="r.pending && r.can_resend !== false" ng-click="vm.emResend(r)" ng-disabled="vm.resendLocked(r)"><i class="fas" ng-class="vm.resendLocked(r) ? 'fa-check' : 'fa-paper-plane'"></i>{{ vm.resendLocked(r) ? 'Sent — resend in a minute' : 'Resend link' }}</button>
+                                        <span class="ta-hint" ng-if="r.pending && r.can_resend === false">We've sent this link 5 times. Remove the address and add it again.</span>
+                                        <button type="button" class="ta-btn" ng-if="!r.pending" ng-click="vm.emPrimary(r)" no-busy-guard><i class="fas fa-star"></i>Make primary</button>
+                                        <span class="ta-sp"></span>
+                                        <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.emRemoveAsk(r)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sc-empty" ng-if="!vm.em.rows.length"><i class="fas fa-envelope-open"></i><span>No email addresses on this account.</span></div>
+                        </div>
+                        <div class="sc-foot">
+                            <div class="ta-note ta-note--info" ng-if="vm.emNotice"><i class="fas fa-envelope-open-text"></i><div>{{ vm.emNotice }}</div></div>
+                            <form ng-if="vm.emAdding" class="ta-stack" ng-submit="vm.emSubmit()" novalidate>
+                                <div class="ta-field" ng-class="{'ta-field--error': vm.emErr}">
+                                    <label class="ta-label" for="field-ae-email"><i class="fas fa-at"></i>New email address</label>
+                                    <input class="ta-input" id="field-ae-email" type="email" ng-model="vm.emNew" ng-model-options="{ allowInvalid: true }" ng-change="vm.emErr = ''" autocomplete="email" placeholder="you@example.com" spellcheck="false" autocapitalize="off" autocorrect="off">
+                                    <span class="ta-field__msg" ng-if="vm.emErr">{{ vm.emErr }}</span>
+                                    <span class="ta-hint" ng-if="!vm.emErr">We'll email a link to confirm it. The link works for 24 hours.</span>
+                                </div>
+                                <div class="sc-foot__row"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.emCancel()" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="submit" class="ta-btn ta-btn--primary" no-busy-guard><i class="fas fa-paper-plane"></i>Send confirmation link</button></div>
+                            </form>
+                            <div class="sc-foot__row" ng-if="!vm.emAdding">
+                                <button type="button" class="ta-btn" ng-click="vm.emAddOpen()" ng-disabled="!vm.canAdd()" no-busy-guard><i class="fas fa-plus"></i>Add an address</button>
+                                <span class="ta-hint" ng-if="vm.canAdd()">{{ vm.verifiedCount() }} of {{ vm.em.limits.max_verified }} verified addresses used{{ vm.pendingCount() ? ' · ' + vm.pendingCount() + ' awaiting confirmation' : '' }}</span>
+                                <span class="ta-hint" ng-if="!vm.canAdd()">You can have up to {{ vm.em.limits.max_verified }} addresses. Remove one to add another.</span>
+                            </div>
+                            <p class="ta-hint">Any verified address can sign in and reset your password. Only your primary gets notifications.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══ Recovery codes (with two-factor on) ═══ -->
+                <section class="ta-card sc-rc" aria-label="Recovery codes" ng-if="vm.status.enabled">
+                    <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.W.codesTone(vm.codes()) !== 'good'}"><i class="fas fa-life-ring"></i></span><div class="ta-card__ttl"><h3>Recovery codes</h3><p>Your way in if you lose your phone</p></div></div>
+                    <div class="ta-stack">
+                        <div class="sc-rc__fig"><span class="sc-rc__n">{{ vm.codes() }}</span><span class="sc-rc__of">of 10 left</span></div>
+                        <div class="ta-meter" ng-class="'ta-meter--' + vm.W.codesTone(vm.codes())"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.codes() * 10 }}%"></div></div>
+                        <p class="ta-hint">Each code signs you in once, in place of a code from your app. We only showed them when they were made — if you've lost them, make new ones.</p>
+                        <div class="ta-note ta-note--warn" ng-if="vm.codes() <= vm.W.LOW_CODES"><i class="fas fa-exclamation-triangle"></i><div><b>Only {{ vm.codes() }} left.</b> Make new codes now — your old ones stop working when you do.</div></div>
+                        <div><button type="button" class="ta-btn" ng-class="{'ta-btn--primary': vm.codes() <= vm.W.LOW_CODES}" ng-click="vm.rgOpen()" no-busy-guard><i class="fas fa-sync-alt"></i>Make new codes</button></div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div ng-include="'views/v2/security/_dialogs.html'"></div>
+</div>

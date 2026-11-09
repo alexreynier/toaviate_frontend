@@ -1,0 +1,118 @@
+<!-- ═══ v2 Aircraft status · fleet (state dashboard.v2.aircraft, AircraftV2Controller, data.screen 'fleet') ═══
+     Design: mockups/my-account/aircraft.html → Fleet. One panel per aircraft, grouped by club: status pill, hours + days to
+     maintenance (+ meter), quick actions, and four lines that open in place (Defects · Documents · Today's check · Last flight). -->
+<main class="ta-page acs-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-plane" aria-hidden="true"></i></span>
+        <div><h2>Aircraft status</h2><p>Maintenance, defects, documents and checks</p><p class="acs-classic"><design-back></design-back></p></div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools acs-tb" ng-if="!vm.loading && vm.clubs.length">
+      <div class="ta-scope" ng-if="vm.clubs.length > 1">
+        <span class="ta-scope__k">Showing</span>
+        <div class="ta-scope__set" role="tablist">
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.state.club === 'all'}" role="tab" aria-selected="{{ vm.state.club === 'all' }}" ng-click="vm.setClub('all')" no-busy-guard>All clubs</button>
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.state.club == c.id}" role="tab" aria-selected="{{ vm.state.club == c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c._title }}</button>
+        </div>
+      </div>
+      <div class="ta-chips">
+        <button type="button" class="ta-chip" ng-repeat="c in vm.chipList track by c.id" ng-class="{'ta-chip--attn': c.attn, 'ta-chip--on': vm.state.chip === c.id}" ng-click="vm.setChip(c.id)" no-busy-guard data-e2e="acs-chip-{{ c.id }}">{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+      </div>
+      <label class="ta-search"><i class="fas fa-search"></i><input id="acs-q" type="search" placeholder="Registration or type" ng-model="vm.state.q" ng-change="vm.onSearch()" aria-label="Search aircraft"></label>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <div class="ta-stack" ng-if="vm.loading" aria-label="Loading"><div class="acs-skel" ng-repeat="n in [1,2,3]"><div class="ta-skel"></div><div class="ta-skel acs-skel__big"></div><div class="ta-skel"></div></div></div>
+
+  <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.loadError"><i class="fas fa-exclamation-circle"></i><div><b>Couldn’t load the aircraft.</b> Check your connection and open this page again.</div></div>
+
+  <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.clubs.length">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plane"></i></span><h4>No aircraft to show yet</h4><p>When you join a club, its aircraft appear here with their hours and days to next maintenance, documents and any reported defects.</p><a class="ta-btn" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i>Back to My Account</a></div>
+  </section>
+
+  <section class="ta-card" ng-if="!vm.loading && vm.clubs.length && !vm.groups.length">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No aircraft match</h4><p><span ng-if="vm.state.q">Nothing matches “{{ vm.state.q }}”{{ vm.state.chip === 'ok' ? ' among the serviceable aircraft' : vm.state.chip === 'attn' ? ' among the aircraft that need attention' : vm.state.chip === 'grounded' ? ' among the grounded aircraft' : '' }}{{ vm.state.club !== 'all' ? ' at this club' : '' }}</span><span ng-if="!vm.state.q">No aircraft in this view</span>. Search by registration (G-BMTJ or BMTJ) or type.</p><button type="button" class="ta-btn" ng-click="vm.clearSearch()" no-busy-guard>Show all aircraft</button></div>
+  </section>
+
+  <section class="acs-club" ng-repeat="g in vm.groups track by g.club.id" aria-label="{{ g.club._title }}">
+    <div class="acs-clubhd"><h3>{{ g.club._title }}</h3><span class="ta-route" ng-if="g.club._home"><b class="ta-icao">{{ g.club._home.code }}</b><span>{{ g.club._home.title }}</span></span><span class="acs-clubhd__n">{{ vm.plural(g.planes.length, 'aircraft', 'aircraft') }}</span></div>
+    <div class="acs-list">
+      <article class="acs-ac" ng-repeat="p in g.planes track by p.plane_id" ng-class="{'acs-ac--bad': p._st.tone === 'bad', 'acs-ac--warn': p._st.tone === 'warn'}"
+               ng-attr-style="{{ p._colour ? '--ac:' + p._colour : undefined }}" aria-label="{{ p.registration }} — {{ p._st.label }}" data-e2e="acs-ac">
+        <div class="acs-ac__hd">
+          <div class="acs-ac__id">
+            <button type="button" class="acs-ac__reg" ng-click="vm.openOne(p)" aria-label="Open {{ p.registration }} full status" no-busy-guard>{{ p.registration }}</button>
+            <span class="acs-ac__model">{{ (p._model || p.plane_type) + (p._seats ? ' · ' + p._seats + ' seats' : '') }}</span>
+            <span class="acs-ac__tags" ng-if="+p.nav_only || +p.dual_only || p._outTag">
+              <span class="ta-tag" ng-if="+p.nav_only"><i class="fas fa-compass"></i>Nav only</span>
+              <span class="ta-tag" ng-if="+p.dual_only"><i class="fas fa-user-friends"></i>Dual only</span>
+              <span class="ta-tag" ng-if="p._outTag" title="{{ p._outNow }}"><i class="fas" ng-class="p._out && p._out.k !== 'flying' ? 'fa-plane-arrival' : 'fa-plane-departure'"></i>{{ p._outTag }}</span>
+            </span>
+          </div>
+          <div class="acs-ac__end">
+            <span class="ta-pill" ng-class="'ta-pill--' + p._st.tone"><i class="fas" ng-class="p._st.ic"></i>{{ p._st.label }}</span>
+            <button type="button" class="ta-link ta-desk-only" ng-click="vm.openOne(p)" no-busy-guard>Full status <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="acs-ac__why" ng-if="p._st.k === 'grounded' || p._st.k === 'norecord' || p._st.k === 'nofly'"><i class="fas" ng-class="p._st.ic"></i><span>{{ p._st.why }}</span></div>
+        <div class="acs-ac__body">
+          <div class="acs-ac__lead">
+            <div class="acs-hero" ng-class="{'acs-hero--3': p._meter}"><div class="acs-contents" ng-include="'views/v2/aircraft/_tiles.html'" ng-init="meterStrip = true"></div></div>
+            <div class="acs-quick">
+              <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openDefect(p)" no-busy-guard><i class="fas fa-exclamation-triangle"></i>Report defect</button>
+              <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openCheck(p)" no-busy-guard><i class="fas fa-clipboard-check"></i>Complete check</button>
+              <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openFuel(p)" no-busy-guard><i class="fas fa-gas-pump"></i>Add fuel/oil</button>
+            </div>
+          </div>
+          <div class="acs-sum">
+            <div class="acs-fr" ng-class="[p._lnDef.tone ? 'acs-fr--' + p._lnDef.tone : '', vm.fold[p.plane_id] === 'defects' ? 'acs-fr--open' : '']">
+              <button type="button" class="acs-fr__main" ng-click="vm.toggleFold(p, 'defects')" aria-expanded="{{ vm.fold[p.plane_id] === 'defects' }}" no-busy-guard>
+                <span class="acs-fr__k"><i class="fas fa-tools"></i>Defects</span>
+                <span class="acs-fr__v"><b ng-if="p._lnDef.b">{{ p._lnDef.b }}</b>{{ (p._lnDef.b && p._lnDef.rest ? ' · ' : '') + p._lnDef.rest }}</span>
+                <i class="fas fa-chevron-down acs-fr__chev" aria-hidden="true"></i>
+              </button>
+              <div class="acs-fr__panel" ng-if="vm.fold[p.plane_id] === 'defects'" ng-include="'views/v2/aircraft/_defects.html'"></div>
+            </div>
+            <div class="acs-fr" ng-class="[p._lnDoc.tone ? 'acs-fr--' + p._lnDoc.tone : '', vm.fold[p.plane_id] === 'docs' ? 'acs-fr--open' : '']">
+              <button type="button" class="acs-fr__main" ng-click="vm.toggleFold(p, 'docs')" aria-expanded="{{ vm.fold[p.plane_id] === 'docs' }}" no-busy-guard>
+                <span class="acs-fr__k"><i class="fas fa-file-alt"></i>Documents</span>
+                <span class="acs-fr__v"><b ng-if="p._lnDoc.b">{{ p._lnDoc.b }}</b>{{ (p._lnDoc.b && p._lnDoc.rest ? ' · ' : '') + p._lnDoc.rest }}</span>
+                <i class="fas fa-chevron-down acs-fr__chev" aria-hidden="true"></i>
+              </button>
+              <div class="acs-fr__panel" ng-if="vm.fold[p.plane_id] === 'docs'" ng-include="'views/v2/aircraft/_docs.html'"></div>
+            </div>
+            <div class="acs-fr" ng-class="{'acs-fr--open': vm.fold[p.plane_id] === 'check'}">
+              <button type="button" class="acs-fr__main" ng-click="vm.toggleFold(p, 'check')" aria-expanded="{{ vm.fold[p.plane_id] === 'check' }}" no-busy-guard>
+                <span class="acs-fr__k"><i class="fas fa-clipboard-check"></i>Today’s check</span>
+                <span class="acs-fr__v"><b ng-if="p._lnChk.b">{{ p._lnChk.b }}</b>{{ (p._lnChk.b && p._lnChk.rest ? ' · ' : '') + p._lnChk.rest }}</span>
+                <i class="fas fa-chevron-down acs-fr__chev" aria-hidden="true"></i>
+              </button>
+              <div class="acs-fr__panel" ng-if="vm.fold[p.plane_id] === 'check'" ng-include="'views/v2/aircraft/_checks.html'"></div>
+            </div>
+            <div class="acs-fr" ng-class="{'acs-fr--open': vm.fold[p.plane_id] === 'flight'}">
+              <button type="button" class="acs-fr__main" ng-click="vm.toggleFold(p, 'flight')" aria-expanded="{{ vm.fold[p.plane_id] === 'flight' }}" no-busy-guard>
+                <span class="acs-fr__k"><i class="fas fa-book"></i>Last flight</span>
+                <span class="acs-fr__v" ng-class="{'acs-fr__v--wrap': p._lnFlt.wrap}"><b ng-if="p._lnFlt.b">{{ p._lnFlt.b }}</b>{{ p._lnFlt.rest ? (p._lnFlt.b ? ' · ' : '') + p._lnFlt.rest : '' }}<span ng-if="p._lnFlt.route">{{ ' · ' + p._lnFlt.route + ' · ' }}<span class="ta-nowrap">{{ p._lnFlt.brakes }}</span><span ng-if="p._lnFlt.pic">{{ ' · ' }}<span class="ta-nowrap">{{ p._lnFlt.pic }}</span></span><span ng-if="p._lnFlt.put">{{ ' · ' }}<span class="ta-nowrap">{{ p._lnFlt.put }}</span></span></span></span>
+                <i class="fas fa-chevron-down acs-fr__chev" aria-hidden="true"></i>
+              </button>
+              <div class="acs-fr__panel" ng-if="vm.fold[p.plane_id] === 'flight'">
+                <div class="acs-rows" ng-if="p._logs.length"><div class="acs-mini" ng-repeat="l in p._logs | limitTo:3 track by l.id" ng-include="'views/v2/aircraft/_flight_mini.html'"></div></div>
+                <div class="ta-note" ng-if="!p._logs.length"><i class="fas fa-info-circle"></i><div>No flights in the journey log yet.</div></div>
+                <div class="acs-sub"><span></span><button type="button" class="ta-link" ng-click="vm.openJourney(p)" no-busy-guard>Full journey log <i class="fas fa-arrow-right"></i></button></div>
+              </div>
+            </div>
+            <div class="acs-fr ta-phone-only">
+              <button type="button" class="acs-fr__main" ng-click="vm.openOne(p)" no-busy-guard><span class="acs-fr__k"><i class="fas fa-plane"></i>Full status</span><span class="acs-fr__v">Fuel and oil, prices, every flight</span><i class="fas fa-arrow-right acs-fr__chev" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <div ng-include="'views/v2/aircraft/_dialogs.html'"></div>
+</main>

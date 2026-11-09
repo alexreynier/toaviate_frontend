@@ -1,0 +1,59 @@
+<!-- the "Ask us" dialog — EnquiryAsk.open() (js/v2/enquiries/enquiries.js) appends it to <body>; scope.d is its state -->
+<div class="ta-dlg-scrim enq-ask" ng-click="scrim($event)">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="enq-ask-t">
+    <div class="ta-dlg__hd">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="close()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas {{ d.t.icon }}" aria-hidden="true"></i>Ask ToAviate</div>
+      <div class="ta-dlg__title" id="enq-ask-t">{{ d.step === 'sent' ? 'Question sent' : d.t.title }}</div>
+      <div class="ta-dlg__sub" ng-if="d.step === 'write'">We’ll reply by email and here, under Your questions.</div>
+    </div>
+
+    <!-- writing -->
+    <form class="ta-dlg__body" ng-if="d.step === 'write'" ng-submit="send()" novalidate>
+      <div class="ta-field" ng-class="{'ta-field--error': d.err}">
+        <label class="ta-label" for="enq-ask-msg">Your question</label>
+        <textarea class="ta-textarea enq-ask__msg" id="enq-ask-msg" ng-model="d.msg" ng-change="d.err = ''; d.confirm = false" rows="5" maxlength="{{ d.MAX + 200 }}"
+                  placeholder="{{ d.t.placeholder }}" ng-disabled="d.busy" no-busy-guard></textarea>
+        <span class="ta-field__msg" ng-if="d.err">{{ d.err }}</span>
+        <span class="ta-hint" ng-if="left() !== null" ng-class="{'enq-over': left() < 0}">{{ left() }} characters left</span>
+      </div>
+      <div class="ta-panel enq-ask__ctx" ng-if="d.items.length">
+        <label class="ta-toggle enq-ask__inc">
+          <input type="checkbox" class="ta-toggle__input" ng-model="d.include" no-busy-guard>
+          <span class="ta-toggle__txt"><span class="ta-toggle__t">Include these details</span><span class="ta-toggle__s">So we can answer without asking you first</span></span>
+          <span class="ta-switch" aria-hidden="true"></span>
+        </label>
+        <dl class="enq-ask__items" ng-class="{'enq-ask__items--off': !d.include}">
+          <div ng-if="d.page"><dt>Asked from</dt><dd>{{ d.page }}</dd></div>
+          <div ng-repeat="i in d.items"><dt>{{ i.k }}</dt><dd>{{ i.v }}</dd></div>
+        </dl>
+      </div>
+      <p class="ta-hint enq-ask__to" ng-if="d.email"><i class="fas fa-envelope" aria-hidden="true"></i>Our reply goes to <b>{{ d.email }}</b></p>
+    </form>
+
+    <!-- sent -->
+    <div class="ta-dlg__done" ng-if="d.step === 'sent'">
+      <span class="ta-dlg__check" aria-hidden="true"><i class="fas fa-check"></i></span>
+      <h3>Thanks — we’ve got your question</h3>
+      <p>We’ll reply by email<span ng-if="d.email"> to {{ d.email }}</span> and here, under Your questions.</p>
+    </div>
+
+    <div class="ta-dlg__ft">
+      <div class="ta-confirm ta-confirm--inline" ng-if="d.confirm" role="alert">
+        <span>Discard your question? What you’ve typed will be lost.</span>
+        <span class="ta-confirm__btns">
+          <button type="button" class="ta-btn ta-btn--sm enq-ask__keep" ng-click="keep()" no-busy-guard>Keep writing</button>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="close(true)" no-busy-guard>Discard</button>
+        </span>
+      </div>
+      <button type="button" class="ta-btn ta-btn--quiet" ng-if="d.step === 'write' && !d.confirm" ng-click="close()" ng-disabled="d.busy" no-busy-guard>Cancel</button>
+      <span class="ta-sp" ng-if="!d.confirm"></span>
+      <button type="button" class="ta-btn ta-btn--primary enq-ask__send" ng-if="d.step === 'write' && !d.confirm" ng-click="send()" ng-disabled="d.busy" no-busy-guard>
+        <span class="ta-spin" ng-if="d.busy"></span><i class="fas fa-paper-plane" ng-if="!d.busy" aria-hidden="true"></i>{{ d.busy ? 'Sending…' : 'Send question' }}
+      </button>
+      <button type="button" class="ta-btn enq-ask__go" ng-if="d.step === 'sent' && d.enquiry.id != null" ng-click="goThread()" no-busy-guard><i class="fas fa-comments" aria-hidden="true"></i>See your questions</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="d.step === 'sent'" ng-click="close(true)" no-busy-guard>Done</button>
+    </div>
+  </div>
+</div>

@@ -96,6 +96,7 @@
 
             vm.get_icon2 = function(file){
 
+                if (!file) { return ''; }   // a club document row without a file
                 var ft = file.split('.').pop();
                 // //console.log("ICON 2 : ", ft);
                 var icon_name = "";

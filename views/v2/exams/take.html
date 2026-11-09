@@ -1,0 +1,172 @@
+<!-- v2 · Take a questionnaire (design: mockups/my-account/questionnaires-exams.html, page "Take a questionnaire").
+     State dashboard.v2.questionnaire_take (/my_account/questionnaire/:questionnaire_id/take?attach_type&attach_id&timing&sitting)
+     → QxTakeV2Controller. One question per screen; the time limit is a guide (the server never enforces it). -->
+<main class="ta-page qx-main" ng-class="{'ta-page--has-bar': vm.step !== 'done'}">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-clipboard-check"></i></span>
+        <div>
+          <h2>{{ vm.q.title || 'Questionnaire' }}</h2>
+          <p>{{ vm.retake ? 'Retake · ' : '' }}{{ vm.questions ? vm.X.plural(vm.questions.length, 'question') : 'Opening…' }}<span ng-show="vm.limit"> · about {{ vm.limit / 60 }} min</span></p>
+          <span class="qx-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="qx-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" href="" ng-if="vm.step === 'q' || vm.step === 'review'" ng-click="vm.saveAndLeave()" aria-label="Save and leave"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Save and leave</span></a>
+      <a class="ta-back" ng-if="vm.step !== 'q' && vm.step !== 'review'" ui-sref="dashboard.my_account.questionnaires" aria-label="Back to Questionnaires" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Questionnaires</span></a>
+      </span>
+    </div>
+  </section>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__box"></span></section>
+  <div class="ta-note ta-note--bad" ng-show="vm.error"><i class="fas fa-exclamation-circle"></i><div>{{ vm.error }} <a class="ta-link" ui-sref="dashboard.my_account.questionnaires">Back to Questionnaires</a></div></div>
+  <div class="ta-note ta-note--info" ng-if="vm.alreadyIn && vm.step !== 'done'"><i class="fas fa-info-circle"></i><div>You’ve already sent this one in. <button type="button" class="ta-link" ng-click="vm.toResult()" no-busy-guard>See your answers <i class="fas fa-arrow-right"></i></button></div></div>
+
+  <!-- ═══ intro ═══ -->
+  <div class="qx-stack" ng-if="!vm.loading && !vm.error && !vm.alreadyIn && vm.step === 'intro'">
+    <div class="ta-cols ta-cols--rail">
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-flag-checkered"></i></span><div class="ta-card__ttl"><h3>Before you start</h3><p>{{ vm.asg && vm.asg.due ? ((vm.asg.due < vm.X.today() ? 'Was due ' : 'Due ') + vm.X.fDayLong(vm.asg.due)) : 'No due date' }}{{ vm.retake || (vm.asg && vm.asg.retake) ? ' · this is a retake — your earlier attempt stays in your history' : '' }}</p></div></div>
+        <p class="qx-intro__desc" ng-if="vm.q.description">{{ vm.q.description }}</p>
+        <div class="ta-tiles">
+          <div class="ta-tile ta-tile--progress"><span class="ta-tile__k"><i class="fas fa-list-ol"></i>Questions</span><span class="ta-tile__v">{{ vm.questions.length }}</span><span class="ta-tile__s">{{ vm.mcN ? vm.mcN + ' multiple choice' : '' }}{{ vm.mcN && vm.ftN ? ' · ' : '' }}{{ vm.ftN ? vm.ftN + ' written' : '' }}</span></div>
+          <div class="ta-tile"><span class="ta-tile__k"><i class="far fa-clock"></i>Suggested time</span><span class="ta-tile__v" ng-class="{'ta-tile__v--words': !vm.limit}">{{ vm.limit ? (vm.limit / 60) + ' min' : 'None' }}</span><span class="ta-tile__s">{{ vm.limit ? 'A guide, not a cut-off — you can finish after it' : 'Take as long as you need' }}</span></div>
+          <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-star"></i>Your score</span><span class="ta-tile__v ta-tile__v--words">{{ vm.q.instant_mc_score == 1 ? 'Straight away' : 'After review' }}</span><span class="ta-tile__s">{{ vm.q.instant_mc_score == 1 ? 'For the multiple-choice questions; written answers get feedback' : 'Your instructor marks it and adds notes' }}</span></div>
+          <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-save"></i>Progress</span><span class="ta-tile__v ta-tile__v--words">Saves as you go</span><span class="ta-tile__s">Leave any time and pick up where you were</span></div>
+        </div>
+        <!-- the instructor's note from the assignment (course_assignments/mine), when this questionnaire was set -->
+        <div class="qx-quote" ng-if="vm.asg.message"><span class="ta-av" title="Your instructor"><i class="fas fa-chalkboard-teacher"></i></span><div class="qx-quote__txt"><p>{{ vm.asg.message }}</p><span class="qx-quote__by"><b>Your instructor</b>{{ vm.asg.setAt ? ' · set ' + vm.X.fDay(vm.asg.setAt) : '' }}</span></div></div>
+        <div class="qx-q__foot ta-desk-only"><span class="ta-actionbar__hint">{{ vm.limit ? ('The ' + (vm.limit / 60) + '-minute guide starts when you press Start.') : 'Take as long as you need.' }}</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.begin()" no-busy-guard><i class="fas fa-play"></i>Start</button></div>
+      </section>
+      <aside class="ta-rail">
+        <section class="ta-card">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-route"></i></span><div class="ta-card__ttl"><h3>How it works</h3></div></div>
+          <ol class="qx-flow">
+            <li><span class="qx-flow__n">1</span><span><b>Answer the questions</b>One at a time — jump around with the numbers.</span></li>
+            <li><span class="qx-flow__n">2</span><span><b>Check your answers</b>See what’s missing before anything is final.</span></li>
+            <li><span class="qx-flow__n">3</span><span><b>Submit</b>{{ vm.q.instant_mc_score == 1 ? 'Your multiple-choice score shows at once.' : 'It goes to your instructor to review.' }}</span></li>
+            <li><span class="qx-flow__n">4</span><span><b>Read the feedback</b>Notes and marks appear under Questionnaires.</span></li>
+          </ol>
+        </section>
+      </aside>
+    </div>
+    <div class="ta-actionbar ta-phone-only"><span class="ta-actionbar__hint" ng-show="vm.limit">{{ vm.limit / 60 }} min guide</span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.begin()" no-busy-guard><i class="fas fa-play"></i>Start</button></div>
+  </div>
+
+  <!-- ═══ one question ═══ -->
+  <div class="qx-stack" ng-if="!vm.loading && !vm.error && vm.step === 'q' && vm.cur()">
+    <div class="ta-cols ta-cols--rail">
+      <div class="ta-stack">
+        <div class="qx-strip">
+          <div class="qx-strip__row"><span>Question {{ vm.idx + 1 }} of {{ vm.questions.length }}</span>
+            <span class="ta-pill" ng-if="vm.limit" ng-class="vm.timerTone() === 'over' ? 'ta-pill--bad' : (vm.timerTone() === 'warn' ? 'ta-pill--warn' : 'ta-pill--info')"><i class="far fa-clock"></i>{{ vm.X.mmss(vm.left()) }}{{ vm.left() < 0 ? ' over' : ' left' }}</span>
+            <span class="ta-pill ta-pill--muted" ng-if="!vm.limit"><i class="far fa-clock"></i>No time limit</span>
+          </div>
+          <div class="ta-meter" ng-class="{'ta-meter--good': vm.answeredN() === vm.questions.length}"><div class="ta-meter__bar" style="--v:{{ vm.X.pct(vm.answeredN(), vm.questions.length) }}%"></div></div>
+          <span class="qx-strip__s">{{ vm.answeredN() }} of {{ vm.questions.length }} answered<span ng-show="vm.savedAt && !vm.saveFailed"> · saved {{ vm.savedAt }}</span><span class="qx-strip__warn" ng-show="vm.saveFailed"> · not saved — trying again</span></span>
+        </div>
+        <section class="ta-card qx-q">
+          <div class="qx-q__num">Question {{ vm.idx + 1 }} of {{ vm.questions.length }}
+            <span class="ta-tag" ng-if="vm.isMC(vm.cur()) && vm.cur().points"><i class="fas fa-star"></i>{{ vm.X.plural(+vm.cur().points, 'mark') }}</span>
+            <span class="ta-tag" ng-if="!vm.isMC(vm.cur())"><i class="fas fa-pen"></i>Written · your instructor gives feedback</span>
+            <span class="ta-tag" ng-if="vm.cur().required != 1">Optional</span>
+          </div>
+          <h3 class="qx-q__prompt" id="qx-prompt">{{ vm.cur().prompt }}</h3>
+          <div class="ta-note ta-note--info" ng-if="vm.cur().help_text"><i class="far fa-lightbulb"></i><div>{{ vm.cur().help_text }}</div></div>
+          <figure class="qx-fig" ng-if="vm.cur()._img"><img ng-src="{{ vm.cur()._img }}" alt=""></figure>
+          <a class="ta-link" ng-if="vm.cur().external_url" ng-href="{{ vm.cur().external_url }}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i>Reading link</a>
+          <div ng-if="vm.isMC(vm.cur())">
+            <div class="qx-opts" role="{{ vm.cur().multi_select == 1 ? 'group' : 'radiogroup' }}" aria-labelledby="qx-prompt">
+              <button type="button" class="ta-opt qx-opt" ng-repeat="o in vm.cur().options" ng-class="{'qx-opt--multi': vm.cur().multi_select == 1, 'ta-opt--on': vm.isChosen(vm.cur(), o)}"
+                      role="{{ vm.cur().multi_select == 1 ? 'checkbox' : 'radio' }}" aria-checked="{{ vm.isChosen(vm.cur(), o) }}" ng-click="vm.pick(vm.cur(), o)" no-busy-guard>
+                <span class="ta-opt__ic">{{ vm.X.LET[$index] }}</span><span class="qx-opt__t">{{ o.label }}</span><span class="ta-opt__dot"><i class="fas fa-check" ng-if="vm.cur().multi_select == 1 && vm.isChosen(vm.cur(), o)"></i></span>
+              </button>
+            </div>
+            <p class="ta-hint" ng-if="vm.cur().multi_select == 1"><i class="fas fa-info-circle"></i> Select all that apply — you need every right one for the marks.</p>
+          </div>
+          <div class="ta-field" ng-if="!vm.isMC(vm.cur())">
+            <label class="ta-label" for="qx-ft">Your answer <em ng-if="vm.cur().required != 1">(optional)</em></label>
+            <textarea class="ta-textarea qx-ta" id="qx-ft" ng-model="vm.answers[vm.cur().id].text" ng-change="vm.typed()" placeholder="Type your answer…"></textarea>
+            <span class="ta-hint">{{ vm.X.words(vm.answers[vm.cur().id].text) }} · saves as you go</span>
+          </div>
+          <div class="qx-q__foot ta-desk-only">
+            <button type="button" class="ta-btn" ng-click="vm.prev()" ng-disabled="vm.idx === 0" no-busy-guard><i class="fas fa-arrow-left"></i>Previous</button>
+            <span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.idx === vm.questions.length - 1" ng-click="vm.review()" no-busy-guard><i class="fas fa-tasks"></i>Check your answers</button>
+            <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.idx < vm.questions.length - 1" ng-click="vm.next()" no-busy-guard>Next<i class="fas fa-arrow-right"></i></button>
+          </div>
+        </section>
+        <div class="ta-phone-only qx-navwrap"><span class="ta-label">Go to a question</span>
+          <div class="qx-nav"><button type="button" class="qx-nav__b" ng-repeat="qq in vm.questions" ng-class="vm.navClass(qq, $index)" ng-click="vm.jump($index)" aria-label="Question {{ $index + 1 }}" no-busy-guard>{{ $index + 1 }}</button></div>
+        </div>
+      </div>
+      <aside class="ta-rail ta-desk-only" ng-include="'views/v2/exams/_take_side.html'"></aside>
+    </div>
+    <div class="ta-actionbar ta-phone-only">
+      <button type="button" class="ta-btn" ng-click="vm.prev()" ng-disabled="vm.idx === 0" no-busy-guard><i class="fas fa-arrow-left"></i>Previous</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.idx === vm.questions.length - 1" ng-click="vm.review()" no-busy-guard><i class="fas fa-tasks"></i>Check answers</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.idx < vm.questions.length - 1" ng-click="vm.next()" no-busy-guard>Next<i class="fas fa-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- ═══ check your answers ═══ -->
+  <div class="qx-stack" ng-if="!vm.loading && !vm.error && vm.step === 'review'">
+    <div class="ta-cols ta-cols--rail">
+      <section class="ta-card">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.answeredN() === vm.questions.length}"><i class="fas fa-tasks"></i></span>
+          <div class="ta-card__ttl"><h3>Check your answers</h3><p>{{ vm.answeredN() }} of {{ vm.questions.length }} answered. Tap one to change it — nothing is final until you submit.</p></div>
+          <span class="ta-card__right ta-phone-only" ng-if="vm.limit"><span class="ta-pill" ng-class="vm.timerTone() === 'over' ? 'ta-pill--bad' : (vm.timerTone() === 'warn' ? 'ta-pill--warn' : 'ta-pill--info')"><i class="far fa-clock"></i>{{ vm.X.mmss(vm.left()) }}{{ vm.left() < 0 ? ' over' : ' left' }}</span></span>
+        </div>
+        <div class="ta-note ta-note--bad" ng-if="vm.miss && vm.missing().length"><i class="fas fa-exclamation-circle"></i><div><b>{{ vm.X.plural(vm.missing().length, 'required question') }} still to answer</b> — {{ vm.missingText() }}. Tap {{ vm.missing().length === 1 ? 'it' : 'one' }} to answer.</div></div>
+        <div class="qx-rev">
+          <button type="button" class="qx-rev__row" ng-repeat="qq in vm.questions" ng-class="{'qx-rev__row--miss': !vm.answered(qq) && qq.required == 1 && vm.miss}" ng-click="vm.jump($index)" no-busy-guard>
+            <span class="qx-rev__n" ng-class="{'qx-rev__n--done': vm.answered(qq), 'qx-rev__n--miss': !vm.answered(qq) && qq.required == 1 && vm.miss}">{{ $index + 1 }}</span>
+            <span class="qx-rev__txt"><span class="qx-rev__p">{{ qq.prompt }}</span><span class="qx-rev__a">{{ vm.summary(qq) }}</span></span>
+            <span class="qx-rev__go"><span>Change</span><i class="fas fa-chevron-right"></i></span>
+          </button>
+        </div>
+        <div class="qx-q__foot ta-desk-only"><button type="button" class="ta-btn" ng-click="vm.backToQ()" no-busy-guard><i class="fas fa-arrow-left"></i>Back to the questions</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.askSubmit()" no-busy-guard><i class="fas fa-paper-plane"></i>Submit answers</button></div>
+      </section>
+      <aside class="ta-rail ta-desk-only" ng-include="'views/v2/exams/_take_side.html'"></aside>
+    </div>
+    <div class="ta-actionbar ta-phone-only"><button type="button" class="ta-btn" ng-click="vm.backToQ()" no-busy-guard><i class="fas fa-arrow-left"></i>Back</button><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.askSubmit()" no-busy-guard><i class="fas fa-paper-plane"></i>Submit answers</button></div>
+  </div>
+
+  <!-- ═══ done ═══ -->
+  <section class="ta-card qx-done" ng-if="vm.step === 'done'">
+    <span class="ta-dlg__check"><i class="fas fa-check"></i></span>
+    <h3>Submitted</h3>
+    <div class="qx-done__score" ng-if="vm.instant">{{ vm.instant.auto }}<span> / {{ vm.instant.max }}</span></div>
+    <p ng-if="vm.instant">{{ vm.ftAnswered() ? ('Your instructor reviews your ' + vm.X.plural(vm.ftAnswered(), 'written answer') + ' and adds feedback.') : 'That’s your score for the multiple-choice questions.' }}</p>
+    <p ng-if="!vm.instant">Your instructor marks it and adds notes. Your result appears under Questionnaires once it’s reviewed.</p>
+    <div class="qx-done__btns">
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.toResult()" no-busy-guard><i class="fas fa-eye"></i>See your answers</button>
+      <button type="button" class="ta-btn" ng-click="vm.toHub()" no-busy-guard>Back to Questionnaires</button>
+    </div>
+  </section>
+
+  <!-- submit: an alert dialog -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'submit'" ng-click="$event.target === $event.currentTarget && vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="qx-dlg-t">
+      <div class="ta-dlg__hd ta-dlg__hd--alert">
+        <span class="ta-dlg__ic"><i class="fas fa-paper-plane"></i></span>
+        <div><div class="ta-dlg__title" id="qx-dlg-t">Submit your answers?</div><div class="ta-dlg__sub">Once they’re in, you can’t change them.</div></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      </div>
+      <div class="ta-dlg__body">
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Answered</dt><dd>{{ vm.answeredN() }} of {{ vm.questions.length }} <small ng-show="vm.optBlank()">· {{ vm.optBlank() }} optional left blank</small></dd></div>
+          <div class="ta-fact"><dt>Time spent</dt><dd>{{ vm.X.mins(vm.elapsed) }}</dd></div>
+        </dl>
+        <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>{{ vm.q.instant_mc_score == 1 ? ('Your multiple-choice score shows straight away.' + (vm.ftAnswered() ? ' Your instructor reviews your ' + vm.X.plural(vm.ftAnswered(), 'written answer') + ' and adds feedback.' : '')) : 'Your instructor marks it and adds notes — the result appears under Questionnaires.' }}</div></div>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.submitting" no-busy-guard>Keep checking</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.submit()" ng-disabled="vm.submitting"><span class="ta-spin" ng-show="vm.submitting"></span><i class="fas fa-paper-plane" ng-show="!vm.submitting"></i>{{ vm.submitting ? 'Submitting…' : 'Submit answers' }}</button>
+      </div>
+    </div>
+  </div>
+</main>

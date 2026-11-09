@@ -162,17 +162,31 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
         // Book-out refusals (POST plane_log_sheets): the book-out page opens its airworthiness /
         // pilot-checks dialogs or toasts and scrolls to the pre-flight check card itself.
         airworthiness: 1, pilot_checks: 1, aircraft_check_required: 1, booking_invalid: 1, not_allowed: 1,
-        already_booked_out: 1, save_failed: 1,
+        already_booked_out: 1, save_failed: 1, booking_waiting_list: 1, booking_not_approved: 1,
+        // Book-in v2 (be-alex-3e C4: context / quote / commit): the v2 book-in page shows its own message for each.
+        QUOTE_CHANGED: 1, INCOMPLETE: 1, IN_PROGRESS: 1, SPLIT_NOT_SUPPORTED: 1, ALREADY_BOOKED_IN: 1, NOT_BUILT: 1,
+        // …and C26 ("looks like yours"): a booking that can't take the flight — the page says so and books it in on its own.
+        BOOKING_NOT_LINKABLE: 1,
+        // Two-step sign-in safety (be-alex-3e C22): the v1/v2 turn-off dialogs show the club rule themselves; the
+        // super-admin reset says "Not yet — until …" for a reset still inside its 24 h hold.
+        CLUB_REQUIRES_2FA: 1, HOLD_NOT_PASSED: 1,
         // Emoji / 4-byte characters: unsupportedCharactersInterceptor (below) toasts its own
         // warning — for a request it blocked before sending AND for the backend's refusal.
         UNSUPPORTED_CHARACTERS: 1
     };
     var SILENT_URLS = [
         '/users/login',              // the login ladder reports its own outcomes
+        '/users/two_factor_help',    // "Lost your phone?" on the code screen says what happened itself (C28)
         '/invitations/accept_existing',
         '/webauthn/',
-        '/account_email_confirm/'   // public confirm/cancel pages render one uniform "invalid link" panel
+        '/account_email_confirm/',  // public confirm/cancel pages render one uniform "invalid link" panel
+        '/two_factor_reset_cancel/' // public "STOP THIS RESET" page — same uniform panel (C22)
     ];
+    // a book-in v2 quote (POST plane_log_sheets/v2/book_in/{pls}/quote) saves nothing: the page shows what is missing
+    var SILENT_URL_PATTERNS = [/\/plane_log_sheets\/v2\/book_in\/\d+\/quote(\?|$)/,
+        // background writes nobody pressed for (v2 training): "viewed" when a row opens, the material heartbeat, the
+        // questionnaire autosave — their pages say what they need to ("Not saved — trying again"); Mark as done toasts its own
+        /\/course_assignments\/\d+\/viewed(\?|$)/, /\/course_materials\/\d+\/track(\?|$)/, /\/questionnaires\/attempt\/\d+\/save(\?|$)/];
 
     function settle(x) {
         var cfg = x && x.config;
@@ -199,6 +213,7 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
     function isSilentUrl(url) {
         if (!url) { return false; }
         for (var i = 0; i < SILENT_URLS.length; i++) { if (url.indexOf(SILENT_URLS[i]) > -1) { return true; } }
+        for (var j = 0; j < SILENT_URL_PATTERNS.length; j++) { if (SILENT_URL_PATTERNS[j].test(url)) { return true; } }
         return false;
     }
 
@@ -389,4 +404,33 @@ app.factory('unsupportedCharactersInterceptor', ['$q', '$injector', '$window', f
         _refusal: refusal
     };
     return service;
+}]);
+
+// ═══════════════════════════════════════════════════════════════════
+//  errorBodyInterceptor (9 Nov) — an API error that comes back as an HTML page (PHP fatal, proxy 502) or with no body
+//  reached the services as a raw string: many services hand `res.data` straight back, a string passes every
+//  `data.success !== false` check (so a failed save read as done), and the HTML landed in toasts. Error responses
+//  (status ≥ 400 except 401, or 0 = network) whose body is not an object become
+//  { success:false, error:'SERVER_ERROR'|'NETWORK_ERROR'|'REQUEST_FAILED', message, status }. JSON error bodies are
+//  untouched; 401 is left to the session freeze; successful responses are never changed.
+// ═══════════════════════════════════════════════════════════════════
+app.factory('errorBodyInterceptor', ['$q', function ($q) {
+    return {
+        responseError: function (response) {
+            var cfg = response && response.config, url = cfg && cfg.url || '';
+            if (url.indexOf('/api/') > -1 && response.status !== 401 && (response.data === null || response.data === undefined || typeof response.data !== 'object')) {
+                var status = response.status || 0;
+                response.data = {
+                    success: false,
+                    error: status === 0 || status === -1 ? 'NETWORK_ERROR' : (status >= 500 ? 'SERVER_ERROR' : 'REQUEST_FAILED'),
+                    message: status === 0 || status === -1 ? 'We couldn’t reach the server — check your connection and try again.'
+                        : (status >= 500 ? 'The server had a problem — please try again in a moment.' : 'That request didn’t go through — please try again.'),
+                    status: status
+                };
+                // code that glues the body into a sentence ('Error: ' + data.message) gets the message, not [object Object]
+                Object.defineProperty(response.data, 'toString', { value: function () { return this.message; } });
+            }
+            return $q.reject(response);
+        }
+    };
 }]);

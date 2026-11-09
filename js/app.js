@@ -45,6 +45,7 @@ var app = angular
             if (!url || url.indexOf('/api/') === -1) { return false; }
             var unauthEndpoints = [
                 '/api/v1/users/login',   // covers login, login0..3 + login_2fa
+                '/api/v1/users/two_factor_help', // "Lost your phone?" on the 2-step code screen (pre-auth, C28)
                 '/api/v1/users/logout',
                 '/api/v1/users/reset_password',
                 '/api/v1/webauthn/login', // passkey login_options / login_verify (pre-auth)
@@ -52,7 +53,9 @@ var app = angular
                 '/api/v1/logbook_signup', // public free-logbook signup + invite landing
                 '/api/v1/caa_form_confirm', // public CAA-form external signing page (token)
                 '/api/v1/account_email_confirm', // public email confirm / cancel pages (token)
-                '/api/v1/passenger_decline'     // public passenger "can't make it" page (token)
+                '/api/v1/passenger_decline',    // public passenger "can't make it" page (token)
+                '/api/v1/two_factor_reset_cancel', // public "STOP THIS RESET" page (token, C22)
+                '/api/v1/flight_share/'         // public shared flight /f/:token (C30) — read, photos, invite adds
             ];
             for (var i = 0; i < unauthEndpoints.length; i++) {
                 if (url.indexOf(unauthEndpoints[i]) > -1) { return false; }
@@ -216,6 +219,9 @@ var app = angular
         // can't store them (js/services/writeGuardService.js). Being last, a
         // blocked request never reaches the network or the circuit breaker.
         $httpProvider.interceptors.push('unsupportedCharactersInterceptor');
+        // pushed last = its responseError runs FIRST: an error with an HTML / empty body becomes
+        // {success:false, error, message} before any service sees it (js/services/writeGuardService.js)
+        $httpProvider.interceptors.push('errorBodyInterceptor');
     }]);
 
     // Start all datepickers on Monday
@@ -263,7 +269,15 @@ var app = angular
             chunkSize: 1024*1024*1024,
             progressCallbacksInterval: 500,
             simultaneousUploads: 1,
-            testChunks: true
+            testChunks: true,
+            // every chunk carries the API's login header, so upload_documents.php / upload.php can
+            // require a login (backend-companion §1 item 13, 8 Nov). Read per request: the login
+            // can change after this config runs.
+            headers: function () {
+                var inj = angular.element(document.body).injector();
+                var auth = inj ? inj.get('$http').defaults.headers.common.Authorization : null;
+                return auth ? { Authorization: auth } : {};
+            }
 		  };
 
 		  flowFactoryProvider.on('catchAll', function (event) {
@@ -412,6 +426,16 @@ var app = angular
                 url: '/email_cancel/:token',
                 controller: 'EmailCancelController',
                 templateUrl: 'views/public/email_cancel.html',
+                controllerAs: 'vm'
+            })
+
+            // C22 (9 Nov 2026): "STOP THIS RESET" — the link in the e-mail a member gets when a ToAviate administrator
+            // asks to reset their two-factor. PUBLIC (token = the credential; baked into e-mails, path can never change).
+            // GET shows, POST stops. Also in publicStates + publicPages + the interceptor's unauthEndpoints.
+            .state('two_factor_reset_cancel', {
+                url: '/two_factor_reset_cancel/:token',
+                controller: 'TwoFactorResetCancelController',
+                templateUrl: 'views/public/two_factor_reset_cancel.html',
                 controllerAs: 'vm'
             })
 
@@ -3709,7 +3733,7 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel', 'passenger_decline'];
+        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel', 'passenger_decline', 'two_factor_reset_cancel', 'flight_share'];
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3800,7 +3824,9 @@ var app = angular
             '/caa_form_confirm',            // CAA form external signing (token, in emails)
             '/email_confirm',               // account email confirmation (token, in emails)
             '/email_cancel',                // account email recovery veto (token, in emails)
-            '/passenger_decline'            // passenger "can't make it" (token, in invitation emails)
+            '/passenger_decline',           // passenger "can't make it" (token, in invitation emails)
+            '/two_factor_reset_cancel',     // stop a staff two-factor reset (token, in emails — C22)
+            '/f'                            // shared flight replay (token, C30 — state flight_share in js/v2/replay/replay.js)
         ];
         // Shared with the HTTP interceptor: a 401 on a public page is never a
         // session expiry (the page needs no session), so it must not freeze it.
@@ -3912,12 +3938,14 @@ var app = angular
             if (loggedIn && currentPath.indexOf('/dashboard') === 0) {
                 var twoFactorSetupFor = null;
                 try { twoFactorSetupFor = localStorage.getItem('toaviate_2fa_setup_required'); } catch(e) {}
-                var securityPath = '/dashboard/my_account/security';
+                // the v2 design's Security page (js/v2/security) is allowed too; the
+                // design router moves the v1 path to it while the v2 switch is on
+                var securityPaths = ['/dashboard/my_account/security', '/dashboard/v2/my_account/security'];
                 if (twoFactorSetupFor &&
                     String($rootScope.globals.currentUser.id) === twoFactorSetupFor &&
-                    currentPath !== securityPath) {
+                    securityPaths.indexOf(currentPath) === -1) {
                     event.preventDefault();
-                    $location.path(securityPath);
+                    $location.path(securityPaths[0]);
                     return;
                 }
 

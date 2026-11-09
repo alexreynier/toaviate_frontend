@@ -38,6 +38,7 @@ function cancelReasonFields(CancellationFeesService) {
             crf.state.notes = crf.state.notes || '';
 
             crf.money = function (n) { return CancellationFeesService.money(n, crf.policy.currency); };
+            crf.reasonText = CancellationFeesService.reasonText;   // shown words; the stored label stays r.label
             crf.feeName = function () { return CancellationFeesService.feeName(crf.picked && crf.picked.key); };
 
             crf.pick = function (r) {

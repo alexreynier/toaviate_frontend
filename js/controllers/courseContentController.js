@@ -363,6 +363,7 @@ app.controller('CourseContentController', CourseContentController);
                 description: vm.newQ.description || '',
                 kind: timing + '_' + vm.attachType,   // legacy hint, e.g. pre_lesson / post_course
                 instant_mc_score: vm.newQ.instant_mc_score ? 1 : 0,
+                show_correct_answers: vm.newQ.show_correct_answers ? 1 : 0,   // students see the key once released (default off)
                 is_published: 0
             };
             QuestionnaireService.Create(payload).then(function(data) {
@@ -496,6 +497,7 @@ app.controller('CourseContentController', CourseContentController);
             QuestionnaireService.Get(vm.qid).then(function(data) {
                 vm.loading = false;
                 vm.q = (data && data.item) ? data.item : null;
+                if (vm.q) { vm.q.show_correct_answers = +vm.q.show_correct_answers === 1 || vm.q.show_correct_answers === true; }
                 // Normalise option editing state.
                 if (vm.q && vm.q.questions) {
                     vm.q.questions.forEach(function(qq) {
@@ -508,6 +510,7 @@ app.controller('CourseContentController', CourseContentController);
             QuestionnaireService.Update(vm.qid, {
                 title: vm.q.title, description: vm.q.description,
                 instant_mc_score: vm.q.instant_mc_score ? 1 : 0,
+                show_correct_answers: vm.q.show_correct_answers ? 1 : 0,
                 time_limit_minutes: vm.q.time_limit_minutes || null,
                 is_published: vm.q.is_published ? 1 : 0
             }).then(function(data) {

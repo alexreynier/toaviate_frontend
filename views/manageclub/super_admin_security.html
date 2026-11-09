@@ -90,29 +90,72 @@
                         <span>{{ vm.foundUser.email }} · ID {{ vm.foundUser.id }}</span>
                     </div>
 
-                    <div class="sa-security__reset-actions" ng-if="!vm.resetConfirm">
-                        <button class="sec-btn sec-btn--danger-outline" ng-click="vm.askReset(false)">
+                    <!-- C22 (9 Nov 2026): a reset is a REQUEST first — the member is e-mailed and has 24 h to stop it —
+                         then completed here after the hold. Both steps ask for your own step-up (purpose admin_recovery). -->
+                    <div class="sec-loading" ng-if="vm.requests === null"><span class="sec-spinner"></span> Checking for reset requests…</div>
+                    <div class="sec-warning" ng-if="vm.requestsError">
+                        <i class="fas fa-plug"></i>
+                        <div>The reset history could not be loaded. <a href="" ng-click="vm.loadRequests()">Try again</a></div>
+                    </div>
+
+                    <!-- an open request: waiting for the hold, then Complete -->
+                    <div class="sa-security__confirm" ng-if="vm.pending()">
+                        <div class="sec-warning">
+                            <i class="fas fa-hourglass-half"></i>
+                            <div>
+                                <b>Reset requested — {{ vm.pending().reset_passkeys ? 'two-factor and all passkeys' : 'two-factor only' }}</b><br>
+                                By {{ vm.pending().requested_by.name || 'ToAviate staff' }}, {{ vm.when(vm.pending().created_at) }}.
+                                Reason: “{{ vm.pending().reason }}”<br>
+                                <span ng-if="!vm.holdPassed(vm.pending())">The member can stop it until <b>{{ vm.when(vm.pending().hold_until) }}</b> ({{ vm.left(vm.pending().hold_until) }} from now). Complete opens after that.</span>
+                                <span ng-if="vm.holdPassed(vm.pending())">The 24-hour hold has passed and the member didn't stop it. Complete it by <b>{{ vm.when(vm.pending().expires_at) }}</b>, or it expires.</span>
+                            </div>
+                        </div>
+                        <div class="sa-security__reset-actions">
+                            <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.completeReset(vm.pending())" ng-disabled="vm.resetBusy || !vm.holdPassed(vm.pending())" no-busy-guard>
+                                <i class="fas" ng-class="vm.resetBusy ? 'fa-spinner fa-spin' : (vm.holdPassed(vm.pending()) ? 'fa-unlock-alt' : 'fa-hourglass-half')"></i>
+                                {{ vm.resetBusy ? 'Completing…' : (vm.holdPassed(vm.pending()) ? 'Complete reset' : 'Complete — after ' + vm.when(vm.pending().hold_until)) }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- no open request: start one -->
+                    <div class="sa-security__reset-actions" ng-if="vm.requests !== null && !vm.pending() && !vm.resetConfirm">
+                        <button type="button" class="sec-btn sec-btn--danger-outline" ng-click="vm.askReset(false)">
                             Reset 2FA only
                         </button>
-                        <button class="sec-btn sec-btn--danger" ng-click="vm.askReset(true)">
+                        <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.askReset(true)">
                             Reset 2FA + passkeys
                         </button>
                     </div>
 
-                    <div class="sa-security__confirm" ng-if="vm.resetConfirm">
+                    <div class="sa-security__confirm" ng-if="vm.resetConfirm && !vm.pending()">
                         <div class="sec-warning">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
-                                Wipe <b>TOTP enrolment{{ vm.resetConfirm.reset_passkeys ? ' AND all passkeys' : '' }}</b>
-                                for this user? Verify their identity first — this
-                                removes their second factor entirely.
+                                Ask to remove <b>two-factor{{ vm.resetConfirm.reset_passkeys ? ' AND all passkeys' : '' }}</b>
+                                for this member. Verify their identity first. They are e-mailed straight away and can
+                                stop it for 24 hours; after that you complete it here.
                             </div>
                         </div>
+                        <label class="sec-modal__label" for="sa-sec-reason">Reason — logged and shown to other staff</label>
+                        <textarea id="sa-sec-reason" class="sec-modal__input" rows="3" maxlength="500"
+                                  ng-model="vm.resetConfirm.reason" ng-change="vm.reasonErr = ''"
+                                  placeholder="e.g. Lost phone and recovery codes — identity checked on a video call with photo ID"></textarea>
+                        <span class="sec-row__warn" ng-if="vm.reasonErr">{{ vm.reasonErr }}</span>
                         <div class="sa-security__reset-actions">
-                            <button class="sec-btn sec-btn--outline" ng-click="vm.cancelReset()" ng-disabled="vm.resetBusy">Cancel</button>
-                            <button class="sec-btn sec-btn--danger" ng-click="vm.runReset()" ng-disabled="vm.resetBusy">
-                                {{ vm.resetBusy ? 'Resetting…' : 'Yes, reset' }}
+                            <button type="button" class="sec-btn sec-btn--outline" ng-click="vm.cancelReset()" ng-disabled="vm.resetBusy">Cancel</button>
+                            <button type="button" class="sec-btn sec-btn--danger" ng-click="vm.runReset()" ng-disabled="vm.resetBusy" no-busy-guard>
+                                {{ vm.resetBusy ? 'Requesting…' : 'Request reset' }}
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- the last requests for this member (newest first) -->
+                    <div ng-if="vm.requests.length">
+                        <span class="sec-modal__label">Recent reset requests</span>
+                        <div class="sec-row" ng-repeat="r in vm.requests">
+                            <span class="sec-row__label">{{ vm.when(r.created_at) }} · {{ r.requested_by.name || 'staff' }} · {{ r.reset_passkeys ? '2FA + passkeys' : '2FA only' }}</span>
+                            <span class="sec-pill" ng-class="r.status === 'completed' ? 'sec-pill--on' : 'sec-pill--off'">{{ vm.statusLabel(r) }}</span>
                         </div>
                     </div>
                 </div>

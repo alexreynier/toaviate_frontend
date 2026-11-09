@@ -1,0 +1,32 @@
+<!-- the "Scans" card of the licence / medical form (inside the form's flow-init scope: $flow) -->
+<section class="ta-card">
+    <div class="ta-card__hd">
+        <span class="ta-card__icon"><i class="fas fa-camera"></i></span>
+        <div class="ta-card__ttl"><h3>Scans</h3><p>{{ vm.lic ? 'A photo or scan of each page with your details and ratings' : 'A photo or scan of the certificate — every page with your details' }}</p></div>
+        <span class="ta-card__right" ng-if="vm.f.id && vm.f.images.length && !vm.shown"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.show()" ng-disabled="vm.showing" no-busy-guard><i class="fas" ng-class="vm.showing ? 'fa-circle-notch fa-spin' : 'fa-lock'"></i>Show scans</button></span>
+    </div>
+    <div class="ta-field" id="field-scans" ng-class="{'ta-field--error': vm.errs.scans}">
+        <button type="button" class="ta-drop ta-drop--row" id="in-scans" flow-btn flow-drop flow-drag-enter="vm.over = true" flow-drag-leave="vm.over = false" ng-class="{'ta-drop--over': vm.over}" no-busy-guard>
+            <span class="ta-drop__ic"><i class="fas fa-cloud-upload-alt"></i></span>
+            <span class="ta-drop__txt"><b>Add scans</b><small>Choose files or drop them here · JPG, PNG or GIF</small></span>
+        </button>
+        <span class="ta-field__msg" ng-if="vm.errs.scans">{{ vm.errs.scans }}</span>
+    </div>
+    <div class="lic-ups" ng-if="vm.f.images.length || $flow.files.length">
+        <div class="lic-up" ng-repeat="im in vm.f.images">
+            <span class="lic-thumb" ng-class="{'lic-thumb--sheet': !vm.lic, 'lic-thumb--locked': !vm.savedThumb(im)}">
+                <img class="lic-thumb__img" ng-if="vm.savedThumb(im)" ng-src="{{ vm.savedThumb(im) }}" alt="">
+                <span class="lic-paper" ng-if="!vm.savedThumb(im) && vm.lic"><i class="lic-paper__band"></i><i class="lic-paper__photo"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i></span><span class="lic-paper lic-paper--sheet" ng-if="!vm.savedThumb(im) && !vm.lic"><i class="lic-paper__band"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i><i class="lic-paper__l"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i><i class="lic-paper__l"></i><i class="lic-paper__l lic-paper__l--s"></i></span>
+                <span class="lic-thumb__lock" ng-if="!vm.savedThumb(im)"><i class="fas fa-lock"></i></span>
+            </span>
+            <span class="lic-up__row"><span class="lic-up__name">{{ vm.side($index) }}<small>Saved · encrypted</small></span>
+                <button type="button" class="ta-ib" ng-click="vm.imgDel(im)" title="Remove {{ vm.side($index) }}" aria-label="Remove {{ vm.side($index) }}" no-busy-guard><i class="fas fa-times"></i></button></span>
+        </div>
+        <div class="lic-up" ng-repeat="f in $flow.files">
+            <span class="lic-thumb" ng-class="{'lic-thumb--sheet': !vm.lic, 'lic-thumb--uploading': vm.U.upState(f) === 'up', 'lic-thumb--bad': vm.U.upState(f) === 'bad'}"><img class="lic-thumb__img" flow-img="f" alt="{{ f.name }}"></span>
+            <span class="lic-up__row"><span class="lic-up__name">{{ f.name }}<small ng-class="{'lic-up__bad': vm.U.upState(f) === 'bad'}">{{ vm.U.upLabel(f, 'New scan') }}</small></span>
+                <button type="button" class="ta-ib" ng-click="vm.upDel(f)" title="Remove {{ f.name }}" aria-label="Remove {{ f.name }}" no-busy-guard><i class="fas fa-times"></i></button></span>
+            <div class="ta-meter" ng-if="vm.U.upState(f) === 'up'"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.pct(f) }}%"></div></div>
+        </div>
+    </div>
+</section>

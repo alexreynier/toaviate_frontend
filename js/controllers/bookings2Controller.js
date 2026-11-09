@@ -155,6 +155,51 @@
         vm.go_back = function(){
             if(vm.is_v2){ vm.v2_close(false); }
         };
+        // v2 panel: the backdrop and Esc are easy to hit by accident — when the user has typed notes or added a
+        // passenger, ask first (an inline bar in the action row; Back / × stay one press). UX pass 9 Nov.
+        vm.bkf_touched = false;
+        vm.bkf_confirm_discard = false;
+        vm.bkf_dismiss = function(){
+            if(!vm.is_v2){ return; }
+            if(vm.bkf_touched){ vm.bkf_confirm_discard = true; return; }
+            vm.v2_close(false);
+        };
+        vm.bkf_keep_editing = function(){ vm.bkf_confirm_discard = false; };
+        vm.bkf_discard = function(){ vm.bkf_confirm_discard = false; vm.v2_close(false); };
+        // "Clear" on the v2 panel keeps the chosen date (owner, 9 Nov) and resets every other field
+        vm.bkf_clear = function(){
+            var sd = vm.new_booking && vm.new_booking.start_date, ed = vm.new_booking && vm.new_booking.end_date;
+            $scope.clear_booking();
+            if(sd){ vm.new_booking.start_date = sd; vm.new_booking.end_date = ed || sd; }
+            vm.bkf_touched = false;
+            vm.bkf_confirm_discard = false;
+        };
+        // BookedScheduler import references ("[BS:AE040641]") stay in the booking's notes but are not shown on the v2
+        // panel (owner, 9 Nov): split off when an edit loads, put back on the update payload.
+        vm.bkf_import_tags = '';
+        function bkf_split_import_tags(){
+            var d = String((vm.new_booking && vm.new_booking.description) || ''), tags = d.match(/\[BS:[^\]]*\]/g);
+            if(!tags){ vm.bkf_import_tags = ''; return; }
+            vm.bkf_import_tags = tags.join(' ');
+            vm.new_booking.description = d.replace(/\[BS:[^\]]*\]/g, '').trim();
+        }
+        // a message fit for a toast: never a server error page (HTML from a 500) or an object dump
+        function bkf_msg(m, fallback){
+            if(m && typeof m === 'object'){ m = m.message || m.error_message || ''; }
+            m = (typeof m === 'string') ? m : '';
+            return (!m || /<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 400) ? fallback : m;
+        }
+        vm.bkf_sentence = function(s){ s = String(s || ''); return (s && s === s.toUpperCase()) ? s.charAt(0) + s.slice(1).toLowerCase() : s; };
+        if(vm.is_v2){
+            // Esc closes the panel like any dialog — unless something inside it is open (a picker, a popup) and owns the key
+            var bkf_on_key = function(e){
+                if(e.key !== 'Escape' && e.keyCode !== 27){ return; }
+                if(e.defaultPrevented || document.querySelector('body > .ui-select-bootstrap.open, .bkf .ui-select-container.open, .tadp-backdrop--open, .bkf .popup_bg, .bkf .cancel-confirm, .modal.in')){ return; }
+                $scope.$evalAsync(function(){ if(vm.bkf_confirm_discard){ vm.bkf_keep_editing(); } else { vm.bkf_dismiss(); } });
+            };
+            document.addEventListener('keydown', bkf_on_key);
+            $scope.$on('$destroy', function(){ document.removeEventListener('keydown', bkf_on_key); });
+        }
 
         // ── Lesson picker (v2 panel only) — bookings.lesson_id, "which lesson will be flown" ──
         // Shown once the booking has a course AND a student (the Member, or the user when
@@ -474,7 +519,7 @@
             var sel = bkf_pax_select();
             if(sel){ sel.search = ''; }
         }
-        function bkf_pax_after_add(){ bkf_pax_clear_search(); vm.bkf_pax_members = []; vm.bkf_pax_preview(); }
+        function bkf_pax_after_add(){ vm.bkf_touched = true; bkf_pax_clear_search(); vm.bkf_pax_members = []; vm.bkf_pax_preview(); }
         // what saving will do for the rows not saved yet (a picked member, a typed email)
         vm.bkf_pax_preview = function(){
             if(!vm.is_v2){ return; }
@@ -1102,6 +1147,7 @@
                                 // //console.log("CHECK CONTENT FROM RETURN", data.booking.instructor);
 
                                 vm.new_booking = data.booking;
+                                if(vm.is_v2){ bkf_split_import_tags(); }
                                 // bookings.solo (potential solo) — the saved value is the explicit choice on an edit
                                 vm.new_booking.solo = (parseInt(data.booking.solo, 10) === 1) ? 1 : 0;
                                 if(vm.is_v2){ vm.bkf_solo_explicit = true; }
@@ -1273,7 +1319,8 @@
                                 // //console.log("MY INSTRUCTOR HERE2244: ", vm.new_booking.instructor);
 
                             } else {
-                                ToastService.error("Booking Error", data.message);
+                                if(vm.is_v2){ ToastService.error("Booking can't be opened", bkf_msg(data.message, "It may have been cancelled or moved, or you may not be allowed to edit it.")); }
+                                else { ToastService.error("Booking Error", data.message); }
                                 if(vm.is_v2){ vm.v2_close(false); }
                                 else { $state.go('dashboard.add_booking'); }
                             }
@@ -2232,6 +2279,8 @@
 
                 var booking = {};
                 var booking = jQuery.extend(true, {}, vm.new_booking); 
+                // v2: the hidden import reference goes back on the notes it came from
+                if(vm.is_v2 && vm.bkf_import_tags){ booking.description = (String(booking.description || '').trim() + ' ' + vm.bkf_import_tags).trim(); }
                 // //console.log(booking);
                 delete booking.options;
                 delete booking.instructor;
@@ -2664,7 +2713,9 @@
                     //$scope.$parent.updateEvents(evnt.start, evnt.end);
                 }
                 
-                ToastService.success("Changes Saved", "Your changes were saved successfully.");
+                // v2: the scheduler's words — "Booking updated · Thu 12 Nov · 08:30 – 10:00" (same as a drag on the scheduler)
+                if(vm.is_v2 && evnt.start && evnt.end){ ToastService.success("Booking updated", SchedulerV2Service.fmtShortDate(evnt.start) + " · " + SchedulerV2Service.fmtRange(evnt.start, evnt.end)); }
+                else { ToastService.success("Changes Saved", "Your changes were saved successfully."); }
                 showAirworthinessWarning(data);
 
                 if(vm.return_to == "bookout") {
@@ -2847,13 +2898,16 @@
 
                 // If the backend returned a simple message (e.g. edit window expired), show it directly
                 if (errors.length === 0 && data.message) {
-                    ToastService.error('Cannot Edit Booking', data.message);
+                    if(vm.is_v2){ ToastService.error('Changes not saved', bkf_msg(data.message, 'The booking could not be changed. Nothing was saved — try again in a moment.')); }
+                    else { ToastService.error('Cannot Edit Booking', data.message); }
                 }
 
                 // Non-blocking airworthiness/insurance notice (warn policy) — shown
                 // alongside any conflict errors.
                 showAirworthinessWarning(data);
 
+                // v2: the conflict popup is the message — the write guard's generic "Not saved" toast stays quiet
+                if(vm.is_v2 && errors.length > 0){ ToastService.handledInline(); }
                 vm.booking_errors = errors;
                 // Name the outcome ourselves: the write-guard would otherwise add a generic
                 // "Not saved" toast next to the conflict popup (success:false, no handled code).
@@ -3029,8 +3083,11 @@
         vm.club_id = booking_club_id;
 
         if(vm.is_v2 && vm.action != 'edit' && vm.bkf_members_club > 0 && vm.bkf_members_club !== booking_club_id && !vm.booking_self && vm.new_booking.user){
-            // another club's aircraft: the picked member belongs to the previous club
+            // another club's aircraft: the picked member belongs to the previous club — say so (else the save just
+            // reports "Missing: Member" with no reason)
+            var bkf_gone = vm.new_booking.user;
             delete vm.new_booking.user;
+            ToastService.warning('Pick the member again', ((bkf_gone.first_name || '') + ' ' + (bkf_gone.last_name || '')).trim() + ' was picked from ' + (String(vm.bkf_club_title(vm.bkf_members_club) || '').trim() || 'another club') + '; ' + (vm.new_booking.plane.registration || vm.new_booking.plane.title || 'this aircraft') + ' belongs to ' + (String(vm.bkf_club_title(booking_club_id) || '').trim() || 'another club') + '.');
         }
         if((vm.user.access.instructor.indexOf(booking_club_id) > -1) || (vm.user.access.manager.indexOf(booking_club_id) > -1) ){
             // //console.log("NOT BOOKING FOR SELF?");
@@ -3678,9 +3735,11 @@
                     vm.cancel_confirm.booking = null;
                     $scope.close_details && $scope.close_details();
                     if(vm.is_v2 && data.claim && data.claim.success){
-                        ToastService.success(cx.key === 'no_show' ? "Marked as a no-show" : "Booking Cancelled", CancellationFeesService.outcomeText(data.claim, cx.currency), { confetti: false });
+                        ToastService.success(cx.key === 'no_show' ? "Marked as a no-show" : "Booking cancelled", CancellationFeesService.outcomeText(data.claim, cx.currency), { confetti: false });
                     } else if(vm.is_v2 && data.claim){
                         ToastService.warning("Booking cancelled, fee not added", CancellationFeesService.outcomeText(data.claim) + " You can claim it from Cancellations.");
+                    } else if(vm.is_v2){
+                        ToastService.success("Booking cancelled", "It is off the schedule.", { confetti: false });
                     } else {
                         ToastService.success("Booking Cancelled", "The booking has been cancelled.");
                     }
@@ -3700,6 +3759,8 @@
                     $('#calendar').fullCalendar('removeEvents');
                     $('#calendar').fullCalendar('addEventSource', $scope.all_events);
 
+                } else if(vm.is_v2){
+                    ToastService.error("Not cancelled", bkf_msg(data.message, "The booking could not be cancelled. Try again in a moment."));
                 } else {
                     ToastService.error("Error", data.message || "An error occurred while cancelling the booking.");
                 }
@@ -5187,6 +5248,8 @@
 
                 // //console.log("new booking obj to be sent... ",booking);
 
+                // the v2 success toast names the aircraft — clear_booking() empties vm.new_booking before it shows
+                var bkf_reg = vm.new_booking.plane ? (vm.new_booking.plane.registration || vm.new_booking.plane.title || '') : '';
                 //make booking call with new_booking as items to send! :D wooohoooooooo :P
                 BookingService.Create(vm.user.id, booking)
                 .then(function(data){
@@ -5206,7 +5269,7 @@
                             // booked from the waiting list: mark the request's day fulfilled (and the other days
                             // "booked elsewhere" unless the member still wants them) before going back
                             if(vm.bkf_wrq){ bkf_wrq_fulfil(data, booking.start); return; }
-                            ToastService.success("Booking Created", "Your booking has been created successfully.");
+                            ToastService.success("Booking made", SchedulerV2Service.fmtShortDate(booking.start) + " · " + SchedulerV2Service.fmtRange(booking.start, booking.end) + (bkf_reg ? " · " + bkf_reg : ""));
                             vm.v2_close(true, booking.start);
                             return;
                         }
@@ -5383,7 +5446,8 @@
                                 vm.new_booking_errors = errors;
                                 if (errors.length > 0) {
                                     // a conflict popup IS the feedback — pre-empt the write guard's generic "Not saved" toast
-                                    ToastService.warning('Booking Conflict', 'Nothing saved yet - see the options below.');
+                                    if(vm.is_v2){ ToastService.handledInline(); }
+                                    else { ToastService.warning('Booking Conflict', 'Nothing saved yet - see the options below.'); }
                                 }
 
                             }
@@ -5393,7 +5457,8 @@
 
                         // Only show the toast if we're not showing the override popup
                         if (!vm.new_booking_errors || !vm.new_booking_errors.length) {
-                            ToastService.error("Booking Error", data.message);
+                            if(vm.is_v2){ ToastService.error("Booking not made", bkf_msg(data.message, "The booking could not be saved. Nothing was booked — try again in a moment.")); }
+                            else { ToastService.error("Booking Error", data.message); }
                         }
 
                         // Non-blocking airworthiness/insurance notice (warn policy) —

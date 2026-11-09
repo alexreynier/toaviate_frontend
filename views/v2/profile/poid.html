@@ -1,0 +1,87 @@
+<!-- v2 · My documents → Proof of ID (mockups/my-account/profile.html, page "poid"). PoidV2Controller (js/v2/profile/profile.js).
+     Each live club's check of an ID comes from member_checks/v2/mine (contract C9). -->
+<div class="pro-wrap">
+<main class="ta-page pro-page">
+
+    <lic-docs-bar active="poid"></lic-docs-bar>
+
+    <div class="ta-note ta-note--info"><i class="fas fa-shield-alt"></i><div>Your clubs ask for a government-issued photo ID — a passport or a driving licence. Images are encrypted; only managers at your clubs can open them to check it's you.</div></div>
+
+    <div class="pro-docs" ng-if="vm.loading"><section class="ta-card"><span class="ta-skel pro-skel pro-skel--40"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section></div>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your proof of ID</h4><p>Check your connection, then try again.</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.poids.length">
+        <div class="ta-empty">
+            <span class="ta-empty__ic"><i class="fas fa-id-badge"></i></span>
+            <h4>No proof of ID yet</h4>
+            <p>Flight schools need it to confirm who you are. Add a photo of your passport or driving licence and its expiry date.</p>
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.poid.add')" no-busy-guard><i class="fas fa-plus"></i>Add proof of ID</button>
+        </div>
+    </section>
+
+    <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.poids.length && !vm.validCount()"><i class="fas fa-times-circle"></i><div><b>You have no valid proof of ID.</b> Your {{ vm.shortTitle(vm.firstExpired()) }} expired on {{ vm.U.fDate(vm.firstExpired().expiry_date) }}. Update it with your new one so your clubs can check it.</div></div>
+
+    <div class="pro-sec" ng-if="!vm.loading && vm.poids.length">
+        <h3>Your ID documents <span class="ta-tag">{{ vm.poids.length }}</span></h3>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.poid.add')" no-busy-guard><i class="fas fa-plus"></i>Add proof of ID</button>
+    </div>
+
+    <div class="pro-docs" ng-if="!vm.loading && vm.poids.length">
+        <section class="ta-card pro-docc" ng-repeat="p in vm.poids" ng-class="{'pro-docc--bad': vm.state(p) === 'expired', 'pro-docc--warn': vm.state(p) === 'soon', 'pro-person--new': vm.flash && vm.flash === p.id}">
+            <div class="ta-card__hd">
+                <span class="ta-card__icon"><i class="fas" ng-class="vm.icon(p.title)"></i></span>
+                <div class="ta-card__ttl"><h3>{{ p.title }}</h3>
+                    <p class="ta-num" ng-if="vm.state(p) === 'expired'">Expired on {{ vm.U.fDate(p.expiry_date) }}</p>
+                    <p class="ta-num" ng-if="vm.state(p) === 'soon' || vm.state(p) === 'valid'">Expires {{ vm.U.fDate(p.expiry_date) }}<span ng-if="vm.state(p) === 'soon'"> · in {{ vm.U.plural(vm.left(p), 'day') }}</span></p>
+                    <p ng-if="vm.state(p) === 'none'">No expiry date on file</p>
+                </div>
+                <span class="ta-card__right"><span class="ta-pill" ng-class="'ta-pill--' + vm.pill(p).tone"><i class="fas" ng-class="vm.pill(p).icon"></i>{{ vm.pill(p).label }}</span></span>
+            </div>
+            <div class="ta-note ta-note--bad" ng-if="vm.state(p) === 'expired'"><i class="fas fa-calendar-times"></i><div>Clubs can't accept an expired ID. Update this one with your new document, or remove it.</div></div>
+            <div class="pro-checks" ng-if="vm.state(p) !== 'expired' && p._checks.length">
+                <div class="pro-check" ng-repeat="c in p._checks">
+                    <span class="pro-check__club">{{ c.club }}<small>{{ vm.U.checkLine(c, 'Not checked by a club manager yet') }}</small></span>
+                    <span class="ta-pill ta-pill--good" ng-if="c.verified"><i class="fas fa-check"></i>Verified</span>
+                    <span class="ta-pill ta-pill--pend" ng-if="!c.verified"><i class="fas fa-hourglass-half"></i>Awaiting check</span>
+                </div>
+            </div>
+            <div class="ta-note ta-note--warn" ng-if="vm.state(p) === 'soon'"><i class="fas fa-exclamation-triangle"></i><div>Expires in {{ vm.U.plural(vm.left(p), 'day') }}. When you get the new one, update this record with it.</div></div>
+
+            <div class="pro-imgbar" ng-if="p.images.length">
+                <span><i class="fas fa-images"></i>{{ vm.U.plural(p.images.length, 'image') }}</span>
+                <button type="button" class="ta-link" ng-if="!vm.revealed" ng-click="vm.reveal()" ng-disabled="vm.revealing" no-busy-guard><i class="fas" ng-class="vm.revealing ? 'fa-circle-notch fa-spin' : 'fa-eye'"></i>Show images</button>
+                <button type="button" class="ta-link" ng-if="vm.revealed" ng-click="vm.hide()" no-busy-guard><i class="fas fa-eye-slash"></i>Hide images</button>
+            </div>
+            <div class="pro-thumbs" ng-if="p.images.length">
+                <div class="pro-thumb" ng-repeat="im in p.images">
+                    <div class="pro-doc pro-doc--img" ng-if="vm.revealed && vm.imgOf(p, $index)"><img ng-src="{{ vm.imgOf(p, $index) }}" alt="{{ p.title }}, image {{ $index + 1 }}"></div>
+                    <div class="pro-doc pro-doc--blur" ng-if="!(vm.revealed && vm.imgOf(p, $index))" ng-class="{'pro-doc--back': $index % 2 === 1}">
+                        <span class="pro-doc__ph"><i class="fas fa-user"></i></span><span class="pro-doc__lines"><b></b><b></b><b></b><b></b></span>
+                        <span class="pro-doc__veil"><i class="fas fa-lock"></i>Encrypted</span>
+                    </div>
+                    <span class="pro-thumb__name">Image {{ $index + 1 }}</span>
+                </div>
+            </div>
+            <p class="pro-lockhint" ng-if="!p.images.length"><i class="fas fa-images"></i><span>No images on this record — edit it to add a photo of the document.</span></p>
+
+            <div class="pro-confirm" ng-if="vm.removing === p.id">
+                <div class="ta-note ta-note--warn"><i class="fas fa-exclamation-triangle"></i><div>Remove your <b>{{ p.title }}</b>? Your clubs will no longer see it, and it's kept in the archive only.</div></div>
+                <div class="pro-confirm__btns">
+                    <button type="button" class="ta-btn" ng-click="vm.keep()" no-busy-guard>Keep</button>
+                    <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.remove(p)"><i class="fas fa-trash-alt"></i>Yes, remove</button>
+                </div>
+            </div>
+            <div class="pro-foot" ng-if="vm.removing !== p.id">
+                <button type="button" class="ta-btn ta-btn--sm" ng-class="{'ta-btn--primary': vm.state(p) === 'expired'}" ng-click="vm.go('dashboard.my_account.poid.edit', {poid_id: p.id})" no-busy-guard><i class="fas" ng-class="vm.state(p) === 'expired' ? 'fa-sync-alt' : 'fa-pen'"></i>{{ vm.state(p) === 'expired' ? 'Update with new ID' : 'Edit' }}</button>
+                <span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.askRemove(p)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove</button>
+            </div>
+        </section>
+    </div>
+</main>
+
+<div ng-include="'views/v2/profile/_reveal_dlg.html'"></div>
+</div>

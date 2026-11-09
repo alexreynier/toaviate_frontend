@@ -1,1021 +1,1055 @@
-<!-- ═══════════════════════════════════════════════════════════════════════
-     BOOK OUT — dashboard.my_account.bookout_with_booking (BookoutController).
-     Redesign 2026-11-06; spec mockups/bookout-redesign.html; styles css/bookout.css (.bo-*).
-     Hero (the aircraft is the headline) → aircraft status band → six numbered
-     cards → the ONE book-out button at the end. The "Before you fly" rail
-     (desktop) / strip + bottom bar (≤991px) is vm.bo_readiness(): the checks
-     bookout_plane() runs, live. data-e2e attributes are E2E hooks — keep them.
-     ═══════════════════════════════════════════════════════════════════════ -->
-<div class="bo" data-e2e="bo-page">
 
-  <!-- ── loading: skeleton until bookings/for_bookout answers ── -->
-  <div class="bo-skel" ng-if="!vm.bo_loaded && !vm.bo_load_error" aria-busy="true" aria-live="polite">
-    <div class="bo-skel__hero"><span class="bo-skel__line bo-skel__line--sm"></span><span class="bo-skel__line bo-skel__line--lg"></span><span class="bo-skel__line bo-skel__line--md"></span></div>
-    <div class="bo-skel__band"><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="bo-skel__card"></div>
-    <div class="bo-skel__card bo-skel__card--short"></div>
-    <p class="bo-skel__txt"><i class="fas fa-spinner fa-spin"></i> Loading your booking…</p>
-  </div>
+<div class="bookingout_wrapper">
 
-  <!-- ── couldn't load (no access / not found / offline) ── -->
-  <div class="bo-fail" ng-if="vm.bo_load_error">
-    <span class="bo-fail__ic"><i class="fas fa-plane-slash"></i></span>
-    <h2>We couldn't open this book-out</h2>
-    <p>{{ vm.bo_load_error }}</p>
-    <div class="bo-fail__acts">
-      <a class="bo-btn bo-btn--quiet" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i> My account</a>
+
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+      <div class="snazzy-page__title">
+        <h2><i class="fas fa-plane-departure"></i> BOOKOUT</h2>
+        <p>Get ready for flight!</p>
+      </div>
     </div>
   </div>
 
-  <div ng-if="vm.bo_loaded" class="bo-page">
 
-    <!-- ═════ HERO ═════ -->
-    <section class="bo-hero">
-      <i class="fas fa-plane bo-hero__deco" aria-hidden="true"></i>
-      <div class="bo-hero__top">
-        <a class="bo-back" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i> My account</a>
-        <span class="bo-hero__eyebrow"><i class="fas fa-plane-departure"></i> Book out</span>
+  <form>
+
+
+    <div class="club_docs_all">
+
+      <h2>Booking</h2>
+
+      <div class="center_if_large">
+        <div class="form-group-inline">
+          <label for="card-number">Aircraft</label>
+          <input type="text" class="form-control" ng-model="vm.bookout.plane.registration" disabled="true">
+        </div>
+
+        <div class="form-group-inline">
+          <label for="card-number">Aircraft Type</label>
+          <input type="text" class="form-control" ng-model="vm.bookout.plane.plane_type" disabled="true">
+        </div>
+
+        <div class="form-group-inline">
+          <label for="card-number">Returning Aircraft By</label>
+          <input type="text" class="form-control" value="{{ applyFilter(vm.bookout.return, vm.dateFormat) }}" disabled="true">
+          
+        </div>
+
+
+        <button class="btn btn-info add_diff_btn2" ui-sref="dashboard.edit_from_bookout({booking_id: vm.bookout.booking_id})">Amend Booking</button>
       </div>
-      <div class="bo-hero__main">
-        <div class="bo-tail">
-          <span class="bo-tail__badge" aria-hidden="true"><i class="fas fa-plane"></i></span>
-          <div class="bo-tail__txt">
-            <h1 class="bo-tail__reg">{{ vm.bookout.plane.registration }}</h1>
-            <div class="bo-tail__type">
-              <span ng-if="vm.bookout.plane.plane_type">{{ vm.bookout.plane.plane_type }}</span>
-              <span class="bo-dot" ng-if="vm.bookout.plane.plane_type && vm.bookout.plane.seats > 0"></span>
-              <span ng-if="vm.bookout.plane.seats > 0">{{ vm.bookout.plane.seats }} seat{{ vm.bookout.plane.seats == 1 ? '' : 's' }}</span>
+
+    </div>
+
+    <div class="club_docs_all">
+
+      <h2>Flight Details</h2>
+      <div class="center_if_large2 left_al">
+
+        <div class="form-group">
+          <label for="card-number">Pilot in Command</label>
+
+          <ui-select ng-model="vm.bookout.pic" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the PIC" append-to-body="true" ng-change="update_pic()">
+            <ui-select-match placeholder="Please select the PIC">
+              {{ vm.bookout.pic.first_name }} {{ vm.bookout.pic.last_name }}
+            </ui-select-match>
+            <ui-select-choices repeat="pic in vm.pics | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
+              <div ng-bind-html="pic.name | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+        
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id">
+          <label for="card-number">Pilot Under Training</label>
+
+          <input type="text" class="form-control inputtext" value="{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}" disabled="true">
+
+        </div>
+
+        <!-- ── Solo intent (dual bookouts): "I may send this student solo" ──
+             Creates a provisional STUDENT SOLO airfield bookout, activated later
+             with the Send Solo button, and auto-closed if it never happens. -->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.instructor_id && vm.bookout.put">
+          <label>Might this flight go solo?</label>
+          <div class="solo-intent">
+            <a class="solo-intent__opt" ng-class="{'solo-intent__opt--on': vm.solo_intent === 'student_solo'}" ng-click="vm.setSoloIntent('student_solo')">
+              <i class="fas fa-user-graduate"></i> I may send {{ vm.bookout.put.first_name || 'this student' }} solo
+            </a>
+            <a class="solo-intent__opt" ng-class="{'solo-intent__opt--on': vm.solo_intent === 'solo_check'}" ng-click="vm.setSoloIntent('solo_check')">
+              <i class="fas fa-clipboard-check"></i> Solo check flight
+            </a>
+          </div>
+          <p class="solo-intent__hint" ng-if="vm.solo_intent">
+            A planned <strong>{{ vm.solo_intent === 'solo_check' ? 'SOLO CHECK' : 'STUDENT SOLO' }}</strong> will appear on the airfield display.
+            Use <em>Send solo</em> during the flight to activate it — or stand it down with one tap, no questions asked.
+          </p>
+
+          <!-- Inline readiness so the instructor knows on the ground -->
+          <div class="solo-mini" ng-if="vm.solo_intent">
+            <div class="solo-mini__loading" ng-if="vm.solo_readiness.loading"><div class="solo-req__spinner"></div> Checking pre-solo requirements&hellip;</div>
+            <div ng-if="!vm.solo_readiness.loading && vm.solo_readiness.status">
+              <div class="solo-mini__banner" ng-class="vm.solo_readiness.status.all_satisfied ? 'solo-mini__banner--go' : 'solo-mini__banner--wait'">
+                <i class="fas" ng-class="vm.solo_readiness.status.all_satisfied ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span ng-if="vm.solo_readiness.status.all_satisfied">All pre-solo requirements satisfied — a send-solo will pass.</span>
+                <span ng-if="!vm.solo_readiness.status.all_satisfied">Pre-solo requirements outstanding — a send-solo may be blocked (see below).</span>
+              </div>
+              <div class="solo-mini__item" ng-repeat="req in vm.solo_readiness.status.requirements"
+                   ng-class="{'solo-mini__item--ok': req.satisfied, 'solo-mini__item--review': !req.satisfied && (req.state === 'pending_review' || req.state === 'in_progress')}">
+                <i class="fas" ng-class="req.satisfied ? 'fa-check-circle' : ((req.state === 'pending_review' || req.state === 'in_progress') ? 'fa-hourglass-half' : 'fa-times-circle')"></i>
+                {{ req.name }}<span class="solo-mini__course" ng-if="req.course_title"> &middot; {{ req.course_title }}</span>
+                <div class="solo-mini__detail" ng-if="!req.satisfied && req.detail">{{ req.detail }}</div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="bo-facts">
-          <div class="bo-fact bo-fact--slot">
-            <div class="bo-fact__k">{{ vm.bookout.booking_start | date:'EEE d MMM' }}</div>
-            <div class="bo-fact__v">{{ vm.bookout.booking_start | date:'HH:mm' }} – {{ vm.bookout.return | date:'HH:mm' }}</div>
-            <div class="bo-fact__s">{{ vm.bo_slot_sub() }}</div>
+
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id && vm.can_authorise">
+          <label for="card-number">Authorise Solo Flight</label>
+          <div class="check_box_in_form">
+            <input type="checkbox" class="form-control inputtext" ng-model="vm.bookout.authorised_solo" ng-change="vm.onAuthorisedSoloChange()">
           </div>
-          <div class="bo-fact" ng-class="{'bo-fact--late': vm.bo_return_late()}">
-            <div class="bo-fact__k">Return by</div>
-            <div class="bo-fact__v">{{ vm.bookout.return | date:'HH:mm' }}</div>
-            <div class="bo-fact__s">{{ vm.bo_return_in() }}</div>
-          </div>
-          <div class="bo-fact">
-            <div class="bo-fact__k">Instructor</div>
-            <div class="bo-fact__v">{{ vm.bo_instructor_short() || 'None' }}</div>
-            <div class="bo-fact__s">{{ vm.bookout.instructor_id > 0 ? 'Booked' : 'Self-fly' }}</div>
+
+          <!-- Student-solo readiness, shown as soon as the solo is authorised -->
+          <div class="solo-mini" ng-if="vm.bookout.authorised_solo">
+            <div class="solo-mini__loading" ng-if="vm.solo_readiness.loading"><div class="solo-req__spinner"></div> Checking pre-solo requirements&hellip;</div>
+            <div ng-if="!vm.solo_readiness.loading && vm.solo_readiness.status">
+              <div class="solo-mini__banner" ng-class="vm.solo_readiness.status.all_satisfied ? 'solo-mini__banner--go' : 'solo-mini__banner--wait'">
+                <i class="fas" ng-class="vm.solo_readiness.status.all_satisfied ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                <span ng-if="vm.solo_readiness.status.all_satisfied">All pre-solo requirements satisfied.</span>
+                <span ng-if="!vm.solo_readiness.status.all_satisfied">Pre-solo requirements outstanding — this book-out may be blocked by the club's pilot-checks policy.</span>
+              </div>
+              <div class="solo-mini__item" ng-repeat="req in vm.solo_readiness.status.requirements"
+                   ng-class="{'solo-mini__item--ok': req.satisfied, 'solo-mini__item--review': !req.satisfied && (req.state === 'pending_review' || req.state === 'in_progress')}">
+                <i class="fas" ng-class="req.satisfied ? 'fa-check-circle' : ((req.state === 'pending_review' || req.state === 'in_progress') ? 'fa-hourglass-half' : 'fa-times-circle')"></i>
+                {{ req.name }}<span class="solo-mini__course" ng-if="req.course_title"> &middot; {{ req.course_title }}</span>
+                <div class="solo-mini__detail" ng-if="!req.satisfied && req.detail">{{ req.detail }}</div>
+              </div>
+            </div>
           </div>
         </div>
-        <!-- keeps what was filled in: the amended booking comes back here -->
-        <a class="bo-amend" ui-sref="dashboard.edit_from_bookout({booking_id: vm.bookout.booking_id})" ng-click="vm.saveDraft()"><i class="fas fa-pen"></i> Amend booking</a>
-      </div>
-    </section>
 
-    <!-- ═════ AIRCRAFT STATUS BAND — the state before anything else ═════ -->
-    <section class="bo-band" aria-label="Aircraft status">
-      <div class="bo-band__tile" ng-class="'bo-band__tile--' + vm.bo_hours_tone()" data-e2e="bo-band-hours">
-        <span class="bo-band__k"><i class="fas fa-hourglass-half"></i> Hours left</span>
-        <span class="bo-band__v" ng-if="vm.bo_plane_loaded">{{ vm.bo_hours_text() }}</span>
-        <span class="bo-band__v bo-shimmer" ng-if="!vm.bo_plane_loaded">&nbsp;</span>
-        <span class="bo-band__s">{{ vm.bo_plane_loaded ? vm.bo_hours_sub() : 'Loading…' }}</span>
-        <span class="bo-band__bar" aria-hidden="true"><i ng-style="{width: vm.bo_hours_pct() + '%'}"></i></span>
-      </div>
-      <div class="bo-band__tile" ng-class="'bo-band__tile--' + vm.bo_days_tone()" data-e2e="bo-band-days">
-        <span class="bo-band__k"><i class="fas fa-calendar-alt"></i> Days left</span>
-        <span class="bo-band__v" ng-if="vm.bo_plane_loaded">{{ vm.bo_days_text() }}</span>
-        <span class="bo-band__v bo-shimmer" ng-if="!vm.bo_plane_loaded">&nbsp;</span>
-        <span class="bo-band__s">{{ vm.bo_plane_loaded ? vm.bo_days_sub() : 'Loading…' }}</span>
-        <span class="bo-band__bar" aria-hidden="true"><i ng-style="{width: vm.bo_days_pct() + '%'}"></i></span>
-      </div>
-      <div class="bo-band__tile bo-band__tile--plain" ng-class="{'bo-band__tile--warn': vm.bo_meter_warn()}" data-e2e="bo-band-meter">
-        <span class="bo-band__k"><i class="fas fa-tachometer-alt"></i> Meter</span>
-        <span class="bo-band__v">{{ vm.bo_meter_text() }}</span>
-        <span class="bo-band__s" ng-if="!vm.bo_meter_warn()">last reading</span>
-        <span class="bo-band__s" ng-if="vm.bo_meter_warn()" title="{{ vm.booking.plane_details.meter_warning }}">last flight not booked in — read the meter</span>
-      </div>
-      <button type="button" class="bo-band__tile bo-band__tile--btn" ng-class="'bo-band__tile--' + (vm.bo_plane_loaded ? vm.bo_docs_summary.tone : 'na')" ng-click="vm.bo_goto('aircraft')" data-e2e="bo-band-docs">
-        <i class="fas fa-chevron-right bo-band__go" aria-hidden="true"></i>
-        <span class="bo-band__k"><i class="fas fa-file-alt"></i> Documents</span>
-        <span class="bo-band__v" ng-if="vm.bo_plane_loaded">{{ vm.bo_docs_summary.valid }}<small>of {{ vm.bo_docs_summary.total }} valid</small></span>
-        <span class="bo-band__v bo-shimmer" ng-if="!vm.bo_plane_loaded">&nbsp;</span>
-        <span class="bo-band__s">{{ vm.bo_plane_loaded ? vm.bo_docs_summary.note : 'Loading…' }}</span>
-      </button>
-      <button type="button" class="bo-band__tile bo-band__tile--btn bo-band__tile--wide" ng-class="'bo-band__tile--' + vm.bo_defects_tone()" ng-click="vm.bo_goto('aircraft')" data-e2e="bo-band-defects">
-        <i class="fas fa-chevron-right bo-band__go" aria-hidden="true"></i>
-        <span class="bo-band__k"><i class="fas fa-tools"></i> Reported defects</span>
-        <span class="bo-band__v" ng-if="vm.bo_defects_loaded">
-          {{ vm.bo_defects_error ? '?' : (vm.bo_defects_count() || 'None') }}<small ng-if="vm.bo_defects_count() > 0">{{ vm.bookout.accept_defects === true ? 'accepted' : 'to review' }}</small>
-        </span>
-        <span class="bo-band__v bo-shimmer" ng-if="!vm.bo_defects_loaded">&nbsp;</span>
-        <span class="bo-band__s">{{ vm.bo_defects_sub() }}</span>
-      </button>
-    </section>
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && vm.bookout.pic.user_id == vm.bookout.user_id">
+          <label for="ps">
+            <span ng-if="!vm.bookout.authorised_solo">Pilot Supervising</span>
+            <span ng-if="vm.bookout.authorised_solo">Pilot Authorising Flight</span>
+          </label>
 
-    <div class="bo-layout">
+          <input type="text" class="form-control inputtext" value="{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}" disabled="true">
 
-      <!-- ═════ THE FLOW ═════ -->
-      <div class="bo-main">
+        </div>
 
-        <!-- ── 1 · Who's flying ── -->
-        <section class="bo-card" id="bo-card-crew" data-e2e="bo-card-crew">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('crew')}">
-              <i class="fas" ng-class="vm.bo_card_done('crew') ? 'fa-check' : 'fa-user-friends'"></i><span class="bo-card__step">1</span>
-            </span>
-            <div class="bo-card__ttl">
-              <h2>Who's flying</h2>
-              <p>{{ vm.bookout.instructor_id > 0 ? 'Crew and lesson' : 'Pilot in command' }}</p>
-            </div>
-          </header>
+        <!-- STOP HERE NOW && vm.bookout.pic.user_id !== vm.user.id //-->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0">
+            <label for="instructor">Select Course</label>
+            <ui-select ng-model="vm.bookout.selected_course" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Course" append-to-body="true" ng-change="vm.update_course()">
 
-          <div class="bo-crew" ng-class="{'bo-crew--pair': vm.bo_put_shown() || vm.bo_supervisor_shown()}">
-            <div class="bo-field" id="pic">
-              <span class="bo-label"><i class="fas fa-user-tie"></i> Pilot in command</span>
-              <ui-select ng-model="vm.bookout.pic" theme="bootstrap" class="bo-us bo-us--person bkf-us bkf-us--mem" title="Choose the pilot in command" append-to-body="true" ng-change="update_pic()">
-                <ui-select-match placeholder="Choose the pilot in command">
-                  <span class="bo-pm">
-                    <span class="bo-av" ng-class="{'bo-av--instr': vm.bo_is_instructor(vm.bookout.pic)}">{{ vm.bo_initials(vm.bookout.pic) }}</span>
-                    <span class="bo-pm__txt">
-                      <b>{{ vm.bookout.pic.first_name }} {{ vm.bookout.pic.last_name }}</b>
-                      <small>{{ vm.bo_person_sub(vm.bookout.pic) }}</small>
-                    </span>
-                    <span class="bo-pm__end" ng-if="vm.pics.length > 1">Change</span>
-                  </span>
-                </ui-select-match>
-                <ui-select-choices repeat="pic in vm.pics | propsFilterA: {first_name: $select.search, last_name: $select.search, name: $select.search, id: $select.search}">
-                  <div class="bkf-opt">
-                    <span class="bkf-opt__av" ng-class="{'bkf-opt__av--mem': !vm.bo_is_instructor(pic)}">{{ vm.bo_initials(pic) }}</span>
-                    <span class="bkf-opt__body">
-                      <span class="bkf-opt__nm" ng-bind-html="pic.name | highlight: $select.search"></span>
-                      <span class="bkf-opt__sub">{{ vm.bo_person_role(pic) }}</span>
-                    </span>
-                  </div>
-                </ui-select-choices>
-                <ui-select-no-choice><span>No pilots found for this booking.</span></ui-select-no-choice>
-              </ui-select>
-            </div>
+              <ui-select-match placeholder="Please select your course">
+                {{ vm.bookout.selected_course.title }}             
+              </ui-select-match>
+              <ui-select-choices repeat="course in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
+                <span ng-bind-html="course.title | highlight: $select.search"></span>
 
-            <!-- instructor is PIC → the student is the pilot under training -->
-            <span class="bo-crew__link" ng-if="vm.bo_put_shown()">Instructing</span>
-            <div class="bo-field" ng-if="vm.bo_put_shown()">
-              <span class="bo-label"><i class="fas fa-user-graduate"></i> Pilot under training</span>
-              <div class="bo-person bo-person--ro">
-                <span class="bo-av">{{ vm.bo_initials(vm.bookout.put) }}</span>
-                <span class="bo-person__txt">
-                  <b>{{ vm.bookout.put.first_name }} {{ vm.bookout.put.last_name }}</b>
-                  <small>Student</small>
-                </span>
-              </div>
-            </div>
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>It doesn't look like this instructor can teach what you're looking for.</span>
+              </ui-select-no-choice>
+            </ui-select>
 
-            <!-- student is PIC → the booked instructor supervises / authorises -->
-            <span class="bo-crew__link" ng-if="vm.bo_supervisor_shown()">{{ vm.bookout.authorised_solo ? 'Authorised by' : 'Supervised by' }}</span>
-            <div class="bo-field" ng-if="vm.bo_supervisor_shown()">
-              <span class="bo-label">
-                <i class="fas fa-chalkboard-teacher"></i>
-                <span ng-if="!vm.bookout.authorised_solo">Pilot supervising</span>
-                <span ng-if="vm.bookout.authorised_solo">Pilot authorising flight</span>
-              </span>
-              <div class="bo-person bo-person--ro">
-                <span class="bo-av bo-av--instr">{{ vm.bo_initials(vm.bookout.instructor) }}</span>
-                <span class="bo-person__txt">
-                  <b>{{ vm.bookout.instructor.first_name }} {{ vm.bookout.instructor.last_name }}</b>
-                  <small>Instructor</small>
-                </span>
-              </div>
-            </div>
-          </div>
+        </div>
 
-          <!-- currency: a solo PIC the server says is out of currency on this aircraft -->
-          <div class="bo-sec" ng-if="vm.bo_currency_needed()">
-            <label class="bo-toggle bo-toggle--warn" ng-class="{'bo-toggle--on': vm.bookout.is_current}" id="is_current" data-e2e="bo-currency-toggle">
-              <input type="checkbox" class="bo-toggle__input" ng-model="vm.bookout.is_current">
-              <span class="bo-switch" aria-hidden="true"></span>
-              <span class="bo-toggle__txt">
-                <span class="bo-toggle__t"><i class="fas" ng-class="vm.bookout.is_current ? 'fa-check-circle' : 'fa-hourglass-end'"></i> Currency</span>
-                <span class="bo-toggle__s">I confirm I have flown {{ vm.bo_currency_what() }} within the last {{ vm.bo_currency_days() }} days, as the club requires.</span>
-              </span>
-            </label>
-          </div>
+        <!--  -->
+        <div class="form-group" ng-if="vm.bookout.instructor_id > 0 && !vm.bookout.authorised_solo">
+            <label for="instructor">Select Tuition Required</label>
+            <ui-select ng-model="vm.bookout.tuition_required" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Select Tuition Required" append-to-body="true">
 
-          <!-- ── Solo intent (dual bookouts): "I may send this student solo" ──
-               Creates a provisional STUDENT SOLO airfield bookout, activated later
-               with the Send Solo button, and auto-closed if it never happens. -->
-          <div class="bo-sec" ng-if="vm.bo_intent_shown()">
-            <div class="bo-sec__hd"><h4>Might this flight go solo?</h4><span class="bo-chip">Optional</span></div>
-            <div class="bo-intent">
-              <button type="button" class="bo-intent__opt" ng-class="{'bo-intent__opt--on': vm.solo_intent === 'student_solo'}" ng-click="vm.setSoloIntent('student_solo')" aria-pressed="{{ vm.solo_intent === 'student_solo' }}">
-                <i class="fas fa-user-graduate" aria-hidden="true"></i>
-                <b>I may send {{ vm.bookout.put.first_name || 'this student' }} solo</b>
-                <span>Plans a STUDENT SOLO</span>
-              </button>
-              <button type="button" class="bo-intent__opt" ng-class="{'bo-intent__opt--on': vm.solo_intent === 'solo_check'}" ng-click="vm.setSoloIntent('solo_check')" aria-pressed="{{ vm.solo_intent === 'solo_check' }}">
-                <i class="fas fa-clipboard-check" aria-hidden="true"></i>
-                <b>Solo check flight</b>
-                <span>Plans a SOLO CHECK</span>
-              </button>
-            </div>
-            <div class="bo-note bo-note--solo" ng-if="vm.solo_intent">
-              <i class="fas fa-broadcast-tower"></i>
-              <div>A planned <b>{{ vm.solo_intent === 'solo_check' ? 'SOLO CHECK' : 'STUDENT SOLO' }}</b> will appear on the airfield display.
-                Use <em>Send solo</em> during the flight to activate it — or stand it down with one tap, no questions asked.</div>
-            </div>
-            <!-- pre-solo readiness, so the instructor knows ON THE GROUND whether a send-solo would pass -->
-            <bo-presolo ng-if="vm.solo_intent"
-                        club-id="vm.bookout.club_id" student-id="vm.bookout.user_id" course-id="vm.bookout.course_id || 0"
-                        flight-date="vm.bo_flight_date" booking-id="vm.bookout.booking_id" lesson-id="vm.bo_lesson_id"
-                        mode="'intent'" on-status="vm.onPresoloStatus(status)" before-leave="vm.saveDraft()"></bo-presolo>
-          </div>
+              <ui-select-match placeholder="Please select tuition required">
+                {{ vm.bookout.tuition_required.title }}             
+              </ui-select-match>
+              <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
+                <span ng-bind-html="instructor.title | highlight: $select.search"></span>
 
-          <!-- ── Authorise solo (student is PIC; instructors / managers of the club) ── -->
-          <div class="bo-sec" ng-if="vm.bo_auth_shown()">
-            <label class="bo-toggle bo-toggle--solo" ng-class="{'bo-toggle--on': vm.bookout.authorised_solo}" data-e2e="bo-authorise-solo">
-              <input type="checkbox" class="bo-toggle__input" ng-model="vm.bookout.authorised_solo" ng-change="vm.onAuthorisedSoloChange()">
-              <span class="bo-switch" aria-hidden="true"></span>
-              <span class="bo-toggle__txt">
-                <span class="bo-toggle__t"><i class="fas fa-user-check"></i> Authorise solo flight</span>
-                <span class="bo-toggle__s" ng-if="!vm.bookout.authorised_solo">Turn on to authorise {{ vm.bookout.pic.first_name || 'this student' }} to fly solo.</span>
-                <span class="bo-toggle__s" ng-if="vm.bookout.authorised_solo">You authorise {{ vm.bookout.pic.first_name }} {{ vm.bookout.pic.last_name }}'s solo — no tuition is charged.</span>
-              </span>
-            </label>
-            <bo-presolo ng-if="vm.bookout.authorised_solo"
-                        club-id="vm.bookout.club_id" student-id="vm.bookout.user_id" course-id="vm.bookout.course_id || 0"
-                        flight-date="vm.bo_flight_date" booking-id="vm.bookout.booking_id" lesson-id="vm.bo_lesson_id"
-                        mode="'auth'" on-status="vm.onPresoloStatus(status)" before-leave="vm.saveDraft()"></bo-presolo>
-          </div>
+              </ui-select-choices>
+              <ui-select-no-choice>
+                <span>It doesn't look like this instructor can teach what you're looking for.</span>
+              </ui-select-no-choice>
+            </ui-select>
 
-          <!-- ── Course + tuition (instructor booked) ── -->
-          <div class="bo-sec" ng-if="vm.bookout.instructor_id > 0">
-            <div class="bo-grid bo-grid--2">
-              <div class="bo-field">
-                <span class="bo-label"><i class="fas fa-book"></i> Course</span>
-                <ui-select ng-model="vm.bookout.selected_course" theme="bootstrap" class="bo-us bkf-us" title="Select course" append-to-body="true" ng-change="vm.update_course()">
-                  <ui-select-match placeholder="Select course">{{ vm.bookout.selected_course.title }}</ui-select-match>
-                  <ui-select-choices repeat="course in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
-                    <span ng-bind-html="course.title | highlight: $select.search"></span>
-                  </ui-select-choices>
-                  <ui-select-no-choice>
-                    <span>It doesn't look like this instructor can teach what you're looking for.</span>
-                  </ui-select-no-choice>
-                </ui-select>
-              </div>
-              <div class="bo-field" ng-if="!vm.bookout.authorised_solo">
-                <span class="bo-label"><i class="fas fa-chalkboard"></i> Tuition required</span>
-                <ui-select ng-model="vm.bookout.tuition_required" theme="bootstrap" class="bo-us bkf-us" title="Select tuition required" append-to-body="true">
-                  <ui-select-match placeholder="Select tuition">{{ vm.bookout.tuition_required.title }}</ui-select-match>
-                  <ui-select-choices repeat="instructor in vm.instructor_charges | propsFilterA: {title: $select.search, id: $select.search}">
-                    <span ng-bind-html="instructor.title | highlight: $select.search"></span>
-                  </ui-select-choices>
-                  <ui-select-no-choice>
-                    <span>It doesn't look like this instructor can teach what you're looking for.</span>
-                  </ui-select-no-choice>
-                </ui-select>
-              </div>
-            </div>
-          </div>
-        </section>
+        </div>
 
-        <!-- ── 2 · Flight & route ── -->
-        <section class="bo-card" id="bo-card-flight" data-e2e="bo-card-flight">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('flight')}">
-              <i class="fas" ng-class="vm.bo_card_done('flight') ? 'fa-check' : 'fa-route'"></i><span class="bo-card__step">2</span>
-            </span>
-            <div class="bo-card__ttl">
-              <h2>Flight &amp; route</h2>
-              <p>Where you're going</p>
-            </div>
-          </header>
 
-          <div class="bo-field" id="flight_type">
-            <span class="bo-label">Flight type</span>
-            <div class="bo-seg" role="group" aria-label="Flight type">
-              <button type="button" class="bo-seg__btn" ng-repeat="ft in vm.flight_types track by ft.id"
-                      ng-class="{'bo-seg__btn--on': vm.bookout.flight_type.id === ft.id}" ng-click="vm.bo_set_flight_type(ft)"
-                      aria-pressed="{{ vm.bookout.flight_type.id === ft.id }}" data-e2e="bo-ft-{{ ft.id }}">
-                <i class="fas" ng-class="vm.bo_ft_icon(ft.id)" aria-hidden="true"></i><span>{{ ft.title }}</span>
-              </button>
-            </div>
-          </div>
 
-          <div class="bo-route" ng-class="{'bo-route--local': !vm.bo_needs_destination()}">
-            <div class="bo-ap" ng-class="{'bo-ap--empty': !vm.bookout.from_airfield}">
-              <span class="bo-ap__k"><i class="fas fa-plane-departure"></i> From</span>
-              <ui-select ng-model="vm.bookout.from_airfield" ng-change="selected_airfield_check()" theme="bootstrap" class="bo-us bo-us--ap bkf-us" title="Choose the departure airfield" append-to-body="true">
-                <ui-select-match placeholder="Search ICAO or name">
-                  <span class="bo-ap__code">{{ vm.bookout.from_airfield.code }}</span>
-                  <span class="bo-ap__nm" ng-bind-html="vm.bookout.from_airfield.title"></span>
-                </ui-select-match>
-                <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: vm.wgs_n:vm.wgs_e" refresh="get_airfields($select.search)" refresh-delay="2">
-                  <div ng-bind-html="airfield.title | highlight: $select.search"></div>
-                  <small ng-bind-html="airfield.code | highlight: $select.search"></small>
-                </ui-select-choices>
-                <ui-select-no-choice><span>Type 3 or more letters of an ICAO code or a name.</span></ui-select-no-choice>
-              </ui-select>
-            </div>
+        <div class="form-group">
+          <label for="from_airfield">Flight Type</label>
 
-            <div class="bo-route__line" ng-if="vm.bo_needs_destination()" aria-hidden="true"><i class="fas fa-plane"></i></div>
+          <ui-select ng-model="vm.bookout.flight_type" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the flight type" append-to-body="true">
+            <ui-select-match placeholder="Please select the flight type">
+              {{ vm.bookout.flight_type.title }} 
+            </ui-select-match>
+            <ui-select-choices repeat="ft in vm.flight_types | propsFilterA: {title: $select.search, id: $select.search}">
+              <div ng-bind-html="ft.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
 
-            <div class="bo-ap" ng-if="vm.bo_needs_destination()" ng-class="{'bo-ap--empty': !vm.bookout.to_airfield}" id="to_airfield" data-e2e="bo-to-airfield">
-              <span class="bo-ap__k"><i class="fas fa-plane-arrival"></i> To</span>
-              <ui-select ng-model="vm.bookout.to_airfield" ng-change="selected_airfield_check()" theme="bootstrap" class="bo-us bo-us--ap bkf-us" title="Choose the destination airfield" append-to-body="true">
-                <ui-select-match placeholder="Search ICAO or name">
-                  <span class="bo-ap__code">{{ vm.bookout.to_airfield.code }}</span>
-                  <span class="bo-ap__nm" ng-bind-html="vm.bookout.to_airfield.title"></span>
-                </ui-select-match>
-                <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: 51.51:0.12" refresh="get_airfields($select.search)" refresh-delay="2">
-                  <div ng-bind-html="airfield.title | highlight: $select.search"></div>
-                  <small ng-bind-html="airfield.code | highlight: $select.search"></small>
-                </ui-select-choices>
-                <ui-select-no-choice><span>Type 3 or more letters of an ICAO code or a name.</span></ui-select-no-choice>
-              </ui-select>
-            </div>
-          </div>
+        </div>
 
-          <div class="bo-route__local" ng-if="vm.bookout.flight_type && !vm.bo_needs_destination() && vm.bookout.from_airfield">
-            <i class="fas fa-undo-alt"></i>
-            <span>{{ vm.bookout.flight_type.id == 3 ? 'Circuits' : 'Local flight' }} — returning to <span ng-bind-html="vm.bookout.from_airfield.title"></span> ({{ vm.bookout.from_airfield.code }})</span>
-          </div>
-          <p class="bo-hint bo-hint--mt" ng-if="!vm.bookout.flight_type">Choose a flight type — a departure or "other" flight also needs a destination.</p>
+
+       
+
+
+        <div class="form-group">
+          <label for="from_airfield">From Airfield</label>
+          <ui-select ng-model="vm.bookout.from_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the departure" append-to-body="true">
+            <ui-select-match placeholder="Please select the departure airport">
+<!--               {{ vm.bookout.from_airfield.title }} [ {{ vm.bookout.from_airfield.code }} ]
+ -->
+
+              <span ng-bind-html="vm.bookout.from_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.from_airfield.code }} ]
+
+
+
+            </ui-select-match>
+            <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: vm.wgs_n:vm.wgs_e" refresh="get_airfields($select.search)" refresh-delay="2">
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+
+        <div class="form-group" ng-if="vm.bookout.flight_type.id !== 1 && vm.bookout.flight_type.id !== 3">
+          <label for="to_airfield">To Airfield</label>
+
+          <ui-select ng-model="vm.bookout.to_airfield" ng-change="selected_airfield_check()" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the destination" append-to-body="true">
+            <ui-select-match placeholder="Please select the destination airport">
+              
+<!--               {{ vm.bookout.to_airfield.title }} [ {{ vm.bookout.to_airfield.code }} ]
+ -->
+              <span ng-bind-html="vm.bookout.to_airfield.title" class="smaller_span_airport"></span> [ {{ vm.bookout.to_airfield.code }} ]
+
+
+            </ui-select-match>
+             <ui-select-choices repeat="airfield in vm.airfields | propsFilterA: {title: $select.search, code: $select.search, id: $select.search} | orderAirfields: 51.51:0.12" refresh="get_airfields($select.search)" refresh-delay="2" >
+              <div ng-bind-html="airfield.title | highlight: $select.search"></div>
+              <small ng-bind-html="airfield.code | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
 
           <!-- ── AirfieldHub PPR availability ──
                Information only: never blocks the save, never delays it.
                Renders nothing at all unless the club has the integration
                live (effective + stage > 0) AND a destination is picked. -->
-          <div ng-if="vm.bo_needs_destination()">
-            <div class="bo-note bo-note--muted" ng-if="vm.afh.checking">
-              <i class="fas fa-spinner fa-spin"></i><div>Checking AirfieldHub…</div>
-            </div>
-            <div class="bo-note bo-note--ok" ng-if="!vm.afh.checking && vm.afh.result.confirmed">
-              <i class="fas fa-check-circle"></i>
-              <div><b>PPR can be filed automatically.</b>
-                {{ vm.bookout.to_airfield.title || vm.bookout.to_airfield.code }} is on AirfieldHub — booking out here
-                also files your PPR, and their decision comes back to you.</div>
-            </div>
-            <div class="bo-note bo-note--muted" ng-if="!vm.afh.checking && vm.afh.result && !vm.afh.result.confirmed && vm.afh.result.reason !== 'directory_unavailable'">
-              <i class="fas fa-phone"></i><div>PPR must be arranged directly with this airfield.</div>
-            </div>
-            <!-- We could not check. Must NOT claim the airfield is unsupported —
-                 that would send pilots to the phone unnecessarily, or worse,
-                 imply a PPR was filed when it wasn't. -->
-            <div class="bo-note bo-note--warn" ng-if="!vm.afh.checking && vm.afh.result.reason === 'directory_unavailable'">
-              <i class="fas fa-exclamation-triangle"></i>
-              <div>We couldn't check AirfieldHub just now. Please confirm PPR with the airfield directly.</div>
-            </div>
+          <div class="afh-ppr__checking" ng-if="vm.afh.checking">
+            <i class="fas fa-spinner fa-spin"></i> Checking AirfieldHub…
           </div>
 
-          <!-- ── Biggin Hill: the airfield asks for extra details ── -->
-          <div class="bo-subpanel" id="extra_information_required" ng-if="vm.extra_information_required">
-            <div class="bo-subpanel__hd">
-              <span class="bo-subpanel__ic" aria-hidden="true"><i class="fas fa-info"></i></span>
-              <div><b>London Biggin Hill</b><span>The airfield asks for these details</span></div>
-            </div>
-            <div class="bo-grid bo-grid--2">
-              <div class="bo-field">
-                <span class="bo-label">Flight rule</span>
-                <div class="bo-seg bo-seg--2" role="group" aria-label="Flight rule">
-                  <button type="button" class="bo-seg__btn" ng-repeat="fr in vm.flight_rules track by fr.id"
-                          ng-class="{'bo-seg__btn--on': vm.bookout.flight_rule.id === fr.id}" ng-click="vm.bookout.flight_rule = fr"
-                          aria-pressed="{{ vm.bookout.flight_rule.id === fr.id }}">{{ fr.title }}</button>
-                </div>
-              </div>
-              <div class="bo-field">
-                <span class="bo-label">Routing via</span>
-                <div class="bo-picks" role="group" aria-label="Routing via">
-                  <button type="button" class="bo-pick" ng-repeat="rv in vm.biggin_hill.routes track by rv.id"
-                          ng-class="{'bo-pick--on': vm.bookout.routing_via.id === rv.id}" ng-click="vm.bookout.routing_via = rv"
-                          aria-pressed="{{ vm.bookout.routing_via.id === rv.id }}">{{ rv.title }}</button>
-                </div>
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="bo-additional-details">Additional details</label>
-                <input type="text" id="bo-additional-details" class="bo-input" ng-model="vm.bookout.additional_details" placeholder="Anything the tower should know">
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="bo-parking">Parking</label>
-                <input type="text" id="bo-parking" class="bo-input" ng-model="vm.bookout.parking_note" placeholder="e.g. GA apron, 2 hours">
-              </div>
-            </div>
-            <div class="bo-grid bo-grid--3 bo-mt">
-              <div class="bo-field">
-                <label class="bo-label" for="bo-eet">Est. en-route time</label>
-                <select id="bo-eet" class="bo-select" ng-model="vm.bookout.en_route" ng-options="t.time for t in vm.all_times | filter: {disabled: 0} track by t.time">
-                  <option value="">Select a time</option>
-                </select>
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="bo-endurance">Est. endurance</label>
-                <select id="bo-endurance" class="bo-select" ng-model="vm.bookout.endurance" ng-options="t.time for t in vm.all_times | filter: {disabled: 0} track by t.time">
-                  <option value="">Select endurance</option>
-                </select>
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="bo-departure">Departure time</label>
-                <select id="bo-departure" class="bo-select" ng-model="vm.bookout.departure" ng-options="t.time for t in vm.start_times | filter: {disabled: 0} track by t.time">
-                  <option value="">Select a time</option>
-                </select>
-                <p class="bo-hint" ng-if="!(vm.start_times | filter: {disabled: 0}).length">Nothing available during selected times</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── 3 · Passengers ── -->
-        <section class="bo-card" id="bo-card-pax" data-e2e="bo-card-pax">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('pax')}">
-              <i class="fas" ng-class="vm.bo_card_done('pax') ? 'fa-check' : 'fa-users'"></i><span class="bo-card__step">3</span>
+          <div class="afh-ppr afh-ppr--yes"
+               ng-if="!vm.afh.checking && vm.afh.result.confirmed">
+            <i class="fas fa-check-circle"></i>
+            <span>
+              <strong>PPR can be filed automatically.</strong>
+              {{ vm.bookout.to_airfield.title || vm.bookout.to_airfield.code }} is on
+              AirfieldHub — booking out here also files your PPR, and their
+              decision comes back to you.
             </span>
-            <div class="bo-card__ttl">
-              <h2>Passengers</h2>
-              <p>Members aboard, or guests invited by email</p>
-            </div>
-            <span class="bo-chip bo-card__chip" ng-if="vm.bo_seats_free() !== null"><i class="fas fa-chair"></i> {{ vm.bo_seats_free() }} seat{{ vm.bo_seats_free() == 1 ? '' : 's' }} free</span>
-          </header>
-
-          <div class="bo-empty" ng-if="!vm.bookout.passengers || vm.bookout.passengers.length < 1">
-            <i class="fas fa-user-friends"></i> No passengers on this flight.
           </div>
 
-          <div class="bo-list" ng-if="vm.bookout.passengers && vm.bookout.passengers.length > 0">
-            <div class="bo-row bo-row--pax" ng-repeat="passenger in vm.bookout.passengers" data-e2e="bo-pax-row-{{ $index }}">
-              <span class="bo-av">{{ vm.bo_initials(passenger) }}</span>
-              <div class="bo-row__body">
-                <div class="bo-row__nm" title="{{ passenger.email }}">{{ passenger.first_name || passenger.email }} {{ passenger.last_name }}</div>
-                <div class="bo-row__sub">
-                  <span class="bo-chip" ng-class="'bo-chip--' + vm.bo_pax_tone(passenger)" title="{{ vm.get_passenger_status(passenger) }}">
-                    <i class="fas" ng-class="vm.bo_pax_icon(passenger)"></i>{{ vm.bo_pax_label(passenger) }}
-                  </span>
-                  <span class="bo-row__mail" ng-if="passenger.first_name && passenger.email">{{ passenger.email }}</span>
-                </div>
-              </div>
-              <div class="bo-row__act">
-                <button type="button" class="bo-btn bo-btn--primary bo-btn--sm" ng-if="passenger.status == 'to_invite'" ng-click="vm.bo_invite_row(passenger)"><i class="fas fa-paper-plane"></i> Invite</button>
-                <button type="button" class="bo-iconbtn" ng-if="passenger.status == 'invited'" ng-click="vm.resend_invitation(passenger)" title="Resend the invitation" aria-label="Resend the invitation"><i class="fas fa-paper-plane"></i></button>
-                <button type="button" class="bo-iconbtn" ng-if="passenger.status == 'invited' || passenger.status == 'declined'" ng-click="vm.update_passenger_list()" title="Refresh the invitation status" aria-label="Refresh the invitation status"><i class="fas fa-sync"></i></button>
-                <label class="bo-aboard" ng-if="vm.bo_pax_can_board(passenger)" data-e2e="bo-pax-aboard-{{ $index }}">
-                  <input type="checkbox" class="bo-toggle__input" ng-model="passenger.aboard">
-                  <span class="bo-switch bo-switch--sm" aria-hidden="true"></span>
-                  <span>Aboard</span>
-                </label>
-              </div>
-            </div>
+          <div class="afh-ppr afh-ppr--no"
+               ng-if="!vm.afh.checking && vm.afh.result && !vm.afh.result.confirmed && vm.afh.result.reason !== 'directory_unavailable'">
+            <i class="fas fa-phone"></i>
+            <span>PPR must be arranged directly with this airfield.</span>
           </div>
 
-          <div class="bo-note bo-note--warn" ng-if="vm.bo_pax_has('to_invite')">
-            <i class="fas fa-envelope"></i>
-            <div>Send the invitation before booking out — guests add their details and accept the club's terms from the email.</div>
+          <!-- We could not check. Must NOT claim the airfield is unsupported —
+               that would send pilots to the phone unnecessarily, or worse,
+               imply a PPR was filed when it wasn't. -->
+          <div class="afh-ppr afh-ppr--unknown"
+               ng-if="!vm.afh.checking && vm.afh.result.reason === 'directory_unavailable'">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>
+              We couldn't check AirfieldHub just now. Please confirm PPR with the
+              airfield directly.
+            </span>
           </div>
-          <div class="bo-note bo-note--warn" ng-if="vm.bo_pax_has('invited')">
-            <i class="fas fa-hourglass-half"></i>
-            <div>An invited passenger can come aboard once they've accepted — refresh to check their reply.</div>
+        </div>
+
+        <div class="form-group" ng-if="!vm.bookout.pic.current">
+          <label for="currency">Currency - please confirm that you have flown this type within the last {{ vm.currency_days }} days</label>
+          <input type="checkbox" class="form-control" style="display: inline-block;" ng-model="vm.bookout.is_current" required />
+        </div>
+        
+
+        <div id="extra_information_required" ng-if="vm.extra_information_required">
+
+
+         <div class="form-group">
+          <label for="from_airfield">Flight Rule</label>
+
+          <ui-select ng-model="vm.bookout.flight_rule" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the flight rule" append-to-body="true">
+            <ui-select-match placeholder="Please select the flight type">
+              {{ vm.bookout.flight_rule.title }} 
+            </ui-select-match>
+            <ui-select-choices repeat="ft in vm.flight_rules | propsFilterA: {title: $select.search, id: $select.search}">
+              <div ng-bind-html="ft.title | highlight: $select.search"></div>
+            </ui-select-choices>
+          </ui-select>
+
+        </div>
+
+          <div class="form-group">
+            <label for="from_airfield">Routing Via</label>
+
+            <ui-select ng-model="vm.bookout.routing_via" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select your routing preference" append-to-body="true">
+              <ui-select-match placeholder="Please select your prefered routing">
+                {{ vm.bookout.routing_via.title }} 
+              </ui-select-match>
+              <ui-select-choices repeat="rv in vm.biggin_hill.routes | propsFilterA: {title: $select.search, id: $select.search}">
+                <div ng-bind-html="rv.title | highlight: $select.search"></div>
+              </ui-select-choices>
+            </ui-select>
           </div>
 
-          <div class="bo-add">
-            <div class="bo-field">
-              <span class="bo-label"><i class="fas fa-user-plus"></i> Add a passenger</span>
-              <ui-select tagging ng-model="vm.new_pax" theme="bootstrap" class="bo-us bkf-us bkf-us--mem" ng-change="vm.adding_a_member()" title="Add a passenger" append-to-body="true" reset-search-input="0">
-                <ui-select-match placeholder="Member name or guest email">
-                  {{ vm.new_pax.first_name || "" }} {{ vm.new_pax.last_name || "" }} {{ (vm.new_pax.first_name == '') ? vm.new_pax.email : "" }}
+
+          <div class="form-group">
+            <label for="additional_details">Additional Details</label>
+            <input type="text" class="form-control inputtext" ng-model="vm.bookout.additional_details">
+          </div>
+
+
+          <div class="form-group">
+            <label for="parking_note">Parking</label>
+            <input type="text" class="form-control inputtext" ng-model="vm.bookout.parking_note">
+          </div>
+
+
+
+
+           <div class="form-group">
+            <label for="eet">Est. En-route Time</label>
+             <ui-select ng-model="vm.bookout.en_route" theme="bootstrap" style="min-width: 300px;" title="Select En-Route Time" append-to-body="true" required>
+              <ui-select-match placeholder="Please select a time" >
+                {{ vm.bookout.en_route.time }}             
+              </ui-select-match>
+              <ui-select-choices repeat="times in vm.all_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                <span ng-bind-html="times.time | highlight: $select.search"></span>
+              </ui-select-choices>
+              
+            </ui-select>
+          </div>
+       
+
+          <div class="form-group">
+            <label for="endurance">Est. Endurance</label>
+            <ui-select ng-model="vm.bookout.endurance" theme="bootstrap" style="min-width: 300px;" title="Select Endurance Time" append-to-body="true" required>
+                  <ui-select-match placeholder="Please select endurance" >
+                    {{ vm.bookout.endurance.time }}             
+                  </ui-select-match>
+                  <ui-select-choices repeat="times in vm.all_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                    <span ng-bind-html="times.time | highlight: $select.search"></span>
+                  </ui-select-choices>
+                  
+                </ui-select>
+          </div>
+
+
+          <div class="form-group">
+            <label for="dep_time">Departure Time</label>
+              <ui-select ng-model="vm.bookout.departure" theme="bootstrap" style="min-width: 300px;" title="Select Departure Time" append-to-body="true" class="input-group" required>
+                <ui-select-match placeholder="Please select a time" >
+                  {{ vm.bookout.departure.time }}             
                 </ui-select-match>
-                <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, email: $select.search, id: $select.search}" refresh="get_members($select.search, $index)" refresh-delay="2">
-                  <div ng-bind-html="member.name | highlight: $select.search"></div>
-                  <small ng-bind-html="member.email | highlight: $select.search"></small>
+                <ui-select-choices repeat="times in vm.start_times | filter: {time: $select.search, disabled: 0}" ui-disable-choice="times.disabled == 1">
+                  <span ng-bind-html="times.time | highlight: $select.search"></span>
                 </ui-select-choices>
+                <ui-select-no-choice>
+                  <span>Nothing available during selected times</span>
+                </ui-select-no-choice>
               </ui-select>
             </div>
-            <button type="button" class="bo-btn bo-btn--quiet bo-add__btn" ng-click="vm.add_new_passenger()"><i class="fas fa-user-plus"></i> Add passenger</button>
+
+        </div>
+
+
+      <!--   <div ng-if="vm.bookout.plane.seats > 1">
+
+          NEW VERSION PASSENGERS
+
+          <div class="selector2" colspan="2">
+             <div class="form-group extra_space_bottom" ng-repeat="passenger in vm.bookout.passengers">
+                  <label for="instructor">Passenger {{ $index + 1 }}</label>
+                    <br />
+                  <ui-select tagging ng-model="vm.bookout.passengers[$index]" theme="bootstrap" ng-change="vm.adding_a_member()" ng-disabled="vm.pax_invited(vm.bookout.passengers[$index])" title="Please select a passenger" append-to-body="true" reset-search-input="0">
+                  <ui-select-match placeholder="Please select">
+                    {{ vm.bookout.passengers[$index].first_name || ""  }}  {{ vm.bookout.passengers[$index].last_name || ""  }} {{ (vm.bookout.passengers[$index].first_name == '') ? vm.bookout.passengers[$index].email : "" }}
+                  </ui-select-match>
+                  <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, email: $select.search, id: $select.search}" refresh="get_members($select.search)" refresh-delay="2">
+                    <div ng-bind-html="member.name | highlight: $select.search"></div>
+
+                    
+                    <small ng-bind-html="member.email | highlight: $select.search"></small>
+                  </ui-select-choices>
+                </ui-select>
+
+                
+                <a ng-if="vm.bookout.passengers[$index].not_found && vm.bookout.passengers[$index].status == ''" ng-click="vm.invite_new_passenger($index)" class="btn del_btn btn-info">INVITE PAX</a>
+
+                 <a class="btn del_btn fa_btn" uib-tooltip="{{vm.get_passenger_status(vm.bookout.passengers[$index])}}">
+                    <i class="fa fa-envelope fastatus" ng-if="vm.bookout.passengers[$index].status == 'to_invite'"></i>
+                    <i class="fa fa-envelope-open-text fastatus" ng-if="vm.bookout.passengers[$index].status == 'invited'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].status == 'member'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].status == 'accepted'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="vm.bookout.passengers[$index].is_member"></i>
+                    <i class="fa fa-times fastatus" ng-if="vm.bookout.passengers[$index].status == 'declined'"></i>
+   
+                </a>
+
+                <a ng-if="vm.bookout.passengers[$index].status == 'invited'" ng-click="vm.resend_invitation($index)" class="btn btn-info del_btn" uib-tooltip="Click to resend the invitation to the passenger.">RESEND</a>
+            
+            </div>
+
           </div>
-          <p class="bo-hint">Club members are added straight away; anyone else gets an email invitation.</p>
-        </section>
+        </div> -->
 
-        <!-- ── 4 · Aircraft ── -->
-        <section class="bo-card" id="bo-card-aircraft" data-e2e="bo-card-aircraft">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('aircraft')}">
-              <i class="fas" ng-class="vm.bo_card_done('aircraft') ? 'fa-check' : 'fa-plane'"></i><span class="bo-card__step">4</span>
-            </span>
-            <div class="bo-card__ttl">
-              <h2>Aircraft</h2>
-              <p>{{ vm.bookout.plane.registration }} — reported state and paperwork</p>
-            </div>
-            <span class="bo-chip bo-card__chip" ng-if="vm.bo_defects_loaded && vm.bo_defects_count() > 0" ng-class="vm.bookout.accept_defects === true ? 'bo-chip--ok' : 'bo-chip--wait'">
-              <i class="fas fa-tools"></i> {{ vm.bo_defects_count() }} defect{{ vm.bo_defects_count() == 1 ? '' : 's' }}
-            </span>
-            <span class="bo-chip bo-chip--ok bo-card__chip" ng-if="vm.bo_defects_loaded && !vm.bo_defects_error && vm.bo_defects_count() === 0"><i class="fas fa-check"></i> No defects</span>
-          </header>
+     <!--    <div ng-if="vm.bookout.plane.seats > 1">
+        ORIGINAL PASSENGERS
 
-          <div class="bo-sec bo-sec--first">
-            <div class="bo-sec__hd"><h4>Reported maintenance state</h4></div>
+          <div ng-repeat="passenger in vm.bookout.passengers">
 
-            <div class="bo-note bo-note--muted bo-note--top" ng-if="!vm.bo_defects_loaded">
-              <i class="fas fa-spinner fa-spin"></i><div>Loading the reported defects…</div>
-            </div>
-            <div class="bo-note bo-note--bad bo-note--top" ng-if="vm.bo_defects_loaded && vm.bo_defects_error">
-              <i class="fas fa-exclamation-triangle"></i>
-              <div><b>We couldn't load this aircraft's reported defects.</b> You can't book out until you've seen them.
-                <button type="button" class="bo-linkbtn" ng-click="vm.bo_reload_defects()"><i class="fas fa-redo"></i> Try again</button></div>
-            </div>
-            <div class="bo-empty bo-empty--ok" ng-if="vm.bo_defects_loaded && !vm.bo_defects_error && vm.bo_defects_count() === 0">
-              <i class="fas fa-check-circle"></i> There are no reported maintenance issues.
+            <ui-select tagging ng-model="vm.bookout.passengers[$index]" theme="bootstrap" ng-disabled="disabled" style="min-width: 500px;" title="Please select the passenger" append-to-body="true">
+            <ui-select-match placeholder="Please select">
+              {{ vm.bookout.passengers[$index].first_name }}  {{ vm.bookout.passengers[$index].last_name }} {{ vm.bookout.passengers[$index].email }}
+            </ui-select-match>
+            <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, id: $select.search}" refresh="get_members($select.search, $index)" refresh-delay="2">
+              <div ng-bind-html="member.first_name | highlight: $select.search"></div><div ng-bind-html="member.last_name | highlight: $select.search"></div>
+              <small ng-bind-html="member.email | highlight: $select.search"></small>
+            </ui-select-choices>
+          </ui-select>
+
+
+          <div ng-if="vm.bookout.passengers[$index].first_name == '' && vm.bookout.passengers[$index].status == 'to_invite'">
+            <a ng-click="vm.invite_passenger($select, $index)">INVITE</a>
+          </div>
+
+
+          <div class="status">
+            {{ vm.get_passenger_status(vm.bookout.passengers[$index]) }}
+          </div>
+
+          <br />
+
+          <div ng-if="vm.bookout.passengers[$index].status == 'invited'">
+            <a ng-click="vm.refresh_passenger(member, $index)" >REFRESH</a>
+          </div>
+
+
+
+
+          </div>
+
+        </div> -->
+
+
+
+
+        </div>
+
+      </div>
+
+    <div class="club_docs_all">
+
+          <h2>Flight Passengers</h2>
+           <div class="no_defects" ng-if="vm.bookout.passengers && vm.bookout.passengers.length < 1">
+             It looks like you do not presently have any passengers...
             </div>
 
-            <div class="bo-list" ng-if="vm.bo_defects_count() > 0">
-              <div class="bo-defect" ng-repeat="defect in vm.reported_defects" ng-class="'bo-defect--' + vm.bo_defect_tone(defect)">
-                <div class="bo-defect__main">
-                  <div class="bo-defect__txt">
-                    <div class="bo-defect__t">{{ defect.defect }}</div>
-                    <div class="bo-defect__meta">
-                      <span class="bo-chip" ng-class="'bo-chip--' + vm.bo_defect_chip(defect)" title="{{ defect.severity }}">{{ vm.bo_defect_sev(defect) }}</span>
-                      <span><i class="far fa-clock"></i> {{ defect.created_at | myDateTime }}</span>
-                      <span ng-if="defect.status">{{ defect.status }}</span>
+            <div class="card">
+             <table class="middle_vertical" ng-if="vm.bookout.passengers && vm.bookout.passengers.length > 0">
+                <tr>
+                  <th>
+                    Name
+                  </th>
+                   <th>
+                    Status
+                  </th>
+                  <th>
+                    Function
+                  </th>
+                  <th>
+                    Is Aboard
+                  </th>
+                </tr>
+                <tr ng-repeat="passenger in vm.bookout.passengers">
+                  
+                  <td>
+                    <span uib-tooltip="{{ passenger.email }}">
+                    {{ passenger.first_name || passenger.email }}  {{ passenger.last_name }}
+                    </span>
+                  </td>
+                  <td>
+                     <a class="btn fa_btn" uib-tooltip="{{vm.get_passenger_status(vm.bookout.passengers[$index])}}">
+                    <i class="fa fa-envelope fastatus" ng-if="passenger.status == 'to_invite'"></i>
+                    <i class="fa fa-envelope-open-text fastatus" ng-if="passenger.status == 'invited'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.status == 'member'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.status == 'accepted'"></i>
+                    <i class="fa fa-check-square fastatus ok" ng-if="passenger.is_member"></i>
+                    <i class="fa fa-times fastatus" ng-if="passenger.status == 'declined'"></i>
+                    </a>
+                   
+                  </td>
+                  <td>
+
+                      <a ng-if="passenger.status == 'invited'" ng-click="vm.resend_invitation(passenger)" class="btn btn-info btn_inline" uib-tooltip="Click to resend the invitation to the passenger."><i class="fas fa-paper-plane fastatus"></i></a>
+
+                       <div ng-if="passenger.status == 'invited'">
+                        <a ng-if="passenger.status == 'invited'" ng-click="vm.update_passenger_list()" class="btn btn-info btn_inline" uib-tooltip="Click to refresh the invitation status.">
+                          <i class="fas fa-sync fastatus"></i>
+                        </a>
+                      </div>
+                       <div ng-if="passenger.status == 'declined'">
+                        <a ng-if="passenger.status == 'invited'" ng-click="vm.update_passenger_list()" class="btn btn-info btn_inline" uib-tooltip="Click to refresh the invitation status.">
+                          <i class="fas fa-sync fastatus"></i>
+                        </a>
+                      </div>
+                  </td>
+                  <td>
+
+                    <div class="form-group">
+                      <input type="checkbox" ng-if="passenger.status == 'member'" class="form-control" ng-model="passenger.aboard" />
+                      <input type="checkbox" ng-if="passenger.status == 'accepted'" class="form-control" ng-model="passenger.aboard" />
+                      <input type="checkbox" ng-if="passenger.is_member" class="form-control" ng-model="passenger.aboard" />
+                      
                     </div>
-                    <div class="bo-defect__del" ng-if="defect.can_delete">
-                      <button type="button" class="bo-linkbtn bo-linkbtn--danger" ng-if="!defect._confirmDelete" ng-click="defect._confirmDelete = true"><i class="fas fa-trash-alt"></i> Delete my entry</button>
-                      <span class="bo-defect__confirm" ng-if="defect._confirmDelete">
-                        <span>Delete your entry?</span>
-                        <button type="button" class="bo-btn bo-btn--force bo-btn--sm" ng-click="vm.delete_defect(defect.id)">Delete</button>
-                        <button type="button" class="bo-btn bo-btn--quiet bo-btn--sm" ng-click="defect._confirmDelete = false">Keep</button>
-                      </span>
+                  </td>
+                </tr>
+              </table>
+              
+            </div>
+
+            <hr />
+
+            <div class="card">  
+              
+              <table class="middle_vertical">  
+                 
+              <tr>
+                <td width="20%">         
+                  <b>Add Passenger</b>
+                </td>
+                <td width="60%">
+                  <div  class="add_pax_select">
+                    <ui-select tagging ng-model="vm.new_pax" theme="bootstrap" ng-change="vm.adding_a_member()" title="Please select a passenger" append-to-body="true" reset-search-input="0">
+                        <ui-select-match placeholder="Please select">
+                          {{ vm.new_pax.first_name || ""  }}  {{ vm.new_pax.last_name || ""  }} {{ (vm.new_pax.first_name == '') ? vm.new_pax.email : "" }}
+                        </ui-select-match>
+                        <ui-select-choices repeat="member in vm.members | propsFilter: {first_name: $select.search, last_name: $select.search, name: $select.search, email: $select.search, id: $select.search}" refresh="get_members($select.search, $index)" refresh-delay="2">
+                          <div ng-bind-html="member.name | highlight: $select.search"></div>
+                          <small ng-bind-html="member.email | highlight: $select.search"></small>
+                        </ui-select-choices>
+                      </ui-select>
                     </div>
-                  </div>
-                  <button type="button" class="bo-media" ng-click="defect._showMedia = !defect._showMedia" aria-expanded="{{ !!defect._showMedia }}" title="Photos and videos">
-                    <i class="fas fa-camera"></i><span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
-                    <i class="fas bo-media__chev" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                  </button>
-                </div>
-                <div class="bo-gallery" ng-if="defect._showMedia">
-                  <defect-media-gallery defect-id="defect.id" club-id="vm.bookout.club_id" media-count="defect.media_count" read-only="true"></defect-media-gallery>
-                </div>
-              </div>
-            </div>
-
-            <!-- decision: accept to fly with them, or reject the aircraft -->
-            <div class="bo-decide" id="accept_defects" ng-if="vm.bo_defects_count() > 0 && !vm.bookout.accept_defects">
-              <div class="bo-decide__t">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div><b>Read the reported defects before you fly.</b> Accept them to book out — or reject the aircraft.</div>
-              </div>
-              <div class="bo-decide__btns">
-                <button type="button" class="bo-btn bo-btn--danger-ghost" ng-click="reject_defects()" data-e2e="bo-defects-reject"><i class="fas fa-ban"></i> Reject aircraft</button>
-                <button type="button" class="bo-btn bo-btn--primary bo-decide__accept" ng-click="accept_defects()" data-e2e="bo-defects-accept">
-                  <span class="bo-decide__accept-main"><i class="fas fa-check"></i> Accept &amp; fly</span>
-                  <span class="bo-decide__accept-sub">You accept to fly the aircraft despite the known defect(s) reported by previous pilots</span>
-                </button>
-              </div>
-            </div>
-            <div class="bo-decided" ng-if="vm.bo_defects_count() > 0 && vm.bookout.accept_defects == true">
-              <i class="fas fa-check-circle"></i>
-              <div>You have accepted to fly {{ vm.bookout.plane.registration }} despite the known defect{{ vm.bo_defects_count() == 1 ? '' : 's' }} reported by previous pilots.
-                <button type="button" class="bo-linkbtn" ng-click="reject_defects()">Reject this aircraft instead</button></div>
-            </div>
-            <input type="hidden" ng-model="vm.bookout.accept_defects" />
+                </td>
+                <td width="20%">
+                  <a ng-click="vm.add_new_passenger()" class="btn  btn-info">INVITE PAX</a>
+<!--                   <a ng-if="vm.new_pax.is_member" ng-click="vm.invite_new_passenger()" class="btn  btn-info">ADD PAX</a>
+ -->            </td>
+              </tr>
+            </table>
           </div>
 
-          <div class="bo-sec">
-            <div class="bo-sec__hd"><h4>Documents</h4></div>
-            <div class="bo-note bo-note--muted bo-note--top" ng-if="!vm.bo_plane_loaded">
-              <i class="fas fa-spinner fa-spin"></i><div>Loading the aircraft's documents…</div>
-            </div>
-            <div class="bo-list" ng-if="vm.bo_plane_loaded">
-              <div class="bo-row bo-row--doc" ng-repeat="doc in vm.bo_doc_list track by doc.key" data-e2e="bo-doc-{{ doc.key }}">
-                <span class="bo-doc__ic" aria-hidden="true"><i class="fas" ng-class="doc.icon"></i></span>
-                <div class="bo-row__body">
-                  <div class="bo-row__nm">{{ doc.title }}</div>
-                  <div class="bo-row__sub"><span>{{ doc.sub }}</span></div>
-                </div>
-                <div class="bo-row__act">
-                  <span class="bo-chip" ng-class="'bo-chip--' + (doc.tone === 'bad' ? 'no' : (doc.tone === 'warn' ? 'wait' : (doc.tone === 'ok' ? 'ok' : 'muted')))">
-                    <i class="fas" ng-class="doc.chip_icon" ng-if="doc.chip_icon"></i>{{ doc.chip }}
-                  </span>
-                  <button type="button" class="bo-btn bo-btn--quiet bo-btn--sm" ng-click="vm.bo_open_doc(doc)" ng-disabled="!doc.file || vm.bo_doc_opening === doc.key" title="{{ doc.file ? 'Open the document' : 'No file on record' }}">
-                    <i class="fas" ng-class="vm.bo_doc_opening === doc.key ? 'fa-spinner fa-spin' : 'fa-external-link-alt'"></i> Open
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+          <!--   <hr />
 
-        <!-- ── 5 · Pre-flight check (Check A / Transit Check) ── -->
-        <section class="bo-card" id="bo-card-check" data-e2e="bo-card-check">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('check')}">
-              <i class="fas" ng-class="vm.bo_card_done('check') ? 'fa-check' : 'fa-clipboard-check'"></i><span class="bo-card__step">5</span>
-            </span>
-            <div class="bo-card__ttl">
-              <h2>{{ (vm.aircraft_check.required && !vm.aircraft_check.submitted && !vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed) ? vm.bo_check_label() : 'Pre-flight check' }}</h2>
-              <p ng-if="vm.aircraft_check.loading">Checking what this flight needs…</p>
-              <p ng-if="!vm.aircraft_check.loading && vm.aircraft_check.lookup_failed">Couldn't check what this flight needs</p>
-              <p ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && vm.aircraft_check.submitted">Submitted for this booking</p>
-              <p ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && !vm.aircraft_check.submitted && vm.aircraft_check.required">{{ vm.bookout.plane.registration }} — required before this flight</p>
-              <p ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && !vm.aircraft_check.submitted && !vm.aircraft_check.required">Not needed this time</p>
-            </div>
-            <span class="bo-chip bo-card__chip" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && vm.aircraft_check.required && !vm.aircraft_check.submitted"
-                  ng-class="vm.bo_check_done() ? 'bo-chip--ok' : 'bo-chip--no'">
-              <i class="fas" ng-class="vm.bo_check_done() ? 'fa-check' : 'fa-lock'"></i>{{ vm.bo_check_done() ? 'Ready to submit' : 'Required to book out' }}
-            </span>
-          </header>
-
-          <div class="bo-note bo-note--muted bo-note--top" ng-if="vm.aircraft_check.loading">
-            <i class="fas fa-spinner fa-spin"></i><div>Checking if a pre-flight check is required…</div>
-          </div>
-
-          <!-- the lookup failed: fail CLOSED — book-out stays locked until we know -->
-          <div class="bo-note bo-note--bad bo-note--top bo-note--action" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.lookup_failed">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div><b>Couldn't check whether a pre-flight check is needed.</b> The book-out stays locked until we know.</div>
-            <button type="button" class="bo-btn bo-btn--quiet bo-btn--sm" ng-click="vm.bo_retry_check_lookup()" data-e2e="bo-check-retry"><i class="fas fa-redo"></i> Retry</button>
-          </div>
-
-          <div class="bo-done-banner" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && vm.aircraft_check.submitted">
-            <i class="fas fa-check-circle"></i>
-            <div><b>Pre-flight check complete.</b> {{ vm.bo_check_label() }} has been submitted for this booking.</div>
-          </div>
-
-          <div class="bo-note bo-note--muted bo-note--top" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && !vm.aircraft_check.required && !vm.aircraft_check.submitted">
-            <i class="fas fa-info-circle"></i><div>{{ vm.aircraft_check.message || 'No pre-flight check is needed for this booking.' }}</div>
-          </div>
-
-          <div class="bo-check" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.lookup_failed && vm.aircraft_check.required && !vm.aircraft_check.submitted">
-
-            <div class="bo-note bo-note--info bo-note--top" ng-if="vm.aircraft_check.message">
-              <i class="fas fa-info-circle"></i><div>{{ vm.aircraft_check.message }}</div>
-            </div>
-
-            <!-- Pre-filled from today's A-Check (no flights since it) -->
-            <div class="bo-note bo-note--info bo-note--top" ng-if="vm.aircraft_check.prefilled">
-              <i class="fas fa-magic"></i>
-              <div><b>Pre-filled from today's A-Check.</b>
-                <span ng-if="vm.aircraft_check.flights_since_check === 0">No flights since — </span>date/time, fuel &amp; oil carried over. Please review and adjust if anything changed.</div>
-            </div>
-
-            <!-- There have been flights since the A-Check — fresh numbers required -->
-            <div class="bo-note bo-note--warn bo-note--top" ng-if="!vm.aircraft_check.prefilled && vm.aircraft_check.check_type === 'transit_check' && vm.aircraft_check.flights_since_check > 0">
-              <i class="fas fa-exclamation-circle"></i>
-              <div><b>{{ vm.aircraft_check.flights_since_check }} flight{{ vm.aircraft_check.flights_since_check == 1 ? '' : 's' }} since the A-Check.</b> Please enter the current fuel &amp; oil on board.</div>
-            </div>
-
-            <div class="bo-grid bo-grid--2">
-              <div class="bo-field">
-                <span class="bo-label">Performed by</span>
-                <div class="bo-performer"><span class="bo-av bo-av--sm">{{ vm.bo_initials(vm.user) }}</span>{{ vm.user.first_name }} {{ vm.user.last_name }}</div>
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="check_checked_at">Date / time of check (UTC) <span class="bo-tag" ng-if="vm.aircraft_check.prefilled"><i class="fas fa-magic"></i> from A-Check</span></label>
-                <input type="datetime-local" step="60" class="bo-input" id="check_checked_at" ng-class="{'bo-input--prefilled': vm.aircraft_check.prefilled}"
-                       ng-model="vm.check_form.checked_at" data-e2e="bo-check-time" />
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="check_fuel"><i class="fas fa-gas-pump"></i> Fuel <span class="bo-tag" ng-if="vm.aircraft_check.prefilled"><i class="fas fa-magic"></i> from A-Check</span></label>
-                <div class="bo-unit">
-                  <input type="number" step="0.01" min="0" inputmode="decimal" class="bo-input" id="check_fuel" ng-class="{'bo-input--prefilled': vm.aircraft_check.prefilled}"
-                         ng-model="vm.check_form.fuel_us_gallons" placeholder="e.g. 30.5" data-e2e="bo-check-fuel" />
-                  <span aria-hidden="true">US gal</span>
-                </div>
-              </div>
-              <div class="bo-field">
-                <label class="bo-label" for="check_oil"><i class="fas fa-oil-can"></i> Oil <span class="bo-tag" ng-if="vm.aircraft_check.prefilled"><i class="fas fa-magic"></i> from A-Check</span></label>
-                <div class="bo-unit">
-                  <input type="number" step="0.01" min="0" inputmode="decimal" class="bo-input" id="check_oil" ng-class="{'bo-input--prefilled': vm.aircraft_check.prefilled}"
-                         ng-model="vm.check_form.oil_quarts" placeholder="e.g. 6.0" data-e2e="bo-check-oil" />
-                  <span aria-hidden="true">quarts</span>
-                </div>
-              </div>
-              <div class="bo-field bo-field--span">
-                <label class="bo-label" for="check_notes">Notes <em>(optional)</em></label>
-                <textarea class="bo-input bo-textarea" id="check_notes" ng-model="vm.check_form.notes" rows="2" placeholder="Any observations from the check…"></textarea>
-              </div>
-            </div>
-
-            <div class="bo-sec">
-              <label class="bo-toggle bo-toggle--confirm" for="check_confirm" ng-class="{'bo-toggle--on': vm.check_form.confirmed}" data-e2e="bo-check-confirm">
-                <input type="checkbox" id="check_confirm" class="bo-toggle__input" ng-model="vm.check_form.confirmed" />
-                <span class="bo-switch" aria-hidden="true"></span>
-                <span class="bo-toggle__txt">
-                  <span class="bo-toggle__t">I performed this check</span>
-                  <span class="bo-toggle__s">I confirm I have performed this check and accept responsibility for its accuracy.</span>
-                </span>
-              </label>
-            </div>
-
-            <div class="bo-note" ng-class="vm.bo_check_done() ? 'bo-note--ok' : 'bo-note--bad'" data-e2e="bo-check-lock-note">
-              <i class="fas" ng-class="vm.bo_check_done() ? 'fa-unlock' : 'fa-lock'"></i>
-              <div ng-if="vm.bo_check_done()">Done — the {{ vm.bo_check_label() }} is submitted first, then the book-out goes through.</div>
-              <div ng-if="!vm.bo_check_done()">The book-out stays locked until this {{ vm.bo_check_label() }} is complete: fuel, oil, time and your confirmation.</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── 6 · Book out: summary, what's left, the ONE button ── -->
-        <section class="bo-card bo-final" id="bo-card-final" data-e2e="bo-card-final" ng-class="{'bo-final--ready': !vm.bo_cta_locked()}">
-          <header class="bo-card__hd">
-            <span class="bo-card__icon" ng-class="{'bo-card__icon--done': vm.bo_card_done('final')}">
-              <i class="fas" ng-class="vm.bo_card_done('final') ? 'fa-check' : 'fa-plane-departure'"></i><span class="bo-card__step">6</span>
-            </span>
-            <div class="bo-card__ttl">
-              <h2>Book out</h2>
-              <p>{{ vm.bo_cta_locked() ? 'Check the summary, then book out' : 'Everything checked — have a good flight' }}</p>
-            </div>
-          </header>
-
-          <div class="bo-sum">
-            <div class="bo-sum__row">
-              <i class="fas fa-plane" aria-hidden="true"></i><span class="bo-sum__k">Aircraft</span>
-              <span class="bo-sum__v">
-                {{ vm.bookout.plane.registration }}<span ng-if="vm.bo_plane_loaded"> · {{ vm.bo_hours_text() }} h / {{ vm.bo_days_text() }} days to next check</span>
-                · <span ng-if="vm.bo_defects_count() === 0">no reported defects</span><span ng-if="vm.bo_defects_count() > 0" ng-class="{'bo-sum__warn': vm.bookout.accept_defects !== true}">{{ vm.bo_defects_count() }} defect{{ vm.bo_defects_count() == 1 ? '' : 's' }} {{ vm.bookout.accept_defects === true ? 'accepted' : 'not yet accepted' }}</span>
-              </span>
-            </div>
-            <div class="bo-sum__row">
-              <i class="fas fa-user-friends" aria-hidden="true"></i><span class="bo-sum__k">Crew</span>
-              <span class="bo-sum__v">{{ vm.bo_crew_text() }}</span>
-            </div>
-            <div class="bo-sum__row">
-              <i class="fas fa-route" aria-hidden="true"></i><span class="bo-sum__k">Flight</span>
-              <span class="bo-sum__v" ng-if="vm.bookout.flight_type">{{ vm.bo_route_text() }}</span>
-              <span class="bo-sum__v bo-sum__none" ng-if="!vm.bookout.flight_type">Not chosen yet</span>
-            </div>
-            <div class="bo-sum__row">
-              <i class="fas fa-users" aria-hidden="true"></i><span class="bo-sum__k">Passengers</span>
-              <span class="bo-sum__v">{{ vm.bo_pax_text() }}</span>
-            </div>
-            <div class="bo-sum__row">
-              <i class="far fa-clock" aria-hidden="true"></i><span class="bo-sum__k">Return by</span>
-              <span class="bo-sum__v"><b>{{ applyFilter(vm.bookout.return, vm.dateFormat) }}</b> — be back at least 15 minutes before the end of your booking</span>
-            </div>
-          </div>
-
-          <ul class="bo-left" ng-if="vm.bo_readiness().left.length">
-            <li ng-repeat="it in vm.bo_readiness().left track by it.key">
-              <button type="button" class="bo-left__item" ng-click="vm.bo_goto(it.card)">
-                <i class="fas" ng-class="it.wait ? 'fa-spinner fa-spin' : 'fa-exclamation-circle'"></i><span>{{ it.n }}</span><i class="fas fa-arrow-up bo-left__go"></i>
-              </button>
-            </li>
-          </ul>
-
-          <div class="bo-final__cta">
-            <button type="button" class="bo-btn bo-btn--block bo-btn--xl bo-cta" ng-class="vm.bo_cta_locked() ? 'bo-btn--locked' : 'bo-btn--go'"
-                    ng-click="bookout_plane()" ng-disabled="vm.bo_cta_locked()" data-e2e="bo-cta">
-              <span class="bo-cta__main" ng-if="!vm.check_submitting"><i class="fas" ng-class="vm.bo_cta_locked() ? 'fa-lock' : 'fa-plane-departure'"></i> Book out &amp; go flying</span>
-              <span class="bo-cta__main" ng-if="vm.check_submitting"><i class="fas fa-spinner fa-spin"></i> Submitting check…</span>
-              <span class="bo-cta__sub" ng-if="!vm.check_submitting">{{ vm.bo_cta_sub() }}</span>
-            </button>
-          </div>
-        </section>
-
-      </div>
-
-      <!-- ═════ BEFORE YOU FLY — the readiness rail (desktop) / strip + bottom bar (≤991px) ═════
-           One DOM for both layouts (CSS moves it), so every data-e2e hook exists once. -->
-      <aside class="bo-rail" aria-label="Before you fly">
-        <div class="bo-ready" ng-class="{'bo-ready--done': !vm.bo_cta_locked()}">
-          <div class="bo-ready__hd">
-            <div class="bo-ring" ng-class="{'bo-ring--done': !vm.bo_readiness().left.length}" aria-hidden="true">
-              <svg viewBox="0 0 58 58" focusable="false">
-                <circle class="bo-ring__bg" cx="29" cy="29" r="23"></circle>
-                <circle class="bo-ring__fg" cx="29" cy="29" r="23" ng-attr-stroke-dasharray="{{ vm.bo_ring_c }}" ng-attr-stroke-dashoffset="{{ vm.bo_ring_offset() }}"></circle>
-              </svg>
-              <b>{{ vm.bo_readiness().done }}/{{ vm.bo_readiness().total }}</b>
-            </div>
-            <div class="bo-ready__ttl">
-              <h3>
-                <span class="bo-ready__desk">Before you fly</span>
-                <span class="bo-ready__phone"><i class="fas fa-check-circle" ng-if="!vm.bo_readiness().left.length"></i> {{ vm.bo_readiness().left.length ? 'Ready to fly?' : 'Ready to fly' }}</span>
-              </h3>
-              <p>{{ vm.bo_readiness().left.length ? 'What the book-out checks' : 'All checks complete' }}</p>
-            </div>
-            <span class="bo-ready__count">{{ vm.bo_readiness().done }} of {{ vm.bo_readiness().total }}</span>
-          </div>
-          <div class="bo-meter bo-ready__meter" ng-class="{'bo-meter--done': !vm.bo_readiness().left.length}" aria-hidden="true">
-            <i ng-style="{width: vm.bo_progress_pct() + '%'}"></i>
-          </div>
-
-          <ul class="bo-checklist">
-            <li ng-repeat="it in vm.bo_readiness().items track by it.key">
-              <button type="button" class="bo-ck" ng-class="{'bo-ck--done': it.done, 'bo-ck--wait': it.wait, 'bo-ck--failed': it.failed}" ng-click="vm.bo_goto(it.card)" data-e2e="bo-ready-{{ it.key }}">
-                <span class="bo-ck__ic" aria-hidden="true"><i class="fas" ng-class="it.wait ? 'fa-spinner fa-spin' : (it.failed ? 'fa-exclamation' : 'fa-check')"></i></span>
-                <span class="bo-ck__t">{{ it.t }}</span>
-                <span class="sr-only">{{ it.done ? '(done)' : '(to do)' }}</span>
-                <i class="fas fa-chevron-right bo-ck__go" aria-hidden="true"></i>
-              </button>
-            </li>
-            <li ng-repeat="it in vm.bo_readiness().info track by it.key">
-              <button type="button" class="bo-ck bo-ck--info" ng-click="vm.bo_goto(it.card)" data-e2e="bo-ready-{{ it.key }}" title="Information only — the club's pilot-checks policy decides">
-                <span class="bo-ck__ic" aria-hidden="true"><i class="fas fa-exclamation"></i></span>
-                <span class="bo-ck__t">{{ it.t }}</span>
-                <i class="fas fa-chevron-right bo-ck__go" aria-hidden="true"></i>
-              </button>
-            </li>
-          </ul>
-
-          <!-- desktop: the rail's footer · ≤991px: the sticky bottom bar -->
-          <div class="bo-ready__foot">
-            <div class="bo-bar__row">
-              <span>{{ vm.bo_readiness().left.length ? vm.bo_readiness().done + ' of ' + vm.bo_readiness().total + ' ready' : 'Ready to fly' }}</span>
-              <div class="bo-meter" ng-class="{'bo-meter--done': !vm.bo_readiness().left.length}" aria-hidden="true"><i ng-style="{width: vm.bo_progress_pct() + '%'}"></i></div>
-              <span>Return by {{ vm.bookout.return | date:'HH:mm' }}</span>
-            </div>
-            <button type="button" class="bo-btn bo-btn--block bo-next" ng-class="vm.bo_next_item() ? 'bo-btn--quiet' : 'bo-btn--go'" ng-click="vm.bo_go_next()" data-e2e="bo-next">
-              <i class="fas fa-arrow-down"></i>
-              <span ng-if="vm.bo_next_item()">Next: {{ vm.bo_next_item().n }}</span>
-              <span ng-if="!vm.bo_next_item()">Review &amp; book out</span>
-            </button>
-            <p class="bo-remind"><i class="fas fa-info-circle"></i><span>The book-out button is at the end, once you've seen the aircraft's state.</span></p>
-          </div>
-        </div>
-      </aside>
+            {{ vm.new_pax | json }} -->
 
     </div>
-  </div>
+
+    <div class="club_docs_all">
+
+          <h2>Reported Maintenance State</h2>
+
+         
+          <div class="form-group">
 
 
-  <!-- ═════ DIALOGS — centred on desktop, bottom sheets on phones ═════ -->
+            <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
+             There are no reported maintenance issues...
+            </div>
 
-  <!-- document viewer (legacy embed overlay; Open downloads the file today) -->
-  <div class="bo-scrim" ng-if="show_file_now" ng-click="close_file()">
-    <div class="bo-dialog bo-dialog--wide" role="dialog" aria-modal="true" aria-label="Document" ng-click="$event.stopPropagation()">
-      <div class="bo-dialog__grab" aria-hidden="true"></div>
-      <div class="bo-dialog__hd bo-dialog__hd--brand">
-        <span class="bo-dialog__hd-ic"><i class="fas fa-file-alt"></i></span>
-        <div><h3>Document</h3><p>{{ vm.bookout.plane.registration }}</p></div>
-        <button type="button" class="bo-dialog__x" ng-click="close_file()" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="bo-dialog__body">
-        <div class="bo-docview" id="add_embed" ng-class="{opaque: show_file_now}"></div>
-      </div>
-    </div>
-  </div>
+            <div class="card">
+             <table ng-if="vm.reported_defects && vm.reported_defects.length > 0">
+                <tr>
+                 
+                  <th>
+                    Defect Reported
+                  </th>
+                   <th>
+                    Severity
+                  </th>
+                  <th>
+                    Reported Date &amp; Time
+                  </th>
+                  <th>
+                    Status
+                  </th>
+                  <th>
+                    Media
+                  </th>
+                </tr>
+                <tr ng-repeat-start="defect in vm.reported_defects">
+                  
+                  <td>
+                    {{ defect.defect }}
+                  </td>
+                  <td>
+                    {{ defect.severity }}
+                  </td>
+                  <td>
+                    {{ defect.created_at | myDateTime }}
+                  </td>
+                  <td>
+                    {{ defect.status }}
 
-  <!-- invite a passenger by email -->
-  <div class="bo-scrim" ng-if="vm.show_new_passenger_invitation">
-    <div class="bo-dialog" role="dialog" aria-modal="true" aria-labelledby="bo-invite-ttl" data-e2e="bo-invite-modal">
-      <div class="bo-dialog__grab" aria-hidden="true"></div>
-      <div class="bo-dialog__hd bo-dialog__hd--brand">
-        <span class="bo-dialog__hd-ic"><i class="fas fa-user-plus"></i></span>
-        <div><h3 id="bo-invite-ttl">Invite a passenger</h3><p>By email</p></div>
-        <button type="button" class="bo-dialog__x" ng-click="vm.close_passenger_invitation()" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="bo-dialog__body">
-        <p>The easiest way to bring a guest who isn't a member: they get an email with a link to add their details and an
-          emergency contact, and to agree to the club's terms and conditions (if required).</p>
-        <div class="bo-field">
-          <label class="bo-label" for="bo-inv-email">Email address <em>required</em></label>
-          <input type="email" id="bo-inv-email" class="bo-input" ng-model="vm.new_pax.email" placeholder="guest@example.com" autocomplete="email" />
-        </div>
-        <div class="bo-grid bo-grid--2">
-          <div class="bo-field">
-            <label class="bo-label" for="bo-inv-first">First name <em>optional</em></label>
-            <input type="text" id="bo-inv-first" class="bo-input" ng-model="vm.new_pax.first_name" />
+                    <button ng-if="defect.can_delete" ng-click="vm.delete_defect(defect.id)">Delete Entry</button>
+                  </td>
+                  <td>
+                    <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
+                      <i class="fa fa-camera"></i>
+                      <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
+                      <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
+                    </span>
+                  </td>
+                </tr>
+                <tr ng-repeat-end ng-if="defect._showMedia">
+                  <td colspan="5" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
+                    <defect-media-gallery defect-id="defect.id" club-id="vm.bookout.club_id" media-count="defect.media_count" read-only="true"></defect-media-gallery>
+                  </td>
+                </tr>
+              </table>
+            </div>
+              <div class="form-group centerme" ng-if="vm.reported_defects && vm.reported_defects.length > 0 && !vm.bookout.accept_defects">
+                <button class="btn btn-danger" ng-click="reject_defects()">REJECT DEFECTS</button>
+                <button class="btn btn-primary" ng-click="accept_defects()">ACCEPT DEFECTS</button>
+              </div>
+
+              <div class="form-group" ng-if="vm.reported_defects && vm.reported_defects.length > 0 && vm.bookout.accept_defects == true">
+                <p class="acceptance"> You have accepted to fly this aircraft with these reported defects. <a ng-click="reject_defects()">Click here to reject this aircraft due to maintenance</a></p>
+              </div>
+
+                <input type="hidden" class="form-control" ng-model="vm.bookout.accept_defects" />
+
+            </div>
+
+
+            <hr />
+
+
+            <div class="card">
+
+              
+
+
+              <div class="cards">
+                <h4>Hours Remaining</h4>
+                <span class="big_number {{ status.hours }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) || "N/A" }}</span>
+              </div>
+
+              <div class="cards">
+                <h4>Days Remaining</h4>
+                <span class="big_number {{ status.days }}">{{ vm.club.plane.maintenance.days_remaining || "N/A" }}</span>
+              </div>
+
+              <div class="cards">
+                <h4>Meter Reading</h4>
+                <span class="big_number">{{ vm.booking.plane_details.meter_reading || "N/A" }}</span>
+              </div>
+
+
+<!--             <span class="spanblock meter_reading">{{ vm.booking.plane_details.meter_reading }} last recorded meter reading</span> 
+              <span class="{{getColours(vm.club.plane.maintenance.days_remaining)}}">{{ vm.club.plane.maintenance.days_remaining }} days remaining</span>
+ -->              
+
+          <!--     <div ng-if="vm.club.plane.maintenance.day_remaining_message">
+                !!! <br />
+                normally days remaining: {{ vm.club.plane.maintenance.normal_days_remaining }}
+                <br />
+                normally next maintenance date:       {{ vm.club.plane.maintenance.normal_next_maintenance }}
+                 <br />
+                normally limit in days:       {{ vm.club.plane.maintenance.normal_limit }}
+                 <br />
+                Message:       {{ vm.club.plane.maintenance.day_remaining_message }}
+              </div>
+              <br /> -->
+
           </div>
-          <div class="bo-field">
-            <label class="bo-label" for="bo-inv-last">Last name <em>optional</em></label>
-            <input type="text" id="bo-inv-last" class="bo-input" ng-model="vm.new_pax.last_name" />
+
+          <div class="card">
+
+            <table>
+              <tr>
+                <th>Document</th>
+                <th>View Document</th>
+                <th>Expiry Date</th>
+                <th>Status</th>
+              </tr>
+              <tr>
+                <td>{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.certificate.certificate, 'certificate')">OPEN</button></td>
+                <td>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.certificate}}">{{status.certificate}}</button></td>                
+              </tr>
+              <tr>
+                <td>Insurance</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.insurance.certificate, 'insurance')">OPEN</button></td>
+                <td>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.insurance}}">{{status.insurance}}</button></td>                
+              </tr>
+              <tr>
+                <td>Radio Licence</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.radio_licence.certificate, 'radio')">OPEN</button></td>
+                <td>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+                <td><button class="btn status {{status.radio_licence}}">{{status.radio_licence}}</button></td>                
+              </tr>
+              <tr ng-if="has_noise">
+                <td>Noise Certificate</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.noise.certificate, 'noise')">OPEN</button></td>
+                <td>N/A</td>
+                <td><button class="btn status {{status.noise}}">{{status.noise}}</button></td>
+              </tr>
+              <!-- Certificate of Release to Service (read-only for the pilot). No expiry;
+                   shows when it was released to service. Only appears when a CRS exists. -->
+              <tr ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
+                <td>Certificate of Release to Service</td>
+                <td><button class="btn btn-primary" ng-click="show_file(vm.club.plane.crs.certificate, 'crs')">OPEN</button></td>
+                <td>Released {{ vm.club.plane.crs.release_date | date:"dd/MM/yyyy" }}<span ng-if="vm.club.plane.crs.release_time"> at {{ vm.club.plane.crs.release_time }}</span></td>
+                <td><button class="btn status ok">ok</button></td>
+              </tr>
+            </table>
+              
+
+            <!--   {{ vm.club.plane.certificate.days_to_expiry }} days {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }} remaining
+              <button class="btn btn-primary" ng-click="show_overlay('cert')">Show {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }}</button>
+              <br />
+              
+              {{ vm.club.plane.radio_licence.days_to_expiry }} days Radio Licence Expiry remaining
+               <button class="btn btn-primary" ng-click="show_overlay('radio')">Show Radio Licence</button>
+              <br />
+              
+              {{ vm.club.plane.insurance.days_to_expiry }} days insurance expiry remaining
+               <button class="btn btn-primary" ng-click="show_overlay('insurance')">Show Insurance Policy</button>
+              <br />
+
+              <button class="btn btn-primary" ng-click="show_overlay('insurance')">Show Noise Certificate</button>
+              <br /> -->
+
           </div>
+
+<!--             <span class="spanblock meter_reading_warning" ng-if="vm.booking.plane_details.meter_reading_warning">{{ vm.booking.plane_details.meter_reading_warning }}</span>
+ -->
+<!-- 
+            
+            <span class="spanblock hours_remaining">{{ vm.booking.plane_details.hours_remaining | formatHours }} {{ "hour" | addS:vm.booking.plane_details.hours_remaining }} remaining till next check</span> 
+            <span class="spanblock hours_remaining_warning" ng-if="vm.booking.plane_details.hours_remaining_error">{{ vm.booking.plane_details.hours_remaining_error }}</span> 
+
+            <span class="spanblock time_remaining">{{ vm.booking.plane_details.months_remaining }} {{ "month" | addS:vm.booking.plane_details.months_remaining }} remaining till next check</span> 
+            <span class="spanblock time_remaining_warning" ng-if="vm.booking.plane_details.months_remaining_warning">{{ vm.booking.plane_details.months_remaining_warning }}</span>  -->
+
+           
+
+          </div>
+
+          
+
+    <!-- ── Aircraft Pre-Flight Check ── -->
+    <div class="ac-check-done" ng-if="vm.aircraft_check.loading" style="color:#475569;background:#f8fafc;border-color:#e2e8f0;">
+      <i class="fa fa-spinner fa-spin ac-check-done__icon" style="color:#2d5a8e;"></i>
+      <div>Checking if a pre-flight check is required…</div>
+    </div>
+
+    <div class="ac-check-card" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.required && !vm.aircraft_check.submitted">
+
+      <div class="ac-check-card__header">
+        <div class="ac-check-card__header-icon"><i class="fa fa-clipboard-check"></i></div>
+        <div class="ac-check-card__header-text">
+          <h3 class="ac-check-card__title">{{ vm.aircraft_check.check_type_label }}</h3>
+          <span class="ac-check-card__reg">{{ vm.bookout.plane.registration }}</span>
         </div>
       </div>
-      <div class="bo-dialog__ft">
-        <button type="button" class="bo-btn bo-btn--quiet" ng-click="vm.close_passenger_invitation()">Cancel</button>
-        <button type="button" class="bo-btn bo-btn--primary" ng-click="vm.invite_new_passenger()"><i class="fas fa-paper-plane"></i> Send invitation</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- reject the aircraft (defects): keep / amend / cancel -->
-  <div class="bo-scrim" ng-if="vm.bo_reject.visible" ng-click="vm.bo_close_reject()">
-    <div class="bo-dialog" role="dialog" aria-modal="true" aria-labelledby="bo-reject-ttl" ng-click="$event.stopPropagation()" data-e2e="bo-reject-sheet">
-      <div class="bo-dialog__grab" aria-hidden="true"></div>
-      <div class="bo-dialog__hd bo-dialog__hd--bad">
-        <span class="bo-dialog__hd-ic"><i class="fas fa-ban"></i></span>
-        <div><h3 id="bo-reject-ttl">Reject {{ vm.bookout.plane.registration }}?</h3><p>Because of its reported defects</p></div>
-        <button type="button" class="bo-dialog__x" ng-click="vm.bo_close_reject()" ng-disabled="vm.bo_reject.working" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="bo-dialog__body">
-        <p>You won't fly this aircraft. Amend the booking to another aircraft, or cancel it.</p>
-        <div class="bo-note bo-note--muted bo-note--top">
-          <i class="fas fa-info-circle"></i>
-          <div>Cancelling records the reason as <b>Plane Unserviceable</b> — no cancellation fee applies.</div>
-        </div>
-      </div>
-      <div class="bo-dialog__ft">
-        <button type="button" class="bo-btn bo-btn--quiet" ng-click="vm.bo_close_reject()" ng-disabled="vm.bo_reject.working" data-e2e="bo-reject-keep">Keep it</button>
-        <button type="button" class="bo-btn bo-btn--quiet" ng-click="vm.bo_reject_amend()" ng-disabled="vm.bo_reject.working" data-e2e="bo-reject-amend"><i class="fas fa-exchange-alt"></i> Amend booking</button>
-        <button type="button" class="bo-btn bo-btn--force" ng-click="vm.bo_reject_cancel()" ng-disabled="vm.bo_reject.working" data-e2e="bo-reject-cancel-booking">
-          <i class="fas" ng-class="vm.bo_reject.working ? 'fa-spinner fa-spin' : 'fa-times'"></i> {{ vm.bo_reject.working ? 'Cancelling…' : 'Cancel booking' }}
-        </button>
-      </div>
-    </div>
-  </div>
+      <div class="ac-check-card__body">
 
-  <!-- ═══ Airworthiness / insurance book-out warning ═══
-       Shown when the book-out endpoint flags an airworthiness issue (per the club's
-       policy). Lists EVERY out-of-date item so the pilot cannot be unaware.
-       Managers/super-admins (can_force) get a Force button, gated on acknowledgement. -->
-  <div class="bo-scrim" ng-if="vm.bookout_airworthiness.visible" ng-click="vm.cancelBookoutAirworthiness()">
-    <div class="bo-dialog" role="dialog" aria-modal="true" aria-labelledby="bo-aw-ttl" ng-click="$event.stopPropagation()" data-e2e="bo-aw-modal">
-      <div class="bo-dialog__grab" aria-hidden="true"></div>
-      <div class="bo-dialog__hd" ng-class="vm.bookout_airworthiness.mode === 'warn' ? 'bo-dialog__hd--warn' : 'bo-dialog__hd--bad'">
-        <span class="bo-dialog__hd-ic"><i class="fas fa-exclamation-triangle"></i></span>
-        <div><h3 id="bo-aw-ttl">Airworthiness warning</h3><p>{{ vm.bookout.plane.registration }} — please read before flying</p></div>
-        <button type="button" class="bo-dialog__x" ng-click="vm.cancelBookoutAirworthiness()" ng-disabled="vm.bookout_airworthiness.working" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="bo-dialog__body">
-        <p>{{ vm.bookout_airworthiness.message }}</p>
-        <ul class="bo-issues" ng-if="vm.bookout_airworthiness.issues.length > 0">
-          <li class="bo-issue" ng-repeat="issue in vm.bookout_airworthiness.issues" ng-class="{'bo-issue--crit': issue.severity === 'critical'}">
-            <i class="fa" ng-class="issue.icon || 'fa-exclamation-triangle'" aria-hidden="true"></i>
-            <span class="bo-issue__txt">
-              <b>{{ issue.label }}</b>
-              <small ng-if="issue.detail">{{ issue.detail }}</small>
-            </span>
-            <span class="bo-issue__tag">{{ issue.severity === 'critical' ? 'DO NOT FLY' : 'CAUTION' }}</span>
-          </li>
-        </ul>
-        <label class="bo-ack" ng-class="{'bo-ack--on': vm.bookout_airworthiness.acknowledged}" data-e2e="bo-aw-ack">
-          <input type="checkbox" ng-model="vm.bookout_airworthiness.acknowledged" />
-          <span>I have read the above and understand this aircraft has the issue(s) listed.
-            I accept responsibility for flying it and confirm I am satisfied it is safe and lawful to do so.</span>
-        </label>
-      </div>
-      <div class="bo-dialog__ft">
-        <button type="button" class="bo-btn bo-btn--quiet" ng-click="vm.cancelBookoutAirworthiness()" ng-disabled="vm.bookout_airworthiness.working">
-          <i class="fas fa-arrow-left"></i> Go back
-        </button>
-        <!-- Warn policy: any pilot may proceed once they've acknowledged. -->
-        <button type="button" class="bo-btn bo-btn--primary" ng-if="vm.bookout_airworthiness.mode === 'warn'" ng-click="vm.confirmBookoutAirworthiness()"
-                ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged" data-e2e="bo-aw-confirm">
-          <i class="fas" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-          {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Confirm &amp; book out' }}
-        </button>
-        <!-- Force policy: only managers/super-admins with can_force may override. -->
-        <button type="button" class="bo-btn bo-btn--force" ng-if="vm.bookout_airworthiness.mode !== 'warn' && vm.bookout_airworthiness.can_force" ng-click="vm.forceBookout()"
-                ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged" data-e2e="bo-aw-force">
-          <i class="fas" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
-          {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Book out anyway' }}
-        </button>
-        <div class="bo-lock" ng-if="vm.bookout_airworthiness.mode !== 'warn' && !vm.bookout_airworthiness.can_force">
-          <i class="fas fa-lock"></i> This book-out is blocked. Contact a club administrator.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ Pilot checks book-out block (force policy) ═══
-       Shown when the book-out endpoint returns reason:'pilot_checks'. Lists every
-       failed check. Self-certify appears ONLY when lapsed currency is the sole
-       failure; Force appears for managers/super-admins. -->
-  <div class="bo-scrim" ng-if="vm.bookout_pilot_checks.visible" ng-click="vm.cancelPilotChecks()">
-    <div class="bo-dialog" role="dialog" aria-modal="true" aria-labelledby="bo-pc-ttl" ng-click="$event.stopPropagation()" data-e2e="bo-pilot-modal">
-      <div class="bo-dialog__grab" aria-hidden="true"></div>
-      <div class="bo-dialog__hd bo-dialog__hd--bad">
-        <span class="bo-dialog__hd-ic"><i class="fas fa-user-check"></i></span>
-        <div><h3 id="bo-pc-ttl">Pilot checks failed</h3><p>This book-out is blocked by your club's pilot-checks policy</p></div>
-        <button type="button" class="bo-dialog__x" ng-click="vm.cancelPilotChecks()" ng-disabled="vm.bookout_pilot_checks.working" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="bo-dialog__body">
-        <p>{{ vm.bookout_pilot_checks.message }}</p>
-        <ul class="bo-issues">
-          <li class="bo-issue bo-issue--crit" ng-repeat="failure in vm.bookout_pilot_checks.failures">
-            <i class="fas" ng-class="failure.code === 'currency_lapsed' ? 'fa-hourglass-end' : (failure.code === 'solo_requirement' ? 'fa-clipboard-list' : 'fa-times-circle')" aria-hidden="true"></i>
-            <span class="bo-issue__txt">
-              <b ng-if="failure.code === 'solo_requirement'">Pre-solo requirement: {{ failure.name }}</b>
-              <b ng-if="failure.code !== 'solo_requirement'">{{ failure.message }}</b>
-              <small ng-if="failure.code === 'solo_requirement'">{{ failure.message }}</small>
-              <span class="bo-issue__act" ng-if="failure.code === 'solo_requirement' && vm.soloStateAction(failure.state)">
-                <i class="fas fa-arrow-right"></i> {{ vm.soloStateAction(failure.state) }}
-              </span>
-              <button type="button" class="bo-issue__fix" ng-if="failure.code === 'solo_requirement'" ng-click="vm.bo_fix_presolo()">
-                <i class="fas fa-clipboard-list"></i> Fix in the pre-solo panel
-              </button>
-            </span>
-            <span class="bo-issue__tag">BLOCKED</span>
-          </li>
-        </ul>
-        <p ng-if="vm.bookout_pilot_checks.can_override">
-          Your currency has lapsed and it is the only failed check. If you are satisfied you are safe
-          and current to fly, you may self-certify below — this is recorded against your name.
+        <p class="ac-check-card__message" ng-if="vm.aircraft_check.message">
+          <i class="fa fa-info-circle"></i> {{ vm.aircraft_check.message }}
         </p>
-      </div>
-      <div class="bo-dialog__ft">
-        <button type="button" class="bo-btn bo-btn--quiet" ng-click="vm.cancelPilotChecks()" ng-disabled="vm.bookout_pilot_checks.working">
-          <i class="fas fa-arrow-left"></i> Go back
-        </button>
-        <!-- Currency-only failure: the pilot may self-certify. -->
-        <button type="button" class="bo-btn bo-btn--primary" ng-if="vm.bookout_pilot_checks.can_override" ng-click="vm.selfCertifyBookout()"
-                ng-disabled="vm.bookout_pilot_checks.working" data-e2e="bo-pilot-selfcert">
-          <i class="fas" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
-          {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Self-certify &amp; book out' }}
-        </button>
-        <!-- Managers / super-admins may force any pilot-check block. -->
-        <button type="button" class="bo-btn bo-btn--force" ng-if="vm.bookout_pilot_checks.can_force" ng-click="vm.forcePilotChecks()"
-                ng-disabled="vm.bookout_pilot_checks.working" data-e2e="bo-pilot-force">
-          <i class="fas" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
-          {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Force book-out' }}
-        </button>
-        <div class="bo-lock" ng-if="!vm.bookout_pilot_checks.can_override && !vm.bookout_pilot_checks.can_force">
-          <i class="fas fa-lock"></i> This book-out is blocked. Contact a club instructor or administrator.
+
+        <!-- Pre-filled from today's A-Check (no flights since it) -->
+        <div class="ac-prefill-banner" ng-if="vm.aircraft_check.prefilled">
+          <i class="fa fa-magic ac-prefill-banner__icon"></i>
+          <div class="ac-prefill-banner__text">
+            <strong>Pre-filled from today's A-Check.</strong>
+            <span ng-if="vm.aircraft_check.flights_since_check === 0">No flights since — </span>date/time, fuel &amp; oil carried over. Please review and adjust if anything changed.
+          </div>
         </div>
+
+        <!-- There have been flights since the A-Check — fresh numbers required -->
+        <div class="ac-prefill-banner ac-prefill-banner--warn"
+             ng-if="!vm.aircraft_check.prefilled && vm.aircraft_check.check_type === 'transit_check' && vm.aircraft_check.flights_since_check > 0">
+          <i class="fa fa-exclamation-circle ac-prefill-banner__icon"></i>
+          <div class="ac-prefill-banner__text">
+            <strong>{{ vm.aircraft_check.flights_since_check }} flight(s) since the A-Check.</strong>
+            Please enter the current fuel &amp; oil on board.
+          </div>
+        </div>
+
+        <div class="ac-field">
+          <label class="ac-field__label">Performed by</label>
+          <div class="ac-field__static"><i class="fa fa-user"></i> {{ vm.user.first_name }} {{ vm.user.last_name }}</div>
+        </div>
+
+        <div class="ac-field">
+          <label class="ac-field__label" for="check_checked_at">
+            Date / Time of Check (UTC)
+            <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i> from A-Check</span>
+          </label>
+          <input type="datetime-local" step="60" class="ac-field__input" id="check_checked_at"
+                 ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                 ng-model="vm.check_form.checked_at" ng-model-options="{timezone: 'UTC'}" />
+        </div>
+
+        <div class="ac-field-grid">
+          <div class="ac-field">
+            <label class="ac-field__label" for="check_fuel">
+              <i class="fa fa-gas-pump ac-field__label-icon"></i> Fuel (US Gallons)
+              <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i></span>
+            </label>
+            <input type="number" step="0.01" min="0" class="ac-field__input" id="check_fuel"
+                   ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                   ng-model="vm.check_form.fuel_us_gallons" placeholder="e.g. 30.5" />
+          </div>
+
+          <div class="ac-field">
+            <label class="ac-field__label" for="check_oil">
+              <i class="fa fa-oil-can ac-field__label-icon"></i> Oil (Quarts)
+              <span class="ac-prefill-tag" ng-if="vm.aircraft_check.prefilled"><i class="fa fa-magic"></i></span>
+            </label>
+            <input type="number" step="0.01" min="0" class="ac-field__input" id="check_oil"
+                   ng-class="{'ac-field__input--prefilled': vm.aircraft_check.prefilled}"
+                   ng-model="vm.check_form.oil_quarts" placeholder="e.g. 6.0" />
+          </div>
+        </div>
+
+        <div class="ac-field">
+          <label class="ac-field__label" for="check_notes">Notes <span class="ac-field__optional">(optional)</span></label>
+          <textarea class="ac-field__input ac-field__textarea" id="check_notes" ng-model="vm.check_form.notes" rows="2" placeholder="Any observations from the check…"></textarea>
+        </div>
+
+        <label class="ac-confirm" for="check_confirm" ng-class="{'ac-confirm--checked': vm.check_form.confirmed}">
+          <input type="checkbox" id="check_confirm" ng-model="vm.check_form.confirmed" class="ac-confirm__box" />
+          <span class="ac-confirm__text">I confirm I have performed this check and accept responsibility for its accuracy.</span>
+        </label>
+
       </div>
     </div>
-  </div>
 
+    <div class="ac-check-done" ng-if="!vm.aircraft_check.loading && vm.aircraft_check.submitted">
+      <i class="fa fa-check-circle ac-check-done__icon"></i>
+      <div>
+        <strong>Pre-Flight Check Complete.</strong>
+        {{ vm.aircraft_check.check_type_label }} has been submitted for this booking.
+      </div>
+    </div>
+
+    <div class="club_docs_all" ng-if="!vm.aircraft_check.loading && !vm.aircraft_check.required && vm.aircraft_check.message">
+      <h2>Pre-Flight Check</h2>
+      <p class="no_defects">{{ vm.aircraft_check.message }}</p>
+    </div>
+    <!-- ── End Aircraft Pre-Flight Check ── -->
+
+
+        <button class="btn btn-primary btn-bigger" ng-click="bookout_plane()" ng-disabled="vm.check_submitting">
+          <span ng-if="!vm.check_submitting">BOOKOUT &amp; GO FLYING</span>
+          <span ng-if="vm.check_submitting"><i class="fa fa-spinner fa-spin"></i> Submitting check...</span>
+        </button>
+
+      </form>
+
+    </div>
+
+      <div class="show_file_wrapper" ng-if="show_file_now" ng-click="close_file()"></div>
+      <div class="show_file" id="add_embed" ng-if="show_file_now" ng-class="{opaque: show_file_now}">
+        <button class="btn btn-danger top_right_btn" ng-click="close_file()">X</button>
+
+      </div>
+
+
+
+
+
+<div class="popup_bg" ng-if="vm.show_new_passenger_invitation" > <!-- ng-click="vm.close_passenger_invitation()" -->
+    <div class="popup_box">
+
+      <h3> Invite A Passenger <a uib-tooltip="The easiest way to invite a passenger who is not a member of the club, and ensure they adhere to regulations is to invite them by email. By pressing the 'SEND INVITATION' button, they will receive an email with a link to quickly add their details, add emergency contact details and agree to the terms and conditions of the club (if required).">(?)</a></h3>
+      
+      <br />
+        
+      <div class="form-group">
+        <label> Email Address (required)</label> <input type="email" ng-model="vm.new_pax.email" />
+      </div>
+      
+      <div class="form-group">
+        <label> First Name (optional)</label> <input type="text" ng-model="vm.new_pax.first_name" />
+      </div>
+
+      <div class="form-group">
+        <label> Last Name (optional)</label> <input type="text" ng-model="vm.new_pax.last_name" />
+      </div>
+ 
+
+      <div class="bottom_btn">
+
+        <button ng-click="vm.close_passenger_invitation()" class="btn btn-danger">CANCEL</button>     
+        <button ng-click="vm.invite_new_passenger()" class="btn btn-primary">SEND INVITATION</button>
+
+    </div>
+
+    </div>
+</div>
+
+<!-- ═══ Airworthiness / insurance book-out warning ═══
+     Shown when the book-out endpoint flags an airworthiness issue (per the club's
+     policy). Lists EVERY out-of-date item so the pilot cannot be unaware.
+     Managers/super-admins (can_force) get a Force button, gated on acknowledgement. -->
+<div class="aw-modal-bg" ng-if="vm.bookout_airworthiness.visible" ng-click="vm.cancelBookoutAirworthiness()">
+    <div class="aw-modal" ng-click="$event.stopPropagation()">
+
+        <div class="aw-modal__header">
+            <div class="aw-modal__header-icon"><i class="fa fa-exclamation-triangle"></i></div>
+            <div>
+                <h3 class="aw-modal__title">Airworthiness Warning</h3>
+                <p class="aw-modal__sub">{{ vm.bookout.plane.registration }} — please read before flying</p>
+            </div>
+        </div>
+
+        <div class="aw-modal__body">
+
+            <p class="aw-modal__message">{{ vm.bookout_airworthiness.message }}</p>
+
+            <ul class="aw-issues" ng-if="vm.bookout_airworthiness.issues.length > 0">
+                <li class="aw-issue" ng-repeat="issue in vm.bookout_airworthiness.issues"
+                    ng-class="{'aw-issue--critical': issue.severity === 'critical', 'aw-issue--warning': issue.severity !== 'critical'}">
+                    <span class="aw-issue__icon"><i class="fa" ng-class="issue.icon || 'fa-exclamation-triangle'"></i></span>
+                    <span class="aw-issue__text">
+                        <span class="aw-issue__label">{{ issue.label }}</span>
+                        <span class="aw-issue__detail" ng-if="issue.detail">{{ issue.detail }}</span>
+                    </span>
+                    <span class="aw-issue__tag">{{ issue.severity === 'critical' ? 'DO NOT FLY' : 'CAUTION' }}</span>
+                </li>
+            </ul>
+
+            <label class="aw-ack" ng-class="{'aw-ack--checked': vm.bookout_airworthiness.acknowledged}">
+                <input type="checkbox" class="aw-ack__box" ng-model="vm.bookout_airworthiness.acknowledged" />
+                <span class="aw-ack__text">
+                    I have read the above and understand this aircraft has the issue(s) listed.
+                    I accept responsibility for flying it and confirm I am satisfied it is safe and lawful to do so.
+                </span>
+            </label>
+
+        </div>
+
+        <div class="aw-modal__footer">
+            <button ng-click="vm.cancelBookoutAirworthiness()" class="aw-btn aw-btn--cancel" ng-disabled="vm.bookout_airworthiness.working">
+                <i class="fa fa-arrow-left"></i> Go back
+            </button>
+
+            <!-- Warn policy: any pilot may proceed once they've acknowledged. -->
+            <button ng-if="vm.bookout_airworthiness.mode === 'warn'" ng-click="vm.confirmBookoutAirworthiness()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged">
+                <i class="fa" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Confirm &amp; book out' }}
+            </button>
+
+            <!-- Force policy: only managers/super-admins with can_force may override. -->
+            <button ng-if="vm.bookout_airworthiness.mode !== 'warn' && vm.bookout_airworthiness.can_force" ng-click="vm.forceBookout()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_airworthiness.working || !vm.bookout_airworthiness.acknowledged">
+                <i class="fa" ng-class="vm.bookout_airworthiness.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
+                {{ vm.bookout_airworthiness.working ? 'Booking out…' : 'Book out anyway' }}
+            </button>
+            <div ng-if="vm.bookout_airworthiness.mode !== 'warn' && !vm.bookout_airworthiness.can_force" class="aw-noforce">
+                <i class="fa fa-lock"></i> This book-out is blocked. Contact a club administrator.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ═══ Pilot checks book-out block (force policy) ═══
+     Shown when the book-out endpoint returns reason:'pilot_checks'. Lists every
+     failed check. Self-certify appears ONLY when lapsed currency is the sole
+     failure; Force appears for managers/super-admins. -->
+<div class="aw-modal-bg" ng-if="vm.bookout_pilot_checks.visible" ng-click="vm.cancelPilotChecks()">
+    <div class="aw-modal" ng-click="$event.stopPropagation()">
+
+        <div class="aw-modal__header">
+            <div class="aw-modal__header-icon"><i class="fa fa-user-check"></i></div>
+            <div>
+                <h3 class="aw-modal__title">Pilot Checks Failed</h3>
+                <p class="aw-modal__sub">This book-out is blocked by your club's pilot-checks policy</p>
+            </div>
+        </div>
+
+        <div class="aw-modal__body">
+
+            <p class="aw-modal__message">{{ vm.bookout_pilot_checks.message }}</p>
+
+            <ul class="aw-issues">
+                <li class="aw-issue aw-issue--critical" ng-repeat="failure in vm.bookout_pilot_checks.failures">
+                    <span class="aw-issue__icon"><i class="fa" ng-class="failure.code === 'currency_lapsed' ? 'fa-hourglass-end' : (failure.code === 'solo_requirement' ? 'fa-clipboard-list' : 'fa-times-circle')"></i></span>
+                    <span class="aw-issue__text">
+                        <span class="aw-issue__label" ng-if="failure.code === 'solo_requirement'">Pre-solo requirement: {{ failure.name }}</span>
+                        <span class="aw-issue__label" ng-if="failure.code !== 'solo_requirement'">{{ failure.message }}</span>
+                        <span class="aw-issue__detail" ng-if="failure.code === 'solo_requirement'">{{ failure.message }}</span>
+                        <span class="aw-issue__action" ng-if="failure.code === 'solo_requirement' && vm.soloStateAction(failure.state)">
+                            <i class="fa fa-arrow-right"></i> {{ vm.soloStateAction(failure.state) }}
+                        </span>
+                    </span>
+                    <span class="aw-issue__tag">BLOCKED</span>
+                </li>
+            </ul>
+
+            <p class="aw-modal__message" ng-if="vm.bookout_pilot_checks.can_override" style="margin-top:12px;">
+                Your currency has lapsed and it is the only failed check. If you are satisfied you are safe
+                and current to fly, you may self-certify below — this is recorded against your name.
+            </p>
+
+        </div>
+
+        <div class="aw-modal__footer">
+            <button ng-click="vm.cancelPilotChecks()" class="aw-btn aw-btn--cancel" ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa fa-arrow-left"></i> Go back
+            </button>
+
+            <!-- Currency-only failure: the pilot may self-certify. -->
+            <button ng-if="vm.bookout_pilot_checks.can_override" ng-click="vm.selfCertifyBookout()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-pen'"></i>
+                {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Self-certify & book out' }}
+            </button>
+
+            <!-- Managers / super-admins may force any pilot-check block. -->
+            <button ng-if="vm.bookout_pilot_checks.can_force" ng-click="vm.forcePilotChecks()" class="aw-btn aw-btn--force"
+                    ng-disabled="vm.bookout_pilot_checks.working">
+                <i class="fa" ng-class="vm.bookout_pilot_checks.working ? 'fa-spinner fa-spin' : 'fa-exclamation-triangle'"></i>
+                {{ vm.bookout_pilot_checks.working ? 'Booking out…' : 'Force book-out' }}
+            </button>
+
+            <div ng-if="!vm.bookout_pilot_checks.can_override && !vm.bookout_pilot_checks.can_force" class="aw-noforce">
+                <i class="fa fa-lock"></i> This book-out is blocked. Contact a club instructor or administrator.
+            </div>
+        </div>
+
+    </div>
 </div>

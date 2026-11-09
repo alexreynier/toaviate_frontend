@@ -1,0 +1,22 @@
+<!-- defect cards for one aircraft (expects `p`), opening their photos in place -->
+<div class="acs-defs" ng-if="vm.defectsShown(p).length">
+  <div class="acs-def" ng-repeat="d in vm.defectsShown(p) track by d.id"
+       ng-class="(d.status === 'resolved' || d.status === 'closed') ? 'acs-def--quiet acs-def--done' : (vm.sev(d).tone === 'bad' ? 'acs-def--bad' : vm.sev(d).tone === 'warn' ? 'acs-def--warn' : 'acs-def--quiet')">
+    <div class="acs-def__top">
+      <span class="acs-def__t">{{ d.defect }}</span>
+      <button type="button" class="ta-btn ta-btn--sm" ng-if="+d.media_count > 0" ng-click="d._media = !d._media" aria-expanded="{{ !!d._media }}" no-busy-guard><i class="fas fa-camera"></i>{{ d.media_count }}<i class="fas" ng-class="d._media ? 'fa-chevron-up' : 'fa-chevron-down'"></i></button>
+    </div>
+    <div class="acs-def__meta">
+      <span class="ta-pill" ng-class="'ta-pill--' + vm.sev(d).tone"><i class="fas" ng-class="vm.sev(d).ic"></i>{{ vm.sev(d).label }}</span>
+      <span class="ta-pill" ng-class="'ta-pill--' + vm.dstat(d).tone"><i class="fas" ng-class="vm.dstat(d).ic"></i>{{ vm.dstat(d).label }}</span>
+      <span><i class="far fa-clock"></i> Reported {{ vm.fDayY(d.created_at) }}, {{ vm.fTime(d.created_at) }} {{ vm.reportedBy(d) }}</span>
+    </div>
+    <div ng-if="d._media"><defect-media-gallery defect-id="d.id" club-id="p._club.id" media-count="d.media_count" read-only="true"></defect-media-gallery></div>
+  </div>
+</div>
+<div class="ta-note ta-note--good" ng-if="!vm.defectsShown(p).length"><i class="fas fa-check-circle"></i><div>No reported defects. If you find something, report it here — the club sees it on its maintenance page.</div></div>
+<label class="ta-toggle" ng-if="p._older > 0">
+  <input type="checkbox" class="ta-toggle__input" ng-model="vm.allDef[p.plane_id]">
+  <span class="ta-toggle__txt"><span class="ta-toggle__t">Show fixed and closed defects too</span><span class="ta-toggle__s">{{ vm.plural(p._older, 'older defect') }} on record for {{ p.registration }}</span></span>
+  <span class="ta-switch"></span>
+</label>

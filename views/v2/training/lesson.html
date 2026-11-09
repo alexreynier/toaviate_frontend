@@ -1,0 +1,192 @@
+<!-- v2 · Training → one lesson (design: mockups/my-account/training.html, page "Lesson").
+     State dashboard.v2.syllabus_view_lesson (/my_account/syllabus/course/:course_id/lesson/:lesson_id) → TrnLessonV2Controller.
+     Desktop: main column + rail from 992px; phones: one ordered stack (trn-o* order classes, each card exists once). -->
+<main class="ta-page trn-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-chalkboard" aria-hidden="true"></i></span>
+        <div>
+          <h2>{{ vm.l ? vm.D.lessonLabel(vm.l) : 'Lesson' }}</h2>
+          <p ng-show="vm.l">{{ vm.course.title }} · lesson {{ vm.l.n }} of {{ vm.lessons.length }}<span ng-show="vm.l.dur"> · {{ vm.l.dur }}</span></p>
+          <span class="trn-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="trn-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account.syllabus_view_course({course_id: vm.courseId})" title="Back to {{ vm.course.title || 'the course' }}" aria-label="Back to the course" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">{{ vm.course.title || 'Course' }}</span></a>
+      </span>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.l">
+      <div class="trn-lhead">
+        <span class="ta-pill ta-pill--good" ng-if="vm.p.enrolled && vm.s.done"><i class="fas fa-check"></i>Signed off {{ vm.D.fDate(vm.s.done.date) }}</span>
+        <span class="ta-pill trn-pill--next" ng-if="vm.p.enrolled && !vm.s.done && vm.isNext"><i class="fas fa-forward"></i>{{ vm.p.repeat ? 'Up next · repeat' : 'Up next' }}</span>
+        <span class="ta-pill ta-pill--muted" ng-if="vm.p.enrolled && !vm.s.done && !vm.isNext">{{ vm.s.recs.length ? 'Not signed off yet' : 'Not started' }}</span>
+        <span class="ta-pill ta-pill--solo" ng-if="vm.l.solo"><i class="fas fa-user"></i>Solo</span>
+        <span class="ta-pill trn-pill--check" ng-if="vm.l.cp"><i class="fas fa-flag"></i>Check point</span>
+        <span class="ta-tag" ng-if="vm.l.ref"><i class="fas fa-bookmark"></i>{{ vm.l.ref }}</span>
+      </div>
+      <div class="trn-lnav trn-tools-end">
+        <button type="button" class="ta-ib" ng-click="vm.go(vm.prev)" ng-disabled="!vm.prev" aria-label="Previous lesson" title="{{ vm.prev ? 'Previous: ' + vm.D.lessonLabel(vm.prev) : '' }}" no-busy-guard><i class="fas fa-chevron-left"></i></button>
+        <button type="button" class="ta-ib" ng-click="vm.go(vm.next)" ng-disabled="!vm.next" aria-label="Next lesson" title="{{ vm.next ? 'Next: ' + vm.D.lessonLabel(vm.next) : '' }}" no-busy-guard><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="ta-note ta-note--warn" ng-show="!vm.loading && vm.progError"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>Your progress on this course couldn't be loaded, so every lesson shows as not started. <button type="button" class="ta-link" ng-click="vm.reload()" no-busy-guard>Try again</button></div></div>
+  <div class="ta-note ta-note--bad" ng-show="vm.error">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+    <div>{{ vm.error }} The syllabus is for current members of the club; your own training records are in <a ui-sref="dashboard.my_account.training_records">Training records</a>.</div>
+  </div>
+  <section class="ta-card" ng-show="vm.loading && !vm.error" aria-busy="true"><span class="ta-skel trn-skel__h"></span><span class="ta-skel trn-skel__box"></span></section>
+
+  <div class="trn-l" ng-if="!vm.loading && vm.l">
+    <div class="trn-l__main">
+      <!-- aim -->
+      <section class="ta-card trn-o1">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-bullseye" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Aim</h3><p>What this lesson is for</p></div></div>
+        <p class="trn-aim">{{ vm.l.aim || 'No aim written for this lesson yet.' }}</p>
+        <dl class="ta-facts ta-facts--3">
+          <div class="ta-fact"><dt>Course reference</dt><dd>{{ vm.l.ref || '—' }}</dd></div>
+          <div class="ta-fact"><dt>Duration</dt><dd>{{ vm.l.dur || '—' }}</dd></div>
+          <div class="ta-fact"><dt>Objectives</dt><dd>{{ vm.items.length || 'None' }}</dd></div>
+        </dl>
+        <div class="ta-panel" ng-if="vm.l.prereq.length">
+          <span class="ta-panel__hd"><i class="fas fa-flag"></i><span class="trn-grow">Check point — before this lesson you need</span></span>
+          <div class="trn-pre"><div class="trn-pre__i" ng-repeat="x in vm.l.prereq"><i class="fas fa-caret-right"></i><span>{{ x }}</span></div></div>
+        </div>
+        <p class="ta-muted" ng-if="vm.l.more">{{ vm.l.more }}</p>
+      </section>
+
+      <!-- my flights on this lesson -->
+      <section class="ta-list trn-o3" ng-if="vm.recs.length">
+        <div class="trn-listhd">
+          <div class="ta-card__hd">
+            <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.s.done}"><i class="fas" ng-class="vm.s.done ? 'fa-check' : 'fa-plane'" aria-hidden="true"></i></span>
+            <div class="ta-card__ttl"><h3>Your flights on this lesson</h3><p>{{ vm.D.plural(vm.recs.length, 'flight') }}{{ vm.s.done ? (' · signed off ' + vm.D.fDate(vm.s.done.date) + (vm.s.done.insName ? ' by ' + vm.s.done.insName : '')) : ' · not signed off yet' }}</p></div>
+          </div>
+        </div>
+        <div class="ta-row trn-rec" ng-repeat="f in vm.recs" id="trn-rec-{{ f.id }}" ng-class="{'ta-row--open trn-rec--open': vm.open === f.id, 'trn-rec--import': f.ph}" ng-include="'views/v2/training/_rec_row.html'"></div>
+      </section>
+
+      <!-- briefing material -->
+      <section class="ta-card trn-o5" ng-if="vm.files.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-images" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Briefing material</h3><p>Diagrams and handouts from the club</p></div></div>
+        <div class="trn-files">
+          <button type="button" class="trn-file" ng-repeat="x in vm.files" ng-click="vm.openFile(x)" no-busy-guard>
+            <span class="trn-file__thumb">
+              <img ng-if="!x.pdf && x.data" ng-src="{{ x.data }}" alt="">
+              <i class="fas fa-file-pdf" ng-if="x.pdf" aria-hidden="true"></i>
+              <span class="ta-spin ta-spin--dark" ng-if="!x.pdf && !x.data && x.loading"></span>
+              <i class="fas fa-exclamation-triangle trn-file__err" ng-if="!x.pdf && x.error" aria-hidden="true"></i>
+            </span>
+            <span class="trn-file__n"><b title="{{ x.name }}">{{ x.name }}</b><span>{{ x.pdf ? ('PDF' + (x.pages ? ' · ' + vm.D.plural(x.pages, 'page') : '')) : 'Image' }}<span ng-show="x.size"> · {{ x.size }}</span></span></span>
+          </button>
+        </div>
+      </section>
+
+      <section class="ta-card trn-o6" ng-if="vm.bullets.preflight.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-chalkboard-teacher" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Pre-flight briefing</h3><p>What your instructor covers on the ground</p></div></div>
+        <ul class="trn-bul"><li ng-repeat="b in vm.bullets.preflight" ng-class="{'trn-bul__h': b.h}">{{ b.t }}</li></ul>
+      </section>
+      <section class="ta-card trn-o7" ng-if="vm.bullets.airex.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-plane" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Air exercise</h3><p>What you fly, in order</p></div></div>
+        <ul class="trn-bul trn-bul--steps"><li ng-repeat="b in vm.bullets.airex" ng-class="{'trn-bul__h': b.h}">{{ b.t }}</li></ul>
+      </section>
+      <section class="ta-card trn-o8" ng-if="vm.tem.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-shield-alt" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Threat and error management</h3><p>What could go wrong, and how you stop it</p></div></div>
+        <div class="trn-tem">
+          <div class="trn-tem__row" ng-repeat="t in vm.tem">
+            <div><div class="trn-tem__k trn-tem__k--t"><i class="fas fa-exclamation-triangle"></i>Threat or error</div><div class="trn-tem__v">{{ t.threat }}</div></div>
+            <div><div class="trn-tem__k trn-tem__k--c"><i class="fas fa-bolt"></i>Consequence</div><div class="trn-tem__v">{{ t.consequence }}</div></div>
+            <div><div class="trn-tem__k trn-tem__k--m"><i class="fas fa-shield-alt"></i>Mitigation</div><div class="trn-tem__v">{{ t.mitigation }}</div></div>
+          </div>
+        </div>
+      </section>
+      <section class="ta-card trn-o9" ng-if="vm.bullets.debrief.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-comments" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Debrief</h3><p>What you go through afterwards</p></div></div>
+        <ul class="trn-bul"><li ng-repeat="b in vm.bullets.debrief" ng-class="{'trn-bul__h': b.h}">{{ b.t }}</li></ul>
+      </section>
+    </div>
+
+    <div class="trn-l__rail">
+      <!-- before this lesson -->
+      <section class="ta-card trn-o2" ng-if="vm.att.pre.length" ng-class="{'ta-card--attn': vm.isNext && vm.D.openCount(vm.att.pre)}">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.isNext && vm.D.openCount(vm.att.pre), 'ta-card__icon--done': !vm.D.openCount(vm.att.pre)}"><i class="fas fa-tasks" aria-hidden="true"></i></span>
+          <div class="ta-card__ttl"><h3>Before this lesson</h3><p>Do these before you fly</p></div>
+          <span class="ta-card__right">
+            <span class="ta-pill" ng-class="vm.isNext ? 'ta-pill--warn' : 'ta-pill--muted'" ng-show="vm.D.openCount(vm.att.pre)"><i class="fas fa-exclamation-circle" ng-show="vm.isNext"></i>{{ vm.D.openCount(vm.att.pre) }} to do</span>
+            <span class="ta-pill ta-pill--good" ng-show="!vm.D.openCount(vm.att.pre)"><i class="fas fa-check"></i>All done</span>
+          </span>
+        </div>
+        <div class="trn-todos"><div class="trn-todo" ng-repeat="x in vm.att.pre" ng-init="attnKey = 'before'" ng-include="'views/v2/training/_todo_row.html'"></div></div>
+      </section>
+
+      <div class="trn-host" ng-if="vm.showSolo && vm.reqs.length" ng-init="soloCls = 'trn-o2'" ng-include="'views/v2/training/_presolo.html'"></div>
+
+      <!-- completion standards -->
+      <section class="ta-card trn-o4" ng-if="vm.items.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-star" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Completion standards</h3><p>{{ vm.p.enrolled ? 'Your latest grade on each objective' : 'What your instructor grades' }}</p></div></div>
+        <div class="trn-objs">
+          <div class="trn-obj" ng-repeat="it in vm.items">
+            <span class="trn-obj__t" title="{{ it.description }}">{{ it.title }}</span>
+            <span class="ta-pill ta-pill--{{ it.last.g.tone }}" ng-if="it.last"><i class="fas {{ it.last.g.ic }}"></i>{{ it.last.g.name }}</span>
+            <span class="trn-obj__n" ng-if="!it.last && vm.p.enrolled">Not graded yet</span>
+            <span class="trn-obj__d" ng-if="it.last">{{ vm.D.fDate(it.last.date) }}{{ it.last.ins ? ' · ' + it.last.ins : '' }}{{ it.last.rem ? ' · ' + it.last.rem : '' }}</span>
+            <span class="trn-obj__d" ng-if="!it.last && it.description">{{ it.description }}</span>
+          </div>
+        </div>
+        <div class="trn-legend trn-legend--card" ng-if="vm.p.enrolled">
+          <b class="ta-sec-k">Grades</b>
+          <span class="trn-legend__i" ng-repeat="g in vm.p.G.legend"><span class="ta-pill ta-pill--{{ g.tone }}"><i class="fas {{ g.ic }}"></i>{{ g.name }}</span><span>{{ g.help }}</span></span>
+        </div>
+      </section>
+
+      <!-- after this lesson -->
+      <section class="ta-card trn-o10" ng-if="vm.att.post.length">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--done': !vm.D.openCount(vm.att.post)}"><i class="fas fa-clipboard-check" aria-hidden="true"></i></span>
+          <div class="ta-card__ttl"><h3>After this lesson</h3><p>Reflect on the flight</p></div>
+          <span class="ta-card__right">
+            <span class="ta-pill ta-pill--muted" ng-show="vm.D.openCount(vm.att.post)">{{ vm.D.openCount(vm.att.post) }} to do</span>
+            <span class="ta-pill ta-pill--good" ng-show="!vm.D.openCount(vm.att.post)"><i class="fas fa-check"></i>All done</span>
+          </span>
+        </div>
+        <div class="trn-todos"><div class="trn-todo" ng-repeat="x in vm.att.post" ng-init="attnKey = 'after'" ng-include="'views/v2/training/_todo_row.html'"></div></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- briefing material viewer: a wide record dialog (bottom sheet on phones) -->
+  <div class="ta-dlg-scrim" ng-if="vm.viewer" ng-click="$event.target === $event.currentTarget && vm.closeViewer()">
+    <div class="ta-dlg ta-dlg--wide" role="dialog" aria-modal="true" aria-labelledby="trn-file-t">
+      <div class="ta-dlg__hd">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeViewer()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-images"></i>Briefing material · {{ vm.D.lessonCode(vm.l) }}</div>
+        <div class="ta-dlg__title" id="trn-file-t">{{ vm.viewer.name }}</div>
+        <div class="ta-dlg__sub">{{ vm.viewer.pdf ? ('PDF' + (vm.viewer.pages ? ' · ' + vm.D.plural(vm.viewer.pages, 'page') : '')) : 'Image' }}<span ng-show="vm.viewer.size"> · {{ vm.viewer.size }}</span></div>
+      </div>
+      <div class="ta-dlg__body">
+        <div class="trn-viewer">
+          <div class="trn-viewer__stage">
+            <span class="ta-spin ta-spin--dark" ng-if="vm.viewer.loading"></span>
+            <span class="ta-muted" ng-if="vm.viewer.error"><i class="fas fa-exclamation-triangle"></i> This file couldn't be loaded.</span>
+            <img ng-if="!vm.viewer.pdf && vm.viewer.data" ng-src="{{ vm.viewer.data }}" alt="{{ vm.viewer.name }}">
+            <object class="trn-viewer__pdf" ng-if="vm.viewer.pdf && vm.viewer.blob" ng-attr-data="{{ vm.viewer.blob }}" type="application/pdf">
+              <p class="ta-muted">Your browser can't show the PDF here — use Open full size.</p>
+            </object>
+          </div>
+          <div class="trn-viewer__thumbs" ng-if="vm.files.length > 1">
+            <button type="button" class="trn-viewer__thumb" ng-repeat="x in vm.files" ng-class="{'trn-viewer__thumb--on': x === vm.viewer}" aria-pressed="{{ x === vm.viewer }}" ng-click="vm.openFile(x)" no-busy-guard><i class="fas" ng-class="x.pdf ? 'fa-file-pdf' : 'fa-image'"></i>{{ x.name }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeViewer()" no-busy-guard>Close</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn" ng-click="vm.fullSize(vm.viewer)" ng-disabled="!vm.viewer.data" no-busy-guard><i class="fas fa-external-link-alt"></i>Open full size</button>
+      </div>
+    </div>
+  </div>
+</main>

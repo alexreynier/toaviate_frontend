@@ -1,0 +1,130 @@
+<!-- the aircraft dialogs: report a defect · complete a check · add fuel/oil · a document · a receipt.
+     Record dialogs (the aircraft colour as the edge); bottom sheets on phones. -->
+
+<!-- Report a defect -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg === 'defect'" ng-click="vm.closeDlg()">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd" ng-attr-style="{{ vm.dp._colour ? '--edge:' + vm.dp._colour : undefined }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-exclamation-triangle"></i>Report a defect</div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.dp.registration }}</div><div class="ta-dlg__sub">{{ vm.dp._model || vm.dp.plane_type }} · {{ vm.dp._club._title }}</div></div>
+    <div class="ta-dlg__body">
+      <div class="ta-field" ng-class="{'ta-field--error': vm.err.defect}" id="field-defect">
+        <label class="ta-label" for="acs-defect">What’s the problem?</label>
+        <textarea class="ta-textarea" id="acs-defect" ng-model="vm.form.defect" placeholder="e.g. Left nav light flickers when the strobes are on" data-e2e="acs-defect-text"></textarea>
+        <span class="ta-field__msg" ng-show="vm.err.defect">{{ vm.err.defect }}</span>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.err.severity}" id="field-severity">
+        <span class="ta-label">How serious is it?</span>
+        <div class="acs-optlist">
+          <button type="button" class="ta-opt" ng-repeat="o in vm.sevOptions" ng-class="{'ta-opt--on': vm.form.severity === o.value}" ng-click="vm.form.severity = o.value; vm.err.severity = null" no-busy-guard data-e2e="acs-sev-{{ o.k }}">
+            <span class="ta-opt__ic"><i class="fas" ng-class="o.ic"></i></span><span><span class="ta-opt__t">{{ o.label }}</span><span class="ta-opt__s">{{ o.sub }}</span></span><span class="ta-opt__dot"></span>
+          </button>
+        </div>
+        <span class="ta-field__msg" ng-show="vm.err.severity">{{ vm.err.severity }}</span>
+      </div>
+      <div class="ta-note ta-note--bad" ng-if="vm.form.severity === vm.sevOptions[0].value"><i class="fas fa-ban"></i><div><b>Don’t fly {{ vm.dp.registration }}.</b> Reporting it e-mails the club’s managers and its maintenance organisation straight away, but it doesn’t take the aircraft out of service by itself — only they can.</div></div>
+      <div class="ta-field">
+        <span class="ta-label">Photos or video <em>(optional)</em></span>
+        <div class="acs-files">
+          <span class="ta-tag" ng-repeat="f in vm.form.files track by $index"><i class="fas" ng-class="/^video/.test(f.type) ? 'fa-video' : 'fa-image'"></i>{{ f.name }} <button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-click="vm.removeFile($index)" aria-label="Remove {{ f.name }}" no-busy-guard>×</button></span>
+          <label class="ta-btn ta-btn--sm"><i class="fas fa-camera"></i>Add photo or video<input class="acs-file" type="file" accept="image/*,video/*" multiple onchange="angular.element(this).scope().vm.addFiles(this)"></label>
+        </div>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="!vm.closeAsk"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.saveDefect()" ng-disabled="vm.busy" data-e2e="acs-defect-save"><i class="fas fa-spinner fa-spin" ng-show="vm.busy"></i><i class="fas fa-paper-plane" ng-show="!vm.busy"></i>Report defect</button></div>
+    <div class="ta-dlg__ft" ng-if="vm.closeAsk"><div class="ta-confirm ta-confirm--inline" role="alert"><span>Discard what you’ve written?</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepEditing()" no-busy-guard>Keep editing</button><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.closeDlg(true)" no-busy-guard data-e2e="acs-discard">Discard</button></div></div>
+  </div>
+</div>
+
+<!-- Complete a check -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg === 'check'" ng-click="vm.closeDlg()">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd" ng-attr-style="{{ vm.dp._colour ? '--edge:' + vm.dp._colour : undefined }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-clipboard-check"></i>Complete a check</div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.dp.registration }}</div><div class="ta-dlg__sub">Fuel and oil as you found them</div></div>
+    <div class="ta-dlg__body">
+      <div class="ta-note" ng-if="vm.checkLoading"><span class="ta-spin ta-spin--dark"></span><div>Finding which check is needed…</div></div>
+      <div class="ta-note ta-note--info" ng-if="!vm.checkLoading && vm.requiredMsg"><i class="fas fa-clipboard-check"></i><div><b>{{ vm.offered ? vm.offered.name : (vm.requiredMsg === 'a' ? 'A check' : 'Transit check') }} needed.</b> {{ vm.requiredMsg === 'transit' ? 'An A check is already done today, so the next one is a transit check.' : 'Nobody has done an A check on ' + vm.dp.registration + ' today.' }}</div></div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.err.type}" id="field-ctype">
+        <label class="ta-label" for="acs-ctype">Check</label>
+        <select class="ta-select" id="acs-ctype" ng-model="vm.form.typeId" ng-options="t.id as t.name for t in vm.checkTypes" no-busy-guard></select>
+        <span class="ta-field__msg" ng-show="vm.err.type">{{ vm.err.type }}</span>
+        <span class="ta-hint" ng-if="vm.offered && vm.form.typeId !== vm.offered.id">Recording a different check — the {{ vm.offered.name }} will still be needed.</span>
+        <span class="ta-hint" ng-if="!vm.checkLoading && !vm.checkTypes.length">The club hasn’t set up its check types yet.</span>
+      </div>
+      <div class="acs-dlg-grid acs-dlg-grid--2">
+        <div class="ta-field"><span class="ta-label">Date</span><ta-date-picker ng-model="vm.form.date" options="vm.pastOnly" block="true" format="short"></ta-date-picker></div>
+        <div class="ta-field"><label class="ta-label" for="acs-ctime">Time</label><input class="ta-input" id="acs-ctime" ng-keydown="vm.enterSave($event)" type="time" ng-model="vm.form.time"><span class="ta-hint">Club time</span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.err.fuel}" id="field-cfuel"><label class="ta-label" for="acs-cfuel">Fuel on board</label><span class="acs-unit"><input class="ta-input" id="acs-cfuel" ng-keydown="vm.enterSave($event)" type="number" step="0.1" min="0" inputmode="decimal" placeholder="0.0" ng-model="vm.form.fuel"><span>US gal</span></span><span class="ta-hint" ng-show="!vm.err.fuel">US gallons, as on the aircraft’s gauge</span><span class="ta-field__msg" ng-show="vm.err.fuel">{{ vm.err.fuel }}</span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.err.oil}" id="field-coil"><label class="ta-label" for="acs-coil">Oil</label><span class="acs-unit"><input class="ta-input" id="acs-coil" ng-keydown="vm.enterSave($event)" type="number" step="0.1" min="0" inputmode="decimal" placeholder="0.0" ng-model="vm.form.oil"><span>quarts</span></span><span class="ta-hint" ng-show="!vm.err.oil">Quarts in the oil tank</span><span class="ta-field__msg" ng-show="vm.err.oil">{{ vm.err.oil }}</span></div>
+      </div>
+      <div class="ta-field"><label class="ta-label" for="acs-cnotes">Notes <em>(optional)</em></label><textarea class="ta-textarea" id="acs-cnotes" ng-model="vm.form.notes" placeholder="Anything you noticed during the check"></textarea></div>
+      <label class="ta-toggle ta-toggle--confirm"><input type="checkbox" class="ta-toggle__input" ng-model="vm.form.confirm" ng-change="vm.err.confirm = null" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">I did this check</span><span class="ta-toggle__s">and the figures are what I found</span></span><span class="ta-switch"></span></label>
+      <span class="ta-field__msg" ng-show="vm.err.confirm">{{ vm.err.confirm }}</span>
+    </div>
+    <div class="ta-dlg__ft" ng-if="!vm.closeAsk"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.saveCheck()" ng-disabled="vm.busy || vm.checkLoading" data-e2e="acs-check-save"><i class="fas fa-spinner fa-spin" ng-show="vm.busy"></i><i class="fas fa-check" ng-show="!vm.busy"></i>Submit check</button></div>
+    <div class="ta-dlg__ft" ng-if="vm.closeAsk"><div class="ta-confirm ta-confirm--inline" role="alert"><span>Discard what you’ve written?</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepEditing()" no-busy-guard>Keep editing</button><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.closeDlg(true)" no-busy-guard data-e2e="acs-discard">Discard</button></div></div>
+  </div>
+</div>
+
+<!-- Add fuel or oil -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg === 'fuel'" ng-click="vm.closeDlg()">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd" ng-attr-style="{{ vm.dp._colour ? '--edge:' + vm.dp._colour : undefined }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-gas-pump"></i>Add fuel or oil</div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.dp.registration }}</div><div class="ta-dlg__sub">Outside a flight — on a flight, add it at book-in</div></div>
+    <div class="ta-dlg__body">
+      <div class="ta-field"><span class="ta-label">What did you add?</span>
+        <div class="ta-seg ta-seg--row acs-seg2">
+          <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.form.item === 'Fuel'}" ng-click="vm.form.item = 'Fuel'" no-busy-guard><i class="fas fa-gas-pump"></i>Fuel</button>
+          <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.form.item === 'Oil'}" ng-click="vm.form.item = 'Oil'" no-busy-guard><i class="fas fa-oil-can"></i>Oil</button>
+        </div>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.err.qty}" id="field-qty"><label class="ta-label" for="acs-qty">Quantity</label><span class="acs-unit"><input class="ta-input" id="acs-qty" ng-keydown="vm.enterSave($event)" type="number" step="0.1" min="0" inputmode="decimal" placeholder="0.0" ng-model="vm.form.qty" data-e2e="acs-fuel-qty"><span>{{ vm.form.item === 'Oil' ? 'quarts' : 'litres' }}</span></span><span class="ta-hint" ng-show="!vm.err.qty">{{ vm.form.item === 'Oil' ? 'Quarts — oil comes in quart cans' : 'Litres, as shown on the pump' }}</span><span class="ta-field__msg" ng-show="vm.err.qty">{{ vm.err.qty }}</span></div>
+      <div class="acs-dlg-grid acs-dlg-grid--2">
+        <div class="ta-field"><label class="ta-label" for="acs-cur">Currency</label><select class="ta-select" id="acs-cur" ng-model="vm.form.currency" ng-options="c as c.iso_code for c in vm.currencies track by c.iso_code" no-busy-guard></select></div>
+        <div class="ta-field"><label class="ta-label" for="acs-price">Price paid <em>(optional)</em></label><input class="ta-input" id="acs-price" ng-keydown="vm.enterSave($event)" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" ng-model="vm.form.price"></div>
+      </div>
+      <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.form.reimb" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">I paid — please pay me back</span><span class="ta-toggle__s">The club sees this as a reimbursement request</span></span><span class="ta-switch"></span></label>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.err.file}" id="field-receipt"><span class="ta-label">Receipt photo <em ng-if="!vm.form.reimb">(optional)</em></span>
+        <div class="acs-files">
+          <span class="ta-tag" ng-if="vm.form.file"><i class="fas fa-receipt"></i>{{ vm.form.file.name }}</span>
+          <label class="ta-btn ta-btn--sm"><i class="fas fa-camera"></i>{{ vm.form.file ? 'Replace photo' : 'Add a photo' }}<input class="acs-file" type="file" accept="image/*" onchange="angular.element(this).scope().vm.setReceipt(this)"></label>
+        </div>
+        <span class="ta-field__msg" ng-show="vm.err.file">{{ vm.err.file }}</span>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="!vm.closeAsk"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.saveFuel()" ng-disabled="vm.busy" data-e2e="acs-fuel-save"><i class="fas fa-spinner fa-spin" ng-show="vm.busy"></i><i class="fas fa-save" ng-show="!vm.busy"></i>Save {{ vm.form.item === 'Oil' ? 'oil' : 'fuel' }}</button></div>
+    <div class="ta-dlg__ft" ng-if="vm.closeAsk"><div class="ta-confirm ta-confirm--inline" role="alert"><span>Discard what you’ve written?</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepEditing()" no-busy-guard>Keep editing</button><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.closeDlg(true)" no-busy-guard data-e2e="acs-discard">Discard</button></div></div>
+  </div>
+</div>
+
+<!-- A document -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg === 'doc'" ng-click="vm.closeDlg()">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd" style="--edge: {{ vm.docEdge(vm.doc) }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-file-alt"></i>{{ vm.dp.registration }} · document</div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.doc.t }}</div><div class="ta-dlg__sub">{{ vm.doc.sub }}</div></div>
+    <div class="ta-dlg__body">
+      <button type="button" class="acs-docprev" ng-click="vm.openFile(vm.doc)" ng-disabled="!vm.doc.file" no-busy-guard title="Open in a new tab"><i class="fas" ng-class="vm.fileIcon(vm.doc.file)"></i><b>{{ vm.doc.file ? 'Preview' : 'No file on record' }}</b><span ng-if="vm.doc.file">{{ vm.doc.file.split('.').pop() | uppercase }}</span></button>
+      <dl class="ta-facts" ng-if="vm.doc.pill">
+        <div class="ta-fact"><dt>Status</dt><dd><span class="ta-pill" ng-class="'ta-pill--' + vm.doc.pill.tone"><i class="fas" ng-class="vm.doc.pill.ic" ng-show="vm.doc.pill.ic"></i>{{ vm.doc.pill.label }}</span></dd></div>
+        <div class="ta-fact"><dt>{{ vm.doc.crs ? 'Released' : 'Expiry' }}</dt><dd>{{ vm.doc.sub }}</dd></div>
+      </dl>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Close</button><span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.doc.file" ng-click="vm.openFile(vm.doc, true)" ng-disabled="vm.fileBusy" no-busy-guard><i class="fas fa-spinner fa-spin" ng-show="vm.fileBusy"></i><i class="fas fa-download" ng-show="!vm.fileBusy"></i>Download</button></div>
+  </div>
+</div>
+
+<!-- A receipt -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg === 'receipt'" ng-click="vm.closeDlg()">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-receipt"></i>Receipt<span ng-if="vm.rc.invoice_number"> · {{ vm.rc.invoice_number }}</span></div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.rc.item }} · {{ vm.nf1(vm.qty(vm.rc)) }} {{ vm.unit(vm.rc) }}</div><div class="ta-dlg__sub">{{ vm.fDayFull(vm.rc.created_at) }} · {{ vm.dp.registration }}</div></div>
+    <div class="ta-dlg__body">
+      <img class="acs-rcimg" ng-src="{{ vm.rc.image }}" alt="Receipt photo">
+      <div class="ta-note ta-note--info" ng-if="vm.rc.modified_quantity != null && vm.rc.modified_quantity !== ''"><i class="fas fa-info-circle"></i><div>The club corrected the quantity from {{ vm.nf1(vm.rc.quantity) }} to {{ vm.nf1(vm.rc.modified_quantity) }} {{ vm.rc.item === 'Oil' ? 'quarts' : 'litres' }} to match the receipt.</div></div>
+    </div>
+    <div class="ta-dlg__ft"><span class="ta-sp"></span><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Close</button></div>
+  </div>
+</div>

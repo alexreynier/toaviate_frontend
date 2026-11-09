@@ -1,0 +1,309 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 INVOICES & PAYMENTS — mockups/my-account/invoices-payments.html
+     States dashboard.v2.invoices / dashboard.v2.payments → InvoicesV2Controller (js/v2/invoices/invoices.js).
+     Page CSS: css/v2/invoices.css (.bil-*); everything else is css/ta-base.css.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="bil-page">
+
+  <!-- ═════ page bar ═════ -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-file-invoice-dollar"></i></span>
+        <div><h2>Invoices &amp; payments</h2><p>What you've been charged and how it was paid</p></div>
+      </div>
+      <span class="bil-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" title="Back to My Account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="ta-tabs" role="tablist" aria-label="Show">
+        <button type="button" class="ta-tab" role="tab" ng-click="vm.goTab('invoices')" ng-class="{'ta-tab--on': vm.tab === 'invoices'}" aria-selected="{{ vm.tab === 'invoices' }}" data-e2e="bil-tab-inv"><i class="fas fa-file-invoice-dollar"></i>Invoices<span class="ta-tab__n" ng-show="!vm.loading">{{ vm.invTotal }}</span></button>
+        <button type="button" class="ta-tab" role="tab" ng-click="vm.goTab('payments')" ng-class="{'ta-tab--on': vm.tab === 'payments'}" aria-selected="{{ vm.tab === 'payments' }}" data-e2e="bil-tab-pay"><i class="fas fa-credit-card"></i>Payments<span class="ta-tab__n" ng-show="!vm.loading">{{ vm.payAll }}</span></button>
+      </div>
+      <div class="ta-scope" ng-if="vm.many">
+        <span class="ta-scope__k">Showing</span>
+        <div class="ta-scope__set" role="group" aria-label="Club">
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.ui.club === 'all'}" ng-click="vm.setClub('all')" aria-pressed="{{ vm.ui.club === 'all' }}">All clubs</button>
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.ui.club === c.id}" ng-click="vm.setClub(c.id)" aria-pressed="{{ vm.ui.club === c.id }}">{{ c.title }}</button>
+        </div>
+      </div>
+      <label class="ta-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input id="bil-q" type="search" ng-model="vm.ui.q" ng-change="vm.refresh()" ng-model-options="{ debounce: 150 }"
+               placeholder="{{ vm.tab === 'invoices' ? 'Search invoices' : 'Search payments' }}" aria-label="Search" autocomplete="off">
+      </label>
+    </div>
+  </section>
+
+  <!-- ═════ loading ═════ -->
+  <div class="ta-stack" ng-if="vm.loading" aria-busy="true">
+    <div class="ta-card"><div class="ta-tiles"><div class="ta-skel bil-skel-t"></div><div class="ta-skel bil-skel-t"></div><div class="ta-skel bil-skel-t"></div><div class="ta-skel bil-skel-t"></div></div></div>
+    <div class="ta-list"><div class="bil-skel-rows"><div class="ta-skel bil-skel-r"></div><div class="ta-skel bil-skel-r"></div><div class="ta-skel bil-skel-r"></div><div class="ta-skel bil-skel-r"></div></div></div>
+  </div>
+
+  <!-- ═════ error ═════ -->
+  <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.error" role="alert">
+    <i class="fas fa-times-circle" aria-hidden="true"></i>
+    <div><b>Some of your invoices or payments couldn't be loaded.</b> Check your connection and try again. <button type="button" class="ta-link" ng-click="vm.retry()"><i class="fas fa-redo"></i>Try again</button></div>
+  </div>
+
+  <!-- ═════ account summary: overview boxes (several clubs) or the full card per club ═════ -->
+  <section class="ta-stack" ng-if="!vm.loading && vm.allView" aria-label="Your club accounts">
+    <div class="bil-ovhd">
+      <span class="ta-sec-k">Your accounts · {{ vm.clubs.length }} clubs</span>
+      <span class="bil-ovhd__s">{{ vm.owedClubs ? vm.owedClubs + ' club' + (vm.owedClubs > 1 ? 's' : '') + ' with something to pay' : 'Nothing to pay at any club' }} · choose a club for its full summary</span>
+    </div>
+    <div class="ta-ovboxes bil-ovboxes">
+      <button type="button" class="ta-ovbox bil-ovbox" ng-repeat="c in vm.clubs track by c.id" ng-click="vm.setClub(c.id)"
+              ng-class="{'ta-ovbox--attn': c.s.toPay > 0, 'ta-ovbox--bad': c.s.failed > 0}" aria-label="Open the {{ c.title }} account" data-e2e="bil-ovbox">
+        <span class="bil-ov__hd">
+          <span class="bil-ov__name">{{ c.title }}</span>
+          <span class="ta-pill ta-pill--good" ng-if="c.mandate"><i class="fas fa-check"></i>Direct debit</span>
+          <span class="ta-pill ta-pill--bad" ng-if="!c.mandate && c.ddCancelled">Direct debit cancelled</span>
+          <span class="ta-pill ta-pill--muted" ng-if="!c.mandate && !c.ddCancelled">No direct debit</span>
+        </span>
+        <span class="bil-ov__figs">
+          <span class="bil-ov__fig" ng-class="{'bil-ov__fig--attn': c.s.toPay > 0}"><span class="bil-ov__k">To pay</span>
+            <span class="bil-ov__v" ng-class="{'bil-ov__v--ok': !(c.s.toPay > 0)}">{{ c.s.toPay > 0 ? vm.money(c.s.toPay, c.cur) : 'Nothing' }}</span></span>
+          <span class="bil-ov__fig"><span class="bil-ov__k" title="Next direct debit">Direct debit</span>
+            <span class="bil-ov__v" ng-class="{'bil-ov__v--quiet': !c.mandate}">{{ c.mandate ? vm.money(c.s.nextDD, c.cur) : 'Not set up' }}</span>
+            <span class="bil-ov__s" ng-if="c.mandate && c.collection">{{ vm.fDay(c.collection) }}</span></span>
+          <span class="bil-ov__fig"><span class="bil-ov__k" title="Requested, not yet received by the club">Collecting</span>
+            <span class="bil-ov__v">{{ vm.money(c.s.collecting, c.cur) }}</span></span>
+        </span>
+        <span class="ta-note ta-note--bad bil-ov__alert" ng-if="c.s.failed > 0"><i class="fas fa-times-circle"></i>{{ vm.money(c.s.failed, c.cur) }} failed: contact the club</span>
+        <span class="bil-ov__foot">
+          <span ng-if="c.credit > 0"><i class="fas fa-wallet"></i>{{ vm.money(c.credit, c.cur) }} account credit</span>
+          <span ng-if="!(c.credit > 0) && c.packages.length"><i class="fas fa-box-open"></i>{{ c.packages[0].title }} · Dual&nbsp;{{ c.packages[0].dual }} · Solo&nbsp;{{ c.packages[0].solo }}</span>
+          <span ng-if="!(c.credit > 0) && !c.packages.length">{{ c.cycle }}</span>
+          <span class="ta-link">Full summary <i class="fas fa-arrow-right"></i></span>
+        </span>
+      </button>
+    </div>
+  </section>
+
+  <div class="ta-stack" ng-if="!vm.loading && !vm.allView && vm.visibleClubs.length">
+    <section class="ta-card" ng-repeat="c in vm.visibleClubs track by c.id" aria-label="{{ c.title }} account" data-e2e="bil-acct">
+      <div class="ta-card__hd">
+        <div class="ta-card__ttl">
+          <div class="bil-acct__t"><h3>{{ c.title }}</h3>
+            <span class="ta-pill ta-pill--good" ng-if="c.mandate"><i class="fas fa-check"></i>Direct debit active</span>
+            <span class="ta-pill ta-pill--bad" ng-if="!c.mandate && c.ddCancelled"><i class="fas fa-times-circle"></i>Direct debit cancelled</span>
+            <span class="ta-pill ta-pill--muted" ng-if="!c.mandate && !c.ddCancelled">No direct debit</span>
+          </div>
+          <p ng-if="c.cycle"><i class="far fa-calendar-alt" aria-hidden="true"></i> {{ c.cycle }}</p>
+        </div>
+      </div>
+      <div class="ta-tiles">
+        <!-- to pay -->
+        <div class="ta-tile ta-tile--attn" ng-if="c.s.toPay > 0">
+          <span class="ta-tile__k"><i class="fas fa-exclamation-circle"></i>To pay</span>
+          <span class="ta-tile__v">{{ vm.money(c.s.toPay, c.cur) }}</span>
+          <span class="ta-tile__s">{{ c.s.owedCount }} invoice{{ c.s.owedCount === 1 ? '' : 's' }} with no payment method yet<span ng-if="c.s.creditNotes > 0"> · {{ vm.money(c.s.creditNotes, c.cur) }} in credit notes in your favour</span></span>
+          <button type="button" class="ta-tile__go" ng-click="vm.showTodo(c)">Show {{ c.s.owedCount === 1 ? 'it' : 'them' }} <i class="fas fa-arrow-right"></i></button>
+        </div>
+        <div class="ta-tile ta-tile--good" ng-if="!(c.s.toPay > 0)">
+          <span class="ta-tile__k"><i class="fas fa-check-circle"></i>To pay</span>
+          <span class="ta-tile__v ta-tile__v--words">Nothing to pay</span>
+          <span class="ta-tile__s">Every invoice is paid or has a payment method<span ng-if="c.s.creditNotes > 0"> · {{ vm.money(c.s.creditNotes, c.cur) }} in credit notes in your favour</span></span>
+        </div>
+        <!-- direct debit -->
+        <div class="ta-tile ta-tile--progress" ng-if="c.mandate">
+          <span class="ta-tile__k"><i class="fas fa-university"></i>Next direct debit</span>
+          <span class="ta-tile__v">{{ vm.money(c.s.nextDD, c.cur) }}</span>
+          <span class="ta-tile__s">{{ (c.collection ? 'Requested on ' + vm.fDay(c.collection) : 'In the next collection') + (c.s.queued > 0 ? ' · ' + vm.money(c.s.queued, c.cur) + ' more in a later collection' : '') }}</span>
+        </div>
+        <div class="ta-tile" ng-if="!c.mandate" ng-class="{'ta-tile--bad': c.ddCancelled}">
+          <span class="ta-tile__k"><i class="fas fa-university"></i>Direct debit</span>
+          <span class="ta-tile__v ta-tile__v--words ta-tile__v--quiet">{{ c.ddCancelled ? 'Cancelled' : 'Not set up' }}</span>
+          <span class="ta-tile__s">{{ c.ddCancelled ? 'Your bank cancelled it. Set up a new one so invoices are collected for you' : 'Pay each invoice here, or set one up so they are collected for you' }}</span>
+          <button type="button" class="ta-tile__go" ng-if="c.memberRowId" ng-click="vm.setupDD(c)">Set up direct debit <i class="fas fa-arrow-right"></i></button>
+        </div>
+        <!-- being collected -->
+        <div class="ta-tile">
+          <span class="ta-tile__k"><i class="fas fa-hourglass-half"></i>Being collected</span>
+          <span class="ta-tile__v">{{ vm.money(c.s.collecting, c.cur) }}</span>
+          <span class="ta-tile__s">Requested, not yet received by the club</span>
+        </div>
+        <!-- account credit (members.balance — the statement waits for the backend) -->
+        <div class="ta-tile" ng-class="{'ta-tile--good': c.credit > 0}" ng-if="c.member">
+          <span class="ta-tile__k"><i class="fas fa-wallet"></i>Account credit</span>
+          <span class="ta-tile__v">{{ vm.money(c.credit, c.cur) }}</span>
+          <span class="ta-tile__s">{{ c.credit > 0 ? 'Held by the club for you · used before anything is collected' : 'Money the club holds for you' }}</span>
+        </div>
+        <!-- failed -->
+        <div class="ta-tile ta-tile--bad" ng-if="c.s.failed > 0">
+          <span class="ta-tile__k"><i class="fas fa-times-circle"></i>Failed payments</span>
+          <span class="ta-tile__v">{{ vm.money(c.s.failed, c.cur) }}</span>
+          <span class="ta-tile__s">Your bank refused a direct debit. Contact {{ c.title }} to settle it.</span>
+          <button type="button" class="ta-tile__go" ng-click="vm.showTodo(c)">Sort it out <i class="fas fa-arrow-right"></i></button>
+        </div>
+      </div>
+      <div class="bil-pkgs" ng-if="c.packages.length">
+        <span class="ta-sec-k">Flying packages</span>
+        <div class="ta-panel bil-pkg" ng-repeat="p in c.packages">
+          <span class="bil-pkg__ic" aria-hidden="true"><i class="fas fa-box-open"></i></span>
+          <span class="bil-pkg__name">{{ p.title }}<span class="bil-pkg__hrs"><span class="ta-pill" title="Dual hours remaining">Dual <b>{{ p.dual }}</b> left</span><span class="ta-pill" title="Solo hours remaining">Solo <b>{{ p.solo }}</b> left</span></span></span>
+          <span class="bil-pkg__meta"><span>Bought {{ p.bought }} · {{ p.expires ? 'expires ' + p.expires : 'does not expire' }}</span>
+            <span ng-if="p.aircraft.length">For <span ng-repeat="a in p.aircraft"><span class="ta-ac" title="{{ a.reg }} · {{ a.type }}" style="{{ a.colour ? '--ac:' + a.colour : '' }}">{{ a.reg }}<span>{{ a.type }}</span></span> </span></span></span>
+        </div>
+      </div>
+    </section>
+    <button type="button" class="ta-link bil-allclubs" ng-if="vm.many" ng-click="vm.setClub('all')"><i class="fas fa-th-large"></i>All clubs</button>
+  </div>
+
+  <!-- ═════ invoices ═════ -->
+  <section class="ta-list bil-list bil-list--inv" id="bil-list-top" ng-if="!vm.loading && vm.tab === 'invoices'" aria-label="Invoices" data-e2e="bil-inv-list">
+    <div class="ta-list__tools" ng-if="vm.invAll">
+      <div class="ta-chips" role="group" aria-label="Filter invoices">
+        <button type="button" class="ta-chip" ng-repeat="x in vm.invChips track by x.f" ng-click="vm.setInv(x.f)"
+                ng-class="{'ta-chip--on': vm.ui.fInv === x.f, 'ta-chip--attn': x.attn}" aria-pressed="{{ vm.ui.fInv === x.f }}">{{ x.l }}<span class="ta-chip__n">{{ x.n }}</span></button>
+      </div>
+    </div>
+    <div class="ta-list__cols" ng-if="vm.invShown"><span></span><span>Invoice</span><span>Aircraft</span><span>Date</span><span>Status</span><span class="ta-r">Amount</span><span></span></div>
+
+    <div class="ta-empty" ng-if="!vm.invAll">
+      <span class="ta-empty__ic"><i class="fas fa-file-invoice-dollar"></i></span>
+      <h4>No invoices yet</h4>
+      <p>When you fly, buy a package or renew a membership, the invoice appears here with every charge listed.</p>
+    </div>
+    <div class="ta-empty" ng-if="vm.invAll && !vm.invShown">
+      <span class="ta-empty__ic"><i class="fas fa-search"></i></span>
+      <h4>Nothing matches</h4>
+      <p>Try another word, or show all invoices.</p>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.clearAll()">Show all</button>
+    </div>
+
+    <div ng-repeat="f in vm.invFlat track by f.key" class="{{ f.g ? 'ta-group' : 'ta-row' }}" ng-class="{'ta-group--attn': f.g.attn, 'ta-row--open': f.x && vm.open['inv:' + f.x.id]}" data-e2e="{{ f.x ? 'bil-inv-row' : 'bil-group' }}">
+      <span ng-if="f.g"><i class="fas fa-exclamation-circle" ng-if="f.g.attn"></i>{{ f.g.label }}</span><span ng-if="f.g">{{ f.g.totalTxt }}</span>
+      <button type="button" class="ta-row__main" ng-if="f.x" ng-click="vm.toggle('inv:' + f.x.id)" aria-expanded="{{ !!vm.open['inv:' + f.x.id] }}">
+        <span class="ta-row__lead"><span class="ta-kind ta-kind--{{ f.x.kind }}" title="{{ f.x.kindLabel }}"><i class="fas {{ f.x.kindIc }}"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ f.x.title }}</span><span class="ta-row__sub">{{ f.x.sub }}{{ vm.allView ? ' · ' + f.x.club.title : '' }}</span></span>
+        <span class="ta-row__meta"><span class="ta-ac" ng-if="f.x.reg" title="{{ f.x.reg }} · {{ f.x.type }}" style="{{ f.x.acColour ? '--ac:' + f.x.acColour : '' }}">{{ f.x.reg }}<span ng-if="f.x.type">{{ f.x.type }}</span></span><span class="ta-muted ta-desk-only" ng-if="!f.x.reg">—</span><span class="ta-row__date">{{ f.x.dateTxt }}</span><span class="ta-pill ta-pill--{{ f.x.st.t }}"><i class="fas {{ f.x.st.ic }}" ng-if="f.x.st.ic"></i>{{ f.x.st.l }}</span></span>
+        <span class="ta-row__end ta-money" ng-class="{'ta-money--credit': f.x.isCredit, 'bil-void': f.x.voided}">{{ f.x.totalTxt }}</span>
+        <span class="ta-row__acts"><span class="ta-btn ta-btn--primary ta-btn--sm" ng-if="f.x.payable" ng-click="vm.openPay(f.x, $event)" ng-keydown="vm.spanKey($event, 'pay', f.x)" role="button" tabindex="0" data-e2e="bil-pay-row">Pay</span><span class="ta-ib" ng-click="vm.pdf(f.x, $event)" ng-keydown="vm.spanKey($event, 'pdf', f.x)" role="button" tabindex="0" title="Download PDF" aria-label="Download PDF" no-busy-guard><i class="fas" ng-class="vm.pdfBusy === f.x.id ? 'fa-spinner fa-spin' : 'fa-download'"></i></span><span class="ta-ib" title="{{ vm.open['inv:' + f.x.id] ? 'Hide' : 'View' }} details"><i class="fas" ng-class="vm.open['inv:' + f.x.id] ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+      </button>
+
+      <div class="ta-detail" ng-if="f.x && vm.open['inv:' + f.x.id]" ng-class="{'bil-still': vm.anim !== 'inv:' + f.x.id}">
+        <div class="ta-note" ng-if="f.x.note" ng-class="f.x.note.t ? 'ta-note--' + f.x.note.t : ''"><i class="fas {{ f.x.note.ic }}"></i><div><b ng-if="f.x.note.b">{{ f.x.note.b }}</b> {{ f.x.note.s }}</div></div>
+        <div class="bil-dgrid" ng-if="f.x.legs">
+          <div class="ta-stack">
+            <div class="ta-panel ta-panel--white" ng-repeat="l in f.x.legs">
+              <div class="ta-panel__hd"><span class="ta-tag" ng-if="f.x.multi">Leg {{ l.n }}</span><span class="ta-route"><b class="ta-icao" ng-if="l.fromIcao">{{ l.fromIcao }}</b><span ng-if="l.fromIcao">{{ l.from }}</span><b ng-if="!l.fromIcao">{{ l.from }}</b><i class="fas fa-long-arrow-alt-right"></i><b class="ta-icao" ng-if="l.toIcao">{{ l.toIcao }}</b><span ng-if="l.toIcao">{{ l.to }}</span><b ng-if="!l.toIcao">{{ l.to }}</b></span></div>
+              <dl class="ta-facts">
+                <div class="ta-fact"><dt>Date</dt><dd>{{ l.date || '—' }}</dd></div>
+                <div class="ta-fact"><dt>Charged time</dt><dd ng-if="l.charged">{{ l.charged.h }} <small>· {{ l.charged.s }}</small></dd><dd ng-if="!l.charged">—</dd></div>
+                <div class="ta-fact"><dt>Aircraft</dt><dd><span class="ta-ac" ng-if="f.x.reg" title="{{ f.x.reg }} · {{ f.x.type }}" style="{{ f.x.acColour ? '--ac:' + f.x.acColour : '' }}">{{ f.x.reg }}<span ng-if="f.x.type">{{ f.x.type }}</span></span><span ng-if="!f.x.reg">—</span></dd></div>
+                <div class="ta-fact" ng-repeat="p in l.crew"><dt>{{ p.k }}</dt><dd>{{ p.v }}</dd></div>
+              </dl></div>
+          </div>
+          <div class="ta-stack">
+            <div class="ta-panel ta-panel--white" ng-repeat="l in f.x.legs"><div class="ta-panel__hd">{{ f.x.multi ? 'Charges · leg ' + l.n : 'Charges' }}</div><table class="ta-table ta-table--plain bil-items"><thead><tr><th>Item</th><th>Units</th><th class="ta-desk-only">Price per unit</th><th>Total</th></tr></thead><tbody>
+              <tr ng-repeat="it in l.items"><td>{{ it.t }}<br ng-if="it.pkg"><span class="ta-tag" ng-if="it.pkg"><i class="fas fa-box-open"></i>Taken from your package</span></td><td>{{ it.u }}</td><td class="ta-desk-only"><span ng-if="!it.pkg" title="{{ it.vatTip }}">{{ it.unitTxt }}</span><span ng-if="it.pkg">—</span></td><td>{{ it.totalTxt }}</td></tr>
+            </tbody><tfoot><tr><td colspan="2">{{ f.x.multi ? 'Leg ' + l.n + ' total' : 'Flight total' }}</td><td class="ta-desk-only"></td><td>{{ l.totalTxt }}</td></tr></tfoot></table></div>
+            <div class="ta-panel ta-panel--white" ng-if="f.x.multi"><table class="ta-table ta-table--plain bil-items"><tbody><tr ng-repeat="l in f.x.legs"><td>Leg {{ l.n }} · {{ l.fromIcao || l.from }} → {{ l.toIcao || l.to }}</td><td>{{ l.totalTxt }}</td></tr></tbody><tfoot><tr><td>All legs</td><td>{{ f.x.totalTxt }}</td></tr></tfoot></table></div>
+            <p class="ta-hint bil-vat"><i class="fas fa-info-circle"></i>{{ f.x.vatLine }}</p>
+          </div>
+        </div>
+        <div class="bil-dgrid bil-dgrid--one" ng-if="!f.x.legs"><div class="ta-panel ta-panel--white"><div class="ta-panel__hd">{{ f.x.panelHd }}</div><table class="ta-table ta-table--plain bil-items"><thead><tr><th>Item</th><th>Units</th><th class="ta-desk-only">Price per unit</th><th>Total</th></tr></thead><tbody>
+          <tr ng-repeat="it in f.x.items"><td>{{ it.t }}<br ng-if="it.pkg"><span class="ta-tag" ng-if="it.pkg"><i class="fas fa-box-open"></i>Taken from your package</span></td><td>{{ it.u }}</td><td class="ta-desk-only"><span ng-if="!it.pkg" title="{{ it.vatTip }}">{{ it.unitTxt }}</span><span ng-if="it.pkg">—</span></td><td>{{ it.totalTxt }}</td></tr>
+          <tr ng-if="!f.x.items.length"><td colspan="4" class="ta-muted">No charges on this invoice.</td></tr>
+        </tbody><tfoot><tr><td colspan="2">Total</td><td class="ta-desk-only"></td><td>{{ f.x.totalTxt }}</td></tr></tfoot></table><p class="ta-hint bil-vat"><i class="fas fa-info-circle"></i>{{ f.x.vatLine }}</p></div></div>
+        <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.pdf(f.x, $event)" no-busy-guard><i class="fas" ng-class="vm.pdfBusy === f.x.id ? 'fa-spinner fa-spin' : 'fa-download'"></i>Download PDF</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-if="f.x.payable" ng-click="vm.openPay(f.x, $event)" data-e2e="bil-pay-detail"><i class="fas fa-lock"></i>Pay {{ f.x.totalTxt }}</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════ payments ═════ -->
+  <section class="ta-list bil-list bil-list--pay" ng-if="!vm.loading && vm.tab === 'payments'" aria-label="Payments" data-e2e="bil-pay-list">
+    <div class="ta-list__tools" ng-if="vm.payAll">
+      <div class="ta-chips" role="group" aria-label="Filter payments">
+        <button type="button" class="ta-chip" ng-repeat="x in vm.payChips track by x.f" ng-click="vm.setPay(x.f)"
+                ng-class="{'ta-chip--on': vm.ui.fPay === x.f}" aria-pressed="{{ vm.ui.fPay === x.f }}">{{ x.l }}<span class="ta-chip__n">{{ x.n }}</span></button>
+      </div>
+    </div>
+    <div class="ta-list__cols" ng-if="vm.payShown"><span></span><span>Payment</span><span>Date</span><span>Status</span><span class="ta-r">Amount</span><span></span></div>
+
+    <div class="ta-empty" ng-if="!vm.payAll">
+      <span class="ta-empty__ic"><i class="fas fa-credit-card"></i></span>
+      <h4>No payments yet</h4>
+      <p>Card payments and direct debit collections appear here, with where each one has got to.</p>
+    </div>
+    <div class="ta-empty" ng-if="vm.payAll && !vm.payShown">
+      <span class="ta-empty__ic"><i class="fas fa-search"></i></span>
+      <h4>Nothing matches</h4>
+      <p>Try another word, or show all payments.</p>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.clearAll()">Show all</button>
+    </div>
+
+    <div ng-repeat="f in vm.payFlat track by f.key" class="{{ f.g ? 'ta-group' : 'ta-row' }}" ng-class="{'ta-row--open': f.x && vm.open['pay:' + f.x.id]}" data-e2e="{{ f.x ? 'bil-payment-row' : 'bil-group' }}">
+      <span ng-if="f.g">{{ f.g.label }}</span><span ng-if="f.g">{{ f.g.totalTxt }}</span>
+      <button type="button" class="ta-row__main" ng-if="f.x" ng-click="vm.toggle('pay:' + f.x.id)" aria-expanded="{{ !!vm.open['pay:' + f.x.id] }}">
+        <span class="ta-row__lead"><span class="ta-kind" style="--k:{{ f.x.method.dd ? 'var(--ta-brand-2)' : f.x.method.card ? 'var(--ta-brand)' : 'var(--ta-k-sub)' }}" title="{{ f.x.method.l }}"><i class="{{ f.x.method.ic }}"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ f.x.method.l }}</span><span class="ta-row__sub">Payment #{{ f.x.id }}{{ vm.allView ? ' · ' + f.x.club.title : (f.x.method.detail ? ' · ' + f.x.method.detail : '') }}</span></span>
+        <span class="ta-row__meta"><span class="ta-row__date">{{ f.x.dateTxt }}</span><span class="ta-steps" ng-if="f.x.isDD" title="Direct debit progress"><span ng-repeat-start="s in f.x.steps" class="ta-steps__line" ng-show="s.line" ng-class="{'ta-steps__line--done': s.line === 'done'}"></span><span ng-repeat-end class="ta-steps__s" ng-class="s.c ? 'ta-steps__s--' + s.c : ''"><i></i>{{ s.l }}</span></span><span class="ta-pill ta-pill--{{ f.x.st.t }}" ng-if="!f.x.isDD"><i class="fas {{ f.x.st.ic }}" ng-if="f.x.st.ic"></i>{{ f.x.st.l }}</span></span>
+        <span class="ta-row__end ta-money">{{ f.x.amountTxt }}</span>
+        <span class="ta-row__acts"><span class="ta-ib" title="{{ vm.open['pay:' + f.x.id] ? 'Hide' : 'View' }} details"><i class="fas" ng-class="vm.open['pay:' + f.x.id] ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="f.x && vm.open['pay:' + f.x.id]" ng-class="{'bil-still': vm.anim !== 'pay:' + f.x.id}">
+        <div class="ta-note" ng-if="f.x.explain" ng-class="f.x.st.t === 'bad' ? 'ta-note--bad' : 'ta-note--info'"><i class="fas" ng-class="f.x.st.t === 'bad' ? 'fa-times-circle' : 'fa-university'"></i><div>{{ f.x.explain }}</div></div>
+        <div class="bil-dgrid bil-dgrid--one"><div class="ta-panel ta-panel--white"><dl class="ta-facts">
+          <div class="ta-fact"><dt>Amount</dt><dd>{{ f.x.amountTxt }}</dd></div>
+          <div class="ta-fact"><dt>Date</dt><dd>{{ f.x.dateTxt }} <small ng-if="f.x.timeTxt">· {{ f.x.timeTxt }}</small></dd></div>
+          <div class="ta-fact"><dt>Method</dt><dd>{{ f.x.method.l }}<small ng-if="f.x.exp"> · expires {{ f.x.exp }}</small><small ng-if="f.x.method.detail"> · {{ f.x.method.detail }}</small></dd></div>
+          <div class="ta-fact"><dt>Club</dt><dd>{{ f.x.club.title }}</dd></div>
+          <div class="ta-fact"><dt>Status</dt><dd><span class="ta-pill ta-pill--{{ f.x.st.t }}"><i class="fas {{ f.x.st.ic }}" ng-if="f.x.st.ic"></i>{{ f.x.st.l }}</span></dd></div>
+          <div class="ta-fact" ng-if="f.x.ref"><dt>Reference</dt><dd><span class="ta-ref">{{ f.x.ref }}</span></dd></div>
+          <div class="ta-fact" ng-if="f.x.refunded"><dt>Refunded</dt><dd>{{ f.x.refunded }}<small ng-if="f.x.refundReason"> · {{ f.x.refundReason }}</small></dd></div>
+        </dl></div></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═════ pay dialog: the mockup's record dialog (bottom sheet on phones); calls as the shared payment accordion ═════ -->
+<div class="ta-dlg-scrim" ng-if="vm.pay" bil-portal ng-click="vm.closePay()" no-busy-guard data-e2e="bil-pay-dlg">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-label="Pay invoice {{ vm.pay.inv.num }}" ng-click="$event.stopPropagation()" no-busy-guard>
+    <div class="ta-dlg__hd" style="--edge:{{ vm.pay.edge }}"><div class="ta-dlg__grab"></div>
+      <button class="ta-dlg__x" ng-click="vm.closePay()" aria-label="Close" ng-disabled="vm.pay.stage === 'busy'">×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas {{ vm.pay.inv.kindIc }}"></i>Pay invoice {{ vm.pay.inv.num }}</div>
+      <div class="ta-dlg__amt">{{ vm.pay.inv.totalTxt }}</div>
+      <div class="ta-dlg__sub">{{ vm.pay.inv.title }} · {{ vm.pay.inv.dateTxt }} · {{ vm.pay.inv.club.title }}</div></div>
+
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'loading'"><span class="bil-pay__wait"><span class="ta-spin ta-spin--dark"></span>Getting your payment options…</span><div class="ta-skel bil-skel-o"></div><div class="ta-skel bil-skel-o"></div></div>
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'error'"><div class="ta-note ta-note--bad"><i class="fas fa-times-circle"></i><div>{{ vm.pay.err }}</div></div></div>
+
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'choose' || vm.pay.stage === 'busy'"><span class="ta-sec-k">How would you like to pay?</span>
+      <button class="ta-opt" ng-repeat-start="o in vm.pay.opts track by o.id" ng-class="{'ta-opt--on': vm.pay.method === o.id}" ng-click="vm.pickPay(o.id)" aria-pressed="{{ vm.pay.method === o.id }}" ng-disabled="vm.pay.stage === 'busy'" no-busy-guard data-e2e="bil-opt"><span class="ta-opt__ic"><i class="{{ o.ic }}"></i></span><span><span class="ta-opt__t">{{ o.t }}<span class="ta-pill ta-pill--{{ o.tag.t }} bil-opt-tag" ng-if="o.tag">{{ o.tag.l }}</span></span><span class="ta-opt__s">{{ o.s }}</span></span><span class="ta-opt__dot"></span></button>
+      <div class="ta-panel bil-cardel" ng-repeat-end ng-show="o.id === 'new' && vm.pay.method === 'new'">
+        <div id="bil-card-el" class="bil-cardel__mount" ng-if="o.id === 'new'"></div>
+        <span class="bil-pay__wait" ng-if="o.id === 'new' && !vm.pay.cardMsg && vm.cardLoading()"><span class="ta-spin ta-spin--dark"></span>Preparing the secure card form…</span>
+        <div class="ta-note ta-note--bad" ng-if="o.id === 'new' && vm.pay.cardMsg"><i class="fas fa-times-circle"></i><div>{{ vm.pay.cardMsg }}</div></div>
+        <label class="ta-check" ng-if="o.id === 'new' && !vm.pay.cardMsg"><input type="checkbox" ng-model="vm.pay.saveCard" no-busy-guard><span>Save this card for future payments to {{ vm.pay.inv.club.title }}</span></label>
+        <span class="ta-hint" ng-if="o.id === 'new'"><i class="fas fa-lock"></i> Stripe's card field — the card never touches ToAviate.</span>
+      </div>
+      <div class="ta-note ta-note--bad" ng-if="vm.pay.err" role="alert"><i class="fas fa-times-circle"></i><div>{{ vm.pay.err }}</div></div>
+    </div>
+
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'machine'">
+      <div class="ta-note ta-note--info"><i class="fas fa-cash-register"></i><div><b>Sent to the card machine.</b> The reader shows {{ vm.pay.inv.totalTxt }} — tap, insert or swipe the card. This page updates on its own.</div></div>
+      <span class="bil-pay__wait" ng-if="vm.pay.polling"><span class="ta-spin ta-spin--dark"></span>Waiting for the card machine…</span>
+      <div class="ta-note ta-note--bad" ng-if="vm.pay.machineMsg" role="alert"><i class="fas fa-times-circle"></i><div>{{ vm.pay.machineMsg }}</div></div>
+    </div>
+
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'unrecorded'">
+      <div class="ta-note ta-note--bad" role="alert"><i class="fas fa-exclamation-triangle"></i><div><b>Your card was charged, but the payment couldn't be added to this invoice.</b> {{ vm.pay.clubTold ? 'The club has been told and will sort it out — don\'t pay again. If you contact ' + vm.pay.inv.club.title + ', quote' : (vm.pay.err ? vm.pay.err + ' ' : '') + 'Don\'t pay again: contact ' + vm.pay.inv.club.title + ' so they can match it' + (vm.pay.ref ? ' — quote' : '.') }} <span class="ta-ref" ng-if="vm.pay.ref">{{ vm.pay.ref }}</span></div></div>
+    </div>
+    <div ng-if="vm.pay.stage === 'done'"><div class="ta-dlg__done"><span class="ta-dlg__check"><i class="fas fa-check"></i></span><h3>{{ vm.pay.doneTitle }}</h3><p>{{ vm.pay.doneText }}</p></div></div>
+
+    <div class="ta-dlg__ft" ng-if="vm.pay.stage === 'done' || vm.pay.stage === 'unrecorded'"><span class="ta-sp"></span><button class="ta-btn ta-btn--primary" ng-click="vm.closePay()">{{ vm.pay.stage === 'done' ? 'Done' : 'Close' }}</button></div>
+    <div class="ta-dlg__ft" ng-if="vm.pay.stage === 'machine'"><button class="ta-btn" ng-click="vm.machineCancel()" ng-disabled="vm.pay.retrying" no-busy-guard data-e2e="bil-machine-cancel">Cancel payment</button><span class="ta-sp"></span><button class="ta-btn ta-btn--primary" ng-click="vm.machineRetry()" ng-disabled="vm.pay.polling || vm.pay.retrying" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+    <div class="ta-dlg__ft" ng-if="vm.pay.confirmClose && vm.pay.stage === 'choose'"><span class="ta-actionbar__hint">Discard the card details you typed?</span><span class="ta-sp"></span><button class="ta-btn" ng-click="vm.pay.confirmClose = false">Keep them</button><button class="ta-btn ta-btn--danger-solid" ng-click="vm.closePay(true)" data-e2e="bil-discard">Discard</button></div>
+    <div class="ta-dlg__ft" ng-if="!(vm.pay.confirmClose && vm.pay.stage === 'choose') && vm.pay.stage !== 'done' && vm.pay.stage !== 'machine' && vm.pay.stage !== 'unrecorded'"><button class="ta-btn" ng-click="vm.closePay()" ng-disabled="vm.pay.stage === 'busy'">Cancel</button><span class="ta-sp"></span>
+      <button class="ta-btn ta-btn--primary" ng-click="vm.payGo()" ng-disabled="vm.payBlocked()" ng-if="vm.pay.stage === 'choose' || vm.pay.stage === 'busy'" no-busy-guard data-e2e="bil-pay-go"><span class="ta-spin" ng-if="vm.pay.stage === 'busy'"></span><i class="{{ vm.payPrimaryIc() }}" ng-if="vm.pay.stage !== 'busy'"></i>{{ vm.pay.stage === 'busy' ? 'Processing…' : vm.payPrimary() }}</button>
+      <button class="ta-btn ta-btn--primary" ng-click="vm.openPay(vm.pay.inv)" ng-if="vm.pay.stage === 'error'" no-busy-guard data-e2e="bil-pay-retry"><i class="fas fa-redo"></i>Try again</button></div>
+  </div>
+</div>

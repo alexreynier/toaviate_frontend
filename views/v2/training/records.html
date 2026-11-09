@@ -1,0 +1,183 @@
+<!-- v2 · Training → Training records (design: mockups/my-account/training.html, page "Training records").
+     State dashboard.v2.training_records (/my_account/training_records?course_id) → TrnRecordsV2Controller.
+     The course is chosen with the scope in the page bar (courses you have records on); the last one is remembered. -->
+<main class="ta-page trn-page">
+  <div ng-include="'views/v2/training/_hub.html'"></div>
+
+  <section class="ta-card" ng-show="vm.loading || vm.loadingRec" aria-busy="true"><span class="ta-skel trn-skel__h"></span><span class="ta-skel trn-skel__box"></span><span class="ta-skel trn-skel__box"></span></section>
+
+  <section class="ta-card trn-empty-card" ng-show="!vm.loading && !vm.courses.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-user-graduate" aria-hidden="true"></i></span>
+      <h4>No training records yet</h4>
+      <p>After each lesson your instructor writes a debrief: the objectives you flew, a grade for each, and remarks. They appear here with the hours each flight counts towards your course.</p>
+      <button type="button" class="ta-btn" ui-sref="dashboard.my_account.syllabus" no-busy-guard><i class="fas fa-book"></i>Browse the syllabus</button>
+    </div>
+  </section>
+
+  <div class="ta-note ta-note--bad" ng-show="!vm.loadingRec && vm.recError">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i><div>{{ vm.recError }}</div>
+  </div>
+
+  <div class="trn-stack" ng-if="vm.p && !vm.loadingRec">
+    <div class="ta-note" ng-if="vm.p.records_only">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
+      <div>You're no longer a current member of this course's club. Your training records stay here for you to read and export; the course syllabus, and the objectives you haven't flown yet, are only shown to current members.</div>
+    </div>
+
+    <!-- the course record -->
+    <section class="ta-card">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon"><i class="fas fa-user-graduate" aria-hidden="true"></i></span>
+        <div class="ta-card__ttl"><h3>{{ vm.course.title }}</h3><p>{{ vm.course.club }}<span ng-show="vm.since"> · your course record since {{ vm.D.fDate(vm.since) }}</span></p></div>
+        <span class="ta-card__right"><button type="button" class="ta-btn" ng-click="vm.openExport()" no-busy-guard><i class="fas fa-file-pdf"></i>Export PDF</button></span>
+      </div>
+      <div class="ta-tiles">
+        <div class="ta-tile">
+          <span class="ta-tile__k"><i class="fas fa-clock"></i>Course hours</span>
+          <span class="ta-tile__v">{{ vm.D.hm(vm.p.totalMins) }} <span class="trn-fig-of" ng-if="vm.p.minH">of {{ vm.D.hm(vm.p.minMins) }}</span></span>
+          <div class="ta-meter trn-tile-meter" ng-if="vm.p.minH" ng-class="{'ta-meter--good': vm.p.minOver}" role="img" aria-label="{{ vm.p.minPct }}% of the course minimum"><div class="ta-meter__bar" style="--v:{{ vm.p.minPct }}%"></div></div>
+          <span class="ta-tile__s">Brakes off to on, {{ vm.D.plural(vm.p.flights.length, 'flight') }}{{ vm.p.minH ? ' · course minimum ' + vm.p.minText : '' }}</span>
+        </div>
+        <div class="ta-tile">
+          <span class="ta-tile__k"><i class="fas fa-user-friends"></i>Dual · under training</span>
+          <span class="ta-tile__v">{{ vm.D.hm(vm.p.putMins) }}</span>
+          <span class="ta-tile__s">With an instructor as pilot in command (PUT)</span>
+        </div>
+        <div class="ta-tile">
+          <span class="ta-tile__k"><i class="fas fa-user"></i>Solo · in command</span>
+          <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.p.picMins}">{{ vm.D.hm(vm.p.picMins) }}</span>
+          <span class="ta-tile__s">{{ vm.p.picMins ? 'As pilot in command (PIC)' : 'Starts with your first solo (PIC)' }}</span>
+        </div>
+        <div class="ta-tile" ng-if="vm.p.picusMins > 0">
+          <span class="ta-tile__k"><i class="fas fa-user-check"></i>PIC under supervision</span>
+          <span class="ta-tile__v">{{ vm.D.hm(vm.p.picusMins) }}</span>
+          <span class="ta-tile__s">In command, with an instructor watching (PICUS)</span>
+        </div>
+        <div class="ta-tile">
+          <span class="ta-tile__k"><i class="fas fa-plane"></i>Flights</span>
+          <span class="ta-tile__v">{{ vm.p.flights.length }}</span>
+          <span class="ta-tile__s">{{ vm.p.ph ? (vm.p.ph + ' imported without a debrief') : 'All with a debrief' }}</span>
+        </div>
+      </div>
+      <div class="trn-facts-row" ng-if="vm.p.customTags.length">
+        <span class="ta-sec-k">Flight tags</span>
+        <span class="ta-tag" ng-repeat="t in vm.p.customTags"><i class="fas fa-tag"></i>{{ t.title }} · {{ vm.D.hm(t.mins) }}</span>
+      </div>
+      <div ng-if="!vm.p.records_only"><button type="button" class="ta-link" ui-sref="dashboard.my_account.syllabus_view_course({course_id: vm.course.id})" no-busy-guard>Syllabus and progress by lesson <i class="fas fa-arrow-right"></i></button></div>
+    </section>
+
+    <div class="ta-note ta-note--info" ng-if="vm.p.awaiting && vm.firstAwaiting">
+      <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+      <div>{{ vm.p.awaiting === 1 ? ('Your record from ' + vm.D.fDay(vm.firstAwaiting.date) + ' is waiting for ' + vm.firstAwaiting.recIns + ' to confirm it') : (vm.p.awaiting + ' records are waiting for their instructor to confirm them') }} — someone else typed it in. It already counts; nothing for you to do. <button type="button" class="ta-link" ng-click="vm.showRec(vm.firstAwaiting)" no-busy-guard>Show it <i class="fas fa-arrow-right"></i></button></div>
+    </div>
+
+    <div class="ta-note ta-note--warn" ng-if="vm.p.ackPending && vm.p.firstAck">
+      <i class="fas fa-pen-nib" aria-hidden="true"></i>
+      <div><b>{{ vm.p.ackPending === 1 ? ('Your debrief from ' + vm.D.fDay(vm.p.firstAck.date) + ' is waiting for you.') : (vm.p.ackPending + ' debriefs are waiting for you.') }}</b> Read {{ vm.p.ackPending === 1 ? vm.D.firstName(vm.p.firstAck.recIns) + '\'s' : 'your instructors\'' }} grades and remarks, then confirm. <button type="button" class="ta-link" ng-click="vm.showRec(vm.p.firstAck)" no-busy-guard>Show it <i class="fas fa-arrow-right"></i></button></div>
+    </div>
+
+    <!-- flights -->
+    <div class="trn-sec-h"><h3>Flights</h3><p>Newest first · open one for the full debrief</p></div>
+    <section class="ta-list" id="trn-flights">
+      <div class="ta-list__tools">
+        <div class="ta-chips">
+          <button type="button" class="ta-chip" ng-repeat="c in vm.chips" ng-class="{'ta-chip--on': vm.rf === c.k, 'ta-chip--attn': c.attn}" ng-click="vm.setFilter(c.k)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+        </div>
+        <label class="ta-search trn-tools-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search lesson, date, aircraft, instructor" aria-label="Search flights" ng-model="vm.rq" ng-change="vm.search()" ng-model-options="{ debounce: 150 }"></label>
+      </div>
+      <div class="trn-legend">
+        <b class="ta-sec-k">Grades</b>
+        <span class="trn-legend__i" ng-repeat="g in vm.p.G.legend"><span class="ta-pill ta-pill--{{ g.tone }}"><i class="fas {{ g.ic }}"></i>{{ g.name }}</span><span>{{ g.help }}</span></span>
+      </div>
+      <div class="trn-gwrap" ng-repeat="m in vm.months">
+        <div class="ta-group"><span>{{ m.k }}</span><span>{{ vm.D.plural(m.list.length, 'flight') }} · {{ vm.D.hm(m.mins) }}</span></div>
+        <div class="ta-row trn-rec" ng-repeat="f in m.list" id="trn-rec-{{ f.id }}" ng-class="{'ta-row--open trn-rec--open': vm.open === f.id, 'trn-rec--import': f.ph}" ng-include="'views/v2/training/_rec_row.html'"></div>
+      </div>
+      <div class="ta-empty" ng-if="!vm.months.length && vm.p.flights.length">
+        <span class="ta-empty__ic"><i class="fas fa-search" aria-hidden="true"></i></span>
+        <h4>No flights match</h4>
+        <p>Try another word, or show all flights.</p>
+        <button type="button" class="ta-btn" ng-click="vm.clearFilters()" no-busy-guard>Show all flights</button>
+      </div>
+      <div class="ta-empty" ng-if="!vm.p.flights.length">
+        <span class="ta-empty__ic"><i class="fas fa-plane" aria-hidden="true"></i></span>
+        <h4>No flights on this course yet</h4>
+        <p>Each lesson you fly appears here with its debrief once your instructor files it.</p>
+      </div>
+    </section>
+
+    <!-- ground exam results -->
+    <section class="ta-list trn-exams" ng-if="vm.exams.length">
+      <div class="trn-listhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-graduation-cap" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Ground exam results</h3><p>Entered by the club after each sitting</p></div></div></div>
+      <div class="ta-list__cols" ng-show="vm.examsTaken.length"><span></span><span>Exam</span><span>Date</span><span>Result</span><span>Outcome</span><span>Examiner</span></div>
+      <div class="ta-row" ng-repeat="e in vm.examsTaken">
+        <div class="ta-row__main trn-row-static">
+          <span class="ta-row__lead"><span class="ta-kind ta-kind--exam" title="Exam"><i class="fas fa-graduation-cap"></i></span></span>
+          <span class="ta-row__txt"><span class="ta-row__title" title="{{ e.x.description }}">{{ e.x.title }}</span><span class="ta-row__sub">{{ e.r.sitting ? 'Sitting ' + e.r.sitting : '' }}{{ e.r.sitting && e.r.set_no ? ' · ' : '' }}{{ e.r.set_no ? (e.r.sitting ? 'set ' : 'Set ') + e.r.set_no : '' }}</span></span>
+          <span class="ta-row__meta">
+            <span class="ta-row__date">{{ vm.D.fDate(e.r.date) }}</span>
+            <span class="ta-money">{{ e.r.result !== null && e.r.result !== '' ? e.r.result + '%' : '—' }}</span>
+            <span class="ta-pill ta-pill--good" ng-if="e.r.pass_fail == 1"><i class="fas fa-check"></i>Passed</span>
+            <span class="ta-pill ta-pill--bad" ng-if="e.r.pass_fail == 0"><i class="fas fa-times"></i>Not passed</span>
+            <span class="trn-who">{{ e.r.examiner }}</span>
+          </span>
+        </div>
+      </div>
+      <div class="trn-listfoot" ng-if="vm.exams.length > vm.examsTaken.length">
+        <span class="ta-hint">{{ vm.D.plural(vm.exams.length - vm.examsTaken.length, 'exam') }} not taken yet — see</span>
+        <button type="button" class="ta-link" ui-sref="dashboard.my_account.my_exams" no-busy-guard>Exams <i class="fas fa-arrow-right"></i></button>
+      </div>
+    </section>
+
+    <!-- questionnaire results -->
+    <section class="ta-list trn-quiz">
+      <div class="trn-listhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-list" aria-hidden="true"></i></span><div class="ta-card__ttl"><h3>Questionnaire results</h3><p>Your latest attempt at each questionnaire on this course</p></div></div></div>
+      <div class="ta-list__cols" ng-show="vm.quiz.length"><span></span><span>Questionnaire</span><span>Submitted</span><span>Status</span><span class="ta-r">Score</span><span></span></div>
+      <div class="ta-row" ng-repeat="x in vm.quiz">
+        <button type="button" class="ta-row__main" ng-click="x.canOpen && vm.D.openTodo({ type: 'q', attempt: { id: x.q.attempt_id }, status: 'submitted' })" ng-class="{'trn-row-static': !x.canOpen}" no-busy-guard>
+          <span class="ta-row__lead"><span class="ta-kind ta-kind--brand"><i class="fas fa-clipboard-check"></i></span></span>
+          <span class="ta-row__txt"><span class="ta-row__title">{{ x.title }}</span><span class="ta-row__sub">{{ x.when }}{{ x.q.target_title ? (' ' + x.q.target_title) : ' the flight' }}</span></span>
+          <span class="ta-row__meta"><span class="ta-row__date">{{ x.at ? vm.D.fDate(x.at) : '—' }}</span><span class="ta-pill ta-pill--{{ x.st.tone }}"><i class="fas {{ x.st.ic }}" ng-show="x.st.ic"></i>{{ x.st.label }}</span></span>
+          <span class="ta-row__end ta-money">{{ x.score }}<span class="trn-graded--none" ng-if="!x.score" title="Shown once your instructor releases it">—</span></span>
+          <span class="ta-row__acts"><span class="ta-btn ta-btn--sm" ng-show="x.canOpen">View result</span></span>
+          <span class="ta-row__chev"><i class="fas fa-chevron-right" ng-show="x.canOpen"></i></span>
+        </button>
+      </div>
+      <p class="trn-listempty" ng-if="!vm.quiz.length">No questionnaires completed on this course yet.</p>
+    </section>
+  </div>
+
+  <!-- export: a record dialog -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'export'" ng-click="$event.target === $event.currentTarget && vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="trn-exp-t">
+      <div class="ta-dlg__hd">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" ng-disabled="vm.exporting" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-file-pdf"></i>Export</div>
+        <div class="ta-dlg__title" id="trn-exp-t">Your course record</div>
+        <div class="ta-dlg__sub">{{ vm.course.title }} · {{ vm.course.club }} · one PDF</div>
+      </div>
+      <div class="ta-dlg__body">
+        <span class="ta-sec-k">What it includes</span>
+        <div class="trn-pre">
+          <div class="trn-pre__i"><i class="fas fa-caret-right"></i><span>Course hours, every flight and its debrief</span></div>
+          <div class="trn-pre__i"><i class="fas fa-caret-right"></i><span>Ground exam and questionnaire results</span></div>
+          <div class="trn-pre__i"><i class="fas fa-caret-right"></i><span>Syllabus progress: your latest grade on each objective</span></div>
+        </div>
+        <label class="ta-toggle">
+          <input type="checkbox" class="ta-toggle__input" ng-model="vm.skipProg" ng-change="vm.rememberSkip()" no-busy-guard>
+          <span class="ta-toggle__txt"><span class="ta-toggle__t">Leave out syllabus progress</span><span class="ta-toggle__s">Imported flights carry no grades yet, so those pages would print mostly empty. Remembered in this browser.</span></span>
+          <span class="ta-switch"></span>
+        </label>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.exporting" no-busy-guard>Cancel</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.doExport()" ng-disabled="vm.exporting" no-busy-guard>
+          <span class="ta-spin" ng-show="vm.exporting"></span><i class="fas fa-download" ng-show="!vm.exporting"></i>{{ vm.exporting ? 'Exporting…' : 'Download PDF' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</main>

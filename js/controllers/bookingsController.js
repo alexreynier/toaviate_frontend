@@ -40,15 +40,12 @@
         // hands over to /dashboard/bookings_v2 on entry (the add-booking page's
         // BACK and every old link keep working); "Classic scheduler" on the v2
         // page clears the flag. The edit state (action 'edit') is left alone.
-        var SV2_FLAG = 'toaviate_scheduler_v2';
-        var sv2_opted_in = false;
-        try { sv2_opted_in = localStorage.getItem(SV2_FLAG) === '1'; } catch (e) {}
-        if (vm.action == 'list' && sv2_opted_in) {
-            $state.go('dashboard.scheduler_v2', {}, { location: 'replace' });
-            return;
-        }
+        // 8 Nov: the global v2 switch (js/v2/core/design.js, DesignRoutes maps this list state to
+        // dashboard.scheduler_v2) replaced the scheduler's own toaviate_scheduler_v2 flag.
+        var SV2_FLAG = 'toaviate_design_v2';
         vm.tryNewScheduler = function(){
             try { localStorage.setItem(SV2_FLAG, '1'); } catch (e) {}
+            $rootScope.designV2 = true;
             var d = (vm.default_date && moment(vm.default_date).isValid()) ? moment(vm.default_date).format('YYYY-MM-DD') : null;
             $state.go('dashboard.scheduler_v2', { date: d });
         };

@@ -65,6 +65,7 @@ function CancellationFeesService($http, $location, $q, BookingService) {
     service.Reverse = Reverse;
     service.CancelBooking = CancelBooking;
     service.fallbackReasons = function () { return angular.copy(FALLBACK_REASONS); };
+    service.reasonText = reasonText;
     service.chargeable = CHARGEABLE;
     service.neverCharged = NEVER_CHARGED;
     service.symbol = symbol;
@@ -109,6 +110,21 @@ function CancellationFeesService($http, $location, $q, BookingService) {
             if (!cid) { out.claim = { success: false, message: 'The fee could not be added — claim it from Cancellations.' }; return out; }
             return Claim(cid).then(function (c) { out.claim = c || { success: false }; return out; });
         });
+    }
+
+    // What the picker SHOWS (sentence case, as the approved v2 mockups and guidelines §7 word it). The label sent to
+    // DELETE bookings/{id}?reason= and stored on the audit trail stays the backend's verbatim label — never rename those.
+    // (the map lives inside the function: this factory returns before any `var` below it runs)
+    function reasonText(r) {
+        var text = {
+            pilot_unwell: 'Pilot unwell', pilot_unavailable: 'Pilot unavailable',
+            weather_home: 'Weather at home base', weather_destination: 'Weather at destination',
+            plane_unavailable: 'Aircraft unavailable', plane_unserviceable: 'Aircraft unserviceable',
+            plane_late: 'Aircraft returned late by the previous booking', instructor_unavailable: 'Instructor not available',
+            airfield_closed: 'Airfield closed', airspace_closed: 'Airspace closed', other: 'Other — say why',
+            no_show: 'No-show', late_cancellation: 'Late cancellation'
+        };
+        return (r && text[r.key]) || (r && r.label) || '';
     }
 
     function symbol(currency) { var c = String(currency || 'GBP').toUpperCase(); return SYMBOLS[c] || (c + ' '); }

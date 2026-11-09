@@ -1,10 +1,10 @@
 // DefectMediaService — CRUD + upload for defect photos & videos
-// Endpoints: POST https://local-api.toaviate.com/upload_defect_media.php (step 1), POST/GET/PUT/DELETE /api/v1/defect_media (step 2+)
+// Endpoints: POST {API base}/upload_defect_media.php (step 1), POST/GET/PUT/DELETE /api/v1/defect_media (step 2+)
 
 app.factory('DefectMediaService', DefectMediaService);
 
-    DefectMediaService.$inject = ['$http', '$location'];
-    function DefectMediaService($http, $location) {
+    DefectMediaService.$inject = ['$http', '$location', 'EnvConfig'];
+    function DefectMediaService($http, $location, EnvConfig) {
 
         var service = {};
 
@@ -37,7 +37,8 @@ app.factory('DefectMediaService', DefectMediaService);
             var formData = new FormData();
             formData.append('file', file);
 
-            return $http.post('https://local-api.toaviate.com/upload_defect_media.php', formData, {
+            // the environment's API host (it was hard-coded to the local one, so photo uploads failed outside local)
+            return $http.post(EnvConfig.getApiBaseUrl() + '/upload_defect_media.php', formData, {
                 transformRequest: angular.identity,
                 headers: { 'Content-Type': undefined }
             }).then(handleSuccess, handleError2);

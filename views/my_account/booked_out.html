@@ -1,92 +1,78 @@
-<!-- ═══════════════════════════════════════════════════════════════════════
-     BOOKED OUT — the confirmation shown after a successful book-out.
-     State dashboard.my_account.booked_out (/booked_out/:booking_id) →
-     BookoutController (data.action 'add': it re-fetches the booking and the
-     aircraft's maintenance for this page). Styles: css/booked-out.css (.bod-*;
-     the old .booked-out__* rules in snazzy-pages.css are no longer used here).
-     Countdown + format filters: js/directives/bodCountdown.js.
-     Pilot-check warnings arrive as toasts from the book-out submit, and are
-     listed here too (vm.bo_done_warnings, kept in sessionStorage by the submit).
-     The aircraft comes from vm.booking.plane (set as soon as the booking
-     loads; vm.bookout.plane holds a placeholder until later).
-     ═══════════════════════════════════════════════════════════════════════ -->
-<section class="bod" data-e2e="bod-done" aria-labelledby="bod-title">
+<div class="snazzy-page booked-out-page">
 
-  <!-- ── Celebration header ── -->
-  <div class="bod-hero">
-    <i class="fas fa-plane bod-hero__deco" aria-hidden="true"></i>
-    <div class="bod-check" aria-hidden="true">
-      <svg viewBox="0 0 44 44" focusable="false"><path d="M10 23 L19 31 L34 14"></path></svg>
-    </div>
-    <h2 class="bod-hero__title" id="bod-title">You're booked out</h2>
-    <!-- the pilot in command (an instructor booking a student out is the PIC of a dual lesson) -->
-    <p class="bod-hero__sub">{{ ((vm.bookout.pic && vm.bookout.pic.first_name) || vm.user.first_name) ? 'Have a great flight, ' + ((vm.bookout.pic && vm.bookout.pic.first_name) || vm.user.first_name) + '.' : 'Have a great flight!' }}</p>
-    <div class="bod-hero__slot">
-      <div class="bod-tail" ng-if="vm.booking.plane.registration">
-        <i class="fas fa-plane" aria-hidden="true"></i>
-        <span class="bod-tail__reg">{{ vm.booking.plane.registration }}</span>
-        <small class="bod-tail__type" ng-if="(vm.booking.plane | bodPlaneModel)">{{ vm.booking.plane | bodPlaneModel }}</small>
+  <!-- ── Header ── -->
+  <div class="snazzy-page__header">
+    <div class="snazzy-page__header-inner">
+      <div class="back-box" ui-sref="dashboard.my_account">
+        <i class="fa fa-arrow-circle-left"></i> BACK
+      </div>
+            <div class="snazzy-page__title">
+        <h2><i class="fas fa-plane-departure"></i> Bookout Confirmed</h2>
+        <p>Have a great flight!</p>
       </div>
     </div>
   </div>
 
-  <div class="bod-body">
+  <!-- ── Aircraft info banner ── -->
+  <div class="booked-out__aircraft-banner" ng-if="vm.bookout.plane">
+    <div class="booked-out__aircraft-icon">
+      <i class="fas fa-plane"></i>
+    </div>
+    <div class="booked-out__aircraft-details">
+      <span class="booked-out__aircraft-reg">{{ vm.bookout.plane.registration }}</span>
+      <span class="booked-out__aircraft-type">{{ vm.bookout.plane.type }}</span>
+    </div>
+  </div>
 
-    <!-- ── Stats ── -->
-    <dl class="bod-stats">
+  <!-- ── Stats cards ── -->
+  <div class="booked-out__stats-grid">
 
-      <div class="bod-stat" title="{{ vm.bookout.return | bodWhen:'full':vm.booking.end }}">
-        <dt class="bod-stat__k"><i class="fas fa-clock" aria-hidden="true"></i> Return by</dt>
-        <dd class="bod-stat__v" data-e2e="bod-return">{{ (vm.bookout.return | bodWhen:'time':vm.booking.end) || '—' }}</dd>
-        <dd class="bod-stat__s" ng-if="(vm.bookout.return | bodWhen:'day':vm.booking.end)">{{ vm.bookout.return | bodWhen:'day':vm.booking.end }}</dd>
-        <dd bod-countdown="vm.bookout.return" bod-fallback="vm.booking.end" data-e2e="bod-countdown"></dd>
+    <div class="booked-out__stat-card">
+      <div class="booked-out__stat-icon booked-out__stat-icon--time">
+        <i class="fas fa-clock"></i>
       </div>
-
-      <div class="bod-stat">
-        <dt class="bod-stat__k"><i class="fas fa-tachometer-alt" aria-hidden="true"></i> Last meter</dt>
-        <dd class="bod-stat__v" data-e2e="bod-meter">{{ (vm.booking.plane_details.meter_reading | number) || '—' }}</dd>
-        <dd class="bod-stat__s">reading</dd>
+      <div class="booked-out__stat-content">
+        <span class="booked-out__stat-label">Return By</span>
+        <span class="booked-out__stat-value">{{ applyFilter(vm.bookout.return, vm.dateFormat) || "N/A" }}</span>
       </div>
+    </div>
 
-      <div class="bod-stat" ng-class="'bod-stat--' + ((vm.club.plane.maintenance.hours_remaining | bodHoursTone) || 'unknown')">
-        <dt class="bod-stat__k"><i class="fas fa-hourglass-half" aria-hidden="true"></i> Hours left</dt>
-        <dd class="bod-stat__v" data-e2e="bod-hours">{{ (vm.club.plane.maintenance.hours_remaining | bodHoursTone) ? get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) : '—' }}</dd>
-        <dd class="bod-stat__s" ng-switch="vm.club.plane.maintenance.hours_remaining | bodHoursTone">
-          <span ng-switch-when="bad">check overdue</span>
-          <span ng-switch-when="warn">check due soon</span>
-          <span ng-switch-default>to next check</span>
-        </dd>
+    <div class="booked-out__stat-card">
+      <div class="booked-out__stat-icon booked-out__stat-icon--meter">
+        <i class="fas fa-tachometer-alt"></i>
       </div>
+      <div class="booked-out__stat-content">
+        <span class="booked-out__stat-label">Last Meter Reading</span>
+        <span class="booked-out__stat-value">{{ (vm.booking.plane_details.meter_reading | number) || "N/A" }}</span>
+      </div>
+    </div>
 
-    </dl>
-
-    <!-- ── Couldn't reload the booking (the book-out itself is done) ── -->
-    <p class="bod-note bod-note--warn" role="status" ng-if="vm.bo_load_error">
-      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-      <span>You're booked out, but we couldn't load the booking's details just now. {{ vm.bo_load_error }}</span>
-    </p>
-
-    <!-- ── Pilot-check warnings from the book-out (warn policy) ── -->
-    <p class="bod-note bod-note--warn" role="note" ng-repeat="w in vm.bo_done_warnings track by $index" data-e2e="bod-warning">
-      <i class="fas fa-user-check" aria-hidden="true"></i>
-      <span><strong>Pilot check:</strong> {{ w }}</span>
-    </p>
-
-    <!-- ── Reminder ── -->
-    <p class="bod-note" role="note">
-      <i class="fas fa-info-circle" aria-hidden="true"></i>
-      <span>Please return at least 15 minutes prior to the end of your booking.</span>
-    </p>
-
-    <!-- ── Actions ── -->
-    <div class="bod-acts">
-      <button type="button" class="bod-btn bod-btn--primary" ng-click="go_flying()" data-e2e="bod-go-flying">
-        <i class="fas fa-paper-plane" aria-hidden="true"></i> Go flying
-      </button>
-      <button type="button" class="bod-btn bod-btn--quiet" ng-click="logout()" data-e2e="bod-logout">
-        <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Log out &amp; go flying
-      </button>
+    <div class="booked-out__stat-card">
+      <div class="booked-out__stat-icon booked-out__stat-icon--hours">
+        <i class="fas fa-hourglass-half"></i>
+      </div>
+      <div class="booked-out__stat-content">
+        <span class="booked-out__stat-label">Hours Remaining</span>
+        <span class="booked-out__stat-value">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) || "N/A" }}</span>
+      </div>
     </div>
 
   </div>
-</section>
+
+  <!-- ── Reminder ── -->
+  <div class="booked-out__reminder">
+    <i class="fas fa-info-circle"></i>
+    <span>Please return at least 15 minutes prior to the end of your booking.</span>
+  </div>
+
+  <!-- ── Action buttons ── -->
+  <div class="booked-out__actions">
+    <button class="booked-out__btn booked-out__btn--primary" ng-click="go_flying()">
+      <i class="fas fa-paper-plane"></i> Go Flying
+    </button>
+    <button class="booked-out__btn booked-out__btn--secondary" ng-click="logout()">
+      <i class="fas fa-sign-out-alt"></i> Logout &amp; Go Flying
+    </button>
+  </div>
+
+</div>

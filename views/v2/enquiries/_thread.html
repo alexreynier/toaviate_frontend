@@ -1,0 +1,65 @@
+<!-- one question (dashboard.v2.enquiries.thread) — EnquiryThreadV2Controller as th -->
+<article class="ta-card enq-th" aria-busy="{{ th.loading ? 'true' : 'false' }}">
+  <header class="enq-th__hd">
+    <a class="ta-back enq-th__back" ui-sref="dashboard.v2.enquiries" aria-label="All your questions"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="enq-th__backtxt">All questions</span></a>
+    <span class="ta-ic" ng-if="th.e" ng-class="{'ta-ic--good': th.e.status === 'answered'}" aria-hidden="true"><i class="fas {{ th.t.icon }}"></i></span>
+    <div class="enq-th__ttl" ng-if="th.e">
+      <h3>{{ th.t.label }}<span class="ta-ref" ng-if="th.e.ref">{{ th.e.ref }}</span></h3>
+      <p>Asked {{ th.Fmt.when(th.e.created) }} · {{ th.e.messages.length }} {{ th.e.messages.length === 1 ? 'message' : 'messages' }}</p>
+    </div>
+    <span class="ta-pill ta-pill--{{ th.st.tone }}" ng-if="th.e"><i class="fas {{ th.st.icon }}" aria-hidden="true"></i>{{ th.st.label }}</span>
+  </header>
+
+  <!-- loading -->
+  <div class="enq-th__load" ng-if="th.loading"><span class="ta-spin ta-spin--dark"></span>Opening the conversation…</div>
+
+  <!-- not there / didn't load -->
+  <div class="ta-empty" ng-if="!th.loading && th.err === 'missing'">
+    <span class="ta-empty__ic"><i class="fas fa-search" aria-hidden="true"></i></span>
+    <h4>We can’t find that question</h4><p>It may belong to another account. Your own questions are in the list.</p>
+    <a class="ta-btn" ui-sref="dashboard.v2.enquiries"><i class="fas fa-arrow-left" aria-hidden="true"></i>Your questions</a>
+  </div>
+  <div class="ta-empty" ng-if="!th.loading && th.err === 'load'">
+    <span class="ta-empty__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+    <h4>The conversation didn’t load</h4><p>Check your connection, then try again.</p>
+    <button type="button" class="ta-btn" ng-click="th.load()" no-busy-guard><i class="fas fa-redo" aria-hidden="true"></i>Try again</button>
+  </div>
+
+  <div class="enq-th__ctx" ng-if="th.e && th.e.ctxLine"><i class="fas fa-link" aria-hidden="true"></i><span>Sent from {{ th.e.ctxLine }}</span></div>
+
+  <!-- the conversation -->
+  <div class="enq-th__msgs" ng-if="th.e" tabindex="0" aria-label="The conversation">
+    <div class="enq-dayg" ng-repeat="g in th.days track by g.day">
+      <div class="enq-day"><span>{{ g.label }}</span></div>
+      <div class="enq-msg" ng-repeat="m in g.msgs track by $index" ng-class="m.staff ? 'enq-msg--them' : 'enq-msg--me'">
+        <span class="ta-av ta-av--sm enq-msg__av" ng-if="m.staff" aria-hidden="true">TA</span>
+        <div class="enq-msg__col">
+          <div class="enq-msg__b">{{ m.body }}</div>
+          <div class="enq-msg__meta">{{ m.staff ? m.name : 'You' }} · {{ m._time }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- reply -->
+  <div class="enq-th__closed" ng-if="th.e && th.e.status === 'closed'">
+    <div class="ta-note">
+      <i class="fas fa-lock" aria-hidden="true"></i>
+      <div><b>This question is closed.</b> Need anything else? Ask a new question — we’ll reply by email and here.</div>
+    </div>
+    <div class="enq-unsent" ng-if="th.unsent"><span class="ta-label">Your reply wasn’t sent</span><p>{{ th.unsent }}</p></div>
+    <button type="button" class="ta-btn" ng-click="th.askNew()" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>{{ th.unsent ? 'Send it as a new question' : 'Ask a new question' }}</button>
+  </div>
+  <form class="enq-compose" ng-if="th.e && th.e.status !== 'closed'" ng-submit="th.send()" novalidate>
+    <div class="ta-field" ng-class="{'ta-field--error': th.rerr}">
+      <label class="ta-label" for="enq-reply">Your reply</label>
+      <textarea class="ta-textarea enq-compose__in" id="enq-reply" ng-model="th.reply" ng-keydown="th.key($event)" ng-change="th.rerr = ''" rows="3" maxlength="{{ th.S.MAX + 200 }}"
+                placeholder="Write a reply…" aria-describedby="enq-reply-hint" no-busy-guard></textarea>
+      <span class="ta-field__msg" ng-if="th.rerr">{{ th.rerr }}</span>
+    </div>
+    <div class="enq-compose__ft">
+      <span class="ta-hint" id="enq-reply-hint"><span ng-if="th.left() !== null" ng-class="{'enq-over': th.left() < 0}">{{ th.left() }} characters left · </span>We’ll answer by email and here.<span class="ta-desk-only"> {{ th.mac ? '⌘' : 'Ctrl' }} + Enter sends.</span></span>
+      <button type="submit" class="ta-btn ta-btn--primary"><i class="fas fa-paper-plane" aria-hidden="true"></i>Send reply</button>
+    </div>
+  </form>
+</article>

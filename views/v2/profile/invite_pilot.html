@@ -1,0 +1,72 @@
+<!-- v2 · Invite a pilot (mockups/my-account/profile.html, page "invite"). InvitePilotV2Controller (js/v2/profile/profile.js). -->
+<div class="pro-wrap">
+<main class="ta-page pro-page">
+
+    <section class="ta-bar">
+        <div class="ta-bar__row">
+            <div class="ta-bar__title">
+                <span class="ta-bar__icon"><i class="fas fa-user-plus"></i></span>
+                <div><h2>Invite a pilot</h2><p>Give a friend their own free digital logbook</p><design-back class="pro-classic"></design-back></div>
+            </div>
+            <a class="ta-back" ui-sref="dashboard.v2.logbook" aria-label="Back to My logbook"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My logbook</span></a>
+        </div>
+    </section>
+
+    <div class="pro-invcols">
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-paper-plane"></i></span><div class="ta-card__ttl"><h3>Send an invitation</h3><p>They get a personal link to sign up</p></div></div>
+            <form class="ta-form" ng-submit="vm.send()" novalidate>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.err}">
+                    <label class="ta-label" for="invp-email">Their email</label>
+                    <input class="ta-input" id="invp-email" type="email" ng-model="vm.inv.email" ng-model-options="{ allowInvalid: true }" ng-change="vm.clear()" placeholder="name@example.com" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.err">{{ vm.err }}</span>
+                </div>
+                <div class="ta-field">
+                    <label class="ta-label" for="invp-first">Their first name <em>(optional)</em></label>
+                    <input class="ta-input" id="invp-first" ng-model="vm.inv.first_name" ng-change="vm.clear()" autocomplete="off">
+                    <span class="ta-hint">Used to greet them in the email</span>
+                </div>
+                <div class="ta-note ta-note--bad" ng-if="vm.note"><i class="fas fa-times-circle"></i><div>{{ vm.note }}</div></div>
+                <div><button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.sending"><i class="fas" ng-class="vm.sending ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"></i>{{ vm.sending ? 'Sending…' : 'Send invitation' }}</button></div>
+                <p class="pro-lockhint"><i class="fas fa-user-shield"></i><span>Already on ToAviate? Then no email goes out — and this page never says who has an account.</span></p>
+            </form>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-users"></i></span><div class="ta-card__ttl"><h3>Your invites</h3>
+                <p>{{ vm.invites.length ? vm.invites.length + ' invited · ' + vm.joined() + ' joined' : 'Who you\'ve invited, and who has joined' }}</p></div></div>
+            <div class="ta-stack" ng-if="vm.loading"><span class="ta-skel pro-skel pro-skel--tall"></span><span class="ta-skel pro-skel pro-skel--tall"></span></div>
+            <div class="ta-empty" ng-if="!vm.loading && vm.loadError">
+                <span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your invites</h4>
+                <p>You can still send an invitation. Check your connection, then try again.</p>
+                <button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button>
+            </div>
+            <div class="ta-empty" ng-if="!vm.loading && !vm.loadError && !vm.invites.length">
+                <span class="ta-empty__ic"><i class="fas fa-user-plus"></i></span><h4>No invites yet</h4>
+                <p>Pilots you invite show up here, with whether they've joined. Open invites have a link you can share yourself.</p>
+            </div>
+            <div class="pro-inv" ng-if="!vm.loading && !vm.loadError && vm.invites.length">
+                <div class="pro-inv__row" ng-repeat="i in vm.invites" ng-class="{'pro-inv__new': vm.flash === i.id}">
+                    <span class="ta-av ta-av--member" title="Member"><i class="fas fa-user"></i></span>
+                    <div class="pro-inv__txt">
+                        <div class="pro-inv__t">{{ i.first_name || i.email }}</div>
+                        <div class="pro-inv__s pro-inv__em" ng-if="i.first_name">{{ i.email }}</div>
+                        <div class="pro-inv__s" ng-if="i.status === 'joined'">Invited <span class="ta-nowrap">{{ vm.U.fDate(i.created_at) }}</span></div>
+                        <div class="pro-inv__s" ng-if="i.status !== 'joined'">Last sent <span class="ta-nowrap">{{ vm.U.fDate(i.email_sent_at || i.created_at) }}</span> · <span class="ta-nowrap">{{ i.email_send_count }} of {{ vm.MAX }} emails</span></div>
+                    </div>
+                    <span class="pro-inv__pill">
+                        <span class="ta-pill ta-pill--good" ng-if="i.status === 'joined'"><i class="fas fa-check"></i>Joined</span>
+                        <span class="ta-pill ta-pill--pend" ng-if="i.status !== 'joined'"><i class="fas fa-paper-plane"></i>Invited</span>
+                    </span>
+                    <div class="pro-inv__acts">
+                        <button type="button" class="ta-btn ta-btn--sm" ng-if="i.status !== 'joined' && i.token" ng-click="vm.copy(i)" no-busy-guard><i class="fas" ng-class="vm.copied === i.id ? 'fa-check' : 'fa-link'"></i>{{ vm.copied === i.id ? 'Copied' : 'Copy link' }}</button>
+                        <button type="button" class="ta-btn ta-btn--sm" ng-if="i.status !== 'joined' && !vm.capped(i)" ng-click="vm.again(i)"><i class="fas fa-redo"></i>Send again</button>
+                        <button type="button" class="ta-btn ta-btn--sm" ng-if="i.status !== 'joined' && vm.capped(i)" disabled title="{{ vm.MAX }} of {{ vm.MAX }} emails sent — the limit for one address"><i class="fas fa-ban"></i>Limit reached</button>
+                    </div>
+                </div>
+            </div>
+            <div class="ta-note" ng-if="vm.anyCapped()"><i class="fas fa-info-circle"></i><div>One address can get at most {{ vm.MAX }} emails. You can still copy the link and send it yourself.</div></div>
+        </section>
+    </div>
+</main>
+</div>

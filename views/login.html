@@ -161,7 +161,43 @@
                 {{ vm.dataLoading ? 'Verifying…' : 'Verify' }}
             </button>
         </div>
+        <p class="login-2fa__hint">
+            <a href="" ng-click="vm.lostOpen()" no-busy-guard><i class="fas fa-question-circle"></i> Lost your phone and your recovery codes?</a>
+        </p>
     </form>
+  </div>
+
+  <!-- ═══ Stage 2b — lost phone and recovery codes: ask ToAviate (C28: POST users/two_factor_help — neutral answer) ═══ -->
+  <div ng-show="vm.stage === 'lost'" class="login-2fa">
+    <div ng-show="!vm.lost.sent">
+        <h2>Ask ToAviate to remove two-factor</h2>
+        <p class="login-2fa__hint">For your security we check it's you first, so this isn't instant.</p>
+        <form name="lostForm" ng-submit="vm.lostSend()" role="form" novalidate>
+            <div class="form-group" ng-class="{'has-error': vm.lost.err}">
+                <label for="two_factor_lost_why">What happened?</label>
+                <textarea id="two_factor_lost_why" class="form-control" rows="3" maxlength="1000"
+                          ng-model="vm.lost.why" ng-change="vm.lost.err = ''" ng-disabled="vm.lost.busy"
+                          placeholder="For example, my phone was stolen and I can't find my recovery codes"></textarea>
+                <span class="help-block" ng-show="vm.lost.err">{{ vm.lost.err }}</span>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-link" ng-click="vm.lostBack()" ng-disabled="vm.lost.busy" no-busy-guard>Back</button>
+                <button type="submit" class="btn btn-primary" ng-disabled="vm.lost.busy">
+                    <i class="fas" ng-class="vm.lost.busy ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                    {{ vm.lost.busy ? 'Sending…' : 'Send request' }}
+                </button>
+            </div>
+        </form>
+    </div>
+    <div ng-show="vm.lost.sent">
+        <h2>Request sent</h2>
+        <!-- the backend's neutral answer, as given (the same whatever happened); our own words only if it sent none -->
+        <p class="login-2fa__hint" ng-show="vm.lost.message">{{ vm.lost.message }}</p>
+        <p class="login-2fa__hint" ng-show="!vm.lost.message">Someone from ToAviate will check it's you. Two-factor stays on until then — once it's removed, you can sign in with your password and set it up again.</p>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" ng-click="vm.backToPassword()" no-busy-guard>Back to sign-in</button>
+        </div>
+    </div>
   </div>
 
 </div>

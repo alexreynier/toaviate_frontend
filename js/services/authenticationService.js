@@ -10,6 +10,7 @@
         service.Login1 = Login1;
         service.Login2 = Login2;
         service.Login2FA = Login2FA;
+        service.TwoFactorHelp = TwoFactorHelp;
         service.LoginVerifyEmail = LoginVerifyEmail;
         service.ResendLoginEmailCode = ResendLoginEmailCode;
         service.Login3 = Login3;
@@ -330,6 +331,22 @@
 
         }
 
+
+        // "Lost your phone and your recovery codes?" on the 2-step code screen (C28, 9 Nov 2026). Public; only works with the
+        // live two_factor_token of this sign-in (password step < 30 min old). The answer is always the same neutral
+        // {success:true, message}: ToAviate staff are e-mailed to check it's the member (then a C22 held reset), the
+        // member's addresses are told. It never removes two-factor. Rate-limited to 3 a day.
+        function TwoFactorHelp(token, note, callback){
+
+            $http.post('/api/v1/users/two_factor_help', { a: Base64.encode(token || ''), note: note || '' })
+               .success(function (response) {
+                   callback(response || { success: true });
+            }).error(function (data, status) {
+                   console.log('TwoFactorHelp failed:', status, data);
+                   callback({ success: false, status: status });
+            });
+
+        }
 
         function Login3(password, session, callback){
 

@@ -33,10 +33,16 @@ function SchedulerBookingCardController($scope, $uibModalInstance, SchedulerV2Se
     load();
 
     function load() {
+        vm.loading = true;
+        vm.error = null;
         SchedulerV2Service.GetBooking(bookingId).then(function (data) {
             vm.loading = false;
             if (!data || !data.success) {
-                vm.error = (data && data.error === 'NOT_FOUND') ? 'This booking is no longer on the schedule.' : (textOf(data && data.message) || 'The booking could not be loaded.');
+                // a 404 arrives as {message: {error:'NOT_FOUND'}, status: 404} (the service's handleError2)
+                var code = data && (data.error || (data.message && data.message.error));
+                vm.gone = (code === 'NOT_FOUND' || (data && data.status === 404));
+                vm.error = vm.gone ? 'This booking is no longer on the schedule. It may have been cancelled or moved.'
+                    : (textOf(data && data.message) || 'The booking could not be loaded.');
                 return;
             }
             vm.b = data.booking || data;
@@ -64,11 +70,13 @@ function SchedulerBookingCardController($scope, $uibModalInstance, SchedulerV2Se
         vm.pilotInitials = vm.hiddenPilot ? '' : (b.pilot.initials || SchedulerV2Service.initials(b.pilot.full_name || b.pilot.name));
         vm.instructorInitials = b.instructor ? (b.instructor.code || SchedulerV2Service.initials(b.instructor.name)) : '';
         vm.instructorColour = (b.instructor && b.instructor.colour) || '#94a3b8';
-        vm.pilotSub = vm.hiddenPilot ? '' : (vm.kind === 'dual' || vm.kind === 'solo' ? (b.course || 'Student') : (vm.kind === 'trial' ? 'Trial lesson' : (vm.kind === 'hire' ? 'Self-fly hire' : '')));
+        // "Student" only when the backend says so (pilot.is_student; an older payload without the flag keeps the old word)
+        vm.pilotSub = vm.hiddenPilot ? '' : (vm.kind === 'dual' || vm.kind === 'solo' ? (b.course || (b.pilot.is_student === false ? '' : 'Student')) : (vm.kind === 'trial' ? 'Trial lesson' : (vm.kind === 'hire' ? 'Self-fly hire' : '')));
         vm.noInstructorSub = vm.kind === 'solo' ? 'Potential solo' : (vm.kind === 'hire' ? 'Self-fly hire' : (vm.kind === 'trial' ? 'To be assigned' : ''));
         // Potential solo (bookings.solo OR the lesson's solo flag — guide §1): why it is one
         vm.soloTip = !b.solo ? '' : (b.solo_source === 'lesson' ? 'The lesson is a solo lesson' : 'Flagged as a potential solo by club staff');
-        vm.notes = b.description || b.notes || '';
+        // BookedScheduler import references ("[BS:AE040641]") stay in the data but are not shown (owner, 9 Nov)
+        vm.notes = String(b.description || b.notes || '').replace(/\[BS:[^\]]*\]/g, '').trim();
         vm.passengers = angular.isArray(b.passengers) ? b.passengers : [];
         vm.rentalItems = angular.isArray(b.rental_items) ? b.rental_items : [];
         // contact comes ONLY from the endpoint (club staff of the booking's club) — never inferred from a role
@@ -102,7 +110,9 @@ function SchedulerBookingCardController($scope, $uibModalInstance, SchedulerV2Se
     // navigates once the modal has closed, so BACK on those pages returns to the scheduler.
     vm.trainingRecord = function () { $uibModalInstance.close({ action: 'records', booking: vm.b }); };
     vm.history = function () { $uibModalInstance.close({ action: 'history', booking: vm.b }); };
-    vm.close = function () { $uibModalInstance.dismiss('cancel'); };
+    // a booking that has gone (cancelled / moved elsewhere) → close AND refresh the schedule behind
+    vm.close = function () { if (vm.gone) { $uibModalInstance.close({ action: 'refetch' }); } else { $uibModalInstance.dismiss('cancel'); } };
+    vm.retry = load;
 
     vm.startCancel = function () { vm.cancel = { reason: '', notes: '' }; vm.cancelPreset = null; vm.noShow = false; vm.step = 'cancel'; };
     vm.startNoShow = function () { vm.cancel = { reason: '', key: 'no_show', notes: '' }; vm.cancelPreset = 'no_show'; vm.noShow = true; vm.step = 'cancel'; };
@@ -128,22 +138,23 @@ function SchedulerBookingCardController($scope, $uibModalInstance, SchedulerV2Se
         CancellationFeesService.CancelBooking(vm.ctx.userId, vm.b.id, vm.cancel).then(function (res) {
             vm.cancelling = false;
             if (!res.success) {
-                ToastService.error('Error', res.message || 'An error occurred');
+                ToastService.error(vm.noShow ? 'Not saved' : 'Not cancelled', textOf(res.message) || 'The booking could not be cancelled. Try again, or refresh the schedule.');
                 return;
             }
-            var title = vm.cancel.key === 'no_show' ? 'Marked as a no-show' : 'Booking Cancelled';
+            var title = vm.cancel.key === 'no_show' ? 'Marked as a no-show' : 'Booking cancelled';
             if (res.claim && res.claim.success) {
                 ToastService.success(title, CancellationFeesService.outcomeText(res.claim, vm.cancel.currency), { confetti: false });
             } else if (res.claim) {
                 ToastService.warning(title + ', fee not added', CancellationFeesService.outcomeText(res.claim) + ' You can claim it from Cancellations.');
             } else {
-                ToastService.success(title, vm.cancel.key === 'no_show' ? 'The booking has been recorded as a no-show.' : 'The booking has been cancelled', { confetti: false });
+                ToastService.success(title, vm.cancel.key === 'no_show' ? 'The booking has been recorded as a no-show.' : 'It is off the schedule.', { confetti: false });
             }
             $uibModalInstance.close({ action: 'cancelled', booking: vm.b, reason: vm.cancel.reason, notes: vm.cancel.notes, fee: res.claim });
         });
     };
 
-    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return m; } return m.message || m.error || ''; }
+    // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
     // passengers: the backend's invitation status in the panel's words
     vm.paxLabel = function (p) {
         var st = p && p.status;
@@ -174,7 +185,7 @@ function SchedulerConflictController($uibModalInstance, dialog) {
     vm.isArray = angular.isArray;
     // overrides already granted on earlier rounds (cumulative — see putWithOverrides)
     vm.granted = vm.d.granted || [];
-    var FLAG_LABELS = { instructor_override: 'instructor availability', currency_override: 'currency', update_rental_items: 'rental items' };
+    var FLAG_LABELS = { instructor_override: 'instructor availability', currency_override: 'currency', update_rental_items: 'rental items', payment_override: 'no payment method' };
     vm.grantedLabels = vm.granted.map(function (f) { return FLAG_LABELS[f] || f; }).join(', ');
     vm.hasOverride = false;
     for (var i = 0; i < vm.errors.length; i++) {
@@ -306,7 +317,8 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
     loadInstructors();
     $scope.$watch('vm.form.club_id', function (n, o) { if (n !== o) { vm.clearInstructor(); instructorsFor = null; loadInstructors(); } });
 
-    vm.pickMember = function (m) { vm.member = m; vm.memberSearch = ''; };
+    vm.pickMember = function (m) { vm.member = m; vm.memberSearch = ''; unflag('wrq-member'); };
+    function unflag(id) { var el = document.getElementById(id); if (el) { el.classList.remove('field-error-highlight'); } }
     vm.clearMember = function () { vm.member = null; vm.memberSearch = ''; $timeout(function () { var el = document.getElementById('wrq-member'); if (el) { el.focus(); } }, 0); };
     vm.memberName = function (m) { return m ? (m.first_name + ' ' + m.last_name).trim() : ''; };
 
@@ -332,6 +344,7 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
         for (var i = 0; i < vm.form.dates.length; i++) { if (vm.form.dates[i].date === dateStr) { return; } }
         if (vm.form.dates.length >= 10) { ToastService.warning('That is plenty', 'Up to 10 dates per request.'); return; }
         vm.form.dates.push({ date: dateStr, preference: 'any' });
+        unflag('wrq-add-date');                       // the "Add a date" warning's red ring goes once there is a day
         vm.form.dates.sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
         vm.nativeDate = '';
     };
@@ -398,6 +411,7 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
         });
     }
     vm.cancelRequest = function (r) {
+        if (!r || r._busy) { return; }
         r._busy = true;
         WaitingRequestsService.Update(r.id, { status: 'cancelled' }).then(function (data) {
             r._busy = false;
@@ -412,9 +426,25 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
     };
 
     vm.close = function () { if (vm.changed) { $uibModalInstance.close({ changed: true }); } else { $uibModalInstance.dismiss('cancel'); } };
+    // Esc / the scrim / × / Close on a half-filled request: ask before throwing it away (an inline bar — no confirm())
+    vm.confirmDiscard = false;
+    var discardOk = false;
+    function unsaved() {
+        return vm.tab === 'new' && !vm.saving && (vm.form.dates.length > 0 || !!String(vm.form.notes || '').trim() || !!(vm.staff && vm.member));
+    }
+    $scope.$on('modal.closing', function (e, reason, closing) {
+        if (closing || discardOk || !unsaved()) { return; }
+        e.preventDefault();
+        $scope.$evalAsync(function () { vm.confirmDiscard = true; });
+        // the form can be taller than the screen: bring the question into view
+        $timeout(function () { var q = document.querySelector('.wrq__discard'); if (q && q.scrollIntoView) { q.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } }, 30, false);
+    });
+    vm.keepEditing = function () { vm.confirmDiscard = false; };
+    vm.discard = function () { discardOk = true; vm.close(); };
     $scope.$on('$destroy', function () { if (attached) { try { attached.destroy(); } catch (e) {} attached = null; } });
 
-    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return m; } return m.message || m.error || ''; }
+    // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -546,10 +576,13 @@ function WaitingRequestsPanelController($scope, $uibModalInstance, $uibModal, $t
         if (!vm.club_id || !vm.day) { return; }
         vm.loading = true;
         var seq = ++loadSeq;
-        WRS.List({ club_id: vm.club_id, date: vm.day, status: vm.status }).then(function (data) {
+        // "Waiting" = the day's open AND contacted rows (owner, 9 Nov: a contacted member keeps their place, nobody
+        // vanishes from the queue) — the backend's status=live (open OR contacted, alex-3e C31); narrowed here as well.
+        var asked = (vm.status === 'open') ? 'live' : vm.status;
+        WRS.List({ club_id: vm.club_id, date: vm.day, status: asked }).then(function (data) {
             if (seq !== loadSeq) { return; }   // a newer day / filter has been asked for
             vm.loading = false;
-            if (data && data.success) { vm.requests = data.requests || []; vm.error = null; }
+            if (data && data.success) { vm.requests = (data.requests || []).filter(function (r) { return vm.status !== 'open' || isWaiting(r); }); vm.error = null; }
             else { vm.requests = []; vm.error = (data && data.error === 'FORBIDDEN') ? "You don't have access to this club's waiting list." : (textOf(data && data.message) || 'The waiting list could not be loaded.'); }
         });
     }
@@ -654,8 +687,11 @@ function WaitingRequestsPanelController($scope, $uibModalInstance, $uibModal, $t
         if (list === vm.everyone) { return vm.isLive(r) && WRS.liveDays(r) > 0; }
         if (list === vm.matches) { var d = r.day; return !!(d && WRS.isLiveStatus(d.status)); }
         if (vm.status === 'all') { return true; }
+        if (vm.status === 'open') { return isWaiting(r); }
         return vm.isLive(r) && vm.dayStatus(r) === vm.status;
     }
+    // still in the day's queue: a live request whose day is open or contacted
+    function isWaiting(r) { var d = vm.dayOf(r), st = (d && d.status) || 'open'; return vm.isLive(r) && (st === 'open' || st === 'contacted'); }
     function settle(r) {
         angular.forEach([vm.requests, vm.everyone, vm.matches || []], function (list) {
             angular.forEach(list.slice(), function (x) {
@@ -668,6 +704,7 @@ function WaitingRequestsPanelController($scope, $uibModalInstance, $uibModal, $t
 
     // Mark contacted / couldn't take it (declined) / back to waiting (open) — on the row's day (a match: its matched day)
     vm.mark = function (r, status, dayRow) {
+        if (!r || r._busy) { return; }      // the Undo links opt out of the busy guard — one PUT at a time per row
         var d = dayRow || vm.rowDay(r);
         var date = d ? String(d.date).substr(0, 10) : vm.day;
         var who = (r.user && r.user.name) || 'The member';
@@ -679,7 +716,9 @@ function WaitingRequestsPanelController($scope, $uibModalInstance, $uibModal, $t
             apply(r, data.request, date);
             var others = vm.otherLive(r), when = moment(date).format('ddd D MMM');
             var tail = others > 0 ? ' Still waiting on ' + others + ' other day' + (others === 1 ? '' : 's') + '.' : '';
-            if (status === 'contacted') { ToastService.success('Contacted', vm.firstName(who) + ' knows about ' + when + ' — still in the queue.', { confetti: false }); }
+            // the "Waiting" filter shows open days only, so a contacted row slides out of view: say where it went
+            var leaves = vm.view === 'day' && vm.requests.indexOf(r) > -1 && !fits(r, vm.requests);
+            if (status === 'contacted') { ToastService.success('Contacted', vm.firstName(who) + ' knows about ' + when + (leaves ? '. Still in the queue, now under Contacted.' : ' — still in the queue.'), { confetti: false }); }
             else if (status === 'declined') { ToastService.success("Couldn't take it", who + ' · ' + when + '.' + (tail || (r.status === 'declined' ? ' No days left — the request is closed.' : '')), { confetti: false }); }
             else if (status === 'open') { ToastService.success('Back in the queue', who + ' is waiting again for ' + when + '.', { confetti: false }); }
             else { ToastService.success(WRS.statusLabel(status), who + ' · ' + when + ' is now ' + WRS.statusLabel(status).toLowerCase() + '.' + tail, { confetti: false }); }
@@ -698,7 +737,8 @@ function WaitingRequestsPanelController($scope, $uibModalInstance, $uibModal, $t
 
     vm.close = function () { if (vm.changed) { $uibModalInstance.close({ changed: true }); } else { $uibModalInstance.dismiss('cancel'); } };
 
-    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return m; } return m.message || m.error || ''; }
+    // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -810,5 +850,6 @@ function CancellationsPanelController($uibModalInstance, CancellationFeesService
     vm.changeRange = function () { vm.confirmReverse = null; load(); };
     load();
 
-    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return m; } return m.message || m.error || ''; }
+    // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
 }

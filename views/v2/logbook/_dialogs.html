@@ -1,0 +1,206 @@
+<!-- v2 logbook — record dialogs about one logbook line: its signatures, requesting an instructor's signature,
+     recording an external endorsement. vm.dlg = { t: 'end' | 'req' | 'ext', e, head, … }. Esc / the scrim close
+     it (not while saving). A bottom sheet on phones (ta-base .ta-dlg). -->
+<div class="ta-dlg-scrim" ng-click="vm.scrim($event)">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="lgb-dlg-t">
+    <div class="ta-dlg__hd" ng-attr-style="--edge:{{ vm.dlg.head.edge }}">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" ng-disabled="vm.dlgBusy" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas {{ vm.dlg.head.icon }}" aria-hidden="true"></i>{{ vm.dlg.head.eyebrow }}</div>
+      <div class="ta-dlg__title" id="lgb-dlg-t">{{ vm.dlg.head.title }}</div>
+      <div class="ta-dlg__sub">{{ vm.dlg.head.sub }}</div>
+    </div>
+
+    <!-- ═══ the signatures on this line ═══ -->
+    <div class="ta-dlg__body" ng-if="vm.dlg.t === 'end'">
+      <div class="lgb-dlgload" ng-if="vm.dlg.loading"><span class="ta-spin ta-spin--dark"></span>Loading the signatures…</div>
+      <div class="ta-empty" ng-if="!vm.dlg.loading && !vm.dlg.rows.length">
+        <span class="ta-empty__ic"><i class="fas fa-stamp" aria-hidden="true"></i></span>
+        <h4>No signatures yet</h4>
+        <p>Ask an instructor to sign this flight, or record a signature you got elsewhere.</p>
+      </div>
+      <div class="lgb-stamp" ng-repeat="x in vm.dlg.rows" ng-class="'lgb-stamp--' + x.s.tone" ng-show="!vm.dlg.loading">
+        <div class="lgb-stamp__top">
+          <span class="ta-pill ta-pill--{{ x.s.tone }}"><i class="fas {{ x.s.ic }}" aria-hidden="true"></i>{{ x.s.label }}</span>
+          <span class="lgb-stamp__date" ng-if="x.r.confirmed_at || x.r.signed_at">{{ vm.Fmt.fDate(x.r.confirmed_at || x.r.signed_at) }}, {{ vm.Fmt.fTime(x.r.confirmed_at || x.r.signed_at) }}</span>
+        </div>
+        <p class="lgb-stamp__txt">“{{ x.r.endorsement_text }}”</p>
+        <div class="lgb-stamp__who">
+          <span class="ta-av" ng-attr-style="{{ x.c ? '--av:' + x.c : undefined }}" aria-hidden="true">{{ vm.initials(x.r.instructor_name) }}</span>
+          <span><b>{{ x.r.instructor_name }}</b><small>{{ x.r.instructor_number ? 'Instructor no. ' + x.r.instructor_number + ' · ' : '' }}{{ x.r.flow === 'external' ? 'External — confirms by email' : x.r.status === 'pending_instructor' ? 'Requested in ToAviate' : x.r.status === 'declined' ? 'Asked in ToAviate' : 'Signed in ToAviate' }}</small></span>
+        </div>
+        <div class="lgb-sig" ng-if="x.r.signature_image"><img ng-src="{{ x.r.signature_image }}" alt="Signature"></div>
+        <div class="ta-note ta-note--warn" ng-if="x.r.line_modified_since_signed"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>This flight was edited after it was signed.</div></div>
+        <div class="ta-note ta-note--bad" ng-if="x.r.status === 'declined' && x.r.decline_reason"><i class="fas fa-comment" aria-hidden="true"></i><div><b>Reason:</b> {{ x.r.decline_reason }}</div></div>
+        <span class="ta-hint" ng-if="x.r.status === 'pending_instructor'">In {{ x.r.instructor_name }}’s signing queue — you’ll see it here once it’s signed.</span>
+        <div class="lgb-stamp__acts">
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.toggleAudit(x)" aria-expanded="{{ x._audit ? 'true' : 'false' }}" no-busy-guard><i class="fas fa-history" aria-hidden="true"></i>{{ x._audit ? 'Hide history' : 'History' }}</button>
+          <span class="ta-hint" ng-if="x.r.status === 'pending_email_confirm' && x.resent"><i class="fas fa-check" aria-hidden="true"></i> Email sent again</span>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="x.r.status === 'pending_email_confirm' && !x.resent" ng-click="vm.resend(x)"><i class="fas fa-paper-plane" aria-hidden="true"></i>Send the email again</button>
+          <span class="ta-sp" ng-if="x.r.status !== 'declined'"></span>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="x.r.status !== 'declined' && !x.revoke" ng-click="vm.askRevoke(x)" no-busy-guard><i class="fas fa-trash-alt" aria-hidden="true"></i>Remove</button>
+          <span class="lgb-confirm" ng-if="x.revoke">Withdraw this endorsement?</span>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-if="x.revoke" ng-click="vm.keepRevoke(x)" no-busy-guard>Keep</button>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-if="x.revoke" ng-click="vm.revoke(x)">Withdraw</button>
+        </div>
+        <div class="lgb-audit" ng-if="x._audit">
+          <span class="ta-hint" ng-if="x.auditLoading"><span class="ta-spin ta-spin--dark"></span> Loading the history…</span>
+          <div class="lgb-audit__ev" ng-repeat="v in x.events">
+            <i aria-hidden="true"></i>
+            <div><b>{{ v.label }}</b><span ng-if="v.ev.actor_name"> — {{ v.ev.actor_name }}</span><span class="ta-tag" ng-if="v.ev.details.used_saved_signature">saved stamp</span>
+              <small>{{ v.when }}<span ng-if="v.ev.ip_address"> · {{ v.ev.ip_address }}</span><span ng-if="v.ev.details.send_count"> · email #{{ v.ev.details.send_count }}</span></small>
+              <small ng-if="v.ev.details.reason">Reason: {{ v.ev.details.reason }}</small></div>
+          </div>
+          <span class="ta-hint" ng-if="!x.auditLoading && x.events && !x.events.length">No history recorded for this endorsement.</span>
+        </div>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="vm.dlg.t === 'end'">
+      <button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Close</button>
+      <span class="ta-sp"></span>
+      <button type="button" class="ta-btn" ng-if="vm.dlg.e.kind === 'club'" ng-click="vm.openExt(vm.dlg.e)" no-busy-guard><i class="fas fa-envelope" aria-hidden="true"></i>Add external</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.dlg.e.kind === 'club'" ng-click="vm.openReq(vm.dlg.e)" no-busy-guard><i class="fas fa-user-check" aria-hidden="true"></i>Request a signature</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.dlg.e.kind !== 'club'" ng-click="vm.openExt(vm.dlg.e)" no-busy-guard><i class="fas fa-envelope" aria-hidden="true"></i>Add external endorsement</button>
+    </div>
+
+    <!-- ═══ choose your currency checks (backend C8; each change is saved at once) ═══ -->
+    <div class="ta-dlg__body" ng-if="vm.dlg.t === 'checks'">
+      <div class="lgb-cg" ng-repeat="g in vm.ck.groups">
+        <span class="ta-sec-k">{{ g.label }}</span>
+        <label class="ta-toggle" ng-repeat="r in g.rows track by r.id"><input type="checkbox" class="ta-toggle__input" ng-model="r.on" ng-change="vm.ckToggle(r)"><span class="ta-toggle__txt"><span class="ta-toggle__t">{{ r.name }}</span><span class="ta-toggle__s">{{ r.line }} <span class="lgb-chk__ref" ng-if="r.ref">{{ r.ref }}</span></span></span><span class="ta-switch"></span></label>
+      </div>
+      <div class="lgb-cg">
+        <span class="ta-sec-k">Your own</span>
+        <div ng-repeat="r in vm.ck.own track by r.id">
+          <div class="lgb-own__del" ng-if="vm.ck.del === r.id"><span>Remove “{{ r.name }}”?</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.ckKeep()" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.ckDel(r)">Remove</button></div>
+          <div class="lgb-own__row" ng-if="vm.ck.del !== r.id">
+            <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="r.on" ng-change="vm.ckToggle(r)"><span class="ta-toggle__txt"><span class="ta-toggle__t">{{ r.name }}</span><span class="ta-toggle__s">{{ r.line }}</span></span><span class="ta-switch"></span></label>
+            <button type="button" class="ta-ib" ng-click="vm.ckAskDel(r)" title="Remove this check" aria-label="Remove {{ r.name }}" no-busy-guard><i class="fas fa-trash-alt" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <button type="button" class="ta-btn" ng-if="!vm.ck.form" ng-click="vm.ckNew()" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Add your own check</button>
+        <div class="ta-panel lgb-own" ng-if="vm.ck.form">
+          <div class="ta-panel__hd">Your own check</div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.ck.form.err.name}">
+            <label class="ta-label" for="lgb-own-name">Name</label>
+            <input class="ta-input" id="lgb-own-name" ng-model="vm.ck.form.name" ng-change="vm.ck.form.err.name = ''" placeholder="e.g. Tailwheel, or my group’s 28-day rule">
+            <span class="ta-field__msg" ng-if="vm.ck.form.err.name">{{ vm.ck.form.err.name }}</span>
+          </div>
+          <div class="lgb-g2p">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.ck.form.err.n}">
+              <span class="ta-label" id="lgb-l-own">Take-offs and landings</span>
+              <div class="ta-stepper ta-stepper--joined" role="group" aria-labelledby="lgb-l-own">
+                <button type="button" class="ta-stepper__b" ng-click="vm.ckStep(-1)" ng-disabled="vm.ck.form.n <= 1" aria-label="One fewer" no-busy-guard><i class="fas fa-minus" aria-hidden="true"></i></button>
+                <output class="ta-stepper__n" aria-live="polite">{{ vm.ck.form.n }}</output>
+                <button type="button" class="ta-stepper__b" ng-click="vm.ckStep(1)" ng-disabled="vm.ck.form.n >= 20" aria-label="One more" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i></button>
+              </div>
+              <span class="ta-field__msg" ng-if="vm.ck.form.err.n">{{ vm.ck.form.err.n }}</span>
+            </div>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.ck.form.err.days}">
+              <label class="ta-label" for="lgb-own-days">In the last <em>days</em></label>
+              <input class="ta-input" id="lgb-own-days" ng-model="vm.ck.form.days" ng-change="vm.ck.form.err.days = ''" inputmode="numeric" maxlength="3">
+              <span class="ta-field__msg" ng-if="vm.ck.form.err.days">{{ vm.ck.form.err.days }}</span>
+            </div>
+          </div>
+          <div class="ta-field"><span class="ta-label">Landings that count</span>
+            <div class="ta-seg ta-seg--row" style="--seg-n:2">
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': !vm.ck.form.night}" ng-click="vm.ck.form.night = false" no-busy-guard>Day or night</button>
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.ck.form.night}" ng-click="vm.ck.form.night = true" no-busy-guard>Night only</button>
+            </div>
+          </div>
+          <div class="ta-field"><span class="ta-label">Aircraft</span>
+            <div class="ta-seg ta-seg--row" style="--seg-n:3">
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.ck.form.scope === 'class'}" ng-click="vm.ck.form.scope = 'class'" no-busy-guard>Same class</button>
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.ck.form.scope === 'type'}" ng-click="vm.ck.form.scope = 'type'" no-busy-guard>Same type</button>
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.ck.form.scope === 'any'}" ng-click="vm.ck.form.scope = 'any'" no-busy-guard>Any</button>
+            </div>
+          </div>
+          <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.ck.form.waive" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">Not needed with a valid IR</span><span class="ta-toggle__s">We read this from Licences &amp; medical</span></span><span class="ta-switch"></span></label>
+          <span class="ta-hint" ng-if="vm.ckLine()"><b>You’ll see:</b> {{ vm.ckLine() }}</span>
+          <div class="lgb-own__acts"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.ckCancel()" no-busy-guard>Cancel</button><button type="button" class="ta-btn" ng-click="vm.ckAdd()"><i class="fas fa-plus" aria-hidden="true"></i>Add check</button></div>
+        </div>
+      </div>
+      <div class="ta-note"><i class="fas fa-info-circle" aria-hidden="true"></i><div>Informational only. We count every landing in your logbook, whatever your role. Simulators aren’t counted, and the logbook doesn’t record take-offs or approaches separately. You remain responsible for your own currency. Not legal advice.</div></div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="vm.dlg.t === 'checks' && !vm.dlg.ask">
+      <span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.closeDlg()" no-busy-guard><i class="fas fa-check" aria-hidden="true"></i>Done</button>
+    </div>
+
+    <!-- ═══ request an instructor's signature (club lines) ═══ -->
+    <div class="ta-dlg__body" ng-if="vm.dlg.t === 'req'">
+      <p class="ta-hint">The instructor sees this flight in their signing queue and stamps it from there.</p>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err}">
+        <label class="ta-label" for="lgb-req-q">Instructor</label>
+        <div class="lgb-chosen" ng-if="vm.dlg.pick">
+          <span class="ta-av" ng-attr-style="{{ vm.dlg.pick.colour ? '--av:' + vm.dlg.pick.colour : undefined }}" aria-hidden="true">{{ vm.dlg.pick.initials }}</span>{{ vm.dlg.pick.name }}
+          <button type="button" class="ta-ib" ng-click="vm.reqClear()" aria-label="Choose someone else" title="Choose someone else" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+        <label class="ta-search lgb-fs" ng-if="!vm.dlg.pick"><i class="fas fa-search" aria-hidden="true"></i><input id="lgb-req-q" ng-model="vm.dlg.q" ng-change="vm.reqFilter()" placeholder="Search instructors at {{ vm.dlg.e.source }}" autocomplete="off"></label>
+        <div class="lgb-pick" role="listbox" ng-if="!vm.dlg.pick">
+          <div class="lgb-pick__none" ng-if="vm.dlg.loading"><span class="ta-spin ta-spin--dark"></span> Loading the instructors…</div>
+          <button type="button" class="lgb-pick__it" ng-repeat="x in vm.dlg.shown" ng-click="vm.reqPick(x)" no-busy-guard><span class="ta-av ta-av--sm" ng-attr-style="{{ x.colour ? '--av:' + x.colour : undefined }}" aria-hidden="true">{{ x.initials }}</span>{{ x.name }}<i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+          <div class="lgb-pick__none" ng-if="!vm.dlg.loading && !vm.dlg.shown.length">{{ vm.dlg.list.length ? 'No instructors match “' + vm.dlg.q + '”.' : 'No instructors found at this club.' }}</div>
+        </div>
+        <span class="ta-field__msg" ng-if="vm.dlg.err">{{ vm.dlg.err }}</span>
+      </div>
+      <div class="ta-field">
+        <label class="ta-label" for="lgb-req-note">Note for the instructor <em>(optional)</em></label>
+        <textarea class="ta-textarea" id="lgb-req-note" ng-model="vm.dlg.note" placeholder="e.g. My first solo — could you sign it, please?"></textarea>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="vm.dlg.t === 'req' && !vm.dlg.ask">
+      <button type="button" class="ta-btn" ng-click="vm.dlgBack()" ng-disabled="vm.dlgBusy" no-busy-guard>Back</button>
+      <span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.reqSend()"><i class="fas fa-paper-plane" aria-hidden="true"></i>Send request</button>
+    </div>
+
+    <!-- ═══ record an external endorsement (any line) ═══ -->
+    <div class="ta-dlg__body" ng-if="vm.dlg.t === 'ext'">
+      <p class="ta-hint">For a signature from an instructor or examiner outside ToAviate. We email them a link to confirm it.</p>
+      <div class="ta-grid-2">
+        <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.name}">
+          <label class="ta-label" for="lgb-ext-name">Full name</label>
+          <input class="ta-input" id="lgb-ext-name" ng-model="vm.dlg.x.name" ng-change="vm.dlg.err.name = ''" placeholder="Instructor or examiner">
+          <span class="ta-field__msg" ng-if="vm.dlg.err.name">{{ vm.dlg.err.name }}</span>
+        </div>
+        <div class="ta-field">
+          <label class="ta-label" for="lgb-ext-num">Instructor number <em>(optional)</em></label>
+          <input class="ta-input" id="lgb-ext-num" ng-model="vm.dlg.x.num" placeholder="e.g. 501685A">
+        </div>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.email}">
+        <label class="ta-label" for="lgb-ext-email">Their email</label>
+        <input class="ta-input" id="lgb-ext-email" type="email" ng-model="vm.dlg.x.email" ng-change="vm.dlg.err.email = ''" placeholder="They get a link to confirm" autocomplete="off">
+        <span class="ta-field__msg" ng-if="vm.dlg.err.email">{{ vm.dlg.err.email }}</span>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.text}">
+        <label class="ta-label" for="lgb-ext-text">Wording</label>
+        <div class="lgb-words"><button type="button" class="ta-chip" ng-repeat="w in vm.WORDINGS" ng-class="{'ta-chip--on': vm.dlg.x.text === w}" ng-click="vm.extWord(w)" no-busy-guard>{{ w }}</button></div>
+        <textarea class="ta-textarea" id="lgb-ext-text" ng-model="vm.dlg.x.text" ng-change="vm.dlg.err.text = ''" placeholder="Or type your own wording"></textarea>
+        <span class="ta-field__msg" ng-if="vm.dlg.err.text">{{ vm.dlg.err.text }}</span>
+      </div>
+      <div class="ta-field">
+        <span class="ta-label">Signature <em>(optional)</em></span>
+        <button type="button" class="lgb-pad" ng-if="!vm.dlg.sigOn" ng-click="vm.dlg.sigOn = true" no-busy-guard><i class="fas fa-signature" aria-hidden="true"></i>Hand your device to the instructor to sign here</button>
+        <div class="lgb-sigpad" ng-if="vm.dlg.sigOn"><sig-pad ng-model="vm.dlg.x.sig"></sig-pad></div>
+        <span class="ta-hint" ng-if="!vm.dlg.sigOn">Or leave it — they can sign on the confirmation page.</span>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="vm.dlg.t === 'ext' && !vm.dlg.ask">
+      <button type="button" class="ta-btn" ng-click="vm.dlgBack()" ng-disabled="vm.dlgBusy" no-busy-guard>Back</button>
+      <span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.extSave()"><i class="fas fa-stamp" aria-hidden="true"></i>Record endorsement</button>
+    </div>
+    <!-- leaving with typed words: ask first (×, Esc, the scrim, Done, Back) -->
+    <div class="ta-dlg__ft" ng-if="vm.dlg.ask">
+      <div class="ta-confirm ta-confirm--inline lgb-ask" role="alert">
+        <span>{{ vm.dlg.t === 'checks' ? 'Your own check isn’t added yet. Discard it?' : 'Discard what you’ve typed?' }}</span>
+        <span class="ta-confirm__btns">
+          <button type="button" class="ta-btn ta-btn--sm lgb-ask__keep" ng-click="vm.dlgKeep()" no-busy-guard>Keep editing</button>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.dlgDiscard()" no-busy-guard>Discard</button>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

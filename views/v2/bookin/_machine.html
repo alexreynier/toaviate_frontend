@@ -1,0 +1,32 @@
+<!-- the card machine: sent → waiting for the card → paid (Cancel payment · Try again · Close) -->
+<div class="ta-dlg-scrim" data-e2e="bki-machine">
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="bki-mach-t">
+    <!-- booked in, the reader stopped: the invoice is to pay (each part carries its own ng-if: ta-dlg lays out hd / body / ft as direct children) -->
+      <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn" ng-if="vm.mach_unpaid()"><span class="ta-dlg__ic"><i class="fas fa-file-invoice"></i></span><div><div class="ta-dlg__title" id="bki-mach-t">Booked in · not paid yet</div><div class="ta-dlg__sub">{{ vm.mach_unpaid() === 'forbidden' ? 'The card machine refused this payment' : vm.mach_unpaid() === 'no_booking' ? 'The card machine needs the booking' : 'Nothing was taken at the reader' }}</div></div></div>
+      <div class="ta-dlg__body" ng-if="vm.mach_unpaid()">
+        <p>The flight is booked in and {{ vm.pay_money(vm.pay_amount()) }} is on an invoice to {{ vm.bk_name(vm.bookout.payer_id) || 'the pilot' }}. Pay it from <b>Invoices &amp; payments</b>, or the club collects it with the default payment method (usually that evening).</p>
+        <div class="ta-note ta-note--info" ng-if="vm.pay.machineNote"><i class="fas fa-cash-register"></i><div>{{ vm.pay.machineNote }}</div></div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="vm.mach_unpaid()"><button type="button" class="ta-btn" ng-if="!vm.pay.machineHidden && vm.mach_unpaid() !== 'no_booking'" ng-click="vm.bk_machine_retry()" no-busy-guard><i class="fas fa-redo"></i>Try the card machine again</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bk_machine_done()" no-busy-guard data-e2e="bki-machine-done"><i class="fas fa-check"></i>Done</button></div>
+    <!-- at the reader -->
+      <div class="ta-dlg__hd" style="--edge: var(--ta-brand-2)" ng-if="!vm.mach_unpaid() && vm.pay.mach"><div class="ta-dlg__grab"></div>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-cash-register"></i>Card machine{{ vm.club.title ? ' · ' + vm.club.title : '' }}</div>
+        <div class="ta-dlg__amt" id="bki-mach-t">{{ vm.pay_money(vm.pay_amount()) }}</div><div class="ta-dlg__sub">Tap, insert or swipe at the reader on the desk</div></div>
+      <div class="ta-dlg__body" ng-if="!vm.mach_unpaid() && vm.pay.mach">
+        <span class="ta-steps">
+          <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.pay.mach.step >= 1, 'ta-steps__s--now': vm.pay.mach.step === 0}"><i></i>Sent to the reader</span>
+          <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.pay.mach.step >= 1}"></span>
+          <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.pay.mach.step >= 2, 'ta-steps__s--now': vm.pay.mach.step === 1, 'ta-steps__s--bad': vm.pay.mach.step === -1}"><i></i>Waiting for the card</span>
+          <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.pay.mach.step >= 2}"></span>
+          <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.pay.mach.step === 2}"><i></i>Paid</span>
+        </span>
+        <div class="ta-note ta-note--good" ng-if="vm.pay.mach.step === 2"><i class="fas fa-check-circle"></i><div>Paid. Finishing…</div></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.pay.mach.step === -1"><i class="fas fa-times-circle"></i><div>{{ vm.pay.mach.msg }}</div></div>
+        <div class="ta-note ta-note--info" ng-if="vm.pay.mach.step === 0 || vm.pay.mach.step === 1"><i class="fas fa-info-circle"></i><div>The reader shows the amount. This updates by itself once the card is accepted.</div></div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="!vm.mach_unpaid() && vm.pay.mach"><button type="button" class="ta-btn ta-btn--danger" ng-click="vm.pay.machCancel()" ng-disabled="vm.pay.mach.step === 2" no-busy-guard>Cancel payment</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn" ng-click="vm.pay.machRetry()" ng-disabled="vm.pay.mach.step === 2" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+        <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.pay.closeMachine()" ng-disabled="vm.pay.mach.step === 2" no-busy-guard>Close</button></div>
+  </div>
+</div>

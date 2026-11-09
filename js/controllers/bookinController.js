@@ -246,9 +246,11 @@
             var hasStudent = (vm.bookout.put_id > 0) ||
                              (vm.bookout.put && vm.bookout.put.user_id > 0) ||
                              vm.this_claim_was_instructional;
+            // the PIC counts as "the instructor" only when the PIC IS an instructor: on an authorised student solo the
+            // student is PIC and was sent to the instructor's debrief ("Load Failed") — owner 9 Nov
             var userIsInstructor = (vm.bookout.instructor_id > 0 && vm.user.id == vm.bookout.instructor_id) ||
-                                   (vm.bookout.pic_id > 0 && vm.user.id == vm.bookout.pic_id) ||
-                                   (vm.bookout.pic && vm.bookout.pic.user_id > 0 && vm.user.id == vm.bookout.pic.user_id);
+                                   (vm.picIsInstructor() && ((vm.bookout.pic_id > 0 && vm.user.id == vm.bookout.pic_id) ||
+                                   (vm.bookout.pic && vm.bookout.pic.user_id > 0 && vm.user.id == vm.bookout.pic.user_id)));
             return !!(hasStudent && userIsInstructor);
         };
 
@@ -2723,6 +2725,8 @@
                 vm.bookout.put_id = 0;
                 vm.bookout.put = {};
                 vm.bookout.instructor_id = 0;
+                // off means off: an authorised solo left switched on made a plain hire demand an authorising instructor (owner 9 Nov)
+                vm.this_was_supervised_solo = false;
                 if(vm.bookout.pic_id > 0){
                     vm.bookout.payer_id = vm.bookout.pic_id;
                 } else if(vm.bookout.user_id > 0) {

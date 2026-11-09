@@ -197,6 +197,11 @@ protection**; the guard already covers direct save/edit/delete handlers.
   message, fields}`, as a 200) and toasts a warning naming the field(s). It toasts the
   backend's refusal too. FormData / files / password fields are never scanned.
   Backend: BACKEND_UNSUPPORTED_CHARACTERS_GUIDE.md; test `tests/unsupported-characters-interceptor-test.js`.
+- **Error bodies are normalised** (2026-11-09): `errorBodyInterceptor` (writeGuardService.js, registered LAST in app.js)
+  turns an API error whose body is HTML or empty (any status but 401) into `{success:false, error:'SERVER_ERROR' |
+  'NETWORK_ERROR' | 'REQUEST_FAILED', message, status}` (its `toString()` is the message), so `data.success` checks can't
+  read a PHP error page as a success; `ToastService.cleanSubtitle` never shows raw HTML. A press repeated before the busy
+  guard's first tick is swallowed too (`WriteGuard.startedSince(pending)`).
 - **Not covered:** flows whose write starts after an external step (Stripe.js
   `createToken`/`confirmSetup`/`confirmPayment`, a preceding GET, `$timeout`) and the
   three data-changing GET endpoints (`fox/reset_*`, `fox/fix_uncombined`,
@@ -483,6 +488,12 @@ Optional TOTP 2FA + WebAuthn passkeys (added 2026-08). Backend contract:
 - **QR codes** are rendered client-side (the TOTP secret must not leave the page)
   with the checked-in [libs/js/qrcode-generator.js](libs/js/qrcode-generator.js) (global `qrcode`), registered in
   both index.html and the Gruntfile `libs` concat list.
+- **2FA safety (be-alex-3e C22, 9 Nov):** turning 2FA off needs a step-up (`StepUpService.Run({purpose:'two_factor_off'})` →
+  `POST two_factor/disable {step_up_token}`; password / code alone → STEP_UP_REQUIRED) in v1 and v2. A staff reset is two steps,
+  each behind the staff member's own `admin_recovery` step-up: `POST two_factor/admin_reset/{uid} {reason, reset_passkeys,
+  step_up_token}` opens a request with a 24 h hold, then `…/complete` (HOLD_NOT_PASSED / EXPIRED / NOT_FOUND). The member's
+  e-mail links the PUBLIC page `/two_factor_reset_cancel/:token` (publicStates / publicPages / unauthEndpoints;
+  TwoFactorResetCancelController in securityModalControllers.js; `.ec-*`; GET shows, POST cancels, any failure = 404).
 - Show-once secrets (TOTP secret, recovery codes) use `backdrop:'static'` modals
   and are never re-fetchable — don't add endpoints or caching that would change that.
 
@@ -563,6 +574,94 @@ missing, so a child that names the hub via `parent:` must be registered AFTER th
 directly under `dashboard.manage_club`). The host `ui-view` is widened with `:has(> .mhub)` because
 `.centre_align_boxes2 > div` is a centred flex row that shrink-wraps pages to their content.
 
+## v2 designs beside v1 (the "Try our v2 designs" switch, 8 Nov 2026)
+
+Every approved mockup (`../mockups/my-account/*.html`) is built as a **v2 screen beside today's (v1)**, behind ONE
+per-browser switch. Nothing v1 changes when the switch is off. Build log, owners, contracts and hidden-for-backend lists:
+`../mockups/v2-build/README.md` (master board), `BUILDER_BRIEF.md`, `fe-<group>.md` per screen group, `be-alex-3e.md`
+(backend contracts C1–C9). A later release makes v2 the only design (v2 states take the v1 URLs; the switch and v1 files go).
+- **Core** ([js/v2/core/design.js](js/v2/core/design.js), [css/v2/core.css](css/v2/core.css)): localStorage
+  `toaviate_design_v2 = '1'` (`DesignService.isV2/set/toggle`, `$rootScope.designV2`); `<design-switch>` is the menu tag
+  (views/dashboard.html), `<design-back>` = "Back to classic designs" — put it in every v2 page's bar/hero. Abstract state
+  `dashboard.v2` (URL `/dashboard/v2`, template `<div class="v2-host" ui-view>`); body gets `.ta-v2` (grey ground) on v2 states.
+- **Routing:** each screen file registers `dashboard.v2.<name>` (URL under `/my_account/…`, SAME param names as v1) and
+  `DesignRoutesProvider.map('<v1 state>', 'dashboard.v2.<name>')` for every v1 state it replaces (children too). The
+  `$stateChangeStart` hook moves a mapped v1 state to v2 while the switch is on and back while it is off, so email links,
+  bookmarks and `ui-sref` to v1 names keep working in both designs. ⚠️ The redirect carries only DECLARED params: a screen
+  that an outside provider returns to (Stripe `setup_intent`/`payment_intent`, GoCardless `redirect_flow_id`) reads them from
+  `window.location` when its file loads (see js/v2/memberships/memberships.js). `dashboard.my_account` itself maps to
+  `dashboard.v2.home`; its v1 children still open in the v1 shell when they have no v2.
+- **Files:** one JS per screen `js/v2/<screen>/<screen>.js` (states + maps + controllers + small `XV2Data` factories; named
+  functions + `$inject`, checked minification-safe), views `views/v2/<screen>/`, CSS `css/v2/<screen>.css` (one page prefix,
+  tokens only, on ta-base.css). All are registered in index.html; the Gruntfile globs `js/v2/core/*.js` + `js/v2/*/*.js`
+  and lists each `css/v2/*.css` after ta-night.css. Reuse v1 services by injecting them; never edit v1 files for v2.
+- **Layout in the app:** on `dashboard.v2.*` views/dashboard.html swaps its two `.centre_align_boxes2` wrappers for
+  `.v2-shell` (`$rootScope.v2Page`, set in design.js), so none of the legacy `.centre_align_boxes2 …` rules (max-width on
+  every element, centring, phone padding) reach v2. `body.ta-v2` padding-top puts the page 18px under the 50px header (12px on
+  phones) like the mockup frames; `--ta-top-offset: 50px` starts ta-base's full-screen layers (`.ta-dlg-scrim`, the open
+  `.ta-combo`) below `#main_header2` (the mockups leave it 0); `.ta-page` keeps 16px gutters from 769px until its width fits.
+- **v2 baseline (core.css)** — the mockups run on browser defaults + ta-base only; the app's bootstrap / styles.css ELEMENT
+  rules are undone inside v2 at specificity 0,0,1 (`:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) tag`, loaded later, so
+  every class still wins): `* {font-family: Arial}`, button / input line-height + font-weight, checkbox / radio margins (back
+  to the browser's), `label`, `output`, `small`, `dl/dd`, `th`, table margin + table-part vertical-align, `ul li {color:#999;
+  cursor:pointer}`, `a {color:#39c; font-weight:400}`, bootstrap `a:hover/a:focus` colour + underline, the
+  `.ng-valid/.ng-invalid.ng-dirty` green / red borders (ta-base field borders restated for dirty fields), body weight 300.
+  styles.css's own `a:hover` / `a:active` (#4BF / #1FB on black) skip v2 via a zero-weight `:where(:not(.v2-host *, …))`.
+  **Rule: every link class on an `<a>` states its own :hover / :focus colour.** Found a new leak? Fix it in core.css (one
+  place), not per page — confirm with `whorule.js` first.
+- **Design fidelity (8–9 Nov):** every v2 page was compared with its approved mockup (same viewport + theme, the API
+  answered with the mockup scenario's own data) — `scratchpad/v2/fidelity/fidelity.js` (computed-style diff per class
+  signature + side-by-side shots, `routes` fixtures, `HOVER=1`), `agg.py`, `whorule.js`; brief `../mockups/v2-build/
+  FIDELITY_BRIEF.md`; per-page results and deliberate differences in each `fe-<group>.md` "## Fidelity pass". Use the
+  mockup's markup (a `div` where the mockup has a `button` changes line-height, alignment and focus).
+- **Screens:** home + reminders, bookings + history (`bookings/v2/upcoming`, C1), book-out (v1 = the 5 Nov files, v2 =
+  js/v2/bookout `BookoutV2Controller`), book-in + finish & pay (server maths, below), claim a flight (journey log retired →
+  logbook), logbook (+ shared `<ta-combo>` / `TaComboMatch` / `LgbFmt` in js/v2/logbook, aircraft search C7, currency C8),
+  aircraft status / one aircraft / journey log (grounding C5), flight replay (`FlightReplayController` on a v2 template,
+  styles scoped under `.frv2`), safety (SMS member screens), invoices + payments, memberships + payment methods, club
+  documents / price list / vouchers, licences / medical / differences, profile / next of kin / proof of ID / invite,
+  security (2FA lock allows `/dashboard/v2/my_account/security` in app.js), training (syllabus, course, lesson, records),
+  questionnaires / material / exams / CAA forms. Scheduler v2 joined the switch (above). Each group's "hidden until the
+  backend lands" list is in its fe-*.md and on alex-3e's board (B17–B32).
+- **Book-in v2 = server maths** (be-alex-3e C4): `GET plane_log_sheets/v2/book_in/{pls}/context` once (again when crew /
+  claimed flight change) → `POST …/quote` with only the pilot's entries (no writes, p95 ~35 ms; debounced 200 ms, latest
+  wins, "Updating", Pay waits for a complete quote; a stale `context_hash` returns the quote + `context_changed` + the new
+  context) → `POST plane_log_sheets/v2/book_in/{pls}` (quote_hash + idempotency_key + payment{method}): recalculates
+  (`QUOTE_CHANGED` + quote), saves through today's complete_book_in, THEN charges; card machine / new card come back
+  `awaiting_card` + invoice_id (start by invoice_id; new card finishes with `payments/process_payment`), saved-card 3DS =
+  `requires_action` → `cards/check_payment {paymentID}`. Split flights stay on today's PUT (`SPLIT_NOT_SUPPORTED`). The
+  codes are in the write guard's `HANDLED_CODES`; the quote URL is silent (`SILENT_URL_PATTERNS`). v1 book-in is unchanged.
+- **Testing v2** (scratchpad Playwright): `localStorage.setItem('toaviate_design_v2','1')` after login; give every browser
+  context its OWN userAgent (a login deletes the same user's sessions with the same UA, so parallel runs log each other
+  out); move the mouse in runs over 5 min (the idle privacy blur covers the page); desktop 1440 + phone 390, light + night.
+  Lead integration: `scratchpad/v2/lead/v2_all.js` (every mapped v2 state through its v1 state), `di_check.js`.
+  `js/v2/bookin/bookin.js` is the source of truth (the builder's scratchpad pieces + assemble.sh are disposable).
+- **Round 3 (9 Nov):** in-app jumps to a mapped state PUSH history, URL-driven arrivals REPLACE (design.js compares
+  `$location.path()` with the target href — this ui-router passes no transition options); `DesignRoutesProvider.classic(v2, v1)`
+  gives a v2-only page a classic page to fall back to; `<design-back>` has its own scope; `DesignService.set` puts the flag
+  back if a leave guard cancels the move. `ToastService.handledInline()` — call it when a page shows a failed write's error
+  inline, so the write guard's generic toast stays quiet. Phones: core.css gives small ta-base controls an invisible 44px hit
+  area (look unchanged). Sales enquiries (C19): member `/my_account/questions[/:id]` (js/v2/enquiries, opens whatever the
+  switch says, plus the "Ask us" dialog) and the ToAviate inbox `dashboard.super_admin.sales_enquiries` (js/v2/enquiries_admin).
+  Manage Club → Settings "Split Flights: Taxi Time" (`clubs.split_taxi_mode` once → `taxi_once`: parked time between same-crew
+  legs isn't charged | each_leg; shown only with TPC-style charging). Questionnaires: "Students see the correct answers after
+  release" (`show_correct_answers`, C17). SMS bulletins: sign-off due date on publish (C25).
+- **Round 3, finished (9 Nov):** Training hub = one 5-tab bar (`views/v2/training/_hub.html`) on every training / exams
+  page; v2 home has an always-visible "Ask ToAviate" tile and the "Get ready to fly" checklist (C31, same steps for every
+  club); members confirm debriefs filed / edited from 9 Nov 2026 only. **Replay share links** (C30): the public state
+  `flight_share` (`/f/:token`, in publicStates / publicPages / unauthEndpoints); `.htaccess` sends `/f/{token}` to
+  [share.php](share.php) BEFORE the index.html catch-all — it prints og: tags (registration, route, minutes, nm, "Shared
+  by", first photo) into index.html for link-preview crawlers, noindex + origin-only referrer; API host from env
+  `TOAVIATE_API_BASE`, else guessed from the site host. The Gruntfile copies share.php into dist/. Invite links are e-mailed
+  (C32). Manage Club → Settings "Who Can See Flight Tracks" (`clubs.flight_tracks` crew_once_booked_in | all_members).
+  **Units:** fuel uplift = litres (the pump), the check dialog's fuel = US gallons (the aircraft gauge), oil = quarts (the
+  tank, and uplifts come in quart cans) — the journey log column `oil_uplift_litres` actually holds QUARTS. Lead checks:
+  `scratchpad/v2/lead/v2_all.js` (switch on) + `v1_all.js` (switch off, every mapped classic state) + `admin_smoke.js`.
+- **Also from round 2:** cancel reasons are SHOWN in sentence case (`CancellationFeesService.reasonText`, the picker), the
+  stored label stays verbatim; Manage Club → Settings "Members Can Pay at the Card Machine" (`clubs.card_machine_members`,
+  be-alex-3e C10; pay facts `machine.members_allowed` / `can_use`; v2 book-in + invoices honour it); SMS bulletins take
+  `valid_from` / `valid_until` (C11; admin form sends plain YYYY-MM-DD, members see validity / Upcoming / Expired).
+
 ## Scheduler v2 (`/dashboard/bookings_v2`)
 
 The new scheduler (added 2026-11-03) runs ALONGSIDE v1 (`/dashboard/bookings`, FullCalendar) until it is trusted.
@@ -606,9 +705,10 @@ Contract: backend repo `FRONTEND_SCHEDULER_V2_GUIDE.md` (§1 reads, §2 waiting 
   drag-select carries `instructor_id`, no plane) and `dashboard.scheduler_v2.edit` (`/edit/:booking_id`) render into
   `<ui-view name="panel">` at the end of `scheduler_v2.html`; the parent is not re-instantiated, `syncUrl()` is a no-op while a
   child is active, the panel's `sv2:refresh {date}` broadcast moves the page to that day and refetches (a child → parent exit
-  refetches too, de-duplicated). The old `dashboard.bookings` list state hands over to v2 while
-  `localStorage.toaviate_scheduler_v2 === '1'` (set by "Try the new scheduler" and by being on v2; cleared by "Classic
-  scheduler"); the last view is in sessionStorage `toaviate_sv2_view`.
+  refetches too, de-duplicated). Since 8 Nov the scheduler rides the GLOBAL v2 switch (see "v2 designs beside v1"):
+  `dashboard.bookings` / `dashboard.add_booking` open v2 while `toaviate_design_v2 === '1'` (the old
+  `toaviate_scheduler_v2` flag is gone; "Try our v2 designs" / "Back to classic designs" replace the scheduler's own
+  buttons); the last view is in sessionStorage `toaviate_sv2_view`.
 - **Booking card** (`GET scheduler/v2/booking/{id}`): Book out → `dashboard.my_account.bookout_with_booking`; Book in →
   `dashboard.my_account.book_in` needs a plane_log_sheet id (not in the detail yet → falls back to My Account home); Edit →
   `dashboard.scheduler_v2.edit` (the panel). Contact details show only when the backend sends `contact` (club staff). Bottom sheet under 480px.
@@ -722,8 +822,8 @@ Contract: backend repo `FRONTEND_SCHEDULER_V2_GUIDE.md` (§1 reads, §2 waiting 
   a second move while one is saving. The lib reverts a chip when the promise rejects or resolves `{ok:false}`.
 - **Club filter** (2026-11-03): chips in the page bar (All clubs · one chip per club, only when the viewer has >1 club) → `club_id` on day/month/version calls; remembered in localStorage `toaviate_sv2_club` (0 = all); busy-dot caches reset on change.
 - **Page bar** (2026-11-05): two rows — title + hint with the actions (Find a slot → `dashboard.slot_search`, Waiting list,
-  Classic scheduler) on the right; a filters row with "Showing" + the club chips (several clubs only) and the "Times are club
-  local time" pill at the far right. Phones: the two buttons share a row, Classic scheduler below, chips full width.
+  Back to classic designs) on the right; a filters row with "Showing" + the club chips (several clubs only) and the "Times are club
+  local time" pill at the far right. Phones: the two buttons share a row, Back to classic designs below, chips full width.
 
 ## Cancellation fees (no-show / late cancellation)
 

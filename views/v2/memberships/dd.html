@@ -1,0 +1,53 @@
+<!-- v2 BACK FROM GOCARDLESS — joining / accepting (dashboard.v2.memberships_dd) or new bank details (dashboard.v2.membership_dd_update).
+     MembershipDDV2Controller: go_card/create_mandate | go_card/update_mandate with the redirect_flow_id. -->
+<main class="ta-page" data-e2e="mem-dd-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-university"></i></span>
+        <div><h2>Direct debit</h2><p>{{ vm.update ? 'Your bank details' + (vm.clubTitle ? ' for ' + vm.clubTitle : '') : 'Setting up your direct debit' + (vm.clubTitle ? ' with ' + vm.clubTitle : '') }}</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ng-if="!vm.update" ui-sref="dashboard.my_account.memberships" aria-label="Back to Memberships"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Memberships</span></a>
+      <a class="ta-back" ng-if="vm.update" ui-sref="dashboard.my_account.memberships.edit({ membership_id: vm.membershipId })" aria-label="Back to the membership"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Membership</span></a>
+    </div>
+  </section>
+
+  <section class="ta-card mem-out" data-e2e="mem-dd-out">
+    <span class="ta-steps" aria-label="Progress" ng-if="vm.stage !== 'none'">
+      <span ng-repeat-start="s in vm.steps" class="ta-steps__line" ng-show="$index > 0" ng-class="{'ta-steps__line--done': vm.lineDone($index)}"></span>
+      <span ng-repeat-end class="ta-steps__s {{ vm.stepClass($index) }}"><i></i>{{ s }}</span>
+    </span>
+
+    <!-- saving -->
+    <span class="mem-big mem-big--busy" ng-if="vm.stage === 'saving'"><span class="ta-spin ta-spin--dark"></span></span>
+    <h3 ng-if="vm.stage === 'saving'">{{ vm.update ? 'Saving your new bank details' : 'Confirming your direct debit' }}</h3>
+    <p ng-if="vm.stage === 'saving'">{{ vm.update ? 'You\'ll be back on your membership in a moment.' : 'GoCardless is confirming the mandate with the club. This takes a few seconds — keep this page open.' }}</p>
+
+    <!-- failed -->
+    <span class="mem-big mem-big--bad" ng-if="vm.stage === 'failed'"><i class="fas fa-times"></i></span>
+    <h3 ng-if="vm.stage === 'failed'">The direct debit wasn't set up</h3>
+    <p ng-if="vm.stage === 'failed'">Nothing was collected. {{ vm.update ? 'Your old bank details are still in use.' : vm.mode === 'accept' ? 'The invitation is still waiting for you on Memberships.' : 'Your request to join is still on Memberships, but the club can\'t approve it without a direct debit.' }}<span ng-if="vm.why"> {{ vm.why }}</span></p>
+    <div class="mem-out__btns" ng-if="vm.stage === 'failed'">
+      <a class="ta-btn" ng-if="!vm.update" ui-sref="dashboard.my_account.memberships">Back to memberships</a>
+      <a class="ta-btn" ng-if="vm.update" ui-sref="dashboard.my_account.memberships.edit({ membership_id: vm.membershipId })">Back to membership</a>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retry()"><i class="fas fa-redo"></i>Try again</button>
+    </div>
+
+    <!-- done: joining / accepting (an update goes straight back to the membership) -->
+    <span class="mem-big" ng-if="vm.stage === 'done'"><i class="fas fa-check"></i></span>
+    <h3 ng-if="vm.stage === 'done' && vm.mode === 'join'">Direct debit set up — request sent</h3>
+    <h3 ng-if="vm.stage === 'done' && vm.mode === 'accept'">{{ vm.pending ? 'Direct debit set up' : 'You\'re a member of ' + vm.clubTitle }}</h3>
+    <h3 ng-if="vm.stage === 'done' && vm.mode === 'update'">Bank details saved</h3>
+    <p ng-if="vm.stage === 'done' && vm.mode === 'join'">{{ vm.clubTitle }} now has your request. When they approve it, {{ vm.req && vm.req.money ? vm.req.money + ' is collected' : 'the first payment is collected' }} and your membership starts. GoCardless emails you a confirmation of the direct debit.</p>
+    <div class="ta-panel" ng-if="vm.stage === 'done' && vm.mode === 'join' && vm.req"><div class="mem-sum"><div class="mem-sum__row"><span>Membership</span><b>{{ vm.req.name }}</b></div><div class="mem-sum__row"><span>Price</span><b>{{ vm.req.price }}</b></div><div class="mem-sum__row"><span>First payment</span><b>When the club approves</b></div></div></div>
+    <p ng-if="vm.stage === 'done' && vm.mode === 'accept'">{{ vm.serverLine || 'Your membership has started. Payments are collected by direct debit — GoCardless emails you before every payment.' }}</p>
+    <div class="mem-out__btns" ng-if="vm.stage === 'done' && vm.mode !== 'update'"><button type="button" class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships">Done</button></div>
+
+    <!-- opened without coming back from GoCardless -->
+    <span class="mem-big mem-big--busy" ng-if="vm.stage === 'none'"><i class="fas fa-university"></i></span>
+    <h3 ng-if="vm.stage === 'none'">Nothing to confirm</h3>
+    <p ng-if="vm.stage === 'none'">This page finishes a direct debit set-up when GoCardless sends you back. Your memberships show what's set up already.</p>
+    <div class="mem-out__btns" ng-if="vm.stage === 'none'"><a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships">Memberships</a></div>
+  </section>
+</main>

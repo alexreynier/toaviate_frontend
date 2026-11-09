@@ -1,0 +1,137 @@
+<!-- ═══ v2 Aircraft journey log (state dashboard.v2.aircraft_journey_log, /aircraft_journey_log/:plane_id, data.screen 'journey') ═══
+     Design: mockups/my-account/aircraft.html → Journey log. Flights grouped by day with a subtotal; every entry shows PIC,
+     PUT, from → to by name, brakes off → on and block time (only the rounding follows the club). Tap a flight to open
+     crew, take-off/landing, landings, uplifts, the stored weather and Flight replay. -->
+<main class="ta-page acs-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-book" aria-hidden="true"></i></span>
+        <div><h2>{{ vm.aircraft.registration || 'Aircraft' }} journey log</h2><p>Every flight in this {{ vm.aircraft._model || vm.aircraft.plane_type || 'aircraft' }}, newest first</p><p class="acs-classic"><design-back></design-back></p></div>
+      </div>
+      <a class="ta-back" href ng-click="vm.toAircraft()" aria-label="Back to {{ vm.aircraft.registration }} status" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">{{ vm.aircraft.registration ? vm.aircraft.registration + ' status' : 'Aircraft status' }}</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools acs-tb">
+      <div class="acs-tools">
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openTimes()" no-busy-guard data-e2e="acs-times"><i class="far fa-clock"></i>Times {{ vm.roundingNow().short }}<i class="fas fa-chevron-down"></i></button>
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openExport()" no-busy-guard data-e2e="acs-export"><i class="fas fa-download"></i>Export</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="vm.canAddFlight" ng-click="vm.openAddFlight()" no-busy-guard><i class="fas fa-plus"></i>Add missing flight</button>
+      </div>
+      <label class="ta-search"><i class="fas fa-search"></i><input id="acs-jq" type="search" placeholder="Date, pilot or airfield" ng-model="vm.jq" ng-change="vm.onJq()" aria-label="Search the journey log"></label>
+    </div>
+  </section>
+
+  <div class="ta-note ta-note--good acs-undo" ng-if="vm.undo"><i class="fas fa-check-circle"></i><div><b>Flight added.</b> It’s waiting in the book-in queue for people and payment.</div><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.undoAdd()" ng-disabled="vm.undo.busy"><i class="fas fa-undo"></i>Undo</button></div>
+  <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.loadError"><i class="fas fa-exclamation-circle"></i><div><b>Couldn’t load this journey log.</b> Check your connection and open this page again.</div></div>
+
+  <section class="ta-list acs-jl" aria-label="Flights" ng-if="!vm.loadError">
+    <div ng-if="vm.loading"><div class="acs-skelrow" ng-repeat="n in [1,2,3,4]"><span class="ta-skel acs-skel-c"></span><span class="ta-skel"></span><span class="ta-skel"></span></div></div>
+
+    <div class="ta-empty" ng-if="!vm.loading && !vm.logs.length"><span class="ta-empty__ic"><i class="fas fa-book"></i></span><h4>No flights yet</h4><p>Flights in {{ vm.aircraft.registration || 'this aircraft' }} appear here once they’re booked in or claimed from the tracker.</p></div>
+    <div class="ta-empty" ng-if="!vm.loading && vm.logs.length && !vm.jShown"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No flights match “{{ vm.jq }}”</h4><p>Try a date (4 Nov, 04/11/2026), a pilot’s name or an airfield (EGTK or Oxford). Older flights only appear once you show them.</p><button type="button" class="ta-btn" ng-click="vm.clearJq()" no-busy-guard>Clear the search</button></div>
+
+    <div class="ta-list__cols" ng-if="!vm.loading && vm.jShown"><span></span><span>Pilots</span><span>From</span><span>To</span><span>Brakes off → on</span><span class="ta-r">Block</span><span class="acs-c-up">Uplift</span><span></span></div>
+    <div class="acs-qnote" ng-if="vm.jq && vm.jShown">{{ vm.plural(vm.jShown, 'flight') }} match “{{ vm.jq }}” in the latest {{ vm.logs.length }}</div>
+
+    <div class="acs-day" ng-repeat="g in vm.dayGroups track by g.date">
+      <div class="ta-group"><span>{{ g.label }}</span><span>{{ g.sub }}</span></div>
+      <div class="ta-row" ng-repeat="l in g.flights track by l.id" ng-class="{'ta-row--open': vm.jopen === l, 'ta-row--new': l._new}">
+        <button type="button" class="ta-row__main" ng-click="vm.toggleFlight(l)" aria-expanded="{{ vm.jopen === l }}" no-busy-guard data-e2e="acs-flight">
+          <span class="ta-row__lead">
+            <span class="ta-av" ng-if="l._picIns" ng-attr-style="{{ l._insColour ? '--av:' + l._insColour : undefined }}" title="{{ l._pic.full }} (instructor)">{{ l._picInitials }}</span>
+            <span class="ta-av ta-av--member" ng-if="!l._picIns" title="Member"><i class="fas fa-user"></i></span>
+          </span>
+          <span class="ta-row__txt">
+            <span class="acs-crew">
+              <span class="acs-crew__r"><span class="acs-role" title="Pilot in command">PIC</span><span>{{ l._pic ? l._pic.short : 'Not recorded' }}</span><span class="ta-tag" ng-if="l._solo">Solo</span></span>
+              <span class="acs-crew__r" ng-if="l._put"><span class="acs-role" title="Pilot under training">PUT</span><span>{{ l._put.short }}</span></span>
+            </span>
+            <span class="acs-rt ta-phone-only">{{ l._from }} <i class="fas fa-long-arrow-alt-right"></i> {{ l._to }}</span>
+          </span>
+          <span class="ta-row__meta">
+            <span class="acs-af ta-desk-only"><b>{{ l._from }}</b><small>{{ l.departure_airport_code }}</small></span>
+            <span class="acs-af ta-desk-only"><b>{{ l._to }}</b><small>{{ l.destination_airport_code }}</small></span>
+            <span class="acs-t" title="{{ l._t.tooltip }}"><span class="acs-t__k ta-phone-only">Brakes</span>{{ l._t.from }} <i class="fas fa-long-arrow-alt-right"></i> {{ l._t.to }}</span>
+            <span class="acs-c acs-c-up" ng-class="{'acs-c--none': !l._up}"><i class="fas fa-gas-pump"></i>{{ l._up || 'None' }}</span>
+          </span>
+          <span class="ta-row__end acs-dur">{{ l._t.durationHM || '—' }}</span>
+          <span class="ta-row__acts">
+            <span class="ta-ib" ng-if="l._replay" role="button" tabindex="0" title="Flight replay" aria-label="Flight replay" ng-click="$event.stopPropagation(); vm.replay(l)" no-busy-guard><i class="fas fa-play-circle"></i></span>
+            <span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.jopen === l ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span>
+          </span>
+          <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+        </button>
+        <div class="ta-detail" ng-if="vm.jopen === l">
+          <div class="ta-panel ta-panel--white">
+            <dl class="ta-facts ta-facts--3">
+              <div class="ta-fact"><dt>Pilot in command (PIC)</dt><dd>{{ l._pic ? l._pic.full : 'Not recorded' }}</dd></div>
+              <div class="ta-fact"><dt>{{ l._put ? 'Pilot under training (PUT)' : l._solo ? 'Solo' : 'Crew' }}</dt><dd>{{ l._put ? l._put.full : l._solo ? 'Authorised solo' : 'Flown alone' }}</dd></div>
+              <div class="ta-fact" ng-if="l._ins && !l._picIns"><dt>Instructor</dt><dd>{{ l._ins }}</dd></div>
+              <div class="ta-fact"><dt>Route</dt><dd>{{ l._from }} ({{ l.departure_airport_code }}) → {{ l._to }} ({{ l.destination_airport_code }})</dd></div>
+              <div class="ta-fact"><dt>Brakes off → on</dt><dd>{{ l._ex.from }} → {{ l._ex.to }} <small ng-if="!l._ex.missing">· {{ l._rd.from }} → {{ l._rd.to }} rounded</small></dd></div>
+              <div class="ta-fact"><dt>Take-off → landing</dt><dd><span ng-if="l._air">{{ l._air.from }} → {{ l._air.to }} <small ng-if="l._air.durationHM">· {{ l._air.durationHM }} airborne</small></span><span ng-if="!l._air">Not recorded</span></dd></div>
+              <div class="ta-fact"><dt>Landings</dt><dd>{{ l._ldg }}</dd></div>
+              <div class="ta-fact"><dt>Fuel added</dt><dd>{{ l._fuel }}</dd></div>
+              <div class="ta-fact"><dt>Oil added</dt><dd>{{ l._oil }}</dd></div>
+            </dl>
+          </div>
+          <div class="acs-wxmount"><flight-weather-panel flight-id="l.id" dep-name="l.departure_airport" arr-name="l.destination_airport"></flight-weather-panel></div>
+          <div class="ta-detail__foot">
+            <button type="button" class="ta-btn" ng-if="l._replay" ng-click="vm.replay(l)" no-busy-guard><i class="fas fa-play-circle"></i>Flight replay</button>
+            <span class="acs-line" ng-if="!l._replay">No tracker recording for this flight, so there’s no replay.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div ng-if="!vm.loading && vm.logs.length && (vm.jShown || !vm.jq)">
+      <div ng-if="vm.loadingMore"><div class="acs-skelrow" ng-repeat="n in [1,2,3]"><span class="ta-skel acs-skel-c"></span><span class="ta-skel"></span><span class="ta-skel"></span></div></div>
+      <div class="acs-more" ng-if="!vm.loadingMore && !vm.allLoaded"><button type="button" class="ta-btn" ng-click="vm.more()" no-busy-guard data-e2e="acs-more"><i class="fas fa-history"></i>Show older flights</button><p>Showing the latest {{ vm.logs.length }} flights<span ng-if="vm.jq"> — the search looks through these only</span>.</p></div>
+      <div class="acs-more" ng-if="!vm.loadingMore && vm.allLoaded"><p><i class="fas fa-check"></i> That’s every flight in {{ vm.aircraft.registration }}’s journey log.</p></div>
+    </div>
+  </section>
+
+  <!-- How times are shown (rounding only; brakes off → on is fixed) -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'times'" ng-click="vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+      <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-clock"></i>How times are shown</div><div class="ta-dlg__title" id="acs-dlg-t">Flight times</div><div class="ta-dlg__sub">The journey log always shows brakes off to brakes on. This only changes the rounding, for you on this device.</div></div>
+      <div class="ta-dlg__body"><div class="acs-optlist">
+        <button type="button" class="ta-opt" ng-repeat="o in vm.roundingOptions" ng-class="{'ta-opt--on': vm.roundingNow().mode === o.mode}" ng-click="vm.setRounding(o.mode)" no-busy-guard>
+          <span class="ta-opt__ic"><i class="fas" ng-class="o.ic"></i></span><span><span class="ta-opt__t">{{ o.t }} <span class="ta-tag" ng-if="o.mode === vm.clubRounding()">Club setting</span></span><span class="ta-opt__s">{{ o.s }}</span></span><span class="ta-opt__dot"></span>
+        </button>
+      </div></div>
+      <div class="ta-dlg__ft"><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.closeDlg()" no-busy-guard>Done</button></div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'export'" ng-click="vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="acs-dlg-t" ng-click="$event.stopPropagation()">
+      <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-download"></i>Export journey log</div><div class="ta-dlg__title" id="acs-dlg-t">{{ vm.aircraft.registration }}</div><div class="ta-dlg__sub">Every column, oldest first, with totals</div></div>
+      <div class="ta-dlg__body">
+        <span class="ta-label">Date range</span>
+        <div class="ta-chips">
+          <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.exportPreset === 'all'}" ng-click="vm.exPreset('all')" no-busy-guard>All time</button>
+          <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.exportPreset === '30d'}" ng-click="vm.exPreset('30d')" no-busy-guard>Last 30 days</button>
+          <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.exportPreset === '90d'}" ng-click="vm.exPreset('90d')" no-busy-guard>Last 90 days</button>
+          <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.exportPreset === 'year'}" ng-click="vm.exPreset('year')" no-busy-guard>This year</button>
+        </div>
+        <div class="acs-dlg-grid acs-dlg-grid--2">
+          <div class="ta-field"><span class="ta-label">From</span><ta-date-picker ng-model="vm.ex.from" options="vm.pastOnly" block="true" format="short" placeholder="First flight"></ta-date-picker></div>
+          <div class="ta-field"><span class="ta-label">To</span><ta-date-picker ng-model="vm.ex.to" options="vm.pastOnly" block="true" format="short" placeholder="{{ vm.todayText }}"></ta-date-picker></div>
+        </div>
+        <div class="ta-note ta-note--info"><i class="far fa-calendar-check"></i><div>{{ vm.exRange() }}</div></div>
+        <span class="ta-label">Download as</span>
+        <div class="acs-optlist">
+          <button type="button" class="ta-opt" ng-repeat="f in vm.exFormats" ng-class="{'ta-opt--on': vm.ex.fmt === f.id}" ng-click="vm.ex.fmt = f.id" no-busy-guard>
+            <span class="ta-opt__ic"><i class="fas" ng-class="f.ic"></i></span><span><span class="ta-opt__t">{{ f.t }}</span><span class="ta-opt__s">{{ f.s }}</span></span><span class="ta-opt__dot"></span>
+          </button>
+        </div>
+      </div>
+      <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.exGo()" ng-disabled="vm.exporting" no-busy-guard data-e2e="acs-export-go"><i class="fas fa-spinner fa-spin" ng-show="vm.exporting"></i><i class="fas fa-download" ng-show="!vm.exporting"></i>{{ vm.exporting ? 'Preparing your file…' : 'Download ' + vm.exLabel() }}</button></div>
+    </div>
+  </div>
+</main>

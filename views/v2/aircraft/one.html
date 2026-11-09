@@ -1,0 +1,153 @@
+<!-- ═══ v2 Aircraft status · one aircraft (state dashboard.v2.aircraft_one, /aircraft_status/:registration, data.screen 'one') ═══
+     Design: mockups/my-account/aircraft.html → One aircraft. Hero (registration, status, home base, now, seats, restrictions,
+     Report a defect) → status band (hours · days · meter · documents · defects) → cards; "What it costs" in the rail. -->
+<main class="ta-page acs-page">
+  <div class="ta-stack" ng-if="vm.loading" aria-label="Loading"><div class="acs-skel"><div class="ta-skel acs-skel__big"></div><div class="ta-skel"></div></div><div class="acs-skel"><div class="ta-skel"></div><div class="ta-skel acs-skel__big"></div></div></div>
+
+  <section class="ta-card" ng-if="!vm.loading && vm.notFound">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>{{ vm.loadError ? 'Couldn’t load the aircraft' : 'No aircraft “' + (vm.$stateRegistration || '') + '” at your clubs' }}</h4><p>{{ vm.loadError ? 'Check your connection and open this page again.' : 'It may have left the club’s fleet. Every aircraft you can fly is on the fleet page.' }}</p><button type="button" class="ta-btn" ng-click="vm.toFleet()" no-busy-guard><i class="fas fa-arrow-left"></i>All aircraft</button></div>
+  </section>
+
+  <div class="acs-contents" ng-if="!vm.loading && vm.plane" ng-init="p = vm.plane">
+    <section class="ta-hero" aria-label="{{ p.registration }}">
+      <div class="ta-hero__top">
+        <a class="ta-hero__back" href ng-click="vm.toFleet()" no-busy-guard><i class="fas fa-arrow-left"></i>All aircraft</a>
+        <span class="ta-hero__eyebrow"><i class="fas fa-clipboard-check"></i>Aircraft status</span>
+      </div>
+      <div class="acs-hero__row">
+        <div class="ta-hero__head">
+          <span class="ta-hero__badge"><i class="fas fa-plane"></i></span>
+          <div>
+            <div class="ta-hero__title">{{ p.registration }}</div>
+            <div class="acs-hero__sub"><span>{{ p._model ? p._model + ' · ' : '' }}{{ p.plane_type }} · {{ p._club._title }}</span><span class="acs-hero__st" ng-class="'acs-hero__st--' + p._st.tone"><i></i>{{ p._st.label }}</span></div>
+            <div class="acs-classic"><design-back></design-back></div>
+          </div>
+        </div>
+        <div class="acs-hero__btns"><button type="button" class="ta-hero__btn" ng-click="vm.openDefect(p)" no-busy-guard data-e2e="acs-hero-defect"><i class="fas fa-exclamation-triangle"></i>Report a defect</button></div>
+      </div>
+      <div class="ta-hero__facts">
+        <div class="ta-hero__fact" ng-if="p._club._home"><div class="ta-hero__fact-k">Home base</div><div class="ta-hero__fact-v">{{ p._club._home.code }} {{ p._club._home.title }}</div></div>
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">Now</div><div class="ta-hero__fact-v">{{ p._st.k === 'grounded' ? 'Grounded for maintenance' : p._outNow ? p._outNow : (p._here ? 'At ' + p._here : 'Available') }}</div></div>
+        <div class="ta-hero__fact" ng-if="p._seats"><div class="ta-hero__fact-k">Seats</div><div class="ta-hero__fact-v">{{ p._seats }}</div></div>
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">Restrictions</div><div class="ta-hero__fact-v">{{ p._restr }}</div></div>
+      </div>
+    </section>
+
+    <section class="ta-tiles acs-band" ng-class="{'acs-band--4': !p._meter}" aria-label="{{ p.registration }} at a glance">
+      <div class="ta-tile" ng-class="{'ta-tile--bad': p._hours.tone === 'bad', 'ta-tile--attn': p._hours.tone === 'warn'}">
+        <span class="ta-tile__k"><i class="fas fa-hourglass-half"></i>Hours to maintenance</span>
+        <span class="ta-tile__v">{{ p._hours.v }}</span>
+        <span class="ta-tile__s">{{ p._hours.s }}</span>
+        <div class="ta-meter" ng-if="p._hours.pct != null" ng-class="{'ta-meter--bad': p._hours.tone === 'bad', 'ta-meter--warn': p._hours.tone === 'warn'}"><div class="ta-meter__bar" style="--v: {{ p._hours.pct }}%"></div></div>
+      </div>
+      <div class="ta-tile" ng-class="{'ta-tile--bad': p._days.tone === 'bad', 'ta-tile--attn': p._days.tone === 'warn'}">
+        <span class="ta-tile__k"><i class="fas fa-calendar-alt"></i>Days to maintenance</span>
+        <span class="ta-tile__v" ng-class="{'ta-tile__v--words': p._days.words}">{{ p._days.v }}</span>
+        <span class="ta-tile__s">{{ p._days.s }}</span>
+        <div class="ta-meter" ng-if="p._days.pct != null" ng-class="{'ta-meter--bad': p._days.tone === 'bad', 'ta-meter--warn': p._days.tone === 'warn'}"><div class="ta-meter__bar" style="--v: {{ p._days.pct }}%"></div></div>
+      </div>
+      <div class="ta-tile" ng-if="p._meter">
+        <span class="ta-tile__k"><i class="fas fa-tachometer-alt"></i>{{ p._meter.label }}</span>
+        <span class="ta-tile__v">{{ p._meter.v }}</span>
+        <span class="ta-tile__s">{{ p._meter.s }}</span>
+      </div>
+      <button type="button" class="ta-tile" ng-class="{'ta-tile--bad': p._docTone === 'bad', 'ta-tile--attn': p._docTone === 'warn'}" ng-click="vm.jump('acs-docs')" no-busy-guard>
+        <i class="fas fa-chevron-right acs-tile-chev"></i><span class="ta-tile__k"><i class="fas fa-file-alt"></i>Documents</span>
+        <span class="ta-tile__v">{{ p._docValid }}<small>of {{ p._docs.length }} valid</small></span><span class="ta-tile__s">{{ p._docTileS }}</span>
+      </button>
+      <button type="button" class="ta-tile" ng-class="{'ta-tile--bad': p._defTone === 'bad', 'ta-tile--attn': p._defTone === 'warn'}" ng-click="vm.jump('acs-defects')" no-busy-guard>
+        <i class="fas fa-chevron-right acs-tile-chev"></i><span class="ta-tile__k"><i class="fas fa-tools"></i>Reported defects</span>
+        <span class="ta-tile__v">{{ p._open.length || (p._live.length ? '0' : 'None') }}<small ng-if="p._open.length">open</small><small ng-if="!p._open.length && p._live.length">open · {{ p._live.length }} deferred</small></span>
+        <span class="ta-tile__s acs-1line">{{ p._live.length ? vm.defectNames(p) : 'Nothing reported' }}</span>
+      </button>
+    </section>
+
+    <div class="ta-cols ta-cols--rail">
+      <div class="ta-stack">
+        <div class="ta-note" ng-if="p._st.tone !== 'good' && p._st.k !== 'defect'" ng-class="p._st.tone === 'bad' ? 'ta-note--bad' : 'ta-note--warn'"><i class="fas" ng-class="p._st.ic"></i><div><b>{{ p._st.k === 'grounded' ? p.registration + ' is grounded.' : p._st.label + '.' }}</b> {{ p._st.why }}</div></div>
+
+        <!-- Maintenance -->
+        <section class="ta-card" id="acs-maint">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-wrench"></i></span><div class="ta-card__ttl"><h3>Maintenance</h3><p>When the next maintenance is due — by hours flown or by date, whichever comes first</p></div>
+            <span class="ta-card__right"><span class="ta-pill" ng-class="'ta-pill--' + vm.maintPill(p).tone"><i class="fas" ng-class="vm.maintPill(p).ic"></i>{{ vm.maintPill(p).label }}</span></span></div>
+          <div class="ta-note ta-note--bad" ng-if="p._hours.v === '—'"><i class="fas fa-question-circle"></i><div>{{ p.maintenance.hours_remaining_error || 'We have no record of the last maintenance — please contact the club.' }}</div></div>
+          <div class="acs-mgrid" ng-if="p._hours.v !== '—'">
+            <div class="ta-panel"><span class="ta-sec-k">By hours</span>
+              <span class="acs-big" ng-class="{'acs-bad': p._hours.tone === 'bad', 'acs-warn': p._hours.tone === 'warn'}">{{ p._hours.v }}<small>{{ +p.maintenance.hours_remaining < 0 ? 'over' : 'left' }}</small></span>
+              <div class="ta-meter" ng-class="{'ta-meter--bad': p._hours.tone === 'bad', 'ta-meter--warn': p._hours.tone === 'warn'}"><div class="ta-meter__bar" style="--v: {{ p._hours.pct }}%"></div></div>
+              <span class="acs-line" ng-if="vm.flownSince(p)"><b>{{ vm.flownSince(p) }}</b> flown since the last maintenance{{ vm.lastMaint(p) ? ' — ' + vm.lastMaint(p) : '' }}.<span ng-if="+p.hours_between_checks"> Maintenance every {{ p.hours_between_checks }} hours.</span></span>
+              <span class="acs-line" ng-if="!vm.flownSince(p) && +p.hours_between_checks">Maintenance every {{ p.hours_between_checks }} hours.</span>
+            </div>
+            <div class="ta-panel"><span class="ta-sec-k">By date</span>
+              <span class="acs-big" ng-class="{'acs-bad': p._days.tone === 'bad', 'acs-warn': p._days.tone === 'warn'}">{{ p._days.v }}<small ng-if="p._days.unit">{{ p._days.unit }}</small></span>
+              <div class="ta-meter" ng-if="p._days.pct != null" ng-class="{'ta-meter--bad': p._days.tone === 'bad', 'ta-meter--warn': p._days.tone === 'warn'}"><div class="ta-meter__bar" style="--v: {{ p._days.pct }}%"></div></div>
+              <span class="acs-line" ng-if="vm.realDate(p.maintenance.next_maintenance)">Next maintenance by <b>{{ vm.fDayLong(p.maintenance.next_maintenance) }}</b> — the maintenance date or the ARC expiry, whichever is sooner.</span>
+              <span class="acs-line" ng-if="!vm.realDate(p.maintenance.next_maintenance)">The club hasn’t recorded a date for the next maintenance — hours decide for now.</span>
+            </div>
+          </div>
+          <div class="ta-note ta-note--info acs-ext" ng-if="p.maintenance.day_remaining_message"><i class="fas fa-info-circle"></i><div>{{ p.maintenance.day_remaining_message }}</div></div>
+        </section>
+
+        <!-- Reported defects -->
+        <section class="ta-card" id="acs-defects">
+          <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--warn': p._open.length}"><i class="fas fa-tools"></i></span><div class="ta-card__ttl"><h3>Reported defects</h3><p>{{ p._live.length ? 'Open and deferred defects — read them before you fly' : 'Anything wrong that members or the club have reported' }}</p></div>
+            <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openDefect(p)" no-busy-guard><i class="fas fa-plus"></i>Report a defect</button></span></div>
+          <div class="ta-stack" ng-include="'views/v2/aircraft/_defects.html'"></div>
+        </section>
+
+        <!-- Documents -->
+        <section class="ta-card" id="acs-docs">
+          <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--warn': p._docTone !== 'good'}"><i class="fas fa-file-alt"></i></span><div class="ta-card__ttl"><h3>Documents</h3><p>Certificates the aircraft must carry, with their expiry — warnings start 30 days before</p></div></div>
+          <div class="ta-stack" ng-include="'views/v2/aircraft/_docs.html'"></div>
+        </section>
+
+        <!-- Today's checks -->
+        <section class="ta-card" id="acs-checks">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-check"></i></span><div class="ta-card__ttl"><h3>{{ p._checksAll ? 'Checks' : 'Today’s checks' }}</h3><p>{{ p._checksAll ? 'Every check recorded, newest first' : 'Checks recorded today, ' + vm.fDay(vm.today) + ' — fuel and oil on board at the time' }}</p></div>
+            <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openCheck(p)" no-busy-guard><i class="fas fa-plus"></i>Complete a check</button></span></div>
+          <div class="ta-stack" ng-include="'views/v2/aircraft/_checks.html'"></div>
+        </section>
+
+        <!-- Fuel & oil added -->
+        <section class="ta-card">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-gas-pump"></i></span><div class="ta-card__ttl"><h3>Fuel &amp; oil added</h3><p>Receipts on record, newest first</p></div>
+            <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openFuel(p)" no-busy-guard><i class="fas fa-plus"></i>Add fuel or oil</button></span></div>
+          <div class="acs-rows" ng-if="p._receipts.length">
+            <div class="acs-rc" ng-repeat="r in vm.receiptsShown(p) track by $index">
+              <span class="ta-ic"><i class="fas" ng-class="r.item === 'Oil' ? 'fa-oil-can' : 'fa-gas-pump'"></i></span>
+              <span><span class="acs-rc__t">{{ r.item }} · {{ vm.nf1(vm.qty(r)) }} {{ vm.unit(r) }}</span>
+                <span class="acs-rc__s">{{ vm.fDate(r.created_at) }}<span ng-if="r.invoice_number"> · {{ r.invoice_number }}</span><span ng-if="r.modified_quantity != null && r.modified_quantity !== ''"> · corrected from {{ vm.nf1(r.quantity) }} {{ vm.unit(r) }}</span><span ng-if="r.plane_log_sheet_id"> · on a flight</span></span></span>
+              <span class="acs-rc__r">
+                <button type="button" class="ta-ib" ng-if="vm.hasImage(r.image)" title="See the receipt" aria-label="See the receipt" ng-click="vm.openReceipt(p, r)" no-busy-guard><i class="fas fa-receipt"></i></button>
+                <span class="ta-muted" ng-if="!vm.hasImage(r.image)" title="No receipt photo">—</span>
+              </span>
+            </div>
+          </div>
+          <div class="acs-sub" ng-if="p._receipts.length > 5 && !p._receiptsAll"><span class="acs-line">Showing the latest 5 of {{ p._receipts.length }}</span><button type="button" class="ta-link" ng-click="p._receiptsAll = true" no-busy-guard>Show all <i class="fas fa-arrow-down"></i></button></div>
+          <div class="ta-note" ng-if="!p._receipts.length"><i class="fas fa-info-circle"></i><div>Nothing recorded yet. Fuel and oil added during a flight go on that flight’s book-in.</div></div>
+        </section>
+
+        <!-- Journey log preview -->
+        <section class="ta-card">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-book"></i></span><div class="ta-card__ttl"><h3>Journey log</h3><p>The latest flights in {{ p.registration }} · times {{ vm.roundingShort(p) }}</p></div>
+            <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openJourney(p)" no-busy-guard data-e2e="acs-full-journey">Full journey log <i class="fas fa-arrow-right"></i></button></span></div>
+          <div class="acs-rows" ng-if="p._logs.length"><div class="acs-mini" ng-repeat="l in p._logs | limitTo:3 track by l.id" ng-include="'views/v2/aircraft/_flight_mini.html'"></div></div>
+          <div class="ta-note" ng-if="!p._logs.length"><i class="fas fa-info-circle"></i><div>No flights in the journey log yet.</div></div>
+        </section>
+      </div>
+
+      <aside class="ta-stack ta-rail">
+        <section class="ta-card">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas" ng-class="vm.curIcon(p)"></i></span><div class="ta-card__ttl"><h3>What it costs</h3><p>Your rates at {{ p._club._title }}</p></div></div>
+          <table class="ta-table ta-table--plain" ng-if="p._fees">
+            <thead><tr><th>Item</th><th>Price</th></tr></thead>
+            <tbody><tr ng-repeat="f in p._fees"><td>{{ f.k }}<br><span class="acs-line">{{ f.s }}</span></td><td class="ta-money">{{ f.v }}</td></tr></tbody>
+          </table>
+          <div class="ta-note" ng-if="!p._fees"><i class="fas fa-info-circle"></i><div>The club hasn’t set prices for this aircraft.</div></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div ng-include="'views/v2/aircraft/_dialogs.html'"></div>
+</main>

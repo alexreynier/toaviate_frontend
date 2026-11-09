@@ -1,0 +1,55 @@
+<!-- ═══ v2 Safety · Bulletins (state dashboard.v2.safety_bulletins, data.screen 'bulletins') ═══
+     Unread is per browser (localStorage): New until opened, for 30 days after publishing. -->
+<main class="ta-page saf-page">
+  <div class="saf-contents" ng-include="'views/v2/safety/_bar.html'"></div>
+  <div class="saf-contents" ng-include="'views/v2/safety/_states.html'"></div>
+
+  <section class="ta-list saf-blist" ng-if="vm.club_id && !vm.forbidden" data-e2e="saf-bulletins">
+    <div class="ta-list__tools" ng-if="vm.bulletins.length">
+      <div class="ta-chips" role="group" aria-label="Filter bulletins">
+        <button type="button" class="ta-chip" ng-repeat="c in vm.chipList track by c.id" ng-class="{'ta-chip--on': vm.filter === c.id}" aria-pressed="{{ vm.filter === c.id }}" ng-click="vm.setFilter(c.id)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+      </div>
+    </div>
+    <div class="saf-skel" ng-if="vm.loading" aria-label="Loading"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+    <div class="ta-empty" ng-if="!vm.loading && !vm.bulletins.length"><span class="ta-empty__ic"><i class="fas fa-bullhorn"></i></span><h4>No bulletins yet</h4><p>Safety notices, lessons learned and rule changes from {{ vm.clubName || 'your club' }} will appear here.</p></div>
+    <div class="ta-empty" ng-if="!vm.loading && vm.bulletins.length && !vm.shownBulletins().length && !vm.expiredBulletins().length"><span class="ta-empty__ic"><i class="fas fa-filter"></i></span><h4>Nothing here</h4><p>No bulletins match this filter — choose All to see every one.</p></div>
+    <div class="ta-list__cols" ng-if="!vm.loading && (vm.shownBulletins().length || vm.expiredBulletins().length)"><span></span><span>Bulletin</span><span>Type</span><span>Status</span><span></span></div>
+
+    <div class="ta-row" ng-repeat="b in vm.shownBulletins()" ng-class="{'saf-unread': b._new, 'ta-row--open': vm.bOpen === b}">
+      <button type="button" class="ta-row__main" ng-click="vm.openB(b)" aria-expanded="{{ vm.bOpen === b }}" no-busy-guard data-e2e="saf-b-row">
+        <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="vm.sqClass(b._type.tone)" title="{{ b._type.label }}"><i class="fas" ng-class="b._type.icon" aria-hidden="true"></i><span class="saf-sq__dot" ng-show="b._new"></span></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title"><span class="saf-sr" ng-show="b._new">Unread: </span>{{ b.title }}</span><span class="ta-row__sub"><span ng-show="b.author_first || b.author_last">{{ b.author_first }} {{ b.author_last }} · </span>{{ vm.fDate(b.published_at) }}<span ng-if="b._valid"> · {{ b._valid }}</span></span></span>
+        <span class="ta-row__meta">
+          <span class="ta-tag"><i class="fas" ng-class="b._type.icon"></i>{{ b._type.label }}</span>
+          <span class="ta-pill" ng-if="vm.bStatus(b)" ng-class="'ta-pill--' + vm.bStatus(b).tone"><i class="fas" ng-class="vm.bStatus(b).icon" ng-if="vm.bStatus(b).icon"></i>{{ vm.bStatus(b).label }}</span><span ng-if="!vm.bStatus(b)"></span>
+        </span>
+        <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.bOpen === b ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="vm.bOpen === b">
+        <div class="ta-panel ta-panel--white"><div class="saf-contents" ng-include="'views/v2/safety/_bulletin_article.html'"></div></div>
+        <div ng-if="vm.ackForBulletin(b) && !vm.ackForBulletin(b).acknowledged" class="ta-note ta-note--warn"><i class="fas fa-file-signature"></i><div><b>The club asks you to acknowledge this bulletin.</b> Read it, then sign below.</div></div>
+        <div ng-if="vm.ackForBulletin(b)" ng-init="a = vm.ackForBulletin(b)"><div class="saf-contents" ng-include="'views/v2/safety/_ack_block.html'"></div></div>
+      </div>
+    </div>
+    <!-- expired bulletins (C11): kept for reference under their own group, never New, never to acknowledge -->
+    <div class="ta-group" ng-if="!vm.loading && vm.expiredBulletins().length"><span><i class="fas fa-history"></i>Expired</span><span>{{ vm.expiredBulletins().length }}</span></div>
+    <div class="ta-row" ng-repeat="b in vm.expiredBulletins()" ng-class="{'saf-unread': b._new, 'ta-row--open': vm.bOpen === b}">
+      <button type="button" class="ta-row__main" ng-click="vm.openB(b)" aria-expanded="{{ vm.bOpen === b }}" no-busy-guard data-e2e="saf-b-row">
+        <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="vm.sqClass(b._type.tone)" title="{{ b._type.label }}"><i class="fas" ng-class="b._type.icon" aria-hidden="true"></i><span class="saf-sq__dot" ng-show="b._new"></span></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title"><span class="saf-sr" ng-show="b._new">Unread: </span>{{ b.title }}</span><span class="ta-row__sub"><span ng-show="b.author_first || b.author_last">{{ b.author_first }} {{ b.author_last }} · </span>{{ vm.fDate(b.published_at) }}<span ng-if="b._valid"> · {{ b._valid }}</span></span></span>
+        <span class="ta-row__meta">
+          <span class="ta-tag"><i class="fas" ng-class="b._type.icon"></i>{{ b._type.label }}</span>
+          <span class="ta-pill" ng-if="vm.bStatus(b)" ng-class="'ta-pill--' + vm.bStatus(b).tone"><i class="fas" ng-class="vm.bStatus(b).icon" ng-if="vm.bStatus(b).icon"></i>{{ vm.bStatus(b).label }}</span><span ng-if="!vm.bStatus(b)"></span>
+        </span>
+        <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.bOpen === b ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="vm.bOpen === b">
+        <div class="ta-panel ta-panel--white"><div class="saf-contents" ng-include="'views/v2/safety/_bulletin_article.html'"></div></div>
+        <div ng-if="vm.ackForBulletin(b) && !vm.ackForBulletin(b).acknowledged" class="ta-note ta-note--warn"><i class="fas fa-file-signature"></i><div><b>The club asks you to acknowledge this bulletin.</b> Read it, then sign below.</div></div>
+        <div ng-if="vm.ackForBulletin(b)" ng-init="a = vm.ackForBulletin(b)"><div class="saf-contents" ng-include="'views/v2/safety/_ack_block.html'"></div></div>
+      </div>
+    </div>
+  </section>
+</main>

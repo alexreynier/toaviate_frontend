@@ -1,0 +1,85 @@
+<!-- v2 · Next of kin — add / edit (mockups/my-account/profile.html, page "nok-form"). NokV2Controller. -->
+<div class="pro-wrap">
+<main class="ta-page pro-page ta-page--has-bar">
+
+    <section class="ta-bar">
+        <div class="ta-bar__row">
+            <div class="ta-bar__title">
+                <span class="ta-bar__icon"><i class="fas" ng-class="vm.nok.id ? 'fa-user-edit' : 'fa-user-plus'"></i></span>
+                <div>
+                    <h2>{{ vm.action === 'edit' ? 'Edit emergency contact' : 'Add an emergency contact' }}</h2>
+                    <p ng-if="vm.action === 'edit'">{{ vm.nok.first_name }} {{ vm.nok.last_name }} · next of kin</p>
+                    <p ng-if="vm.action !== 'edit'">Someone your club can call if something happens while you're flying</p>
+                    <design-back class="pro-classic"></design-back>
+                </div>
+            </div>
+            <a class="ta-back" ui-sref="dashboard.v2.nok" aria-label="Back to Next of kin"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Next of kin</span></a>
+        </div>
+    </section>
+
+    <section class="ta-card" ng-if="vm.loading"><span class="ta-skel pro-skel pro-skel--40"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section>
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-user-slash"></i></span><h4>That contact isn't on your account</h4><p>It may have been removed. Go back to your list of contacts.</p>
+            <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.nok')" no-busy-guard><i class="fas fa-arrow-left"></i>Next of kin</button></div>
+    </section>
+
+    <form class="ta-stack" ng-if="!vm.loading && !vm.loadError" ng-submit="vm.save()" novalidate>
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-user"></i></span><div class="ta-card__ttl"><h3>Who to call</h3><p>Everything except email is needed</p></div></div>
+            <div class="ta-grid-2">
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.first_name}">
+                    <label class="ta-label" for="first_name">First name</label>
+                    <input class="ta-input" id="first_name" ng-model="vm.nok.first_name" ng-change="vm.clearErr('first_name')" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.errs.first_name">{{ vm.errs.first_name }}</span>
+                </div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.last_name}">
+                    <label class="ta-label" for="last_name">Last name</label>
+                    <input class="ta-input" id="last_name" ng-model="vm.nok.last_name" ng-change="vm.clearErr('last_name')" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.errs.last_name">{{ vm.errs.last_name }}</span>
+                </div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.relationship}">
+                    <label class="ta-label" for="relationship">Relationship</label>
+                    <input class="ta-input" id="relationship" ng-model="vm.nok.relationship" ng-change="vm.clearErr('relationship')" placeholder="e.g. Partner, Parent">
+                    <div class="pro-quick"><button type="button" class="ta-chip" ng-repeat="r in vm.rels" ng-class="{'ta-chip--on': vm.nok.relationship === r}" ng-click="vm.setRel(r)" no-busy-guard>{{ r }}</button></div>
+                    <span class="ta-field__msg" ng-if="vm.errs.relationship">{{ vm.errs.relationship }}</span>
+                </div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.phone_number}">
+                    <label class="ta-label" for="phone_number">Phone number</label>
+                    <input class="ta-input" id="phone_number" type="tel" ng-model="vm.nok.phone_number" ng-change="vm.clearErr('phone_number')" placeholder="+44 7700 900000">
+                    <span class="ta-field__msg" ng-if="vm.errs.phone_number">{{ vm.errs.phone_number }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.phone_number">A number they answer — mobile is best</span>
+                </div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.email_address}">
+                    <label class="ta-label" for="email_address">Email <em>(optional)</em></label>
+                    <input class="ta-input" id="email_address" type="email" ng-model="vm.nok.email_address" ng-model-options="{ allowInvalid: true }" ng-change="vm.clearErr('email_address')" placeholder="name@example.com">
+                    <span class="ta-field__msg" ng-if="vm.errs.email_address">{{ vm.errs.email_address }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.email_address">Your clubs can see it with the rest of this contact</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd">
+                <span class="ta-card__icon"><i class="fas fa-home"></i></span>
+                <div class="ta-card__ttl"><h3>Their address</h3><p>Find it, use yours, or type it in</p></div>
+                <span class="ta-card__right" ng-if="vm.home"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.sameAsMine()" no-busy-guard><i class="fas fa-clone"></i>Same as mine</button></span>
+            </div>
+            <div class="ta-form">
+                <div class="pro-lookup"><address-lookup on-select="vm.applyAddress(address)" placeholder="Start typing their address…"></address-lookup></div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.errs.address}">
+                    <label class="ta-label" for="address">Address</label>
+                    <textarea class="ta-textarea" id="address" rows="4" ng-model="vm.nok.address" ng-change="vm.clearErr('address')" placeholder="House, street, town and postcode"></textarea>
+                    <span class="ta-field__msg" ng-if="vm.errs.address">{{ vm.errs.address }}</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="ta-actionbar">
+            <span class="ta-actionbar__hint">{{ vm.nok.id ? 'Changes replace this contact' : 'Your clubs see the new contact straight away' }}</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.go('dashboard.my_account.nok')" no-busy-guard>Cancel</button>
+            <button type="submit" class="ta-btn ta-btn--primary"><i class="fas fa-check"></i>Save contact</button>
+        </div>
+    </form>
+</main>
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

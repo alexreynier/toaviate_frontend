@@ -13,6 +13,9 @@ function ToastService($timeout) {
     service.clearFieldError = clearFieldError;
     service.highlightField = highlightField;
     service.lastShownAt = 0;   // epoch ms of the last toast actually rendered (read by writeGuardInterceptor to avoid double-reporting)
+    // A page that shows a failed write's error INLINE (a dialog's error line, a field error) calls this so the write
+    // guard's generic "Not saved" toast stays quiet — the same de-dup signal a real toast sets.
+    service.handledInline = function () { service.lastShownAt = new Date().getTime(); };
     return service;
 
     // ── Form validation helper ──
@@ -79,7 +82,8 @@ function ToastService($timeout) {
     // the shapes our API uses, or fall back to a generic sentence.
     function cleanSubtitle(subtitle) {
         if (subtitle === null || subtitle === undefined) { return ''; }
-        if (typeof subtitle === 'string') { return subtitle; }
+        // never show a raw HTML error page (a PHP fatal / proxy body handed through by a controller)
+        if (typeof subtitle === 'string') { return /<\s*(!doctype|html|head|body|h1|div|br|p|b)\b/i.test(subtitle) ? 'The server had a problem — please try again in a moment.' : subtitle; }
         if (typeof subtitle === 'object') {
             if (typeof subtitle.error === 'string' && subtitle.error !== '') { return subtitle.error; }
             if (typeof subtitle.message === 'string' && subtitle.message !== '') { return subtitle.message; }

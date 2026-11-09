@@ -1,0 +1,109 @@
+/* ═══ v2 designs — the switch and the page host (js/v2/core/design.js). Tokens only. ═══ */
+
+/* the host: on v2 pages views/dashboard.html swaps its two .centre_align_boxes2 wrappers for .v2-shell (no legacy
+   max-width / centring / phone padding / `.centre_align_boxes2 *` rules); .ta-page centres itself */
+.v2-shell { display: block; width: 100%; max-width: none; margin: 0; padding: 0; text-align: left; box-sizing: border-box; }
+.v2-host { width: 100%; display: block; text-align: left; }
+
+/* the app's fixed header (#main_header2, 50px, z-index int-max) covers anything fixed at top 0: ta-base's full-screen
+   layers (.ta-dlg-scrim, the open .ta-combo) start below it. The mockups don't set this, so they keep top 0. */
+:root { --ta-top-offset: 50px; }
+
+/* ── v2 baseline: the mockups run on the browser defaults + ta-base.css only. The app also loads bootstrap.min.css and
+   styles.css, whose ELEMENT rules leak into v2 (found by the fidelity pass, scratchpad v2/fidelity). These rules undo
+   them inside v2 surfaces. `:where(...) tag` = specificity 0,0,1: it beats the legacy element rules (same weight,
+   loaded later) and loses to every ta-base / page class rule. ── */
+/* styles.css `* { font-family: Arial }` hits every element its reset list leaves out (a, button, i…) */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) :where(*) { font-family: inherit; }
+/* bootstrap `button, input, select, textarea { line-height: inherit }` — the browser default is `normal` */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) button,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) input,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) select,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) textarea { line-height: normal; }
+/* bootstrap `button, input, select, textarea { font: inherit }` — the browser default weight is normal (a × inside a
+   bold chip stays 400, as in the mockups); classes that set a weight still win */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) button,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) input,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) select,
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) textarea { font-weight: 400; }
+/* styles.css `.ng-valid.ng-dirty { border-color:#8f9 }` / `.ng-invalid.ng-dirty { border-color:#E88 }` (0,2,0) paint every
+   typed-in field green / red. Restate ta-base's own field borders for dirty fields (same order: normal, focus, error). */
+.ta-input.ng-dirty, .ta-select.ng-dirty, .ta-textarea.ng-dirty, .ta-search input.ng-dirty { border-color: var(--ta-line); }
+.ta-input--prefilled.ng-dirty { border-color: var(--ta-brand-line); }
+.ta-input.ng-dirty:focus, .ta-select.ng-dirty:focus, .ta-textarea.ng-dirty:focus, .ta-search input.ng-dirty:focus { border-color: var(--ta-brand-2); }
+.ta-field--error .ta-input.ng-dirty, .ta-field--error .ta-select.ng-dirty, .ta-field--error .ta-textarea.ng-dirty { border-color: var(--ta-bad); }
+.ta-combo__in.ng-dirty { border-color: currentColor; }   /* picker B's input has border 0: keep the browser default colour */
+/* bootstrap `input[type=checkbox|radio] { margin: 4px 0 0 }` */
+/* back to the browser's own margins (what the mockups show) at 0,1,1 — beats bootstrap's 0,1,1 by order; page rules
+   (loaded later) still win; ta-base's .ta-check input / .ta-toggle__input keep theirs via the zero-weight :where(:not()) */
+:where(.v2-host, .ta-dlg-scrim) input[type="checkbox"]:where(:not(.ta-check input, .ta-toggle__input)) { margin: 3px 3px 3px 4px; }
+:where(.v2-host, .ta-dlg-scrim) input[type="radio"]:where(:not(.ta-check input, .ta-toggle__input)) { margin: 3px 3px 0 5px; }
+/* ta-base's `.ta-toggle__input { margin: 0 }` is 0,1,0 and loses to bootstrap's 0,1,1: restate it */
+:where(.v2-host, .ta-dlg-scrim) input[type="checkbox"].ta-toggle__input { margin: 0; }
+/* bootstrap `label { display:inline-block; max-width:100%; margin-bottom:5px; font-weight:700 }` */
+:where(.v2-host, .ta-dlg-scrim) label { display: inline; max-width: none; margin-bottom: 0; font-weight: inherit; }
+/* bootstrap `a:hover, a:focus { color:#23527c; text-decoration:underline }` and `a:focus` outline — ta-base gives
+   each link-like class its own :hover */
+:where(.v2-host, .ta-dlg-scrim) a:hover, :where(.v2-host, .ta-dlg-scrim) a:focus { text-decoration: none; }
+:where(.v2-host, .ta-dlg-scrim) a:focus:not(:focus-visible) { outline: none; }
+/* styles.css `a { color:#39c; font-weight:400 }`: v2 links are the accent colour (ta-base does it inside .ta-page —
+   this covers dialogs too) and keep the weight of their text. (styles.css's a:hover / a:active leave v2 out.) */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) a { color: var(--ta-accent); font-weight: inherit; }
+/* bootstrap `a:hover, a:focus { color:#23527c }` (0,1,1, vendor file): a plain v2 link stays the accent colour; every
+   v2 link CLASS states its own :hover / :focus colour (0,2,0+) — add one when you add a link class */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) a:hover, :where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) a:focus { color: var(--ta-accent); }
+/* bootstrap small 85%, dl/dt/dd, hr, table th, fieldset/legend, img vertical-align */
+:where(.v2-host, .ta-dlg-scrim) small { font-size: smaller; }
+:where(.v2-host, .ta-dlg-scrim) dl { margin: 0; } :where(.v2-host, .ta-dlg-scrim) dt { font-weight: inherit; } :where(.v2-host, .ta-dlg-scrim) dd { margin: 0; }
+/* styles.css `ul li { color: #999; cursor: pointer }` (0,0,2): list items take their colour / cursor from their own
+   class or their parent, as in the mockups */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) ul li { color: inherit; cursor: inherit; }
+:where(.v2-host, .ta-dlg-scrim) th { text-align: inherit; }
+/* styles.css's reset puts `vertical-align: baseline` on every table part; the browser default is middle */
+:where(.v2-host, .ta-dlg-scrim) thead, :where(.v2-host, .ta-dlg-scrim) tbody, :where(.v2-host, .ta-dlg-scrim) tfoot,
+:where(.v2-host, .ta-dlg-scrim) tr, :where(.v2-host, .ta-dlg-scrim) th, :where(.v2-host, .ta-dlg-scrim) td { vertical-align: middle; }
+/* bootstrap `output { display:block; padding-top:7px; font-size:14px; line-height:1.43; color:#555 }` (the shared
+   .ta-stepper__n value is an <output>) — browser default: inline, no padding, inherited type and colour */
+:where(.v2-host, .ta-dlg-scrim) output { display: inline; padding: 0; color: inherit; font-size: inherit; line-height: inherit; }
+/* styles.css `p, ul, ol, table, pre, dl { margin-bottom: 20px }` (+ its reset's vertical-align: baseline on th) */
+:where(.v2-host, .ta-dlg-scrim) table { margin-bottom: 0; }
+
+/* the page ground the mockups are drawn on (decision: v2 pages sit on the grey ground) */
+body.ta-v2 { background: var(--ta-ground); }
+/* the gap under the fixed 50px header: the mockups put the page 18px below it (12px on phones); styles.css gives
+   body margin-top 40px + padding-top 50px (20 / 15px on small phones), i.e. 40px (5px) on v2 pages */
+body.ta-v2 { padding-top: 28px; }
+@media (max-width: 768px) { body.ta-v2 { padding-top: 22px; } }
+/* body's font-weight is 300 in styles.css: v2 text outside .ta-page (dialogs, overlays) is 400 like the mockups */
+.v2-host { font-weight: 400; }
+body.night-mode.ta-v2 { background: var(--ta-ground); }
+
+/* "Try our v2 designs" — a tag in the main menu */
+.v2-switch { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--ta-brand-2); background: var(--ta-tint); color: var(--ta-brand); font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; text-decoration: none; }
+.v2-switch:hover, .v2-switch:focus { background: var(--ta-group); color: var(--ta-brand); text-decoration: none; }
+.v2-switch i { font-size: 11px; }
+.v2-switch--on { border-style: solid; background: var(--ta-grad); color: #fff; border-color: transparent; }
+.v2-switch--on:hover, .v2-switch--on:focus { color: #fff; filter: brightness(1.08); background: var(--ta-grad); }
+body.night-mode .v2-switch:not(.v2-switch--on) { color: var(--ta-accent); }
+#main_menu > li.menu_v2 { display: flex; align-items: center; }
+@media (max-width: 768px) { #main_menu > li.menu_v2 { padding: 10px 16px; } .v2-switch { font-size: 14px; padding: 8px 14px; } }
+
+/* "Back to classic designs" — a quiet link in a v2 page bar or hero */
+.v2-back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ta-accent); cursor: pointer; text-decoration: none; }
+.v2-back:hover, .v2-back:focus { text-decoration: underline; color: var(--ta-accent); }
+.ta-hero .v2-back, .ta-hero .v2-back:hover, .ta-hero .v2-back:focus { color: rgba(255, 255, 255, 0.85); }
+
+/* the legacy menu styles (#main_menu li a) set colour, padding and display on every link: win them back */
+#main_menu .v2-switch { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; margin: 0; color: var(--ta-brand); line-height: 1.4; font-size: 12.5px; font-weight: 700; }
+#main_menu .v2-switch--on, #main_menu .v2-switch--on:hover, #main_menu .v2-switch--on:focus { color: #fff; }
+body.night-mode #main_menu .v2-switch:not(.v2-switch--on) { color: var(--ta-accent); }
+@media (max-width: 768px) { #main_menu .v2-switch { font-size: 14px; padding: 8px 14px; } }
+
+/* ── phones: 44px touch targets without changing the approved look — an invisible hit area centred on the small
+   controls (ta-base sizes them 18–36px). .ta-dlg__x is already absolutely positioned, so it only gets the ::after. ── */
+@media (max-width: 768px) {
+  :where(.v2-host, .ta-dlg-scrim) :is(.ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button) { position: relative; }
+  :where(.v2-host, .ta-dlg-scrim) :is(.ta-dlg__x, .ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button)::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
+  }
+}

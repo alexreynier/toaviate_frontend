@@ -1,0 +1,74 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 YOUR QUESTIONS (dashboard.v2.enquiries) — questions to ToAviate and our replies.
+     EnquiriesV2Controller (js/v2/enquiries/enquiries.js); the open question is the child state
+     dashboard.v2.enquiries.thread, rendered into ui-view="thread". Styles css/v2/enquiries.css (.enq-*) on ta-base.css.
+     Desktop: the list beside the open question. Phone: the list, or the open question on its own.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page enq" ng-class="{'enq--open': vm.openId}">
+
+  <section class="ta-bar enq-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-comments"></i></span>
+        <div><h2>Your questions</h2><p>Questions you’ve sent to ToAviate, and our replies</p><design-back class="enq-designback" ng-if="$root.designV2"></design-back></div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="!vm.loading && (vm.loadError || vm.list.length)">
+      <span class="enq-bar__sum"><span ng-if="vm.list.length">{{ vm.list.length }} {{ vm.list.length === 1 ? 'question' : 'questions' }}</span><span ng-if="vm.nAnswered"> · <b>{{ vm.nAnswered }} answered</b></span><span ng-if="!vm.list.length">Ask us anything — we reply by email and here</span></span>
+      <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.ask()" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Ask a question</button>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <section class="ta-list enq-skel" ng-if="vm.loading" aria-busy="true" aria-label="Loading your questions">
+    <div class="enq-skel__row" ng-repeat="i in [1, 2, 3]"><div class="ta-skel"></div><div><div class="ta-skel"></div><div class="ta-skel"></div></div></div>
+  </section>
+
+  <!-- didn't load -->
+  <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+      <h4>Your questions didn’t load</h4><p>Check your connection, then try again.</p>
+      <button type="button" class="ta-btn" ng-click="vm.load()" no-busy-guard><i class="fas fa-redo" aria-hidden="true"></i>Try again</button>
+    </div>
+  </section>
+
+  <!-- none yet -->
+  <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.list.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-comments" aria-hidden="true"></i></span>
+      <h4>No questions yet</h4>
+      <p>Ask ToAviate anything — trackers, how something works, or a problem you’ve hit. We’ll reply by email and here.</p>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.ask()" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Ask a question</button>
+    </div>
+  </section>
+
+  <!-- the list beside the open question -->
+  <div class="enq-layout" ng-if="!vm.loading && !vm.loadError && vm.list.length">
+    <section class="ta-list enq-list" aria-label="Your questions">
+      <div class="ta-row enq-row" ng-repeat="x in vm.list track by x.id" ng-class="{'enq-row--on': vm.openId === (x.id + ''), 'enq-row--ans': x.status === 'answered'}">
+        <a class="ta-row__main" ui-sref="dashboard.v2.enquiries.thread({ enquiry_id: x.id })" ng-click="vm.rowClick(x)" no-busy-guard aria-current="{{ vm.openId === (x.id + '') ? 'page' : undefined }}">
+          <span class="ta-row__lead"><span class="ta-ic" ng-class="{'ta-ic--good': x.status === 'answered'}" aria-hidden="true"><i class="fas {{ x._t.icon }}"></i></span></span>
+          <span class="ta-row__txt">
+            <span class="ta-row__title enq-row__t">{{ x.preview || x._t.label }}</span>
+            <span class="ta-row__sub enq-row__sub" ng-if="x._sub">{{ x._sub }}</span>
+          </span>
+          <span class="ta-row__end"><span class="enq-row__when" title="{{ x._whenLong }}">{{ x._when }}</span></span>
+          <span class="ta-row__meta"><span class="ta-pill ta-pill--{{ x._s.tone }}"><i class="fas {{ x._s.icon }}" aria-hidden="true"></i>{{ x._s.label }}</span><span class="ta-tag" ng-if="x.topic !== 'general' && x.preview">{{ x._t.label }}</span><span class="ta-ref" ng-if="x.ref">{{ x.ref }}</span></span>
+        </a>
+      </div>
+    </section>
+
+    <section class="enq-pane" aria-live="polite">
+      <div ui-view="thread"></div>
+      <div class="ta-card enq-pick" ng-if="!vm.openId">
+        <div class="ta-empty">
+          <span class="ta-empty__ic"><i class="fas fa-comment-dots" aria-hidden="true"></i></span>
+          <h4>Choose a question</h4>
+          <p>Pick one on the left to read the whole conversation and reply.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>

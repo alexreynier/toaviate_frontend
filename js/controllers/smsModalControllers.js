@@ -202,19 +202,39 @@ function SmsBulletinModalController($uibModalInstance, SmsService, ToastService,
     m.enums = enums;
     m.bulletin = { bulletin_type: 'safety_bulletin', title: '', body: '', requires_ack: 0, publish_now: 0 };
     m.pretty = function(s) { return s ? String(s).replace(/_/g, ' ') : ''; };
+    // <input type="date"> holds a Date at local midnight; the API wants the plain UK day "YYYY-MM-DD" (C11)
+    function dayOf(d) {
+        if (!d || !(d instanceof Date) || isNaN(d.getTime())) { return ''; }
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
     m.save = function() {
         if (!m.bulletin.title || m.bulletin.title.trim().length < 3) { ToastService.warning('Add a title', ''); return; }
         if (!m.bulletin.body || m.bulletin.body.trim().length < 5) { ToastService.warning('Add some content', ''); return; }
+        var from = dayOf(m.bulletin.valid_from_date), until = dayOf(m.bulletin.valid_until_date);
+        if (from && until && until < from) {
+            m.validityError = true;
+            ToastService.warning('Check the dates', 'Valid until must be on or after valid from.');
+            return;
+        }
+        var payload = angular.extend({}, m.bulletin, { valid_from: from, valid_until: until });
+        delete payload.valid_from_date; delete payload.valid_until_date; delete payload.ack_due_date;
+        var ackDue = m.bulletin.requires_ack ? dayOf(m.bulletin.ack_due_date) : '';
         m.saving = true;
-        SmsService.CreateBulletin(clubId, m.bulletin).then(function(data) {
+        SmsService.CreateBulletin(clubId, payload).then(function(data) {
             if (!data || !data.success) {
                 m.saving = false;
                 if (data && data.error === 'FORBIDDEN') ToastService.error('Not allowed', 'You cannot author bulletins.');
+                else if (data && data.error === 'VALIDATION_ERROR' && data.fields && (data.fields.indexOf('valid_from') > -1 || data.fields.indexOf('valid_until') > -1)) {
+                    m.validityError = true;
+                    ToastService.warning('Check the dates', (typeof data.message === 'string' && data.message) || 'Valid until must be on or after valid from.');
+                }
                 else ToastService.error('Could not save', (data && data.message) || '');
                 return;
             }
             if (m.bulletin.publish_now) {
-                SmsService.PublishBulletin(clubId, data.id, { requires_ack: m.bulletin.requires_ack }).then(function(pub) {
+                var pubBody = { requires_ack: m.bulletin.requires_ack };
+                if (ackDue) { pubBody.due_date = ackDue; }   // C25: the sign-off due date members see
+                SmsService.PublishBulletin(clubId, data.id, pubBody).then(function(pub) {
                     m.saving = false;
                     ToastService.success('Published', 'Bulletin is live for members.');
                     $uibModalInstance.close(pub);

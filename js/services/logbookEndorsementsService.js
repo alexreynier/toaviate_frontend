@@ -15,7 +15,16 @@ function LogbookEndorsementsService($http) {
     var base = '/api/v1/logbook_endorsements';
     var pub  = '/api/v1/logbook_endorsement_confirm';
     function ok(r){ return r.data; }
-    function err(r){ return (r && r.data) ? r.data : { success: false, message: 'Request failed' }; }
+    // an HTTP error is always {success:false,…}: an HTML error page (PHP fatal, proxy) used to come back as a string
+    // and pass every `success !== false` check, so a failed request read as done
+    function err(r){
+        if (r && r.data && typeof r.data === 'object') {
+            var d = angular.extend({}, r.data);
+            if (d.success === undefined) { d.success = false; }
+            return d;
+        }
+        return { success: false, message: 'Request failed', status: r ? r.status : 0 };
+    }
     var s = {};
 
     // ── Pilot ──

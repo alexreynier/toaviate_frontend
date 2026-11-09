@@ -1,0 +1,110 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 MEMBERSHIPS — mockups/my-account/memberships-cards.html (page "Memberships")
+     State dashboard.v2.memberships → MembershipsV2Controller (js/v2/memberships/memberships.js). CSS: css/v2/memberships.css (.mem-*)
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="mem-list">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-id-card"></i></span>
+        <div><h2>Memberships</h2><p>Your clubs, what you pay and how</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <div class="ta-stack" ng-if="vm.loading" aria-busy="true">
+    <div class="ta-tiles mem-tiles"><div class="ta-skel mem-skel-t"></div><div class="ta-skel mem-skel-t"></div><div class="ta-skel mem-skel-t"></div></div>
+    <div class="mem-grid">
+      <div class="ta-card" ng-repeat="n in [1,2]"><div class="mem-hd"><div class="ta-skel mem-skel-m"></div><div class="mem-hd__t ta-stack"><div class="ta-skel mem-skel-l1"></div><div class="ta-skel mem-skel-l2"></div></div></div><div class="ta-skel mem-skel-b"></div><div class="ta-skel mem-skel-a"></div></div>
+    </div>
+  </div>
+
+  <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.error" role="alert"><i class="fas fa-times-circle" aria-hidden="true"></i><div><b>Your memberships couldn't be loaded.</b> Check your connection and reload the page.</div></div>
+
+  <!-- empty -->
+  <section class="ta-card" ng-if="!vm.loading && !vm.error && !vm.memberships.length && !vm.requests.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-id-card"></i></span>
+      <h4>No memberships yet</h4>
+      <p>Join a club to book its aircraft and instructors. When a club invites you, the invitation appears here too.</p>
+      <button type="button" class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships.add"><i class="fas fa-plus"></i>Join a club</button>
+    </div>
+  </section>
+
+  <!-- summary tiles -->
+    <div class="ta-tiles mem-tiles" ng-if="!vm.loading && (vm.memberships.length || vm.requests.length)">
+      <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-id-card"></i>Memberships</span><span class="ta-tile__v">{{ vm.t1.v }}</span><span class="ta-tile__s">{{ vm.t1.s }}</span></div>
+      <div class="ta-tile" ng-if="vm.t2" ng-class="vm.t2.due ? 'ta-tile--attn' : 'ta-tile--progress'"><span class="ta-tile__k"><i class="fas fa-sync-alt"></i>{{ vm.t2.k }}</span><span class="ta-tile__v">{{ vm.t2.v }}</span><span class="ta-tile__s">{{ vm.t2.s }}</span></div>
+      <div class="ta-tile ta-tile--attn" ng-if="vm.t3.kind === 'inv'"><span class="ta-tile__k"><i class="fas fa-envelope-open-text"></i>Invitations</span><span class="ta-tile__v">{{ vm.t3.v }}</span><span class="ta-tile__s">{{ vm.t3.s }}</span></div>
+      <div class="ta-tile ta-tile--attn" ng-if="vm.t3.kind === 'probs'"><span class="ta-tile__k"><i class="fas fa-wallet"></i>Payments</span><span class="ta-tile__v ta-tile__v--words">{{ vm.t3.v }}</span><span class="ta-tile__s">{{ vm.t3.s }}</span>
+        <button type="button" class="ta-tile__go" ui-sref="dashboard.my_account.payment_methods">Payment methods <i class="fas fa-arrow-right"></i></button></div>
+      <div class="ta-tile ta-tile--good" ng-if="vm.t3.kind === 'ok'"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>Payments</span><span class="ta-tile__v ta-tile__v--words">All set up</span><span class="ta-tile__s">Every paid membership has a way to pay</span></div>
+    </div>
+
+    <!-- invitations and requests -->
+    <section class="ta-card" ng-if="!vm.loading && vm.requests.length" data-e2e="mem-reqs">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-envelope-open-text"></i></span>
+        <div class="ta-card__ttl"><h3>Invitations and requests</h3><p>Clubs you're joining — nothing is charged until the membership starts</p></div></div>
+      <div class="mem-reqs">
+        <div class="mem-req" ng-repeat="r in vm.requests track by r.id" data-e2e="mem-req">
+          <span class="mem-mono" aria-hidden="true">{{ r.mono }}</span>
+          <div>
+            <span class="mem-req__t">{{ r.invite ? r.title + ' invited you to join' : 'Your request to join ' + r.title }}</span>
+            <span class="mem-req__s">{{ r.line }}</span>
+            <div class="mem-req__line"><span class="ta-pill ta-pill--{{ r.st.t }}"><i class="fas {{ r.st.ic }}"></i>{{ r.st.l }}</span><span class="mem-k">{{ r.sub }}</span></div>
+          </div>
+          <div class="mem-req__acts">
+            <div class="mem-arm" role="alert" ng-if="vm.reqArm === r.id">
+              <span>{{ r.invite ? 'Decline the invitation from ' : 'Cancel your request to ' }}{{ r.title }}?<span ng-if="!r.invite && r.raw.has_mandate"> The direct debit you set up for it is cancelled too.</span></span>
+              <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.reqArmSet(null)">Keep</button>
+              <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.reqYes(r)" ng-disabled="vm.reqBusy" data-e2e="mem-req-yes">{{ r.invite ? 'Decline' : 'Cancel request' }}</button>
+            </div>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="vm.reqArm !== r.id" ng-click="vm.reqArmSet(r)" data-e2e="mem-req-arm">{{ r.invite ? 'Decline' : 'Cancel request' }}</button>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="r.invite && vm.reqArm !== r.id" ng-click="vm.accept(r)">Review and accept<i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- memberships -->
+    <div class="mem-sec" ng-if="!vm.loading && (vm.memberships.length || vm.requests.length)"><span class="ta-sec-k">Your memberships · {{ vm.memberships.length }}</span><a class="ta-link" ui-sref="dashboard.my_account.payment_methods"><i class="far fa-credit-card"></i>Saved cards</a></div>
+    <div class="mem-grid" ng-if="!vm.loading && (vm.memberships.length || vm.requests.length)">
+      <article class="ta-card mem-card" ng-repeat="m in vm.sorted track by m.id" ng-class="{'ta-card--attn': m.attn}" data-e2e="mem-card">
+        <div class="mem-hd">
+          <span class="mem-mono" aria-hidden="true">{{ m.mono }}</span>
+          <div class="mem-hd__t"><h3>{{ m.title }}</h3><p ng-if="m.afIcao || m.afName"><b class="ta-icao" ng-if="m.afIcao">{{ m.afIcao }}</b><span>{{ m.afName }}</span></p><p ng-if="!m.afIcao && !m.afName && m.startTxt"><span>Member since {{ m.startTxt }}</span></p></div>
+          <span class="ta-pill ta-pill--{{ m.st.t }}"><i class="fas {{ m.st.ic }}"></i>{{ m.st.l }}</span>
+        </div>
+        <div class="mem-tier"><span class="mem-tier__n">{{ m.name }}</span><span class="mem-tier__p"><b class="ta-money" ng-if="m.priceMoney">{{ m.priceMoney }}</b>{{ m.priceMoney ? (m.pricePer ? ' ' + m.pricePer : '') : m.price }}</span></div>
+
+        <div class="mem-period" ng-if="m.passenger"><span class="mem-period__s">Added when you flew as a passenger. Nothing to renew or pay.</span></div>
+        <div class="mem-period" ng-if="!m.passenger && !m.ends"><div class="mem-period__row"><span>No end date</span><span class="ta-num" ng-if="m.startTxt && (m.afIcao || m.afName)">Member since {{ m.startTxt }}</span></div>
+          <span class="mem-period__s">{{ m.free ? 'A free membership — it never needs renewing.' : 'A one-off membership — it never needs renewing.' }}</span></div>
+        <div class="mem-period" ng-if="!m.passenger && m.ends">
+          <div class="mem-period__row"><span>{{ m.days < 0 ? 'Ended' : m.autoRenew ? 'Renews' : 'Ends' }} <b>{{ m.endsTxt }}</b></span><span class="ta-num">{{ m.daysTxt }}</span></div>
+          <div class="ta-meter {{ m.meter }}" role="img" aria-label="{{ m.done }}% of this membership period used"><div class="ta-meter__bar" style="--v: {{ m.done }}%"></div></div>
+          <span class="mem-period__s">{{ m.days < 0 ? 'You can\'t book with this club until you join again.' : (m.autoRenew ? 'Auto-renew on' : 'Auto-renew off — it won\'t renew on its own') + (m.startTxt ? (m.st.future ? ' · starts ' : ' · started ') + m.startTxt : '') }}</span>
+        </div>
+
+        <div class="mem-pay" ng-if="!m.passenger && m.st.t !== 'bad'">
+          <span class="mem-pay__ic" aria-hidden="true"><i class="{{ m.pay.ic }}"></i></span>
+          <span><span class="mem-pay__t">{{ m.pay.t }}</span><span class="mem-pay__s">{{ m.pay.s }}</span></span>
+          <span class="ta-pill ta-pill--{{ m.pay.pill.t }}" ng-if="m.pay.pill"><i class="fas {{ m.pay.pill.ic }}" ng-if="m.pay.pill.ic"></i>{{ m.pay.pill.l }}</span>
+        </div>
+        <div class="ta-note ta-note--warn" ng-if="m.st.why === 'pay' && m.pay.card"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>Your default card {{ vm.D.expTxt(m.pay.card) }}, before this renews on {{ m.endsTxt }}. Add a new card or switch to direct debit.</div></div>
+
+        <div class="mem-acts" ng-if="!m.passenger">
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="m.st.t === 'bad'" ng-click="vm.rejoin(m)"><i class="fas fa-redo"></i>Join again</button>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="m.st.why === 'ends'" ng-click="vm.renewOn(m)" ng-disabled="m.renewBusy" data-e2e="mem-renew-on"><i class="fas fa-sync-alt"></i>Turn on auto-renew</button>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="m.st.t !== 'bad' && !m.free && m.pay.kind === 'card'" ng-click="vm.cardsFor(m)"><i class="far fa-credit-card"></i>{{ m.pay.problem ? 'Add a card' : 'Manage cards' }}</button>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="m.st.t !== 'bad' && !m.free" ng-click="vm.gcl(m, m.hasDD ? 'update' : 'setup')" data-e2e="mem-gcl"><i class="fas fa-university"></i>{{ m.hasDD ? 'Update bank details' : 'Set up direct debit' }}</button>
+          <a class="ta-link" href="" ng-click="vm.manage(m)" data-e2e="mem-manage">Manage membership <i class="fas fa-arrow-right"></i></a>
+        </div>
+      </article>
+      <button type="button" class="mem-join" ui-sref="dashboard.my_account.memberships.add" data-e2e="mem-join"><span class="mem-join__ic"><i class="fas fa-plus"></i></span><b>Join a club</b><span>Find a club, choose a membership and set up how you'll pay.</span></button>
+    </div>
+</main>
+<div ng-include="'views/v2/memberships/_gcl_dialog.html'"></div>

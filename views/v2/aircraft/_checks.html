@@ -1,0 +1,17 @@
+<!-- the pilots' own checks (A check / transit) for one aircraft (expects `p`) -->
+<div class="ta-note ta-note--info" ng-if="p._needA && !vm.hasA(p) && p._st.k !== 'grounded'"><i class="fas fa-info-circle"></i><div>No A check yet today. The first pilot to fly {{ p.registration }} today completes one — at book-out, or here.</div></div>
+<div class="ta-note" ng-if="p._checksLoading"><span class="ta-spin ta-spin--dark"></span><div>Loading checks…</div></div>
+<div class="acs-rows" ng-if="!p._checksLoading && vm.checksShown(p).length">
+  <div class="acs-chk" ng-repeat="c in vm.checksShown(p) track by $index">
+    <span class="ta-av" ng-if="vm.checkIns(c)" ng-attr-style="{{ vm.checkIns(c).colour ? '--av:' + vm.checkIns(c).colour : undefined }}" title="{{ c.first_name }} {{ c.last_name }} (instructor)">{{ vm.checkIns(c).code }}</span>
+    <span class="ta-av ta-av--member" ng-if="!vm.checkIns(c)" title="{{ c.first_name }} {{ c.last_name }}"><i class="fas fa-user"></i></span>
+    <span>
+      <span class="acs-chk__t"><span class="ta-pill" ng-class="'ta-pill--' + vm.checkTone(c)"><i class="fas" ng-class="vm.checkIcon(c)"></i>{{ vm.checkName(c) }}</span><span>{{ (+c.performed_by === +vm.user_id) ? 'You' : ((c.first_name || '') + ' ' + (c.last_name || '')) }}</span></span>
+      <span class="acs-chk__s">{{ vm.dayLabel(c.checked_at) }} at {{ vm.fTime(c.checked_at) }}</span>
+      <span class="acs-chk__n" ng-if="c.notes">{{ c.notes }}</span>
+    </span>
+    <span class="acs-fig"><b>{{ vm.nf1(c.fuel_us_gallons) }}</b> US gal fuel<br><b>{{ vm.nf1(c.oil_quarts) }}</b> qt oil</span>
+  </div>
+</div>
+<div class="ta-note" ng-if="!p._checksLoading && !vm.checksShown(p).length && !(p._needA && !vm.hasA(p) && p._st.k !== 'grounded')"><i class="fas fa-info-circle"></i><div>No checks recorded {{ p._checksAll ? 'yet' : 'today' }}{{ p._st.k === 'grounded' ? ' — the aircraft is out of service.' : '.' }}</div></div>
+<div class="acs-sub" ng-if="!p._checksAll"><span class="acs-line">Showing today’s checks</span><button type="button" class="ta-link" ng-click="vm.loadAllChecks(p)" no-busy-guard>Show earlier checks <i class="fas fa-arrow-down"></i></button></div>

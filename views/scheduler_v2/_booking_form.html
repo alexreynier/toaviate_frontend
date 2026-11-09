@@ -221,7 +221,7 @@
             <span>{{ vm.bkf_ins_loading ? 'Loading the instructors…' : "The instructor you're looking for doesn't seem to be available!" }}</span>
           </ui-select-no-choice>
         </ui-select>
-        <p class="bkf-field__hint bkf-field__hint--note" ng-if="vm.bkf_from_instructor_row && vm.new_booking.instructor.id > 0"><i class="fa fa-info-circle"></i> Pre-selected from the scheduler row.</p>
+        <p class="bkf-field__hint bkf-field__hint--note" ng-if="vm.bkf_from_instructor_row && vm.new_booking.instructor.id > 0"><i class="fa fa-info-circle"></i> {{ (vm.bkf_wrq || vm.bkf_wrq_loading) ? "The instructor the member asked for on the waiting list." : 'Pre-selected from the scheduler row.' }}</p>
       </div>
       <!-- an instructor (not a manager) booking for a member is the instructor on it (make_booking) -->
       <div class="bkf-field" ng-if="vm.bkf_auto_instructor()" id="field-instructor-auto">
@@ -351,9 +351,10 @@
     </div>
 
     <!-- currency self-certification -->
-    <div class="bkf-note bkf-note--warn" ng-if="vm.new_booking.instructor.id < 1 || !vm.is_current">
+    <div class="bkf-note bkf-note--warn" ng-if="(vm.new_booking.instructor.id < 1 || !vm.is_current) && vm.new_booking.plane">
       <input type="checkbox" id="override" ng-model="vm.new_booking.override" />
-      <label for="override">I confirm that I am (or will be) within the currency requirements of the club for this plane. I have flown the same <b>{{ vm.currency_type }}</b> of aeroplane within the last <b>{{ vm.currency_days }} days</b>.</label>
+      <label for="override" ng-if="vm.currency_type && vm.currency_days">I confirm that I am (or will be) within the currency requirements of the club for this plane. I have flown the same <b>{{ vm.currency_type }}</b> of aeroplane within the last <b>{{ vm.currency_days }} days</b>.</label>
+      <label for="override" ng-if="!(vm.currency_type && vm.currency_days)">I confirm that I am (or will be) within the club's currency requirements for this aircraft.</label>
     </div>
   </section>
 
@@ -458,19 +459,25 @@
     <!-- notes -->
     <div class="bkf-field bkf-mt">
       <label><i class="fa fa-sticky-note"></i> Notes</label>
-      <textarea class="bkf-textarea" rows="3" ng-model="vm.new_booking.description" placeholder="Anything the club or instructor should know"></textarea>
+      <textarea class="bkf-textarea" rows="3" ng-model="vm.new_booking.description" ng-change="vm.bkf_touched = true" placeholder="Anything the club or instructor should know"></textarea>
     </div>
   </section>
 
   <!-- ══════════ ACTIONS — fixed to the panel's bottom edge (the body keeps --bkf-bar-h clear) ══════════ -->
   <div class="bkf-actions">
     <button type="button" class="bkf-btn bkf-btn--quiet" ng-click="vm.go_back()"><i class="fa fa-arrow-left"></i> Back</button>
-    <button type="button" class="bkf-btn bkf-btn--quiet" ng-if="vm.action != 'edit'" ng-click="clear_booking()"><i class="fa fa-eraser"></i> Clear</button>
+    <button type="button" class="bkf-btn bkf-btn--quiet" ng-if="vm.action != 'edit'" ng-click="vm.bkf_clear()" title="Empty the form — the date stays"><i class="fa fa-eraser"></i> Clear</button>
     <span class="bkf-actions__sp"></span>
     <button type="button" class="bkf-btn bkf-btn--danger" ng-if="vm.action == 'edit' && vm.new_booking.id" ng-click="confirm_cancel_booking(vm.new_booking)"><i class="fa fa-trash"></i> Delete</button>
     <button type="submit" class="bkf-btn bkf-btn--primary" ng-disabled="vm.action == 'edit' && vm.new_booking.after_booking_end">
       <i class="fa" ng-class="vm.action == 'edit' ? 'fa-save' : 'fa-calendar-plus'"></i> {{ vm.action == 'edit' ? 'Save changes' : 'Make booking' }}
     </button>
+  </div>
+  <!-- "Discard?" — laid over the action bar (same box, later in the DOM) when the backdrop / Esc would throw away typed notes or passengers -->
+  <div class="bkf-actions bkf-actions--confirm" ng-if="vm.bkf_confirm_discard" role="alertdialog" aria-label="Discard this booking?">
+    <span class="bkf-actions__q"><i class="fa fa-exclamation-circle"></i> <span><strong>Discard {{ vm.action == 'edit' ? 'your changes' : 'this booking' }}?</strong> What you typed will be lost.</span></span>
+    <button type="button" class="bkf-btn bkf-btn--quiet" ng-click="vm.bkf_keep_editing()" no-busy-guard>Keep editing</button>
+    <button type="button" class="bkf-btn bkf-btn--danger" ng-click="vm.bkf_discard()" no-busy-guard>Discard</button>
   </div>
 </form>
 
@@ -485,23 +492,23 @@
         <span class="cancel-confirm__label">Booked for</span>
         <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.title }}</span>
       </div>
-      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.plane.registration">
+      <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.plane.registration || vm.cancel_confirm.booking.plane.title">
         <span class="cancel-confirm__label">Aircraft</span>
-        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.plane.registration }}</span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.plane.registration || vm.cancel_confirm.booking.plane.title }}</span>
       </div>
       <div class="cancel-confirm__row" ng-if="vm.cancel_confirm.booking.start_datetime">
         <span class="cancel-confirm__label">When</span>
-        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.start_datetime | date:"dd/MM/yyyy HH:mm" }}<span ng-if="vm.cancel_confirm.booking.end_datetime"> – {{ vm.cancel_confirm.booking.end_datetime | date:"HH:mm" }}</span></span>
+        <span class="cancel-confirm__value">{{ vm.cancel_confirm.booking.start_datetime | date:"EEE d MMM yyyy, HH:mm" }}<span ng-if="vm.cancel_confirm.booking.end_datetime"> – {{ vm.cancel_confirm.booking.end_datetime | date:"HH:mm" }}</span></span>
       </div>
     </div>
     <div class="cancel-confirm__reason" ng-if="vm.is_v2">
       <cancel-reason-fields club-id="vm.new_booking.club_id" state="vm.cancel_confirm.state" pilot-name="vm.cancel_confirm.booking.title" notes-id="bkf-cancel-notes"></cancel-reason-fields>
     </div>
     <div class="cancel-confirm__actions">
-      <button class="cancel-confirm__btn cancel-confirm__btn--keep" ng-click="close_cancel_confirm()" ng-disabled="vm.cancel_confirm.working">Keep Booking</button>
+      <button class="cancel-confirm__btn cancel-confirm__btn--keep" ng-click="close_cancel_confirm()" ng-disabled="vm.cancel_confirm.working">Keep booking</button>
       <button class="cancel-confirm__btn cancel-confirm__btn--cancel" ng-click="do_cancel_booking()" ng-disabled="vm.cancel_confirm.working">
         <i class="fa" ng-class="{'fa-spinner fa-spin': vm.cancel_confirm.working, 'fa-trash': !vm.cancel_confirm.working}"></i>
-        {{ vm.cancel_confirm.working ? 'Cancelling…' : ((vm.cancel_confirm.state.claim && vm.cancel_confirm.state.fee > 0) ? 'Cancel & charge fee' : 'Cancel Booking') }}
+        {{ vm.cancel_confirm.working ? 'Cancelling…' : ((vm.cancel_confirm.state.claim && vm.cancel_confirm.state.fee > 0) ? 'Cancel & charge fee' : 'Cancel booking') }}
       </button>
     </div>
   </div>
@@ -556,15 +563,15 @@
       Forcing this booking accepts responsibility for flying against this restriction. Only do this if you are certain it is safe and lawful.
     </p>
     <div class="bkf-popup-actions">
-      <button ng-click="decline_booking_change()" class="bkf-btn bkf-btn--quiet">Cancel Change</button>
+      <button ng-click="decline_booking_change()" class="bkf-btn bkf-btn--quiet">Cancel change</button>
       <!-- Tier 1: soft conflict — normal override (admin path) -->
-      <button ng-if="(error.type === 'instructor' || error.type === 'plane') && !error.is_hard_block && error.can_override" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button || 'OVERRIDE CHANGE' }}</button>
+      <button ng-if="(error.type === 'instructor' || error.type === 'plane') && !error.is_hard_block && error.can_override" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ vm.bkf_sentence(error.button || 'Override change') }}</button>
       <!-- Tier 2: hard block — force override (managers / super-admins only) -->
       <button ng-if="(error.type === 'instructor' || error.type === 'plane') && error.is_hard_block && error.can_force" ng-click="force_booking_change(error.override)" class="bkf-btn bkf-btn--force">
-        <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+        <i class="fa fa-exclamation-triangle"></i> {{ vm.bkf_sentence(error.force_button || 'Force booking anyway') }}
       </button>
       <!-- Other conflicts (currency / rental items) — their own override button -->
-      <button ng-if="error.type !== 'instructor' && error.type !== 'plane' && error.button" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button }}</button>
+      <button ng-if="error.type !== 'instructor' && error.type !== 'plane' && error.button" ng-click="override_booking_change2(error.override)" class="bkf-btn bkf-btn--primary">{{ vm.bkf_sentence(error.button) }}</button>
     </div>
   </div>
 </div>
@@ -594,10 +601,10 @@
     <div class="bkf-popup-actions">
       <button ng-click="vm.decline_new_booking_error()" class="bkf-btn bkf-btn--quiet">Cancel</button>
       <!-- Soft conflict — normal override -->
-      <button ng-if="!error.is_hard_block && error.button" ng-click="vm.override_new_booking_errors(error.override)" class="bkf-btn bkf-btn--primary">{{ error.button }}</button>
+      <button ng-if="!error.is_hard_block && error.button" ng-click="vm.override_new_booking_errors(error.override)" class="bkf-btn bkf-btn--primary">{{ vm.bkf_sentence(error.button) }}</button>
       <!-- Hard block — force override (managers / super-admins only) -->
       <button ng-if="error.is_hard_block && error.can_force" ng-click="vm.force_new_booking_errors(error.override)" class="bkf-btn bkf-btn--force">
-        <i class="fa fa-exclamation-triangle"></i> {{ error.force_button || 'FORCE BOOKING ANYWAY' }}
+        <i class="fa fa-exclamation-triangle"></i> {{ vm.bkf_sentence(error.force_button || 'Force booking anyway') }}
       </button>
     </div>
   </div>

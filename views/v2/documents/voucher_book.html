@@ -1,0 +1,164 @@
+<!-- v2 · Book your voucher flight (design: mockups/my-account/vouchers-documents.html, page "Book a voucher flight").
+     State dashboard.v2.voucher_book (/my_account/my_vouchers/:voucher_id/book) → VouchersV2Controller, data.page 'book'.
+     Same calls as v1's slot search: vouchers/voucher_slots + vouchers/book. CSS: css/v2/documents.css (vd-). -->
+<main class="ta-page vd-page">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-calendar-plus" aria-hidden="true"></i></span>
+        <div>
+          <h2>Book your flight</h2>
+          <p>{{ vm.voucher ? ((vm.voucher.experience_title || 'Experience voucher') + ' · ' + vm.voucher.club_title) : 'Pick a slot for your voucher' }}</p>
+          <span class="vd-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="vd-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.v2.my_vouchers" title="Back to My vouchers" aria-label="Back to My vouchers" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My vouchers</span></a>
+      </span>
+    </div>
+  </section>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel vd-skel__box"></span><span class="ta-skel vd-skel__t"></span></section>
+  <div class="ta-note ta-note--bad vd-note" ng-show="!vm.loading && vm.error">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i><div class="vd-note__body">{{ vm.error }}</div>
+    <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+  </div>
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.voucher">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-ticket-alt" aria-hidden="true"></i></span>
+      <h4>No voucher waiting to be booked</h4>
+      <p>This voucher is already booked, used or expired.</p>
+      <button type="button" class="ta-btn" ui-sref="dashboard.v2.my_vouchers" no-busy-guard><i class="fas fa-arrow-left"></i>My vouchers</button>
+    </div>
+  </section>
+
+  <div class="vd-stack" ng-if="!vm.loading && vm.voucher">
+    <!-- the voucher -->
+    <section class="ta-card vd-vstrip">
+      <span class="ta-kind ta-kind--trial" title="Trial lesson"><i class="fas fa-star" aria-hidden="true"></i></span>
+      <div class="vd-vstrip__txt">
+        <h3>{{ vm.voucher.experience_title || 'Experience voucher' }}</h3>
+        <p><span>Code <b class="ta-ref">{{ vm.F.codeGroups(vm.voucher.code) }}</b></span><span>· {{ vm.voucher.club_title }}</span><span ng-show="vm.voucher.expiry_date">· expires {{ vm.F.fDate(vm.voucher.expiry_date) }} ({{ vm.voucher._left <= 0 ? 'today' : (vm.F.plural(vm.voucher._left, 'day') + ' left') }})</span></p>
+        <p class="vd-vstrip__desc" ng-show="vm.experience.description">{{ vm.experience.description }}</p>
+      </div>
+      <span class="ta-pill ta-pill--warn" ng-show="vm.voucher._soon"><i class="fas fa-hourglass-half" aria-hidden="true"></i>{{ vm.voucher._left <= 0 ? 'Last day' : (vm.F.plural(vm.voucher._left, 'day') + ' left') }}</span>
+    </section>
+
+    <!-- the search -->
+    <section class="ta-card" ng-hide="vm.noInstructor">
+      <div class="vd-search__row">
+        <div class="ta-field">
+          <span class="ta-label"><i class="far fa-calendar" aria-hidden="true"></i>Starting from</span>
+          <div class="vd-datebar">
+            <button type="button" class="ta-ib vd-nav" ng-click="vm.prevWeek()" title="{{ vm.from <= vm.tomorrow ? 'Slots start tomorrow — you can\'t book earlier online' : 'Previous week' }}" aria-label="Previous week" ng-disabled="vm.from <= vm.tomorrow" no-busy-guard><i class="fas fa-chevron-left"></i></button>
+            <button type="button" class="vd-datebtn" ng-click="vm.openCal()" aria-haspopup="dialog" no-busy-guard><i class="far fa-calendar-alt"></i><span>{{ vm.F.fDay(vm.from) }}<span class="vd-datebtn__y"> {{ vm.from.slice(0, 4) }}</span></span></button>
+            <button type="button" class="ta-ib vd-nav" ng-click="vm.nextWeek()" title="Next week" aria-label="Next week" no-busy-guard><i class="fas fa-chevron-right"></i></button>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.goTomorrow()" ng-disabled="vm.from === vm.tomorrow" no-busy-guard>Tomorrow</button>
+          </div>
+        </div>
+        <div class="ta-field">
+          <span class="ta-label">Search</span>
+          <div class="ta-seg ta-seg--row" style="--seg-n:4" role="group" aria-label="How far ahead">
+            <button type="button" class="ta-seg__opt" ng-repeat="o in vm.dayOpts" ng-class="{'ta-seg__opt--on': vm.days === o[0]}" aria-pressed="{{ vm.days === o[0] }}" ng-click="vm.setDays(o[0])" no-busy-guard>{{ o[1] }}</button>
+          </div>
+        </div>
+      </div>
+      <p class="ta-hint">Free slots from {{ vm.F.fDay(vm.from) }} to {{ vm.F.fDay(vm.toDate()) }} · times are club local time{{ vm.afText(vm.voucher) ? ' at ' + vm.afText(vm.voucher) : '' }}.</p>
+    </section>
+
+    <!-- can't book online / other errors -->
+    <div class="ta-note ta-note--bad" ng-show="vm.noInstructor"><i class="fas fa-user-slash" aria-hidden="true"></i><div><b>{{ vm.voucher.club_title }} can't take online bookings for this experience right now</b> — no instructor is set up to fly it. Call the club to arrange your flight<span ng-show="vm.voucher.expiry_date">; your voucher stays valid until {{ vm.F.fDate(vm.voucher.expiry_date) }}</span>.</div></div>
+    <div class="ta-note ta-note--bad vd-note" ng-show="vm.searchError && !vm.noInstructor">
+      <i class="fas fa-exclamation-circle" aria-hidden="true"></i><div class="vd-note__body">{{ vm.searchError }}</div>
+      <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.search()" no-busy-guard><i class="fas fa-redo"></i>Search again</button>
+    </div>
+
+    <section class="ta-list" ng-show="vm.searching && !vm.slots.length" aria-busy="true">
+      <div class="vd-slotgrid"><span class="ta-skel vd-skel__slot"></span><span class="ta-skel vd-skel__slot"></span><span class="ta-skel vd-skel__slot"></span><span class="ta-skel vd-skel__slot"></span></div>
+    </section>
+
+    <section class="ta-card" ng-show="vm.searched && !vm.searching && !vm.searchError && !vm.slots.length">
+      <div class="ta-empty">
+        <span class="ta-empty__ic"><i class="fas fa-cloud-sun" aria-hidden="true"></i></span>
+        <h4>No free slots in these dates</h4>
+        <p>Try a later start date or search further ahead.</p>
+        <button type="button" class="ta-btn" ng-show="vm.days < 28" ng-click="vm.setDays(28)" no-busy-guard><i class="fas fa-search"></i>Search 4 weeks</button>
+        <button type="button" class="ta-btn" ng-show="vm.days >= 28" ng-click="vm.nextWeek()" no-busy-guard><i class="fas fa-chevron-right"></i>Next week</button>
+      </div>
+    </section>
+
+    <section class="ta-list" ng-show="vm.slots.length" ng-class="{'vd-busy': vm.searching}">
+      <div ng-repeat="g in vm.dayGroups">
+        <div class="ta-group"><span>{{ vm.F.fDay(g.date) }}<span class="vd-daytag" ng-show="g.tomorrow">Tomorrow</span><span class="vd-daytag vd-daytag--late" ng-show="g.late">After your voucher expires</span></span><span>{{ vm.F.plural(g.slots.length, 'slot') }}</span></div>
+        <div class="vd-slotgrid">
+          <button type="button" class="vd-slot" ng-repeat="s in g.slots" ng-click="vm.pickSlot(s)" aria-label="{{ vm.F.fDay(g.date) }}, {{ vm.F.fTime(s.start_time) }} to {{ vm.F.fTime(s.end_time) }}" no-busy-guard>
+            <span class="vd-slot__t">{{ vm.F.fTime(s.start_time) }}–{{ vm.F.fTime(s.end_time) }}</span>
+            <span class="vd-slot__l">{{ s.label || 'Free slot' }}</span>
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="vd-more">
+        <span>Showing {{ vm.slots.length }} of {{ vm.F.plural(vm.pagination.total || vm.slots.length, 'free slot') }}</span>
+        <button type="button" class="ta-btn" ng-show="vm.pagination.has_more" ng-click="vm.more()" ng-disabled="vm.searching" no-busy-guard>
+          <span class="ta-spin ta-spin--dark" ng-show="vm.searching"></span><i class="fas fa-plus" ng-show="!vm.searching"></i>{{ vm.searching ? 'Loading…' : 'Show more slots' }}
+        </button>
+        <span ng-show="!vm.pagination.has_more">That's every free slot in these dates.</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- the confirmation: a record dialog with the trial colour as its edge (bottom sheet on phones) -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg" ng-click="$event.target === $event.currentTarget && vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="vd-dlg-t">
+      <div class="ta-dlg__hd" style="--edge:var(--ta-t-trial)">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-star" aria-hidden="true"></i>Book your voucher flight</div>
+        <div class="ta-dlg__title" id="vd-dlg-t">{{ vm.F.fDayLong(vm.dlg.start) }}</div>
+        <div class="ta-dlg__sub">{{ vm.F.fTime(vm.dlg.slot.start_time) }}–{{ vm.F.fTime(vm.dlg.slot.end_time) }}<span ng-show="vm.dlg.slot.label"> · {{ vm.dlg.slot.label }}</span> · club local time</div>
+      </div>
+      <div class="ta-dlg__body">
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Experience</dt><dd>{{ vm.voucher.experience_title || 'Experience voucher' }}</dd></div>
+          <div class="ta-fact"><dt>Club</dt><dd>{{ vm.voucher.club_title }}</dd></div>
+          <div class="ta-fact"><dt>Voucher code</dt><dd><span class="ta-ref">{{ vm.F.codeGroups(vm.voucher.code) }}</span></dd></div>
+          <div class="ta-fact" ng-show="vm.voucher.experience_price"><dt>Value</dt><dd>{{ vm.F.money(vm.voucher.experience_price) }}</dd></div>
+        </dl>
+        <div class="ta-note ta-note--warn" ng-show="vm.dlg.late48"><i class="fas fa-phone-alt" aria-hidden="true"></i><div>This flight is less than 48 hours away: once it's booked, only the club can change or cancel it.</div></div>
+        <div class="ta-note ta-note--info" ng-show="!vm.dlg.late48"><i class="fas fa-envelope" aria-hidden="true"></i><div>We'll email you a confirmation. You can cancel or move the flight here until 48 hours before it.</div></div>
+        <div class="ta-note ta-note--warn" ng-show="vm.voucher.expiry_date && vm.dlg.slot.date > vm.voucher.expiry_date"><i class="fas fa-hourglass-end" aria-hidden="true"></i><div>This date is after your voucher expires ({{ vm.F.fDate(vm.voucher.expiry_date) }}).</div></div>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.booking" no-busy-guard>Cancel</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.confirm()" ng-disabled="vm.booking">
+          <span class="ta-spin" ng-show="vm.booking"></span><i class="fas fa-check" ng-show="!vm.booking" aria-hidden="true"></i>{{ vm.booking ? 'Booking…' : ('Book ' + vm.F.fDay(vm.dlg.start) + ', ' + vm.F.fTime(vm.dlg.slot.start_time)) }}
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- "Starting from…": the shared date picker, inline in a record dialog (bottom sheet on phones) -->
+  <div class="ta-dlg-scrim" ng-if="vm.cal" ng-click="$event.target === $event.currentTarget && vm.closeCal()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="vd-cal-t">
+      <div class="ta-dlg__hd">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeCal()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="far fa-calendar-alt"></i>Search for free slots</div>
+        <div class="ta-dlg__title" id="vd-cal-t">Starting from…</div>
+      </div>
+      <div class="ta-dlg__body">
+        <div class="vd-calwrap">
+          <ta-date-picker inline="true" ng-model="vm.cal.pick" options="vm.pickerOptions" get-busy="vm.calBusy(date)" ng-change="vm.calPicked()"></ta-date-picker>
+          <span class="vd-cal__key" ng-if="vm.voucher.expiry_date"><i></i>Your voucher expires on {{ vm.F.fDayLong(vm.voucher.expiry_date) }}</span>
+        </div>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeCal()" no-busy-guard>Cancel</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.cal.pick = vm.tomorrow; vm.calPicked()" no-busy-guard>Tomorrow</button>
+      </div>
+    </div>
+  </div>
+</main>

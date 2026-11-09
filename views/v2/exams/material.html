@@ -1,0 +1,71 @@
+<!-- v2 · Lesson material — a PDF or a video (design: mockups/my-account/questionnaires-exams.html, page "Material").
+     State dashboard.v2.material_view (/my_account/material/:material_id) → QxMaterialV2Controller. Engagement time is sent every 15 s (as v1). -->
+<main class="ta-page qx-main" ng-class="{'ta-page--has-bar': !vm.done && vm.kind && !vm.processing && !vm.failed}">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas" ng-class="vm.kind === 'video' ? 'fa-film' : 'fa-file-pdf'"></i></span>
+        <div>
+          <h2>{{ vm.m.title || 'Material' }}</h2>
+          <p>{{ vm.m.original_name || (vm.kind === 'video' ? 'Video' : 'PDF') }}</p>
+          <span class="qx-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="qx-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" href="" ng-click="vm.back()" aria-label="Back"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Questionnaires</span></a>
+      </span>
+    </div>
+  </section>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__doc"></span></section>
+  <div class="ta-note ta-note--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-circle"></i><div>{{ vm.error }}</div></div>
+
+  <div class="ta-cols ta-cols--rail" ng-if="!vm.loading && !vm.error">
+    <section class="ta-card">
+      <div class="qx-article">
+        <span class="ta-sec-k">{{ vm.eyebrow }}</span>
+        <p ng-repeat="t in vm.paras track by $index">{{ t }}</p>
+      </div>
+      <div class="ta-note ta-note--bad" ng-if="vm.kind === 'video' && vm.failed"><i class="fas fa-exclamation-triangle"></i><div><b>This video couldn’t be prepared for playback.</b> Let your instructor know — it can be uploaded again.</div></div>
+      <div class="qx-wait" ng-if="vm.kind === 'video' && vm.processing"><span class="ta-spin ta-spin--dark"></span><b>Getting this video ready</b><p>It starts by itself once it’s ready — you can leave this page and come back.</p></div>
+      <div class="qx-player" ng-if="vm.kind === 'video' && vm.videoUrl"><video controls playsinline ng-attr-src="{{ vm.videoUrl }}">Your browser can’t play this video.</video></div>
+      <div class="qx-doc" ng-if="vm.kind === 'pdf' && vm.pdfUrl">
+        <div class="qx-doc__bar">
+          <span class="qx-doc__name"><i class="fas fa-file-pdf"></i>{{ vm.m.original_name || vm.m.title }}</span>
+          <button type="button" class="ta-ib" ng-click="vm.fullScreen()" title="Open full size" aria-label="Open full size" no-busy-guard><i class="fas fa-expand"></i></button>
+        </div>
+        <object class="qx-doc__pdf" ng-attr-data="{{ vm.pdfUrl }}" type="application/pdf">
+          <div class="qx-wait"><b>Your browser can’t show this PDF here</b><p>Use the full-size button to open it.</p></div>
+        </object>
+      </div>
+    </section>
+    <aside class="ta-rail ta-stack">
+      <section class="ta-card">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.done}"><i class="fas" ng-class="vm.done ? 'fa-check' : 'fa-book-open'"></i></span>
+          <div class="ta-card__ttl"><h3>Your progress</h3><p>{{ vm.done ? ((vm.kind === 'video' ? 'Watched' : 'Read') + ' · marked done' + (vm.access && vm.access.completed_at ? ' ' + vm.X.fDay(vm.access.completed_at) : '')) : ((vm.kind === 'video' ? 'To watch' : 'To read') + ' · not marked as done yet') }}</p></div>
+        </div>
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Opened</dt><dd>{{ vm.access && vm.access.open_count ? vm.X.plural(+vm.access.open_count, 'time') : 'First time now' }}</dd></div>
+          <div class="ta-fact"><dt>Time spent</dt><dd>{{ vm.access && vm.access.total_time_seconds > 0 ? vm.X.mins(vm.access.total_time_seconds) : 'Just started' }}</dd></div>
+          <div class="ta-fact" ng-if="vm.access.first_opened_at"><dt>First opened</dt><dd>{{ vm.X.fDay(vm.access.first_opened_at) }}</dd></div>
+          <div class="ta-fact" ng-if="vm.due"><dt>Due</dt><dd>{{ vm.X.fDay(vm.due) }}</dd></div>
+        </dl>
+        <div class="ta-note ta-note--good" ng-if="vm.done"><i class="fas fa-check-circle"></i><div>You marked this as done. Open it again any time.</div></div>
+        <button type="button" class="ta-btn ta-btn--primary ta-btn--block ta-desk-only" ng-if="!vm.done" ng-click="vm.markDone()" ng-disabled="vm.processing || vm.failed || vm.marking"><i class="fas fa-check"></i>Mark as done</button>
+        <span class="ta-hint" ng-if="!vm.done">Lets your instructor know you’ve {{ vm.kind === 'video' ? 'watched' : 'read' }} it. Time spent is noted while it’s open.</span>
+      </section>
+      <section class="ta-card" ng-if="vm.others.length">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-layer-group"></i></span><div class="ta-card__ttl"><h3>Also for this {{ vm.m.attach_type === 'course' ? 'course' : 'lesson' }}</h3></div></div>
+        <div class="qx-also">
+          <button type="button" class="ta-opt" ng-repeat="x in vm.others" ng-click="vm.open(x)" no-busy-guard>
+            <span class="ta-opt__ic"><i class="fas {{ x.ic }}"></i></span>
+            <span><span class="ta-opt__t">{{ x.title }}</span><span class="ta-opt__s">{{ x.sub }}</span></span>
+            <i class="fas fa-chevron-right ta-muted"></i>
+          </button>
+        </div>
+      </section>
+    </aside>
+  </div>
+  <div class="ta-actionbar ta-phone-only" ng-if="!vm.loading && !vm.error && !vm.done && !vm.processing && !vm.failed"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.markDone()" ng-disabled="vm.marking"><i class="fas fa-check"></i>Mark as done</button></div>
+</main>

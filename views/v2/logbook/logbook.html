@@ -1,0 +1,242 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 MY LOGBOOK (dashboard.v2.logbook) — design: mockups/my-account/logbook.html.
+     LogbookV2Controller (js/v2/logbook/logbook.js), styles css/v2/logbook.css (.lgb-*) on ta-base.css.
+     Desktop: the grouped logbook table (sticky date, month subtotals, Shown / Brought forward / Total).
+     Phones (vm.phone): a row per flight that opens in place. Only one of the two is rendered.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page lgb" ng-class="{'ta-page--has-bar': vm.phone && !vm.loading && !vm.loadError}">
+
+  <div class="lgb-part" ng-include="'views/v2/logbook/_bar.html'"></div>
+
+  <!-- loading -->
+  <section class="ta-tiles lgb-tot5" ng-if="vm.loading" aria-busy="true" aria-label="Loading your logbook">
+    <div class="ta-tile" ng-repeat="i in [1, 2, 3, 4, 5]"><div class="ta-skel lgb-sk-k"></div><div class="ta-skel lgb-sk-v"></div><div class="ta-skel lgb-sk-s"></div></div>
+  </section>
+  <section class="ta-list" ng-if="vm.loading"><div class="lgb-tools"><div class="ta-skel lgb-sk-bar"></div></div><div class="ta-skel lgb-sk-row" ng-repeat="i in [1, 2, 3, 4, 5, 6, 7]"></div></section>
+
+  <!-- didn't load -->
+  <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+      <h4>Your logbook didn’t load</h4>
+      <p>Check your connection, then try again.</p>
+      <button type="button" class="ta-btn" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo" aria-hidden="true"></i>Try again</button>
+    </div>
+  </section>
+
+  <!-- an empty logbook: the three ways in -->
+  <section class="ta-card lgb-welcome" ng-if="!vm.loading && !vm.loadError && vm.entries && !vm.entries.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-book-open" aria-hidden="true"></i></span>
+      <h4>Your logbook is empty</h4>
+      <p>Add the flying you’ve done so far — one flight at a time, from SkyDemon, or a whole spreadsheet. When you fly with a ToAviate club, those flights appear here by themselves, already verified.</p>
+    </div>
+    <div class="lgb-ways">
+      <button type="button" class="ta-opt" ng-click="vm.go('entry')" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-pen" aria-hidden="true"></i></span><span><span class="ta-opt__t">Type a flight</span><span class="ta-opt__s">One flight at a time, totals worked out for you</span></span><i class="fas fa-chevron-right ta-muted" aria-hidden="true"></i></button>
+      <button type="button" class="ta-opt" ng-click="vm.go('skydemon')" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-location-arrow" aria-hidden="true"></i></span><span><span class="ta-opt__t">SkyDemon logs</span><span class="ta-opt__s">Prefilled from your .flightlog files, with a replayable GPS track</span></span><i class="fas fa-chevron-right ta-muted" aria-hidden="true"></i></button>
+      <button type="button" class="ta-opt" ng-click="vm.go('import')" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-file-csv" aria-hidden="true"></i></span><span><span class="ta-opt__t">Spreadsheet (CSV)</span><span class="ta-opt__s">Bring a whole logbook across and check it before saving</span></span><i class="fas fa-chevron-right ta-muted" aria-hidden="true"></i></button>
+    </div>
+    <div class="ta-note"><i class="fas fa-user-plus" aria-hidden="true"></i><div>Know a pilot who still keeps a paper logbook? <a class="ta-link" ui-sref="dashboard.my_account.invite_pilot">Invite them <i class="fas fa-arrow-right" aria-hidden="true"></i></a></div></div>
+  </section>
+  <div class="ta-actionbar ta-phone-only" ng-if="!vm.loading && !vm.loadError && vm.entries && !vm.entries.length">
+    <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('entry')" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Add your first flight</button>
+  </div>
+
+  <!-- totals for the chosen dates -->
+  <section class="ta-tiles" ng-class="{'lgb-tot5': vm.tot5}" lgb-plain-class aria-label="Totals" ng-if="!vm.loading && vm.entries.length">
+    <div class="ta-tile" ng-repeat="t in vm.tiles" ng-class="t.cls ? 'ta-tile--' + t.cls : ''"><span class="ta-tile__k"><i class="fas {{ t.ic }}" aria-hidden="true"></i>{{ t.k }}</span><span class="ta-tile__v">{{ t.v }}</span><span class="ta-tile__s">{{ t.s }}</span></div>
+    <div class="ta-tile ta-tile--wide lgb-more" ng-if="vm.alsoLogged.length">
+      <span class="ta-tile__k"><i class="fas fa-stream" aria-hidden="true"></i>Also logged</span>
+      <span class="lgb-more__l"><span ng-repeat="m in vm.alsoLogged"><i class="fas {{ m.ic }}" aria-hidden="true"></i><b>{{ m.v }}</b>{{ m.k }}</span></span>
+      <span class="ta-tile__s">Cross-country comes from your own and imported lines — club flights don’t record it yet.</span>
+    </div>
+  </section>
+
+  <!-- currency: one tile per chosen check, whatever dates or filters are set (backend C8) -->
+  <section class="lgb-cur" aria-label="Currency" ng-if="!vm.loading && vm.entries.length && vm.cur.ok && vm.cur.items.length">
+    <div class="lgb-cur__hd"><span class="ta-sec-k">Currency</span><button type="button" class="ta-link" ng-click="vm.openChecks()" no-busy-guard><i class="fas fa-sliders-h" aria-hidden="true"></i>Choose checks</button></div>
+    <div class="ta-tiles">
+      <div class="ta-tile" ng-repeat="c in vm.cur.items track by c.id" ng-class="c.tile.cls ? 'ta-tile--' + c.tile.cls : ''">
+        <span class="ta-tile__k"><i class="fas {{ c.tile.ic }}" aria-hidden="true"></i>{{ c.tile.k }}</span>
+        <span class="ta-tile__v ta-tile__v--words">{{ c.tile.v }}</span>
+        <span class="ta-tile__s">{{ c.tile.s }}</span>
+      </div>
+    </div>
+  </section>
+  <div class="ta-note" ng-if="!vm.loading && vm.entries.length && vm.cur.ok && !vm.cur.items.length && vm.cur.licensed">
+    <i class="fas fa-history" aria-hidden="true"></i>
+    <div>Choose the currency rules you fly under and we’ll work them out from your logbook. <button type="button" class="ta-link lgb-inl" ng-click="vm.openChecks()" no-busy-guard>Choose checks <i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
+  </div>
+
+  <!-- the logbook -->
+  <section class="ta-list lgb-book" ng-if="!vm.loading && vm.entries.length">
+    <div class="lgb-tools">
+      <div class="lgb-tools__r">
+        <div class="ta-scope">
+          <span class="ta-scope__k ta-desk-only">Dates</span>
+          <div class="ta-scope__set">
+            <button type="button" class="ta-scope__opt" ng-repeat="r in vm.RANGES" ng-class="{'ta-scope__opt--on': vm.f.range === r[0]}" ng-click="vm.setRange(r[0])" no-busy-guard>{{ r[1] }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="lgb-tools__r" ng-if="vm.f.range === 'custom'">
+        <div class="lgb-dates">
+          <span class="lgb-dates__f"><span class="lgb-dates__k">From</span><ta-date-picker ng-model="vm.f.from" ng-change="vm.datesChanged()" options="vm.dateOpts" placeholder="The start" format="short"></ta-date-picker></span>
+          <span class="lgb-dates__dash" aria-hidden="true">–</span>
+          <span class="lgb-dates__f"><span class="lgb-dates__k">To</span><ta-date-picker ng-model="vm.f.to" ng-change="vm.datesChanged()" options="vm.dateOpts" placeholder="Today" format="short"></ta-date-picker></span>
+        </div>
+      </div>
+      <div class="lgb-tools__r lgb-tools__r--wrap">
+        <div class="ta-chips" role="group" aria-label="Source">
+          <button type="button" class="ta-chip" ng-repeat="c in vm.srcChips track by c.k" ng-class="{'ta-chip--on': vm.f.src === c.k}" ng-click="vm.setSrc(c.k)" title="{{ c.title }}" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+          <span class="lgb-vr" ng-if="vm.signedN"></span>
+          <button type="button" class="ta-chip" ng-if="vm.signedN || vm.f.signed" ng-class="{'ta-chip--on': vm.f.signed}" ng-click="vm.toggleSigned()" title="Flights an instructor or examiner has signed" no-busy-guard><i class="fas fa-stamp" aria-hidden="true"></i>Signed<span class="ta-chip__n">{{ vm.signedN }}</span></button>
+        </div>
+        <div class="lgb-tools__end">
+          <ta-combo cb-id="ac" label="Filter by aircraft" placeholder="All aircraft" placeholder-open="Registration, type or make" caps="true"
+                    query="vm.acQ" source="vm.acGroups(q)" on-pick="vm.acPick(key)" on-clear="vm.acClear()"
+                    value="vm.acValue" summary="vm.acSummary" clearable="vm.f.ac !== 'all'" version="vm.cbVer"></ta-combo>
+          <span class="lgb-mw">
+            <button type="button" class="ta-ib" ng-click="vm.toggleMenu('display', $event)" title="Display options" aria-label="Display options" aria-expanded="{{ vm.menu === 'display' ? 'true' : 'false' }}" no-busy-guard><i class="fas fa-sliders-h" aria-hidden="true"></i></button>
+            <span class="lgb-bd" ng-if="vm.menu === 'display'" ng-click="vm.menu = null"></span>
+            <span class="lgb-menu" role="dialog" aria-label="Display options" ng-if="vm.menu === 'display'">
+              <div class="lgb-menu__sec"><span class="ta-sec-k">Times</span><div class="ta-seg ta-seg--row" style="--seg-n:2">
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.fmt === 'hm'}" ng-click="vm.setDisp('fmt', 'hm')" no-busy-guard>1:30 (h:mm)</button>
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.fmt === 'dec'}" ng-click="vm.setDisp('fmt', 'dec')" no-busy-guard>1.5 (decimal)</button>
+              </div></div>
+              <div class="lgb-menu__sec"><span class="ta-sec-k">Airfields</span><div class="ta-seg ta-seg--row" style="--seg-n:2">
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.place === 'icao'}" ng-click="vm.setDisp('place', 'icao')" no-busy-guard>ICAO code</button>
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.place === 'name'}" ng-click="vm.setDisp('place', 'name')" no-busy-guard>Name</button>
+              </div></div>
+              <div class="lgb-menu__sec"><span class="ta-sec-k">Order</span><div class="ta-seg ta-seg--row" style="--seg-n:2">
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.sort === 'desc'}" ng-click="vm.setDisp('sort', 'desc')" no-busy-guard>Newest first</button>
+                <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.disp.sort === 'asc'}" ng-click="vm.setDisp('sort', 'asc')" no-busy-guard>Oldest first</button>
+              </div></div>
+              <div class="lgb-menu__sec ta-desk-only">
+                <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.disp.allCols" ng-change="vm.setDisp('allCols', vm.disp.allCols)" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">Show every column</span><span class="ta-toggle__s">Include PICUS, co-pilot, instructor, IFR and XC even when empty</span></span><span class="ta-switch"></span></label>
+              </div>
+              <div class="lgb-menu__k">Remembered on this device.</div>
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- desktop: the logbook table -->
+    <div class="lgb-scw" ng-if="!vm.phone && vm.vis.length">
+      <div class="lgb-scroll" lgb-scroll-edges tabindex="0" aria-label="Logbook table — scrolls sideways">
+        <table class="ta-table lgb-table">
+          <thead>
+            <tr>
+              <th ng-repeat="h in vm.head1 track by h.k" ng-class="h.cls" ng-attr-rowspan="{{ h.rs }}" ng-attr-colspan="{{ h.cs }}" ng-attr-title="{{ h.title || undefined }}">{{ h.k === 'date' ? 'Date ' : h.label }}<i class="fas fa-stamp ta-muted" ng-if="h.k === 'date'" title="A stamp next to the date means the flight is signed"></i></th>
+            </tr>
+            <tr><th ng-repeat="h in vm.head2 track by h.k" ng-class="h.cls" ng-attr-title="{{ h.title || undefined }}">{{ h.label }}</th></tr>
+          </thead>
+          <tbody ng-repeat="g in vm.groups track by g.key">
+            <tr class="lgb-month">
+              <td class="lgb-c-date" title="{{ g.long }}">{{ g.short }}</td>
+              <td ng-attr-colspan="{{ vm.tIdx - 1 }}"><small class="lgb-month__n">{{ g.n }}</small></td>
+              <td class="ta-r lgb-num">{{ g.tot }}</td>
+              <td ng-attr-colspan="{{ vm.cols.length - vm.tIdx - 1 }}"></td>
+            </tr>
+            <tr ng-repeat-start="e in g.rows track by e._k" class="lgb-tr" ng-class="{'lgb-tr--open': vm.open === e._k, 'lgb-tr--new': vm.hl === e._k}"
+                ng-click="vm.toggle(e)" ng-keydown="vm.rowKey($event, e)" role="button" tabindex="0" aria-expanded="{{ vm.open === e._k ? 'true' : 'false' }}" aria-label="{{ e._v.aria }}" no-busy-guard>
+              <td class="lgb-c-date"><span class="lgb-dcell"><span class="lgb-date">{{ e._v.date }}</span><span class="lgb-dcell__r">
+                <button type="button" class="lgb-ros lgb-ros--sm" ng-if="e._stamp" ng-class="{'lgb-ros--pend': e._stamp === 'pend'}" ng-click="vm.openStamps(e, $event)" title="{{ e._stampT }}" aria-label="{{ e._stampT }}" no-busy-guard><i class="fas fa-stamp" aria-hidden="true"></i><span class="lgb-ros__n" ng-if="e._stampN > 1">{{ e._stampN }}</span></button>
+                <i class="fas fa-chevron-down lgb-chev" aria-hidden="true"></i></span></span></td>
+              <td class="lgb-gs"><span class="lgb-pl"><b ng-class="e._v.dep.icao ? 'ta-icao' : 'lgb-pn'" title="{{ e._v.dep.title }}">{{ e._v.dep.t }}</b><span class="lgb-pt">{{ e.departure_time }}</span></span></td>
+              <td><span class="lgb-pl"><b ng-class="e._v.arr.icao ? 'ta-icao' : 'lgb-pn'" title="{{ e._v.arr.title }}">{{ e._v.arr.t }}</b><span class="lgb-pt">{{ e.arrival_time }}</span></span></td>
+              <td class="lgb-gs"><span class="ta-ac" ng-attr-style="{{ e._acC ? '--ac:' + e._acC : undefined }}" title="{{ e.registration }} · {{ e._acName }}">{{ e.registration || '—' }}<span>{{ e.aircraft_type }}</span></span></td>
+              <td class="ta-r lgb-num lgb-num--total lgb-gs">{{ e._v.total }}</td>
+              <td class="ta-r lgb-num lgb-gs">{{ e._v.pic }}</td>
+              <td class="ta-r lgb-num" ng-if="vm.colOn.picus">{{ e._v.picus }}</td>
+              <td class="ta-r lgb-num" ng-if="vm.colOn.p2">{{ e._v.p2 }}</td>
+              <td class="ta-r lgb-num">{{ e._v.dual }}</td>
+              <td class="ta-r lgb-num" ng-if="vm.colOn.fi">{{ e._v.fi }}</td>
+              <td class="ta-r lgb-num lgb-gs">{{ e._v.nightEst ? '' : e._v.night }}<span class="lgb-est" ng-if="e._v.nightEst" title="Estimated from sunset">{{ e._v.night }}</span></td>
+              <td class="ta-r lgb-num" ng-if="vm.colOn.ifr">{{ e._v.ifr }}</td>
+              <td class="ta-r lgb-num" ng-if="vm.colOn.xc">{{ e._v.xc }}</td>
+              <td class="ta-r lgb-num lgb-gs">{{ e._v.ldd }}</td>
+              <td class="ta-r lgb-num">{{ e._v.ldn }}</td>
+              <td class="lgb-gs">
+                <span class="lgb-who" ng-if="e._self">Self<span class="ta-tag" ng-if="e._solo" title="Authorised by {{ e.instructor_name }}">solo</span></span>
+                <span class="ta-muted" ng-if="!e._self && !e.instructor_name">—</span>
+                <span class="lgb-who" ng-if="!e._self && e.instructor_name"><span class="ta-av ta-av--sm" ng-attr-style="{{ e._insC ? '--av:' + e._insC : undefined }}" title="{{ e.instructor_name }} (instructor)">{{ e._ins }}</span>{{ e.instructor_name }}</span>
+              </td>
+              <td><span class="lgb-srcc"><span class="lgb-src lgb-src--{{ e._srcInfo.cls }}" title="{{ e._srcInfo.long }}"><i class="fas {{ e._srcInfo.ic }}" aria-hidden="true"></i>{{ e._srcInfo.label }}</span><button type="button" class="ta-ib lgb-play" ng-if="e._canReplay" ng-click="vm.replay(e, $event)" title="Flight replay" aria-label="Flight replay" no-busy-guard><i class="fas fa-play" aria-hidden="true"></i></button></span></td>
+              <td><span class="lgb-rem" title="{{ e.remarks }}">{{ e.remarks }}</span></td>
+            </tr>
+            <tr ng-repeat-end class="lgb-drawer" ng-show="vm.open === e._k">
+              <td ng-attr-colspan="{{ vm.cols.length }}"><div class="lgb-drawer__in" ng-if="vm.open === e._k" ng-include="'views/v2/logbook/_detail.html'"></div></td>
+            </tr>
+          </tbody>
+          <tbody ng-if="vm.hiddenN > 0">
+            <tr class="lgb-month"><td class="lgb-c-date"></td><td ng-attr-colspan="{{ vm.cols.length - 1 }}"><span class="lgb-more-rows">{{ vm.hiddenN }} older flights not shown <button type="button" class="ta-link" ng-click="vm.showAll()" no-busy-guard>Show all</button></span></td></tr>
+          </tbody>
+          <tfoot>
+            <tr ng-repeat="r in vm.foot" ng-class="r.cls">
+              <td class="lgb-c-date"><span class="lgb-foot-k">{{ r.label }}</span></td>
+              <td ng-attr-colspan="{{ vm.tIdx - 1 }}"><span class="lgb-foot-s">{{ r.sub }}</span></td>
+              <td ng-repeat="c in r.cells track by c.k" ng-class="{'ta-r lgb-num': c.num, 'lgb-gs': c.gs}">{{ c.v }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- phones: a row per flight that opens in place -->
+    <div class="lgb-cards" ng-if="vm.phone && vm.vis.length">
+      <div ng-repeat="g in vm.groups track by g.key">
+        <div class="ta-group"><span>{{ g.long }}</span><span>{{ g.n }} · {{ g.tot }}</span></div>
+        <div class="ta-row" ng-repeat="e in g.rows track by e._k" ng-class="{'ta-row--open': vm.open === e._k, 'lgb-card--new': vm.hl === e._k}">
+          <button type="button" class="ta-row__main" ng-click="vm.toggle(e)" aria-expanded="{{ vm.open === e._k ? 'true' : 'false' }}" no-busy-guard>
+            <span class="ta-row__lead"><span class="lgb-day"><b>{{ e._v.day }}</b><span>{{ e._v.mon }}</span></span></span>
+            <span class="ta-row__txt">
+              <span class="ta-row__title"><b ng-class="e._v.dep.icao ? 'ta-icao' : 'lgb-pn'">{{ e._v.dep.t }}</b> <span class="lgb-local" ng-if="e._v.local">local</span><i class="fas fa-long-arrow-alt-right lgb-arrow" ng-if="!e._v.local" aria-hidden="true"></i><b ng-if="!e._v.local" ng-class="e._v.arr.icao ? 'ta-icao' : 'lgb-pn'">{{ e._v.arr.t }}</b></span>
+              <span class="ta-row__sub">{{ e.registration }} {{ e.aircraft_type }} · {{ e._role }}</span>
+            </span>
+            <span class="ta-row__end"><span class="lgb-ptime">{{ e._v.time }}</span></span>
+            <span class="ta-row__chev"><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+            <span class="ta-row__meta">
+              <span class="lgb-src lgb-src--{{ e._srcInfo.cls }}" title="{{ e._srcInfo.long }}"><i class="fas {{ e._srcInfo.ic }}" aria-hidden="true"></i>{{ e._srcInfo.label }}</span>
+              <span class="lgb-ros lgb-ros--sm" ng-if="e._stamp" ng-class="{'lgb-ros--pend': e._stamp === 'pend'}" title="{{ e._stampT }}"><i class="fas fa-stamp" aria-hidden="true"></i><span class="lgb-ros__n" ng-if="e._stampN > 1">{{ e._stampN }}</span></span>
+              <span class="lgb-meta-t" ng-if="e._v.ldg"><i class="fas fa-plane-arrival" aria-hidden="true"></i>{{ e._v.ldg }}</span>
+              <span class="lgb-meta-t" ng-if="e._v.nightH"><i class="fas fa-moon" aria-hidden="true"></i>{{ e._v.nightH }}</span>
+              <span class="lgb-meta-t" ng-if="e._canReplay" title="GPS track — replay it from the opened flight"><i class="fas fa-route" aria-hidden="true"></i></span>
+            </span>
+          </button>
+          <div class="ta-detail" ng-if="vm.open === e._k" ng-include="'views/v2/logbook/_detail.html'"></div>
+        </div>
+      </div>
+      <div class="lgb-more-rows lgb-more-rows--phone" ng-if="vm.hiddenN > 0">{{ vm.hiddenN }} older flights not shown <button type="button" class="ta-link" ng-click="vm.showAll()" no-busy-guard>Show all</button></div>
+      <div class="lgb-ptot">
+        <span class="ta-sec-k">{{ vm.ptot.label }}</span>
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Total</dt><dd>{{ vm.ptot.x.total }}</dd></div>
+          <div class="ta-fact"><dt>PIC</dt><dd>{{ vm.ptot.x.pic }}</dd></div>
+          <div class="ta-fact"><dt>Dual</dt><dd>{{ vm.ptot.x.dual }}</dd></div>
+          <div class="ta-fact"><dt>Night</dt><dd>{{ vm.ptot.x.night }}</dd></div>
+          <div class="ta-fact"><dt>Landings</dt><dd>{{ vm.ptot.x.ldg }}</dd></div>
+          <div class="ta-fact"><dt>Flights</dt><dd>{{ vm.ptot.x.flights }}</dd></div>
+        </dl>
+        <span class="ta-sec-k" ng-if="vm.narrowed">{{ vm.ptot.allLabel }}</span>
+        <span class="ta-hint" ng-if="vm.narrowed">{{ vm.ptot.allLine }}</span>
+      </div>
+    </div>
+
+    <!-- nothing matches the filters -->
+    <div class="ta-empty" ng-if="!vm.vis.length">
+      <span class="ta-empty__ic"><i class="fas fa-filter" aria-hidden="true"></i></span>
+      <h4>No flights match</h4>
+      <p>{{ vm.inR.length ? 'Nothing here with these filters. Try all sources or all aircraft.' : 'You didn’t fly ' + (vm.f.range === 'custom' ? 'between these dates' : 'in the ' + vm.rangeLabel()) + '.' }}</p>
+      <button type="button" class="ta-btn" ng-click="vm.clearFilters()" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i>Clear filters</button>
+    </div>
+  </section>
+
+  <div class="ta-actionbar ta-phone-only" ng-if="!vm.loading && vm.entries.length">
+    <span class="ta-actionbar__hint">{{ vm.barHint }}</span>
+    <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('entry')" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Add flight</button>
+  </div>
+
+  <div ng-if="vm.dlg" ng-include="'views/v2/logbook/_dialogs.html'"></div>
+</main>

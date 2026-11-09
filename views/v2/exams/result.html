@@ -1,0 +1,77 @@
+<!-- v2 · The result of a questionnaire attempt (design: mockups/my-account/questionnaires-exams.html, page "Result").
+     State dashboard.v2.questionnaire_result (/my_account/questionnaire/attempt/:attempt_id) → QxResultV2Controller. -->
+<main class="ta-page qx-main">
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__box"></span></section>
+  <section class="ta-card" ng-show="!vm.loading && vm.error">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span>
+      <h4>No result to show</h4>
+      <p>{{ vm.error }}</p>
+      <button type="button" class="ta-btn" ui-sref="dashboard.my_account.questionnaires" no-busy-guard>Questionnaires</button>
+    </div>
+  </section>
+
+  <div class="qx-stack" ng-if="!vm.loading && !vm.error">
+    <section class="ta-hero qx-hero">
+      <div class="ta-hero__top">
+        <a class="ta-hero__back" href="" ng-click="vm.back()"><i class="fas fa-arrow-left"></i>Questionnaires</a>
+        <span class="ta-hero__eyebrow"><i class="fas fa-clipboard-check"></i>Result · attempt {{ vm.attempt.attempt_number || 1 }}</span>
+      </div>
+      <div class="ta-hero__head">
+        <span class="qx-ring" ng-if="vm.hasScore" style="--v:{{ vm.pctScore }}%" aria-label="Score {{ vm.pctScore }} percent"><b>{{ vm.pctScore }}%</b><small>SCORE</small></span>
+        <span class="ta-hero__badge" ng-if="!vm.hasScore"><i class="fas" ng-class="vm.reviewed ? 'fa-check' : 'fa-hourglass-half'"></i></span>
+        <div><div class="ta-hero__title">{{ vm.title }}</div><div class="ta-hero__sub">{{ vm.sub }}</div></div>
+      </div>
+      <div class="ta-hero__facts">
+        <div class="ta-hero__fact" ng-if="vm.hasScore"><div class="ta-hero__fact-k">Score</div><div class="ta-hero__fact-v">{{ vm.attempt.auto_score }} / {{ vm.attempt.max_score }}</div></div>
+        <div class="ta-hero__fact" ng-if="vm.hasScore && vm.mcN"><div class="ta-hero__fact-k">Multiple choice</div><div class="ta-hero__fact-v">{{ vm.mcRight }} of {{ vm.mcN }} right</div></div>
+        <div class="ta-hero__fact" ng-if="vm.ftN"><div class="ta-hero__fact-k">Written</div><div class="ta-hero__fact-v">{{ vm.reviewed ? (vm.ftAnswered === 1 ? '1 answer reviewed' : vm.ftAnswered + ' answers reviewed') : 'Awaiting review' }}</div></div>
+        <div class="ta-hero__fact" ng-if="vm.attempt.time_spent_seconds"><div class="ta-hero__fact-k">Time spent</div><div class="ta-hero__fact-v">{{ vm.X.mins(vm.attempt.time_spent_seconds) }}</div></div>
+        <div class="ta-hero__fact" ng-if="vm.attempt.submitted_at"><div class="ta-hero__fact-k">Submitted</div><div class="ta-hero__fact-v">{{ vm.X.fDay(vm.attempt.submitted_at) }}, {{ vm.X.fTime(vm.attempt.submitted_at) }}</div></div>
+      </div>
+      <p class="qx-hero__note" ng-if="vm.hasScore && vm.mcN">The score counts the {{ vm.mcN }} multiple-choice questions{{ vm.marksEach ? ', ' + vm.marksEach + (vm.marksEach === 1 ? ' mark' : ' marks') + ' each' : '' }}. Written answers get feedback, not marks.</p>
+      <span class="qx-v2 qx-v2--hero"><design-back></design-back></span>
+    </section>
+
+    <div class="ta-cols ta-cols--rail">
+      <div class="ta-stack">
+        <section class="ta-card" ng-if="vm.released && vm.attempt.instructor_notes">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-comment-dots"></i></span><div class="ta-card__ttl"><h3>Your instructor’s notes</h3><p>On the whole attempt</p></div></div>
+          <div class="qx-quote qx-quote--tint"><span class="ta-av" title="Your instructor"><i class="fas fa-chalkboard-teacher"></i></span><div class="qx-quote__txt"><p>{{ vm.attempt.instructor_notes }}</p><span class="qx-quote__by"><b>Your instructor</b>{{ vm.attempt.reviewed_at ? ' · ' + vm.X.fDay(vm.attempt.reviewed_at) : '' }}</span></div></div>
+        </section>
+        <div class="ta-note ta-note--info" ng-if="!vm.reviewed"><i class="fas fa-hourglass-half"></i><div>{{ vm.released ? 'Your multiple-choice score is in. Your instructor still has to review your written answers — feedback appears here when they have.' : 'Your instructor hasn’t reviewed this yet. These are your answers as you sent them; marks and feedback appear here once they have.' }}</div></div>
+        <div class="ta-note ta-note--info" ng-if="vm.keyHidden"><i class="fas fa-info-circle" aria-hidden="true"></i><div>Your club doesn't show the right answers — ask your instructor about the ones marked wrong.</div></div>
+        <div class="ta-chips" role="group" aria-label="Show" ng-if="vm.chips.length > 1">
+          <button type="button" class="ta-chip" ng-repeat="c in vm.chips" ng-class="{'ta-chip--on': vm.rf === c.k, 'ta-chip--attn': c.attn}" ng-click="vm.setFilter(c.k)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+        </div>
+        <section class="ta-card trn-empty-card" ng-if="!vm.rows.length"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>No answers to show</h4><p>There are no answers on this attempt.</p></div></section>
+        <section class="ta-card qx-rq" ng-repeat="r in vm.rows" ng-show="vm.show(r)" id="qx-rq-{{ r.i }}">
+          <div class="qx-rq__hd">
+            <span class="qx-mark" ng-class="r.kind ? 'qx-mark--' + r.kind : ''"><i class="fas" ng-class="{'fa-check': r.kind === 'good', 'fa-times': r.kind === 'bad', 'fa-pen': r.kind === 'info', 'fa-hourglass-half': r.kind === 'pend', 'fa-circle': !r.kind}"></i></span>
+            <span class="qx-q__num">Question {{ r.i + 1 }}{{ r.required ? '' : ' · optional' }}</span>
+            <span class="ta-sp"></span>
+            <span class="ta-pill ta-pill--{{ r.pill.tone }}"><i class="fas {{ r.pill.ic }}" ng-show="r.pill.ic"></i>{{ r.pill.label }}</span>
+          </div>
+          <h3 class="qx-rq__prompt">{{ r.prompt }}</h3>
+          <div ng-if="r.mc">
+            <div class="ta-note" ng-if="!r.answered"><i class="fas fa-minus-circle"></i><div>No answer given.</div></div>
+            <div class="qx-ros" ng-if="r.opts.length">
+              <div class="qx-ro" ng-repeat="o in r.opts" ng-class="o.cls"><i class="{{ o.ic }}" aria-hidden="true"></i><span>{{ o.label }}</span><span class="qx-ro__tag" ng-show="o.tg">{{ o.tg }}</span></div>
+            </div>
+            <div class="ta-note" ng-if="!r.opts.length && r.answered"><i class="fas fa-check-square"></i><div>Answer recorded.<span ng-if="vm.released"> {{ r.right ? 'You got this right.' : 'Not quite — check with your instructor.' }}</span></div></div>
+          </div>
+          <div class="ta-panel" ng-if="!r.mc"><span class="ta-sec-k">Your answer</span><p class="qx-answer">{{ r.text || 'No answer given.' }}</p></div>
+          <div class="qx-quote qx-quote--tint" ng-if="r.comment"><span class="ta-av" title="Your instructor"><i class="fas fa-chalkboard-teacher"></i></span><div class="qx-quote__txt"><span class="qx-quote__by"><b>Your instructor’s feedback</b></span><p>{{ r.comment }}</p></div></div>
+        </section>
+      </div>
+      <aside class="ta-rail ta-desk-only" ng-if="vm.rows.length">
+        <section class="ta-card">
+          <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-th"></i></span><div class="ta-card__ttl"><h3>At a glance</h3><p>Tap a number to go to that question</p></div></div>
+          <div class="qx-nav"><button type="button" class="qx-nav__b" ng-repeat="r in vm.rows" ng-class="r.kind ? 'qx-g--' + r.kind : ''" ng-click="vm.rf = 'all'; vm.toQ(r.i)" aria-label="Question {{ r.i + 1 }}" no-busy-guard>{{ r.i + 1 }}</button></div>
+          <div class="qx-legend"><span ng-repeat="l in vm.legend"><i ng-class="l[0] ? 'qx-g--' + l[0] : ''"></i>{{ l[1] }}</span></div>
+          <button type="button" class="ta-link" ng-if="vm.attempt.supersedes_attempt_id" ui-sref="dashboard.my_account.questionnaire_result({attempt_id: vm.attempt.supersedes_attempt_id})" no-busy-guard>Your earlier attempt <i class="fas fa-arrow-right"></i></button>
+        </section>
+      </aside>
+    </div>
+  </div>
+</main>

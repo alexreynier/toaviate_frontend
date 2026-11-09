@@ -571,15 +571,18 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
             QuestionnaireService.GetAttempt(vm.attemptId).then(function(data) {
                 if (!data || data.success === false) { vm.loading = false; ToastService.error('Could not load', (data && data.message) || ''); return; }
                 vm.attempt = data.attempt || data;
-                vm.q = data.questionnaire || null;
+                vm.q = data.questionnaire || (data.questionnaire_title ? { title: data.questionnaire_title } : null);   // the title rides on the attempt (C17)
                 vm.answers = data.answers || [];
                 vm.released = vm.attempt && (vm.attempt.score_released || vm.attempt.status === 'reviewed');
 
-                // The attempt response carries the answers (with prompt + is_correct)
-                // but NOT the option labels. Fetch the definition for labels (and the
-                // answer key, if the backend exposes it to this user).
+                // Each multiple-choice answer carries its options (labels; plus is_correct /
+                // correct_option_ids once released, when the questionnaire lets students see the
+                // correct answers — C17). Older APIs sent no labels: fetch the definition then.
                 var qid = vm.attempt.questionnaire_id || (vm.q && vm.q.id);
-                if (qid) {
+                var labelled = vm.answers.every(function(a) { return a.type !== 'multiple_choice' || angular.isArray(a.options); });
+                if (labelled) {
+                    buildRows({}); vm.loading = false;
+                } else if (qid) {
                     QuestionnaireService.Get(qid).then(function(def) {
                         var item = def && def.item;
                         var qById = {};
@@ -597,19 +600,20 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
         function buildRows(qById) {
             vm.rows = (vm.answers || []).map(function(a) {
                 var def = qById[a.question_id] || {};
-                var rawOpts = def.options || [];
+                var rawOpts = angular.isArray(a.options) ? a.options : (def.options || []);
+                var corr = angular.isArray(a.correct_option_ids) ? a.correct_option_ids.map(String) : null;
                 var type = a.type || def.type;
                 var isMC = type === 'multiple_choice';
                 var selIds = a.selected_option_ids ? String(a.selected_option_ids).split(',').map(String) : [];
 
                 // Per-option flags so the view can render the full MC list with
                 // chosen / correct highlighting.
-                var keyKnown = rawOpts.some(function(o) { return o.is_correct == 1; });
+                var keyKnown = corr ? corr.length > 0 : rawOpts.some(function(o) { return o.is_correct == 1; });
                 var options = rawOpts.map(function(o) {
                     return {
                         label: o.label,
                         chosen: selIds.indexOf(String(o.id)) > -1,
-                        correct: o.is_correct == 1
+                        correct: corr ? corr.indexOf(String(o.id)) > -1 : o.is_correct == 1
                     };
                 });
                 var chosen = options.filter(function(o) { return o.chosen; }).map(function(o) { return o.label; });
@@ -621,7 +625,7 @@ app.controller('StudentQuestionnaireController', StudentQuestionnaireController)
                     isMC: isMC,
                     isCorrect: (a.is_correct === 1 || a.is_correct === '1'),
                     awarded: a.awarded_points,
-                    points: def.points,
+                    points: def.points != null ? def.points : a.points,
                     options: options,        // full list (when labels available)
                     keyKnown: keyKnown,      // whether the correct answer is revealed
                     yourAnswer: (type === 'free_text')

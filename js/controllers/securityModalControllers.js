@@ -2,7 +2,7 @@
 //  Security modals — My Account → Security
 //    TwoFactorEnableModalCtrl   3-step enrolment: password → scan QR +
 //                               confirm code → recovery codes (show-once)
-//    TwoFactorDisableModalCtrl  password (or code) re-auth to disable
+//    TwoFactorDisableModalCtrl  what changes, then a step-up (password + second step) to disable
 //    RecoveryCodesModalCtrl     regenerate recovery codes (show-once)
 //    PasskeyAddModalCtrl        password re-auth → browser ceremony → label
 //    PasskeyRenameModalCtrl     rename a passkey
@@ -162,35 +162,41 @@ function TwoFactorEnableModalCtrl($uibModalInstance, TwoFactorService, ToastServ
 
 app.controller('TwoFactorDisableModalCtrl', TwoFactorDisableModalCtrl);
 
-TwoFactorDisableModalCtrl.$inject = ['$uibModalInstance', 'TwoFactorService', 'ToastService'];
-function TwoFactorDisableModalCtrl($uibModalInstance, TwoFactorService, ToastService) {
+TwoFactorDisableModalCtrl.$inject = ['$uibModalInstance', 'TwoFactorService', 'StepUpService', 'ToastService'];
+function TwoFactorDisableModalCtrl($uibModalInstance, TwoFactorService, StepUpService, ToastService) {
     var vm = this;
 
     vm.busy = false;
-    vm.password = '';
     vm.clubRequires = false;       // set when the backend refuses with CLUB_REQUIRES_2FA
 
     vm.submit = submit;
     vm.cancel = function () { $uibModalInstance.dismiss('cancel'); };
 
+    // C22 (9 Nov 2026): turning two-factor off needs a step-up (purpose two_factor_off) — the password AND the
+    // member's second step. POST two_factor/disable {step_up_token}; a password or code alone answers STEP_UP_REQUIRED
+    // (StepUpService.Run re-asks once on that).
     function submit() {
-        if (!vm.password) {
-            ToastService.highlightField('tfa-disable-password');
-            ToastService.warning('Password Required', 'Confirm your password to disable two-factor authentication.');
-            return;
-        }
+        if (vm.busy) { return; }
         vm.busy = true;
-        TwoFactorService.Disable({ password: vm.password }).then(function (data) {
+        StepUpService.Run({
+            purpose: 'two_factor_off',
+            title: 'Turn off two-factor',
+            text: 'Because this removes a layer of protection, we check your password and your second step.'
+        }, function (token) {
+            return TwoFactorService.Disable({ step_up_token: token });
+        }).then(function (data) {
             vm.busy = false;
             if (data && data.success) {
                 $uibModalInstance.close(true);
+            } else if (data && data.error === 'CANCELLED') {
+                return;                                    // closed the step-up — stay here, quietly
             } else if (data && data.error === 'CLUB_REQUIRES_2FA') {
                 vm.clubRequires = true;
-            } else if (data && data.error === 'WRONG_PASSWORD') {
-                ToastService.highlightField('tfa-disable-password');
-                ToastService.error('Wrong Password', 'That password was not recognised. Please try again.');
+            } else if (data && data.error === 'TOO_MANY_ATTEMPTS') {
+                ToastService.error('Too Many Attempts', 'Wait a while before trying again.');
             } else {
-                ToastService.error('Could Not Disable', (data && data.message) || 'Please try again.');
+                var msg = data && typeof data.message === 'string' && data.message.length < 240 && data.message.indexOf('<') === -1 ? data.message : '';
+                ToastService.error('Could Not Disable', msg || 'Please try again.');
             }
         });
     }
@@ -362,5 +368,61 @@ function PasskeyDeleteModalCtrl($uibModalInstance, WebauthnService, ToastService
                 ToastService.error('Could Not Remove', (data && data.message) || 'Please try again.');
             }
         });
+    }
+}
+
+
+// ═══ Public: "STOP THIS RESET" (/two_factor_reset_cancel/:token) ═══
+//  C22 (9 Nov 2026). A ToAviate administrator asked to reset the member's two-factor; the member's e-mail carries a
+//  stop link. No session, no app chrome — like /email_cancel (EmailCancelController): GET only SHOWS who / when /
+//  until when; the reset is stopped only by the explicit POST behind the button (mail scanners prefetch links).
+//  Every failure is the backend's uniform 404 → the one "invalid or expired" panel. The API prefix is in the
+//  interceptor's unauthEndpoints, the state in publicStates + publicPages (js/app.js).
+//  Kept in this file (loaded on every page) so the public page needs no new <script> tag.
+
+app.controller('TwoFactorResetCancelController', TwoFactorResetCancelController);
+
+TwoFactorResetCancelController.$inject = ['$stateParams', 'TwoFactorService'];
+function TwoFactorResetCancelController($stateParams, TwoFactorService) {
+    var vm = this;
+    var token = $stateParams.token;
+
+    vm.state = 'loading';       // loading | summary | done | invalid
+    vm.firstName = '';
+    vm.requestedLabel = '';
+    vm.holdLabel = '';
+    vm.busy = false;
+    vm.stop = stop;
+
+    load();
+
+    function load() {
+        if (!token) { vm.state = 'invalid'; return; }
+        TwoFactorService.ResetCancelGet(token).then(function (data) {
+            if (!data || data.success === false) { vm.state = 'invalid'; return; }
+            vm.firstName = data.first_name || '';
+            vm.requestedLabel = label(data.requested_at);
+            vm.holdLabel = label(data.hold_until);
+            vm.state = 'summary';
+        });
+    }
+
+    function stop() {
+        if (vm.busy) { return; }
+        vm.busy = true;
+        TwoFactorService.ResetCancelPost(token).then(function (data) {
+            vm.busy = false;
+            vm.state = (data && data.success !== false) ? 'done' : 'invalid';
+        });
+    }
+
+    // the API's times are UTC — shown in the reader's own time ("Mon 9 Nov 2026, 14:05")
+    function label(value) {
+        if (!value) { return ''; }
+        if (typeof moment === 'function') {
+            var m = moment.utc(String(value), 'YYYY-MM-DD HH:mm:ss');
+            if (m.isValid()) { return m.local().format('ddd D MMM YYYY, HH:mm'); }
+        }
+        return String(value) + ' UTC';
     }
 }

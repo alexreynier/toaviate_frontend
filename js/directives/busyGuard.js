@@ -127,12 +127,21 @@
     }
 
     // Shared press handler: swallow while locked, else check for writes next tick.
+    // A second press that lands BEFORE that tick (a 0 ms double-click) checks right away: the first press's
+    // handler has already run and registered its write, so it locks now and the second press is swallowed.
     function armed(lock, WriteGuard, el, eventName, skip) {
+        var pending = null;
         el.on(eventName, function (e) {
             if (lock.isLocked()) { stopNow(e); return; }
+            if (pending !== null) {
+                var early = WriteGuard.startedSince(pending);
+                if (early.length) { lock.lock(early); stopNow(e); return; }
+            }
             if (skip && skip(e)) { return; }
             var mark = WriteGuard.markFor(e);
+            pending = mark;
             setTimeout(function () {
+                if (pending === mark) { pending = null; }
                 var ids = WriteGuard.startedSince(mark);
                 if (ids.length) { lock.lock(ids); }
             }, 0);

@@ -238,6 +238,12 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
         var start, duration;
         if (draft.source === 'button' || !draft.start) {
             start = vm.date + 'T' + dayStart + ':00';
+            // today: the next half hour, never a start that has already gone (07:00 at 11:10 → "Booking in the past")
+            if (vm.date === moment().format('YYYY-MM-DD')) {
+                var next = moment().startOf('minute');
+                next.add((30 - (next.minutes() % 30)) % 30 || 30, 'minutes');
+                if (next.format('HH:mm') > dayStart && next.isSame(moment(), 'day')) { start = next.format('YYYY-MM-DD[T]HH:mm:00'); }
+            }
             duration = 60;
         } else {
             start = SchedulerV2Service.toLegacyDateTime(draft.start);
@@ -417,7 +423,8 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     function putWithOverrides(evnt, original, granted, booking) {
         return BookingService.updateBooking(evnt, vm.user.id).then(function (data) {
             if (data && data.success == true) {
-                ToastService.success('Changes Saved', 'Your changes were saved successfully');
+                // say what happened, in the scheduler's words: "Booking updated · Thu 12 Nov · 11:00 – 13:00"
+                ToastService.success('Booking updated', SchedulerV2Service.fmtShortDate(evnt.start) + ' · ' + SchedulerV2Service.fmtRange(evnt.start, evnt.end) + (evnt.changed_to_waiting_list ? ' · on the waiting list' : ''));
                 var freed = { club_id: original.club_id || booking.club_id, start: original.start || booking.start, end: original.end || booking.end,
                     plane_id: (original.plane && original.plane.id) || original.plane_id || booking.plane_id,
                     instructor_id: (original.instructor && original.instructor.id) || booking.instructor_id || 0 };
@@ -434,10 +441,10 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
             }
             var errors = conflictErrors(data || {}, granted);
             if (!errors.length) {
-                ToastService.error('Cannot Edit Booking', textOf(data && data.message) || 'The booking could not be changed.');
+                ToastService.error('Booking not changed', textOf(data && data.message) || 'The booking could not be changed. It is back where it was.');
                 return $q.reject({ ok: false });
             }
-            ToastService.warning('Booking conflict', errors[0].message);
+            ToastService.handledInline();             // the conflict dialog IS the message — keeps the write guard's "Not saved" quiet
             return openDialog({ mode: 'conflict', errors: errors, response: data, granted: granted }).then(function (override) {
                 if (!override) { return $q.reject({ ok: false, cancelled: true }); }
                 evnt[override] = true;                          // cumulative: every earlier flag is still on evnt
@@ -740,7 +747,9 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     function fleetTypes() {
         var seen = {}, out = [];
         angular.forEach(((vm.day && vm.day.resources) || {}).aircraft || [], function (a) {
-            if (a.type && !seen[a.type]) { seen[a.type] = 1; out.push({ type: a.type, label: a.type + (a.model ? ' · ' + a.model : ''), club_id: a.club_id }); }
+            // the model as the registry spells it, minus the trailing " -" some imports carry ("CESSNA AIRCRAFT COMPANY -")
+            var model = String(a.model || '').replace(/[\s-]+$/, '');
+            if (a.type && !seen[a.type]) { seen[a.type] = 1; out.push({ type: a.type, label: a.type + (model ? ' · ' + model : ''), club_id: a.club_id }); }
         });
         return out;
     }
@@ -751,8 +760,9 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     // ═══════════════════════════════════════════════════════════════════
     // Back to v1
     // ═══════════════════════════════════════════════════════════════════
-    vm.classic = function () {
+    vm.classic = function () {   // 8 Nov: clears the global v2 switch (FLAG_KEY is toaviate_design_v2)
         try { localStorage.removeItem(SchedulerV2Service.FLAG_KEY); } catch (e) {}
+        $rootScope.designV2 = false;
         $state.go('dashboard.bookings');
     };
 
@@ -763,7 +773,8 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     }
     function validDate(d) { return (d && /^\d{4}-\d{2}-\d{2}$/.test(String(d)) && moment(d, 'YYYY-MM-DD', true).isValid()) ? String(d) : null; }
     function validDays(n) { n = parseInt(n, 10); return (n === 1 || n === 3 || n === 7) ? n : null; }
-    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return m; } return m.message || m.error || ''; }
+    // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
     function readLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function readHideChoice() {
         var v = readLocal(SchedulerV2Service.HIDE_KEY);
@@ -778,9 +789,8 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     // ═══════════════════════════════════════════════════════════════════
     // Init (last, so every `var` above is assigned)
     // ═══════════════════════════════════════════════════════════════════
-    // Being on v2 is the opt-in: dashboard.bookings (the add-booking page's BACK
-    // and every old link) now lands here until "Classic scheduler" clears it.
-    writeLocal(SchedulerV2Service.FLAG_KEY, '1');
+    // 8 Nov: the global v2 switch decides (js/v2/core/design.js maps dashboard.bookings and
+    // dashboard.add_booking here while it is on); being on this page no longer sets it.
     rememberView();
     syncUrl();
     fetch();

@@ -1,0 +1,83 @@
+<!-- v2 · Training → Theory exams (design: mockups/my-account/questionnaires-exams.html, page "Theory exams").
+     State dashboard.v2.my_exams (/my_account/my_exams) → QxExamsV2Controller. One summary + one list per course the club sold exams on. -->
+<main class="ta-page qx-main">
+  <div ng-include="'views/v2/training/_hub.html'"></div>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__box"></span></section>
+  <div class="ta-note ta-note--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-circle"></i><div>{{ vm.error }} <button type="button" class="ta-link" ng-click="vm.reload()" no-busy-guard>Try again</button></div></div>
+  <div class="ta-note" ng-if="!vm.loading && vm.club && !vm.club.member"><i class="fas fa-lock"></i><div>Your exams with <b>{{ vm.club.title }}</b> · past membership. You can still read your results and certificates.</div></div>
+
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.courses.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-award"></i></span>
+      <h4>No theory exams{{ vm.club ? ' at ' + vm.club.title : '' }} yet</h4>
+      <p>When the club sells you a theory exam it appears here, then its result and certificate once you’ve sat it.</p>
+    </div>
+  </section>
+
+  <div class="qx-stack" ng-repeat="c in vm.courses" ng-show="!vm.loading">
+    <section class="ta-card">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" ng-class="{'ta-card__icon--done': c.nPass === c.n}"><i class="fas fa-graduation-cap"></i></span>
+        <div class="ta-card__ttl"><h3>{{ c.short }} theory exams</h3><p>{{ vm.club.title }} · {{ vm.X.plural(c.n, 'subject') }}{{ c.passMark ? ' · pass mark ' + c.passMark + '% in each' : '' }}</p></div>
+        <span class="ta-card__right"><span class="ta-pill" ng-class="c.nPass === c.n ? 'ta-pill--good' : 'ta-pill--info'"><i class="fas" ng-class="c.nPass === c.n ? 'fa-check' : 'fa-graduation-cap'"></i>{{ c.nPass }} of {{ c.n }} passed</span></span>
+      </div>
+      <div class="qx-segs" style="--n:{{ c.n }}" role="img" aria-label="{{ c.nPass }} of {{ c.n }} subjects passed">
+        <span class="qx-seg" ng-repeat="x in c.subs" ng-class="{'qx-seg--pass': x.state === 'pass', 'qx-seg--wait': x.state === 'wait', 'qx-seg--fail': x.state === 'fail'}" title="{{ x.title }} · {{ x.st.label }}"></span>
+      </div>
+      <div class="qx-seglegend">
+        <span><i class="qx-sl-pass"></i>Passed {{ c.nPass }}</span>
+        <span ng-if="c.nWait"><i class="qx-sl-wait"></i>Awaiting result {{ c.nWait }}</span>
+        <span ng-if="c.nFail"><i class="qx-sl-fail"></i>Not passed {{ c.nFail }}</span>
+        <span ng-if="c.nNone"><i></i>Not bought yet {{ c.nNone }}</span>
+      </div>
+      <div class="ta-tiles">
+        <div class="ta-tile ta-tile--progress"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>Passed</span><span class="ta-tile__v">{{ c.nPass }} of {{ c.n }}</span><span class="ta-tile__s">{{ c.lastPass ? ('Latest: ' + c.lastPass.title + ', ' + vm.X.fDate(c.lastPass.pass.record_date)) : 'None yet' }}</span></div>
+        <div class="ta-tile ta-tile--good" ng-if="c.nPass === c.n"><span class="ta-tile__k"><i class="fas fa-flag-checkered"></i>Theory</span><span class="ta-tile__v ta-tile__v--words">All passed</span><span class="ta-tile__s">Your results count towards the licence for 24 months from the last pass</span></div>
+        <div class="ta-tile" ng-if="c.nPass < c.n"><span class="ta-tile__k"><i class="fas fa-hourglass-half"></i>Awaiting result</span><span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !c.nWait}">{{ c.nWait }}</span><span class="ta-tile__s">{{ c.nWait ? c.waitTitles : 'Nothing waiting' }}</span></div>
+        <div class="ta-tile ta-tile--attn" ng-if="c.nFail"><span class="ta-tile__k"><i class="fas fa-redo"></i>To re-sit</span><span class="ta-tile__v">{{ c.nFail }}</span><span class="ta-tile__s">{{ c.failTitles }}</span></div>
+        <div class="ta-tile" ng-if="!c.nFail && c.nPass < c.n"><span class="ta-tile__k"><i class="fas fa-minus-circle"></i>Not bought yet</span><span class="ta-tile__v">{{ c.nNone }}</span><span class="ta-tile__s">{{ c.nNone ? c.noneTitles : 'Every subject bought' }}</span></div>
+        <div class="ta-tile" ng-if="c.finishBy && c.nPass < c.n"><span class="ta-tile__k"><i class="far fa-calendar-alt"></i>Finish by</span><span class="ta-tile__v ta-tile__v--words">{{ vm.X.fDate(c.finishBy) }}</span><span class="ta-tile__s">All {{ c.n }} within 18 months of your first exam ({{ vm.X.monthKey(c.firstSat) }})</span></div>
+      </div>
+    </section>
+
+    <section class="ta-list qx-exlist" aria-label="Theory exam subjects">
+      <div class="ta-list__cols"><span></span><span>Subject</span><span>Last sat</span><span>Status</span><span class="ta-r">Best</span><span></span></div>
+      <div class="qx-gwrap" ng-if="c.attn.length">
+        <div class="ta-group ta-group--attn"><span><i class="fas fa-exclamation-circle"></i>Needs your attention</span><span>{{ vm.X.money(c.owed, vm.club.sym) }} to pay</span></div>
+        <div class="ta-row" ng-repeat="x in c.attn" ng-class="{'ta-row--open': vm.open === x.id}" ng-include="'views/v2/exams/_exam_row.html'"></div>
+      </div>
+      <div class="qx-gwrap">
+        <div class="ta-group"><span>{{ c.title }}</span><span>{{ c.nPass }} of {{ c.n }} passed</span></div>
+        <div class="ta-row" ng-repeat="x in c.rest" ng-class="{'ta-row--open': vm.open === x.id}" ng-include="'views/v2/exams/_exam_row.html'"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- a certificate: a record dialog with the exam colour as its edge -->
+  <div class="ta-dlg-scrim" ng-if="vm.cert" ng-click="$event.target === $event.currentTarget && vm.closeCert()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="qx-cert-t">
+      <div class="ta-dlg__hd" style="--edge:var(--ta-k-exam)">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeCert()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-award"></i>Certificate · {{ vm.cert.x.title }}</div>
+        <div class="ta-dlg__title" id="qx-cert-t">{{ vm.cert.f.original_name || 'Certificate' }}</div>
+        <div class="ta-dlg__sub" ng-if="vm.cert.f._p.record_date">Taken {{ vm.X.fDay(vm.cert.f._p.record_date) }}<span ng-show="vm.cert.f._p.record_result != null"> · {{ vm.cert.f._p.record_result }}%</span> · {{ vm.cert.f._p.record_pass_fail == 1 ? 'Passed' : 'Not passed' }}</div>
+      </div>
+      <div class="ta-dlg__body">
+        <div class="qx-certdoc">
+          <span class="ta-spin ta-spin--dark" ng-if="vm.cert.loading"></span>
+          <span class="ta-muted" ng-if="vm.cert.error"><i class="fas fa-exclamation-triangle"></i> This file couldn’t be loaded.</span>
+          <img ng-if="vm.cert.uri && !vm.cert.pdf" ng-src="{{ vm.cert.uri }}" alt="{{ vm.cert.f.original_name }}">
+          <object class="qx-certdoc__pdf" ng-if="vm.cert.src" ng-attr-data="{{ vm.cert.src }}" type="application/pdf"><p class="ta-muted">Your browser can’t show the PDF here — download it instead.</p></object>
+        </div>
+        <span class="ta-hint">Stored encrypted by the club; opened just for you.</span>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeCert()" no-busy-guard>Close</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.downloadCert()" ng-disabled="!vm.cert.uri" no-busy-guard><i class="fas fa-download"></i>Download</button>
+      </div>
+    </div>
+  </div>
+</main>

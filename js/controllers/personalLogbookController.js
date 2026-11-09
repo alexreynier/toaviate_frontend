@@ -360,6 +360,14 @@ app.controller('PersonalLogbookController', PersonalLogbookController);
                     if (data.departure_time) data.departure_time = toHHMM(data.departure_time);
                     if (data.arrival_time) data.arrival_time = toHHMM(data.arrival_time);
                     vm.entry = angular.extend(blankEntry(), data);
+                    // The API sends decimals as strings ("0.25"); input[type=number] needs numbers or
+                    // ngModel throws [ngModel:numfmt] and the field shows blank.
+                    ['total_time', 'pic_time', 'picus_time', 'copilot_time', 'dual_time', 'instructor_time',
+                     'night_time', 'ifr_time', 'cross_country_time', 'day_landings', 'night_landings'].forEach(function (k) {
+                        if (vm.entry[k] === null || vm.entry[k] === undefined || vm.entry[k] === '') { vm.entry[k] = null; return; }
+                        var n = parseFloat(vm.entry[k]);
+                        vm.entry[k] = isNaN(n) ? null : n;
+                    });
                     // Pre-populate the airfield pickers from the saved entry so the
                     // selection shows on edit (the entry carries id + name + code).
                     if (data.departure_airfield_id || data.departure_airport || data.departure_airport_code) {

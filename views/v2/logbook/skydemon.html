@@ -1,0 +1,110 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 LOGBOOK IMPORT — SkyDemon logs (dashboard.v2.logbook_skydemon) — design: mockups/my-account/logbook.html
+     ("Import SkyDemon"). LogbookV2Controller (screen 'skydemon'): POST personal_logbook/skydemon (preview, stages the
+     GPS tracks, saves nothing) → check → POST personal_logbook/skydemon/confirm {upload_token, entry}. Same calls as v1.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page lgb" ng-class="{'ta-page--has-bar': vm.sd.step === 'review'}">
+  <div class="lgb-part" ng-include="'views/v2/logbook/_bar.html'"></div>
+  <div class="lgb-part" ng-include="'views/v2/logbook/_flow.html'"></div>
+
+  <!-- 1 · upload -->
+  <section class="ta-card" ng-if="vm.sd.step === 'pick'">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon"><i class="fas fa-location-arrow" aria-hidden="true"></i><span class="ta-card__step">1</span></span>
+      <div class="ta-card__ttl"><h3>Upload your SkyDemon logs</h3><p>Each log becomes a prefilled flight, and keeps its GPS track so you can replay it</p></div>
+    </div>
+    <button type="button" class="ta-drop ta-drop--lg" ng-class="{'ta-drop--busy': vm.sd.busy, 'ta-drop--over': vm.sd.drag}" ng-click="vm.pickFile('lgb-sd-in')" no-busy-guard
+            lcf-dropzone lcf-on-drop="vm.onSdFiles(files)" lcf-on-drag-state="vm.sd.drag = isDragging">
+      <span class="ta-empty__ic"><i class="fas" ng-class="vm.sd.busy ? 'fa-plane' : 'fa-cloud-upload-alt'" aria-hidden="true"></i></span>
+      <h4>{{ vm.sd.busy ? 'Reading your flights…' : 'Drop your SkyDemon logs here' }}</h4>
+      <p>{{ vm.sd.busy ? 'Reading tracks, matching aircraft and airfields' : 'or tap to choose · .flightlog · up to 20 files, 20 MB each' }}</p>
+    </button>
+    <input type="file" accept=".flightlog" multiple class="lgb-file" id="lgb-sd-in" lcf-file-select="vm.onSdFiles(files)" ng-disabled="vm.sd.busy">
+    <div class="ta-note ta-note--info"><i class="fas fa-info-circle" aria-hidden="true"></i><div>In SkyDemon, open your logs and export each flight as a <b>.flightlog</b> file. Nothing is saved until you’ve checked the flights. All times are UTC.</div></div>
+  </section>
+
+  <!-- 2 · check -->
+  <section class="ta-tiles" ng-if="vm.sd.step === 'review'">
+    <div class="ta-tile ta-tile--good"><span class="ta-tile__k"><i class="fas fa-check-circle" aria-hidden="true"></i>Ready</span><span class="ta-tile__v">{{ vm.sd.sm.ready }}</span><span class="ta-tile__s">Everything recognised, from {{ vm.Fmt.plural(vm.sd.sm.files, 'file') }}</span></div>
+    <div class="ta-tile" ng-class="{'ta-tile--attn': vm.sd.sm.review}"><span class="ta-tile__k"><i class="fas fa-exclamation-circle" aria-hidden="true"></i>Check details</span><span class="ta-tile__v">{{ vm.sd.sm.review }}</span><span class="ta-tile__s">Something to look at before adding</span></div>
+    <div class="ta-tile ta-tile--bad" ng-if="vm.sd.sm.error"><span class="ta-tile__k"><i class="fas fa-times-circle" aria-hidden="true"></i>Couldn’t read</span><span class="ta-tile__v">{{ vm.sd.sm.error }}</span><span class="ta-tile__s">Not a .flightlog file</span></div>
+  </section>
+
+  <div class="lgb-sdlist" ng-if="vm.sd.step === 'review'">
+  <section class="ta-card lgb-sd" ng-repeat="c in vm.sd.cards" ng-class="{'lgb-sd--off': c.success && !c._include, 'lgb-sd--bad': !c.success || c._error}">
+    <!-- a file that couldn't be read -->
+    <div class="lgb-sd__hd" ng-if="!c.success">
+      <span class="ta-kind ta-kind--sm" style="--k:var(--ta-bad)" aria-hidden="true"><i class="fas fa-times"></i></span>
+      <div class="lgb-sd__ttl"><h3>{{ c.file_name }} <span class="ta-pill ta-pill--bad"><i class="fas fa-times-circle" aria-hidden="true"></i>Couldn’t read</span></h3><p>{{ c.message }}</p></div>
+    </div>
+    <div class="lgb-sd__hd" ng-if="c.success">
+      <span class="ta-kind ta-kind--sm ta-kind--brand" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
+      <div class="lgb-sd__ttl">
+        <h3><span class="ta-route"><b class="ta-icao" ng-if="c._depP">{{ c._depP.code }}</b><span ng-if="c._depP.title">{{ c._depP.title }}</span><span ng-if="!c._depP">Not identified</span><i class="fas fa-long-arrow-alt-right" aria-hidden="true"></i><b class="ta-icao" ng-if="c._arrP">{{ c._arrP.code }}</b><span ng-if="c._arrP.title">{{ c._arrP.title }}</span><span ng-if="!c._arrP">Not identified</span></span>
+          <span class="ta-pill ta-pill--{{ vm.sdStatus(c).tone }}"><i class="fas {{ vm.sdStatus(c).ic }}" aria-hidden="true"></i>{{ vm.sdStatus(c).label }}</span></h3>
+        <p><i class="far fa-file-alt" aria-hidden="true"></i> {{ c.file_name }}</p>
+      </div>
+      <label class="lgb-inc"><input type="checkbox" class="ta-toggle__input" ng-model="c._include" ng-change="vm.sdInc()" no-busy-guard><span class="ta-switch"></span>{{ c._include ? 'Add' : 'Skip' }}</label>
+    </div>
+    <div class="lgb-facts" ng-if="c.success">
+      <span class="ta-ac" ng-attr-style="{{ c._ac.colour ? '--ac:' + c._ac.colour : undefined }}">{{ c.parsed.registration || c.entry.registration || '—' }}<span ng-if="c._ac.type || c.entry.aircraft_type">{{ c._ac.type || c.entry.aircraft_type }}</span></span>
+      <span class="ta-tag" ng-if="c.parsed.pilot_name"><i class="fas fa-user" aria-hidden="true"></i>{{ c.parsed.pilot_name }}</span>
+      <span class="ta-tag"><i class="far fa-clock" aria-hidden="true"></i>{{ c.entry.departure_time }}–{{ c.entry.arrival_time }} UTC</span>
+      <span class="ta-tag"><i class="fas fa-plane-arrival" aria-hidden="true"></i>{{ vm.Fmt.plural(c._ldg, 'landing') }}</span>
+      <span class="ta-tag" ng-if="c.parsed.max_altitude_ft"><i class="fas fa-mountain" aria-hidden="true"></i>max {{ c.parsed.max_altitude_ft | number:0 }} ft</span>
+      <span class="ta-tag" ng-if="c._nightTag"><i class="fas fa-moon" aria-hidden="true"></i>night ≈ {{ c._nightEst }}</span>
+      <span class="ta-tag"><i class="fas fa-route" aria-hidden="true"></i>GPS track kept for replay</span>
+    </div>
+    <div class="ta-note ta-note--warn" ng-if="c.success && c.issues.length"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>{{ c._issues }}</div></div>
+    <div class="ta-note ta-note--warn" ng-if="c.success && c._dup"><i class="fas fa-clone" aria-hidden="true"></i><div><b>This flight may already be in your logbook.</b> {{ c._dupClub ? 'A club flight on the same date in the same aircraft is there already — club flights appear by themselves, so this one is switched off. Switch it on if it’s a different flight.' : 'A manual entry with the same date and off-blocks time is there already. Switch it off if so.' }}</div></div>
+    <div class="ta-note" ng-if="c.success && c.parsed.started_airborne"><i class="fas fa-info-circle" aria-hidden="true"></i><div>The log starts in the air — SkyDemon doesn’t record taxiing, so check the off-blocks time.</div></div>
+    <div class="ta-note ta-note--bad" ng-if="c._error"><i class="fas fa-times-circle" aria-hidden="true"></i><div>{{ c._error }}</div></div>
+    <div class="lgb-sd__body" ng-if="c.success">
+      <div class="lgb-sdgrid">
+        <div class="ta-field lgb-sd-w"><span class="ta-label">Date</span><ta-date-picker ng-model="c.entry.flight_date" options="vm.dateOpts" placeholder="Pick a date" block="true" format="short"></ta-date-picker></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-off">Off blocks <em>UTC</em></label><input class="ta-input" id="lgb-sd-{{ $index }}-off" ng-model="c.entry.departure_time" ng-disabled="!c._include" placeholder="HH:MM" inputmode="numeric" maxlength="5"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-on">On blocks <em>UTC</em></label><input class="ta-input" id="lgb-sd-{{ $index }}-on" ng-model="c.entry.arrival_time" ng-disabled="!c._include" placeholder="HH:MM" inputmode="numeric" maxlength="5"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-reg">Registration</label><input class="ta-input" id="lgb-sd-{{ $index }}-reg" ng-model="c.entry.registration" ng-disabled="!c._include" autocapitalize="characters" spellcheck="false"></div>
+        <div class="ta-field lgb-sd-w"><label class="ta-label" for="lgb-sd-{{ $index }}-dep">From</label>
+          <select class="ta-select" id="lgb-sd-{{ $index }}-dep" ng-model="c._dep" ng-change="vm.sdPlaces(c)" ng-disabled="!c._include" ng-options="a as (a.code + ' — ' + a.title) for a in c.departure_candidates track by a.id" no-busy-guard><option value="">Unknown — not listed</option></select></div>
+        <div class="ta-field lgb-sd-w"><label class="ta-label" for="lgb-sd-{{ $index }}-arr">To</label>
+          <select class="ta-select" id="lgb-sd-{{ $index }}-arr" ng-model="c._arr" ng-change="vm.sdPlaces(c)" ng-disabled="!c._include" ng-options="a as (a.code + ' — ' + a.title) for a in c.arrival_candidates track by a.id" no-busy-guard><option value="">Unknown — not listed</option></select></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-cap">Your role</label>
+          <select class="ta-select" id="lgb-sd-{{ $index }}-cap" ng-model="c.entry.capacity" ng-disabled="!c._include" ng-options="x as vm.capInfo(x).label for x in vm.CAPS" no-busy-guard></select></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-tot">Total <em>h:mm</em></label><input class="ta-input" id="lgb-sd-{{ $index }}-tot" ng-model="c._total" ng-disabled="!c._include" inputmode="decimal" autocomplete="off"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-ldd">Day landings</label><input class="ta-input" id="lgb-sd-{{ $index }}-ldd" type="number" min="0" ng-model="c.entry.day_landings" ng-disabled="!c._include" inputmode="numeric"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-ldn">Night landings</label><input class="ta-input" id="lgb-sd-{{ $index }}-ldn" type="number" min="0" ng-model="c.entry.night_landings" ng-disabled="!c._include" inputmode="numeric"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-night">Night <em>blank = estimate</em></label><input class="ta-input" id="lgb-sd-{{ $index }}-night" ng-model="c._night" ng-disabled="!c._include" placeholder="{{ c._nightEst ? 'est. ' + c._nightEst : 'est. —' }}" inputmode="decimal" autocomplete="off"></div>
+        <div class="ta-field"><label class="ta-label" for="lgb-sd-{{ $index }}-rem">Remarks</label><input class="ta-input" id="lgb-sd-{{ $index }}-rem" ng-model="c.entry.remarks" ng-disabled="!c._include" placeholder="Route, exercise, notes…"></div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div class="ta-actionbar lgb-savebar" ng-if="vm.sd.step === 'review'">
+    <div class="ta-confirm ta-confirm--inline lgb-leave" ng-if="vm.leaveAsk" role="alert">
+      <span>{{ vm.leaveAsk.restart ? 'Start over? Your review and any fixes will be lost.' : 'Leave without adding these flights? Your review will be lost.' }}</span>
+      <span class="ta-confirm__btns">
+        <button type="button" class="ta-btn ta-btn--sm lgb-leave__keep" ng-click="vm.leaveKeep()" no-busy-guard>Keep reviewing</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.leaveGo()" no-busy-guard>{{ vm.leaveAsk.restart ? 'Start over' : 'Leave' }}</button>
+      </span>
+    </div>
+    <span class="ta-actionbar__hint ta-desk-only" ng-if="!vm.leaveAsk">{{ vm.sd.inc }} of {{ vm.sd.sm.ok }} selected</span>
+    <span class="ta-sp ta-desk-only" ng-if="!vm.leaveAsk"></span>
+    <button type="button" class="ta-btn ta-btn--quiet" ng-if="!vm.leaveAsk" ng-click="vm.askRestart('sd')" no-busy-guard>Start over</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="!vm.leaveAsk" ng-click="vm.sdConfirm()" ng-disabled="!vm.sd.inc"><i class="fas fa-check" aria-hidden="true"></i>Add {{ vm.Fmt.plural(vm.sd.inc, 'flight') }}</button>
+  </div>
+
+  <!-- 3 · added -->
+  <section class="ta-card" ng-if="vm.sd.step === 'done'">
+    <div class="lgb-done">
+      <span class="ta-dlg__check" aria-hidden="true"><i class="fas fa-check"></i></span>
+      <h3>{{ vm.Fmt.plural(vm.sd.result, 'flight') }} added with GPS tracks</h3>
+      <p>Look for the SkyDemon tag in your logbook — open a flight and choose Replay flight to watch the track.</p>
+      <div class="lgb-done__acts">
+        <button type="button" class="ta-btn" ng-click="vm.sdRestart()" no-busy-guard><i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>Upload more logs</button>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('logbook')" no-busy-guard><i class="fas fa-book" aria-hidden="true"></i>View my logbook</button>
+      </div>
+    </div>
+  </section>
+</main>

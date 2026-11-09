@@ -1,0 +1,27 @@
+<!-- one acknowledgement row, opening in place (included on a .ta-row with `a` on the scope) -->
+<button type="button" class="ta-row__main" ng-click="vm.openAck(a)" aria-expanded="{{ vm.ackOpen === a }}" no-busy-guard data-e2e="saf-ack-row">
+  <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="vm.sqClass(a._tone)"><i class="fas" ng-class="a._icon" aria-hidden="true"></i></span></span>
+  <span class="ta-row__txt"><span class="ta-row__title">{{ a._title }}</span><span class="ta-row__sub">{{ a._sub }}</span></span>
+  <span class="ta-row__meta"><span ng-class="{'saf-pop': a._just}"><span class="ta-pill" ng-class="'ta-pill--' + vm.ackStatus(a).tone"><i class="fas" ng-class="vm.ackStatus(a).icon"></i>{{ vm.ackStatus(a).label }}</span></span></span>
+  <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.ackOpen === a ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+  <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+</button>
+<div class="ta-detail" ng-if="vm.ackOpen === a">
+  <div class="ta-panel ta-panel--white" ng-if="a._doc">
+    <dl class="ta-facts ta-facts--3">
+      <div class="ta-fact"><dt>Document</dt><dd>{{ a._docType || 'Safety document' }}</dd></div>
+      <div class="ta-fact" ng-if="a._version"><dt>Version</dt><dd>{{ a._version }} <small ng-show="a._effective">· in force from {{ vm.fDay(a._effective) }}</small></dd></div>
+      <div class="ta-fact"><dt>Asked on</dt><dd>{{ vm.fDate(a.created_at) }}</dd></div>
+    </dl>
+    <div ng-if="a._change"><span class="ta-sec-k">What changed</span><p class="saf-p">{{ a._change }}</p></div>
+    <div class="ta-detail__foot" ng-if="a._hasFile && a._versionId">
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openDoc(a)" ng-disabled="a._opening" data-e2e="saf-open-doc"><i class="fas" ng-class="a._opening ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i>Open the document</button>
+      <span class="ta-hint" ng-show="a._file">{{ a._file }}</span>
+    </div>
+    <span class="ta-hint" ng-if="!a._docType">The safety team can tell you which document this is and where to read it.</span>
+    <span class="ta-hint" ng-if="a._docType && a._versionId && !a._hasFile">There’s no file attached to this version — ask the safety team where to read it.</span>
+  </div>
+  <div class="ta-panel ta-panel--white" ng-if="!a._doc && a._b" ng-init="b = a._b"><div class="saf-contents" ng-include="'views/v2/safety/_bulletin_article.html'"></div></div>
+  <div class="ta-panel ta-panel--white" ng-if="!a._doc && !a._b"><span class="ta-hint">This bulletin is no longer published — ask the safety team for a copy.</span></div>
+  <div class="saf-contents" ng-include="'views/v2/safety/_ack_block.html'"></div>
+</div>

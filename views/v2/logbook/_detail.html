@@ -1,0 +1,57 @@
+<!-- v2 logbook — a flight opened in place (the desktop drawer row and the phone row both include this).
+     Scope: `e` (the logbook line, e._d built by LogbookV2Controller.buildDetail) + `vm`. -->
+<div class="lgb-det">
+  <div class="ta-panel ta-panel--white">
+    <dl class="ta-facts ta-facts--3">
+      <div class="ta-fact"><dt>Date</dt><dd>{{ e._d.dateLong }}</dd></div>
+      <div class="ta-fact lgb-fact--w"><dt>Off blocks</dt><dd><span class="ta-route"><b class="ta-icao">{{ e._dep || '—' }}</b><span ng-if="e.departure_airport">{{ e.departure_airport }}</span></span> <small>· {{ e.departure_time || '—' }}</small></dd></div>
+      <div class="ta-fact lgb-fact--w"><dt>On blocks</dt><dd><span class="ta-route"><b class="ta-icao">{{ e._arr || '—' }}</b><span ng-if="e.arrival_airport">{{ e.arrival_airport }}</span></span> <small>· {{ e.arrival_time || '—' }}</small></dd></div>
+      <div class="ta-fact lgb-fact--w"><dt>Aircraft</dt><dd>{{ e.registration || '—' }} <small ng-if="e._d.acLine">· {{ e._d.acLine }}</small></dd></div>
+      <div class="ta-fact"><dt>Your role</dt><dd>{{ e._d.role }} <small>· {{ e._d.roleTime }}</small></dd></div>
+      <div class="ta-fact"><dt>{{ e._d.who.k }}</dt><dd><span class="ta-av ta-av--sm" ng-if="e._d.who.av" ng-attr-style="{{ e._insC ? '--av:' + e._insC : undefined }}" aria-hidden="true">{{ e._ins }}</span> {{ e._d.who.v }}</dd></div>
+      <div class="ta-fact"><dt>Night</dt><dd>{{ e._d.night }}<small ng-if="e._d.nightEst"> · estimated from sunset</small></dd></div>
+      <div class="ta-fact"><dt>Landings</dt><dd>{{ e._d.ldg }}</dd></div>
+      <div class="ta-fact" ng-if="e._d.xc"><dt>Cross-country</dt><dd>{{ e._d.xc }}</dd></div>
+      <div class="ta-fact" ng-if="e._d.ifr"><dt>Instrument</dt><dd>{{ e._d.ifr }}</dd></div>
+      <div class="ta-fact lgb-fact--w"><dt>Source</dt><dd>{{ e._d.src }}</dd></div>
+    </dl>
+    <div ng-if="e.remarks"><span class="ta-sec-k">Remarks</span><p class="lgb-rmk">{{ e.remarks }}</p></div>
+    <span class="ta-hint"><i class="far fa-clock" aria-hidden="true"></i> Times are UTC{{ e.kind === 'club' ? ', rounded to the nearest 5 minutes from the aircraft’s brakes-off and brakes-on.' : '.' }}</span>
+  </div>
+
+  <div class="ta-panel ta-panel--white">
+    <div class="ta-panel__hd"><i class="fas fa-stamp" aria-hidden="true"></i>Signatures &amp; endorsements</div>
+    <button type="button" class="lgb-sigs__row" ng-repeat="x in e._d.ends" ng-click="vm.openStamps(e, $event)" no-busy-guard>
+      <span class="ta-pill ta-pill--{{ x.s.tone }}"><i class="fas {{ x.s.ic }}" aria-hidden="true"></i>{{ x.pill }}</span>
+      <span><b>{{ x.r.endorsement_text }}</b><small>{{ x.sub }}</small></span>
+      <i class="fas fa-chevron-right ta-muted" aria-hidden="true"></i>
+    </button>
+    <p class="ta-hint" ng-if="!e._d.ends.length">No signatures on this flight yet. {{ e.kind === 'club' ? 'Ask your instructor to sign it in ToAviate, or record one you got elsewhere.' : 'Ask an instructor or examiner to confirm one you got elsewhere.' }}</p>
+    <div class="lgb-sigs__acts">
+      <button type="button" class="ta-btn ta-btn--sm" ng-if="e.kind === 'club'" ng-click="vm.openReq(e)" no-busy-guard><i class="fas fa-user-check" aria-hidden="true"></i>Request instructor signature</button>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openExt(e)" no-busy-guard><i class="fas fa-envelope" aria-hidden="true"></i>Add external endorsement</button>
+    </div>
+  </div>
+
+  <div class="ta-panel lgb-det__wide lgb-wxp" ng-if="e._wx">
+    <div class="ta-panel__hd"><i class="fas fa-cloud-sun" aria-hidden="true"></i>Weather at take-off and landing</div>
+    <flight-weather-panel flight-id="e.ref_id" dep-name="e.departure_airport" arr-name="e.arrival_airport"></flight-weather-panel>
+    <span class="ta-hint">Stored reports for this flight — they never change after the flight.</span>
+  </div>
+
+  <div class="ta-detail__foot lgb-det__wide">
+    <button type="button" class="ta-btn" ng-if="e._canReplay" ng-click="vm.replay(e)" no-busy-guard><i class="fas fa-play-circle" aria-hidden="true"></i>Replay flight</button>
+    <button type="button" class="ta-btn" ng-if="e.kind === 'club' && e.ref_id" ng-click="vm.toggleWx(e)" aria-expanded="{{ e._wx ? 'true' : 'false' }}" no-busy-guard><i class="fas fa-cloud-sun" aria-hidden="true"></i>{{ e._wx ? 'Hide weather' : 'Weather' }}</button>
+    <span class="ta-sp"></span>
+    <span class="lgb-fa" ng-if="e.kind === 'manual' && vm.del !== e._k">
+      <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.askDel(e)" no-busy-guard><i class="fas fa-trash-alt" aria-hidden="true"></i>Delete</button>
+      <button type="button" class="ta-btn" ng-click="vm.edit(e)" no-busy-guard><i class="fas fa-pen" aria-hidden="true"></i>Edit flight</button>
+    </span>
+    <span class="lgb-fa" ng-if="e.kind === 'manual' && vm.del === e._k">
+      <span class="lgb-confirm">Delete this flight from your logbook?</span>
+      <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.keepDel()" no-busy-guard>Keep it</button>
+      <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.confirmDel(e)"><i class="fas fa-trash-alt" aria-hidden="true"></i>Delete flight</button>
+    </span>
+    <span class="ta-hint" ng-if="e.kind === 'club'">Club flights are kept by the club — ask them to correct anything.</span>
+  </div>
+</div>

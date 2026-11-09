@@ -11,7 +11,7 @@ function SchedulerV2Service($http, $location, $q) {
     var service = {};
 
     // localStorage / sessionStorage keys (one place, read by the v1 toggle too)
-    service.FLAG_KEY = 'toaviate_scheduler_v2';           // '1' → the v1 list state redirects to v2
+    service.FLAG_KEY = 'toaviate_design_v2';              // the global v2 switch (js/v2/core/design.js) — replaced the scheduler's own flag 8 Nov
     service.DAYS_KEY = 'toaviate_sv2_days';               // remembered day count (1|3|7)
     service.VIEW_KEY = 'toaviate_sv2_view';               // sessionStorage {date, days} — the return trip from add-booking
     service.SHOW_ALL_KEY = 'toaviate_bookings_show_all_instructors';   // v1's viewer override (read once as a seed)

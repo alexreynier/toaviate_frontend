@@ -1,0 +1,68 @@
+<!-- v2 ACCEPT AN INVITATION — mockups/my-account/memberships-cards.html (page "Accept invitation"). MembershipAcceptV2Controller.
+     Accepting is by direct debit as today; by card waits for the backend. -->
+<main class="ta-page ta-page--has-bar" data-e2e="mem-accept-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-envelope-open-text"></i></span>
+        <div><h2>Accept the invitation</h2><p>{{ vm.title ? vm.title + ' invited you to join' : 'A club invited you to join' }}</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account.memberships" aria-label="Back to Memberships"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Memberships</span></a>
+    </div>
+  </section>
+
+  <div class="ta-stack" ng-if="vm.loading" aria-busy="true"><div class="ta-skel mem-skel-t"></div><div class="ta-skel mem-skel-t"></div></div>
+
+  <section class="ta-card" ng-if="!vm.loading && vm.missing">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-envelope-open-text"></i></span><h4>This invitation isn't open any more</h4>
+      <p>It may have been accepted, declined or withdrawn by the club. Your memberships and any other invitations are on Memberships.</p>
+      <a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships">Back to Memberships</a></div>
+  </section>
+
+    <!-- C31: a free tier is accepted outright — no direct debit -->
+    <section class="ta-card" ng-if="vm.done" data-e2e="mem-accept-done">
+      <div class="ta-empty"><span class="ta-empty__ic mem-done-ic"><i class="fas fa-check"></i></span>
+        <h4>You're a member of {{ vm.title }}</h4>
+        <p>{{ vm.r.membership_name }} — {{ vm.r.membership_start && vm.D.daysTo(vm.r.membership_start) > 0 ? 'it starts on ' + vm.D.fDate(vm.r.membership_start) : 'it starts today' }}. There's nothing to pay and no direct debit to set up.</p>
+        <a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships" data-e2e="mem-accept-done-go">See your memberships</a></div>
+    </section>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.r && !vm.done">
+      <div class="mem-hd">
+        <span class="mem-mono" aria-hidden="true">{{ vm.mono }}</span>
+        <div class="mem-hd__t"><h3>{{ vm.title }}</h3><p ng-if="vm.r.address"><span>{{ vm.r.address }}</span></p></div>
+        <span class="ta-pill ta-pill--warn"><i class="fas fa-envelope-open-text"></i>Invitation</span>
+      </div>
+      <div class="mem-tier"><span class="mem-tier__n">{{ vm.r.membership_name }}</span><span class="mem-tier__p"><b class="ta-money" ng-if="vm.priceMoney">{{ vm.priceMoney }}</b>{{ vm.priceMoney ? ' ' + vm.pricePer : vm.priceTxt }}</span></div>
+      <dl class="ta-facts ta-facts--3">
+        <div class="ta-fact"><dt>Starts</dt><dd>{{ vm.r.membership_start ? vm.D.fDate(vm.r.membership_start) : 'When you accept' }}</dd></div>
+        <div class="ta-fact"><dt>First payment</dt><dd>{{ vm.D.isFree(vm.r) ? 'Free' : (vm.D.priceKnown(vm.r) ? vm.D.money(vm.D.num(vm.r.price), vm.r.currency) : '—') }} <small ng-if="vm.r.first_payment && !vm.D.isFree(vm.r)">on {{ vm.D.fDate(vm.r.first_payment) }}</small></dd></div>
+        <div class="ta-fact"><dt>Then</dt><dd>{{ vm.every || '—' }}</dd></div>
+      </dl>
+      <div class="ta-note ta-note--info" ng-if="!vm.free"><i class="fas fa-university" aria-hidden="true"></i><div>{{ vm.title }} collects membership fees by direct debit. Accepting takes you to GoCardless to set it up.</div></div>
+      <div class="ta-note ta-note--good" ng-if="vm.free"><i class="fas fa-gift" aria-hidden="true"></i><div>This membership is free — accepting makes you a member straight away. No direct debit needed.</div></div>
+    </section>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.r && !vm.done">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-list-ol"></i></span>
+        <div class="ta-card__ttl"><h3>What happens next</h3><p>{{ vm.free ? 'A few seconds' : 'About two minutes' }}</p></div></div>
+      <ol class="mem-flow"><li ng-repeat="s in vm.steps"><b>{{ s[0] }}</b><span>{{ s[1] }}</span></li></ol>
+      <div class="mem-agree">
+        <label class="ta-check" ng-class="{'mem-check--err': vm.err}"><input type="checkbox" ng-model="vm.terms" ng-change="vm.err = false" no-busy-guard id="field-terms">
+          <span>I agree to {{ vm.title }}'s <button type="button" class="mem-inl" ng-click="vm.doc(vm.r.membership_terms, 'Membership terms')">terms and conditions</button> and <button type="button" class="mem-inl" ng-click="vm.doc(vm.r.privacy_terms, 'Privacy policy')">privacy policy</button>.</span></label>
+        <span class="mem-check__msg" ng-if="vm.err">Agree to the club's terms to continue</span>
+      </div>
+    </section>
+
+    <div class="ta-actionbar" ng-if="!vm.loading && vm.r && !vm.done">
+      <span class="ta-actionbar__hint" ng-if="vm.declineArm">Decline the invitation from {{ vm.title }}?</span>
+      <span class="ta-sp" ng-if="vm.declineArm"></span>
+      <button type="button" class="ta-btn" ng-if="vm.declineArm" ng-click="vm.declineArm = false">Keep it</button>
+      <button type="button" class="ta-btn ta-btn--danger-solid" ng-if="vm.declineArm" ng-click="vm.decline()" ng-disabled="vm.declining" data-e2e="mem-decline-yes">Yes, decline</button>
+      <button type="button" class="ta-btn ta-btn--danger" ng-if="!vm.declineArm" ng-click="vm.declineArm = true" ng-disabled="vm.busy" data-e2e="mem-decline">Decline</button>
+      <span class="ta-sp" ng-if="!vm.declineArm"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="!vm.declineArm" ng-click="vm.submit()" ng-disabled="vm.busy" data-e2e="mem-accept-submit" no-busy-guard>
+<span class="ta-spin" ng-if="vm.busy"></span><i class="fas" ng-class="vm.free ? 'fa-check' : 'fa-university'" ng-if="!vm.busy"></i>{{ vm.free ? (vm.busy ? 'Accepting…' : 'Accept invitation') : (vm.busy ? 'Opening GoCardless…' : 'Set up direct debit') }}</button>
+    </div>
+</main>

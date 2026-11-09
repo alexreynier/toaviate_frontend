@@ -1,0 +1,89 @@
+<!-- v2 ADD A CARD — mockups/my-account/memberships-cards.html (page "Add a card"). AddCardV2Controller:
+     cards/create_new_customer (SetupIntent) → Stripe Payment Element (per-club key) → confirmSetup → cards/confirm_setup. -->
+<main class="ta-page ta-page--has-bar" data-e2e="mem-addcard">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-credit-card"></i></span>
+        <div><h2>Add a card</h2><p>Saved securely by Stripe — your card number never reaches ToAviate</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" href="" ng-click="vm.back()" aria-label="Back to Payment methods"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Payment methods</span></a>
+    </div>
+  </section>
+
+  <div class="ta-skel mem-skel-t" ng-if="vm.loading"></div>
+
+  <section class="ta-card" ng-if="!vm.loading && !vm.clubs.length">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="far fa-credit-card"></i></span><h4>Join a club first</h4>
+      <p>Cards are saved with a club, so you need a club membership before you can add one.</p>
+      <a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships.add"><i class="fas fa-plus"></i>Join a club</a></div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail" ng-if="!vm.loading && vm.clubs.length">
+    <div class="ta-stack">
+      <!-- 1 · which club (several clubs only) -->
+      <section class="ta-card" ng-if="vm.clubs.length > 1">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.club && !vm.picking}" aria-hidden="true"><i class="fas" ng-class="vm.club && !vm.picking ? 'fa-check' : 'fa-building'"></i><span class="ta-card__step">1</span></span>
+          <div class="ta-card__ttl"><h3>Which club is this card for?</h3><p>{{ vm.club && !vm.picking ? 'Cards are kept by each club\'s own Stripe account' : 'Each club keeps its own cards, so pick where to save it' }}</p></div>
+          <span class="ta-card__right" ng-if="vm.club && !vm.picking"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.change()" ng-disabled="vm.stage === 'saving'">Change</button></span>
+        </div>
+        <div class="mem-opts" role="radiogroup" aria-label="Club" ng-if="!vm.club || vm.picking">
+          <button type="button" class="ta-opt" role="radio" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-opt--on': vm.club === c}" aria-checked="{{ vm.club === c }}" ng-click="vm.pick(c)" data-e2e="mem-ac-club">
+            <span class="mem-mono mem-mono--sm" aria-hidden="true">{{ c.mono }}</span>
+            <span><span class="ta-opt__t">{{ c.title }}</span><span class="ta-opt__s">{{ vm.saved(c) === null ? 'Saved with this club' : vm.saved(c) ? vm.saved(c) + ' card' + (vm.saved(c) > 1 ? 's' : '') + ' saved' : 'No cards saved yet' }}</span></span>
+            <span class="ta-opt__dot"></span>
+          </button>
+        </div>
+        <div class="mem-picked" ng-if="vm.club && !vm.picking">
+          <span class="mem-mono" aria-hidden="true">{{ vm.club.mono }}</span>
+          <div><span class="mem-result__t">{{ vm.club.title }}</span><span class="mem-result__s">{{ vm.saved(vm.club) ? vm.saved(vm.club) + ' card' + (vm.saved(vm.club) > 1 ? 's' : '') + ' already saved' : vm.saved(vm.club) === 0 ? 'Your first card with this club' : 'Saved with this club' }}</span></div>
+        </div>
+      </section>
+
+      <!-- 2 · card details -->
+      <section class="ta-card" ng-class="{'mem-card--later': !vm.club || vm.picking}">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-lock"></i><span class="ta-card__step" ng-if="vm.clubs.length > 1">2</span></span>
+          <div class="ta-card__ttl"><h3>Card details</h3><p>{{ vm.club && !vm.picking ? 'It becomes your default card for ' + vm.club.title : 'Choose a club first' }}</p></div>
+        </div>
+        <div class="ta-stack" ng-if="vm.stage === 'loading'">
+          <span class="mem-k mem-wait"><span class="ta-spin ta-spin--dark"></span> Preparing the secure card form…</span>
+          <div class="ta-skel mem-skel-a"></div><div class="ta-skel mem-skel-b"></div>
+        </div>
+        <div class="ta-note ta-note--bad" ng-if="vm.stage === 'error'"><i class="fas fa-times-circle" aria-hidden="true"></i><div>{{ vm.err }}</div></div>
+        <!-- ng-show: the mount target must exist when Stripe mounts -->
+        <div class="mem-pe" ng-show="vm.stage === 'ready' || vm.stage === 'saving'">
+          <div id="payment-element"></div>
+          <div class="ta-note ta-note--bad" ng-if="vm.stripeErr"><i class="fas fa-times-circle" aria-hidden="true"></i><div>{{ vm.stripeErr }}</div></div>
+          <span class="mem-pe__foot"><i class="fas fa-lock" aria-hidden="true"></i>Drawn by Stripe in its own secure frame · powered by <i class="fab fa-stripe" aria-label="Stripe"></i></span>
+        </div>
+      </section>
+
+      <div class="ta-actionbar" ng-if="vm.confirmLeave">
+        <span class="ta-actionbar__hint">Discard the card details you typed?</span><span class="ta-sp"></span>
+        <button type="button" class="ta-btn" ng-click="vm.confirmLeave = false">Keep them</button>
+        <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.back(true)">Discard</button>
+      </div>
+      <div class="ta-actionbar" ng-if="!vm.confirmLeave">
+        <span class="ta-actionbar__hint">{{ vm.club && !vm.picking ? 'Saved with ' + vm.club.title : 'Choose a club' }}</span><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--quiet ta-desk-only" ng-click="vm.back()" ng-disabled="vm.stage === 'saving'">Cancel</button>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.save()" ng-disabled="vm.stage !== 'ready'" data-e2e="mem-ac-save" no-busy-guard>
+<span class="ta-spin" ng-if="vm.stage === 'saving'"></span><i class="fas fa-lock" ng-if="vm.stage !== 'saving'"></i>{{ vm.stage === 'saving' ? 'Saving…' : 'Save card' }}</button>
+      </div>
+    </div>
+
+    <aside class="ta-stack ta-rail">
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-info"></i></span><div class="ta-card__ttl"><h3>About saving a card</h3></div></div>
+        <div class="mem-points">
+          <div class="mem-point"><span class="mem-pay__ic" aria-hidden="true"><i class="fas fa-building"></i></span><span><b>Saved with one club</b><span>Each club takes payments through its own Stripe account, so this card is only offered at {{ vm.club ? vm.club.title : 'the club' }}.</span></span></div>
+          <div class="mem-point"><span class="mem-pay__ic" aria-hidden="true"><i class="fas fa-star"></i></span><span><b>Becomes your default</b><span>{{ vm.club ? vm.club.title : 'The club' }} offers it first when you pay an invoice or a booking. Change the default on Payment methods.</span></span></div>
+          <div class="mem-point"><span class="mem-pay__ic" aria-hidden="true"><i class="fas fa-mobile-alt"></i></span><span><b>Your bank may check it's you</b><span>Approve it in your banking app, or on your bank's page — you come back to Payment methods afterwards.</span></span></div>
+          <div class="mem-point"><span class="mem-pay__ic" aria-hidden="true"><i class="fas fa-lock"></i></span><span><b>Kept by Stripe, not ToAviate</b><span>We only ever see the brand, the last 4 digits and the expiry date.</span></span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>

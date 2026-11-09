@@ -1,0 +1,133 @@
+<!-- ═══ v2 Safety · Overview (state dashboard.v2.safety, SafetyV2Controller, data.screen 'home') ═══
+     Design: mockups/my-account/safety.html → Overview: the report actions, what needs acknowledging (due dates, C25), Your reports
+     (sms/v2/my_reports, C25), and in the rail the latest bulletins and what the report statuses mean. -->
+<main class="ta-page saf-page">
+  <div class="saf-contents" ng-include="'views/v2/safety/_bar.html'"></div>
+  <div class="saf-contents" ng-include="'views/v2/safety/_states.html'"></div>
+
+  <div class="saf-acts">
+    <button type="button" class="saf-act" ng-click="vm.go('report_hazard')" no-busy-guard data-e2e="saf-act-hazard">
+      <span class="saf-act__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+      <span class="saf-act__txt">
+        <span class="saf-act__t">Report a hazard</span>
+        <span class="saf-act__s">Something that <b>could</b> cause harm — a frayed tie-down, a worn tyre, a confusing procedure.</span>
+        <span class="saf-act__tag"><i class="fas fa-user-secret"></i>You can report it anonymously</span>
+      </span>
+      <i class="fas fa-chevron-right saf-act__go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="saf-act" ng-click="vm.go('report_occurrence')" no-busy-guard data-e2e="saf-act-occurrence">
+      <span class="saf-act__ic"><i class="fas fa-bolt" aria-hidden="true"></i></span>
+      <span class="saf-act__txt">
+        <span class="saf-act__t">Report an occurrence</span>
+        <span class="saf-act__s">Something that <b>did</b> happen — an incident, a near miss or an accident.</span>
+        <span class="saf-act__tag"><i class="fas fa-user"></i>Your name goes with it, so the safety team can follow up</span>
+      </span>
+      <i class="fas fa-chevron-right saf-act__go" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="ta-note ta-note--info"><i class="fas fa-hands-helping"></i><div>No report is too small. Every one is reviewed by {{ vm.clubName || 'your club' }}’s safety team.</div></div>
+
+  <div class="ta-cols ta-cols--rail">
+    <div class="ta-stack">
+
+      <!-- Needs your acknowledgement -->
+      <section class="ta-list" ng-if="vm.loading">
+        <div class="saf-lhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-file-signature"></i></span><div class="ta-card__ttl"><h3>Needs your acknowledgement</h3><p>Checking…</p></div></div></div>
+        <div class="saf-skel" aria-label="Loading"><div class="ta-skel"></div></div>
+      </section>
+      <div class="ta-note ta-note--good" ng-if="!vm.loading && vm.club_id && !vm.forbidden && !vm.pending().length"><i class="fas fa-check-circle"></i><div><b>Nothing to acknowledge.</b> When the club asks you to read a manual change or a bulletin, it appears here.</div></div>
+      <section class="ta-list saf-acklist" ng-class="{'ta-card--attn': vm.overdue().length}" ng-if="!vm.loading && vm.pending().length" data-e2e="saf-home-acks">
+        <div class="saf-lhd"><div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.overdue().length}"><i class="fas" ng-class="vm.overdue().length ? 'fa-exclamation-triangle' : 'fa-file-signature'"></i></span><div class="ta-card__ttl"><h3>Needs your acknowledgement</h3><p>{{ !vm.overdue().length ? 'Read each one and confirm you’ve understood it' : vm.overdue().length === vm.pending().length ? 'All ' + vm.overdue().length + ' are past the date the club asked for' : vm.overdue().length + ' overdue — past the date the club asked for' }}</p></div><span class="ta-card__right"><button type="button" class="ta-link" ng-click="vm.go('acks')" no-busy-guard>See all <i class="fas fa-arrow-right"></i></button></span></div></div>
+        <div class="ta-row" ng-repeat="a in vm.pending() | limitTo:3">
+          <button type="button" class="ta-row__main" ng-click="vm.gotoAck(a)" no-busy-guard>
+            <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="vm.sqClass(a._tone)"><i class="fas" ng-class="a._icon" aria-hidden="true"></i></span></span>
+            <span class="ta-row__txt"><span class="ta-row__title">{{ a._title }}</span><span class="ta-row__sub">{{ a._sub }}</span></span>
+            <span class="ta-row__meta"><span class="ta-pill" ng-class="'ta-pill--' + vm.ackStatus(a).tone"><i class="fas" ng-class="vm.ackStatus(a).icon"></i>{{ vm.ackStatus(a).label }}</span></span>
+            <span class="ta-row__acts"><span class="ta-btn ta-btn--sm">Read &amp; acknowledge <i class="fas fa-arrow-right"></i></span></span>
+            <span class="ta-row__chev"><i class="fas fa-chevron-right"></i></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Your reports (C25) — hidden when the read isn't available for this club -->
+      <section class="ta-list saf-replist" ng-if="vm.club_id && !vm.forbidden && (vm.loading || vm.reportsOk)" data-e2e="saf-reports">
+        <div class="saf-lhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-list"></i></span><div class="ta-card__ttl"><h3>Your reports</h3><p>Follow what happens to the hazards and occurrences you’ve sent</p></div></div></div>
+        <div class="saf-skel" ng-if="vm.loading" aria-label="Loading"><div class="ta-skel"></div><div class="ta-skel"></div></div>
+        <div class="ta-empty" ng-if="!vm.loading && !vm.reports.length"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>No reports yet</h4><p>When you report a hazard or an occurrence, you can follow it here — from received to closed.</p></div>
+        <div class="ta-list__cols" ng-if="!vm.loading && vm.reports.length"><span></span><span>Report</span><span>Reference</span><span>Sent</span><span>Status</span><span></span></div>
+        <div class="ta-row" ng-repeat="x in vm.reports track by x._key" ng-class="{'ta-row--open': vm.repOpen === x._key}" ng-show="!vm.loading" data-e2e="saf-rep">
+          <button type="button" class="ta-row__main" ng-click="vm.openRep(x)" aria-expanded="{{ vm.repOpen === x._key }}" no-busy-guard>
+            <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="x._haz ? 'ta-ic--warn' : 'ta-ic--info'" title="{{ x._haz ? 'Hazard' : 'Occurrence' }}"><i class="fas" ng-class="x._haz ? 'fa-exclamation-triangle' : 'fa-bolt'" aria-hidden="true"></i></span></span>
+            <span class="ta-row__txt"><span class="ta-row__title">{{ x._title }}</span><span class="ta-row__sub">{{ x._sub }}</span></span>
+            <span class="ta-row__meta"><span class="ta-ref" ng-show="x.reference">{{ x.reference }}</span><span class="ta-row__date">{{ vm.fDate(x.reported_at) }}</span><span class="ta-pill" ng-class="'ta-pill--' + x._st.tone"><i class="fas" ng-class="x._st.icon"></i>{{ x._st.label }}</span></span>
+            <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.repOpen === x._key ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+            <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="ta-detail" ng-if="vm.repOpen === x._key">
+            <div class="saf-dstat">
+              <span class="ta-steps"><span class="saf-contents" ng-repeat="n in vm.repSteps"><span class="ta-steps__line" ng-if="$index" ng-class="{'ta-steps__line--done': x._step === 3 || $index <= x._step}"></span><span class="ta-steps__s" ng-class="{'ta-steps__s--done': x._step === 3 || $index < x._step, 'ta-steps__s--now': x._step !== 3 && $index === x._step}"><i></i>{{ n }}</span></span></span>
+              <span class="saf-dstat__line">{{ x._st.line }}</span>
+            </div>
+            <div class="ta-panel ta-panel--white">
+              <dl class="ta-facts ta-facts--3" ng-if="x._haz">
+                <div class="ta-fact"><dt>Area</dt><dd>{{ x.category ? vm.catLabel(x.category) : '—' }}</dd></div>
+                <div class="ta-fact"><dt>Airfield</dt><dd><span class="ta-route" ng-show="x.aerodrome"><b class="ta-icao">{{ x.aerodrome }}</b><span ng-show="x._afName">{{ x._afName }}</span></span><span class="saf-rv__none" ng-show="!x.aerodrome">Not at an airfield</span></dd></div>
+                <div class="ta-fact"><dt>Aircraft</dt><dd><span class="ta-ac" ng-if="x.plane" ng-attr-style="{{ x.plane.colour ? '--ac:' + x.plane.colour : undefined }}">{{ x.plane.registration }}</span><span class="saf-rv__none" ng-if="!x.plane">None</span></dd></div>
+                <div class="ta-fact"><dt>Noticed</dt><dd>{{ vm.fDayLong(x.reported_at) }}</dd></div>
+                <div class="ta-fact"><dt>Sent as</dt><dd>{{ vm.fullName }}</dd></div>
+              </dl>
+              <dl class="ta-facts ta-facts--3" ng-if="!x._haz">
+                <div class="ta-fact"><dt>Type</dt><dd>{{ vm.typeLabel(x.occurrence_type) }}</dd></div>
+                <div class="ta-fact" ng-if="x.severity"><dt>Severity</dt><dd>{{ vm.sevLabel(x.severity) }}</dd></div>
+                <div class="ta-fact"><dt>Happened</dt><dd>{{ x.occurred_time_given === false ? vm.fDayLong(x.occurred_at) + ' · no time given' : vm.whenText(x.occurred_at || x.reported_at) }}</dd></div>
+                <div class="ta-fact"><dt>Airfield</dt><dd><span class="ta-route" ng-show="x.aerodrome"><b class="ta-icao">{{ x.aerodrome }}</b><span ng-show="x._afName">{{ x._afName }}</span></span><span class="saf-rv__none" ng-show="!x.aerodrome">Not at an airfield</span></dd></div>
+                <div class="ta-fact"><dt>Aircraft</dt><dd><span class="ta-ac" ng-if="x.plane" ng-attr-style="{{ x.plane.colour ? '--ac:' + x.plane.colour : undefined }}">{{ x.plane.registration }}</span><span class="saf-rv__none" ng-if="!x.plane">None</span></dd></div>
+              </dl>
+            </div>
+            <div class="ta-panel">
+              <span class="ta-sec-k">What you told us</span><p class="saf-p">{{ x.description }}</p>
+              <span class="ta-sec-k" ng-if="x.immediate_actions">What you did at the time</span><p class="saf-p" ng-if="x.immediate_actions">{{ x.immediate_actions }}</p>
+            </div>
+            <div class="ta-panel ta-panel--white">
+              <span class="ta-sec-k">From the safety team</span>
+              <div class="saf-team__act" ng-repeat="a in x._actions"><span class="ta-ref">{{ a.ref }}</span><span>{{ a.title }} <small ng-show="a.due">· due {{ a.due }}</small></span><span class="ta-pill" ng-class="'ta-pill--' + a.st.tone"><i class="fas" ng-class="a.st.icon" ng-show="a.st.icon"></i>{{ a.st.label }}</span></div>
+              <div class="saf-quote" ng-if="!x._actions.length && x.closure_notes">{{ x.closure_notes }}<small ng-show="x.closed_at">Closed {{ vm.fDate(x.closed_at) }}</small></div>
+              <span class="saf-dstat__line" ng-if="!x._actions.length && !x.closure_notes">{{ x._step === 3 ? 'Closed' + (x.closed_at ? ' ' + vm.fDate(x.closed_at) : '') + ' — nothing more needs doing.' : 'No update yet. When the safety team decides what to do, you’ll see it here.' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="saf-lfoot"><i class="fas fa-user-secret"></i><span>Anonymous reports aren’t linked to you, so they don’t appear here.</span></div>
+      </section>
+
+    </div>
+    <div class="ta-rail ta-stack">
+
+      <!-- Latest bulletins -->
+      <section class="ta-list saf-blatest" data-e2e="saf-home-bulletins">
+        <div class="saf-lhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-bullhorn"></i></span><div class="ta-card__ttl"><h3>Latest bulletins</h3><p>{{ vm.unreadCount ? vm.unreadCount + ' new since you last looked' : 'Notices, lessons learned and rule changes' }}</p></div><span class="ta-card__right" ng-show="vm.bulletins.length"><button type="button" class="ta-link" ng-click="vm.go('bulletins')" no-busy-guard>All <i class="fas fa-arrow-right"></i></button></span></div></div>
+        <div class="saf-skel" ng-if="vm.loading" aria-label="Loading"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+        <div class="ta-empty" ng-if="!vm.loading && !vm.latestBulletins.length"><span class="ta-empty__ic"><i class="fas fa-bullhorn"></i></span><h4>{{ vm.bulletins.length ? 'No bulletins in force' : 'No bulletins yet' }}</h4><p>Safety notices from {{ vm.clubName || 'your club' }} will appear here.</p></div>
+        <div class="ta-row" ng-repeat="b in vm.latestBulletins | limitTo:3" ng-class="{'saf-unread': b._new}">
+          <button type="button" class="ta-row__main" ng-click="vm.gotoB(b)" no-busy-guard>
+            <span class="ta-row__lead"><span class="ta-ic saf-sq" ng-class="vm.sqClass(b._type.tone)" title="{{ b._type.label }}"><i class="fas" ng-class="b._type.icon" aria-hidden="true"></i><span class="saf-sq__dot" ng-show="b._new"></span></span></span>
+            <span class="ta-row__txt">
+              <span class="ta-row__title"><span class="saf-sr" ng-show="b._new">Unread: </span>{{ b.title }}</span>
+              <span class="ta-row__sub">{{ b._type.label }} · {{ vm.fDate(b.published_at) }}<span ng-if="b._valid"> · {{ b._valid }}</span></span>
+              <span class="saf-rowpill" ng-show="vm.bStatus(b) && vm.bStatus(b).label !== 'Acknowledged'"><span class="ta-pill" ng-class="'ta-pill--' + vm.bStatus(b).tone"><i class="fas" ng-class="vm.bStatus(b).icon" ng-show="vm.bStatus(b).icon"></i>{{ vm.bStatus(b).label }}</span></span>
+            </span>
+            <span class="ta-row__chev"><i class="fas fa-chevron-right"></i></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- What happens to a report (C25 legend) -->
+      <section class="ta-card" ng-if="vm.club_id && !vm.forbidden && (vm.loading || vm.reportsOk)" data-e2e="saf-legend">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-route"></i></span><div class="ta-card__ttl"><h3>What happens to a report</h3><p>The status you’ll see on each of your reports</p></div></div>
+        <div class="saf-legend">
+          <div class="saf-legend__row" ng-repeat="l in vm.legend track by l.key"><span class="ta-pill" ng-class="'ta-pill--' + l.st.tone"><i class="fas" ng-class="l.st.icon"></i>{{ l.st.label }}</span><span>{{ l.meaning }}</span></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</main>

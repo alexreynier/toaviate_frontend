@@ -1,0 +1,168 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ToAviate admin · Sales enquiries inbox — SalesEnquiriesAdminController (js/v2/enquiries_admin/enquiries_admin.js)
+     Desktop: list + thread side by side. Phone: the list, then the thread (Back to the list).
+     css/v2/enquiries_admin.css (.enqa-*) on ta-base. The .v2-host wrapper gives this super-admin child the v2 baseline.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="v2-host">
+<main class="ta-page enqa" ng-class="{'enqa--thread': vm.selId}" data-e2e="enqa">
+
+  <!-- ── page bar: title, counts as filter chips, search ── -->
+  <section class="ta-bar enqa-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-comments"></i></span>
+        <div><h2>Sales enquiries</h2><p>Questions members send to ToAviate — your replies reach them by e-mail</p></div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.super_admin" aria-label="Back to Super-admin"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Super-admin</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="ta-chips" role="tablist" aria-label="Show">
+        <button type="button" class="ta-chip ta-chip--attn" role="tab" aria-selected="{{ vm.filter === 'open' }}" ng-class="{'ta-chip--on': vm.filter === 'open'}" ng-click="vm.setFilter('open')" no-busy-guard data-e2e="enqa-f-open">Open<span class="ta-chip__n" ng-show="vm.load === 'ready'">{{ vm.counts.open }}</span></button>
+        <button type="button" class="ta-chip" role="tab" aria-selected="{{ vm.filter === 'answered' }}" ng-class="{'ta-chip--on': vm.filter === 'answered'}" ng-click="vm.setFilter('answered')" no-busy-guard data-e2e="enqa-f-answered">Answered<span class="ta-chip__n" ng-show="vm.load === 'ready'">{{ vm.counts.answered }}</span></button>
+        <button type="button" class="ta-chip" role="tab" aria-selected="{{ vm.filter === 'closed' }}" ng-class="{'ta-chip--on': vm.filter === 'closed'}" ng-click="vm.setFilter('closed')" no-busy-guard data-e2e="enqa-f-closed">Closed<span class="ta-chip__n" ng-show="vm.load === 'ready'">{{ vm.counts.closed }}</span></button>
+        <button type="button" class="ta-chip" role="tab" aria-selected="{{ vm.filter === 'all' }}" ng-class="{'ta-chip--on': vm.filter === 'all'}" ng-click="vm.setFilter('all')" no-busy-guard data-e2e="enqa-f-all">All<span class="ta-chip__n" ng-show="vm.load === 'ready'">{{ vm.counts.total }}</span></button>
+      </div>
+      <label class="ta-search">
+        <i class="fas" ng-class="vm.refreshing ? 'fa-circle-notch fa-spin' : 'fa-search'"></i>
+        <input id="enqa-q" type="search" ng-model="vm.q" ng-change="vm.onQ()" autocomplete="off" placeholder="Search name, e-mail or words" aria-label="Search enquiries">
+      </label>
+    </div>
+  </section>
+
+  <div class="enqa-split">
+
+    <!-- ══ the list ══ -->
+    <section class="ta-card ta-card--flush enqa-list" aria-label="Enquiries">
+      <div class="enqa-skel" ng-if="vm.load === 'loading'" aria-label="Loading enquiries">
+        <div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div>
+      </div>
+      <div class="ta-empty" ng-if="vm.load === 'error'">
+        <span class="ta-empty__ic enqa-ic-bad"><i class="fas fa-exclamation-triangle"></i></span>
+        <h4>We couldn't load the enquiries</h4>
+        <p>The connection to the server dropped. Nothing has changed — try again in a moment.</p>
+        <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+      </div>
+      <div class="ta-empty" ng-if="vm.load === 'denied'">
+        <span class="ta-empty__ic"><i class="fas fa-lock"></i></span>
+        <h4>Only ToAviate staff can see sales enquiries</h4>
+        <p>Sign in with your ToAviate account to read and answer them.</p>
+      </div>
+      <div class="ta-empty" ng-if="vm.load === 'ready' && !vm.rows.length" data-e2e="enqa-empty">
+        <span class="ta-empty__ic"><i class="fas" ng-class="vm.q ? 'fa-search' : 'fa-check'"></i></span>
+        <h4 ng-if="vm.q">Nothing matches “{{ vm.q }}”</h4>
+        <h4 ng-if="!vm.q && vm.filter === 'open'">No open enquiries</h4>
+        <h4 ng-if="!vm.q && vm.filter !== 'open'">Nothing here</h4>
+        <p ng-if="vm.q">Search looks at the member's name, their e-mail and the words in the messages.</p>
+        <p ng-if="!vm.q && vm.filter === 'open'">Every question has an answer. New ones from the “Ask us” button appear here.</p>
+        <p ng-if="!vm.q && vm.filter !== 'open'">No {{ vm.filter === 'all' ? '' : vm.status(vm.filter).label.toLowerCase() + ' ' }}enquiries yet.</p>
+        <div class="ta-detail__foot" ng-if="vm.q"><button type="button" class="ta-btn" ng-click="vm.clearQ()" no-busy-guard>Clear search</button></div>
+      </div>
+
+      <div class="enqa-rows" ng-if="vm.load === 'ready' && vm.rows.length" role="list">
+        <button type="button" class="enqa-row" role="listitem" ng-repeat="r in vm.rows track by r.id" ng-click="vm.open(r)" no-busy-guard
+                ng-class="{'enqa-row--on': vm.selId === r.id, 'enqa-row--new': r.needs_reply}" aria-current="{{ vm.selId === r.id ? 'true' : 'false' }}" data-e2e="enqa-row">
+          <span class="enqa-row__dot" aria-hidden="true"></span>
+          <span class="enqa-row__main">
+            <span class="enqa-row__l1"><b class="enqa-row__name">{{ r.member.name }}</b><span class="enqa-row__age" title="{{ vm.when(r.updated_at) }}">{{ vm.age(r.updated_at) }}</span></span>
+            <span class="enqa-row__l2"><span class="enqa-row__topic">{{ vm.topic(r.topic) }}</span><span ng-if="r.club"> · {{ r.club.name }}</span></span>
+            <span class="enqa-row__q" ng-if="r.first.body">{{ r.first.body }}</span>
+            <span class="enqa-row__snip" ng-if="r.last.body && (r.count > 1 || !r.first.body) && r.last.body !== r.first.body">{{ r.last.from === 'staff' ? 'You: ' : 'Latest: ' }}{{ r.last.body }}</span>
+            <span class="enqa-row__l3">
+              <span class="ta-pill ta-pill--{{ vm.status(r.status).tone }}"><i class="fas" ng-class="vm.status(r.status).icon"></i>{{ vm.status(r.status).label }}</span>
+              <span class="enqa-row__need" ng-if="r.needs_reply"><i class="fas fa-reply"></i>Needs a reply</span>
+              <span class="enqa-row__n" ng-if="r.count > 1">{{ r.count }} messages</span>
+            </span>
+          </span>
+        </button>
+        <div class="enqa-more" ng-if="vm.pagination.has_more">
+          <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.more()" ng-disabled="vm.moreBusy" no-busy-guard><i class="fas" ng-class="vm.moreBusy ? 'fa-circle-notch fa-spin' : 'fa-chevron-down'"></i>Show more</button>
+          <span>{{ vm.rows.length }} of {{ vm.pagination.total }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ the opened enquiry ══ -->
+    <section class="ta-card ta-card--flush enqa-pane" aria-label="Enquiry" ng-hide="!vm.selId && vm.load === 'ready' && !vm.rows.length">
+      <div class="ta-empty enqa-pick" ng-if="!vm.selId && vm.load === 'ready' && vm.rows.length">
+        <span class="ta-empty__ic"><i class="fas fa-comments"></i></span>
+        <h4>Pick an enquiry</h4>
+        <p>Its messages, where the member asked from and the reply box open here.</p>
+      </div>
+
+      <div ng-if="vm.selId">
+        <!-- head -->
+        <div class="enqa-head">
+          <button type="button" class="ta-back enqa-head__back" ng-click="vm.closeThread()" no-busy-guard aria-label="Back to the enquiries"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">All enquiries</span></button>
+          <div class="enqa-head__who" ng-if="vm.t">
+            <span class="ta-av ta-av--member" aria-hidden="true"><i class="fas fa-user"></i></span>
+            <span class="enqa-head__txt">
+              <b>{{ vm.t.member.name }}</b>
+              <small><a ng-if="vm.t.member.email" ng-href="{{ vm.mailto() }}" class="enqa-mail">{{ vm.t.member.email }}</a><span ng-if="vm.t.club"> · {{ vm.t.club.name }}</span></small>
+            </span>
+            <span class="ta-pill ta-pill--{{ vm.status(vm.t.status).tone }}" data-e2e="enqa-t-status"><i class="fas" ng-class="vm.status(vm.t.status).icon"></i>{{ vm.status(vm.t.status).label }}</span>
+          </div>
+          <div class="enqa-head__topic" ng-if="vm.t"><span class="ta-sec-k">Topic</span>{{ vm.topic(vm.t.topic) }}<span class="enqa-head__since" ng-if="vm.t.created_at"> · asked {{ vm.when(vm.t.created_at) }}</span></div>
+        </div>
+
+        <div class="enqa-skel enqa-skel--t" ng-if="vm.tload === 'loading'" aria-label="Loading the enquiry">
+          <div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div>
+        </div>
+        <div class="ta-empty" ng-if="vm.tload === 'error'">
+          <span class="ta-empty__ic enqa-ic-bad"><i class="fas fa-exclamation-triangle"></i></span>
+          <h4>We couldn't load this enquiry</h4>
+          <p>Nothing has changed — try again in a moment.</p>
+          <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retryThread()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+        </div>
+        <div class="ta-empty" ng-if="vm.tload === 'missing'">
+          <span class="ta-empty__ic"><i class="fas fa-question"></i></span>
+          <h4>This enquiry isn't there any more</h4>
+          <p>It may have been removed, or the link is wrong.</p>
+          <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.closeThread()" no-busy-guard><i class="fas fa-arrow-left"></i>Back to the enquiries</button></div>
+        </div>
+
+        <div class="enqa-body" ng-if="vm.tload === 'ready' && vm.t">
+          <!-- where they asked from -->
+          <div class="ta-panel enqa-ctx" ng-if="vm.ctxRows.length">
+            <span class="ta-sec-k"><i class="fas fa-map-marker-alt"></i>Asked from</span>
+            <dl class="ta-facts ta-facts--3">
+              <div class="ta-fact" ng-repeat="c in vm.ctxRows"><dt>{{ c.k }}</dt><dd>{{ c.v }}</dd></div>
+            </dl>
+          </div>
+
+          <!-- the conversation -->
+          <ol class="enqa-msgs" id="enqa-msgs" aria-label="Messages">
+            <li class="enqa-msg" ng-repeat="m in vm.t.messages track by $index" ng-class="'enqa-msg--' + m.from" data-e2e="enqa-msg">
+              <span class="enqa-msg__who">{{ m.from === 'staff' ? (m.author || 'ToAviate') : vm.t.member.name }}<span class="enqa-msg__tag" ng-if="m.from === 'staff'">ToAviate</span></span>
+              <div class="enqa-msg__bubble">{{ m.body }}</div>
+              <span class="enqa-msg__at">{{ vm.when(m.at) }}<span ng-if="m.from === 'staff' && m.emailed" title="{{ m.emailed_at ? 'E-mailed ' + vm.when(m.emailed_at) : '' }}"> · e-mailed</span></span>
+            </li>
+            <li class="enqa-msgs__none" ng-if="!vm.t.messages.length">No messages yet.</li>
+          </ol>
+
+          <!-- status -->
+          <div class="enqa-status">
+            <span class="ta-sec-k">Status</span>
+            <div class="ta-seg ta-seg--row enqa-seg" role="radiogroup" aria-label="Status">
+              <button type="button" class="ta-seg__opt" role="radio" ng-repeat="s in vm.D.statuses" aria-checked="{{ vm.t.status === s }}" ng-class="{'ta-seg__opt--on': vm.t.status === s}" ng-click="vm.setStatus(s)" ng-disabled="vm.statusBusy" data-e2e="enqa-st-{{ s }}"><i class="fas" ng-class="vm.status(s).icon"></i>{{ vm.status(s).label }}</button>
+            </div>
+          </div>
+
+          <!-- reply -->
+          <div class="enqa-reply">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.err === 'empty'}">
+              <label class="ta-label" for="enqa-reply">Reply to {{ vm.t.member.name.split(' ')[0] }}</label>
+              <textarea class="ta-textarea" id="enqa-reply" rows="4" maxlength="5000" ng-model="vm.draft.body" ng-keydown="vm.keyReply($event)" placeholder="Write your answer…" data-e2e="enqa-reply"></textarea>
+              <span class="ta-field__msg" ng-if="vm.err === 'empty'">Write a reply first.</span>
+              <span class="ta-hint" ng-if="vm.err !== 'empty'">{{ vm.t.member.name }} gets your reply by e-mail{{ vm.t.member.email ? ' at ' + vm.t.member.email : '' }}.{{ vm.t.status === 'closed' ? ' This question is closed — replying reopens it as answered.' : '' }} Ctrl + Enter sends.</span>
+            </div>
+            <div class="enqa-reply__acts">
+              <button type="button" class="ta-btn" ng-click="vm.send(true)" ng-disabled="vm.sending" data-e2e="enqa-send-close"><i class="fas fa-archive"></i>Send &amp; close</button>
+              <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.send(false)" ng-disabled="vm.sending" data-e2e="enqa-send"><i class="fas" ng-class="vm.sending ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"></i>{{ vm.sending ? 'Sending…' : 'Send' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</div>

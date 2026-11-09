@@ -1,0 +1,42 @@
+<!-- <bkg-cancel-dialog> — the cancel record dialog (aircraft colour as its edge); a bottom sheet on phones.
+     BookingCancelV2Controller (js/v2/bookings/bookings.js). The reason picker + fee is the shared <cancel-reason-fields>. -->
+<div class="ta-dlg-scrim bkg-cx" ng-click="cx.scrim($event)" ng-class="{'bkg-cx--waiting': cx.waiting()}">
+  <div class="ta-dlg bkg-dlg" role="dialog" aria-modal="true" aria-labelledby="bkg-cx-t" tabindex="-1" data-e2e="bkg-cx">
+    <div class="ta-dlg__hd" style="{{ cx.booking.aircraft.colour ? '--edge: ' + cx.booking.aircraft.colour : '' }}">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="cx.dismiss()" no-busy-guard aria-label="Close">×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-times-circle"></i>{{ cx.waiting() ? 'Leave the waiting list' : 'Cancel booking' }}</div>
+      <div class="ta-dlg__title bkg-dlg-reg" id="bkg-cx-t">
+        <span class="ta-kind ta-kind--sm ta-kind--{{ cx.booking.kind }}" title="{{ cx.D.kindLabel(cx.booking.kind) }}"><i class="fas" ng-class="cx.D.kindIcon(cx.booking.kind)"></i></span>
+        {{ cx.booking.aircraft ? cx.booking.aircraft.reg : cx.D.kindLabel(cx.booking.kind) }}
+        <span class="bkg-hs__type" ng-if="cx.booking.aircraft.type">{{ cx.booking.aircraft.type }}</span>
+      </div>
+      <div class="ta-dlg__sub">{{ cx.D.fDay(cx.booking.start) }} · {{ cx.D.fTime(cx.booking.start) }}–{{ cx.D.fTime(cx.booking.end) }} · {{ cx.withWho() }}</div>
+    </div>
+
+    <div class="ta-dlg__body">
+      <div class="ta-field" ng-class="{'ta-field--error': cx.err, 'bkg-cx__err--reason': cx.err === 'reason', 'bkg-cx__err--notes': cx.err === 'notes'}">
+        <span class="ta-label">Why {{ cx.isStaffView() ? 'is it being cancelled' : 'are you cancelling' }}?</span>
+        <cancel-reason-fields club-id="cx.booking.club_id" state="cx.state" pilot-name="cx.booking.pilot.name" notes-id="bkg-cx-notes"></cancel-reason-fields>
+        <span class="ta-field__msg" ng-if="cx.err === 'reason'">Pick a reason — it goes on the booking's history.</span>
+        <span class="ta-field__msg" ng-if="cx.err === 'notes'">Say why — “Other” needs a short note.</span>
+      </div>
+      <div class="ta-note"><i class="fas fa-users"></i><div>{{ cx.waiting() ? 'Your place goes to the next person in line.' : 'Anyone on the waiting list for ' + (cx.booking.aircraft ? cx.booking.aircraft.reg : 'this aircraft') + ' at this time moves up automatically.' }}</div></div>
+    </div>
+
+    <div class="bkg-cx__discard" ng-if="cx.discardAsk">
+      <div class="ta-confirm ta-confirm--inline" role="group" aria-label="Discard your note?">
+        <span><b>Close without cancelling?</b> Your note will be lost.</span>
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="cx.keepEditing()" no-busy-guard>Keep editing</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="cx.close()" no-busy-guard data-e2e="bkg-cx-discard">Close</button>
+      </div>
+    </div>
+    <div class="ta-dlg__ft">
+      <button type="button" class="ta-btn" ng-click="cx.close()" ng-disabled="cx.busy" no-busy-guard>{{ cx.waiting() ? 'Stay on the list' : 'Keep booking' }}</button>
+      <span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="cx.go()" ng-disabled="cx.busy" data-e2e="bkg-cx-go">
+        <i class="fas" ng-class="cx.busy ? 'fa-circle-notch fa-spin' : 'fa-times'"></i>{{ cx.busy ? 'Cancelling…' : cx.goLabel() }}
+      </button>
+    </div>
+  </div>
+</div>

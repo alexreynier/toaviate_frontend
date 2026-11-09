@@ -1,0 +1,32 @@
+<!-- the pay choice (BookinV2Payment as vm.pay) — the book-in's Finish card and the Finish & pay page -->
+<div class="ta-note ta-note--good" ng-if="vm.pay.after" data-e2e="bki-pay-after"><i class="fas fa-check-circle"></i><div><b>Booked in.</b> Now pay {{ vm.pay_money(vm.pay_amount()) }} with the card below. Or leave it: it stays on an invoice to pay from Invoices &amp; payments.
+  <div class="bki-row bki-row--mt" ng-if="vm.bk_pay_later"><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.bk_pay_later()" no-busy-guard>Pay later</button></div></div></div>
+<div class="ta-field bki-paychoice" data-e2e="bki-pay">
+  <span class="ta-label"><i class="fas fa-lock"></i>How would you like to pay {{ vm.pay_money(vm.pay_amount()) }}?</span>
+  <div ng-if="!vm.pay.loaded" class="bki-paychoice__list ta-stack"><div class="ta-skel bki-skel"></div><div class="ta-skel bki-skel bki-skel--short"></div></div>
+  <div class="ta-stack bki-paychoice__list" role="radiogroup" aria-label="Payment method" ng-if="vm.pay.loaded">
+      <button type="button" class="ta-opt" ng-repeat-start="m in vm.pay.methods() track by m.id" ng-class="{'ta-opt--on': vm.pay.sel === m.id}" role="radio" aria-checked="{{ vm.pay.sel === m.id }}" ng-disabled="m.off || vm.pay.busy" ng-click="vm.pay.select(m.id)" no-busy-guard data-e2e="bki-pm-{{ m.kind }}">
+        <span class="ta-opt__ic"><i class="{{ m.ic }}"></i></span>
+        <span><span class="ta-opt__t">{{ m.t }}<span class="bki-opt-tag" ng-if="m.tag">{{ m.tag }}</span><span class="bki-opt-tag bki-opt-tag--off" ng-if="m.off">Offline</span></span><span class="ta-opt__s">{{ m.s }}</span></span><span class="ta-opt__dot"></span></button>
+      <div class="bki-optx" ng-if="vm.pay.sel === m.id && m.kind === 'direct-debit'">
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Bank</dt><dd>{{ vm.pay.bankName() }}</dd></div>
+          <div class="ta-fact"><dt>Account number</dt><dd>••••{{ vm.pay.info.account_ending }}</dd></div>
+          <div class="ta-fact"><dt>Account name</dt><dd>{{ vm.pay.info.account_name }}</dd></div>
+          <div class="ta-fact" ng-if="vm.pay.info.account_currency"><dt>Currency</dt><dd>{{ vm.pay.info.account_currency }}</dd></div>
+          <div class="ta-fact" ng-if="vm.pay.info.mandate_scheme"><dt>Scheme</dt><dd>{{ vm.pay.schemeName() }}</dd></div>
+          <div class="ta-fact" ng-if="vm.pay.info.mandate_reference"><dt>Reference</dt><dd>{{ vm.pay.info.mandate_reference }}</dd></div>
+        </dl></div>
+      <div class="bki-optx" ng-if="m.kind === 'new-card'" ng-show="vm.pay.sel === m.id" ng-repeat-end>
+        <div class="bki-cardel"><div id="bki-pay-el" class="bki-payel"></div>
+          <span class="bki-sub" ng-if="vm.pay.nc.state === 'later'"><i class="fas fa-info-circle"></i> The card form opens once the flight is booked in: press <b>Finish &amp; pay</b>, then enter the card. Nothing is charged before the flight is saved.</span>
+          <span class="bki-sub" ng-if="vm.pay.nc.state === 'loading' || vm.pay.nc.state === 'idle'"><span class="ta-spin ta-spin--dark"></span> Loading Stripe's card form…</span>
+          <div class="ta-note ta-note--bad" ng-if="vm.pay.nc.state === 'error'"><i class="fas fa-times-circle"></i><div>{{ vm.pay.nc.msg }}</div></div></div>
+        <label class="ta-check" ng-if="vm.send && vm.send.user_id > 0"><input type="checkbox" ng-model="vm.pay.saveCard" no-busy-guard> Save this card for next time</label>
+        <span class="bki-sub"><i class="fas fa-lock"></i> The card is entered in Stripe's form: it never touches ToAviate.</span>
+      </div>
+  </div>
+  <div class="ta-note ta-note--info" ng-if="vm.pay.machineNote"><i class="fas fa-cash-register"></i><div>{{ vm.pay.machineNote }}</div></div>
+</div>
+<div class="ta-note ta-note--bad" role="alert" ng-if="vm.pay.err" data-e2e="bki-pay-err"><i class="fas fa-times-circle"></i><div><b>Payment didn't go through.</b> {{ vm.pay.err }}</div></div>
+<div class="ta-note ta-note--info" role="status" ng-if="vm.pay.note"><i class="fas fa-cash-register"></i><div>{{ vm.pay.note }}</div></div>

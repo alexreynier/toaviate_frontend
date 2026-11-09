@@ -1,0 +1,24 @@
+<!-- "Before your first solo": solo_requirements/status for the student (vm.reqs, vm.reqSum, vm.soloAttn, vm.firstSoloLesson);
+     soloCls (ng-init on the include) = an extra class for the card, e.g. the lesson rail's order class -->
+<section class="ta-card {{ soloCls || '' }}" ng-class="{'ta-card--attn': vm.soloAttn && vm.reqSum.you > 0}">
+  <div class="ta-card__hd">
+    <span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.soloAttn && vm.reqSum.you > 0, 'ta-card__icon--done': vm.reqSum.all}"><i class="fas fa-user" aria-hidden="true"></i></span>
+    <div class="ta-card__ttl"><h3>Before your first solo</h3><p>{{ vm.reqSum.done }} of {{ vm.reqs.length }} done · the club checks these when you book out</p></div>
+    <span class="ta-card__right">
+      <span class="ta-pill ta-pill--good" ng-show="vm.reqSum.all"><i class="fas fa-check"></i>All done</span>
+      <span class="ta-pill" ng-class="vm.soloAttn ? 'ta-pill--warn' : 'ta-pill--muted'" ng-show="!vm.reqSum.all && vm.reqSum.you"><i class="fas fa-exclamation-circle" ng-show="vm.soloAttn"></i>{{ vm.reqSum.you }} for you to do</span>
+      <span class="ta-pill ta-pill--muted" ng-show="!vm.reqSum.all && !vm.reqSum.you">With your instructor</span>
+    </span>
+  </div>
+  <div class="ta-meter ta-meter--good"><div class="ta-meter__bar" style="--v:{{ vm.reqSum.pct }}%"></div></div>
+  <div class="trn-reqs">
+    <div class="trn-req" ng-repeat="r in vm.reqs">
+      <span class="trn-req__ic trn-req__ic--{{ r.s.tone }}" title="{{ r.s.label }}"><i class="fas {{ r.s.ic }}" aria-hidden="true"></i></span>
+      <div><div class="trn-req__t">{{ r.name }}<span class="ta-tag">{{ r.kindLabel }}</span></div><div class="trn-req__d" ng-show="r.detail">{{ r.detail }}</div></div>
+      <button type="button" class="ta-btn ta-btn--sm" ng-if="r.kind === 'questionnaire' && r.s.you" ng-click="vm.startReq(r)" no-busy-guard>Start</button>
+      <button type="button" class="ta-btn ta-btn--sm" ng-if="r.kind === 'exam' && r.s.you" ui-sref="dashboard.my_account.my_exams" no-busy-guard>Exams</button>
+      <span class="ta-pill ta-pill--{{ r.s.tone }}" ng-if="!((r.kind === 'questionnaire' || r.kind === 'exam') && r.s.you)">{{ r.s.label }}</span>
+    </div>
+  </div>
+  <span class="ta-hint" ng-show="!vm.soloAttn && vm.firstSoloLesson">Shown early so nothing holds up your solo. {{ vm.D.lessonLabel(vm.firstSoloLesson) }} is lesson {{ vm.firstSoloLesson.n }}.</span>
+</section>
