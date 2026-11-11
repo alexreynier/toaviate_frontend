@@ -1,0 +1,125 @@
+<!-- ═══ v2 sign-in (state login_v2, /v2/login) — design mockups/login/login.html. LoginV2Controller as vm IS the live
+     LoginController (every stage, gate and redirect unchanged — js/v2/login/login.js) plus vm.ui: refusals said in the
+     card and the signing-in runway. Keep the ids email / password / email_code / two_factor_code / two_factor_lost_why:
+     the controller focuses and highlights by them. One card at a time; the stage decides which. ═══ -->
+<div class="lg lg-page v2-host">
+  <div ng-include="'views/v2/login/_top.html'"></div>
+  <div class="lg-side">
+    <div class="lg-main">
+
+      <!-- first paint: login0 hasn't answered yet — a quiet skeleton, nothing jumps -->
+      <div class="lg-card" ng-if="vm.stage === 'password' && !vm.ui.busy.on && !vm.login_session && !vm.error" data-e2e="lg-boot" aria-busy="true">
+        <div class="lg-boot"><span class="lg-sk lg-sk--t"></span><span class="lg-sk lg-sk--w"></span><span class="lg-sk lg-sk--in"></span><span class="lg-sk lg-sk--in"></span><span class="lg-sk lg-sk--btn"></span></div>
+      </div>
+
+      <!-- ═══ password (+ passkey) ═══ -->
+      <div class="lg-card" ng-if="vm.stage === 'password' && !vm.ui.busy.on && (vm.login_session || vm.error)" data-e2e="lg-signin">
+        <div class="lg-hd"><h2>Sign in</h2><p>Welcome back. Use the email address your club has for you.</p></div>
+        <form class="lg-form" name="form" ng-submit="vm.login()" novalidate>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.ui.errs.email}">
+            <div class="lg-lbl"><label class="ta-label" for="email">Email</label></div>
+            <input class="ta-input" type="text" name="email" id="email" ng-model="vm.email" ng-change="vm.clear('email')" autocomplete="username webauthn" inputmode="email" placeholder="you@example.com" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <span class="ta-field__msg" ng-if="vm.ui.errs.email">{{ vm.ui.errs.email }}</span>
+          </div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.ui.errs.password}">
+            <div class="lg-lbl"><label class="ta-label" for="password">Password</label><a class="ta-link" ui-sref="password_reset_v2">Forgot your password?</a></div>
+            <div class="lg-pw">
+              <input class="ta-input" type="{{ vm.ui.showPw ? 'text' : 'password' }}" name="password" id="password" ng-model="vm.password" ng-change="vm.clear('password')" autocomplete="current-password">
+              <button type="button" class="lg-pw__eye" ng-click="vm.ui.showPw = !vm.ui.showPw" no-busy-guard ng-attr-aria-label="{{ vm.ui.showPw ? 'Hide the password' : 'Show the password' }}" ng-attr-title="{{ vm.ui.showPw ? 'Hide' : 'Show' }}"><i class="fas" ng-class="vm.ui.showPw ? 'fa-eye-slash' : 'fa-eye'"></i></button>
+            </div>
+            <span class="ta-field__msg" ng-if="vm.ui.errs.password">{{ vm.ui.errs.password }}</span>
+          </div>
+          <div class="ta-note" ng-class="vm.ui.note.tone === 'warn' ? 'ta-note--warn' : 'ta-note--bad'" role="alert" ng-if="vm.ui.note || (vm.error && !vm.ui.hasErrs())" data-e2e="lg-note"><i class="fas fa-exclamation-circle"></i><div>{{ vm.ui.note.text || vm.error }}</div></div>
+          <button type="submit" class="ta-btn ta-btn--primary lg-cta" ng-disabled="vm.dataLoading" data-e2e="lg-submit"><span class="ta-spin" ng-if="vm.dataLoading"></span><i class="fas fa-sign-in-alt" ng-if="!vm.dataLoading"></i>{{ vm.dataLoading ? 'Checking…' : 'Sign in' }}</button>
+          <!-- passkey / biometric sign-in — only on capable browsers -->
+          <div class="lg-or" ng-if="vm.passkeySupported">or</div>
+          <button type="button" class="ta-btn lg-passkey" ng-if="vm.passkeySupported" ng-click="vm.passkeyLogin()" ng-disabled="vm.passkeyLoading || vm.dataLoading" no-busy-guard data-e2e="lg-passkey"><i class="fas fa-fingerprint"></i>{{ vm.passkeyLoading ? 'Waiting for your device…' : 'Sign in with a passkey' }}</button>
+        </form>
+      </div>
+
+      <!-- ═══ confirm the email address (the account was never verified): the 6-digit code login2 e-mailed ═══ -->
+      <div class="lg-card" ng-if="vm.stage === 'email_code' && !vm.ui.busy.on" data-e2e="lg-email-code">
+        <div class="lg-hd"><div class="lg-eyebrow"><i class="fas fa-envelope"></i>One more step</div><h2>Confirm your email address</h2><p>Your password is right, but this address hasn’t been confirmed yet. We’ve just sent a 6-digit code to <b>{{ vm.emailHint }}</b>.</p></div>
+        <form class="lg-form" name="emailCodeForm" ng-submit="vm.submitEmailCode()" novalidate>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.ui.errs.email_code}">
+            <label class="ta-label" for="email_code">Confirmation code</label>
+            <input class="ta-input lg-code" type="text" name="email_code" id="email_code" ng-model="vm.emailCode" ng-change="vm.clear('email_code')" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <span class="ta-field__msg" ng-if="vm.ui.errs.email_code">{{ vm.ui.errs.email_code }}</span>
+            <span class="lg-attempts" ng-if="vm.attemptsRemaining != null">{{ vm.attemptsRemaining }} attempt{{ vm.attemptsRemaining === 1 ? '' : 's' }} remaining</span>
+            <span class="ta-hint">Not there? Check your junk folder — it can take a minute to arrive.</span>
+          </div>
+          <div class="ta-note" ng-class="vm.ui.note.tone === 'warn' ? 'ta-note--warn' : 'ta-note--bad'" role="alert" ng-if="vm.ui.note" data-e2e="lg-note"><i class="fas fa-exclamation-circle"></i><div>{{ vm.ui.note.text }}</div></div>
+          <button type="submit" class="ta-btn ta-btn--primary lg-cta" ng-disabled="vm.dataLoading" data-e2e="lg-submit"><span class="ta-spin" ng-if="vm.dataLoading"></span>{{ vm.dataLoading ? 'Verifying…' : 'Confirm and sign in' }}</button>
+          <div class="lg-row">
+            <button type="button" class="ta-link" ng-click="vm.backToPassword()" ng-disabled="vm.dataLoading" no-busy-guard><i class="fas fa-arrow-left"></i> Back</button>
+            <span class="ta-sp"></span>
+            <span class="ta-hint" ng-if="vm.resendIn > 0">Send a new code in {{ vm.resendIn }}s</span>
+            <button type="button" class="ta-link" ng-if="vm.resendIn <= 0" ng-click="vm.resendEmailCode()" ng-disabled="vm.resending || vm.dataLoading"><i class="fas fa-paper-plane"></i> {{ vm.resending ? 'Sending…' : 'Send a new code' }}</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ═══ two-factor code (authenticator or a recovery code) ═══ -->
+      <div class="lg-card" ng-if="vm.stage === 'code' && !vm.ui.busy.on" data-e2e="lg-code">
+        <div class="lg-hd">
+          <div class="lg-eyebrow"><i class="fas fa-shield-alt"></i>Two-factor</div>
+          <h2 ng-if="vm.codeType !== 'recovery'">Enter your authentication code</h2>
+          <h2 ng-if="vm.codeType === 'recovery'">Use a recovery code</h2>
+          <p ng-if="vm.codeType !== 'recovery'">The 6-digit code from your authenticator app. It changes every 30 seconds.</p>
+          <p ng-if="vm.codeType === 'recovery'">One of the recovery codes you saved when you set up two-factor, with or without the dashes.</p>
+        </div>
+        <form class="lg-form" name="codeForm" ng-submit="vm.submitCode()" novalidate>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.ui.errs.two_factor_code}">
+            <label class="ta-label" for="two_factor_code">{{ vm.codeType === 'recovery' ? 'Recovery code' : 'Authentication code' }}</label>
+            <input class="ta-input lg-code" ng-class="{'lg-code--rec': vm.codeType === 'recovery'}" type="text" name="two_factor_code" id="two_factor_code" ng-model="vm.code" ng-change="vm.clear('two_factor_code')"
+                   ng-attr-inputmode="{{ vm.codeType === 'recovery' ? 'text' : 'numeric' }}" ng-attr-placeholder="{{ vm.codeType === 'recovery' ? 'XXXX-XXXX-XXXX' : '••••••' }}"
+                   autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <span class="ta-field__msg" ng-if="vm.ui.errs.two_factor_code">{{ vm.ui.errs.two_factor_code }}</span>
+            <span class="lg-attempts" ng-if="vm.attemptsRemaining != null">{{ vm.attemptsRemaining }} attempt{{ vm.attemptsRemaining === 1 ? '' : 's' }} remaining</span>
+          </div>
+          <div class="ta-note" ng-class="vm.ui.note.tone === 'warn' ? 'ta-note--warn' : 'ta-note--bad'" role="alert" ng-if="vm.ui.note" data-e2e="lg-note"><i class="fas fa-exclamation-circle"></i><div>{{ vm.ui.note.text }}</div></div>
+          <button type="submit" class="ta-btn ta-btn--primary lg-cta" ng-disabled="vm.dataLoading" data-e2e="lg-submit"><span class="ta-spin" ng-if="vm.dataLoading"></span>{{ vm.dataLoading ? 'Verifying…' : (vm.codeType === 'recovery' ? 'Use this code' : 'Verify') }}</button>
+          <div class="lg-row">
+            <button type="button" class="ta-link" ng-click="vm.backToPassword()" ng-disabled="vm.dataLoading" no-busy-guard><i class="fas fa-arrow-left"></i> Back</button>
+            <span class="ta-sp"></span>
+            <button type="button" class="ta-link" ng-click="vm.toggleRecovery()" ng-disabled="vm.dataLoading" no-busy-guard>{{ vm.codeType === 'recovery' ? 'Use my authenticator instead' : 'Use a recovery code' }}</button>
+          </div>
+          <p class="ta-hint lg-hint"><a href="" class="ta-link" ng-click="vm.lostOpen()" no-busy-guard><i class="fas fa-question-circle"></i> Lost your phone and your recovery codes?</a></p>
+        </form>
+      </div>
+
+      <!-- ═══ lost phone and recovery codes: ask ToAviate (C28, neutral answer) ═══ -->
+      <div class="lg-card" ng-if="vm.stage === 'lost' && !vm.lost.sent" data-e2e="lg-lost">
+        <div class="lg-hd"><div class="lg-eyebrow"><i class="fas fa-life-ring"></i>Two-factor</div><h2>Ask ToAviate to remove two-factor</h2><p>For your security we check it’s you first, so this isn’t instant.</p></div>
+        <form class="lg-form" name="lostForm" ng-submit="vm.lostSend()" novalidate>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.lost.err}">
+            <label class="ta-label" for="two_factor_lost_why">What happened?</label>
+            <textarea class="ta-textarea" id="two_factor_lost_why" rows="3" maxlength="1000" ng-model="vm.lost.why" ng-change="vm.lost.err = ''" ng-disabled="vm.lost.busy" placeholder="For example, my phone was stolen and I can’t find my recovery codes"></textarea>
+            <span class="ta-field__msg" ng-if="vm.lost.err">{{ vm.lost.err }}</span>
+          </div>
+          <button type="submit" class="ta-btn ta-btn--primary lg-cta" ng-disabled="vm.lost.busy"><span class="ta-spin" ng-if="vm.lost.busy"></span><i class="fas fa-paper-plane" ng-if="!vm.lost.busy"></i>{{ vm.lost.busy ? 'Sending…' : 'Send request' }}</button>
+          <div class="lg-row"><button type="button" class="ta-link" ng-click="vm.lostBack()" ng-disabled="vm.lost.busy" no-busy-guard><i class="fas fa-arrow-left"></i> Back to the code</button></div>
+        </form>
+      </div>
+      <div class="lg-card" ng-if="vm.stage === 'lost' && vm.lost.sent" data-e2e="lg-lost-sent">
+        <div class="lg-done">
+          <span class="lg-done__ic lg-done__ic--mail"><i class="fas fa-paper-plane"></i></span>
+          <h2>Request sent</h2>
+          <!-- the backend's neutral answer, as given; our own words only if it sent none -->
+          <p ng-if="vm.lost.message">{{ vm.lost.message }}</p>
+          <p ng-if="!vm.lost.message">Someone from ToAviate will check it’s you. Two-factor stays on until then — once it’s removed you can sign in with your password and set it up again.</p>
+        </div>
+        <button type="button" class="ta-btn ta-btn--primary lg-cta" ng-click="vm.backToPassword()" no-busy-guard>Back to sign-in</button>
+      </div>
+
+      <!-- ═══ signing in: the account is being opened — the steps tick off, the aircraft takes off ═══ -->
+      <div class="lg-card" ng-if="vm.ui.busy.on" data-e2e="lg-busy" aria-live="polite">
+        <div class="lg-hd"><div class="lg-eyebrow"><i class="fas fa-plane"></i>Signing in</div><h2>Welcome back{{ vm.ui.busy.first ? ', ' + vm.ui.busy.first : '' }}</h2><p>Just a moment — we’re getting your account ready.</p></div>
+        <div class="lg-busy"><ta-runway steps="vm.ui.steps" step="vm.ui.busy.step" flying="true"></ta-runway></div>
+      </div>
+
+    </div>
+    <div ng-include="'views/v2/login/_foot.html'"></div>
+  </div>
+  <design-switch></design-switch>
+</div>

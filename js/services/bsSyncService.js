@@ -39,6 +39,7 @@ app.factory('BsSyncService', BsSyncService);
 
         // ── Imported Users ──
         service.ConvertUser        = ConvertUser;
+        service.UpdateImported     = UpdateImported;     // PUT bs_sync/imported/{club}/{user} {first_name?, last_name?, email?} — edit a temporary user until converted (owner, 11 Nov)
         service.ReconcileInvitations = ReconcileInvitations;
         service.RepairInvitation   = RepairInvitation;
 
@@ -187,6 +188,14 @@ app.factory('BsSyncService', BsSyncService);
         }
 
         // ── Imported Users ───────────────────────────
+
+        // Edit a temporary (imported-stub) user's names / real email while it is still unconverted.
+        // Partial patch; the backend answers {success, user: <a GET bs_sync/imported row>} (ALREADY_CONVERTED,
+        // VALIDATION_ERROR + field, INVALID_EMAIL on refusal). Nothing is sent to anyone.
+        function UpdateImported(club_id, user_id, patch) {
+            return $http.put('/api/v1/bs_sync/imported/' + club_id + '/' + user_id, patch || {})
+                .then(handleSuccess, handleError);
+        }
 
         // Convert a BS-imported placeholder into a real member.
         //   opts: { membership_id (required), term_start, membership_ends } — all

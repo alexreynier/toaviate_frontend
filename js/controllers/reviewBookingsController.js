@@ -80,7 +80,7 @@
                     .then(function(data){
 
                         vm.bookings_loading = false;
-                        vm.bookings = data.bookings;
+                        vm.bookings = (data && data.bookings) || [];
 
                     });
         }

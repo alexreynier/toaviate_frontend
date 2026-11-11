@@ -14,12 +14,12 @@ app.controller('TrackerClubController', TrackerClubController);
 
         // ── Sub-nav (shared partial views/manageclub/trackers/_nav.html) ──
         vm.nav = [
-            { screen: 'shop',     state: 'dashboard.manage_club.trackers_shop',     label: 'Shop',        icon: 'fa-shopping-cart' },
-            { screen: 'orders',   state: 'dashboard.manage_club.trackers_orders',   label: 'Orders',      icon: 'fa-box-open' },
-            { screen: 'units',    state: 'dashboard.manage_club.trackers',          label: 'My Trackers', icon: 'fa-map-marker-alt' },
-            { screen: 'billing',  state: 'dashboard.manage_club.trackers_billing',  label: 'Billing',     icon: 'fa-file-invoice-dollar' },
-            { screen: 'returns',  state: 'dashboard.manage_club.trackers_returns',  label: 'Returns',     icon: 'fa-undo' },
-            { screen: 'activity', state: 'dashboard.manage_club.trackers_activity', label: 'Activity',    icon: 'fa-history' }
+            { screen: 'shop',     state: 'dashboard.manage_club.trackers_shop',     label: 'Shop',        icon: 'fa-shopping-cart', area: 'accounting' },
+            { screen: 'orders',   state: 'dashboard.manage_club.trackers_orders',   label: 'Orders',      icon: 'fa-box-open', area: 'accounting' },
+            { screen: 'units',    state: 'dashboard.manage_club.trackers',          label: 'My Trackers', icon: 'fa-map-marker-alt', area: 'ops' },
+            { screen: 'billing',  state: 'dashboard.manage_club.trackers_billing',  label: 'Billing',     icon: 'fa-file-invoice-dollar', area: 'accounting' },
+            { screen: 'returns',  state: 'dashboard.manage_club.trackers_returns',  label: 'Returns',     icon: 'fa-undo', area: 'ops' },
+            { screen: 'activity', state: 'dashboard.manage_club.trackers_activity', label: 'Activity',    icon: 'fa-history', area: 'ops' }
         ];
         // Detail screens highlight their parent tab
         var navAlias = { order_detail: 'orders', unit_detail: 'units', dd_confirm: 'billing', return_detail: 'returns' };

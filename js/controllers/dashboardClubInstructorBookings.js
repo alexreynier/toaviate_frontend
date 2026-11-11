@@ -546,6 +546,12 @@
 
             InstructorService.SetAvailability(payload)
                 .then(function(data) {
+                    // a refusal (e.g. 403: not a live instructor at this club) is not "Schedule Saved" — show its message (batch 14.3)
+                    if (!data || data.success === false) {
+                        vm.savingAvailSchedule = false;
+                        ToastService.error('Not Saved', instructorWriteMessage(data, 'Could not save the weekly availability.'));
+                        return;
+                    }
                     if (callback) callback();
                 });
         }

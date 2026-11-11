@@ -16,7 +16,7 @@
   </div>
 
   <div class="snazzy-page__body">
-    <div class="snazzy-page__table-card">
+    <div class="snazzy-page__table-card snazzy-desktop-table">
       <div class="snazzy-page__table-scroll">
         <table class="snazzy-table">
           <thead>
@@ -87,6 +87,50 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Phones: the table above is hidden under 768px (snazzy-pages.css), so each request is a card -->
+    <div class="snazzy-mobile-cards">
+      <div class="snazzy-mobile-card msch-card" ng-repeat="booking in vm.bookings">
+        <div class="snazzy-mobile-card__header">
+          <span class="snazzy-mobile-card__title"><i class="fas fa-user-graduate"></i> {{ booking.first_name }} {{ booking.last_name }}</span>
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Aircraft</span>
+            <span class="snazzy-mobile-card__value">{{ booking.registration }}<span class="msch-card__muted" ng-show="booking.plane_type"> · {{ booking.plane_type }}</span></span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">When</span>
+            <span class="snazzy-mobile-card__value">{{ booking.start | asDate | date:"EEE dd MMM yyyy" }}, {{ booking.start | asDate | date:"HH:mm" }} – {{ booking.end | asDate | date:"HH:mm" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Course</span>
+            <span class="snazzy-mobile-card__value">
+              <span ng-if="booking.course_name">{{ booking.course_name }}</span>
+              <span ng-if="!booking.course_name" class="msch-card__muted">No course</span>
+              <span ng-if="booking.voucher_code" class="snazzy-table__badge snazzy-table__badge--info"><i class="fas fa-ticket-alt"></i> {{ booking.voucher_code }}</span>
+            </span>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-show="booking.phone_number">
+            <span class="snazzy-mobile-card__label">Phone</span>
+            <a class="snazzy-mobile-card__value" ng-href="tel:{{ booking.phone_number }}">{{ booking.phone_number }}</a>
+          </div>
+          <div class="snazzy-mobile-card__row" ng-show="booking.email">
+            <span class="snazzy-mobile-card__label">Email</span>
+            <a class="snazzy-mobile-card__value" ng-href="mailto:{{ booking.email }}">{{ booking.email }}</a>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Status</span>
+            <span class="snazzy-table__badge snazzy-table__badge--warning"><i class="fas fa-clock"></i> Awaiting Confirmation</span>
+          </div>
+        </div>
+        <div class="snazzy-mobile-card__actions">
+          <button class="snazzy-page__btn snazzy-page__btn--success" ng-click="approve_booking(booking.id)"><i class="fas fa-check"></i> Approve</button>
+          <button class="snazzy-page__btn snazzy-page__btn--danger" ng-click="open_decline_modal(booking)"><i class="fas fa-times"></i> Decline</button>
+          <a class="snazzy-page__btn snazzy-page__btn--outline" ui-sref="dashboard.bookings({start: booking.start})"><i class="fas fa-calendar-day"></i> Scheduler</a>
+        </div>
       </div>
     </div>
   </div>
@@ -373,7 +417,7 @@
     </div>
 
     <!-- Bookings table -->
-    <div ng-if="!vm.upcoming_loading && vm.upcoming_bookings.length > 0" class="snazzy-page__table-card snazzy-reveal">
+    <div ng-if="!vm.upcoming_loading && vm.upcoming_bookings.length > 0" class="snazzy-page__table-card snazzy-desktop-table snazzy-reveal">
       <div class="snazzy-page__table-scroll">
         <table class="snazzy-table">
           <thead>
@@ -420,6 +464,34 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Phones: one card per booking -->
+    <div class="snazzy-mobile-cards snazzy-reveal" ng-if="!vm.upcoming_loading && vm.upcoming_bookings.length > 0">
+      <div class="snazzy-mobile-card msch-card" ng-repeat="event in vm.upcoming_bookings">
+        <div class="snazzy-mobile-card__header">
+          <span class="snazzy-mobile-card__title"><i class="fas fa-user-graduate"></i> {{ event.title }}</span>
+        </div>
+        <div class="snazzy-mobile-card__body">
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Aircraft</span>
+            <span class="snazzy-mobile-card__value">{{ event.plane.registration || event.resourceId }}<span class="msch-card__muted" ng-show="event.plane.plane_type || event.plane_type"> · {{ event.plane.plane_type || event.plane_type }}</span></span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">When</span>
+            <span class="snazzy-mobile-card__value">{{ event.start | asDate | date:"EEE dd MMM yyyy" }}, {{ event.start | asDate | date:"HH:mm" }} – {{ event.end | asDate | date:"HH:mm" }}</span>
+          </div>
+          <div class="snazzy-mobile-card__row">
+            <span class="snazzy-mobile-card__label">Status</span>
+            <span ng-if="event.confirmed == 0" class="snazzy-table__badge snazzy-table__badge--warning"><i class="fas fa-clock"></i> Pending</span>
+            <span ng-if="event.confirmed != 0" class="snazzy-table__badge snazzy-table__badge--success"><i class="fas fa-check"></i> Confirmed</span>
+          </div>
+        </div>
+        <div class="snazzy-mobile-card__actions">
+          <a class="snazzy-page__btn snazzy-page__btn--outline" ui-sref="dashboard.bookings({plane_id: event.plane.id || event.resourceId, start: event.start})"><i class="fas fa-calendar-day"></i> Scheduler</a>
+          <a class="snazzy-page__btn snazzy-page__btn--outline" ui-sref="dashboard.manage_user.student_records"><i class="fas fa-graduation-cap"></i> Student records</a>
+        </div>
       </div>
     </div>
 

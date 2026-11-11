@@ -88,6 +88,7 @@
                 case 'no_medical':                  return 'Add a medical to the student\'s records';
                 case 'medical_expired':             return 'The medical has expired — renew it';
                 case 'medical_class_not_accepted':  return 'A different medical class is required';
+                case 'medical_limitation':          return 'The medical has a limitation (OSL) that rules out solo flight';
                 case 'not_signed_off':              return 'Needs an instructor sign-off';
                 default:                            return '';
             }
@@ -1338,14 +1339,21 @@
 
             if(plane.maintenance){
 
-                $scope.status.days = (plane.maintenance.days_remaining > 0)? "ok" : "expired";
+                // batch 17: 0 days = due today (valid until 23:59) when due_today; a 0 without it = no date
+                $scope.status.days = (plane.maintenance.days_remaining > 0 || plane.maintenance.due_today)? "ok" : "expired";
                 $scope.status.hours = (plane.maintenance.hours_remaining > 0)? "ok" : "expired";
 
             }
 
-            $scope.status.certificate = (plane.certificate.days_to_expiry > 0)? "ok" : "expired";
-            $scope.status.insurance = (plane.insurance.days_to_expiry > 0)? "ok" : "expired";
-            $scope.status.radio_licence = (plane.radio_licence.days_to_expiry > 0)? "ok" : "expired";
+            // the server's status wins; the expiry day itself (0 + expires_today) is still valid
+            function docStatus(doc){
+                if (!doc) { return "expired"; }
+                if (doc.status) { return doc.status; }
+                return (doc.days_to_expiry > 0 || doc.expires_today) ? "ok" : "expired";
+            }
+            $scope.status.certificate = docStatus(plane.certificate);
+            $scope.status.insurance = docStatus(plane.insurance);
+            $scope.status.radio_licence = docStatus(plane.radio_licence);
 
 
 
@@ -1984,7 +1992,7 @@
                     function isExpired(doc){
                         if (!doc) { return false; }
                         if (doc.status) { return String(doc.status).toLowerCase() === 'expired'; }
-                        if (typeof doc.days_to_expiry !== 'undefined') { return doc.days_to_expiry <= 0; }
+                        if (typeof doc.days_to_expiry !== 'undefined') { return doc.days_to_expiry < 0 || (doc.days_to_expiry === 0 && !doc.expires_today); }
                         return false;
                     }
 
@@ -2026,7 +2034,7 @@
                                 severity: 'warning', icon: 'fa-clock' });
                         }
                         var days = plane.maintenance.days_remaining;
-                        if (days != null && days <= 0) {
+                        if (days != null && (days < 0 || (days === 0 && !plane.maintenance.due_today))) {
                             issues.push({ key: 'days', label: 'Maintenance overdue (calendar)',
                                 detail: 'No days remaining to the next maintenance.',
                                 severity: 'critical', icon: 'fa-calendar-times' });

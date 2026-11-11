@@ -1,0 +1,54 @@
+<!-- PRE-SOLO (page "presolo"): the club's pre-solo requirements for the course — the medical (one tap from the file), the
+     knowledge check (Set it / Remind once a week), reviews, sign-offs and revokes in place -->
+<section class="ta-card ins-rise" ng-if="vm.X.soloSt === 'loading'" aria-busy="true"><div class="stu-skel" ng-repeat="i in [0, 1, 2]"><span class="ta-skel stu-skel__av"></span><span class="stu-skel__txt"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></span><span class="ta-skel stu-skel__meta"></span><span class="ta-skel stu-skel__pill"></span></div></section>
+<section class="ta-card ins-rise" ng-if="vm.X.soloSt === 'ready'" data-e2e="stu-presolo">
+  <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.X.soloSum.all}"><i class="fas" ng-class="vm.X.soloSum.all ? 'fa-plane-departure' : 'fa-user-check'"></i></span><div class="ta-card__ttl"><h3>{{ vm.X.soloSum.all ? 'All clear for solo' : 'Before ' + vm.X.first + '’s first solo' }}</h3><p>{{ vm.X.soloSum.done }} of {{ vm.X.soloSum.n }} done · the club’s pre-solo requirements for {{ vm.X.courseTitle }} · the book-out checks them too</p></div>
+    <span class="ta-card__right"><span class="ta-pill ta-pill--good" ng-if="vm.X.soloSum.all"><i class="fas fa-check"></i>Ready</span><span class="ta-pill ta-pill--warn" ng-if="!vm.X.soloSum.all"><i class="fas fa-hourglass-half"></i>{{ vm.C.plural(vm.X.soloSum.open, 'check') }} open</span></span></div>
+  <div class="ta-meter ta-meter--good"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.X.soloSum.pct }}%"></div></div>
+  <div class="stu-reqs">
+    <div class="stu-req" ng-repeat="r in vm.X.reqs track by r.id" data-e2e="stu-req-{{ r.kind }}">
+      <span class="stu-req__ic stu-req__ic--{{ r.icTone }}" title="{{ r.pill.label }}"><i class="fas {{ r.icIc }}"></i></span>
+      <div><div class="stu-req__t">{{ r.name }}<span class="ta-tag">{{ r.kindLabel }}</span><span class="ta-tag" ng-if="r.auto" title="Checked by ToAviate from the records: it can’t be signed off by hand and never goes stale"><i class="fas fa-magic"></i>Checked automatically</span><span class="ta-tag" ng-if="r.courseId"><i class="fas fa-graduation-cap"></i>{{ r.courseTitle || vm.X.courseTitle }} only</span><span class="ta-tag" ng-if="r.limTag" title="{{ r.limTag.title }}"><i class="fas {{ r.limTag.ic }}"></i>{{ r.limTag.t }}</span></div><div class="stu-req__d">{{ r.detailShown }}</div></div>
+      <div class="stu-req__acts">
+        <!-- the medical: its state, and the file one tap away -->
+        <span class="stu-req__btns" ng-if="r.kind === 'medical'"><span class="ta-pill {{ r.pill.cls }}"><i class="fas {{ r.pill.ic }}"></i>{{ r.pill.label }}</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openMedical()" ng-disabled="!vm.X.med" no-busy-guard data-e2e="stu-viewmed"><i class="fas fa-heartbeat"></i>View medical</button></span>
+        <!-- the knowledge check: Set it for Sam / Remind Sam -->
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="r.kc && r.kc.set && vm.Ps.kc !== r.id" ng-click="vm.kcOpen(r)" no-busy-guard data-e2e="stu-kcopen"><i class="fas fa-paper-plane"></i>Set it for {{ vm.X.first }}</button>
+        <span class="ta-pill {{ r.pill.cls }}" ng-if="r.kc && r.kc.none"><i class="fas {{ r.pill.ic }}"></i>{{ r.pill.label }}</span><span class="stu-req__btns" ng-if="r.kc && !r.kc.set && !r.kc.none"><span class="ta-pill {{ r.pill.cls }}"><i class="fas {{ r.pill.ic }}"></i>{{ r.pill.label }}</span><button type="button" class="ta-btn ta-btn--sm" ng-class="{'ta-btn--primary': r.kc.over && !r.kc.locked}" ng-click="vm.kcRemind(r)" ng-disabled="r.kc.locked || vm.Ps.kcBusy" title="{{ r.kc.locked ? 'One reminder a week: next from ' + vm.C.fDay(r.kc.next) : '' }}" data-e2e="stu-kcremind"><span class="ta-spin" ng-if="vm.Ps.kcBusy === r.id" ng-class="{'ta-spin--dark': !r.kc.over}"></span><i class="fas fa-check" ng-if="vm.Ps.kcBusy !== r.id && r.kc.locked"></i><i class="fas fa-bell" ng-if="vm.Ps.kcBusy !== r.id && !r.kc.locked"></i>{{ vm.Ps.kcBusy === r.id ? 'Sending…' : r.kc.locked ? 'Reminded' : 'Remind ' + vm.X.first }}</button></span>
+        <!-- reviewed, not passed yet: open, amber; the review is one tap away -->
+        <span class="stu-req__btns" ng-if="r.kind === 'questionnaire' && r.state === 'not_passed' && r.evidence"><span class="ta-pill {{ r.pill.cls }}"><i class="fas {{ r.pill.ic }}"></i>{{ r.pill.label }}</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.reviewNow(r)" data-e2e="stu-openreview"><i class="fas fa-clipboard-check"></i>Open the review</button></span>
+        <!-- waiting for review -->
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="r.state === 'pending_review'" ng-click="vm.reviewNow(r)" data-e2e="stu-review"><i class="fas fa-clipboard-check"></i>Review now</button>
+        <!-- instructor sign-offs -->
+        <button type="button" class="ta-btn ta-btn--sm" ng-if="r.kind === 'manual' && !r.satisfied && vm.Ps.sign !== r.id" ng-click="vm.signAsk(r)" no-busy-guard data-e2e="stu-sign"><i class="fas fa-signature"></i>Sign off</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="r.kind === 'manual' && r.satisfied && r.so && vm.Ps.revoke !== r.id" ng-click="vm.revokeAsk(r)" no-busy-guard data-e2e="stu-revoke">Revoke</button>
+        <!-- an exam below the pass mark: the results -->
+        <button type="button" class="ta-btn ta-btn--sm" ng-if="r.kind === 'exam' && !r.satisfied" ng-click="vm.setTab('exams')" no-busy-guard>Exam results</button>
+        <!-- otherwise: the state -->
+        <span class="ta-pill {{ r.pill.cls }}" ng-if="vm.reqPillOnly(r)"><i class="fas {{ r.pill.ic }}"></i>{{ r.pill.label }}</span>
+      </div>
+      <div class="stu-req__note" ng-if="r.note"><div class="ta-note ta-note--bad"><i class="fas fa-exclamation-triangle"></i><div><b>{{ r.note.b }}</b> {{ r.note.t }}</div></div></div>
+      <div class="stu-req__note" ng-if="vm.Ps.kcNote[r.id].said"><div class="ta-note ta-note--info" data-e2e="stu-kc-refused"><i class="fas fa-info-circle"></i><div>{{ vm.Ps.kcNote[r.id].said }}</div></div></div>
+
+      <!-- Set it: message, due date, the email (as Student questionnaires) -->
+      <div class="stu-req__form stu-kc" ng-if="vm.Ps.kc === r.id" data-e2e="stu-kcform">
+        <div class="ta-field"><label class="ta-label" for="stu-kcmsg">Message to {{ vm.X.first }} <em>optional</em></label><textarea class="ta-textarea" id="stu-kcmsg" rows="2" maxlength="1000" ng-model="vm.Ps.kcF.msg"></textarea></div>
+        <div class="ta-field"><span class="ta-label" id="stu-kcd">Due</span><div class="ta-chips" role="group" aria-labelledby="stu-kcd"><button type="button" class="ta-chip" ng-repeat="d in vm.kcDuesList track by d.k" ng-class="{'ta-chip--on': vm.Ps.kcF.due === d.k}" aria-pressed="{{ vm.Ps.kcF.due === d.k }}" ng-click="vm.Ps.kcF.due = d.k" no-busy-guard>{{ d.t }}</button></div>
+          <span class="ta-hint">The due date shows on {{ vm.X.first }}’s list and in the email; past it, the check shows as overdue here.</span></div>
+        <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.Ps.kcF.email" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">Email {{ vm.X.first }} a link</span><span class="ta-toggle__s">It appears in {{ vm.X.first }}’s Assigned to me either way.</span></span><span class="ta-switch"></span></label>
+        <div class="stu-foot-acts"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.kcCancel()" no-busy-guard>Cancel</button><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.kcSet(r)" ng-disabled="vm.Ps.busy" data-e2e="stu-kcset"><span class="ta-spin" ng-if="vm.Ps.busy === 'kc:' + r.id"></span><i class="fas fa-paper-plane" ng-if="vm.Ps.busy !== 'kc:' + r.id"></i>{{ vm.Ps.busy === 'kc:' + r.id ? 'Setting…' : 'Set it for ' + vm.X.first }}</button></div>
+      </div>
+
+      <!-- Sign off: expiry (optional), notes (optional) -->
+      <div class="stu-req__form" ng-if="vm.Ps.sign === r.id" data-e2e="stu-signform">
+        <div class="ta-grid-2"><div class="ta-field"><span class="ta-label" id="stu-sexp-l">Expires <em>optional</em></span><ta-date-picker ng-model="vm.Ps.signF.exp" options="vm.signPickerOpts" block="true" format="short" placeholder="Leave empty if it doesn’t lapse"></ta-date-picker></div>
+          <div class="ta-field"><label class="ta-label" for="stu-snote">Notes <em>optional</em></label><input class="ta-input" id="stu-snote" type="text" maxlength="255" placeholder="e.g. Briefed on the day" ng-model="vm.Ps.signF.notes"></div></div>
+        <div class="stu-foot-acts"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.signCancel()" no-busy-guard>Cancel</button><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.signOff(r)" ng-disabled="vm.Ps.busy" data-e2e="stu-signdo"><span class="ta-spin" ng-if="vm.Ps.busy === 'sign:' + r.id"></span><i class="fas fa-check" ng-if="vm.Ps.busy !== 'sign:' + r.id"></i>{{ vm.Ps.busy === 'sign:' + r.id ? 'Signing off…' : 'Sign off for ' + vm.X.first }}</button></div>
+      </div>
+      <!-- Revoke: asked in place; the history keeps it -->
+      <div class="ta-confirm ta-confirm--inline" ng-if="vm.Ps.revoke === r.id"><span>Revoke this sign-off? {{ vm.X.first }} will need it signed off again before the solo. The history keeps it.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.revokeNo()" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.revoke(r)" ng-disabled="vm.Ps.busy" data-e2e="stu-revokedo"><span class="ta-spin" ng-if="vm.Ps.busy === 'revoke:' + r.id"></span>{{ vm.Ps.busy === 'revoke:' + r.id ? 'Revoking…' : 'Revoke' }}</button></div>
+    </div>
+  </div>
+  <span class="ta-hint">Set by the club (Manage Club → Pilot checks). Medical, exam and questionnaire checks are read from {{ vm.X.first }}’s records; you sign off the rest here.</span>
+</section>
+<section class="ta-card ins-rise" ng-if="vm.X.soloSt === 'none'"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-user-check"></i></span><h4>No pre-solo checks for {{ vm.X.courseTitle }}</h4><p>{{ vm.clubTitle() }} hasn’t set pre-solo requirements for this course (Manage Club → Pilot checks).</p></div></section>

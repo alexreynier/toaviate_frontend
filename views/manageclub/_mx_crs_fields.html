@@ -1,0 +1,40 @@
+<!-- CRS fields. Included in the CRS mode of the panel and as EVERY check's optional CRS step (owner, 10 Nov 2026;
+     the release date / time pre-fill from the check when the step opens).
+     Writes vm.files.crs (processFile) + vm.obj.crs_release_date / crs_release_time. -->
+<div class="wp-form-group">
+  <label>CRS document <span class="wp-required">*</span></label>
+  <small class="wp-hint wp-hint--above">PDF or photo (pdf, jpg, png, heic — photos are stored as JPG). Replaces the CRS on file; the old one is archived.</small>
+  <div class="wp-upload-zone">
+    <div
+      flow-init="{target: '/upload_documents.php', singleFile: true}"
+      flow-files-submitted="$flow.upload()"
+      flow-file-success="$file.file_return = $message"
+      flow-complete="processFile($flow.files, 'crs')"
+      flow-file-limit="1"
+      flow-file-added="!!{pdf:1,jpg:1,jpeg:1,png:1,gif:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
+      <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+        <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+        <span>Click or drag the CRS here</span>
+      </div>
+      <div ng-repeat="file in $flow.files" class="wp-upload-file">
+        <i class="fa fa-file"></i>
+        <span class="wp-upload-filename">{{file.name}}</span>
+        <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+          <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
+        </div>
+        <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); vm.removeUpload('crs');" ng-if="(file.progress() * 100) == 100" title="Remove"><i class="fa fa-times"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wp-form-group">
+  <label for="crs_release_date">Release date <span class="wp-required">*</span></label>
+  <input type="date" class="form-control inputtext" name="crs_release_date" id="crs_release_date" ng-model="vm.obj.crs_release_date" />
+</div>
+
+<div class="wp-form-group">
+  <label for="crs_release_time">Release time <span class="wp-required">*</span></label>
+  <input type="time" class="form-control inputtext" name="crs_release_time" id="crs_release_time" ng-model="vm.obj.crs_release_time" />
+  <small class="wp-hint">The time the aircraft was released to service on the CRS.</small>
+</div>

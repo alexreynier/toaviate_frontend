@@ -1,0 +1,364 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 · Find a slot — mockups/my-account/find-a-slot.html (approved 10 Nov 2026).
+     FindASlotV2Controller (js/v2/find_a_slot/find_a_slot.js) · GET bookings/v2/find_a_slot · css/v2/find_a_slot.css (.fsl-*)
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="fsl">
+
+  <!-- ── page bar ── -->
+  <section class="ta-bar fsl-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-search-location"></i></span>
+        <div>
+          <h2>Find a slot</h2>
+          <p>Free slots at {{ vm.clubName() }} — pick one and book it in a tap</p>
+        </div>
+      </div>
+      <div class="fsl-baracts">
+        <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.data && !vm.me.restricted" ng-click="vm.openScheduler()" no-busy-guard><i class="fas fa-calendar-alt"></i>Open the scheduler</button>
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.myBookings()" no-busy-guard><i class="fas fa-calendar-check"></i>My bookings</button>
+      </div>
+      <span class="v2b-inline"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.clubs.length > 1">
+      <div class="ta-scope">
+        <span class="ta-scope__k">Club</span>
+        <div class="ta-scope__set" role="tablist" aria-label="Club">
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.S.club === c.id}" ng-click="vm.setClub(c.id)" no-busy-guard role="tab" aria-selected="{{ vm.S.club === c.id }}">{{ c.title }}</button>
+        </div>
+      </div>
+    </div>
+    <div class="v2b-row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── not a member of any club ── -->
+  <section class="ta-card" ng-if="vm.load === 'noclub'">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-users"></i></span>
+      <h4>You’re not a member of a club yet</h4>
+      <p>Find a slot shows a club’s free slots to its members. Join a club and its slots show here.</p>
+    </div>
+  </section>
+
+  <!-- ── the search: the question read left to right — WHEN · WHICH AIRCRAFT · WITH WHOM · COURSE · LENGTH ── -->
+  <section class="ta-card fsl-q" ng-if="vm.load !== 'noclub'">
+    <div class="fsl-q__row">
+      <span class="fsl-k"><i class="fas fa-calendar-day"></i>When</span>
+      <div class="fsl-when">
+        <div class="fsl-date">
+          <button type="button" ng-click="vm.prev()" ng-disabled="vm.S.from <= vm.today" aria-label="The {{ vm.rangeTxt }} before" title="The {{ vm.rangeTxt }} before" no-busy-guard><i class="fas fa-chevron-left fsl-date__arrow"></i></button>
+          <button type="button" class="fsl-date__d" fsl-date-pick="vm.S.from" fsl-on-pick="vm.setFrom(date)" title="Pick the first day" aria-label="First day: {{ vm.fromDay }}" no-busy-guard><i class="fas fa-calendar"></i>{{ vm.fromWord }} <small>{{ vm.fromSub }}</small></button>
+          <button type="button" ng-click="vm.next()" aria-label="The {{ vm.rangeTxt }} after" title="The {{ vm.rangeTxt }} after" no-busy-guard><i class="fas fa-chevron-right fsl-date__arrow"></i></button>
+        </div>
+        <div class="ta-scope">
+          <span class="ta-scope__k">For</span>
+          <div class="ta-scope__set">
+            <button type="button" class="ta-scope__opt" ng-repeat="r in vm.RANGES" ng-class="{'ta-scope__opt--on': vm.S.range === r[0]}" ng-click="vm.setRange(r[0])" no-busy-guard>{{ r[1] }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fsl-q__row">
+      <span class="fsl-k"><i class="fas fa-plane"></i>Aircraft</span>
+      <div class="ta-chips">
+        <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.S.type === 'all'}" ng-click="vm.setType('all')" no-busy-guard>Any type<span class="ta-chip__n">{{ vm.nPlanes || 0 }}</span></button>
+        <button type="button" class="ta-chip" ng-repeat="t in vm.fleet track by t.type" ng-class="{'ta-chip--on': vm.S.type === t.type}" ng-click="vm.setType(t.type)" no-busy-guard>{{ t.type }}<span class="ta-chip__n">{{ t.n }}</span></button>
+      </div>
+    </div>
+    <div class="fsl-finders">
+      <div class="fsl-finder">
+        <span class="fsl-k"><i class="fas fa-chalkboard-teacher"></i>With</span>
+        <ta-combo cb-id="fsl-ins" label="Instructor" placeholder="Any instructor — type a name, e.g. {{ vm.egName || 'Ka' }}" placeholder-open="Type a name or initials" placeholder-picked="Type to change"
+                  source="vm.insSource(q)" on-pick="vm.insPick(key, row)" on-clear="vm.insClear()"
+                  value="vm.insValue" summary="vm.insSummary" clearable="!!vm.S.ins" version="vm.cbVer" hl-sub="false"></ta-combo>
+      </div>
+      <div class="fsl-finder" ng-if="vm.courses.length">
+        <span class="fsl-k"><i class="fas fa-graduation-cap"></i>Course</span>
+        <ta-combo cb-id="fsl-course" label="Course" placeholder="Any course — type to find one" placeholder-open="Type a course, e.g. PPL" placeholder-picked="Type to change"
+                  source="vm.crsSource(q)" on-pick="vm.crsPick(key, row)" on-clear="vm.crsClear()"
+                  value="vm.crsValue" summary="vm.crsSummary" clearable="!!vm.S.course" version="vm.cbVer"></ta-combo>
+      </div>
+    </div>
+    <div class="fsl-q__row">
+      <span class="fsl-k"><i class="fas fa-layer-group"></i>Length</span>
+      <button type="button" class="fsl-dbl" ng-class="{'fsl-dbl--on': vm.S.dbl}" ng-click="vm.toggleDbl()" role="switch" aria-checked="{{ vm.S.dbl ? 'true' : 'false' }}" no-busy-guard>
+        <span class="ta-switch"></span><span><b>Double slot</b><small>Two slots back to back{{ vm.dblTxt }}</small></span>
+      </button>
+    </div>
+    <div class="fsl-q__foot">
+      <span ng-if="vm.load === 'ready'"><b>{{ vm.sentence.b }}</b>{{ vm.sentence.rest }}</span>
+      <span ng-if="vm.load === 'loading'">Looking for free slots…</span>
+      <span ng-if="vm.load === 'error'">No answer yet</span>
+      <button type="button" class="ta-link" ng-if="vm.filtered" ng-click="vm.reset()" no-busy-guard><i class="fas fa-undo"></i> Clear the filters</button>
+      <span class="ta-hint" ng-if="!vm.filtered">Tap a slot to book it</span>
+    </div>
+  </section>
+
+  <!-- ── loading: tiles and a grid, so nothing jumps ── -->
+  <div class="ta-tiles fsl-tiles" ng-if="vm.load === 'loading' && !vm.longWait" aria-label="Looking for free slots"><div class="ta-skel fsl-sk-tile"></div><div class="ta-skel fsl-sk-tile"></div><div class="ta-skel fsl-sk-tile"></div></div>
+  <section class="ta-card ta-card--flush" ng-if="vm.load === 'loading' && !vm.longWait"><div class="fsl-sk-grid"><div class="ta-skel" ng-repeat="n in vm.SK track by $index"></div></div></section>
+  <!-- a re-search that takes a while (two months at a big club: ~3 s): the shared runway, not a blank -->
+  <section class="ta-card fsl-run" ng-if="vm.load === 'loading' && vm.longWait" data-e2e="fsl-run">
+    <ta-runway text="Looking for free slots in the {{ vm.rangeTxt }} from {{ vm.fromWord === 'Today' ? 'today' : vm.fromDay }}…"></ta-runway>
+  </section>
+
+  <!-- ── the read failed / the club can't be searched ── -->
+  <section class="ta-card" ng-if="vm.load === 'error'" data-e2e="fsl-error">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas" ng-class="vm.err.icon"></i></span>
+      <h4>{{ vm.err.title }}</h4>
+      <p>{{ vm.err.text }}</p>
+      <div class="ta-detail__foot fsl-center">
+        <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.err.retry" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+        <button type="button" class="ta-btn" ng-if="vm.err.code === 'NO_DOUBLE'" ng-click="vm.toggleDbl()" no-busy-guard><i class="fas fa-layer-group"></i>Single slots</button>
+        <button type="button" class="ta-btn" ng-if="vm.err.code === 'NO_SLOTS'" ng-click="vm.openScheduler()" no-busy-guard><i class="fas fa-calendar-alt"></i>Open the scheduler</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── at the club's limit: said once; the slots still show what's free (dimmed) ── -->
+  <div class="ta-note ta-note--warn" ng-if="vm.load === 'ready' && vm.atLimit" data-e2e="fsl-limit">
+    <i class="fas fa-ticket-alt"></i>
+    <div><b>You already hold {{ vm.me.limit.used }} upcoming booking{{ vm.me.limit.used === 1 ? '' : 's' }}</b> — {{ vm.clubName() }} lets members hold {{ vm.me.limit.max }} at a time. Cancel one to book another; the slots still show what’s free.</div>
+    <span class="ta-sp"></span>
+    <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.myBookings()" no-busy-guard>My bookings</button>
+  </div>
+
+  <!-- ── tiles: next free slot · free slots · your allowance ── -->
+  <div class="ta-tiles fsl-tiles" ng-if="vm.load === 'ready'">
+    <div class="ta-tile" ng-repeat="t in vm.tiles" ng-class="t.cls">
+      <span class="ta-tile__k"><i class="fas" ng-class="t.icon"></i>{{ t.k }}</span>
+      <span class="ta-tile__v" ng-class="{'ta-tile__v--words': t.words, 'ta-tile__v--quiet': t.quiet}">{{ t.v }}<small class="fsl-tile-of" ng-if="t.of"> {{ t.of }}</small></span>
+      <span class="ta-tile__s">{{ t.s }}</span>
+      <button type="button" class="ta-tile__go" ng-if="t.go" ng-click="vm.open(t.go)" no-busy-guard>Book it →</button>
+    </div>
+  </div>
+
+  <!-- ── nothing free: the ways to widen the search + the waiting list ── -->
+  <section class="ta-card" ng-if="vm.load === 'ready' && !vm.nFree" data-e2e="fsl-empty">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-cloud-sun"></i></span>
+      <h4>{{ vm.emptyTitle }}</h4>
+      <p>Widen the search, or ask the club to call you when a slot frees up.</p>
+      <div class="ta-detail__foot fsl-center">
+        <button type="button" class="ta-btn" ng-if="vm.S.range < 60" ng-click="vm.setRange(vm.S.range < 28 ? 28 : 60)" no-busy-guard><i class="fas fa-calendar-plus"></i>Look {{ vm.S.range < 28 ? '4 weeks' : '2 months' }} ahead</button>
+        <button type="button" class="ta-btn" ng-if="vm.S.type !== 'all'" ng-click="vm.setType('all')" no-busy-guard><i class="fas fa-plane"></i>Any aircraft type</button>
+        <button type="button" class="ta-btn" ng-if="vm.S.ins" ng-click="vm.insClear()" no-busy-guard><i class="fas fa-chalkboard-teacher"></i>Any instructor</button>
+        <button type="button" class="ta-btn" ng-if="vm.S.course" ng-click="vm.crsClear()" no-busy-guard><i class="fas fa-graduation-cap"></i>Any course</button>
+        <button type="button" class="ta-btn" ng-if="vm.S.dbl" ng-click="vm.toggleDbl()" no-busy-guard><i class="fas fa-layer-group"></i>Single slots</button>
+        <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.WAITING_LIST" ng-click="vm.waitingList()" no-busy-guard data-e2e="fsl-wait"><i class="fas fa-hourglass-half"></i>Join the waiting list</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── results head: how many + Grid | List ── -->
+  <div class="fsl-rh" ng-if="vm.load === 'ready' && vm.nFree">
+    <div class="ta-sh"><div><h3>{{ vm.nFree }} free slot{{ vm.nFree === 1 ? '' : 's' }}</h3><p>{{ vm.fromDay }} – {{ vm.toDay }}</p></div></div>
+    <div class="ta-tabs" role="tablist" aria-label="How to show the slots" ng-if="!vm.gridOnly">
+      <button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.view === 'grid'}" role="tab" aria-selected="{{ vm.view === 'grid' }}" ng-click="vm.setView('grid')" no-busy-guard data-e2e="fsl-tab-grid"><i class="fas fa-th"></i>Grid</button>
+      <button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.view === 'list'}" role="tab" aria-selected="{{ vm.view === 'list' }}" ng-click="vm.setView('list')" no-busy-guard data-e2e="fsl-tab-list"><i class="fas fa-list"></i>List</button>
+    </div>
+  </div>
+
+  <!-- ── the grid: a row per day, a column per club slot ── -->
+  <section class="ta-card ta-card--flush" ng-if="vm.load === 'ready' && vm.nFree && vm.view === 'grid'" data-e2e="fsl-grid">
+    <div class="fsl-grid" ng-attr-style="--n: {{ vm.cols.length }}" role="grid">
+      <div class="fsl-gh fsl-gh--corner">{{ vm.rows.length }} days</div>
+      <div class="fsl-gh" ng-repeat="c in vm.cols track by c.key">{{ c.label }}<span>{{ c.s }}–{{ c.e }}</span></div>
+      <div class="fsl-gr" ng-repeat="d in vm.rows track by d.date">
+        <div class="fsl-gd" ng-class="{'fsl-gd--today': d.today, 'fsl-gd--we': d.we}"><b class="fsl-gd__tag"><i class="fsl-gd__dot" ng-if="d.today"></i>{{ d.word }}</b><span>{{ d.sub }}</span></div>
+        <div class="fsl-gx" ng-repeat="x in d.cells track by x.key">
+          <div class="fsl-c fsl-c--mine" ng-if="x.kind === 'mine'" aria-label="{{ x.aria }}"><em class="fsl-c__t">{{ x.col.s }}</em><span class="fsl-c__top"><span class="fsl-c__yours"><i class="fas fa-check-circle"></i>Yours</span></span><span class="fsl-c__n">{{ x.txt }}</span></div>
+          <div class="fsl-c fsl-c--taken" ng-if="x.kind === 'taken'" aria-label="{{ x.aria }}"><em class="fsl-c__t">{{ x.col.s }}</em><span>{{ x.txt }}</span></div>
+          <button type="button" class="fsl-c" ng-if="x.kind === 'free'" ng-class="{'fsl-c--on': vm.dlg.key === x.key, 'fsl-c--dim': vm.atLimit}" ng-click="vm.open(x)" aria-label="{{ x.aria }}" no-busy-guard>
+            <em class="fsl-c__t">{{ x.col.s }}</em>
+            <span class="fsl-c__top"><span class="fsl-avs" ng-if="x.avs.length"><span class="ta-av" ng-repeat="a in x.avs" ng-attr-style="--av: {{ a.colour }}" title="{{ a.title }}">{{ a.code }}</span></span><span class="fsl-avs__more" ng-if="x.more">+{{ x.more }}</span><span class="fsl-c__solo" ng-if="!x.avs.length"><i class="fas fa-user"></i><span>Solo only</span></span></span>
+            <span class="fsl-c__n"><b>{{ x.nB }}</b> {{ x.nW }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="fsl-foot">
+      <div class="fsl-legend">
+        <span><i></i>Free</span>
+        <span><span class="ta-av" ng-attr-style="--av: {{ vm.legendAv.colour }}" title="{{ vm.legendAv.title }}">{{ vm.legendAv.code }}</span>Instructor free</span>
+        <span><i class="is-solo"></i>Solo only</span>
+        <span><i class="is-taken"></i>Taken</span>
+        <span><i class="is-mine"></i>Yours</span>
+      </div>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.next()" no-busy-guard><i class="fas fa-chevron-right"></i>The {{ vm.rangeTxt }} after</button>
+    </div>
+  </section>
+
+  <!-- ── the list: free slots by day (the My bookings agenda language), Book on each row ── -->
+  <div class="fsl-agenda" ng-if="vm.load === 'ready' && vm.nFree && vm.view === 'list'" data-e2e="fsl-list">
+    <div class="fsl-day" ng-repeat="d in vm.listDays track by d.date" ng-class="{'fsl-day--today': d.today}">
+      <div class="fsl-day__hd"><span class="fsl-day__t"><i class="fsl-gd__dot" ng-if="d.today"></i><b>{{ d.word }}</b>{{ d.long }}</span><span class="fsl-day__n">{{ d.free }} free</span></div>
+      <div class="ta-list">
+        <div class="fsl-r" ng-repeat="x in d.items track by x.key" ng-class="{'fsl-r--mine': x.kind === 'mine'}">
+          <div class="fsl-r__time"><b>{{ x.col.s }}</b><span>to {{ x.col.e }}</span></div>
+          <div class="fsl-r__txt">
+            <div class="fsl-r__who" ng-if="x.kind === 'mine'"><span class="fsl-c__yours"><i class="fas fa-check-circle"></i>Yours</span><span class="fsl-r__names">{{ x.txt }}</span></div>
+            <div class="fsl-r__who" ng-if="x.kind === 'free' && x.avs4.length"><span class="fsl-avs"><span class="ta-av" ng-repeat="a in x.avs4" ng-attr-style="--av: {{ a.colour }}" title="{{ a.title }}">{{ a.code }}</span></span><span class="fsl-avs__more" ng-if="x.more4">+{{ x.more4 }}</span><span class="fsl-r__names">{{ x.names }}</span></div>
+            <div class="fsl-r__who fsl-r__who--solo" ng-if="x.kind === 'free' && !x.avs4.length"><i class="fas fa-user"></i>Solo only — no instructor free</div>
+            <div class="fsl-r__meta" ng-if="x.kind === 'free'"><span>{{ x.col.label }}</span><span>·</span><span><b>{{ x.nB }}</b> {{ x.nW }}<span ng-if="!vm.pick"> ({{ x.types }})</span></span><span ng-if="x.someConfirm" class="fsl-r__conf">· <i class="fas fa-user-clock"></i> some confirm first</span></div>
+          </div>
+          <div class="fsl-r__act">
+            <button type="button" class="ta-btn ta-btn--sm" ng-if="x.kind === 'mine'" ng-click="vm.myBookings()" no-busy-guard>Open</button>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="x.kind === 'free'" ng-click="vm.open(x)" ng-disabled="vm.atLimit" no-busy-guard><i class="fas fa-calendar-plus"></i>Book</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fsl-rh"><span></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.next()" no-busy-guard><i class="fas fa-chevron-right"></i>The {{ vm.rangeTxt }} after</button></div>
+  </div>
+
+  <!-- ══════ the booking sheet: who, which aircraft, book ══════ -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg" ng-click="vm.scrim($event)">
+    <div class="ta-dlg fsl-dlg" role="dialog" aria-modal="true" aria-labelledby="fsl-dlg-t" data-e2e="fsl-sheet">
+      <div class="ta-dlg__hd" ng-attr-style="--edge: {{ vm.dlg.edge }}">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.close()" ng-disabled="vm.dlg.busy" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas" ng-class="vm.dlg.booked ? 'fa-calendar-check' : 'fa-calendar-plus'"></i>{{ vm.dlg.x.col.label }}{{ vm.dlg.dbl ? ' · double' : '' }}</div>
+        <div class="ta-dlg__title" id="fsl-dlg-t">{{ vm.dlg.title }}</div>
+        <div class="ta-dlg__sub">{{ vm.dlg.when }} · {{ vm.clubName() }}</div>
+      </div>
+
+      <!-- booked / request sent -->
+      <div class="ta-dlg__body" ng-if="vm.dlg.booked" data-e2e="fsl-booked">
+        <div class="fsl-booked">
+          <span class="fsl-booked__ic"><i class="fas" ng-class="vm.dlg.done.pending ? 'fa-paper-plane' : 'fa-check'"></i></span>
+          <h3>{{ vm.dlg.done.pending ? 'Request sent' : 'Booked' }}</h3>
+          <p ng-if="vm.dlg.done.pending">{{ vm.dlg.done.byClub || !vm.dlg.insName ? 'The club' : vm.dlg.insName }} will confirm it — you’ll get an e-mail either way. Until then it shows dashed on the scheduler.</p>
+          <p ng-if="!vm.dlg.done.pending">It’s on the scheduler and in My bookings. Book out from there on the day.</p>
+          <div class="fsl-booked__sum">
+            <span class="ta-pill ta-pill--info"><i class="fas fa-clock"></i>{{ vm.dlg.shortDay }} · {{ vm.dlg.when }}</span>
+            <span class="ta-ac" ng-if="vm.dlg.done.reg" ng-attr-style="{{ vm.dlg.done.colour ? '--ac: ' + vm.dlg.done.colour : undefined }}">{{ vm.dlg.done.reg }}<span>{{ vm.dlg.done.type }}</span></span>
+            <span class="ta-pill ta-pill--muted" ng-if="!vm.dlg.done.reg"><i class="fas fa-plane"></i>{{ vm.dlg.done.type }} — the club assigns the aircraft</span>
+            <span class="ta-pill ta-pill--good" ng-if="vm.dlg.done.ins"><span class="ta-av" ng-attr-style="--av: {{ vm.dlg.done.ins.av.colour }}" title="{{ vm.dlg.done.ins.av.title }}">{{ vm.dlg.done.ins.av.code }}</span>{{ vm.dlg.done.ins.name }}</span>
+            <span class="ta-pill ta-pill--solo" ng-if="!vm.dlg.done.ins"><i class="fas fa-user"></i>Solo</span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.dlg.course"><i class="fas fa-graduation-cap"></i>{{ vm.dlg.course }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="vm.dlg.booked">
+        <button type="button" class="ta-btn" ng-click="vm.close()" no-busy-guard>Find another</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.myBookings()" no-busy-guard><i class="fas fa-calendar-check"></i>My bookings</button>
+      </div>
+
+      <!-- booking: the runway while the slot is being booked -->
+      <div class="ta-dlg__body" ng-if="vm.dlg.busy">
+        <ta-runway compact="true" steps="vm.BOOK_STEPS" step="0" text="{{ vm.dlg.approval ? 'Sending your request to ' + (vm.dlg.byClub ? 'the club' : vm.dlg.insName) + '…' : 'Booking ' + vm.dlg.when + ', ' + vm.dlg.whenWord + '…' }}"></ta-runway>
+      </div>
+      <!-- the choice -->
+      <div class="ta-dlg__body" ng-if="!vm.dlg.booked && !vm.dlg.busy">
+        <div class="ta-note ta-note--info fsl-dlg__when"><i class="fas fa-clock"></i><div>{{ vm.dlg.dbl ? 'Two slots back to back — ' : '' }}<b>{{ vm.dlg.when }}</b>, {{ vm.dlg.whenWord }}{{ vm.dlg.course ? ' · ' + vm.dlg.course : '' }}</div></div>
+        <div class="fsl-dlg__sec">
+          <div class="fsl-dlg__k">Who’s flying with you<em>{{ vm.dlg.insK }}</em></div>
+          <label class="ta-search" ng-if="vm.dlg.many"><i class="fas fa-search"></i><input id="fsl-dlgq" type="search" ng-model="vm.dlg.q" ng-change="vm.dlgQ()" ng-model-options="{ debounce: 0 }" autocomplete="off" placeholder="Find an instructor" aria-label="Find an instructor"></label>
+          <div class="fsl-opts" ng-class="{'fsl-dlg__scroll': vm.dlg.many}">
+            <button type="button" class="ta-opt" ng-if="!vm.dlg.searching" ng-class="{'ta-opt--on': !vm.dlg.sel.ins}" ng-click="vm.selIns(null)" no-busy-guard><span class="ta-av ta-av--member"><i class="fas fa-user"></i></span><span><span class="fsl-opt__t"><span>Just me — solo</span></span><span class="fsl-opt__s">No instructor on this booking</span></span><span class="ta-opt__dot"></span></button>
+            <button type="button" class="ta-opt" ng-repeat="i in vm.dlg.ins track by i.id" ng-class="{'ta-opt--on': vm.dlg.sel.ins === i.id}" ng-click="vm.selIns(i.id)" no-busy-guard><span class="ta-av" ng-attr-style="--av: {{ i.av.colour }}" title="{{ i.av.title }}">{{ i.av.code }}</span><span><span class="fsl-opt__t"><span>{{ i.name }}</span><span class="ta-pill ta-pill--pend" ng-if="i.ap"><i class="fas fa-user-clock"></i>Needs to confirm</span></span><span class="fsl-opt__s">{{ i.s }}</span></span><span class="ta-opt__dot"></span></button>
+            <div class="ta-combo__none" ng-if="vm.dlg.searching && !vm.dlg.ins.length"><b>Nobody free here matches “{{ vm.dlg.q }}”</b></div>
+          </div>
+        </div>
+        <div class="fsl-dlg__sec" ng-if="vm.dlg.pickMode">
+          <div class="fsl-dlg__k">Which aircraft<em>{{ vm.dlg.planes.length }} free</em></div>
+          <div class="fsl-opts">
+            <button type="button" class="ta-opt" ng-repeat="p in vm.dlg.planes track by p.id" ng-class="{'ta-opt--on': vm.dlg.sel.ac === p.id}" ng-click="vm.selAc(p.id)" no-busy-guard><span class="ta-ic ta-ic--sm" ng-attr-style="background: {{ p.colour }}; color: #fff"><i class="fas fa-plane"></i></span><span><span class="fsl-opt__t"><span>{{ p.reg }}</span></span><span class="fsl-opt__s">{{ p.sub }}</span></span><span class="ta-opt__dot"></span></button>
+          </div>
+        </div>
+        <div class="fsl-dlg__sec" ng-if="!vm.dlg.pickMode">
+          <div class="fsl-dlg__k">Which aircraft<em>the club assigns one</em></div>
+          <div class="fsl-types">
+            <button type="button" class="ta-chip" ng-repeat="t in vm.dlg.types track by t.type" ng-class="{'ta-chip--on': vm.dlg.sel.type === t.type}" ng-click="vm.selType(t.type)" no-busy-guard>{{ t.type }}<span class="ta-chip__n">{{ t.n }} free</span></button>
+          </div>
+          <p class="ta-hint">{{ vm.dlg.typeHint }}</p>
+        </div>
+        <div class="ta-note ta-note--info" ng-if="vm.dlg.approval"><i class="fas fa-user-clock"></i><div><b>This will be a request.</b> {{ vm.dlg.byClub ? 'The club confirms' : vm.dlg.insName + ' confirms' }} bookings before they’re final. It holds the slot meanwhile.</div></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.dlg.err" role="alert"><i class="fas fa-exclamation-triangle"></i><div>{{ vm.dlg.err }}</div></div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="!vm.dlg.booked">
+        <button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.dlg.busy" no-busy-guard>Cancel</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.book()" ng-disabled="!vm.dlg.ready || vm.dlg.busy" data-e2e="fsl-book"><i class="fas" ng-class="vm.dlg.busy ? 'fa-circle-notch fa-spin' : (vm.dlg.approval ? 'fa-paper-plane' : 'fa-check')"></i>{{ vm.dlg.busy ? 'Booking…' : (vm.dlg.approval ? 'Send the request' : 'Book this slot') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ the waiting list: what will be requested, then "You're on the waiting list" ══════ -->
+  <div class="ta-dlg-scrim" ng-if="vm.wl" ng-click="vm.wlScrim($event)">
+    <div class="ta-dlg fsl-dlg" role="dialog" aria-modal="true" aria-labelledby="fsl-wl-t" data-e2e="fsl-wl">
+      <div class="ta-dlg__hd">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.wlClose()" ng-disabled="vm.wl.busy" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-hourglass-half"></i>Waiting list</div>
+        <div class="ta-dlg__title" id="fsl-wl-t">{{ vm.wl.done ? 'You’re on the waiting list' : 'Call me if a slot frees up' }}</div>
+        <div class="ta-dlg__sub">{{ vm.clubName() }}<span ng-if="vm.wl.span"> · {{ vm.wl.span }}</span></div>
+      </div>
+
+      <div class="ta-dlg__body" ng-if="vm.wl.done" data-e2e="fsl-wl-done">
+        <div class="fsl-booked">
+          <span class="fsl-booked__ic"><i class="fas fa-hourglass-half"></i></span>
+          <h3>You’re on the waiting list</h3>
+          <p>For {{ vm.wl.done.span }} ({{ vm.wl.done.n }} day{{ vm.wl.done.n === 1 ? '' : 's' }}) — {{ vm.clubName() }} calls you if a matching slot comes up. A confirmation e-mail is on its way.</p>
+          <div class="fsl-booked__sum">
+            <span class="ta-pill ta-pill--info"><i class="fas fa-calendar"></i>{{ vm.wl.done.span }}</span>
+            <span class="ta-pill ta-pill--muted"><i class="fas fa-plane"></i>{{ vm.wl.type || 'Any aircraft type' }}</span>
+            <span class="ta-pill ta-pill--good" ng-if="vm.wl.ins"><span class="ta-av" ng-attr-style="--av: {{ vm.wl.ins.av.colour }}">{{ vm.wl.ins.av.code }}</span>{{ vm.wl.ins.name }}</span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.wl.course"><i class="fas fa-graduation-cap"></i>{{ vm.wl.course }}</span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.wl.dbl"><i class="fas fa-layer-group"></i>Double slot</span>
+          </div>
+        </div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="vm.wl.done">
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.wlClose()" no-busy-guard>Done</button>
+      </div>
+
+      <div class="ta-dlg__body" ng-if="vm.wl.busy">
+        <ta-runway compact="true" steps="vm.WAIT_STEPS" step="0" text="Putting you on {{ vm.clubName() }}’s waiting list…"></ta-runway>
+      </div>
+      <div class="ta-dlg__body" ng-if="!vm.wl.done && !vm.wl.busy">
+        <div class="fsl-dlg__sec">
+          <div class="fsl-dlg__k">Days you could fly<em>{{ vm.wl.n }} of up to 10</em></div>
+          <div class="fsl-types">
+            <button type="button" class="ta-chip" ng-repeat="d in vm.wl.days track by d.date" ng-class="{'ta-chip--on': d.on}" ng-click="vm.wlDay(d)" aria-pressed="{{ d.on ? 'true' : 'false' }}" no-busy-guard>{{ d.word }}<span class="ta-chip__n">{{ d.sub }}</span></button>
+          </div>
+          <p class="ta-hint" ng-if="vm.wl.capped">A request covers up to 10 days — the first 10 of your search are in; tap a day to swap it.</p>
+        </div>
+        <div class="fsl-dlg__sec">
+          <div class="fsl-dlg__k">What for</div>
+          <div class="fsl-types">
+            <button type="button" class="ta-chip" ng-repeat="k in vm.wl.kinds track by k.id" ng-class="{'ta-chip--on': vm.wl.kind === k.id}" ng-click="vm.wlKind(k.id)" title="{{ k.hint }}" no-busy-guard>{{ k.label }}</button>
+          </div>
+        </div>
+        <div class="fsl-dlg__sec">
+          <div class="fsl-dlg__k">From your search</div>
+          <div class="fsl-wl__sum">
+            <span class="ta-pill ta-pill--muted"><i class="fas fa-plane"></i>{{ vm.wl.type || 'Any aircraft type' }}</span>
+            <span class="ta-pill ta-pill--good" ng-if="vm.wl.ins"><span class="ta-av" ng-attr-style="--av: {{ vm.wl.ins.av.colour }}">{{ vm.wl.ins.av.code }}</span>{{ vm.wl.ins.name }}</span>
+            <span class="ta-pill ta-pill--muted" ng-if="!vm.wl.ins && vm.wl.kind === 'dual'"><i class="fas fa-chalkboard-teacher"></i>Any instructor</span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.wl.course"><i class="fas fa-graduation-cap"></i>{{ vm.wl.course }}</span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.wl.dbl"><i class="fas fa-layer-group"></i>Double slot</span>
+          </div>
+          <p class="ta-hint" ng-if="vm.wl.dbl">The club only offers you a slot when the one next to it is free too.</p>
+        </div>
+        <div class="fsl-dlg__sec">
+          <div class="fsl-dlg__k">Notice you need</div>
+          <div class="fsl-types">
+            <button type="button" class="ta-chip" ng-repeat="n in vm.wl.notices track by n.id" ng-class="{'ta-chip--on': vm.wl.notice === n.id}" ng-click="vm.wlNotice(n.id)" title="{{ n.hint }}" no-busy-guard>{{ n.label }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="ta-dlg__ft" ng-if="!vm.wl.done">
+        <button type="button" class="ta-btn" ng-click="vm.wlClose()" ng-disabled="vm.wl.busy" no-busy-guard>Cancel</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.wlSend()" ng-disabled="!vm.wl.n || vm.wl.busy" data-e2e="fsl-wl-send"><i class="fas" ng-class="vm.wl.busy ? 'fa-circle-notch fa-spin' : 'fa-hourglass-half'"></i>{{ vm.wl.busy ? 'Sending…' : 'Join the waiting list' }}</button>
+      </div>
+    </div>
+  </div>
+
+</main>

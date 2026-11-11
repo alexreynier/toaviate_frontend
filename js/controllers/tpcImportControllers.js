@@ -870,7 +870,7 @@ app.controller('TpcImportRunController', TpcImportRunController);
             TpcImportService.DeleteRun(vm.run_id).then(function(data) {
                 if (data && data.success) {
                     ToastService.success('Run Deleted', 'The import run was removed.');
-                    $state.go('dashboard.manage_club.settings');
+                    $state.go('dashboard.manage_club.data_import');
                 } else if (data && data.error === 'HAS_APPLIED_ROWS') {
                     ToastService.warning('Has Applied Rows', 'Revert the import first, then delete the run.');
                 } else {

@@ -59,6 +59,12 @@
           <option ng-repeat="f in vm.fleetFor()" value="{{ f.type }}">{{ f.label }}</option>
         </select>
       </div>
+      <div class="wrq__field" ng-show="vm.courses.length || vm.coursesLoading">
+        <label class="wrq__label" for="wrq-course">Course <span class="wrq__muted">(optional)</span></label>
+        <select id="wrq-course" class="wrq__select" ng-model="vm.form.course_id" ng-options="c.id as c.title for c in vm.courses" ng-disabled="vm.coursesLoading" no-busy-guard>
+          <option value="">{{ vm.coursesLoading ? 'Loading courses…' : 'No particular course' }}</option>
+        </select>
+      </div>
     </div>
 
     <div class="wrq__field" ng-show="vm.form.kind === 'dual'">
@@ -79,6 +85,15 @@
           <div class="wrq__hint" ng-show="!vm.instructorMatches().length">No instructor matches "{{ vm.instructorSearch }}".</div>
         </div>
       </div>
+    </div>
+
+    <div class="wrq__field">
+      <span class="wrq__label">How long?</span>
+      <div class="wrq__seg">
+        <button type="button" class="wrq__seg-btn" ng-class="{'wrq__seg-btn--on': vm.form.slots_needed !== 2}" ng-click="vm.form.slots_needed = 1" no-busy-guard>One slot</button>
+        <button type="button" class="wrq__seg-btn" ng-class="{'wrq__seg-btn--on': vm.form.slots_needed === 2}" ng-click="vm.form.slots_needed = 2" no-busy-guard><i class="fas fa-clone"></i> Double slot</button>
+      </div>
+      <div class="wrq__hint" ng-show="vm.form.slots_needed === 2">Two booking slots back to back — e.g. a long lesson or a nav.</div>
     </div>
 
     <div class="wrq__field">
@@ -143,6 +158,8 @@
         <span><i class="fas fa-plane"></i> {{ r.plane_type_label || r.plane_type || 'Any aircraft' }}</span>
         <span ng-show="r.kind === 'dual'"><i class="fas fa-user-tie"></i> {{ r.instructor_label || (r.instructor && r.instructor.name) || 'Any instructor' }}</span>
         <span><i class="fas fa-hourglass-half"></i> {{ r.notice_label || vm.labelOf.notice(r.notice) }}</span>
+        <span ng-show="r.course"><i class="fas fa-graduation-cap"></i> {{ r.course.title }}</span>
+        <span ng-show="r.slots_needed == 2"><i class="fas fa-clone"></i> Double slot</span>
       </div>
       <!-- every day with ITS state: "Sat 7 Nov · PM — Couldn't take it", "Thu 5 Nov · AM — Waiting", "Fri 6 Nov — Booked elsewhere" -->
       <div class="wrq__req-dates">

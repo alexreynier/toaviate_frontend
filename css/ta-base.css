@@ -62,6 +62,20 @@
   --ta-skel: #e2e8f0; --ta-skel-2: #f1f5f9;
 }
 
+/* ═════ zones: which area you're in (mockups/instructor-dashboard/zone.css, chosen 8 Nov 2026) ═════
+   What tells you WHERE you are takes the zone colour (the strip under the app header, the lit menu link); what you
+   PRESS stays navy. body[data-zone] is set by js/v2/core/design.js: account = My Account (the brand navy),
+   instructor = Instructor Dashboard (mulberry). Manage Club (graphite, pencilled in) comes later.
+   Declared on body, not :root, so var(--ta-accent) resolves after ta-night.css swaps it. */
+body {
+  --ta-zone: var(--ta-brand-2); --ta-zone-grad: var(--ta-grad); --ta-zone-ink: var(--ta-accent);
+  --ta-zone-wash: var(--ta-tint-2); --ta-zone-line: var(--ta-brand-line);
+}
+body[data-zone="instructor"] {
+  --ta-zone: #7a3366; --ta-zone-grad: linear-gradient(135deg, #4c1d48 0%, #8a3a70 100%); --ta-zone-ink: #7a3366;
+  --ta-zone-wash: #f7eef4; --ta-zone-line: #e7cfe0;
+}
+
 /* ═════ page shell + legacy neutralisers ═════ */
 .ta-page, .ta-page *, .ta-page *::before, .ta-page *::after,
 .ta-dlg-scrim, .ta-dlg-scrim *, .ta-dlg-scrim *::before, .ta-dlg-scrim *::after { box-sizing: border-box; }
@@ -103,6 +117,7 @@
 .ta-bar__title h2 { font-size: 19px; }
 .ta-bar__title p { margin-top: 2px; font-size: 13px; color: var(--ta-muted); }
 .ta-back { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 36px; height: 36px; border: 0; border-radius: 10px; background: var(--ta-paper-3); color: var(--ta-muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.ta-back:focus { color: var(--ta-muted); }   /* on an <a>: keeps its colour on keyboard focus (the app's a:focus outweighs a class) */
 .ta-back:hover { color: var(--ta-accent); text-decoration: none; }
 .ta-back__txt { display: none; }
 @media (min-width: 769px) {
@@ -381,16 +396,23 @@ a.ta-row__main:focus { text-decoration: none; color: inherit; }   /* keyboard fo
 
 /* ═════ buttons ═════ */
 .ta-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 14px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-control); background: var(--ta-paper); color: var(--ta-ink); font-size: 13.5px; font-weight: 700; line-height: 1.2; white-space: nowrap; text-decoration: none; transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease; }
+.ta-btn:focus { color: var(--ta-ink); }   /* buttons used as <a>: each variant keeps its own text colour on focus */
 .ta-btn:hover { background: var(--ta-paper-2); border-color: var(--ta-line-2); text-decoration: none; color: var(--ta-ink); }
 .ta-btn--primary { background: var(--ta-grad); color: #fff; border-color: transparent; }
+.ta-btn--primary:focus { color: #fff; }
 .ta-btn--primary:hover { background: var(--ta-brand-2); color: #fff; border-color: transparent; }
 .ta-btn--quiet { border-color: transparent; background: transparent; color: var(--ta-muted); }
+.ta-btn--quiet:focus { color: var(--ta-muted); }
 .ta-btn--quiet:hover { background: var(--ta-paper-3); color: var(--ta-ink); border-color: transparent; }
 .ta-btn--danger { border-color: transparent; background: transparent; color: var(--ta-muted); }
+.ta-btn--danger:focus { color: var(--ta-muted); }
 .ta-btn--danger:hover { background: var(--ta-bad); color: #fff; }
 .ta-btn--danger-solid { background: var(--ta-bad); color: #fff; border-color: transparent; }
+.ta-btn--danger-solid:focus { color: #fff; }
 .ta-btn--danger-solid:hover { background: #b91c1c; color: #fff; border-color: transparent; }
 .ta-btn--good { background: var(--ta-grad-good); color: #fff; border-color: transparent; }
+.ta-btn--good:focus { color: #fff; }
+.ta-btn--good:hover { background: var(--ta-good); color: #fff; border-color: transparent; }   /* like --primary: gradient → solid (.ta-btn:hover made it pale) */
 .ta-btn--sm { min-height: 32px; padding: 6px 11px; font-size: 12.5px; }
 .ta-btn--block { width: 100%; }
 .ta-btn[disabled], .ta-btn--disabled { opacity: 0.6; cursor: default; transform: none; }
@@ -773,6 +795,13 @@ a.ta-row__main:focus { text-decoration: none; color: inherit; }   /* keyboard fo
 .ta-combo__opt + .ta-combo__opt { margin-top: 2px; }
 .ta-combo__opt:hover, .ta-combo__opt--hi { background: var(--ta-paper-3); }
 .ta-combo__opt--ac { border-left: 4px solid var(--ac, var(--ta-line-2)); border-radius: var(--ta-r-sm) 8px 8px var(--ta-r-sm); }
+/* a person in the list / as the picked value: the shared .ta-av (initials = instructor, --member = the grey person icon) */
+.ta-combo__av { flex: none; width: 32px; height: 32px; font-size: 11px; }
+.ta-combo__av.ta-av--member { font-size: 13px; }   /* the person icon keeps the mockups' 13px (the initials take 11px) */
+.ta-combo__hint { display: flex; align-items: baseline; gap: 8px; padding: 9px 14px; font-size: 13px; color: var(--ta-muted); line-height: 1.4; }
+.ta-combo__hint i { flex: none; color: inherit; }   /* muted like the text, on its first line (the mockups) */
+.ta-combo__pv { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ta-combo__pvn { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ta-combo__lead { flex: none; width: 32px; height: 32px; border-radius: 8px; background: var(--ta-group); color: var(--ta-accent); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
 .ta-combo__txt { flex: 1 1 auto; min-width: 0; display: grid; line-height: 1.25; }
 .ta-combo__t { font-size: 14.5px; font-weight: 800; letter-spacing: 0.01em; color: var(--ta-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -792,7 +821,7 @@ a.ta-row__main:focus { text-decoration: none; color: inherit; }   /* keyboard fo
 .ta-combo__foot kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--ta-line); border-bottom-width: 2px; border-radius: 5px; background: var(--ta-paper-2); font-family: inherit; font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; color: var(--ta-muted); }
 .ta-field .ta-combo__box { min-height: 44px; }
 .ta-field .ta-combo__in { height: 42px; }
-@media (min-width: 769px) { .ta-combo__in { font-size: 14.5px; } }
+@media (min-width: 769px) { .ta-combo__in { font-size: 14.5px; } .ta-combo__foot:has(+ .ta-combo__foot--keys) { position: static; } }   /* foot + keys: only the keys row sticks */
 @media (max-width: 768px) {
   .ta-combo__sum { display: none; }
   .ta-combo__val + .ta-combo__in::placeholder { color: transparent; }   /* the chip fills the field; tapping it is enough */
@@ -806,6 +835,61 @@ a.ta-row__main:focus { text-decoration: none; color: inherit; }   /* keyboard fo
   body.ta-combo-lock { overflow: hidden; }
 }
 
+/* ═════════════ the runway (<ta-runway>, js/v2/core/runway.js) — v2's "we're working on it" piece ═════════════
+   Asphalt is a fixed colour (decorative, stays dark at night); the aircraft sits in a paper disc in the brand colour.
+   Markings as on the ground: threshold stripes, designators 06 / 24 (06 reads clockwise, 24 anticlockwise), touchdown-zone
+   pairs, aiming blocks, a dashed centreline, amber edge lights. Steps + bar are optional. */
+.ta-runway { display: grid; gap: 12px; }
+.ta-runway__strip-wrap { position: relative; height: 92px; margin: 6px 0 2px; }
+.ta-runway__strip { position: absolute; left: 0; right: 0; top: 50%; height: 50px; transform: translateY(-50%); border-radius: 4px; background: #2b3340; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); overflow: hidden; }
+.ta-runway__keys, .ta-runway__tdz, .ta-runway__aim { position: absolute; top: 7px; bottom: 7px; }
+.ta-runway__keys { left: 8px; width: 30px; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.9) 0 2px, transparent 2px 4px) top / 100% 14px no-repeat, repeating-linear-gradient(0deg, rgba(255,255,255,0.9) 0 2px, transparent 2px 4px) bottom / 100% 14px no-repeat; }
+.ta-runway__num { position: absolute; left: 44px; top: 50%; transform: translateY(-50%) rotate(90deg); padding: 0 2px; background: #2b3340; font-size: 12px; line-height: 1; font-weight: 800; letter-spacing: 0.04em; color: rgba(255,255,255,0.92); font-variant-numeric: tabular-nums; }
+.ta-runway__tdz { left: 72px; width: 14px; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.9) 0 3px, transparent 3px 7px) top / 100% 10px no-repeat, repeating-linear-gradient(0deg, rgba(255,255,255,0.9) 0 3px, transparent 3px 7px) bottom / 100% 10px no-repeat; }
+.ta-runway__aim { left: 94px; width: 14px; background: linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) top / 100% 10px no-repeat, linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) bottom / 100% 10px no-repeat; }
+.ta-runway__keys--end { left: auto; right: 8px; } .ta-runway__num--end { left: auto; right: 44px; transform: translateY(-50%) rotate(-90deg); } .ta-runway__tdz--end { left: auto; right: 72px; } .ta-runway__aim--end { left: auto; right: 94px; }
+.ta-runway__line { position: absolute; left: 68px; right: 68px; top: 50%; height: 3px; margin-top: -1.5px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.9) 0 12px, transparent 12px 22px); }
+.ta-runway__lights { position: absolute; left: 6px; right: 6px; height: 4px; background: repeating-linear-gradient(90deg, var(--ta-warn) 0 4px, transparent 4px 28px); border-radius: 2px; opacity: 0.9; }
+.ta-runway__lights--top { top: 11px; } .ta-runway__lights--bot { bottom: 11px; }
+.ta-runway__plane { position: absolute; left: 4px; top: 50%; width: 40px; height: 40px; margin-top: -20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--ta-paper); color: var(--ta-brand); box-shadow: var(--ta-shadow-2); font-size: 17px; transform: rotate(-20deg); }
+.ta-runway__plane i { transform: translateX(1px); color: inherit; }
+.ta-runway--flying .ta-runway__plane { animation: ta-runway-fly 2.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes ta-runway-fly { 0% { left: 4px; transform: rotate(-20deg) scale(1); } 55% { left: 58%; transform: rotate(-28deg) scale(1.04) translateY(-4px); } 100% { left: calc(100% - 44px); transform: rotate(-40deg) scale(1.12) translateY(-22px); opacity: 0.96; } }
+.ta-runway__bar { position: relative; height: 4px; border-radius: 2px; background: var(--ta-paper-3); overflow: hidden; }
+.ta-runway__bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ta-grad); border-radius: 2px; transition: width 0.6s ease; }
+.ta-runway__steps { display: grid; gap: 12px; }
+.ta-runway__step { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ta-faint); transition: color 0.25s ease; }
+.ta-runway__step i { width: 26px; height: 26px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid var(--ta-line); color: transparent; font-size: 11px; transition: all 0.25s ease; }
+.ta-runway__step--on { color: var(--ta-ink); font-weight: 600; } .ta-runway__step--on i { border-color: var(--ta-accent); color: transparent; border-top-color: transparent; animation: ta-spin 0.8s linear infinite; }
+.ta-runway__step--done { color: var(--ta-muted); } .ta-runway__step--done i { border-color: var(--ta-good); background: var(--ta-good); color: #fff; }
+.ta-runway__text { font-size: 13.5px; color: var(--ta-muted); text-align: center; }
+/* compact: a shorter strip for a sheet or a dialog */
+.ta-runway--compact .ta-runway__strip-wrap { height: 64px; margin: 2px 0 0; }
+.ta-runway--compact .ta-runway__strip { height: 36px; } .ta-runway--compact .ta-runway__keys, .ta-runway--compact .ta-runway__tdz, .ta-runway--compact .ta-runway__aim { top: 5px; bottom: 5px; }
+.ta-runway--compact .ta-runway__lights--top { top: 2px; } .ta-runway--compact .ta-runway__lights--bot { bottom: 2px; }
+.ta-runway--compact .ta-runway__plane { width: 32px; height: 32px; margin-top: -16px; font-size: 14px; }
+/* the default slow-wait indicator (views/dashboard.html, $root.taSlow): a small floating strip above the page's bottom */
+.ta-runway-float { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px)); z-index: 10020; width: 300px; max-width: calc(100vw - 32px); transform: translateX(-50%); padding: 10px 14px 8px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-card); background: var(--ta-paper); box-shadow: var(--ta-shadow-2); animation: ta-runway-float-in 0.2s ease-out backwards; }
+.ta-runway-float .ta-runway { gap: 6px; } .ta-runway-float .ta-runway__text { font-size: 12.5px; }
+@keyframes ta-runway-float-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+@media (max-width: 768px) { .ta-runway-float { bottom: max(72px, env(safe-area-inset-bottom, 0px)); } }   /* above a bottom action bar / the switch pill */
+
 @media (prefers-reduced-motion: reduce) {
+  .ta-runway__plane, .ta-runway-float { animation: none !important; }
   .ta-page *:not(.ta-spin), .ta-dlg-scrim *:not(.ta-spin), .ta-dlg-scrim { animation: none !important; transition: none !important; }
+}
+
+/* ── <ta-doc-view>: a document shown inside a dialog (js/v2/core/docview.js, 2026-11-10) ── */
+.ta-docview { display: grid; gap: 8px; min-height: 160px; }
+.ta-docview__wait, .ta-docview__other { display: grid; justify-items: center; align-content: center; gap: 8px; min-height: 160px; padding: 26px 16px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); background: var(--ta-paper-2); text-align: center; color: var(--ta-muted); }
+.ta-docview__wait i, .ta-docview__other i { font-size: 34px; color: var(--ta-faint); }
+.ta-docview__other b { color: var(--ta-ink); }
+.ta-docview__other--bad i { color: var(--ta-bad); }
+.ta-docview__img { display: block; max-width: 100%; max-height: min(70vh, 720px); margin: 0 auto; border-radius: var(--ta-r-tile); border: 1px solid var(--ta-line-2); background: var(--ta-paper-2); cursor: zoom-in; }
+.ta-docview__pdf { display: block; width: 100%; height: min(70vh, 720px); border: 1px solid var(--ta-line-2); border-radius: var(--ta-r-tile); background: var(--ta-paper-2); }
+.ta-docview__bar { display: flex; align-items: center; gap: 8px; }
+.ta-docview__ext { font-family: var(--ta-mono); font-size: 12px; color: var(--ta-muted); }
+@media (max-width: 640px) {
+  .ta-docview__img, .ta-docview__pdf { max-height: 60vh; height: 60vh; }
+  .ta-docview__img { height: auto; }
 }

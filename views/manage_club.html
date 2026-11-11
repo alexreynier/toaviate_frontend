@@ -5,165 +5,177 @@
 
   <ui-view>
 
-      <!-- cirlce bit with how far along setting up the account you are //-->
+    <!-- Manage Club home (batch 19, 2026-11-10 — step 2 of
+         ops/plans/PROPOSAL_MANAGE_CLUB_STRUCTURE.md §5): one tile per AREA, each
+         listing the area's tabs (the same tabs as the hub bar in
+         views/manageclub/area_hub.html / AreaHubController — keep the two in
+         step), plus Safety (SMS). A tile or a tab opens the tab's first page;
+         Settings cards open views/manageclub/settings.html scrolled to the card
+         (?card=<id>) until step 3 splits that page. Every state under Manage
+         Club sits in one hub (parent: in app.js) and carries data.area; step 4
+         gates each area. mc-area-tile (directive, areaHubController.js) records
+         the AREA a click here entered, so the hub shows that area's bar and tabs
+         even for a page another area owns (owner, 10 Nov: Ops → Take payment
+         stays Ops); the Safety tile records Admin, its pages' home. Styles: .mcarea* in css/manage-club-hubs.css. -->
     <div class="centre_align_boxes2">
 
+    <!-- Grouped view (the tiles) or Flat view (every page + a filter) — owner, 10 Nov 2026.
+         ManageClubHomeController (areaHubController.js) flattens AREAS, so the flat list never drifts. -->
+    <div class="mchome" ng-controller="ManageClubHomeController as home" data-e2e="mc-home">
 
-    <div class="main_select_box managerscheme" ui-sref="dashboard.add_booking">
-        <i class="fas fa-calendar-alt box-icon"></i>
-        <span class="box-label">BOOKINGS</span>
+      <div class="trk-tabs mchub-tabs mchome__tabs" role="tablist" data-e2e="mc-home-tabs">
+        <a class="trk-tab" href="" role="tab" ng-click="home.setView('grouped')" ng-class="{'trk-tab--active': home.view === 'grouped'}" aria-selected="{{ home.view === 'grouped' }}" no-busy-guard data-e2e="mc-home-grouped"><i class="fas fa-th-large"></i> Grouped view</a>
+        <a class="trk-tab" href="" role="tab" ng-click="home.setView('flat')" ng-class="{'trk-tab--active': home.view === 'flat'}" aria-selected="{{ home.view === 'flat' }}" no-busy-guard data-e2e="mc-home-flat"><i class="fas fa-list"></i> Flat view</a>
+      </div>
+
+      <!-- ── FLAT VIEW: every page, one list, a filter ── -->
+      <div class="mchome__flat" ng-if="home.view === 'flat'" data-e2e="mc-flat">
+        <form class="mchome__search" ng-submit="home.enter()" role="search">
+          <i class="fas fa-search mchome__search-ic" aria-hidden="true"></i>
+          <input type="search" id="mchome-q" class="mchome__q" ng-model="home.q" ng-model-options="{debounce: 80}"
+                 placeholder="Type to find a page — e.g. maintenance, invoices, courses" aria-label="Find a Manage Club page" autocomplete="off" autocorrect="off" spellcheck="false" />
+          <button type="button" class="mchome__clear" ng-if="home.q" ng-click="home.clear()" aria-label="Clear" no-busy-guard><i class="fas fa-times"></i></button>
+        </form>
+        <p class="mchome__hint" ng-if="!home.hasQuery()">{{ home.pages.length }} pages. Start typing, then press Enter to open the first match.</p>
+
+        <!-- filtered: one list, best matches first -->
+        <div ng-if="home.hasQuery()">
+          <ul class="mchome__list" ng-if="home.matches().length" data-e2e="mc-flat-results">
+            <li class="mchome__item mcarea--{{ p.area }}" ng-repeat="p in home.matches() track by (p.sref + (p.params.card || ''))">
+              <a class="mchome__link" ng-href="{{ home.href(p) }}" ng-click="home.open(p)" no-busy-guard>
+                <span class="mchome__ic"><i class="fas" ng-class="p.icon"></i></span>
+                <span class="mchome__txt"><span class="mchome__label">{{ p.label }}</span><span class="mchome__sub">{{ p.areaTitle }} · {{ p.tab }}</span></span>
+              </a>
+            </li>
+          </ul>
+          <p class="mchome__empty" ng-if="!home.matches().length">No page matches “{{ home.q }}”.</p>
+        </div>
+
+        <!-- nothing typed: every page, by area -->
+        <div ng-if="!home.hasQuery()">
+          <section class="mchome__group mcarea--{{ a }}" ng-repeat="a in home.areaOrder">
+            <h3 class="mchome__group-title"><span class="mchome__dot"></span><i class="fas" ng-class="home.areaIcon(a)"></i> {{ home.areaTitle(a) }}</h3>
+            <ul class="mchome__list">
+              <li class="mchome__item" ng-repeat="p in home.inArea(a) track by (p.sref + (p.params.card || ''))">
+                <a class="mchome__link" ng-href="{{ home.href(p) }}" ng-click="home.open(p)" no-busy-guard>
+                  <span class="mchome__ic"><i class="fas" ng-class="p.icon"></i></span>
+                  <span class="mchome__txt"><span class="mchome__label">{{ p.label }}</span><span class="mchome__sub">{{ p.tab }}</span></span>
+                </a>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </div>
+
+    <!-- ── GROUPED VIEW: the area tiles ── -->
+    <div class="mcareas" data-e2e="mc-area-tiles" ng-if="home.view === 'grouped'">
+
+      <!-- ── OPS — the front desk ── -->
+      <div class="mcarea mcarea--ops" data-e2e="mc-area-tile" data-area="ops" mc-area-tile="ops">
+        <div class="mcarea__head" ui-sref="dashboard.manage_club.flying">
+          <span class="mcarea__icon"><i class="fas fa-concierge-bell"></i></span>
+          <span class="mcarea__titles">
+            <span class="mcarea__title">Ops</span>
+            <span class="mcarea__sub">The front desk — run the day</span>
+          </span>
+        </div>
+        <div class="mcarea__tabs">
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.flying"><i class="fas fa-plane-departure"></i> Today</a>
+          <a class="mcarea__tab" ui-sref="dashboard.add_booking"><i class="fas fa-calendar-alt"></i> Scheduler</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.flights"><i class="fas fa-paper-plane"></i> Flights</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.planes"><i class="fas fa-plane"></i> Aircraft</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.members"><i class="fas fa-users"></i> Members</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.invoices"><i class="fas fa-cash-register"></i> Take payment</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.vouchers"><i class="fas fa-ticket-alt"></i> Vouchers</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.the_shop"><i class="fas fa-store"></i> Shop</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.documents"><i class="fas fa-folder-open"></i> Documents</a>
+        </div>
+      </div>
+
+      <!-- ── ACCOUNTING — the money ── -->
+      <div class="mcarea mcarea--accounting" data-e2e="mc-area-tile" data-area="accounting" mc-area-tile="accounting">
+        <div class="mcarea__head" ui-sref="dashboard.manage_club.invoices">
+          <span class="mcarea__icon"><i class="fas fa-calculator"></i></span>
+          <span class="mcarea__titles">
+            <span class="mcarea__title">Accounting</span>
+            <span class="mcarea__sub">The money</span>
+          </span>
+        </div>
+        <div class="mcarea__tabs">
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.invoices"><i class="fas fa-file-invoice-dollar"></i> Invoices</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.payments"><i class="fas fa-credit-card"></i> Payments</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.accounting_export"><i class="fas fa-file-export"></i> Export</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.settings({card: 'booking-edit-limits'})"><i class="fas fa-tags"></i> Fees &amp; rates</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.settings({card: 'payment-integrations'})"><i class="fas fa-university"></i> Payouts</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.club_stats"><i class="fas fa-chart-bar"></i> Reports</a>
+        </div>
+      </div>
+
+      <!-- ── ADMIN — configure and run the club ── -->
+      <div class="mcarea mcarea--admin" data-e2e="mc-area-tile" data-area="admin" mc-area-tile="admin">
+        <div class="mcarea__head" ui-sref="dashboard.manage_club.memberships">
+          <span class="mcarea__icon"><i class="fas fa-sliders-h"></i></span>
+          <span class="mcarea__titles">
+            <span class="mcarea__title">Admin</span>
+            <span class="mcarea__sub">Configure and run the club</span>
+          </span>
+        </div>
+        <div class="mcarea__tabs">
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.memberships"><i class="fas fa-id-card"></i> Memberships</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.courses"><i class="fas fa-chalkboard-teacher"></i> Training</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.instructor_charges"><i class="fas fa-user-tie"></i> Instructors</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.experiences"><i class="fas fa-ticket-alt"></i> Vouchers setup</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.settings({card: 'booking-settings'})"><i class="fas fa-calendar-check"></i> Booking rules</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.settings({card: 'aircraft-check-types'})"><i class="fas fa-clipboard-check"></i> Aircraft rules</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.reminders"><i class="fas fa-envelope-open-text"></i> Comms</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.sms"><i class="fas fa-shield-alt"></i> Safety</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.automations"><i class="fas fa-robot"></i> Automations</a>
+        </div>
+      </div>
+
+      <!-- ── SUPER-ADMIN — the keys ── -->
+      <div class="mcarea mcarea--super_admin" data-e2e="mc-area-tile" data-area="super_admin" mc-area-tile="super_admin">
+        <div class="mcarea__head" ui-sref="dashboard.manage_club.settings({card: 'company-details'})">
+          <span class="mcarea__icon"><i class="fas fa-key"></i></span>
+          <span class="mcarea__titles">
+            <span class="mcarea__title">Super-admin</span>
+            <span class="mcarea__sub">The keys — club details and integrations</span>
+          </span>
+        </div>
+        <div class="mcarea__tabs">
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.settings({card: 'company-details'})"><i class="fas fa-building"></i> Club details</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.bs_sync"><i class="fas fa-plug"></i> Integrations</a>
+        </div>
+      </div>
+
+      <!-- ── SAFETY (SMS) — also the Admin → Safety tab; its own entry for the SMS post holders ── -->
+      <div class="mcarea mcarea--safety" data-e2e="mc-area-tile" data-area="safety" mc-area-tile="admin">
+        <div class="mcarea__head" ui-sref="dashboard.manage_club.sms">
+          <span class="mcarea__icon"><i class="fas fa-shield-alt"></i></span>
+          <span class="mcarea__titles">
+            <span class="mcarea__title">Safety (SMS)</span>
+            <span class="mcarea__sub">Hazards, occurrences, risks, audits</span>
+          </span>
+        </div>
+        <div class="mcarea__tabs">
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.sms"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.sms_hazards"><i class="fas fa-exclamation-triangle"></i> Hazards</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.sms_occurrences"><i class="fas fa-bolt"></i> Occurrences</a>
+          <a class="mcarea__tab" ui-sref="dashboard.manage_club.sms_settings"><i class="fas fa-cog"></i> Settings</a>
+        </div>
+      </div>
+
     </div>
 
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.flying">
-        <i class="fas fa-plane-departure box-icon"></i>
-        <span class="box-label">BOOKED OUT</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.maintenance">
-        <i class="fas fa-wrench box-icon"></i>
-        <span class="box-label">MAINTENANCE</span>
-    </div>
-
-    <!-- Membership Requests, Instructors and Missing Students live INSIDE
-         the MEMBERS hub (parent state dashboard.manage_club.members_hub,
-         views/manageclub/members_hub.html) — don't
-         re-add tiles for them here. -->
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.members">
-        <i class="fas fa-users box-icon"></i>
-        <span class="box-label">MEMBERS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.receipt_approval">
-        <i class="fas fa-check-circle box-icon"></i>
-        <span class="box-label">LUBRICANT APPROVAL</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.documents">
-        <i class="fas fa-folder-open box-icon"></i>
-        <span class="box-label">CLUB DOCUMENTS</span>
-    </div>
-
-  
-   <!--  <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.instructor_charges">
-        INSTRUCTOR CHARGES
-    </div> -->
-    
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.memberships">
-        <i class="fas fa-id-card box-icon"></i>
-        <span class="box-label">MEMBERSHIPS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.items">
-        <i class="fas fa-box-open box-icon"></i>
-        <span class="box-label">RENTAL ITEMS</span>
-    </div>
-
-
-   <!--  <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.payments_to">
-        PAYMENT DETAILS
-    </div> -->
-
-
-    <!-- Payments lives INSIDE the INVOICES hub (shared tab bar in
-         _invoices_nav.html) — don't re-add a tile for it. -->
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.invoices">
-        <i class="fas fa-file-invoice-dollar box-icon"></i>
-        <span class="box-label">INVOICES</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.planes">
-        <i class="fas fa-plane box-icon"></i>
-        <span class="box-label">AIRCRAFT</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.receipts">
-        <i class="fas fa-receipt box-icon"></i>
-        <span class="box-label">LUBRICANT RECEIPTS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.flights">
-        <i class="fas fa-paper-plane box-icon"></i>
-        <span class="box-label">FLIGHTS</span>
-    </div>
-
-    
-    
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.the_shop">
-        <i class="fas fa-store box-icon"></i>
-        <span class="box-label">THE SHOP</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.shop_items">
-        <i class="fas fa-shopping-cart box-icon"></i>
-        <span class="box-label">SHOP ITEMS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.exam_results">
-        <i class="fas fa-file-signature box-icon"></i>
-        <span class="box-label">EXAM RESULTS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.package">
-        <i class="fas fa-cube box-icon"></i>
-        <span class="box-label">PACKAGES</span>
-    </div>
-
-
-    <!-- Air Experiences, Experience Discounts and the Voucher Widget live
-         INSIDE the VOUCHERS hub (shared tab bar in _vouchers_nav.html)
-         — don't re-add tiles for them here. -->
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.vouchers">
-        <i class="fas fa-ticket-alt box-icon"></i>
-        <span class="box-label">VOUCHERS</span>
-    </div>
-
-
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.courses">
-        <i class="fas fa-chalkboard-teacher box-icon"></i>
-        <span class="box-label">COURSES</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.booking_slots">
-        <i class="fas fa-clock box-icon"></i>
-        <span class="box-label">BOOKING SLOTS</span>
-    </div>
-
-    <!-- Accounting Export lives INSIDE the STATISTICS hub (shared tab bar
-         in _stats_nav.html) — don't re-add a tile for it. -->
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.club_stats">
-        <i class="fas fa-chart-bar box-icon"></i>
-        <span class="box-label">STATISTICS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.sms">
-        <i class="fas fa-shield-alt box-icon"></i>
-        <span class="box-label">SAFETY (SMS)</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.trackers">
-        <i class="fas fa-map-marker-alt box-icon"></i>
-        <span class="box-label">FOX TRACKERS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.reminders">
-        <i class="fas fa-bell box-icon"></i>
-        <span class="box-label">REMINDERS</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.email_log">
-        <i class="fas fa-envelope-open-text box-icon"></i>
-        <span class="box-label">EMAIL LOG</span>
-    </div>
-
-    <div class="main_select_box managerscheme" ui-sref="dashboard.manage_club.settings">
-        <i class="fas fa-cog box-icon"></i>
-        <span class="box-label">SETTINGS</span>
-    </div>
+    <!-- Instructor Charges (Admin → Instructors) and Automations (Admin) are
+         back in the nav since batch 19. PAYMENT DETAILS (dashboard.manage_club.payments_to,
+         /bank_settings) stays out: the page is a dead 2017 Stripe card form — see
+         ops/plans/LATEST_DOING.md batch 19.2. -->
 
     <!-- ToAviate platform tools (Cron Status, IOT/Aircraft Trackers) moved to the
          dashboard.super_admin hub, reachable via the TOAVIATE ADMIN tile / nav. -->
+
+    </div><!-- /.mchome -->
 
     </div>
 </ui-view>

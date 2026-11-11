@@ -1,0 +1,68 @@
+<!-- Set a questionnaire (mockup assignDlg): a dialog on desktop, a bottom sheet on phones; its scrim is moved to <body>
+     by sqn-portal. Two steps: the form, then "already done this one" (the retake step) when the student has submitted it.
+     InstructorQuestionnairesV2Controller (vm.as). -->
+<div class="ta-dlg-scrim sqn-scrim" sqn-portal ng-click="vm.scrim($event)" no-busy-guard data-e2e="sqn-dlg">
+
+  <!-- ── step 1: the form ── -->
+  <div class="ta-dlg sqn-dlg" ng-class="{'sqn-dlg--back': vm.as.anim === 'back'}" ng-show="vm.as.step === 'form'" role="dialog" aria-modal="true" aria-labelledby="sqn-as" tabindex="-1" data-e2e="sqn-dlg-form">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.asClose()" no-busy-guard aria-label="Close">×</button><div class="ta-dlg__eyebrow"><i class="fas fa-paper-plane"></i>Set a questionnaire</div><div class="ta-dlg__title" id="sqn-as">For {{ vm.S.stu.name }}</div><div class="ta-dlg__sub">It appears in {{ vm.S.stu.first }}’s Questionnaires{{ vm.as.email ? ', with an e-mailed one-tap link' : '' }}.</div></div>
+    <div class="ta-dlg__body">
+      <div class="sqn-grid">
+        <div class="ta-field"><label class="ta-label" for="sqn-c">Course</label><select class="ta-select" id="sqn-c" ng-model="vm.as.course" ng-change="vm.setCourse()" ng-options="c.id as vm.courseLabel(c) for c in vm.as.courses" ng-disabled="!vm.as.courses.length || vm.as.busy" no-busy-guard data-e2e="sqn-course"></select></div>
+        <div class="ta-field"><span class="ta-label">Lesson</span><div class="ta-pickf">
+          <button type="button" class="ta-pick" ng-click="vm.pickOpen($event)" aria-expanded="{{ !!vm.as.pick }}" ng-disabled="vm.as.loading || !vm.as.lessons.length" no-busy-guard data-e2e="sqn-lesson"><span class="ta-pick__txt"><span class="ta-pick__nm">{{ vm.as.loading ? 'Whole course' : vm.as.lessonName }}</span><span class="ta-pick__sub">{{ vm.as.loading ? 'Loading the lessons…' : vm.as.lessonSub }}</span></span><span class="ta-pick__end"><i class="fas fa-chevron-down"></i></span></button>
+          <div ng-if="vm.as.pick" class="sqn-pickhost">
+            <div class="ta-pickmenu-scrim" ng-click="vm.pickClose()" no-busy-guard></div>
+            <div class="ta-pickmenu" role="dialog" aria-label="Lesson" data-e2e="sqn-pickmenu">
+              <div class="ta-pickmenu__grab"></div>
+              <div class="ta-pickmenu__hd"><b>Lesson</b><button type="button" class="ta-dlg__x" ng-click="vm.pickClose()" no-busy-guard aria-label="Close">×</button></div>
+              <div class="ta-pickmenu__top"><label class="ta-search"><i class="fas fa-search"></i><input id="sqn-pq" type="search" ng-model="vm.as.pq" ng-change="vm.pickType()" ng-keydown="vm.pickKey($event)" no-busy-guard placeholder="{{ vm.as.pqPh }}" aria-label="Search lessons" autocomplete="off"></label></div>
+              <ul class="ta-pickmenu__list" role="listbox">
+                <li class="ta-pickmenu__opt" ng-repeat="o in vm.as.lopts track by $index" ng-class="{'ta-pickmenu__opt--hi': vm.as.lesson === o.id}" role="option" aria-selected="{{ vm.as.lesson === o.id }}" ng-click="vm.pickLesson(o.id)" no-busy-guard data-e2e="sqn-lopt"><span class="ta-pickmenu__txt"><span class="ta-pickmenu__t">{{ o.t }}</span><span class="ta-pickmenu__s" ng-class="{'ta-pickmenu__s--info': o.info}">{{ o.s }}</span></span><i class="fas fa-check ta-pickmenu__chk" ng-if="vm.as.lesson === o.id"></i></li>
+                <li class="ta-pickmenu__empty" ng-if="!vm.as.lopts.length"><b>No lesson matches</b><span>Try a word from the title, or its code{{ vm.as.refEg ? ' (' + vm.as.refEg + ')' : '' }}.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="ta-field" ng-class="{'ta-field--error': vm.as.err.q}" id="field-q"><span class="ta-label">Questionnaire <span class="ta-req">Required</span></span>
+        <label class="ta-search sqn-qsearch" ng-if="!vm.as.loading && vm.as.all"><i class="fas fa-search"></i><input id="sqn-qq" type="search" ng-model="vm.as.qq" ng-change="vm.asSearch()" no-busy-guard placeholder="{{ vm.as.searchPh }}" aria-label="Search questionnaires" autocomplete="off" data-e2e="sqn-qq"></label>
+        <span class="ta-hint" ng-if="!vm.as.loading && vm.as.all">{{ vm.as.hint }}</span>
+        <div class="sqn-qs" role="radiogroup" aria-label="Questionnaires" ng-if="!vm.as.loading && !vm.as.failed">
+          <div ng-repeat="x in vm.as.rows track by x.key" class="sqn-qrow" ng-class="{'sqn-qrow--grp': x.grp}">
+            <div class="sqn-qgrp" ng-if="x.grp">{{ x.t }}</div>
+            <button type="button" class="ta-opt" ng-if="!x.grp" id="sqn-opt-{{ x.key }}" ng-class="{'ta-opt--on': vm.as.sel === x.key}" role="radio" aria-checked="{{ vm.as.sel === x.key }}" ng-click="vm.asPick(x.it)" no-busy-guard data-e2e="sqn-opt"><span class="ta-opt__ic"><i class="fas fa-clipboard-check"></i></span><span><span class="ta-opt__t"><span ng-bind-html="x.t"></span><span class="ta-pill sqn-qtag" ng-class="x.it.timing === 'pre' ? 'ta-pill--info' : 'ta-pill--muted'"><i class="fas" ng-class="x.it.timing === 'pre' ? 'fa-step-backward' : 'fa-step-forward'" aria-hidden="true"></i>{{ x.it.pill }}</span></span><span class="ta-opt__s"><span ng-if="x.w" ng-bind-html="x.w"></span><span ng-repeat="b in x.it.bits track by $index">{{ b }}</span></span></span><span class="ta-opt__dot"></span></button>
+          </div>
+          <div class="ta-note" ng-if="vm.as.none"><i class="fas fa-info-circle"></i><div>{{ vm.as.none }}</div></div>
+        </div>
+        <div class="sqn-skel sqn-skel--dlg" ng-if="vm.as.loading" aria-busy="true"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+        <div class="ta-note ta-note--bad" ng-if="!vm.as.loading && vm.as.failed === 'load'"><i class="fas fa-exclamation-circle"></i><div>{{ vm.as.failMsg }} <button type="button" class="ta-link" ng-click="vm.retryCourse()" no-busy-guard>Try again</button></div></div>
+        <div class="ta-note" ng-if="!vm.as.loading && vm.as.failed === 'none'"><i class="fas fa-info-circle"></i><div>This club has no courses yet. Questionnaires are attached to a course or its lessons in Manage Club → Courses.</div></div>
+        <span class="ta-field__msg" ng-if="vm.as.err.q">Choose what to set.</span>
+      </div>
+
+      <div class="ta-field"><label class="ta-label" for="sqn-m">Message <em>optional</em></label><textarea class="ta-textarea" id="sqn-m" ng-model="vm.as.msg" ng-disabled="vm.as.busy" placeholder="e.g. Have a go before Tuesday — it only takes about ten minutes." data-e2e="sqn-msg"></textarea></div>
+
+      <div class="ta-field" ng-class="{'ta-field--error': vm.as.err.due}"><span class="ta-label">Due <em>optional</em></span>
+        <div class="sqn-due"><button type="button" class="ta-chip" ng-repeat="o in vm.as.dues track by o.k" ng-class="{'ta-chip--on': vm.as.due === o.k}" ng-click="vm.asDue(o.k)" no-busy-guard data-e2e="sqn-due">{{ o.t }}</button></div>
+        <div class="sqn-dp" ng-if="vm.as.due === 'other'"><ta-date-picker ng-model="vm.as.other" options="vm.as.dpOpts" block="true" format="short" placeholder="Choose a date"></ta-date-picker></div>
+        <span class="ta-field__msg" ng-if="vm.as.err.due">Choose the date, or another option.</span>
+      </div>
+
+      <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.as.email" ng-disabled="vm.as.busy" no-busy-guard data-e2e="sqn-email"><span class="ta-toggle__txt"><span class="ta-toggle__t">E-mail {{ vm.S.stu.first }} a link</span><span class="ta-toggle__s">A one-tap link to start it, sent now</span></span><span class="ta-switch"></span></label>
+
+      <div class="ta-note ta-note--bad" role="alert" ng-if="vm.as.error" data-e2e="sqn-dlg-err"><i class="fas fa-exclamation-circle"></i><div>{{ vm.as.error }}</div></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.asClose()" ng-disabled="vm.as.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.asDo(false)" ng-disabled="vm.as.busy || vm.as.loading" no-busy-guard data-e2e="sqn-do"><span class="ta-spin" ng-if="vm.as.busy"></span><i class="fas fa-paper-plane" ng-if="!vm.as.busy"></i>{{ vm.as.busy ? 'Setting…' : 'Set it for ' + vm.S.stu.first }}</button></div>
+  </div>
+
+  <!-- ── step 2: already done → a fresh, blank retake ── -->
+  <div class="ta-dlg sqn-dlg sqn-dlg--in" ng-if="vm.as.step === 'retake'" role="dialog" aria-modal="true" aria-labelledby="sqn-rt" tabindex="-1" data-e2e="sqn-dlg-retake">
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-redo"></i></span><div><div class="ta-dlg__title" id="sqn-rt">{{ vm.S.stu.first }} has already done this one</div><div class="ta-dlg__sub">Nothing has been set yet.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.asClose()" no-busy-guard aria-label="Close">×</button></div>
+    <div class="ta-dlg__body"><p>{{ vm.retakeText() }}</p>
+      <div class="ta-note ta-note--bad" role="alert" ng-if="vm.as.error" data-e2e="sqn-dlg-err"><i class="fas fa-exclamation-circle"></i><div>{{ vm.as.error }}</div></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.asBack()" ng-disabled="vm.as.busy" no-busy-guard data-e2e="sqn-rt-back">Back</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.asDo(true)" ng-disabled="vm.as.busy" no-busy-guard data-e2e="sqn-rt-do"><span class="ta-spin" ng-if="vm.as.busy"></span><i class="fas fa-redo" ng-if="!vm.as.busy"></i>{{ vm.as.busy ? 'Setting…' : 'Set a retake' }}</button></div>
+  </div>
+</div>

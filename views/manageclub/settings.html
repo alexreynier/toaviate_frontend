@@ -14,7 +14,7 @@
     </div>
         <form>
 
-    <div class="club_docs_all">
+    <div class="club_docs_all" id="company-details">
 
       <h2>Company Details</h2>
       <div class="center_if_large">
@@ -24,7 +24,7 @@
                  flow-files-submitted="$flow.upload()"
                  flow-file-success="$file.file_return = $message"
                  flow-complete="processFiles($flow.files, 'logo')"
-                 flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]">
+                 flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
                 <div class="fu-card-inner" flow-btn flow-drop ng-class="dropClass">
                     <!-- Has logo -->
                     <div class="fu-preview" ng-if="vm.club.settings.logo">
@@ -101,7 +101,7 @@
 
           </div>
         </div>
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="invoice-details">
 
         <h2>Company Invoice Details</h2>
         <div class="center_if_large">
@@ -127,7 +127,7 @@
                  flow-files-submitted="$flow.upload()"
                  flow-file-success="$file.file_return = $message"
                  flow-complete="processFiles($flow.files, 'invoice_logo')"
-                 flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]">
+                 flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
                 <h5 class="fu-section-label">Invoice Logo</h5>
                 <div class="fu-card-inner" flow-btn flow-drop ng-class="dropClass">
                     <!-- Has invoice logo -->
@@ -189,7 +189,7 @@
 
 
         <!-- ── Booking Confirmation Setting ── -->
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="booking-settings">
           <h2>Booking Settings</h2>
           <div class="center_if_large">
 
@@ -229,7 +229,7 @@
                   their regular hours or an ad-hoc availability date, or an existing booking that day.
                   Instructors on holiday or with the day off are hidden. Anyone can switch to
                   "show all instructors" for themselves on the calendar, and an instructor always sees their own row.
-                  This is separate from the Schedule Display (TV) setting below.
+                  This is separate from the clubhouse TV's "Show all instructors" setting (Manage Club &rarr; Schedule Display).
                 </p>
               </div>
               <div class="snazzy-setting-control">
@@ -241,6 +241,32 @@
                 </label>
                 <span class="snazzy-toggle-label" ng-if="vm.club.settings.hide_unavailable_instructors">Enabled</span>
                 <span class="snazzy-toggle-label snazzy-toggle-label--off" ng-if="!vm.club.settings.hide_unavailable_instructors">Disabled</span>
+              </div>
+            </div>
+
+            <!-- ── v2 Find a slot: the availability grid only (clubs.find_a_slot_grid_only, owner 10 Nov 2026 —
+                 FRONTEND_FIND_A_SLOT_V2_GUIDE.md; hidden until the backend migration has run) ── -->
+            <div class="snazzy-setting-row" ng-if="vm.findSlotGridSupported">
+              <div class="snazzy-setting-info">
+                <label for="find-a-slot-grid-only" class="snazzy-setting-label">
+                  <i class="fas fa-th"></i>
+                  Find a slot: show the availability grid only (hide the list view)
+                </label>
+                <p class="snazzy-setting-description">
+                  On the new Find a slot page members see the club's free slots as a grid (a row per day, a column per slot)
+                  or as a list of free slots by day. When enabled, the list view is hidden and everyone sees the grid,
+                  on a phone too.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <label class="snazzy-toggle">
+                  <input type="checkbox"
+                         id="find-a-slot-grid-only"
+                         ng-model="vm.club.settings.find_a_slot_grid_only" />
+                  <span class="snazzy-toggle__slider"></span>
+                </label>
+                <span class="snazzy-toggle-label" ng-if="vm.club.settings.find_a_slot_grid_only">Enabled</span>
+                <span class="snazzy-toggle-label snazzy-toggle-label--off" ng-if="!vm.club.settings.find_a_slot_grid_only">Disabled</span>
               </div>
             </div>
 
@@ -350,6 +376,76 @@
                     <input type="radio" name="double_booking_by" id="double-booking-by-admins"
                            ng-model="vm.club.settings.double_booking_by" value="admins" />
                     <span class="snazzy-seg__txt">Admins only</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Who confirms a lesson requested with a voucher (clubs.voucher_request_routing, be-alex-3e 10 Nov; hidden before the migration) ── -->
+            <div class="snazzy-setting-row" ng-if="vm.voucherRoutingSupported">
+              <div class="snazzy-setting-info">
+                <label class="snazzy-setting-label" id="voucher-routing-label">
+                  <i class="fas fa-ticket-alt"></i>
+                  Who Confirms Voucher Lesson Requests
+                </label>
+                <p class="snazzy-setting-description">
+                  When someone asks for a lesson with a voucher (a trial or gift flight), choose who confirms it.
+                  A request with no instructor always goes to the club, and club admins can step in on any request.
+                  Changing this also moves the requests already waiting.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <div class="snazzy-seg" role="radiogroup" aria-labelledby="voucher-routing-label">
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.voucher_request_routing === 'both'}">
+                    <input type="radio" name="voucher_request_routing" id="voucher-routing-both"
+                           ng-model="vm.club.settings.voucher_request_routing" value="both" />
+                    <span class="snazzy-seg__txt">Instructor or club</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.voucher_request_routing === 'instructor'}">
+                    <input type="radio" name="voucher_request_routing" id="voucher-routing-instructor"
+                           ng-model="vm.club.settings.voucher_request_routing" value="instructor" />
+                    <span class="snazzy-seg__txt">The instructor</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.voucher_request_routing === 'club'}">
+                    <input type="radio" name="voucher_request_routing" id="voucher-routing-club"
+                           ng-model="vm.club.settings.voucher_request_routing" value="club" />
+                    <span class="snazzy-seg__txt">The club</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Staff may amend the times of a flight waiting on Claim a Flight (clubs.claim_times_edit, owner 10 Nov; OFF by
+                 default; hidden before the migration). Traceable like the TPC import: the tracker's times are kept and can be put back. ── -->
+            <div class="snazzy-setting-row" ng-if="vm.claimTimesSupported">
+              <div class="snazzy-setting-info">
+                <label class="snazzy-setting-label" id="claim-times-label">
+                  <i class="fas fa-user-clock"></i>
+                  Who Can Amend Flight Times on Claim a Flight
+                </label>
+                <p class="snazzy-setting-description">
+                  Lets club staff correct the times a tracker recorded before a pilot claims the flight, for example when
+                  the tracker started late. Every change needs a reason and is kept with the flight; the tracker's own
+                  times are kept too and can be put back until the flight is claimed. For clubs that charge take-off to
+                  landing, staff enter those two times and 5 minutes are added either side.
+                </p>
+              </div>
+              <div class="snazzy-setting-control">
+                <div class="snazzy-seg" role="radiogroup" aria-labelledby="claim-times-label">
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.claim_times_edit === 'off'}">
+                    <input type="radio" name="claim_times_edit" id="claim-times-off"
+                           ng-model="vm.club.settings.claim_times_edit" value="off" />
+                    <span class="snazzy-seg__txt">Nobody</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.claim_times_edit === 'admins'}">
+                    <input type="radio" name="claim_times_edit" id="claim-times-admins"
+                           ng-model="vm.club.settings.claim_times_edit" value="admins" />
+                    <span class="snazzy-seg__txt">Admins only</span>
+                  </label>
+                  <label class="snazzy-seg__opt" ng-class="{'snazzy-seg__opt--on': vm.club.settings.claim_times_edit === 'staff'}">
+                    <input type="radio" name="claim_times_edit" id="claim-times-staff"
+                           ng-model="vm.club.settings.claim_times_edit" value="staff" />
+                    <span class="snazzy-seg__txt">Instructors and admins</span>
                   </label>
                 </div>
               </div>
@@ -495,7 +591,7 @@
 
 
         <!-- ── Flight Times Display (club-wide convention) ── -->
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="flight-times">
           <h2><i class="fas fa-stopwatch tdo-h2-icon"></i> Flight Times Display</h2>
           <p class="help-block">Choose how flight times are shown everywhere for this club &mdash; the flights list, aircraft journey logs, claim a flight, debriefs and training records all follow it. This is display only: how each aircraft is <em>charged</em> is set on the aircraft itself.</p>
 
@@ -532,7 +628,7 @@
 
 
         <!-- ── Booking Edit Time Limits ── -->
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="booking-edit-limits">
           <h2><i class="fas fa-clock" style="margin-right:8px;color:#2563eb;"></i> Booking Edit Time Limits</h2>
           <p class="help-block">Control how long after a booking ends each role can still edit or cancel it. Super-admins are always exempt from time restrictions.</p>
 
@@ -683,7 +779,7 @@
         <!-- ── Membership Renewals: when members are e-mailed before an automatic renewal is charged
              (clubs.renewal_reminder_days, 3–60, default 14 — backend BACKEND_MEMBERSHIP_RENEWALS_GUIDE.md §6a).
              Hidden until the backend migration has run (the GET omits the column). ── -->
-        <div class="club_docs_all" ng-if="vm.renewalReminderSupported">
+        <div class="club_docs_all" id="membership-renewals" ng-if="vm.renewalReminderSupported">
           <h2><i class="fas fa-sync-alt" style="margin-right:8px;color:#2563eb;"></i> Membership Renewals</h2>
           <div class="center_if_large">
             <div class="snazzy-setting-row">
@@ -722,7 +818,7 @@
         <!-- End Membership Renewals -->
 
 
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="membership-terms">
           <h2>Membership Terms & Conditions</h2>
 
             <div class="fu-doc-section"
@@ -773,7 +869,7 @@
           </div>
 
 
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="passenger-terms">
           <h2>Passenger Terms & Conditions</h2>
 
             <div class="fu-doc-section"
@@ -824,7 +920,7 @@
           </div>
 
 
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="privacy-policy">
           <h2>Privacy Policy</h2>
 
             <div class="fu-doc-section"
@@ -875,7 +971,7 @@
           </div>
 
 
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="accounting">
               <h2>Accounting</h2>
 
               <div class="form-group">
@@ -908,7 +1004,7 @@
 
 
         <!-- ── Aircraft Check Types ── -->
-        <div class="club_docs_all">
+        <div class="club_docs_all" id="aircraft-check-types">
           <h2>Aircraft Check Types</h2>
           <p class="help-block">Manage the types of pre-flight checks required for your aircraft (e.g. Check A, Transit Check). Aircraft must have "Requires Pre-Flight Check A" enabled on their profile for these to apply.</p>
 
@@ -1014,197 +1110,15 @@
         <!-- End Check Type Modal Overlay -->
 
 
-        <!-- ── Schedule Display (TV Screen) ── -->
-        <div class="club_docs_all">
-          <h2>Schedule Display
-            <span class="sd-status-badge active" ng-if="vm.display_token">Active</span>
-            <span class="sd-status-badge inactive" ng-if="!vm.display_token && !vm.display_loading">Inactive</span>
-          </h2>
-          <p class="help-block">Show your daily flight schedule on a big TV screen or monitor in the clubhouse. Members, instructors and visitors can see today's bookings at a glance — completely read-only and no login required.</p>
-
-          <div class="center_if_large sd-settings-section">
-
-            <!-- Loading -->
-            <div ng-if="vm.display_loading" class="text-center">
-              <i class="fa fa-spinner fa-spin"></i> Loading...
-            </div>
-
-            <!-- Has active token -->
-            <div ng-if="!vm.display_loading && vm.display_token" class="sd-token-display">
-
-              <label>Display URL</label>
-              <div class="sd-token-url-group">
-                <input type="text" class="sd-token-url-input" id="sd_token_url" ng-model="vm.display_url" readonly onclick="this.select()" />
-                <button class="sd-copy-btn" ng-class="{'sd-copied': vm.display_copied}" ng-click="vm.copyDisplayUrl()">
-                  <i class="fa" ng-class="{'fa-check': vm.display_copied, 'fa-clipboard': !vm.display_copied}"></i>
-                  {{ vm.display_copied ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
-
-              <div class="sd-token-actions">
-                <button class="sd-open-btn" ng-click="vm.openDisplayInNewTab()">
-                  <i class="fa fa-external-link"></i> Preview in New Tab
-                </button>
-                <button class="sd-revoke-btn" ng-click="vm.revokeDisplayToken()">
-                  <i class="fa fa-ban"></i> Revoke Access
-                </button>
-              </div>
-
-              <!-- Show All Instructors Toggle -->
-              <div class="sd-toggle-row">
-                <div class="sd-toggle-info">
-                  <span class="sd-toggle-label">Show all instructors</span>
-                  <span class="sd-toggle-desc">When OFF, instructors without availability or bookings on the displayed day are hidden to reduce empty rows.</span>
-                </div>
-                <label class="sd-toggle-switch">
-                  <input type="checkbox" ng-model="vm.show_all_instructors" ng-change="vm.toggleShowAllInstructors()">
-                  <span class="sd-toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- TV Pairing Section -->
-              <div class="sd-pairing-section">
-                <div class="sd-pairing-header">
-                  <i class="fa fa-link"></i> Quick Setup (TV Pairing)
-                </div>
-                <p class="sd-pairing-hint">
-                  On the TV, open <strong>{{ vm.display_pairing_url }}</strong> — a 6-digit code will appear on screen.
-                </p>
-                <div class="sd-pairing-input-group">
-                  <div class="sd-pairing-digits">
-                    <input type="text" class="sd-pairing-digit-input" maxlength="6" placeholder="000000"
-                           ng-model="vm.pairing_code"
-                           ng-keypress="($event.keyCode === 13) && vm.linkPairingCode()" />
-                  </div>
-                  <button class="sd-pairing-btn" ng-click="vm.linkPairingCode()" ng-disabled="vm.pairing_loading || !vm.pairing_code || vm.pairing_code.length < 6">
-                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.pairing_loading, 'fa-check-circle': !vm.pairing_loading}"></i>
-                    {{ vm.pairing_loading ? 'Linking...' : 'Link Display' }}
-                  </button>
-                </div>
-              </div>
-
-              <div class="sd-how-it-works">
-                <h4><i class="fa fa-info-circle"></i> How it works</h4>
-                <ol>
-                  <li>Copy the URL above and open it on your TV, <strong>or</strong> go to <strong>{{ vm.display_pairing_url }}</strong> for easy code-based setup</li>
-                  <li>The schedule updates automatically every 30 seconds when bookings change</li>
-                  <li>At midnight, it advances to the next day automatically</li>
-                  <li>No login is required — the link grants read-only access</li>
-                </ol>
-              </div>
-            </div>
-
-            <!-- No active token -->
-            <div ng-if="!vm.display_loading && !vm.display_token">
-              <p class="sd-generate-text">
-                Generate a special link that shows today's schedule on any screen — no login needed. Perfect for a clubhouse TV, reception monitor, or briefing room display. The schedule auto-refreshes when bookings change.
-              </p>
-              <button class="btn btn-primary btn_bigger" ng-click="vm.generateDisplayToken()" style="margin-bottom: 18px;">
-                <i class="fa fa-tv"></i> Generate Display Link
-              </button>
-
-              <!-- TV Pairing (even without token — will auto-generate) -->
-              <div class="sd-pairing-section sd-pairing-section--standalone">
-                <div class="sd-pairing-header">
-                  <i class="fa fa-link"></i> Or: Quick TV Pairing
-                </div>
-                <p class="sd-pairing-hint">
-                  On the TV, open <strong>{{ vm.display_pairing_url }}</strong> and enter the 6-digit code shown:
-                </p>
-                <div class="sd-pairing-input-group">
-                  <div class="sd-pairing-digits">
-                    <input type="text" class="sd-pairing-digit-input" maxlength="6" placeholder="000000"
-                           ng-model="vm.pairing_code"
-                           ng-keypress="($event.keyCode === 13) && vm.linkPairingCode()" />
-                  </div>
-                  <button class="sd-pairing-btn" ng-click="vm.linkPairingCode()" ng-disabled="vm.pairing_loading || !vm.pairing_code || vm.pairing_code.length < 6">
-                    <i class="fa" ng-class="{'fa-spinner fa-spin': vm.pairing_loading, 'fa-check-circle': !vm.pairing_loading}"></i>
-                    {{ vm.pairing_loading ? 'Linking...' : 'Link Display' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-        <!-- End Schedule Display -->
-
-
-        <!-- ── Voucher Widget ── -->
-        <div class="club_docs_all">
-          <h2>Voucher Widget
-            <span class="sd-status-badge active" ng-if="vm.voucher_widget_active">Active</span>
-          </h2>
-          <p class="help-block">Sell vouchers directly on your website — embed the ToAviate voucher widget so visitors can browse and purchase vouchers without needing a ToAviate account.</p>
-
-          <div class="center_if_large sd-settings-section">
-            <button class="btn btn-primary btn_bigger" ui-sref="dashboard.manage_club.voucher_widget">
-              <i class="fas fa-code"></i> Manage Voucher Widget
-            </button>
-          </div>
-        </div>
-        <!-- End Voucher Widget -->
-
-
-        <!-- ── BookedScheduler Sync ── -->
-        <div class="club_docs_all">
-          <h2><i class="fas fa-sync-alt" style="margin-right:8px;color:#2563eb;"></i> BookedScheduler Sync</h2>
-          <p class="help-block">Connected with BookedScheduler — sync aircraft bookings, resources and users from your BookedScheduler account into ToAviate automatically.</p>
-
-          <div class="center_if_large sd-settings-section">
-            <button class="btn btn-primary btn_bigger" ui-sref="dashboard.manage_club.bs_sync">
-              <i class="fas fa-sync-alt"></i> Manage BookedScheduler Sync
-            </button>
-          </div>
-        </div>
-        <!-- End BookedScheduler Sync -->
-
-
-        <!-- ── Data Import — training records workbook ──
-             The upload/run UI lives in tpc_import_home.html (own controller,
-             TpcImportController); run review deep-links to
-             dashboard.manage_club.tpc_import_run. -->
-        <div class="club_docs_all" ng-if="vm.is_manager">
-          <h2><i class="fas fa-file-import" style="margin-right:8px;color:#1e3a5f;"></i> Data Import — Training Records</h2>
-          <p class="help-block">Import a training-records workbook (.xlsx) — rows are matched to the tracker's flight records, reviewed, then applied. Whole imports can be reverted.</p>
-
-          <div ng-include="'views/manageclub/tpc_import_home.html'"></div>
-          <div ng-include="'views/manageclub/training_record_reassign.html'"></div>
-        </div>
-        <!-- End Data Import -->
-
-
-        <!-- ── Airfield Bookout System ── -->
-        <div class="club_docs_all">
-          <h2><i class="fas fa-broadcast-tower" style="margin-right:8px;color:#1e3a5f;"></i> Airfield Bookout System</h2>
-          <p class="help-block">Allow pilots to book out at your airfield with a simple public form — no login required. ATC and FISO controllers get a live dashboard showing all active bookouts in real-time.</p>
-
-          <div class="center_if_large sd-settings-section">
-            <button class="btn btn-primary btn_bigger" ui-sref="dashboard.manage_club.airfield_bookout">
-              <i class="fas fa-broadcast-tower"></i> Manage Airfield Bookout
-            </button>
-          </div>
-        </div>
-
-        <!-- ── AirfieldHub ── -->
-        <div class="club_docs_all">
-          <h2><i class="fas fa-route" style="margin-right:8px;color:#1e3a5f;"></i> AirfieldHub
-            <span class="sd-status-badge active" ng-if="vm.afh_effective">Active</span>
-          </h2>
-          <p class="help-block">File PPR automatically. When a pilot books out to an airfield on the AirfieldHub network, we book the aircraft out of your field <em>and</em> file the PPR at the destination — their decision comes straight back to you, with no second system and no phone call.</p>
-
-          <div class="center_if_large sd-settings-section">
-            <button class="btn btn-primary btn_bigger" ui-sref="dashboard.manage_club.airfield_hub">
-              <i class="fas fa-route"></i> Manage AirfieldHub
-            </button>
-          </div>
-        </div>
-        <!-- End AirfieldHub -->
-        <!-- End Airfield Bookout -->
+        <!-- Schedule Display, Voucher Widget, BookedScheduler Sync, Data Import,
+             Airfield Bookout and AirfieldHub left this page on 2026-11-10 (batch 18):
+             they are Manage Club sections of their own now — states
+             dashboard.manage_club.schedule_display / .voucher_widget (Vouchers hub) /
+             .bs_sync / .data_import / .airfield_bookout + .airfield_hub (Airfield hub). -->
 
 
         <!-- ── Daily Aircraft Status Report ── -->
-        <div class="club_docs_all" ng-if="vm.is_manager">
+        <div class="club_docs_all" id="daily-aircraft-status" ng-if="vm.is_manager">
           <h2><i class="fas fa-paper-plane" style="margin-right:8px;color:#1e3a5f;"></i> Daily Aircraft Status Report
             <span class="das-badge das-badge--on"  ng-if="vm.das.form.enabled">On</span>
             <span class="das-badge das-badge--off" ng-if="!vm.das.form.enabled && !vm.das.loading">Off</span>
@@ -1496,7 +1410,7 @@
         <!-- End Daily Aircraft Status Report -->
 
 
-             <div class="club_docs_all">
+             <div class="club_docs_all" id="payment-integrations">
               <h2>Payment Integrations</h2>
 
                     <div class="form-group" ng-if="!vm.club.settings.stripe_id || vm.club.settings.stripe_id == ''">

@@ -10,7 +10,9 @@
 //   List({club_id, from, to, status})           a range / everything: `status` = the request's derived summary;
 //                                                 `queue_position` = place among the club's live requests
 //   Get(id, date?)                               one request (`request`); with date: + `day` and THAT day's queue_position
-//   Create({club_id, kind, plane_type, plane_id, instructor_id, notice, notes, dates:[{date, preference}]})
+//   Create({club_id, kind, plane_type, plane_id, instructor_id, notice, notes, dates:[{date, preference}],
+//          course_id?, slots_needed?})      both optional (batch 21): a course of the club; 1 | 2 slots back to back.
+//                                                 Rows carry `course` {id, title} | null and `slots_needed` (1 | 2)
 //   Update(id, {status, date?, notes?, fulfilled_booking_id?, complete_request?})
 //                                                 member: 'cancelled' only (whole request);
 //                                                 staff: contacted|fulfilled|declined|open on ONE date (`date:'YYYY-MM-DD'`
@@ -20,7 +22,9 @@
 //
 // EVERY list is FIRST COME FIRST SERVED (ordered by created_at, id) — never re-sort a list by anything else.
 //   Matches({club_id, start, end, plane_id, instructor_id})   staff only — ranked requests with an open / contacted
-//                                                 day in the slot; each match carries `day` (the matched date row)
+//                                                 day in the slot; each match carries `day` (the matched date row);
+//                                                 a 2-slot request: `needs_double`, `double_free` (false = the club slot
+//                                                 next door could not be checked — "only one is free"), `double_with`
 //
 // STATUS LIVES PER DATE (2026-11-05): every `dates[]` row has its own status
 // (open | contacted | fulfilled | declined, + status_by / status_at /

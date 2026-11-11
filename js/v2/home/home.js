@@ -17,7 +17,8 @@
    <bkg-cancel-dialog> from js/v2/bookings/bookings.js — reason + fee, DELETE bookings/{id}?reason&notes).
 
    GET my_account/v2/summary (contract C29): the "Needs you" chips / "All up to date", every tile's live status line (in its
-   tone) and the training / safety badges. If it fails the page quietly stays as before (no chips, no lines). Still hidden:
+   tone) and the training / safety badges. An open Suggest-a-time offer (C44, offers[] on bookings/v2/upcoming) adds its
+   own "Needs you" chip first → My bookings ?offer={id}. If it fails the page quietly stays as before (no chips, no lines). Still hidden:
    the new-member "Get ready to fly" checklist (an open owner decision). See mockups/v2-build/fe-home-bookings.md.
    Page CSS: css/v2/home.css (.hm-* / .hmc-*).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -95,6 +96,8 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
     vm.tile = tile;
     vm.acct = null;                // GET my_account/v2/summary (C29), null until it answers — or when it fails
     vm.attn = [];
+    vm.offerAttn = [];             // C44: one "Needs you" chip per open Suggest-a-time offer (bookings/v2/upcoming offers[])
+    var sumAttn = [];              // the summary's own chips (C29)
     vm.attnAll = false;
     vm.attnShown = function () { return vm.attnAll ? vm.attn : vm.attn.slice(0, 3); };
     vm.attnGo = attnGo;
@@ -130,6 +133,8 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
                 vm.today = D.todayOf(up.now);
                 vm.nowStr = up.now || vm.nowStr;
                 vm.summary = up.summary || null;
+                vm.offerAttn = offerChips(up.offers);
+                mergeAttn();
             }
             if (!up.success && !bo.success && !td.bookings) { vm.loadFailed = true; }
             build(bo.bookouts || [], td, up.success ? (up.bookings || []) : []);
@@ -256,7 +261,9 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
         if (b.waiting_list > 0) { return { tone: 'pend', label: 'Waiting list', icon: 'fa-hourglass-half' }; }
         if (b.status === 'pending') {
             if (b.can_approve) { return { tone: 'warn', label: 'Needs your confirmation', icon: 'fa-exclamation-circle' }; }
-            return b.pending_by === 'club' ? { tone: 'pend', label: 'Awaiting the club', icon: 'fa-user-clock' } : { tone: 'pend', label: 'Awaiting instructor', icon: 'fa-user-clock' };
+            return b.pending_by === 'club' ? { tone: 'pend', label: 'Awaiting the club', icon: 'fa-user-clock' }
+                : b.pending_by === 'both' ? { tone: 'pend', label: 'Awaiting instructor or club', icon: 'fa-user-clock' }   // voucher requests routed to both
+                : { tone: 'pend', label: 'Awaiting instructor', icon: 'fa-user-clock' };
         }
         if (b.role === 'instructor') { return { tone: 'info', label: 'You\'re instructing', icon: 'fa-chalkboard-teacher' }; }
         return { tone: 'good', label: 'Confirmed', icon: 'fa-check' };
@@ -307,7 +314,7 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
             var d = res.data;
             if (!d || !d.success) { return; }            // quietly: the page works as before without it
             vm.acct = d;
-            vm.attn = (d.attention || []).slice().sort(function (a, b) { return (+a.sort || 0) - (+b.sort || 0); }).map(function (a) {
+            sumAttn = (d.attention || []).slice().sort(function (a, b) { return (+a.sort || 0) - (+b.sort || 0); }).map(function (a) {
                 var act = ACT[a.key] || ['Open', 'fa-info-circle'], label = act[0], icon = act[1];
                 if (a.key === 'document_expired' || a.key === 'document_due') {
                     var medical = /medical|class \d|lapl/i.test(a.title || ''), go = String(a.go || '').split(/[\s/|]+/)[0];
@@ -318,6 +325,7 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
                 }
                 return { key: a.key, tone: a.tone === 'bad' || a.tone === 'warn' ? a.tone : 'info', title: a.title, sub: a.sub || '', go: a.go, label: label, icon: icon, club_id: a.club_id };
             });
+            mergeAttn();
             vm.setup = readChecklist(d.checklist);
             buildGroups();
         }, function () { /* quietly */ });
@@ -342,7 +350,21 @@ function HomeV2Controller($rootScope, $scope, $state, $location, $timeout, $q, $
         return { steps: steps, done: done, n: steps.length, left: steps.length - done, pct: Math.round(done / steps.length * 100), next: next };
     }
     function stepGo(x) { $state.go(x.state || STEP_GO[x.go] || 'dashboard.my_account'); }
+    // Suggest a time (C44): an open offer of other times needs the member's answer — first, it can run out within 48 h
+    function offerChips(list) {
+        return (angular.isArray(list) ? list : []).filter(function (o) { return o && o.offer && o.offer.state === 'open'; }).map(function (o) {
+            var by = (o.offer.offered_by && o.offer.offered_by.name) || (o.instructor && o.instructor.name) || '';
+            var until = o.offer.open_until || o.offer.expires_at;
+            var n = (o.offer.times || []).filter(function (t) { return !t.gone; }).length;
+            return { key: 'offer', offerId: o.offer_id, tone: 'warn', icon: 'fa-exchange-alt', label: 'Choose a time',
+                title: (by ? D.firstName(by) : 'Your instructor') + ' suggested other times',
+                sub: 'For your lesson on ' + D.fDay(o.start) + ' at ' + D.fTime(o.start) + ' · ' + n + (n === 1 ? ' time' : ' times') + ' to choose from'
+                    + (until ? ', open until ' + D.fDay(until) + ' ' + D.fTime(until) : '') };
+        });
+    }
+    function mergeAttn() { vm.attn = vm.offerAttn.concat(sumAttn); }
     function attnGo(a) {
+        if (a.offerId) { $state.go('dashboard.v2.bookings', { offer: a.offerId }); return; }
         var g = String(a.go || '');
         if (/^dashboard\./.test(g)) { $state.go(g); return; }
         if (g.charAt(0) === '/') { $location.path(g); return; }

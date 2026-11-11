@@ -128,7 +128,7 @@ Club managers/instructors; ordered by course title then lesson order.
 
 # PART B — bulk reassignment of APPLIED training records
 
-A club-manager screen (Settings → Data Import area) that finds training
+A club-manager screen (Manage Club → Data Import, `/dashboard/manage_club/data_import`; a Settings section until 2026-11-10) that finds training
 records filed under the wrong course and moves them.
 
 ### B1. `GET /training_records/search`

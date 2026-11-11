@@ -215,10 +215,10 @@ function ProfileV2Util($timeout, $state, $window, ToastService, DesignRoutes, De
     /* flow-file-added: images only — a refused file says why (once per pick, not once per file) */
     var lastRefused = 0;
     u.imageOnly = function (file) {
-        var ok = !!{ png: 1, gif: 1, jpg: 1, jpeg: 1 }[String(file.getExtension() || '').toLowerCase()];
+        var ok = !!{ png: 1, gif: 1, jpg: 1, jpeg: 1, heic: 1, heif: 1, webp: 1, bmp: 1 }[String(file.getExtension() || '').toLowerCase()];   // every image is stored as a JPEG (10 Nov 2026)
         if (!ok && Date.now() - lastRefused > 1500) {
             lastRefused = Date.now();
-            ToastService.warning('That file wasn\'t added', '"' + file.name + '" isn\'t an image — use a JPG, PNG or GIF.');
+            ToastService.warning('That file wasn\'t added', '"' + file.name + '" isn\'t an image — use a JPG, PNG, HEIC or GIF.');
         }
         return ok;
     };

@@ -15,6 +15,13 @@
    Writes stay on today's routes: cancel = DELETE bookings/{id}?reason=&notes= through CancellationFeesService
    (+ the fee claim), with the shared reason picker <cancel-reason-fields>, exactly like the scheduler card.
 
+   Suggest a time (contract C44, 9 Nov — design: mockups/instructor-dashboard/my-schedule.html, pages "Sam's side"):
+   the same read carries offers[] (not paged) — requests the instructor answered with 1–3 other times. Open ones are the
+   "Needs you" cards above the day groups (Take this time → POST bookings/v2/offer/{id}/take {index}; None of these work →
+   …/reply {message?} or DELETE bookings/v2/offer/{id}); replied and ended ones (48 h) sit under "Your requests". The
+   e-mail's link is ?offer={id} (data.keepV2With keeps it on v2 with the switch off): the card is scrolled to and
+   highlighted, an ended / unknown offer gets a note. Refusals are worded in the card (ToastService.handledInline()).
+
    SHARED with the v2 home (js/v2/home/home.js injects them):
      BookingsV2Data      the read + the copy helpers (status / kind / passenger words, dates, lengths)
      <bkg-cancel-dialog> the cancel record dialog (CSS in css/v2/bookings.css, which loads app-wide)
@@ -23,7 +30,8 @@
 app.config(['$stateProvider', 'DesignRoutesProvider', function ($stateProvider, DesignRoutesProvider) {
     $stateProvider
         .state('dashboard.v2.bookings', {
-            url: '/my_account/upcoming_bookings?open',
+            url: '/my_account/upcoming_bookings?open&offer',   // offer = a Suggest-a-time offer from the e-mail link (C44)
+            data: { keepV2With: 'offer' },   // the classic Bookings page has no offers: the e-mail link stays on v2 (design.js)
             templateUrl: 'views/v2/bookings/upcoming.html',
             controller: 'BookingsV2Controller', controllerAs: 'vm'
         })
@@ -70,6 +78,13 @@ function BookingsV2Data($http, $location, SchedulerV2Service) {
     service.paxState = paxState;
     service.notFinal = notFinal;
     service.todayOf = todayOf;
+    // Suggest a time (C44): the student's side
+    service.TakeOffer = TakeOffer;
+    service.ReplyOffer = ReplyOffer;
+    service.CancelOffer = CancelOffer;
+    service.rel = rel;
+    service.initials = initials;
+    service.offerOpen = function (it) { return !!(it && it.offer && it.offer.state === 'open'); };
     return service;
 
     // GET bookings/v2/upcoming?page&per_page&club_id&q → { summary, bookings[], pagination, now, viewer_id }
@@ -79,6 +94,22 @@ function BookingsV2Data($http, $location, SchedulerV2Service) {
             if (v !== null && v !== undefined && v !== '' && v !== 0) { q.push(encodeURIComponent(k) + '=' + encodeURIComponent(v)); }
         });
         return $http.get('/api/v1/bookings/v2/upcoming' + (q.length ? '?' + q.join('&') : '')).then(handleSuccess, handleError2);
+    }
+
+    // ── Suggest a time (contract C44, be-alex-3e.md): the student answers an offer of other times ──
+    // Errors come back as HTTP 200 {success:false, error, message, state | offer_state}: NOT_OPEN{state},
+    // TIME_GONE{offer_state}, VOUCHER_IN_USE, FORBIDDEN, NOT_FOUND, BUSY, SAVE_FAILED, VALIDATION_ERROR.
+    // POST bookings/v2/offer/{offer_id}/take {index} → {success, booking_id, offer}
+    function TakeOffer(offerId, index) {
+        return $http.post('/api/v1/bookings/v2/offer/' + offerId + '/take', { index: index }).then(handleSuccess, handleError2);
+    }
+    // POST bookings/v2/offer/{offer_id}/reply {message?} → {success, offer} (open → replied)
+    function ReplyOffer(offerId, message) {
+        return $http.post('/api/v1/bookings/v2/offer/' + offerId + '/reply', message ? { message: message } : {}).then(handleSuccess, handleError2);
+    }
+    // DELETE bookings/v2/offer/{offer_id} → {success, offer} (the student cancels: closed, closed_reason "cancelled")
+    function CancelOffer(offerId) {
+        return $http['delete']('/api/v1/bookings/v2/offer/' + offerId).then(handleSuccess, handleError2);
     }
 
     // GET bookings/v2/history/{id} (C23) → { success, booking_id, entries[] } — the audit trail plus reason_label / note /
@@ -139,6 +170,15 @@ function BookingsV2Data($http, $location, SchedulerV2Service) {
         return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
     }
     function firstName(n) { return String(n || '').split(' ')[0]; }
+    function initials(n) {
+        var p = String(n || '').trim().split(/\s+/);
+        return ((p[0] || '').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase();
+    }
+    // a moment in words, relative to today: "today 11:20", "yesterday 18:30", "tomorrow 09:00", "Wed 4 Nov 18:30"
+    function rel(s, today) {
+        var d = daysBetween(today || moment().format('YYYY-MM-DD'), s);
+        return (d === 0 ? 'today' : d === -1 ? 'yesterday' : d === 1 ? 'tomorrow' : fDay(s)) + ' ' + fTime(s);
+    }
 
     // dashed card / chip = not final (awaiting confirmation, or a waiting-list place) — the scheduler's rule
     function notFinal(b) { return !!b && (b.status === 'pending' || b.waiting_list > 0); }
@@ -153,6 +193,8 @@ function BookingsV2Data($http, $location, SchedulerV2Service) {
         if (b.status === 'pending') {
             if (b.can_approve) { return { tone: 'warn', label: 'Needs your confirmation', icon: 'fa-exclamation-circle' }; }
             if (b.pending_by === 'club') { return { tone: 'pend', label: 'Awaiting club approval', icon: 'fa-hourglass-half' }; }
+            // be-alex-3e (10 Nov): voucher requests routed to "both" — the instructor OR the club may confirm
+            if (b.pending_by === 'both') { return { tone: 'pend', label: b.instructor && b.instructor.name ? 'Awaiting ' + firstName(b.instructor.name) + ' or the club' : 'Awaiting the club', icon: 'fa-hourglass-half' }; }
             return { tone: 'pend', label: b.instructor && b.instructor.name ? 'Awaiting ' + firstName(b.instructor.name) + '\'s confirmation' : 'Awaiting confirmation', icon: 'fa-hourglass-half' };
         }
         if (b.booked_out) { return { tone: 'info', label: 'Booked out', icon: 'fa-plane-departure' }; }
@@ -304,6 +346,18 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
     vm.moreBusy = false;
     vm.cx = null;                 // the booking being cancelled (dialog open)
     vm.everAny = false;           // anything at all upcoming (decides the "no bookings" empty state)
+    // Suggest a time (C44): offers[] from the same read — requests the instructor answered with other times
+    vm.offers = [];               // every listed offer (open, replied, ended in the last 48 h), decorated
+    vm.ofNeed = [];               // open ones: the "Needs you" cards (after the filter / search)
+    vm.ofOther = [];              // replied cards + the ended lines ("Your requests")
+    vm.declinedReqs = [];         // lesson requests an instructor declined in the last 48 h (upcoming `declined[]`, owner 10 Nov)
+    vm.decShown = [];             // …the ones the filter / search show
+    vm.ofs = {};                  // per offer id: { nowork, text, cancelAsk, busy: null|'take'|'reply'|'cancel', taking, err }
+    vm.offerId = parseInt($stateParams.offer, 10) || null;    // ?offer= — the e-mail's "SEE THE TIMES" link
+    vm.offerNote = null;          // what that link found when the offer has ended / isn't here: { tone, icon, title, text }
+    vm.offerHi = null;            // the offer given a brief highlight (deep link)
+    vm.justBooked = null;         // the booking "Take this time" made in this visit ("Booked just now")
+    var offerLanded = false;      // the deep link is handled once
 
     vm.reload = function () { fetch(false); };
     vm.more = more;
@@ -312,7 +366,10 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
     vm.onQ = function () { if (qTimer) { $timeout.cancel(qTimer); } qTimer = $timeout(function () { fetch(false); }, 300); };
     vm.clearQ = function () { vm.q = ''; fetch(false); };
     vm.toggle = function (b) { vm.openId = vm.openId === b.id ? null : b.id; };
-    vm.state = function (b) { return D.state(b); };
+    vm.state = function (b) {
+        if (vm.justBooked && b && b.id === vm.justBooked && !b._cancelled) { return { tone: 'good', label: 'Booked just now', icon: 'fa-check' }; }
+        return D.state(b);
+    };
     vm.paxState = D.paxState;
     vm.who = who;
     vm.title = title;
@@ -332,6 +389,29 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
     vm.cancelled = cancelled;
     vm.rentalText = function (b) { return (b.rental_items || []).map(function (r) { return r.title + (r.quantity > 1 ? ' × ' + r.quantity : ''); }).join(', '); };
     vm.liveCount = function () { return vm.rows.filter(function (b) { return !b._cancelled; }).length; };
+    // Suggest a time (C44)
+    vm.ui = ui;
+    vm.take = take;
+    vm.noWork = function (it) { var u = ui(it); u.nowork = true; u.cancelAsk = false; u.err = null; };
+    vm.askAgain = askAgain;
+    vm.cancelAsk = function (it) { var u = ui(it); u.cancelAsk = true; u.err = null; };
+    vm.cancelNo = function (it) { ui(it).cancelAsk = false; };
+    vm.cancelOffer = cancelOffer;
+    vm.showTaken = showTaken;
+    vm.bookAnother = function (it) { $state.go('dashboard.scheduler_v2', { date: it && it.date && it.date >= vm.today ? it.date : null }); };
+    vm.closeOfferNote = function () { vm.offerNote = null; };
+    // who a pending request waits for, as the subject of "… hasn't confirmed yet" (pending_by: instructor | club | both)
+    vm.pendingWho = function (b) {
+        var ins = b && b.instructor && b.instructor.name ? b.instructor.name : '';
+        if (b && b.pending_by === 'club') { return 'The club'; }
+        if (b && b.pending_by === 'both') { return ins ? ins + ' or the club' : 'The club'; }
+        return ins || 'The club';
+    };
+    vm.hasOffers = function () { return vm.offers.length > 0 || vm.declinedReqs.length > 0; };   // anything under "Your requests"
+    vm.reqNote = function () {
+        if (!vm.ofOther.length) { return 'Declined requests stay here for 2 days'; }
+        return 'Other times suggested · ended' + (vm.decShown.length ? ' and declined' : '') + ' ones stay here for 2 days';
+    };
 
     fetch(false);
 
@@ -369,6 +449,8 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
             }
             vm.summary = data.summary || null;
             vm.pagination = data.pagination || null;
+            setOffers(data.offers);
+            setDeclined(data.declined);
             if (!(vm.q || '').trim()) { base = { summary: vm.summary, pagination: vm.pagination, rows: vm.rows }; }
             if (!vm.club && !(vm.q || '').trim() && vm.summary) { vm.everAny = vm.summary.total > 0; }
             else if (vm.summary && vm.summary.total > 0) { vm.everAny = true; }
@@ -376,6 +458,7 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
             vm.load = 'ready';
             rebuild();
             if (vm.openId) { scrollToOpen(); }
+            landOffer();
         });
     }
 
@@ -420,7 +503,7 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
     function learnClubs() {
         var byId = {};
         vm.clubs.forEach(function (c) { byId[c.id] = c; });
-        vm.rows.forEach(function (b) { if (b.club_id && !byId[b.club_id]) { byId[b.club_id] = { id: b.club_id, name: b.club_name }; vm.clubs.push(byId[b.club_id]); } });
+        vm.rows.concat(vm.offers).forEach(function (b) { if (b.club_id && !byId[b.club_id]) { byId[b.club_id] = { id: b.club_id, name: b.club_name }; vm.clubs.push(byId[b.club_id]); } });
         var ids = (vm.summary && vm.summary.club_ids) || [];
         var missing = ids.filter(function (id) { return !byId[id]; });
         if (missing.length && !vm._clubsAsked) {
@@ -462,8 +545,15 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
             g.count = parts.join(' · ');
         });
         vm.groups = groups;
+        // offers aren't paged and the search doesn't reach them server-side: filter them here
+        var q = (vm.q || '').trim().toLowerCase();
+        var shown = vm.filter === 'wait' ? [] : vm.offers.filter(function (it) { return !q || it._search.indexOf(q) > -1; });
+        vm.ofNeed = shown.filter(function (it) { return it._st === 'open'; });
+        vm.ofOther = vm.filter === 'attn' ? [] : shown.filter(function (it) { return it._st !== 'open'; });
+        vm.decShown = vm.filter !== 'all' ? [] : vm.declinedReqs.filter(function (d) { return !q || d._search.indexOf(q) > -1; });
+        vm.nOffers = vm.offers.filter(function (it) { return it._st === 'open'; }).length;
         var bRows = (base && base.rows) || vm.rows, bSum = (base && base.summary) || vm.summary;
-        vm.nAttn = bRows.filter(function (b) { return b._attn && !b._cancelled; }).length;
+        vm.nAttn = bRows.filter(function (b) { return b._attn && !b._cancelled; }).length + vm.nOffers;
         vm.nWait = bRows.filter(function (b) { return b.waiting_list > 0 && !b._cancelled; }).length;
         if (bSum && bSum.waiting > vm.nWait) { vm.nWait = bSum.waiting; }
         if (bSum && bSum.to_confirm > 0 && vm.isStaff) { vm.nAttn = Math.max(vm.nAttn, bSum.to_confirm); }
@@ -471,6 +561,7 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
         vm.tiles = buildTiles(bRows, bSum, (base && base.pagination) || vm.pagination);
     }
 
+    function offerWho(it) { return it ? it._by : 'Your instructor'; }
     function buildTiles(rows, s, pag) {
         var live = rows.filter(function (b) { return !b._cancelled; });
         if (!s || !live.length) { return []; }
@@ -487,6 +578,7 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
         }
         if (vm.nAttn) {
             var why = [];
+            if (vm.nOffers) { why.push(vm.nOffers === 1 ? offerWho(vm.offers.filter(function (it) { return it._st === 'open'; })[0]) + ' suggested other times' : 'other times suggested'); }
             live.forEach(function (b) {
                 if (b._attn === 'pax') { why.push('a passenger declined'); }
                 else if (b._attn === 'pending') { why.push('not confirmed yet'); }
@@ -554,6 +646,270 @@ function BookingsV2Controller($rootScope, $scope, $state, $stateParams, $timeout
             var el = document.getElementById('bkg-bk-' + vm.openId);
             if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center' }); }
         }, 120);
+    }
+    function scrollToId(id) {
+        $timeout(function () {
+            var el = document.getElementById(id);
+            if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center' }); }
+        }, 120);
+    }
+
+    // ═══ Suggest a time (contract C44) — the student's side ═══
+    // An offer is an item of its own (the request was released when the times were sent), shaped like a booking card for
+    // the time ASKED for, plus offer{state, note, times[]…} and can_take / can_reply / can_cancel. Ended or not is
+    // offer.state only (never open_until: a taken or withdrawn offer keeps a future open_until).
+    function setOffers(list) {
+        if (!angular.isArray(list)) { list = []; }
+        var colours = {};      // instructor colours from the booking rows (an offer names people by id + name only)
+        vm.rows.forEach(function (b) { if (b.instructor && b.instructor.id && b.instructor.colour) { colours[b.instructor.id] = b.instructor.colour; } });
+        vm.offers = list.map(function (it) { return decorateOffer(it, colours); });
+    }
+
+    // a lesson request an instructor declined: one quiet line under "Your requests" for 48 h, with their reason when given
+    // (be-alex-3e: upcoming `declined[]` = { booking_id, declined_at, start, end, aircraft, lesson, course, by, reason })
+    function setDeclined(list) {
+        vm.declinedReqs = (angular.isArray(list) ? list : []).map(function (d) {
+            var by = d.by && String(d.by.name || '').trim() ? String(d.by.name).trim() : 'Your instructor';
+            var reg = d.aircraft && d.aircraft.reg ? d.aircraft.reg : '', reason = String(d.reason || '').trim();
+            return { id: +d.booking_id, raw: d, date: String(d.start || '').slice(0, 10),
+                txt: by + ' declined your request for ' + D.fDay(d.start) + ', ' + D.fTime(d.start) + (reg ? ' (' + reg + ')' : '') + (reason ? ' — “' + reason + '”' : '.'),
+                _search: [reg, by, d.lesson && d.lesson.title, d.course && d.course.title, d.club_name, reason, 'declined'].join(' ').toLowerCase() };
+        });
+    }
+
+    function ui(it) {
+        var id = it && it.offer_id;
+        if (!vm.ofs[id]) { vm.ofs[id] = { nowork: false, text: '', cancelAsk: false, busy: null, taking: null, err: null }; }
+        return vm.ofs[id];
+    }
+
+    function decorateOffer(it, colours) {
+        var o = it.offer = it.offer || {};
+        o.times = angular.isArray(o.times) ? o.times : [];
+        colours = colours || {};
+        var st = o.state === 'withdrawn' ? 'closed' : (o.state || 'closed');     // the student sees withdrawn as closed
+        var ins = it.instructor && it.instructor.name ? it.instructor : null;
+        var by = o.offered_by && o.offered_by.name ? o.offered_by : null;
+        var insF = ins ? D.firstName(ins.name) : '', byF = by ? D.firstName(by.name) : '';
+        var who = by || ins;
+        var asked = D.fDay(it.start) + ' at ' + D.fTime(it.start);
+        var until = o.open_until || o.expires_at || '';
+        it._st = st;
+        it._by = byF || insF || 'The club';                      // who suggested the times
+        it._to = insF || byF || 'the club';                      // who an answer goes to
+        it._insAv = ins ? { code: D.initials(ins.name), colour: colours[ins.id] || '' } : null;
+        it._av = who ? { code: D.initials(who.name), name: who.name, colour: colours[who.id] || '' } : null;
+        it._date = D.fDay(it.start);
+        it._askedShort = D.fDay(it.start) + ' ' + D.fTime(it.start);
+        // "Dana can't do Sun 15 Nov at 08:00 and has suggested other times." (an admin may send them on the instructor's behalf)
+        it._lead = ins && (!by || by.id === ins.id) ? insF + ' can\'t do ' + asked + ' and has suggested other times.'
+            : ins ? insF + ' can\'t do ' + asked + ', so ' + byF + ' has suggested other times.'
+            : 'The club can\'t do ' + asked + (by ? ', so ' + byF + ' has' : ' and has') + ' suggested other times.';
+        it._agreed = 'Take one and it\'s booked: ' + (insF ? insF + ' has' : 'the club has') + ' already agreed.';
+        it._sent = o.sent_at ? D.rel(o.sent_at, vm.today) : '';
+        it._until = until ? D.fDay(until) + ' ' + D.fTime(until) : '';
+        it._replied = o.replied_at ? D.rel(o.replied_at, vm.today) : '';
+        it._times = o.times.slice().sort(function (a, b) { return (+a.index || 0) - (+b.index || 0); }).map(function (t) {
+            var pl = t.plane || {};
+            // a replied / ended offer has nothing to take (alex-3e: every time reads gone until new times are sent)
+            var gone = st !== 'open' ? t.state !== 'taken' : (!!t.gone || t.state === 'gone');
+            var closes = t.closes_at ? String(t.closes_at) : '';
+            var soon = !gone && closes && until && closes < String(until);
+            var why = '';
+            if (t.same_aircraft) { why = 'The aircraft you asked for'; }
+            else if (it.aircraft) { why = 'Different aircraft' + (pl.type ? (it.aircraft.type && pl.type === it.aircraft.type ? ' · also a ' : ' · a ') + pl.type : ''); }
+            return {
+                index: +t.index || 0, plane: pl, same: !!t.same_aircraft, why: why, gone: gone, taken: t.state === 'taken',
+                when: D.fDay(t.start) + ' · ' + D.fTime(t.start) + '–' + D.fTime(t.end),
+                len: D.len(t.minutes || D.minutesBetween(t.start, t.end)),
+                sameDay: String(t.start).slice(0, 10) === String(it.date || it.start || '').slice(0, 10),
+                soon: soon ? D.rel(closes, vm.today) : '',
+                goneWhy: closes && closes <= vm.nowStr ? 'Gone: it could be taken until ' + D.rel(closes, vm.today) : 'Gone: someone else booked that time'
+            };
+        });
+        it._liveN = it._times.filter(function (t) { return !t.gone; }).length;
+        it._soonAny = it._times.some(function (t) { return !!t.soon; });
+        it._taken = it._times.filter(function (t) { return t.taken; })[0] || null;
+        it._end = endLine(it);
+        it._search = [it.aircraft && it.aircraft.reg, ins && ins.name, by && by.name, it.lesson && it.lesson.title, it.course && it.course.title,
+            it.club_name, it.notes, o.note, D.kindLabel(it.kind)].concat(o.times.map(function (t) { return t.plane && t.plane.reg; })).join(' ').toLowerCase();
+        return it;
+    }
+
+    // an ended offer as one quiet line (it stays listed for 48 h)
+    function endLine(it) {
+        var o = it.offer, asked = it._askedShort;
+        if (it._st === 'taken') {
+            var t = it._taken;
+            return { tone: 'good', icon: 'fa-check-circle', b: 'Booked', go: 'taken',
+                txt: t ? 'you took ' + t.when + (t.plane.reg ? ' in ' + t.plane.reg : '') + ', instead of ' + asked : 'you took one of the times offered instead of ' + asked };
+        }
+        if (it._st !== 'closed') { return null; }
+        if (o.closed_reason === 'cancelled') { return { tone: 'bad', icon: 'fa-times-circle', b: 'Cancelled', txt: 'your request for ' + asked + ' — nothing was booked, and ' + it._to + ' has been told.' }; }
+        if (o.closed_reason === 'withdrawn') { return { tone: 'muted', icon: 'fa-times-circle', b: 'Closed', go: 'book', txt: 'your request for ' + asked + ' was closed and the times withdrawn — nothing was booked.' + saidWhy(it) }; }
+        return { tone: 'muted', icon: 'fa-hourglass-end', b: 'Closed', go: 'book', txt: 'the times ' + it._by + ' suggested for ' + asked + ' ran out — nothing was booked.' };
+    }
+
+    // the instructor's reason for closing (DELETE …?reason= → offer.closed_note, C44), quoted when there is one
+    function saidWhy(it) {
+        var n = it.offer && it.offer.closed_note ? String(it.offer.closed_note).trim() : '';
+        return n ? ' ' + it._by + ' said: “' + n + '”' : '';
+    }
+
+    // ?offer={id} (the e-mail link): pick the offer out once — scroll to it and highlight it; an ended or unknown one gets a note
+    function landOffer() {
+        if (offerLanded || !vm.offerId) { return; }
+        offerLanded = true;
+        var it = null;
+        vm.offers.forEach(function (o) { if (+o.offer_id === vm.offerId) { it = o; } });
+        if (!it) {
+            vm.offerNote = { tone: 'info', icon: 'fa-info-circle', title: 'We couldn\'t find those times.',
+                text: 'Other times your instructor suggests stay here until two days after the request ends — this one has gone, or it was sent to another account. Your bookings are below.' };
+            return;
+        }
+        if (it._st === 'taken') {
+            vm.offerNote = { tone: 'good', icon: 'fa-check-circle', title: 'You\'ve already taken one of those times.',
+                text: it._taken ? 'It\'s booked: ' + it._taken.when + (it._taken.plane.reg ? ' in ' + it._taken.plane.reg : '') + '.' : 'It\'s in your bookings.' };
+        } else if (it._st === 'closed') {
+            vm.offerNote = { tone: 'info', icon: 'fa-info-circle', title: 'Those times are no longer open.',
+                text: it.offer.closed_reason === 'cancelled' ? 'You cancelled the request. Nothing was booked.'
+                    : it.offer.closed_reason === 'withdrawn' ? 'The request was closed and the times withdrawn. Nothing was booked.' + saidWhy(it)
+                    : 'Nobody took them before they ran out, so the request closed. Nothing was booked.' };
+        }
+        hiOffer(it.offer_id);
+    }
+    function hiOffer(id) {
+        vm.offerHi = id;
+        scrollToId('bkg-of-' + id);
+        $timeout(function () { if (vm.offerHi === id) { vm.offerHi = null; } }, 2600);
+    }
+
+    // the item a write returned replaces the old one in place (the card moves: Needs you → Your requests)
+    function replaceOffer(item) {
+        if (!item || !item.offer_id) { return; }
+        var colours = {};
+        vm.rows.forEach(function (b) { if (b.instructor && b.instructor.id && b.instructor.colour) { colours[b.instructor.id] = b.instructor.colour; } });
+        var done = false;
+        vm.offers = vm.offers.map(function (o) { if (+o.offer_id === +item.offer_id) { done = true; return decorateOffer(item, colours); } return o; });
+        if (!done) { vm.offers.push(decorateOffer(item, colours)); }
+        rebuild();
+    }
+
+    // Take this time → booked at once (the instructor already agreed); the new confirmed booking appears with "Booked just now"
+    function take(it, t) {
+        var u = ui(it);
+        if (u.busy || !it.can_take || !t || t.gone) { return; }
+        u.busy = 'take'; u.taking = t.index; u.err = null;
+        D.TakeOffer(it.offer_id, t.index).then(function (res) {
+            u.busy = null; u.taking = null;
+            if (res && res.success) {
+                u.nowork = false; u.cancelAsk = false;
+                vm.justBooked = parseInt(res.booking_id, 10) || null;
+                if (res.offer) { replaceOffer(res.offer); }
+                else { it.offer.state = 'taken'; it.offer.taken_booking_id = vm.justBooked; replaceOffer(it); }
+                ToastService.success('Booked', t.when + (t.plane.reg ? ' in ' + t.plane.reg : '') + (it._insAv ? ' with ' + it._to : '') + '. You\'ve both been e-mailed a calendar invite.', { confetti: false });
+                fetch(false).then(function () { if (vm.justBooked) { scrollToId('bkg-bk-' + vm.justBooked); } });
+                return;
+            }
+            failed(it, 'take', res);
+        });
+    }
+
+    // None of these work → ask for other times (with an optional note)
+    function askAgain(it) {
+        var u = ui(it);
+        if (u.busy || !it.can_reply) { return; }
+        u.busy = 'reply'; u.err = null;
+        D.ReplyOffer(it.offer_id, String(u.text || '').trim()).then(function (res) {
+            u.busy = null;
+            if (res && res.success) {
+                u.nowork = false; u.cancelAsk = false;
+                if (res.offer) { replaceOffer(res.offer); } else { fetch(false); }
+                ToastService.success('Sent', it._to + ' will suggest other times or let you know.', { confetti: false });
+                return;
+            }
+            failed(it, 'reply', res);
+        });
+    }
+
+    // …or cancel the request (open or replied): nothing is booked, the instructor is told
+    function cancelOffer(it) {
+        var u = ui(it);
+        if (u.busy || !it.can_cancel) { return; }
+        u.busy = 'cancel'; u.err = null;
+        D.CancelOffer(it.offer_id).then(function (res) {
+            u.busy = null;
+            if (res && res.success) {
+                u.nowork = false; u.cancelAsk = false;
+                if (res.offer) { replaceOffer(res.offer); } else { fetch(false); }
+                ToastService.success('Request cancelled', 'Nothing is booked, and ' + it._to + ' has been told.', { confetti: false });
+                return;
+            }
+            failed(it, 'cancel', res);
+        });
+    }
+
+    // a refused write, in words: shown in the card (ToastService.handledInline() keeps the write guard's "Not saved" quiet);
+    // when the answer means the offer moved on, the list is read again — and if the card left "Needs you", a toast says it
+    function failed(it, action, res) {
+        var u = ui(it), code = res && res.error, nm = it._to;
+        var cap = nm.charAt(0).toUpperCase() + nm.slice(1);
+        var msg;
+        if (code === 'TIME_GONE') {
+            msg = { title: 'Someone else has just booked that time.', text: res.offer_state === 'closed'
+                ? 'It was the last one left, so the request has closed — nothing was booked.'
+                : 'Take one of the others, or tell ' + nm + ' none of them work.' };
+        } else if (code === 'NOT_OPEN') {
+            var s = res.state;
+            msg = s === 'taken' ? { title: 'You\'ve already taken one of these times.', text: 'It\'s in your bookings below.' }
+                : s === 'replied' ? { title: 'You\'ve already asked for other times.', text: cap + ' will suggest new ones or let you know.' }
+                : s === 'closed' || s === 'withdrawn' ? { title: 'This request has closed.', text: 'Nothing was booked. You can book another time from the scheduler.' }
+                : { title: 'These times are no longer open.', text: 'Nothing was booked.' };
+        } else if (code === 'VOUCHER_IN_USE') {
+            msg = { title: 'Your voucher is already on another booking.', text: 'The voucher on this request has been used since you asked, so this time can\'t be booked with it. Call the club, or ask ' + nm + ' for other times.' };
+        } else if (code === 'FORBIDDEN') {
+            msg = { title: 'Only the member who asked can answer these times.', text: 'They were offered to another account — log in as that member to answer them.' };
+        } else if (code === 'NOT_FOUND') {
+            msg = { title: 'These times aren\'t there any more.', text: 'The offer may have been withdrawn. Nothing was booked.' };
+        } else if (code === 'BUSY') {
+            msg = { title: action === 'take' ? 'Not booked yet.' : 'Not sent yet.', text: 'Someone else was answering at the same moment — please try again.' };
+        } else if (code === 'SAVE_FAILED') {
+            msg = { title: 'Not booked.', text: 'The booking couldn\'t be made and nothing was changed — please try again.' };
+        } else if (code === 'VALIDATION_ERROR') {
+            msg = { title: 'Not sent.', text: textOf(res.message) || 'Please check the note and try again.' };
+        } else {
+            var st = res && res.status;
+            msg = { title: action === 'take' ? 'Not booked.' : action === 'reply' ? 'Not sent.' : 'Not cancelled.',
+                text: !res || st === -1 || st === 0 ? 'The connection to ToAviate dropped — nothing has changed. Please try again.'
+                    : st >= 500 ? 'ToAviate had a problem with that — nothing has changed. Please try again in a moment.'
+                    : (textOf(res.message) || 'Nothing has changed. Please try again.') };
+        }
+        u.err = msg;
+        ToastService.handledInline();
+        if (code === 'TIME_GONE' || code === 'NOT_OPEN' || code === 'NOT_FOUND') {
+            var id = it.offer_id;
+            fetch(false).then(function () {
+                var now = null;
+                vm.offers.forEach(function (o) { if (+o.offer_id === +id) { now = o; } });
+                if (!now || now._st !== 'open') { u.err = null; ToastService.warning(msg.title, msg.text); }
+            });
+        }
+    }
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return /^\s*</.test(m) ? '' : m; } return m.message || ''; }
+
+    // "Show booking" on a taken offer: open the new booking in the list (loading more pages if it's further on)
+    function showTaken(it) {
+        var id = it && it.offer && it.offer.taken_booking_id;
+        if (!id) { return; }
+        var found = vm.rows.some(function (b) { return b.id === id && !b._cancelled; });
+        if (found) { vm.loadTries = 0; vm.filter = 'all'; vm.openId = id; rebuild(); scrollToOpen(); return; }
+        if (vm.pagination && vm.pagination.has_more && (vm.loadTries || 0) < 6) {
+            vm.loadTries = (vm.loadTries || 0) + 1;
+            more().then(function () { showTaken(it); });
+            return;
+        }
+        vm.loadTries = 0;
+        $state.go('dashboard.my_account.booking_audit_trail', { booking_id: id });
     }
 
     $scope.$on('$destroy', function () { if (qTimer) { $timeout.cancel(qTimer); } });

@@ -1,0 +1,95 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     v2 · Availability & time off · "Time off" — mockups/instructor-dashboard/availability.html, page "holidays".
+     InsAvailabilityV2Controller (js/v2/instructor_availability/instructor_availability.js) · css/v2/instructor-availability.css (.iav-*)
+     GET instructor_availability/v2/mine (time_off.upcoming with clashes, time_off.past) · DELETE instructor_holiday/{id}
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page iav-page" ng-class="{'ta-page--has-bar': vm.hasBar()}" data-e2e="iav-holidays">
+
+  <!-- ── page bar ── -->
+  <section class="ta-bar iav-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-calendar-check"></i></span><div><ins-tag></ins-tag><h2>Availability &amp; time off</h2><p>When students can book a lesson with you, and when you're away</p></div></div>
+      <div class="iav-baracts"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.addNew()" no-busy-guard data-e2e="iav-add"><i class="fas fa-plus"></i>Add time off</button></div>
+      <span class="iav-classic ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="ta-tabs" role="tablist" aria-label="Availability and time off">
+        <button type="button" class="ta-tab" role="tab" aria-selected="false" ng-click="vm.go('weekly')" no-busy-guard data-e2e="iav-tab-weekly"><i class="fas fa-calendar-week"></i>When you teach</button>
+        <button type="button" class="ta-tab ta-tab--on" role="tab" aria-selected="true" no-busy-guard><i class="fas fa-umbrella-beach"></i>Time off<span class="ta-tab__n" ng-if="vm.up.length">{{ vm.up.length }}</span></button>
+      </div>
+    </div>
+    <div class="iav-classic-row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading ── -->
+  <div class="ta-tiles" ng-if="vm.load === 'loading'"><div class="ta-skel iav-skel-a"></div><div class="ta-skel iav-skel-a"></div><div class="ta-skel iav-skel-a"></div></div>
+  <div class="ta-skel iav-skel-b" ng-if="vm.load === 'loading'"></div>
+
+  <!-- ── couldn't load ── -->
+  <section class="ta-card iav-fade" ng-if="vm.load === 'error'">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-circle"></i></span><h4>Your time off didn't load</h4><p>{{ vm.loadMsg }}</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></div>
+  </section>
+
+  <div class="ta-note ta-note--info iav-note iav-fade" ng-if="vm.load === 'ready'"><i class="fas fa-umbrella-beach"></i><div>Time off counts <b>at every club</b> you teach at. Students can't book a lesson with you while you're off; club staff can still override. Lessons already booked stay booked — they're listed under each one so you can move them.</div></div>
+
+  <!-- ── nothing at all ── -->
+  <section class="ta-card iav-fade" ng-if="vm.load === 'ready' && !vm.up.length && !vm.past.length" data-e2e="iav-hol-empty">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-umbrella-beach"></i></span><h4>No time off booked</h4><p>Add holidays, training days or appointments, and students won't be able to book you then.</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.addNew()" no-busy-guard><i class="fas fa-plus"></i>Add time off</button></div></div>
+  </section>
+
+  <!-- ── tiles: the next one · lessons to move · days off this year ── -->
+  <div class="ta-tiles iav-tiles" ng-if="vm.load === 'ready' && (vm.up.length || vm.past.length)" data-e2e="iav-tiles">
+    <div class="ta-tile ta-tile--progress ins-rise" ng-if="vm.up.length" style="--i: 0"><span class="ta-tile__k"><i class="fas fa-umbrella-beach"></i>Next time off</span><span class="ta-tile__v ta-tile__v--words">{{ vm.nextWhen(vm.up[0]) }}</span><span class="ta-tile__s">{{ vm.title(vm.up[0]) }} · {{ vm.D.holLen(vm.up[0]) }} · {{ vm.nextIn(vm.up[0]) }}</span></div>
+    <div class="ta-tile ta-tile--attn ins-rise" ng-if="vm.clashTotal()" style="--i: 1" data-e2e="iav-tile-clash"><span class="ta-tile__k"><i class="fas fa-exclamation-triangle"></i>Lessons to move</span><span class="ta-tile__v">{{ vm.clashTotal() }}</span><span class="ta-tile__s">{{ vm.clashTotal() === 1 ? 'booking with you falls' : 'bookings with you fall' }} in your time off and still stand</span><button type="button" class="ta-tile__go" ng-click="vm.showClash()" no-busy-guard data-e2e="iav-showclash">Show {{ vm.clashTotal() === 1 ? 'it' : 'them' }} <i class="fas fa-arrow-right"></i></button></div>
+    <div class="ta-tile ins-rise" ng-if="!vm.clashTotal() && vm.up.length" style="--i: 1"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>Lessons to move</span><span class="ta-tile__v ta-tile__v--words ta-tile__v--quiet">None</span><span class="ta-tile__s">No booking with you falls in your time off</span></div>
+    <div class="ta-tile ins-rise" style="--i: 2"><span class="ta-tile__k"><i class="fas fa-calendar"></i>Days off in {{ vm.year }}</span><span class="ta-tile__v">{{ vm.daysOff().days }}</span><span class="ta-tile__s">whole days, taken and planned{{ vm.daysOff().parts ? ' · plus ' + vm.C.plural(vm.daysOff().parts, 'part day') : '' }}</span></div>
+  </div>
+
+  <!-- ── the list: coming up first, past folded away ── -->
+  <section class="ta-list iav-list" ng-if="vm.load === 'ready' && (vm.up.length || vm.past.length)" data-e2e="iav-hol-list">
+    <div class="ta-list__cols"><span></span><span>Time off</span><span>Length</span><span>Lessons</span><span></span></div>
+    <div class="ta-group"><span><i class="fas fa-calendar-alt"></i>Coming up</span><span>{{ vm.up.length }}</span></div>
+
+    <div class="ta-row ins-rise" ng-repeat="h in vm.up track by h.id" id="iav-hol-{{ h.id }}" ng-class="{'ta-row--open': vm.holOpen === h.id, 'ta-row--hi': vm.hiHol === h.id, 'iav-leaving': h._leaving}" ng-attr-style="--i: {{ $index }}" data-e2e="iav-hol">
+      <button type="button" class="ta-row__main" ng-click="vm.toggleHol(h)" aria-expanded="{{ vm.holOpen === h.id }}" no-busy-guard>
+        <span class="ta-row__lead"><span class="ta-ic ta-ic--group"><i class="fas" ng-class="h.all_day ? 'fa-umbrella-beach' : 'fa-clock'"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ vm.title(h) }}</span><span class="ta-row__sub">{{ vm.when(h, false) }}</span></span>
+        <span class="ta-row__end"><span class="iav-len">{{ vm.D.holLen(h) }}</span></span>
+        <span class="ta-row__meta"><span class="ta-pill ta-pill--warn" ng-if="h.clashes.length"><i class="fas fa-exclamation-triangle"></i>{{ vm.C.plural(h.clashes.length, 'lesson') }} to move</span><span class="ta-pill ta-pill--good" ng-if="!h.clashes.length"><i class="fas fa-check"></i>No lessons booked</span></span>
+        <span class="ta-row__acts"><i class="fas ta-muted" ng-class="vm.holOpen === h.id ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></span>
+        <span class="ta-row__chev" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="vm.holOpen === h.id">
+        <div class="ta-note ta-note--warn" ng-if="h.clashes.length"><i class="fas fa-exclamation-triangle"></i><div><b>{{ vm.C.plural(h.clashes.length, 'booking') }} with you {{ h.clashes.length === 1 ? 'falls' : 'fall' }} in this time off.</b> {{ h.clashes.length === 1 ? 'It stays' : 'They stay' }} booked: move {{ h.clashes.length === 1 ? 'it' : 'them' }} or hand {{ h.clashes.length === 1 ? 'it' : 'them' }} to another instructor on the scheduler.</div></div>
+        <div class="iav-clash" ng-if="h.clashes.length"><button type="button" class="iav-clash__r ins-rise" ng-repeat="b in h.clashes track by b.booking_id" ng-attr-style="--i: {{ $index }}{{ vm.C.ac(b.aircraft).colour ? '; --ac: ' + vm.C.ac(b.aircraft).colour : '' }}" ng-click="vm.openBooking(b)" title="Open it on the scheduler" no-busy-guard data-e2e="iav-clash"><b>{{ b.aircraft.reg || 'No aircraft' }}</b><span>{{ vm.D.clashWhen(b) }}</span><span class="iav-clash__w"><span class="ta-av ta-av--member ta-av--sm" aria-hidden="true"><i class="fas fa-user"></i></span><span>{{ vm.D.clashWho(b) }}</span></span></button></div>
+        <dl class="ta-facts ta-facts--3"><div class="ta-fact"><dt>From</dt><dd>{{ vm.C.fDayLong(h.from) }}<small>{{ h.all_day ? ' · start of the day' : ' · ' + vm.C.fTime(h.from) }}</small></dd></div><div class="ta-fact"><dt>Until</dt><dd>{{ vm.C.fDayLong(vm.D.holLast(h)) }}<small>{{ h.all_day ? ' · end of the day' : ' · ' + vm.C.fTime(h.to) }}</small></dd></div><div class="ta-fact"><dt>Added</dt><dd>{{ h.created_at ? vm.C.fDate(h.created_at) : '—' }}</dd></div></dl>
+        <div class="ta-confirm" ng-if="vm.holAsk === h.id"><span><b>Remove “{{ vm.title(h) }}”?</b> Students can book you on {{ h.all_day && vm.D.holDays(h) > 1 ? 'those days' : 'that day' }} again.</span><div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepHol()" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.removeHol(h, false)" ng-disabled="vm.holBusy" no-busy-guard data-e2e="iav-hol-delok"><span class="ta-spin" ng-if="vm.holBusy"></span>{{ vm.holBusy ? 'Removing…' : 'Remove time off' }}</button></div></div>
+        <div class="ta-detail__foot" ng-if="vm.holAsk !== h.id"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.changeHol(h)" no-busy-guard data-e2e="iav-hol-change"><i class="fas fa-pen"></i>Change</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.askHolDel(h)" no-busy-guard data-e2e="iav-hol-del"><i class="fas fa-trash-alt"></i>Remove</button></div>
+      </div>
+    </div>
+    <div class="ta-empty" ng-if="!vm.up.length"><span class="ta-empty__ic"><i class="fas fa-umbrella-beach"></i></span><h4>Nothing coming up</h4><p>Add your next holiday or training day so students can't book you then.</p></div>
+
+    <button type="button" class="ta-group iav-past" ng-if="vm.past.length" ng-click="vm.togglePast()" aria-expanded="{{ vm.showPast }}" no-busy-guard data-e2e="iav-past"><span><i class="fas" ng-class="vm.showPast ? 'fa-chevron-down' : 'fa-chevron-right'"></i>Past</span><span>{{ vm.past.length }}</span></button>
+    <div class="ta-row ins-rise" ng-repeat="h in (vm.showPast ? vm.past : []) track by h.id" ng-class="{'ta-row--open': vm.holOpen === h.id, 'iav-leaving': h._leaving}" ng-attr-style="--i: {{ $index }}" data-e2e="iav-hol-past">
+      <button type="button" class="ta-row__main" ng-click="vm.toggleHol(h)" aria-expanded="{{ vm.holOpen === h.id }}" no-busy-guard>
+        <span class="ta-row__lead"><span class="ta-ic"><i class="fas" ng-class="h.all_day ? 'fa-umbrella-beach' : 'fa-clock'"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ vm.title(h) }}</span><span class="ta-row__sub">{{ vm.when(h, true) }}</span></span>
+        <span class="ta-row__end"><span class="iav-len">{{ vm.D.holLen(h) }}</span></span>
+        <span class="ta-row__meta"><span class="ta-pill ta-pill--muted"><i class="fas fa-check"></i>Taken</span></span>
+        <span class="ta-row__acts"><i class="fas ta-muted" ng-class="vm.holOpen === h.id ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></span>
+        <span class="ta-row__chev" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="vm.holOpen === h.id">
+        <dl class="ta-facts ta-facts--3"><div class="ta-fact"><dt>From</dt><dd>{{ vm.C.fDayLong(h.from) }}<small>{{ h.all_day ? ' · start of the day' : ' · ' + vm.C.fTime(h.from) }}</small></dd></div><div class="ta-fact"><dt>Until</dt><dd>{{ vm.C.fDayLong(vm.D.holLast(h)) }}<small>{{ h.all_day ? ' · end of the day' : ' · ' + vm.C.fTime(h.to) }}</small></dd></div><div class="ta-fact"><dt>Added</dt><dd>{{ h.created_at ? vm.C.fDate(h.created_at) : '—' }}</dd></div></dl>
+        <div class="ta-confirm" ng-if="vm.holAsk === h.id"><span><b>Remove “{{ vm.title(h) }}”?</b> It drops off your list.</span><div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepHol()" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.removeHol(h, true)" ng-disabled="vm.holBusy" no-busy-guard><span class="ta-spin" ng-if="vm.holBusy"></span>{{ vm.holBusy ? 'Removing…' : 'Remove time off' }}</button></div></div>
+        <div class="ta-detail__foot" ng-if="vm.holAsk !== h.id"><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.askHolDel(h)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- phones: the one action in the bottom bar -->
+  <div class="ta-actionbar ta-phone-only" ng-if="vm.load === 'ready'"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.addNew()" no-busy-guard><i class="fas fa-plus"></i>Add time off</button></div>
+</main>

@@ -1,0 +1,337 @@
+/* ToAviateDisplay — library stylesheet for the clubhouse TV (schedule display v2). Root class .tad, every class tad-*.
+   Visual source of truth: mockups/schedule-display/tv.html (approved by the owner, 11 Nov 2026); the rules below are its
+   tv-* rules renamed. Every colour is a custom property on .tad: each one falls back to the app's --ta-* token, so the TV
+   follows css/ta-base.css, and body.night-mode (css/ta-night.css) gives the dark theme. Fixed colours: the aircraft
+   (--ac), instructor (--av) and booking-type (--k) colours come in with the data.
+   The canvas: the host makes 1rem = screen height / 54 (css/schedule-display-v2.css: html.sdv-html) and gives .tad's
+   parent the full height; the library fits rows to that height and turns pages, so nothing ever scrolls.
+   No container queries, :has or ES6 (TV browsers run old engines): chip narrowing is measured in JS. */
+
+.tad {
+    --tad-font: var(--ta-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+    --tad-grad: var(--ta-grad, linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%));
+    --tad-accent: var(--ta-accent, #2d5a8e);
+    --tad-group: var(--ta-group, #ddecfa);
+    --tad-ink: var(--ta-ink, #1e293b);
+    --tad-ink-2: var(--ta-ink-2, #334155);
+    --tad-muted: var(--ta-muted, #64748b);
+    --tad-faint: var(--ta-faint, #94a3b8);
+    --tad-ground: var(--ta-ground, #f1f5f9);
+    --tad-paper: var(--ta-paper, #ffffff);
+    --tad-paper-2: var(--ta-paper-2, #f8fafc);
+    --tad-paper-3: var(--ta-paper-3, #f1f5f9);
+    --tad-line: var(--ta-line, #e2e8f0);
+    --tad-line-2: var(--ta-line-2, #cbd5e1);
+    --tad-good: var(--ta-good, #16a34a);
+    --tad-good-bg: var(--ta-good-bg, #dcfce7);
+    --tad-good-ink: var(--ta-good-ink, #166534);
+    --tad-good-line: var(--ta-good-line, #86efac);
+    --tad-good-wash: var(--ta-good-wash, #f0fdf4);
+    --tad-warn: var(--ta-warn, #d97706);
+    --tad-warn-bg: var(--ta-warn-bg, #fef3c7);
+    --tad-warn-ink: var(--ta-warn-ink, #92400e);
+    --tad-warn-line: var(--ta-warn-line, #fcd34d);
+    --tad-warn-wash: var(--ta-warn-wash, #fffbeb);
+    --tad-bad: var(--ta-bad, #dc2626);
+    --tad-info-bg: var(--ta-info-bg, #dbeafe);
+    --tad-info-ink: var(--ta-info-ink, #1e40af);
+    --tad-info-line: var(--ta-info-line, #bfdbfe);
+    --tad-t-dual: var(--ta-t-dual, #2d5a8e);
+    --tad-t-solo: var(--ta-t-solo, #7c3aed);
+    --tad-t-hire: var(--ta-t-hire, #0d9488);
+    --tad-t-trial: var(--ta-t-trial, #d97706);
+    --tad-t-maint: var(--ta-t-maint, #94a3b8);
+    --tad-wash-solo: var(--ta-wash-solo, #f2ebfd);
+    --tad-wash-hire: var(--ta-wash-hire, #e7f4f3);
+    --tad-wash-trial: var(--ta-wash-trial, #fbf1e6);
+    --tad-shadow-1: var(--ta-shadow-1, 0 1px 3px rgba(30, 58, 95, 0.06));
+    --tad-on-colour: #ffffff;   /* text on an aircraft / instructor / booking-type colour and on the red now-tag */
+    --tad-on-light: #1e293b;    /* text on a light aircraft / instructor colour (a white aircraft), in both themes */
+    --tad-edge-light: #94a3b8;  /* the edge of a near-white aircraft / instructor colour, so it shows on white paper */
+    --tad-plate: #ffffff;       /* the light plate under a logo in the dark theme (the ToAviate logo, a club logo) */
+
+    box-sizing: border-box;
+    background: var(--tad-ground);
+    color: var(--tad-ink);
+    font-family: var(--tad-font);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.3;
+    text-align: left;
+}
+.tad *, .tad *::before, .tad *::after { box-sizing: border-box; }
+/* The app's legacy element rules (css/styles.css: * { font-family: Arial }, ul li grey + pointer + hover underline,
+   section { padding-bottom: 50px }, the reset's font: inherit on b) undone inside the display at their own weight
+   (:where() adds nothing), so every tad-* class still wins — the core.css pattern. */
+:where(.tad) * { font-family: inherit; }
+:where(.tad) section, :where(.tad) header, :where(.tad) aside { margin: 0; padding: 0; }
+:where(.tad) ul li { color: inherit; cursor: inherit; transition: none; }
+:where(.tad) ul li:hover { color: inherit; text-decoration: none; }
+:where(.tad) strong { color: inherit; }
+
+.tad { height: 100%; padding: 1.1rem 1.6rem; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0.9rem; }   /* ~3% overscan margin */
+.tad--notes { grid-template-rows: auto minmax(0, 1fr) auto; }
+.tad b, .tad strong { font-weight: 800; }
+
+/* ── header ── */
+.tad-hd { display: flex; align-items: center; gap: 1.2rem; height: 3.4rem; min-width: 0; }
+.tad-hd__club { display: flex; align-items: center; gap: 0.8rem; flex: none; }   /* the club name never gives way; the weather does */
+.tad-mono { flex: none; width: 2.9rem; height: 2.9rem; border-radius: 0.7rem; background: var(--tad-grad); color: var(--tad-on-colour); display: grid; place-items: center; font-weight: 800; font-size: 0.9rem; letter-spacing: 0.04em; }
+.tad-hd__club > div { min-width: 0; }
+.tad-hd__name { display: block; overflow: hidden; text-overflow: ellipsis; max-width: 30rem; font-size: 1.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; white-space: nowrap; }
+.tad-hd__sub { display: block; font-size: 0.85rem; color: var(--tad-muted); font-weight: 700; }
+.tad-hd__mode { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.9rem; border-radius: 999px; background: var(--tad-info-bg); color: var(--tad-info-ink); border: 1px solid var(--tad-info-line); font-size: 0.9rem; font-weight: 800; white-space: nowrap; }
+.tad-hd__mode span { font-weight: 600; }
+/* another day than today (owner, 11 Nov): a red, bigger TOMORROW / weekday + date, read from across the room */
+.tad-hd__mode--other { background: var(--tad-bad-bg, #fef2f2); color: var(--tad-bad-ink, #b91c1c); border-color: var(--tad-bad-line, #fca5a5); font-size: 1.25rem; letter-spacing: 0.06em; padding: 0.4rem 1.1rem; }
+.tad-hd__mode--other i { color: var(--tad-bad, #dc2626); }
+.tad-hd__live { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--tad-good-ink); font-size: 0.82rem; font-weight: 800; white-space: nowrap; }
+.tad-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--tad-good); box-shadow: 0 0 0 0.2rem var(--tad-good-bg); }
+.tad-hd__live--off { color: var(--tad-warn-ink); }
+.tad-hd__live--off .tad-dot { background: var(--tad-warn); box-shadow: 0 0 0 0.2rem var(--tad-warn-line); }
+.tad-hd__when { flex: none; margin-left: auto; display: flex; align-items: center; gap: 1rem; white-space: nowrap; }
+.tad-hd__wx + .tad-hd__when { margin-left: 0; }
+.tad-hd__dl { display: grid; gap: 0.15rem; text-align: right; }
+.tad-hd__date { font-size: 1.15rem; font-weight: 700; color: var(--tad-ink-2); }
+.tad-hd__clock { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ── main area ── */
+.tad-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; min-height: 0; }
+.tad-main--side { grid-template-columns: minmax(0, 1fr) 25rem; }
+.tad-card { background: var(--tad-paper); border: 1px solid var(--tad-line); border-radius: 0.8rem; box-shadow: var(--tad-shadow-1); }
+.tad-card__h { display: flex; align-items: center; gap: 0.55rem; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-muted); }
+.tad-card__h > i { color: var(--tad-accent); font-size: 0.85rem; }
+.tad-card__meta { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 700; color: var(--tad-faint); }
+
+/* ── timeline: aircraft rows only; instructors ride on the bookings as initials ── */
+.tad-tl { --lab: 9.5rem; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.tad-tl--people { --lab: 11.5rem; }   /* instructor names need a little more than a registration */
+.tad-tl--fit { height: auto; align-self: start; }
+.tad-tl__axis { flex: none; display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); height: 2.2rem; border-bottom: 1px solid var(--tad-line); background: var(--tad-paper-2); border-radius: 0.8rem 0.8rem 0 0; }
+.tad-tl__axis-k { display: flex; align-items: center; gap: 0.6rem; padding-left: 1rem; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-muted); }
+.tad-tl__hours { position: relative; }
+.tad-tl__h { position: absolute; top: 0; bottom: 0; left: var(--l); display: flex; align-items: center; transform: translateX(-50%); font-size: 0.85rem; font-weight: 700; color: var(--tad-muted); font-variant-numeric: tabular-nums; }
+.tad-tl__h--first { transform: none; padding-left: 0.35rem; }
+.tad-tl__nowtag { position: absolute; top: 50%; left: var(--l); transform: translate(-50%, -50%); padding: 0.12rem 0.5rem; border-radius: 999px; background: var(--tad-bad); color: var(--tad-on-colour); font-size: 0.8rem; font-weight: 800; font-variant-numeric: tabular-nums; z-index: 2; }
+.tad-info { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 1rem; background: var(--tad-info-bg); border-bottom: 1px solid var(--tad-info-line); color: var(--tad-info-ink); font-size: 0.9rem; font-weight: 700; }
+.tad-stale { flex: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 1rem; background: var(--tad-warn-wash); border-bottom: 1px solid var(--tad-warn-line); color: var(--tad-warn-ink); font-size: 0.9rem; font-weight: 700; }
+.tad-tl__body { flex: 1 1 auto; min-height: 0; position: relative; }
+.tad-tl--fit .tad-tl__body { flex: none; }
+.tad-tl__grid { position: absolute; top: 0; bottom: 0; left: var(--lab); right: 0; pointer-events: none; }
+.tad-past { position: absolute; top: 0; bottom: 0; left: 0; width: var(--l); background: var(--tad-paper-2); }
+.tad-hline { position: absolute; top: 0; bottom: 0; left: var(--l); width: 1px; background: var(--tad-line); }
+.tad-now { position: absolute; top: 0; bottom: 0; left: var(--l); width: 0.15rem; margin-left: -0.075rem; background: var(--tad-bad); }   /* behind the bookings: it never crosses a name */
+.tad-rows { position: relative; height: 100%; }
+.tad-row { height: calc(var(--row-h, 3rem) * var(--rk, 1)); display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); border-bottom: 1px solid var(--tad-line); }
+/* group headings (the scheduler's group-row colour): Instructors / Aircraft / Hire, solo & maintenance */
+.tad-grp { position: relative; z-index: 1; height: 1.7rem; display: flex; align-items: center; gap: 0.5rem; padding: 0 1rem; background: var(--tad-group); border-bottom: 1px solid var(--tad-line); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-ink-2); white-space: nowrap; }
+.tad-grp i { color: var(--tad-accent); }
+.tad-grp span { text-transform: none; letter-spacing: 0; font-weight: 700; color: var(--tad-muted); overflow: hidden; text-overflow: ellipsis; }
+.tad-row__ins { gap: 0.55rem; }
+.tad-row__ins .tad-av { margin-left: 0; width: 1.9rem; height: 1.9rem; font-size: 0.72rem; }
+.tad-row__name { min-width: 0; font-size: 1.05rem; font-weight: 800; overflow: hidden; }   /* wraps; never an ellipsis (fitNames) */
+.tad-row__line { gap: 0.5rem; border-left-color: transparent; background: var(--tad-paper-2); color: var(--tad-muted); font-size: 0.9rem; font-weight: 800; }
+.tad-row__line i { color: var(--tad-t-hire); }
+.tad-row__ac { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.8rem 0 0.75rem; border-left: 0.35rem solid var(--ac-edge, var(--ac)); background: var(--tad-paper); min-width: 0; position: relative; z-index: 1; }
+.tad-row__reg { font-size: 1.15rem; font-weight: 800; white-space: nowrap; letter-spacing: 0.01em; }
+.tad-row__type { margin-left: auto; font-size: 0.78rem; font-weight: 800; color: var(--tad-muted); }
+.tad-row__lane { position: relative; }
+
+/* booking chips: the scheduler's language — type icon square, aircraft colour edge, instructor initials */
+.tad-chip { position: absolute; top: calc(0.28rem + (100% - 0.56rem) * var(--lt, 0)); height: calc((100% - 0.56rem) * var(--lh, 1) - var(--lg, 0rem)); left: var(--l); width: calc(var(--w) - 0.25rem); display: flex; align-items: center; gap: 0.45rem; padding: 0 0.4rem 0 0.45rem; border-radius: 0.5rem; background: var(--tad-paper); border: 1px solid var(--tad-line-2); border-left: 0.3rem solid var(--ac-edge, var(--ac)); box-shadow: var(--tad-shadow-1); overflow: hidden; z-index: 2; }
+.tad-chip--solo { background: var(--tad-wash-solo); }
+.tad-chip--hire { background: var(--tad-wash-hire); }
+.tad-chip--trial { background: var(--tad-wash-trial); }
+.tad-chip--maint { background: repeating-linear-gradient(135deg, var(--tad-paper-3) 0 0.45rem, var(--tad-paper-2) 0.45rem 0.9rem); border-left-color: var(--tad-t-maint); box-shadow: none; }
+.tad-chip--past { opacity: 0.42; box-shadow: none; }
+.tad-kind { flex: none; width: 1.45rem; height: 1.45rem; border-radius: 0.4rem; display: grid; place-items: center; color: var(--tad-on-colour); font-size: 0.72rem; background: var(--k, var(--tad-t-dual)); }
+.tad-kind--dual { --k: var(--tad-t-dual); } .tad-kind--solo { --k: var(--tad-t-solo); } .tad-kind--hire { --k: var(--tad-t-hire); }
+.tad-kind--trial { --k: var(--tad-t-trial); } .tad-kind--maint { --k: var(--tad-t-maint); }
+.tad-chip__txt { flex: 0 0 auto; display: flex; flex-direction: column; line-height: 1.12; }   /* never shrinks under the registration: a tight booking overflows, and fitChips sees it */
+/* a short booking (2.1rem or less inside) puts the name and its aircraft / times on one line. The mockup did this with a
+   container query; TV browsers are too old for those, so the library measures each chip and adds tad-chip--row. */
+.tad-chip--row .tad-chip__txt { flex-direction: row; align-items: baseline; gap: 0.45rem; }
+.tad-chip__who { font-size: 1rem; font-weight: 800; white-space: nowrap; }
+/* Names and aircraft are never cut (owner, 9 Nov). A booking too narrow for everything sheds, in order: its times (when
+   shown), the instructor initials, the full registration (G-BMTJ → TJ), the type icon; then smaller type, the smallest
+   type, a right-aligned aircraft mark dropping under the name, the name stacked over the aircraft, and last the name
+   wrapping. Measured on screen per booking (fitChips: overflow, or the name running under the mark). */
+.tad-chip--notime .tad-chip__time { display: none; }
+.tad-chip__reg--end { margin-left: auto; padding: 0.12rem 0.45rem 0.12rem 0.4rem; font-size: 0.9rem; }
+.tad-chip--small .tad-chip__reg--end { font-size: 0.72rem; padding: 0.05rem 0.3rem; }
+.tad-reg-short { display: none; }
+/* the aircraft as its last letters on its colour: a disc (like the instructor initials), or a tile (keeps "circle =
+   instructor" true, the app-wide rule) */
+.tad-acbadge { flex: none; display: inline-grid; place-items: center; min-width: 1.8rem; height: 1.8rem; padding: 0 0.32rem; border-radius: 999px; background: var(--ac); color: var(--ac-ink, var(--tad-on-colour)); box-shadow: inset 0 0 0 1px var(--ac-edge, transparent); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.03em; line-height: 1; }
+.tad-acbadge--tile { border-radius: 0.45rem; }
+.tad-acbadge--end { margin-left: auto; }
+.tad-chip__sub .tad-acbadge { min-width: 1.4rem; height: 1.4rem; font-size: 0.68rem; padding: 0 0.25rem; }
+.tad-chip--small .tad-acbadge { min-width: 1.4rem; height: 1.4rem; font-size: 0.66rem; }
+.tad-chip--shortreg .tad-reg-full { display: none; }
+.tad-chip--shortreg .tad-reg-short { display: inline; }
+.tad-chip--noav .tad-av { display: none; }
+.tad-chip--noicon .tad-kind { display: none; }
+.tad-chip--small { gap: 0.3rem; padding: 0 0.3rem; }
+.tad-chip--small .tad-chip__who { font-size: 0.82rem; }
+.tad-chip--small .tad-chip__reg { font-size: 0.64rem; }
+.tad-chip--stack .tad-chip__txt { flex-direction: column; align-items: flex-start; gap: 0; }
+.tad-chip--stack .tad-chip__who { line-height: 1.05; }
+.tad-chip--wrap .tad-chip__txt { flex: 0 1 auto; min-width: 0; }
+/* a right-aligned aircraft mark that no longer fits beside the name drops under it (a smaller mark) */
+.tad-chip--endunder { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
+.tad-chip--endunder .tad-acbadge--end, .tad-chip--endunder .tad-chip__reg--end { margin-left: 0; }
+.tad-chip--endunder .tad-acbadge { min-width: 1.15rem; height: 1.15rem; padding: 0 0.2rem; font-size: 0.6rem; }
+.tad-chip--endunder .tad-chip__reg--end { font-size: 0.62rem; padding: 0 0.25rem; }
+/* the last size before wrapping: a one-hour booking on a narrow whole-day axis */
+.tad-chip--tiny { gap: 0; padding: 0 0.22rem; }
+.tad-chip--tiny .tad-chip__who { font-size: 0.7rem; line-height: 1.05; }
+.tad-chip--tiny .tad-acbadge { min-width: 1rem; height: 1rem; padding: 0 0.15rem; font-size: 0.52rem; }
+.tad-chip--tiny .tad-chip__reg, .tad-chip--tiny .tad-chip__reg--end { font-size: 0.56rem; padding: 0 0.2rem; }
+.tad-chip--wrap .tad-chip__who { white-space: normal; line-height: 1; }
+/* a finished booking that only partly shows at the left edge (or can't hold its name) is history: a faint bar, no text */
+.tad-chip--stub > * { display: none; }
+.tad-chip--stub { background: var(--tad-paper-3); border-color: transparent; box-shadow: none; opacity: 0.7; }
+.tad-chip__time { font-size: 0.75rem; font-weight: 700; color: var(--tad-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tad-av { flex: none; margin-left: auto; width: 1.65rem; height: 1.65rem; border-radius: 50%; background: var(--av); color: var(--av-ink, var(--tad-on-colour)); box-shadow: inset 0 0 0 1px var(--av-edge, transparent); display: grid; place-items: center; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.02em; }
+.tad-av--lg { width: 2.1rem; height: 2.1rem; font-size: 0.8rem; margin-left: 0; }
+/* the aircraft as a tag, on instructor rows and shared hire lines */
+.tad-chip__sub { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.tad-chip__reg { flex: none; display: inline-flex; align-items: center; padding: 0 0.3rem 0 0.25rem; border-radius: 0.3rem; background: var(--tad-paper); border: 1px solid var(--tad-line-2); border-left: 0.2rem solid var(--ac-edge, var(--ac)); font-size: 0.72rem; font-weight: 800; line-height: 1.35; color: var(--tad-ink); white-space: nowrap; }
+
+/* chips that carry the registration keep it to the end: the name goes before the aircraft does */
+
+/* aircraft with nothing booked: one block of chips instead of empty rows */
+.tad-free { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem 1rem; padding: 0.65rem 1rem; border-top: 1px solid var(--tad-line); background: var(--tad-good-wash); border-radius: 0 0 0.8rem 0.8rem; }
+.tad-free__k { display: inline-flex; align-items: center; gap: 0.45rem; margin-right: 0.3rem; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-good-ink); white-space: nowrap; }
+.tad-acchip { display: inline-flex; align-items: baseline; gap: 0.4rem; padding: 0.22rem 0.6rem 0.22rem 0.5rem; border-radius: 0.45rem; background: var(--tad-paper); border: 1px solid var(--tad-line); border-left: 0.3rem solid var(--ac-edge, var(--ac)); font-size: 0.95rem; font-weight: 800; white-space: nowrap; }
+.tad-acchip small { font-size: 0.72rem; font-weight: 800; color: var(--tad-muted); }
+.tad-acchip em { font-style: normal; font-size: 0.8rem; font-weight: 800; color: var(--tad-ink-2); padding-left: 0.4rem; border-left: 1px solid var(--tad-line); }
+.tad-free__grp { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.6rem; }
+.tad-free__grp--now { padding-left: 1rem; border-left: 1px solid var(--tad-good-line); }
+.tad-free__grp--now .tad-free__k { color: var(--tad-ink-2); }
+.tad-free__grp--now .tad-free__k i { color: var(--tad-accent); }
+.tad-acchip--sm { font-size: 0.82rem; padding: 0.1rem 0.45rem 0.1rem 0.4rem; }
+
+/* pages: when the rows don't fit they turn (never scroll) */
+.tad-pagebar { flex: none; position: relative; display: flex; align-items: center; gap: 0.7rem; height: 2.1rem; padding: 0 1rem; border-top: 1px solid var(--tad-line); background: var(--tad-paper-2); font-size: 0.85rem; font-weight: 700; color: var(--tad-muted); }
+.tad-pagebar b { color: var(--tad-ink); }
+.tad-pagebar[hidden] { display: none; }
+.tad-pages__dots { display: inline-flex; gap: 0.3rem; margin-left: auto; }
+.tad-pages__dots i { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--tad-line-2); }
+.tad-pages__dots i.on { background: var(--tad-accent); }
+.tad-pages__bar { position: absolute; left: 0; bottom: 0; height: 0.15rem; background: var(--tad-accent); animation: tad-page var(--page-ms, 8000ms) linear forwards; }
+@keyframes tad-page { from { width: 0; } to { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .tad-pages__bar { animation: none; width: 100%; opacity: 0.35; } }
+
+/* ── side panel: weather · flying now · next up · instructors ── */
+.tad-side { display: flex; flex-direction: column; gap: 0.9rem; min-height: 0; overflow: hidden; }
+.tad-side > .tad-card { padding: 0.75rem 1rem 0.55rem; }
+.tad-list { list-style: none; margin: 0.35rem 0 0; padding: 0; }
+.tad-li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; min-height: 2.6rem; padding: 0.3rem 0; border-top: 1px solid var(--tad-line); }
+.tad-li:first-child { border-top: 0; }
+.tad-li__main { min-width: 0; }
+.tad-li__main b { display: block; font-size: 1.02rem; overflow: hidden; }
+.tad-li__main span { display: block; font-size: 0.8rem; color: var(--tad-muted); font-weight: 600; overflow: hidden; }   /* carries the instructor's name */
+.tad-li__t { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; text-align: center; min-width: 3.6rem; }
+.tad-li__t small { display: block; margin-top: 0.15rem; font-size: 0.68rem; font-weight: 700; color: var(--tad-muted); }
+.tad-li__end { text-align: right; font-size: 0.72rem; font-weight: 700; color: var(--tad-muted); line-height: 1.1; }
+.tad-li__end b { display: block; font-size: 1.1rem; color: var(--tad-ink); font-variant-numeric: tabular-nums; }
+.tad-li--more { min-height: 0; padding: 0.35rem 0 0.1rem; font-size: 0.8rem; font-weight: 700; color: var(--tad-muted); display: block; }
+.tad-empty { margin: 0.45rem 0 0.25rem; font-size: 0.95rem; color: var(--tad-ink-2); font-weight: 600; }
+.tad-empty b { color: var(--tad-ink); white-space: nowrap; }
+.tad-ins { list-style: none; margin: 0.45rem 0 0.2rem; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; }
+.tad-ins li { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.tad-ins__txt b { display: block; font-size: 0.98rem; overflow: hidden; }
+.tad-ins__txt span { display: block; font-size: 0.76rem; font-weight: 700; color: var(--tad-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tad-ins__txt span.tad-st--good { color: var(--tad-good-ink); }
+.tad-ins__txt span.tad-st--busy { color: var(--tad-info-ink); }
+.tad-ins__txt span.tad-st--off { color: var(--tad-faint); }
+.tad-ins li.tad-ins--off { opacity: 0.6; }
+.tad-freenow { list-style: none; margin: 0.45rem 0 0.2rem; padding: 0; display: grid; gap: 0.4rem; }
+.tad-freenow li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
+.tad-freenow span { font-size: 0.95rem; font-weight: 800; color: var(--tad-good-ink); white-space: nowrap; }
+.tad-freenow span.tad-faint { color: var(--tad-muted); }
+.tad-ins__txt { min-width: 0; }
+.tad-faint { color: var(--tad-faint); }
+.tad-board__st { justify-self: end; }
+
+/* weather in the header: the latest METAR of the nearest reporting station, written out */
+.tad-hd__wx { margin-left: auto; min-width: 0; flex: 0 1 auto; display: flex; align-items: stretch; height: 3.2rem; background: var(--tad-paper); border: 1px solid var(--tad-line); border-radius: 0.8rem; box-shadow: var(--tad-shadow-1); overflow: hidden; }
+.tad-wx__cell { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 0.1rem; padding: 0 0.75rem; border-left: 1px solid var(--tad-line); min-width: 0; white-space: nowrap; }
+.tad-wx__cell--cloud, .tad-wx__cell--src { flex: 0 1 auto; }   /* these give way first on a tight header */
+.tad-wx__cell:first-child { border-left: 0; }
+.tad-wx__cell small { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-muted); }
+.tad-wx__cell b { font-size: 1.02rem; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.tad-wx__cell b em { font-style: normal; font-size: 0.78rem; font-weight: 700; color: var(--tad-muted); }
+.tad-wx__cell--warn b { color: var(--tad-warn-ink); }
+.tad-wx__cell--wind { flex-direction: row; align-items: center; gap: 0.55rem; }
+.tad-wx__cell--wind > span { display: flex; flex-direction: column; gap: 0.1rem; }
+.tad-wx__cell--src { background: var(--tad-paper-2); }
+.tad-wx__cell--src b { font-size: 0.8rem; color: var(--tad-ink-2); }
+.tad-wx__cell--src span { font-size: 0.72rem; font-weight: 700; color: var(--tad-muted); overflow: hidden; text-overflow: ellipsis; }
+.tad-wx__cell--src b { overflow: hidden; text-overflow: ellipsis; }
+.tad-wx__arrow { flex: none; width: 1.7rem; height: 1.7rem; color: var(--tad-accent); transform: rotate(var(--rot)); }
+
+/* ── departures board layout ── */
+.tad-board { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.tad-board__head, .tad-brow { display: grid; grid-template-columns: 10.5rem 10rem minmax(0, 1.3fr) minmax(0, 1fr) 12rem; align-items: center; gap: 1rem; padding: 0 1.2rem; }
+.tad-board__head { flex: none; height: 2.2rem; background: var(--tad-paper-2); border-bottom: 1px solid var(--tad-line); border-radius: 0.8rem 0.8rem 0 0; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-muted); position: relative; }
+.tad-board__body { flex: 1 1 auto; min-height: 0; position: relative; }
+.tad-bgrp { height: 2.1rem; display: flex; align-items: center; gap: 0.6rem; padding: 0 1.2rem; background: var(--tad-paper-2); border-bottom: 1px solid var(--tad-line); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-ink-2); }
+.tad-bgrp i { color: var(--tad-accent); }
+.tad-bgrp span { text-transform: none; letter-spacing: 0; color: var(--tad-faint); font-weight: 700; }
+.tad-brow { height: 2.75rem; border-bottom: 1px solid var(--tad-line); font-size: 1.05rem; }
+.tad-brow__t { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tad-brow__who { display: flex; align-items: center; gap: 0.55rem; min-width: 0; font-weight: 800; }
+.tad-brow__who b { min-width: 0; overflow: hidden; }
+.tad-brow__iname { min-width: 0; overflow: hidden; }
+.tad-brow__ins { display: flex; align-items: center; gap: 0.55rem; min-width: 0; font-weight: 700; color: var(--tad-ink-2); }
+.tad-brow__ins .tad-av { margin-left: 0; }
+.tad-brow__st { justify-self: end; }
+.tad-pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.22rem 0.7rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; white-space: nowrap; background: var(--tad-paper-3); color: var(--tad-ink-2); }
+.tad-pill--fly { background: var(--tad-info-bg); color: var(--tad-info-ink); }
+.tad-pill--soon { background: var(--tad-warn-bg); color: var(--tad-warn-ink); }
+.tad-board .tad-pagebar:last-child { border-radius: 0 0 0.8rem 0.8rem; }
+
+/* ── safety notices: one line along the bottom ── */
+.tad-notes { display: flex; align-items: center; gap: 1.2rem; min-height: 2.5rem; padding: 0.45rem 1rem; border-radius: 0.8rem; background: var(--tad-warn-wash); border: 1px solid var(--tad-warn-line); overflow: hidden; }
+.tad-notes__k { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tad-warn-ink); white-space: nowrap; }
+.tad-notes__i { display: inline-flex; align-items: baseline; gap: 0.5rem; min-width: 0; font-size: 1rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tad-notes__i + .tad-notes__i { padding-left: 1.2rem; border-left: 1px solid var(--tad-warn-line); }
+.tad-notes__i em { font-style: normal; font-size: 0.82rem; font-weight: 700; color: var(--tad-warn-ink); }
+
+/* nothing booked in the hours shown (not in the mockup: its scenarios always have bookings) */
+.tad-none { position: absolute; top: 0; right: 0; bottom: 0; left: 0; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.7rem; font-size: 1.4rem; font-weight: 800; color: var(--tad-muted); }
+.tad-none i { color: var(--tad-good); }
+
+/* A person's name is never cut (owner's standing rule): .tad-name wraps to two lines with tight leading, then takes its
+   short form, then smaller type (fitNames, in JS). tad-name--free: the last resort, shown outside its box, not clipped. */
+.tad-name { white-space: normal; text-overflow: clip; overflow-wrap: normal; }
+.tad-name--tight { line-height: 1.08; }
+.tad-name--free { overflow: visible; }
+.tad-chip--free { overflow: visible; z-index: 3; }   /* a booking name that fits no smaller: shown over the grid, never clipped */
+
+/* "Powered by ToAviate · Updated 15:35:02" (owner, 11 Nov): small, muted, placed by _placeCredit() where it touches
+   nothing; it never takes a row's height. On the strips it sits on their own background; over the schedule it has a
+   translucent paper backing (the ::before, so the text keeps its full colour). */
+.tad-notes, .tad-free, .tad-main { position: relative; }
+.tad-by { position: absolute; z-index: 4; display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.55rem; font-weight: 700; line-height: 1.2; color: var(--tad-muted); white-space: nowrap; pointer-events: none; }
+.tad-by__txt { display: inline-flex; align-items: center; }
+.tad-by__a { display: inline-flex; align-items: center; gap: 0.25rem; }
+/* the real logo (its wordmark says ToAviate), sized from its 2000 × 313 aspect so the line is measured right before the
+   image has loaded (_placeCredit places it at once) */
+.tad-by__logo { display: block; height: 0.6rem; width: 3.83rem; }
+.tad--dark .tad-by__logo { height: 0.8rem; width: 4.23rem; padding: 0.1rem 0.2rem; border-radius: 0.2rem; background: var(--tad-plate); }   /* navy on a light plate at night, not a filter */
+.tad-by--stack .tad-by__txt { flex-direction: column; align-items: flex-start; }
+.tad-by--stack .tad-by__sep { display: none; }
+.tad-by--over { padding: 0.15rem 0.45rem; border-radius: 0.4rem; }
+.tad-by--over::before { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: -1; border-radius: inherit; background: var(--tad-paper); opacity: 0.88; }
+.tad-by--busy { opacity: 0.85; }   /* nowhere free: over a booking, see-through */
+
+/* the club's logo in place of the initials tile (settings.badge 'logo'): the tile's box height, never a taller header */
+.tad-badge { flex: none; display: inline-flex; align-items: center; height: 2.9rem; }
+.tad-badge__logo { display: none; }
+.tad-badge--logo .tad-mono { display: none; }
+.tad-badge--logo .tad-badge__logo { display: inline-flex; align-items: center; height: 2.9rem; }
+.tad-badge__img { display: block; height: 2.9rem; width: auto; max-width: 8.7rem; object-fit: contain; }
+.tad--dark .tad-badge__img { padding: 0.25rem 0.4rem; border-radius: 0.7rem; background: var(--tad-plate); }

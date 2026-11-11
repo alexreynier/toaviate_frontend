@@ -136,10 +136,19 @@ app.factory('LgbFmt', function () {
                on-type="vm.typed(q)"                      optional: after every keystroke
                on-clear="vm.acClear()"                    the × button
                value="vm.acValue"                         shown when closed: { ac: { reg, type, colour } } | { tag } | null
-               summary="vm.acSummary"                     { pre, b } on the right when closed (desktop)
+               summary="vm.acSummary"                     { pre, b, post } on the right when closed (desktop): any of the three;
+                                                          b is bold, so { b: '6 bookings', post: ' · next Tue 10:00' } bolds the start
                clearable="vm.f.ac !== 'all'"  version="vm.cbVer"> (bump version to re-read the source while open)
+               hl-sub="false"                             optional: underline matches in the main line only (not the sub-line)
+               foot-keys="true"                           optional: keep the ↑ ↓ / Enter / Esc row under a group's foot (default: the foot replaces it)
+               enter-word="open"                          optional: the Enter hint's word (default "choose"; "open" for search-to-open)
 
-     a row:  { key, t, s, r, rs, lead: 'fa-plane', ac: '#colour', on, quiet, noHl }
+     a row:  { key, t, s, r, rs, lead: 'fa-plane', ac: '#colour', on, quiet, noHl, noHlSub, av }
+             { hint: true, t: 'Type 2+ letters to search the club's members' } = an info line under the group's rows:
+             not selectable, skipped by the arrow keys (a group may also carry hint: '…' itself)
+             av: { code: 'AR', colour: '#2563eb', title } = an INSTRUCTOR's initials circle;
+                 { member: true, title } = a member / student (the grey person icon) — the app-wide rule: initials = instructor
+     value:  { ac } | { tag } | { av: {…as above}, name: 'S. Carter' } (a person picked; the avatar is 24px, av.size: 'md' = 32px)
      a chip: { key, label, n, on, title } or { sep: true }
    source() is called only on open / typing / version — never per digest — so it may build new objects.
    value / summary must be stable objects (set them when the page's state changes, not from a function).
@@ -150,7 +159,7 @@ app.directive('taCombo', ['$document', '$timeout', '$sce', '$window', 'TaComboMa
         scope: {
             cbId: '@', label: '@', placeholder: '@', placeholderOpen: '@', placeholderPicked: '@', caps: '@',
             query: '=?', source: '&', onPick: '&', onLeave: '&?', onType: '&?', onClear: '&?',
-            value: '=?', summary: '=?', clearable: '=?', version: '=?'
+            value: '=?', summary: '=?', clearable: '=?', version: '=?', hlSub: '@', footKeys: '@', enterWord: '@'
         },
         template:
             '<div class="ta-combo" ng-class="{\'ta-combo--open\': open}">' +
@@ -159,12 +168,17 @@ app.directive('taCombo', ['$document', '$timeout', '$sce', '$window', 'TaComboMa
                 '<span class="ta-combo__val" ng-if="value && !open">' +
                   '<span class="ta-ac" ng-if="value.ac" ng-attr-style="{{ value.ac.colour ? \'--ac:\' + value.ac.colour : undefined }}" title="{{ value.ac.title }}">{{ value.ac.reg }}<span ng-if="value.ac.type">{{ value.ac.type }}</span></span>' +
                   '<span class="ta-tag" ng-if="value.tag">{{ value.tag }}</span>' +
+                  '<span class="ta-combo__pv" ng-if="value.av">' +
+                    '<span class="ta-av" ng-class="{\'ta-av--sm\': value.av.size !== \'md\'}" ng-if="!value.av.member" ng-attr-style="{{ value.av.colour ? \'--av:\' + value.av.colour : undefined }}" title="{{ value.av.title }}">{{ value.av.code }}</span>' +
+                    '<span class="ta-av ta-av--member" ng-class="{\'ta-av--sm\': value.av.size !== \'md\'}" ng-if="value.av.member" title="{{ value.av.title }}"><i class="fas fa-user" aria-hidden="true"></i></span>' +
+                    '<span class="ta-combo__pvn">{{ value.name }}</span>' +
+                  '</span>' +
                 '</span>' +
                 '<input class="ta-combo__in" id="cb-{{ cbId }}" type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox"' +
                   ' aria-expanded="{{ open ? \'true\' : \'false\' }}" aria-controls="cb-{{ cbId }}-list" ng-attr-aria-activedescendant="{{ open && flat.length ? \'cb-\' + cbId + \'-o\' + active : undefined }}"' +
                   ' aria-label="{{ label }}" autocomplete="off" autocorrect="off" spellcheck="false" ng-attr-autocapitalize="{{ caps ? \'characters\' : undefined }}"' +
                   ' ng-model="s.q" ng-change="typed()" ng-focus="focus()" placeholder="{{ open ? (placeholderOpen || placeholder) : (value ? (placeholderPicked || \'\') : placeholder) }}">' +
-                '<span class="ta-combo__sum" ng-if="summary && !open">{{ summary.pre }}<b ng-if="summary.b">{{ summary.b }}</b></span>' +
+                '<span class="ta-combo__sum" ng-if="summary && !open">{{ summary.pre }}<b ng-if="summary.b">{{ summary.b }}</b>{{ summary.post }}</span>' +
                 '<button type="button" class="ta-combo__x" ng-if="clearable" ng-click="clear($event)" no-busy-guard aria-label="Clear {{ label | lowercase }}"><i class="fas fa-times" aria-hidden="true"></i></button>' +
                 '<i class="fas fa-chevron-down ta-combo__chev" aria-hidden="true" ng-if="!clearable"></i>' +
               '</label>' +
@@ -178,18 +192,21 @@ app.directive('taCombo', ['$document', '$timeout', '$sce', '$window', 'TaComboMa
                       '<button type="button" class="ta-chip" ng-if="!c.sep" ng-class="{\'ta-chip--on\': c.on}" ng-click="pick(c)" no-busy-guard title="{{ c.title }}">{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>' +
                     '</span>' +
                   '</div></div>' +
+                  '<div class="ta-combo__hint" role="note" ng-repeat="h in g._hints"><i class="fas fa-info-circle" aria-hidden="true"></i><span>{{ h }}</span></div>' +
                   '<button type="button" ng-repeat="r in g.rows" class="ta-combo__opt" ng-class="{\'ta-combo__opt--hi\': r._i === active, \'ta-combo__opt--quiet\': r.quiet, \'ta-combo__opt--ac\': r.ac}"' +
                     ' id="cb-{{ cbId }}-o{{ r._i }}" role="option" aria-selected="{{ r.on ? \'true\' : \'false\' }}" ng-attr-style="{{ r.ac ? \'--ac:\' + r.ac : undefined }}" ng-click="pick(r)" no-busy-guard>' +
-                    '<span class="ta-combo__lead" ng-if="r.lead"><i class="fas {{ r.lead }}" aria-hidden="true"></i></span>' +
+                    '<span class="ta-combo__lead" ng-if="r.lead && !r.av"><i class="fas {{ r.lead }}" aria-hidden="true"></i></span>' +
+                    '<span class="ta-av ta-combo__av" ng-if="r.av && !r.av.member" ng-attr-style="{{ r.av.colour ? \'--av:\' + r.av.colour : undefined }}" title="{{ r.av.title }}">{{ r.av.code }}</span>' +
+                    '<span class="ta-av ta-av--member ta-combo__av" ng-if="r.av.member" title="{{ r.av.title }}"><i class="fas fa-user" aria-hidden="true"></i></span>' +
                     '<span class="ta-combo__txt"><span class="ta-combo__t" ng-bind-html="r._t"></span><span class="ta-combo__s" ng-if="r.s" ng-bind-html="r._s"></span></span>' +
                     '<span class="ta-combo__r" ng-if="r.r">{{ r.r }}<small ng-if="r.rs">{{ r.rs }}</small></span>' +
                     '<i class="fas fa-check ta-combo__on" aria-hidden="true" ng-if="r.on"></i>' +
                   '</button>' +
                 '</div>' +
                 '<div class="ta-combo__busy" ng-if="res.busy"><span class="ta-spin ta-spin--dark"></span>{{ res.busy }}</div>' +
-                '<div class="ta-combo__none" ng-if="!flat.length && !chips && !res.busy && res.empty"><b>{{ res.empty.t }}</b>{{ res.empty.s }}</div>' +
+                '<div class="ta-combo__none" ng-if="!flat.length && !chips && !hints && !res.busy && res.empty"><b>{{ res.empty.t }}</b>{{ res.empty.s }}</div>' +
                 '<div class="ta-combo__foot" ng-if="res.foot">{{ res.foot }}</div>' +
-                '<div class="ta-combo__foot ta-combo__foot--keys" ng-if="flat.length && !res.foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> choose</span><span><kbd>Esc</kbd> close</span></div>' +
+                '<div class="ta-combo__foot ta-combo__foot--keys" ng-if="flat.length && (!res.foot || footKeys === \'true\')"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> {{ enterWord || \'choose\' }}</span><span><kbd>Esc</kbd> close</span></div>' +
               '</div>' +
             '</div>',
         link: function (scope, element) {
@@ -204,18 +221,24 @@ app.directive('taCombo', ['$document', '$timeout', '$sce', '$window', 'TaComboMa
             function lock(on) { document.body.classList.toggle('ta-combo-lock', !!on && !!(phone && phone.matches)); }
             function refresh(keepActive) {
                 var res = scope.source({ q: scope.s.q || '' }) || {};
-                var flat = [], chips = false, q = scope.s.q || '';
-                res.groups = (res.groups || []).filter(function (g) { return (g.rows && g.rows.length) || (g.chips && g.chips.length); });
+                var flat = [], chips = false, hints = false, q = scope.s.q || '', hlSub = scope.hlSub !== 'false';
+                (res.groups || []).forEach(function (g) {
+                    var rows = g.rows || [];
+                    g._hints = rows.filter(function (r) { return r.hint; }).map(function (r) { return r.t; }).concat(g.hint ? [g.hint] : []);
+                    g.rows = rows.filter(function (r) { return !r.hint; });
+                    if (g._hints.length) { hints = true; }
+                });
+                res.groups = (res.groups || []).filter(function (g) { return (g.rows && g.rows.length) || (g.chips && g.chips.length) || g._hints.length; });
                 res.groups.forEach(function (g) {
                     if (g.chips && g.chips.length) { chips = true; }
                     (g.rows || []).forEach(function (r) {
                         r._i = flat.length;
                         r._t = $sce.trustAsHtml(r.noHl ? TaComboMatch.esc(r.t) : TaComboMatch.hl(r.t, q));
-                        r._s = $sce.trustAsHtml(r.noHl ? TaComboMatch.esc(r.s) : TaComboMatch.hl(r.s, q));
+                        r._s = $sce.trustAsHtml(r.noHl || r.noHlSub || !hlSub ? TaComboMatch.esc(r.s) : TaComboMatch.hl(r.s, q));
                         flat.push(r);
                     });
                 });
-                scope.res = res; scope.flat = flat; scope.chips = chips;
+                scope.res = res; scope.flat = flat; scope.chips = chips; scope.hints = hints;
                 if (!keepActive) {
                     scope.active = 0;
                     if (!q) { flat.forEach(function (r, i) { if (r.on) { scope.active = i; } }); }
@@ -492,6 +515,37 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
     function round2(n) { return Math.round((+n || 0) * 100) / 100; }
     function code(e, w) { return e[w + '_airport_code'] || e[w + '_place'] || ''; }
     function cleanModel(m) { return m && m !== '-' ? m : ''; }
+    /* make + model, without the make twice when the model already starts with it ("Piper" + "Piper PA-28 Warrior") */
+    function makeModel(make, model) {
+        make = String(make || '').trim(); model = String(model || '').trim();
+        if (make && (model.toLowerCase() + ' ').indexOf(make.toLowerCase() + ' ') === 0) { make = ''; }
+        return [make, model].join(' ').trim();
+    }
+    /* an endorsement's instructor: GET logbook_endorsements sends instructor_name only once a request is signed, so a pending
+       or declined request is named from the club's instructor list (insNames, user_id → name; filled by ensureInsNames and the
+       request dialog). '' when still unknown: the page then says "your instructor". */
+    var insNames = {}, insClubsAsked = {};
+    function endName(r) { return (r && (r.instructor_name || insNames[r.instructor_user_id])) || ''; }
+    vm.endName = endName;
+    function rememberIns(results) {
+        results.forEach(function (data) {
+            ((data && data.instructors) || []).forEach(function (i) {
+                var uid = i.user_id || i.id, name = ((i.first_name || '') + ' ' + (i.last_name || '')).trim();
+                if (uid && name) { insNames[uid] = name; }
+            });
+        });
+    }
+    function ensureInsNames(e) {
+        var need = (e.endorsements || []).some(function (r) { return !r.instructor_name && r.instructor_user_id && !insNames[r.instructor_user_id]; });
+        if (!need) { return; }
+        var clubIds = (e.club_id ? [e.club_id] : ((vm.user.access && vm.user.access.pilot) || [])).filter(function (id, i, a) { return a.indexOf(id) === i && !insClubsAsked[id]; });
+        if (!clubIds.length) { return; }
+        clubIds.forEach(function (id) { insClubsAsked[id] = true; });
+        $q.all(clubIds.map(function (id) { return InstructorService.GetAllByClub(id, vm.user.id); })).then(function (results) {
+            rememberIns(results);
+            if (vm.open === e._k) { buildDetail(e); }
+        });
+    }
     function initials(n) { return String(n || '').replace(/\(.*\)/, '').trim().split(/[\s.]+/).filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
     vm.initials = initials;
     function stampOf(rows) {
@@ -528,7 +582,7 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
         e._srcInfo = srcInfo(e);
         e._dep = code(e, 'departure'); e._arr = code(e, 'arrival');
         e._model = cleanModel(e.aircraft_model);
-        e._acName = [e.aircraft_make_tidy || e.aircraft_make, e._model].join(' ').trim() || e.aircraft_type || '';   // C16 tidy make (the edit form keeps the raw make)
+        e._acName = makeModel(e.aircraft_make_tidy || e.aircraft_make, e._model) || e.aircraft_type || '';   // C16 tidy make (the edit form keeps the raw make)
         e._acC = e.aircraft_colour || null; e._insC = e.instructor_colour || null;   // C16: the club colours, null when the club set none
         e._solo = e.capacity === 'P1' && !!e.instructor_name && !e.instructor_time;
         e._self = e.capacity === 'P1' || e.capacity === 'INSTRUCTOR';
@@ -545,7 +599,7 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
         return t;
     }
     function findKey(k) { return (vm.entries || []).filter(function (e) { return e._k === k; })[0] || null; }
-    function acName(a) { return [a.make, a.model].join(' ').trim() || a.type || ''; }
+    function acName(a) { return makeModel(a.make, a.model) || a.type || ''; }
     function shortDate(s) { var d = F.pd(s); return d.getDate() + ' ' + F.MON[d.getMonth()]; }
     /* the aircraft in this logbook, newest first; base = the flights to count */
     function flownAc(base) {
@@ -848,8 +902,9 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
             xc: e.cross_country_time ? fmtH(e.cross_country_time) : '',
             ifr: e.ifr_time ? fmtH(e.ifr_time) : '',
             src: e._srcInfo.long,
-            ends: (e.endorsements || []).map(function (r) { var s = endStatus(r); return { r: r, s: s, pill: s.tone === 'pend' ? 'Pending' : s.label, sub: r.instructor_name + (s.tone === 'pend' ? ' · ' + s.label.toLowerCase() : '') }; })
+            ends: (e.endorsements || []).map(function (r) { var s = endStatus(r); return { r: r, s: s, pill: s.tone === 'pend' ? 'Pending' : s.label, sub: (endName(r) || 'Your instructor') + (s.tone === 'pend' ? ' · ' + s.label.toLowerCase() : '') }; })
         };
+        ensureInsNames(e);
     }
     vm.toggle = function (e) {
         vm.open = vm.open === e._k ? null : e._k;
@@ -922,12 +977,13 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
             refreshStamp(e); buildDetail(e);
             vm.dlg.head = lineHead(e, 'Signatures & endorsements', 'fa-stamp');
             vm.dlg.rows = rows.map(function (r) { return stampRow(r, e); });
+            ensureInsNames(e);
             recompute();
         });
     }
     /* a stamp row: its instructor's colour is the row's own when sent, else the line's instructor colour when it's the same person */
     function stampRow(r, e) {
-        var c = r.instructor_colour || (e._insC && r.instructor_name && M.norm(r.instructor_name) === M.norm(e.instructor_name) ? e._insC : null);
+        var c = r.instructor_colour || (e._insC && endName(r) && M.norm(endName(r)) === M.norm(e.instructor_name) ? e._insC : null);
         return { r: r, s: endStatus(r), c: c };
     }
     vm.openStamps = function (e, ev) {
@@ -999,6 +1055,7 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
             if (vm.dlg !== d) { return; }
             var seen = {};
             d.loading = false;
+            rememberIns(results);
             results.forEach(function (data) {
                 ((data && data.instructors) || []).forEach(function (i) {
                     var uid = i.user_id || i.id;

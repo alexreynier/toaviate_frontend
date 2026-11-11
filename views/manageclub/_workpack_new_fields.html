@@ -1,0 +1,54 @@
+<!-- New-workpack fields. Included twice: standalone ("New workpack" on the Workpacks card,
+     vm.show_workpack_form) and as the annual check's optional workpack step. Writes vm.new_workpack
+     and vm.workpack_files (processWorkpackFile). -->
+<div class="wp-form-group">
+  <label for="wp_number">Workpack number <span class="wp-required">*</span></label>
+  <input type="text" class="form-control inputtext" id="wp_number" ng-model="vm.new_workpack.workpack_number" placeholder="e.g. WP-2026-001" />
+</div>
+
+<div class="wp-form-group">
+  <label for="wp_signatory">Authorised signatory</label>
+  <input type="text" class="form-control inputtext" id="wp_signatory" ng-model="vm.new_workpack.authorised_signatory" placeholder="e.g. John Smith AME" />
+</div>
+
+<div class="wp-form-group">
+  <label for="wp_description">Description</label>
+  <textarea class="form-control inputtext" id="wp_description" ng-model="vm.new_workpack.description" placeholder="e.g. 50-hour inspection"></textarea>
+</div>
+
+<div class="wp-form-group">
+  <label for="wp_status">Status</label>
+  <select class="form-control inputtext" id="wp_status" ng-model="vm.new_workpack.status">
+    <option value="completed">Completed</option>
+    <option value="open">Open (work in progress)</option>
+  </select>
+  <small class="wp-hint">An open workpack can still have defects and events linked to it; completing it closes that.</small>
+</div>
+
+<div class="wp-form-group">
+  <label>Workpack document <span class="wp-optional">optional</span></label>
+  <div class="wp-upload-zone">
+    <div
+      flow-init="{target: '/upload_documents.php', singleFile: true}"
+      flow-files-submitted="$flow.upload()"
+      flow-file-success="$file.file_return = $message"
+      flow-complete="processWorkpackFile($flow.files, 'workpack_doc')"
+      flow-file-limit="1"
+      flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+      <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+        <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+        <span>Click or drag the workpack file here</span>
+      </div>
+      <div ng-repeat="file in $flow.files" class="wp-upload-file">
+        <i class="fa fa-file"></i>
+        <span class="wp-upload-filename">{{file.name}}</span>
+        <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+          <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
+        </div>
+        <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); vm.workpack_files.workpack_doc = [];" ng-if="(file.progress() * 100) == 100" title="Remove">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

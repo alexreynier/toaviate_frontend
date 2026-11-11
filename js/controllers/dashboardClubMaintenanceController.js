@@ -1,8 +1,12 @@
  app.controller('DashboardClubMaintenanceController', DashboardClubMaintenanceController);
 
-    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter'];
-    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService, DefectMediaService, AircraftChecksService, $filter) {
+    DashboardClubMaintenanceController.$inject = ['UserService', 'PlaneService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'LicenceService', 'MedicalService', 'DifferencesService', 'PlaneDocumentService', 'FoxService', '$http', 'WorkpackService', 'CrsService', 'LogbookLinkService', 'ToastService', 'DefectMediaService', 'AircraftChecksService', '$filter', 'MaintenanceFormService', '$q'];
+    function DashboardClubMaintenanceController(UserService, PlaneService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, LicenceService, MedicalService, DifferencesService, PlaneDocumentService, FoxService, $http, WorkpackService, CrsService, LogbookLinkService, ToastService, DefectMediaService, AircraftChecksService, $filter, MaintenanceFormService, $q) {
         var vm = this;
+        // The pure page logic (severity tones, type-driven form, validation, reset,
+        // outcome toast) lives in MaintenanceFormService so the node test can run it.
+        var MF = MaintenanceFormService;
+        vm.mf = MF;
 
         vm.user = null;
         vm.allUsers = [];
@@ -34,7 +38,10 @@
         // Determine action from stateParams rather than $state.current.data.action,
         // because when a child state (e.g. airframe_logbook) is active, $state.current
         // points to the child whose data.action may differ from the parent's.
-        vm.action = $stateParams.plane_id ? 'edit' : ($state.current.data.action || 'list');
+        // Two instances live at once under the detail state (the list template wraps a
+        // <ui-view>); the parent one has no plane_id, so it is the list — falling back
+        // to $state.current.data.action ('edit' there) made it fetch planes/undefined/….
+        vm.action = $stateParams.plane_id ? 'edit' : 'list';
         vm.user = $rootScope.globals.currentUser;
         // //console.log("$rootScope.globals.currentUser : ", $rootScope.globals.currentUser);
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
@@ -53,16 +60,87 @@
         // Maintenance list view: false = table, true = cards
         vm.mxCardView = false;
 
-        vm.obj = {
-            issues: [],
-            issue_confirmation: false
-        };
+        // The form state. freshObj(): check date + time default to now (decision 4),
+        // hours / next check blank (U2). Reset after every successful save (U4 / B9).
+        vm.obj = MF.freshObj();
+        vm.files = MF.freshFiles();
+        vm.saving = false;                  // U4: the panel stays open, busy, until the save resolves
+        vm.steps = {};                      // optional collapsed steps of the check form (decision 1)
+        vm.offline_confirm = false;         // U6: Take Offline is a two-step (explain → confirm)
+        vm.show_workpack_form = false;      // "New workpack" from the card — the sub-form standalone
+        vm.show_advanced = false;           // U21: the two rebuild buttons under an "Advanced" disclosure
+        vm.detail_loading = false;          // U19
+        vm.detail_error = null;             // U18: a refused / failed detail read is said on the page
 
        vm.reported_defects = [];
 
-       vm.maintenance_types = [
-        "annual", "25hours", "50hours", "100hours", "interim", "6months", "extension", "workpack"
-       ];
+       // Decision 1: the check types the backend accepts for maintenance.maintenance_type.
+       // 'extension' is a mode of the same panel (its own request block); 'workpack' is
+       // no longer a check type (workpacks never create checks).
+       vm.maintenance_types = MF.CHECK_TYPES.slice();
+       vm.form_type_options = MF.CHECK_TYPES.concat(['extension']);
+       // The edit-event panel must still show an old row's type ('extension', 'workpack', '').
+       vm.editTypeOptions = function (current) {
+           var list = MF.CHECK_TYPES.slice();
+           if (current && list.indexOf(current) === -1) { list.push(current); }
+           return list;
+       };
+       vm.typeLabel = MF.typeLabel;
+       vm.nextCheckLabel = MF.nextCheckLabel;
+       vm.fields = function () { return MF.fieldsFor(vm.obj.maintenance_type); };
+       vm.hoursPlaceholder = function () { return MF.hoursPlaceholder(vm.obj.maintenance_type); };
+       vm.nextCheckHint = function () { return MF.nextCheckHint(vm.obj.maintenance_type); };
+       /**
+        * The next-check date is required for every type (Alex, 10 Nov 2026). An hours check (25 / 50 / 100 h)
+        * usually leaves the calendar date as it was, so when one is picked and the date is still blank it is
+        * pre-filled from the aircraft's current due date (plane.maintenance.next_maintenance); the user can change it.
+        */
+       vm.prefillNextCheck = function () {
+           var t = String(vm.obj.maintenance_type || '');
+           if (!/hours$/.test(t) || vm.obj.next_check) { return; }
+           var m = vm.club && vm.club.plane && vm.club.plane.maintenance;
+           var due = m && m.next_maintenance ? String(m.next_maintenance).slice(0, 10) : '';
+           var p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(due);
+           if (!p) { return; }
+           vm.obj.next_check = new Date(parseInt(p[1], 10), parseInt(p[2], 10) - 1, parseInt(p[3], 10));
+       };
+       vm.toggleStep = function (name) {
+           vm.steps[name] = !vm.steps[name];
+           // the CRS step (every check, owner 10 Nov 2026): the release date / time default to the check's own
+           if (name === 'crs' && vm.steps.crs) {
+               if (!vm.obj.crs_release_date && vm.obj.check_date) { vm.obj.crs_release_date = vm.obj.check_date; }
+               if (!vm.obj.crs_release_time && vm.obj.check_time) { vm.obj.crs_release_time = vm.obj.check_time; }
+           }
+       };
+       // B1: one severity → tone map for every defect badge on the page
+       vm.severityBadgeClass = MF.severityBadgeClass;
+       vm.severityChipClass = MF.severityChipClass;
+       vm.severityShort = MF.severityShort;
+       // B10 / B11 / U15
+       vm.statusBadgeClass = MF.statusBadgeClass;
+       vm.expiryDaysWord = MF.expiryDaysWord;      // "Expires today" / days (batch 17)
+       vm.checkDaysWord = MF.checkDaysWord;        // "Due today" / days
+       vm.hoursNotRecorded = MF.hoursNotRecorded;  // anchor check without hours (a legacy row)
+       // an extension in force (owner, 10 Nov 2026): figures from the status block, who / when from the latest extension event
+       vm.ext = null;
+       vm.extWords = function () { return MF.extensionWords(vm.ext); };
+       vm.hoursShort = MF.hoursShort;
+       vm.refreshExtension = function () {
+           vm.ext = MF.extensionInForce(vm.club && vm.club.plane ? vm.club.plane.maintenance : null, vm.maintenance_events);
+       };
+       vm.editExtension = function () { if (vm.ext && vm.ext.event) { vm.viewEvent(vm.ext.event); } };
+       vm.isExtension = function (ev) { return !!ev && String(ev.maintenance_type) === 'extension'; };
+       // the ARC row: the document's own extended_until (be-alex-3e, 10 Nov); an older backend: the extension in force
+       vm.arcExtendedUntil = function (doc) {
+           if (!doc) { return ''; }
+           if (doc.extended_until !== undefined) { return doc.extended_until ? MF.displayDate(doc.extended_until) : ''; }
+           return vm.ext && vm.ext.until ? vm.ext.untilText : '';
+       };
+       // the fleet list: the until-date of an extension in force on a row's status block ('' when none)
+       vm.extUntilOf = function (m) { var e = MF.extensionInForce(m); return e && e.until ? e.untilText : ''; };
+       vm.statusWord = MF.statusWord;
+       vm.displayDate = MF.displayDate;
+       vm.hoursDisplay = MF.hoursDisplay;
 
        // ── Workpacks ──
        vm.workpacks = [];
@@ -105,62 +183,56 @@
       
         // ── List loading function (called on init and when returning from detail) ──
         function loadMaintenanceList() {
+            vm.list_error = null;
             PlaneService.GetAllByClubMaintenance(vm.club_id)
                 .then(function(data){
-                    vm.club.planes = data;
+                    if (angular.isArray(data)) {
+                        vm.club.planes = data;
+                    } else {
+                        // U18: a refused / failed read is said instead of an endless "Loading…"
+                        vm.club.planes = [];
+                        vm.list_error = (data && typeof data.message === 'string' && data.message) ? data.message : 'The fleet could not be loaded.';
+                    }
                 });
         }
 
         // ── Detail loading function (called on init and when returning from child states) ──
+        // Every read has an error branch (U18): writeGuard's HANDLED_CODES swallows
+        // FORBIDDEN etc., so a refused read would otherwise leave empty cards.
+        function readMessage(data, fallback) {
+            return (data && typeof data.message === 'string' && data.message) ? data.message : fallback;
+        }
+
         function loadMaintenanceDetail() {
+            vm.detail_loading = true;
+            vm.detail_error = null;
+            vm.this_plane_id = $stateParams.plane_id;
             PlaneService.GetByIdMaintenance2($stateParams.plane_id, vm.club_id)
                 .then(function(data){
-                    vm.club.plane = data;  
-                    vm.this_plane_id = $stateParams.plane_id; 
-
-                    if(vm.club.plane && vm.club.plane.maintenance){
-                        // The API returns decimals as strings ("12.00") — a string
-                        // model on input[type=number] throws ngModel:numfmt and the
-                        // field renders blank, so coerce before binding.
-                        var hours = parseFloat(vm.club.plane.maintenance.hours_remaining);
-                        vm.obj.hours_remaining = isNaN(hours) ? undefined : hours;
-                        vm.obj.next_check = new Date(vm.club.plane.maintenance.next_maintenance);
-                        vm.obj.check_date = new Date();
-                        vm.obj.extension_granted = new Date();
+                    vm.detail_loading = false;
+                    if (!data || data.success === false || !data.registration) {
+                        vm.detail_error = readMessage(data, 'This aircraft could not be loaded.');
+                        return;
                     }
-
+                    vm.club.plane = data;
+                    vm.refreshExtension();
+                    // U2: the form never pre-fills from the current figures any more —
+                    // hours / next check start blank with per-type placeholders.
                     vm.page_title = "Edit a Plane Maintenance - "+vm.club.plane.registration;
                 });
 
             PlaneService.GetOpenIssues($stateParams.plane_id)
                 .then(function (data) {
-                    vm.reported_defects = data;
-                });
-
-            WorkpackService.GetByPlane($stateParams.plane_id)
-                .then(function (data) {
-                    if (data.success !== false) {
-                        vm.workpacks = data.workpacks || [];
+                    if (angular.isArray(data)) {
+                        vm.reported_defects = data;
+                    } else {
+                        ToastService.error('Defects not loaded', readMessage(data, 'The open defects could not be loaded.'));
                     }
                 });
 
-            WorkpackService.GetOpenByPlane($stateParams.plane_id)
-                .then(function (data) {
-                    if (data.success !== false) {
-                        vm.open_workpacks = data.workpacks || [];
-                    }
-                });
-
-            PlaneService.GetMaintenanceEvents($stateParams.plane_id)
-                .then(function (data) {
-                    if (data && data.maintenance_events) {
-                        vm.maintenance_events = data.maintenance_events;
-                    } else if (data && data.events) {
-                        vm.maintenance_events = data.events;
-                    } else if (Array.isArray(data)) {
-                        vm.maintenance_events = data;
-                    }
-                });
+            vm.loadWorkpacks();
+            vm.loadOpenWorkpacks();
+            vm.loadMaintenanceEvents();
 
             // Load aircraft checks for this plane
             vm.loadAircraftChecks();
@@ -173,8 +245,10 @@
             AircraftChecksService.GetChecksByPlane($stateParams.plane_id)
                 .then(function(data) {
                     vm.aircraft_checks_loading = false;
-                    if (data.success) {
+                    if (data && data.success) {
                         vm.aircraft_checks = data.checks;
+                    } else {
+                        ToastService.error('Checks not loaded', readMessage(data, 'The aircraft checks could not be loaded.'));
                     }
                 });
         };
@@ -189,8 +263,10 @@
             AircraftChecksService.GetChecksByPlaneDate($stateParams.plane_id, dateStr)
                 .then(function(data) {
                     vm.aircraft_checks_loading = false;
-                    if (data.success) {
+                    if (data && data.success) {
                         vm.aircraft_checks = data.checks;
+                    } else {
+                        ToastService.error('Checks not loaded', readMessage(data, 'The aircraft checks for that day could not be loaded.'));
                     }
                 });
         };
@@ -200,52 +276,13 @@
             vm.checks_audit_log = [];
             AircraftChecksService.GetAuditLog(check.id)
                 .then(function(data) {
-                    if (data.success) {
+                    if (data && data.success) {
                         vm.checks_audit_log = data.audit_log;
+                    } else {
+                        ToastService.error('Audit not loaded', readMessage(data, 'The audit trail could not be loaded.'));
                     }
                 });
         };
-
-        switch(vm.action){
-            case "add":
-                // //console.log("adding a new plane please");
-                vm.page_title = "Add a New Plane";
-            break;
-            case "edit":
-                // //console.log("edit an existing plane");
-                
-                loadMaintenanceDetail();
-
-                // Reload data when navigating back from child states (e.g. logbook pages)
-                var deregisterStateChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
-                    if (toState.name === 'dashboard.manage_club.maintenance.detail') {
-                        loadMaintenanceDetail();
-                    }
-                });
-                $scope.$on('$destroy', deregisterStateChange);
-
-
-               
-
-
-            break;
-            case "list":
-                //need to update this to be part of the authentication
-                //to find out club id
-                loadMaintenanceList();
-
-                // Reload list when navigating back from child states (e.g. detail page)
-                var deregisterListChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
-                    if (toState.name === 'dashboard.manage_club.maintenance') {
-                        loadMaintenanceList();
-                    }
-                });
-                $scope.$on('$destroy', deregisterListChange);
-            break;
-            default:
-                //console.log("none of the above... redirect somewhere?");
-            break;
-        }  
 
         // ONE logbook rebuild — the same Planes::rebuild_logbooks every other
         // "recheck" path lands on (BACKEND_AIRBORNE_SOURCE_GUIDE.md §7).
@@ -276,7 +313,6 @@
                 if(a){
                     FoxService.ResetOneClubPlane(vm.this_plane_id)
                     .then(function(data){
-                        console.log(data);
                         if(data && data.success){
                             ToastService.success('Placeholders Rebuilt', 'Unclaimed tracker flights were regenerated from the tracker\'s recordings.');
                             // Re-fetch so the recalculated hours / next-check show
@@ -299,102 +335,63 @@
         //'9' needs to refer the the user's account set to manage
         vm.selected_type = "";
         vm.send_obj = {};
+        // ONE panel, one mode at a time (decision 1): 'maintenance' is the type-driven
+        // check form (the type chosen inside it decides the fields and the optional
+        // steps); every document has its own mode; 'offline' explains + confirms;
+        // 'workpack' is the new-workpack sub-form standalone (no check required).
+        var MODES = ['cert', 'insurance', 'radio', 'noise', 'crs', 'offline', 'maintenance'];
         $scope.show_overlay = function(type){
-        
+            if (vm.saving) { return; }
             vm.show_overlay = true;
-            
             vm.selected_type = type;
-
-            if(type == "maintenance"){
-                vm.show_cert = true;
-                vm.show_insurance = true;
-                vm.show_radio = true;
-                vm.show_maintenance = true;
-                vm.show_noise = true;
-                vm.show_crs = true;
-                vm.show_offline = false;
-                // Default new workpack status to 'completed'
-                vm.new_workpack = { status: 'completed' };
-                vm.workpack_files = { workpack_doc: [] };
+            for (var i = 0; i < MODES.length; i++) { vm['show_' + MODES[i]] = (MODES[i] === type); }
+            vm.show_workpack_form = (type === 'workpack');
+            vm.steps = {};
+            vm.offline_confirm = false;
+            // a fresh form every time: nothing from an earlier attempt leaks (B9)
+            MF.resetAfterSave(vm);
+            if (type === 'maintenance') {
                 // Load available logbooks for the checkbox section
                 vm.loadCreateLogbooks();
-            } else if(type == "crs"){
-                vm.show_cert = false;
-                vm.show_insurance = false;
-                vm.show_radio = false;
-                vm.show_maintenance = false;
-                vm.show_noise = false;
-                vm.show_crs = true;
-                vm.show_offline = false;
-            } else if(type == "cert"){
-                vm.show_cert = true;
-                vm.show_insurance = false;
-                vm.show_radio = false;
-                vm.show_maintenance = false;
-                vm.show_noise = false;
-                vm.show_crs = false;
-                vm.show_offline = false;
-            } else if(type == "insurance"){
-                vm.show_cert = false;
-                vm.show_insurance = true;
-                vm.show_radio = false;
-                vm.show_maintenance = false;
-                vm.show_noise = false;
-                vm.show_crs = false;
-                vm.show_offline = false;
-            } else if(type == "radio"){
-                vm.show_cert = false;
-                vm.show_insurance = false;
-                vm.show_radio = true;
-                vm.show_maintenance = false;
-                vm.show_noise = false;
-                vm.show_crs = false;
-                vm.show_offline = false;
-            } else if(type == "noise"){
-                vm.show_cert = false;
-                vm.show_insurance = false;
-                vm.show_radio = false;
-                vm.show_maintenance = false;
-                vm.show_noise = true;
-                vm.show_crs = false;
-                vm.show_offline = false;
-            } else if(type == "offline"){
-                vm.show_cert = false;
-                vm.show_insurance = false;
-                vm.show_offline = true;
-                vm.show_radio = false;
-                vm.show_noise = false;
-                vm.show_crs = false;
-                vm.show_maintenance = false;
-            } 
-
-            
-
-       }
+            }
+       };
+       vm.show_overlay_fn = $scope.show_overlay;
 
        $scope.close_overlay = function(){
+            if (vm.saving) { return; }   // U4: never close under a save in flight
             vm.show_overlay = false;
+            vm.offline_confirm = false;
+       };
+       vm.close_overlay = $scope.close_overlay;
 
-       }
+       // The panel's title / primary button, by mode (U7: "Update ARC" / "Update Permit")
+       vm.overlayTitle = function () {
+           if (vm.show_maintenance) { return 'RECORD A CHECK'; }
+           if (vm.show_offline) { return 'TAKE OFFLINE'; }
+           if (vm.show_cert) { return (vm.club.plane && vm.club.plane.airworthiness_type === 'ptf') ? 'UPDATE PERMIT' : 'UPDATE ARC'; }
+           if (vm.show_insurance) { return 'UPDATE INSURANCE'; }
+           if (vm.show_radio) { return 'UPDATE RADIO LICENCE'; }
+           if (vm.show_noise) { return 'UPDATE NOISE CERTIFICATE'; }
+           if (vm.show_crs) { return 'UPDATE CRS'; }
+           if (vm.show_workpack_form) { return 'NEW WORKPACK'; }
+           return '';
+       };
+       vm.overlayAction = function () {
+           if (vm.saving) { return 'Saving…'; }
+           if (vm.show_maintenance) { return (vm.obj.maintenance_type === 'extension') ? 'Record extension' : 'Record check'; }
+           if (vm.show_offline) { return vm.offline_confirm ? 'Confirm — take offline' : 'Continue'; }
+           if (vm.show_cert) { return (vm.club.plane && vm.club.plane.airworthiness_type === 'ptf') ? 'Update Permit' : 'Update ARC'; }
+           if (vm.show_insurance) { return 'Update Insurance'; }
+           if (vm.show_radio) { return 'Update Radio Licence'; }
+           if (vm.show_noise) { return 'Update Noise Certificate'; }
+           if (vm.show_crs) { return 'Update CRS'; }
+           if (vm.show_workpack_form) { return 'Create workpack'; }
+           return 'Save';
+       };
 
 
-        $scope.get_hours_from_decimal = function(time){
-
-            if(time){
-                 var sign = time < 0 ? "-" : "";
-                 var hour = Math.floor(Math.abs(time));
-                 var min = Math.round((Math.abs(time) * 60) % 60);
-                 if(min == 60){
-                     hour++;
-                     min = 0;
-                 }
-                 return sign + (hour < 10 ? "0" : "") + hour + ":" + (min < 10 ? "0" : "") + min;
-             } else {
-                 return "N/A";
-             }
-            
-
-        }
+        // U15: a missing figure reads "No check recorded", never "N/A"
+        $scope.get_hours_from_decimal = MF.hoursDisplay;
 
 
 
@@ -450,603 +447,300 @@
         }
         vm.toDateOnly = toDateOnly;
 
+        // ─────────────────────────────────────────────────────────────
+        // The panel's Save. One mode at a time; validation first (toast + stay open);
+        // then the request, with the panel kept open and busy until it resolves
+        // (U4 / B9): close + reset on success only, one combined outcome toast (B13).
+        // Modes: maintenance (check or extension) → POST planes/{p}/maintenance;
+        // documents (cert / insurance / radio / noise) → the same route; CRS → its own
+        // endpoint; offline → explain, then confirm, then the request; workpack → the
+        // standalone create.
+        // ─────────────────────────────────────────────────────────────
         $scope.save_overlay = function(){
+            if (vm.saving) { return false; }
 
-            //first we save stuff   
-
-           
-            
-
-            var save = vm.obj;
-            
-            // //console.log("FILES ARE ", vm.files);
-
-            save.files = {
-                radio: (vm.files.radio[0]) ? vm.files.radio[0].file : {},
-                cert: (vm.files.cert[0]) ? vm.files.cert[0].file : {},
-                noise_cert: (vm.files.noise_cert[0]) ? vm.files.noise_cert[0].file : {},
-                insurance: (vm.files.insurance[0]) ? vm.files.insurance[0].file : {}
-            }
-
-            var send_update = false;
-
-
-            save.selected_type = vm.selected_type;
+            if (vm.show_workpack_form) { return saveWorkpackStandalone(); }
+            if (vm.show_crs) { return vm.saveCrsStandalone(); }
+            if (vm.show_offline) { return saveOffline(); }
 
             var send_obj = {};
+            var send_update = false;
+            var v;
 
-            if(vm.one_ticked){
-               for(var i=0;i<vm.reported_defects.length;i++){
-                if(vm.reported_defects[i].resolved){
-                    vm.obj.issues.push(vm.reported_defects[i]);
+            // ── Documents (their own modes, or the annual's optional ARC step) ──
+            if (vm.show_radio) {
+                if (!vm.files.radio[0]) {
+                    ToastService.warning('Radio licence file required', 'Upload the new radio licence (PDF or image). The expiry date is optional.');
+                    return false;
                 }
-               } 
-               send_obj.issues = vm.obj.issues;
-               if(send_obj.issues.length > 0){
-                   send_update = true;
-               }
-            }
-
-            // The expiry is optional: a radio licence may have none (blank → stored as
-            // NULL, shown as "No expiry" — it used to be stored as the save day).
-            if(!vm.files.radio[0] && vm.obj.radio_expiry){
-                ToastService.warning('Radio Incomplete', 'Please upload the new radio licence with its expiry date.');
-                return false;
-            } else if(vm.files.radio[0]){
                 send_obj.radio = {
-                    file: (vm.files.radio[0]) ? vm.files.radio[0].file : {},
-                    // Date-only field — format from picker value in LOCAL
-                    // time to avoid UTC drift via Date.toISOString().
+                    file: vm.files.radio[0].file,
+                    // Date-only field — LOCAL calendar day, never Date.toISOString()
                     expiry: vm.obj.radio_expiry ? toDateOnly(vm.obj.radio_expiry) : ''
                 };
                 send_update = true;
             }
 
-            // //console.log("radio file ", vm.files.radio[0]);
-
-
-            if((vm.files.cert[0] && vm.obj.certificate_expiry == null) || (vm.files.cert[0] == null && vm.obj.certificate_expiry)){
-                ToastService.warning('Certificate Incomplete', 'Please add both the expiry date and the new certificate.');
-                return false;
-            } else if(vm.files.cert[0] && vm.obj.certificate_expiry) {
-                send_obj.cert = {
-                    file: (vm.files.cert[0]) ? vm.files.cert[0].file : {},
-                    // Date-only fields — format from picker value in LOCAL
-                    // time so that ARC / CofA expiry + issue dates are
-                    // stored as the calendar day the user selected.
-                    expiry: toDateOnly(vm.obj.certificate_expiry),
-                    date_issued: toDateOnly(vm.obj.certificate_issue)
-                }
-                send_update = true;
-            }
-
-            // //console.log("insurance file ", vm.files.insurance[0]);
-
-            if((vm.files.insurance[0] && !vm.obj.insurance_expiry) || (vm.files.insurance[0] == null && vm.obj.insurance_expiry)){
-                ToastService.warning('Insurance Incomplete', 'Please add both the expiry date and the new certificate.');
-                return false;
-            } else if(vm.files.insurance[0] && vm.obj.insurance_expiry) {
-                send_obj.insurance = {
-                    file: (vm.files.insurance[0]) ? vm.files.insurance[0].file : {},
-                    // Date-only field — format from picker value in LOCAL time.
-                    expiry: toDateOnly(vm.obj.insurance_expiry)
-                }
-                send_update = true;
-            }
-
-
-
-            if((vm.files.noise_cert[0] && !vm.obj.noise_date) || (vm.files.noise_cert[0] == null && vm.obj.noise_date)){
-                ToastService.warning('Noise Certificate Incomplete', 'Please add both the date and the certificate, or leave both empty.');
-                return false;
-            } else if(vm.files.noise_cert[0] && vm.obj.noise_date) {
-                send_obj.noise_cert = {
-                    file: (vm.files.noise_cert[0]) ? vm.files.noise_cert[0].file : {},
-                    noise_level: vm.obj.noise_level,
-                    // Date-only field — format from picker value in LOCAL time.
-                    date_issued: toDateOnly(vm.obj.noise_date)
-                }
-                send_update = true;
-            }
-
-
-            // ── CRS (Certificate of Release to Service) ──
-            if (vm.files.crs[0]) {
-                if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
-                    ToastService.warning('CRS Incomplete', 'Please add the release date, release time, and the certificate.');
+            var arcStep = vm.show_maintenance && vm.fields().step_arc && vm.steps.arc;
+            if (vm.show_cert || arcStep) {
+                var hasCertFile = !!vm.files.cert[0];
+                var hasCertExpiry = !!vm.obj.certificate_expiry;
+                var docName = (vm.club.plane && vm.club.plane.airworthiness_type === 'ptf') ? 'Permit to Fly' : 'ARC';
+                if (vm.show_cert && (!hasCertFile || !hasCertExpiry)) {
+                    ToastService.warning(docName + ' incomplete', 'Both the ' + docName + ' document and its expiry date are required.');
                     return false;
                 }
-                // CRS uses its own endpoint, not AddMaintenance
-                var crsPayload = {
-                    plane_id: parseInt(vm.this_plane_id),
-                    release_date: moment(vm.obj.crs_release_date).format('YYYY-MM-DD'),
-                    release_time: moment(vm.obj.crs_release_time).format('HH:mm:ss'),
-                    file: vm.files.crs[0].file
+                if (arcStep && (hasCertFile !== hasCertExpiry)) {
+                    ToastService.warning(docName + ' incomplete', 'Add both the ' + docName + ' document and its expiry date, or leave the step empty.');
+                    return false;
+                }
+                if (hasCertFile && hasCertExpiry) {
+                    send_obj.cert = {
+                        file: vm.files.cert[0].file,
+                        expiry: toDateOnly(vm.obj.certificate_expiry),
+                        date_issued: toDateOnly(vm.obj.certificate_issue)
+                    };
+                    send_update = true;
+                }
+            }
+
+            if (vm.show_insurance) {
+                if (!vm.files.insurance[0] || !vm.obj.insurance_expiry) {
+                    ToastService.warning('Insurance incomplete', 'Both the insurance certificate and its expiry date are required.');
+                    return false;
+                }
+                send_obj.insurance = {
+                    file: vm.files.insurance[0].file,
+                    expiry: toDateOnly(vm.obj.insurance_expiry)
                 };
-                send_obj.crs = crsPayload;
                 send_update = true;
-            } else if (vm.obj.crs_release_date || vm.obj.crs_release_time) {
-                ToastService.warning('CRS Incomplete', 'Please upload the certificate document along with the release date and time.');
+            }
+
+            if (vm.show_noise) {
+                if (!vm.files.noise_cert[0] || !vm.obj.noise_date) {
+                    ToastService.warning('Noise certificate incomplete', 'Both the noise certificate and its issue date are required.');
+                    return false;
+                }
+                send_obj.noise_cert = {
+                    file: vm.files.noise_cert[0].file,
+                    noise_level: vm.obj.noise_level,
+                    date_issued: toDateOnly(vm.obj.noise_date)
+                };
+                send_update = true;
+            }
+
+            // ── CRS as the annual's optional step (its own endpoint, after the check) ──
+            var crsStep = vm.show_maintenance && vm.fields().step_crs && vm.steps.crs;
+            if (crsStep) {
+                var hasCrsFile = !!vm.files.crs[0];
+                var hasCrsWhen = !!(vm.obj.crs_release_date && vm.obj.crs_release_time);
+                if (hasCrsFile !== hasCrsWhen) {
+                    ToastService.warning('CRS incomplete', 'Add the CRS document with its release date and time, or leave the step empty.');
+                    return false;
+                }
+                if (hasCrsFile) {
+                    send_obj.crs = {
+                        plane_id: parseInt(vm.this_plane_id),
+                        release_date: toDateOnly(vm.obj.crs_release_date),
+                        release_time: MF.hms(vm.obj.crs_release_time),
+                        file: vm.files.crs[0].file
+                    };
+                    send_update = true;
+                }
+            }
+
+            // ── The check / extension (type-driven, decision 1) ──
+            var ticked = MF.resolvedDefects(vm.reported_defects);
+            if (vm.show_maintenance) {
+                var f = vm.fields();
+                if (!f.chosen) {
+                    ToastService.warning('Check type required', 'Choose what you are recording first.');
+                    return false;
+                }
+                if (f.extension) {
+                    v = MF.validateExtension(vm.obj, vm.reported_defects);
+                    if (!v.ok) { ToastService.warning(v.title, v.message); return false; }
+                    send_obj.extension = MF.buildExtensionBlock(vm.obj);
+                } else {
+                    v = MF.validateCheck(vm.obj, vm.reported_defects);
+                    if (!v.ok) { ToastService.warning(v.title, v.message); return false; }
+                    send_obj.maintenance = MF.buildCheckBlock(vm.obj);
+                    if (vm.steps.workpack && vm.obj.workpack_option === 'new') {
+                        var wv = MF.validateWorkpack(vm.new_workpack);
+                        if (!wv.ok) { ToastService.warning(wv.title, wv.message); return false; }
+                    }
+                }
+                send_update = true;
+                // U10 / B7: the engineer confirmation is enforced by validateCheck /
+                // validateExtension whenever a defect is ticked
+                if (ticked.length > 0) {
+                    send_obj.issues = ticked;
+                }
+            }
+
+            if (!send_update) {
+                ToastService.warning('Nothing to save', 'Fill in the form first.');
                 return false;
             }
 
+            vm.send_obj = send_obj;
+            vm.saving = true;
 
-            // //console.log("type:", vm.obj.maintenance_type);
-            // //console.log("remaining:", vm.obj.hours_remaining);
-            // //console.log("next_check:", vm.obj.next_check);
-           
-
-
-            // //console.log("firs: ", (vm.obj.maintenance_type !== undefined 
-            //  || vm.obj.hours_remaining !== undefined 
-            //  || vm.obj.next_check !== undefined));
-
-            // //console.log("secon: ",((vm.obj.maintenance_type !== "" || vm.obj.maintenance_type !== undefined) && (vm.obj.hours_remaining !== undefined || vm.obj.hours_remaining !== "") 
-            //     && (vm.obj.next_check !== undefined && vm.obj.next_check !== "")) );
-          
-            // Only validate maintenance fields when the maintenance overlay is active
-            if(vm.show_maintenance){
-
-              // ── Validate required fields before proceeding ──
-              // 1. Maintenance type must be selected
-              if (!vm.obj.maintenance_type || vm.obj.maintenance_type === '') {
-                  ToastService.warning('Maintenance Type Required', 'Please select a maintenance type.');
-                  return false;
-              }
-
-              // 2. Time of maintenance must be filled
-              if (!vm.obj.check_time) {
-                  ToastService.warning('Time Required', 'Please enter the time of maintenance.');
-                  return false;
-              }
-
-              // 3. Checked by must be filled
-              if (!vm.obj.checked_by || vm.obj.checked_by.trim() === '') {
-                  ToastService.warning('Checked By Required', 'Please enter who checked/signed off the maintenance.');
-                  return false;
-              }
-
-              // 4. For non-extension types, date of maintenance must be filled
-              if (vm.obj.maintenance_type !== 'extension' && !vm.obj.check_date) {
-                  ToastService.warning('Date Required', 'Please enter the date of maintenance.');
-                  return false;
-              }
-
-              // 5. For extension types, extension granted date must be filled
-              if (vm.obj.maintenance_type === 'extension' && !vm.obj.extension_granted) {
-                  ToastService.warning('Date Required', 'Please enter the extension granted date.');
-                  return false;
-              }
-
-              if(((vm.obj.maintenance_type !== undefined && vm.obj.maintenance_type !=="extension") 
-               || vm.obj.hours_remaining !== undefined 
-               || vm.obj.next_check !== undefined)){
-                      if((vm.obj.maintenance_type !== "" || vm.obj.maintenance_type !== undefined) && (vm.obj.hours_remaining !== undefined || vm.obj.hours_remaining !== "") 
-                  && (vm.obj.next_check !== undefined && vm.obj.next_check !== "")){
-
-                      var check_date =  moment( moment(vm.obj.check_date).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
-
-                      send_obj.maintenance = {
-                          maintenance_type: vm.obj.maintenance_type,
-                          hours_remaining: vm.obj.hours_remaining,
-                          // check_date carries a time component (datetime).
-                          check_date: check_date,
-                          // expiry_date (incl. ARC date_expiry when
-                          // maintenance_type === 'arc') is a calendar date —
-                          // format from picker value in LOCAL time so the
-                          // backend stores the day the user actually chose.
-                          expiry_date: toDateOnly(vm.obj.next_check),
-                          checked_by: vm.obj.checked_by,
-                          description: vm.obj.notes
-                      } 
-
-                      // Include workpack_id if selected from existing
-                      if (vm.obj.workpack_option === 'existing' && vm.obj.workpack_id) {
-                          send_obj.maintenance.workpack_id = parseInt(vm.obj.workpack_id);
-                      }
-
-                      send_update = true;
-                  } else {
-                      ToastService.warning('Maintenance Incomplete', 'Please add check date, next check, and hours remaining.');
-                      return false; 
-                  }
-                }
-
-                if(vm.obj.maintenance_type == "extension"){
-                      if((vm.obj.extension_hours !== "" || vm.obj.extension_days !== "")){
-
-                      var extension_granted =  moment( moment(vm.obj.extension_granted).format("YYYY-MM-DD")+ " "+moment(vm.obj.check_time).format("HH:mm:ss") ).format("YYYY-MM-DD HH:mm:ss");
-
-
-                      send_obj.extension = {
-                          maintenance_type: vm.obj.maintenance_type,
-                          extension_hours: vm.obj.extension_hours,
-                          extension_days: vm.obj.extension_days,
-                          extension_granted: extension_granted,
-                          // required above for every type — stored since 2026-11-06
-                          checked_by: vm.obj.checked_by,
-                          description: vm.obj.notes
-                      }
-                      send_update = true;
-                  } else {
-                      ToastService.warning('Maintenance Incomplete', 'Please add check date, next check, and hours remaining.');
-                      return false; 
-                  }
-                }
+            // Follow-up saves after the check: each reports an outcome for the one toast.
+            var outcomes = [];
+            function outcome(label, promise) {
+                return $q.when(promise).then(function (d) {
+                    var ok = !!(d && d.success !== false);
+                    outcomes.push({ label: label, ok: ok, message: ok ? '' : readMessage(d, 'not saved') });
+                    return d;
+                }, function () {
+                    outcomes.push({ label: label, ok: false, message: 'not saved' });
+                });
             }
 
+            function saveDefectWorkpacks(workpackId) {
+                var ps = [];
+                for (var d = 0; d < ticked.length; d++) {
+                    var def = ticked[d];
+                    if (workpackId && def._link_to_workpack) {
+                        ps.push(outcome('Defect "' + (def.defect || '').slice(0, 30) + '" workpack link', WorkpackService.LinkDefect(workpackId, def.id)));
+                    } else if (def.defect_workpack_number || def.defect_workpack_signatory || def._uploaded_file) {
+                        var payload = {
+                            workpack_number: def.defect_workpack_number || '',
+                            signatory: def.defect_workpack_signatory || ''
+                        };
+                        if (def._uploaded_file) {
+                            payload.document_temp_path = def._uploaded_file.temp_path;
+                            payload.document_extension = def._uploaded_file.extension;
+                            payload.document_original_name = def._uploaded_file.name;
+                        }
+                        ps.push(outcome('Defect "' + (def.defect || '').slice(0, 30) + '" workpack', WorkpackService.UpdateDefectWorkpack(def.id, payload)));
+                    }
+                }
+                return $q.all(ps);
+            }
 
-            // Only validate offline fields when the offline overlay is active
-            if(vm.show_offline){
-              if((vm.obj.offline_until !== "" || vm.obj.offline_notes !== "")){
-                    send_obj.offline = {
-                        // Date-only field — format from picker value in LOCAL time.
-                        offline_until: toDateOnly(vm.obj.offline_until),
-                        offline_notes: vm.obj.offline_notes,
-                        club_id: vm.club_id
-                    } 
-                    send_update = true;
+            function saveFollowUps(data) {
+                var ps = [];
+                if (send_obj.crs) {
+                    // the CRS records the check it was issued for (plane_crs.maintenance_check_id, 10 Nov 2026)
+                    if (data.maintenance_check_id) { send_obj.crs.maintenance_check_id = data.maintenance_check_id; }
+                    ps.push(outcome('CRS', CrsService.Create(send_obj.crs)));
+                }
+                if (data.maintenance_check_id) {
+                    var links = vm.saveCreateLogbookLinks(data.maintenance_check_id);
+                    if (links) { ps.push(outcome('Logbook links', links)); }
+                }
+                if (send_obj.maintenance && vm.steps.workpack && vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number) {
+                    var wp = {
+                        club_id: vm.club_id,
+                        plane_id: parseInt(vm.this_plane_id),
+                        workpack_number: vm.new_workpack.workpack_number,
+                        authorised_signatory: vm.new_workpack.authorised_signatory,
+                        description: vm.new_workpack.description,
+                        status: vm.new_workpack.status || 'completed',
+                        created_by_user_id: vm.user_id
+                    };
+                    if (data.maintenance_check_id) { wp.maintenance_check_id = data.maintenance_check_id; }
+                    if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
+                        var wf = vm.workpack_files.workpack_doc[0];
+                        wp.document_temp_path = wf.temp_path;
+                        wp.document_extension = wf.extension;
+                        wp.document_original_name = wf.name;
+                    }
+                    ps.push(outcome('Workpack', WorkpackService.Create(wp)).then(function (wpData) {
+                        return saveDefectWorkpacks(wpData && wpData.success ? wpData.id : null);
+                    }));
                 } else {
-                    ToastService.warning('Offline Date', 'Please ensure the offline date is set in the future.');
-                    return false; 
-              }
+                    ps.push(saveDefectWorkpacks(null));
+                }
+                return $q.all(ps);
             }
 
-            // var send_obj = {
-            //     radio: {
-            //         file: (vm.files.radio[0]) ? vm.files.radio[0].file : {},
-            //         expiry: vm.obj.radio_expiry
-            //     },
-            //     cert: {
-            //         file: (vm.files.cert[0]) ? vm.files.cert[0].file : {},
-            //         expiry: vm.obj.certificate_expiry
-            //     },
-            //     insurance: {
-            //         file: (vm.files.insurance[0]) ? vm.files.insurance[0].file : {},
-            //         expiry: vm.obj.insurance_expiry
-            //     },
-            //     maintenance: {
-            //         maintenance_type: vm.obj.maintenance_type,
-            //         hours_remaining: vm.obj.hours_remaining,
-            //         next_check: vm.obj.next_check
-            //     },
-            //     issues: vm.obj.issues
-            // };
-            // //console.log("TIME NOW : ", vm.obj.check_date);
-            // //console.log("TIME NOW : ", moment(vm.obj.check_date) );
-            // //console.log("TIME NOW : ", vm.obj.check_time);
-            // //console.log("TIME NOW : ", moment(vm.obj.check_time));
+            var primaryTitle = send_obj.maintenance ? 'Check recorded'
+                : send_obj.extension ? 'Extension recorded'
+                : send_obj.cert ? ((vm.club.plane && vm.club.plane.airworthiness_type === 'ptf') ? 'Permit updated' : 'ARC updated')
+                : send_obj.insurance ? 'Insurance updated'
+                : send_obj.radio ? 'Radio licence updated'
+                : send_obj.noise_cert ? 'Noise certificate updated'
+                : 'Saved';
 
-            // //console.log("TIME NOW : ", moment( moment(vm.obj.check_date).format("YYYY-MM-DD")+ " "+vm.obj.check_time ) );
-
-
-            // return false;
-
-            if(!send_update){
-                ToastService.warning('Nothing Saved', 'No changes were made — the panel will close.');
-
-            } else {
-                // //console.log("TOSAVE: ", send_obj);
-                
-                vm.send_obj = send_obj;
-
-                // Helper: save defect workpack info for resolved defects
-                // If workpackId is provided, defects marked with _link_to_workpack will be
-                // linked to that workpack instead of getting standalone workpack fields.
-                var saveDefectWorkpacks = function (workpackId) {
-                    if (vm.reported_defects && vm.reported_defects.length > 0) {
-                        for (var d = 0; d < vm.reported_defects.length; d++) {
-                            var def = vm.reported_defects[d];
-                            if (def.resolved) {
-                                // Link defect to the new workpack if user chose that option
-                                if (workpackId && def._link_to_workpack) {
-                                    WorkpackService.LinkDefect(workpackId, def.id);
-                                } else if (def.defect_workpack_number || def.defect_workpack_signatory || def._uploaded_file) {
-                                    // Standalone workpack info
-                                    var payload = {
-                                        workpack_number: def.defect_workpack_number || '',
-                                        signatory: def.defect_workpack_signatory || ''
-                                    };
-                                    if (def._uploaded_file) {
-                                        payload.document_temp_path = def._uploaded_file.temp_path;
-                                        payload.document_extension = def._uploaded_file.extension;
-                                        payload.document_original_name = def._uploaded_file.name;
-                                    }
-                                    WorkpackService.UpdateDefectWorkpack(def.id, payload);
-                                }
-                            }
-                        }
+            // Only a CRS (annual step without a check body) never happens: the check is
+            // always in the body in maintenance mode. Documents-only modes post the same route.
+            PlaneService.AddMaintenance(vm.this_plane_id, send_obj)
+                .then(function (data) {
+                    // handleError2 resolves with success:false — refusals come as
+                    // {success:false, error, message}; say the message and stay open.
+                    if (!data || data.success === false) {
+                        vm.saving = false;
+                        ToastService.error('Not saved', readMessage(data, 'The maintenance update could not be saved. Nothing was changed — check the form and try again.'));
+                        return;
                     }
-                };
-
-                // Helper: also create CRS if one was provided
-                var saveCrs = function () {
-                    if (send_obj.crs) {
-                        // a refused CRS (bad date, invalid upload) used to vanish silently
-                        return CrsService.Create(send_obj.crs).then(function (crsData) {
-                            if (!crsData || crsData.success === false) {
-                                ToastService.error('CRS Not Saved', (crsData && typeof crsData.message === 'string') ? crsData.message : 'The Certificate of Release to Service could not be saved.');
-                            }
-                            return crsData;
-                        });
-                    }
-                    // Return resolved promise if no CRS
-                    return { then: function (cb) { cb({}); } };
-                };
-
-                // Create maintenance event first, then workpack if needed
-                PlaneService.AddMaintenance(vm.this_plane_id, send_obj)
-                    .then(function (data) {
-
-                        // handleError2 resolves with success:false — stop here so a
-                        // failed save doesn't reload the page as if it worked.
-                        if (!data || data.success === false) {
-                            ToastService.error('Save Failed', (data && data.message) || 'The maintenance update could not be saved.');
-                            return;
-                        }
-
-                        ToastService.success('Maintenance Saved', 'The update has been recorded.');
-
-                        // A document the server refused while the rest of the save went
-                        // through (bad date, failed upload) — documents_refused: [{label, message}].
-                        // It used to vanish whenever a check was saved in the same request.
-                        if (angular.isArray(data.documents_refused) && data.documents_refused.length > 0) {
-                            var refusedMsgs = [];
-                            for (var r = 0; r < data.documents_refused.length; r++) {
-                                var ref = data.documents_refused[r] || {};
-                                refusedMsgs.push((ref.label || ref.document || 'Document') + ': ' + (ref.message || 'not saved'));
-                            }
-                            ToastService.warning('Not Saved', refusedMsgs.join(' '));
-                        }
-
-                        // Save CRS alongside (fire and forget alongside workpack)
-                        saveCrs();
-
-                        // Save logbook links for the new maintenance check (fire and forget)
-                        if (data.maintenance_check_id) {
-                            vm.saveCreateLogbookLinks(data.maintenance_check_id);
-                        }
-
-                        // If creating a new workpack, do it AFTER the maintenance event is created
-                        // so we can associate the workpack with the new maintenance_check_id
-                        if (vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number) {
-                            var wp = {
-                                club_id: vm.club_id,
-                                plane_id: parseInt(vm.this_plane_id),
-                                workpack_number: vm.new_workpack.workpack_number,
-                                authorised_signatory: vm.new_workpack.authorised_signatory,
-                                description: vm.new_workpack.description,
-                                status: vm.new_workpack.status || 'completed',
-                                created_by_user_id: vm.user_id
-                            };
-
-                            // Link to the maintenance event that was just created
-                            if (data.maintenance_check_id) {
-                                wp.maintenance_check_id = data.maintenance_check_id;
-                            }
-
-                            if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
-                                var f = vm.workpack_files.workpack_doc[0];
-                                wp.document_temp_path = f.temp_path;
-                                wp.document_extension = f.extension;
-                                wp.document_original_name = f.name;
-                            }
-
-                            WorkpackService.Create(wp)
-                                .then(function (wpData) {
-                                    if (wpData.success) {
-                                        // Link resolved defects to this workpack or save standalone info
-                                        saveDefectWorkpacks(wpData.id);
-                                        vm.new_workpack = {};
-                                        vm.workpack_files = { workpack_doc: [] };
-                                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
-                                    } else {
-                                        ToastService.error('Workpack Error', wpData.message || 'Unknown error');
-                                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
-                                    }
-                                });
-                        } else {
-                            // No new workpack — save standalone defect workpack info
-                            saveDefectWorkpacks();
-                            $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
-                        }
+                    return saveFollowUps(data).then(function () {
+                        var t = MF.outcomeToast(primaryTitle, outcomes, data.documents_refused);
+                        if (t.kind === 'success') { ToastService.success(t.title, t.message); } else { ToastService.warning(t.title, t.message); }
+                        MF.resetAfterSave(vm);
+                        vm.show_overlay = false;
+                        loadMaintenanceDetail();
                     });
+                }, function () {
+                    vm.saving = false;
+                    ToastService.error('Not saved', 'The server could not be reached. Nothing was changed — try again.');
+                });
+            return true;
+        };
+        vm.save_overlay = $scope.save_overlay;
 
+        // U6: Take Offline — explain what happens, confirm, then the request.
+        function saveOffline() {
+            var v = MF.validateOffline(vm.obj, new Date());
+            if (!v.ok) { ToastService.warning(v.title, v.message); return false; }
+            if (!vm.offline_confirm) {
+                vm.offline_confirm = true;   // second click confirms
+                return false;
             }
-
-
-            //EASYPEASY LEMON SQUEEEEEZY
-
-            ////console.log("SAVE CERT");
-            vm.show_overlay = false;
+            vm.saving = true;
+            PlaneService.AddMaintenance(vm.this_plane_id, { offline: MF.buildOfflineBlock(vm.obj, vm.club_id) })
+                .then(function (data) {
+                    if (!data || data.success === false) {
+                        vm.saving = false;
+                        vm.offline_confirm = false;
+                        ToastService.error('Not taken offline', readMessage(data, 'The aircraft could not be taken offline. Nothing was changed.'));
+                        return;
+                    }
+                    ToastService.success('Aircraft offline', vm.club.plane.registration + ' is offline until ' + MF.displayDate(vm.obj.offline_until) + '. Clashing bookings of this club were moved to the waiting list and those members e-mailed.');
+                    MF.resetAfterSave(vm);
+                    vm.show_overlay = false;
+                    loadMaintenanceDetail();
+                }, function () {
+                    vm.saving = false;
+                    vm.offline_confirm = false;
+                    ToastService.error('Not taken offline', 'The server could not be reached. Nothing was changed — try again.');
+                });
+            return true;
         }
 
-
+        // "New workpack" from the Workpacks card — the sub-form standalone (no check
+        // required; the backend no longer creates a check for it).
+        function saveWorkpackStandalone() {
+            var v = MF.validateWorkpack(vm.new_workpack);
+            if (!v.ok) { ToastService.warning(v.title, v.message); return false; }
+            vm.saving = true;
+            vm.createWorkpack().then(function (ok) {
+                vm.saving = false;
+                if (ok) {
+                    ToastService.success('Workpack created', 'Workpack ' + (vm.new_workpack_last_number || '') + ' was added to this aircraft.');
+                    MF.resetAfterSave(vm);
+                    vm.show_overlay = false;
+                }
+            });
+            return true;
+        }
 
         $scope.check_ticked = function(){
-            var count = 0;
-            for(var i=0;i<vm.reported_defects.length;i++){
-                if(vm.reported_defects[i].resolved){
-                    count++;
-                }
-            }
-
-            ////console.log("total = ", count);
-
-            vm.one_ticked = (count > 0)? true : false;
-
-            // if(count > 0){
-            //     vm.one_ticked = true;
-            // } else {
-            //     vm.one_ticked = false;
-            // }
-        }
-
-
-
-
-        $scope.show_cert = function(){
-            //console.log("SHOW CERT HERE");
-            vm.show_cert = true;
-
-        }
-
-        $scope.close_cert = function(){
-            //console.log("CLOSE CERT");
-            vm.show_cert = false;
-        }
-
-        $scope.save_cert = function(){
-
-            //first we save stuff   
-
-
-
-
-
-            //console.log("SAVE CERT");
-            vm.show_cert = false;
-        }
-
-
-        $scope.show_insurance = function(){
-            //console.log("SHOW INSURANCE HERE");
-            vm.show_insurance = true;
-
-        }
-
-        $scope.close_insurance = function(){
-            //console.log("CLOSE INSURANCE");
-            vm.show_insurance = false;
-        }
-
-        $scope.save_insurance = function(){
-
-            //first we save stuff   
-            
-
-
-            
-
-            //console.log("SAVE INSURANCE");
-            vm.show_insurance = false;
-        }
-
-
-
-        $scope.show_radio = function(){
-            //console.log("SHOW radio HERE");
-            vm.show_radio = true;
-
-        }
-
-        $scope.close_radio = function(){
-            //console.log("CLOSE radio");
-            vm.show_radio = false;
-        }
-
-        $scope.save_radio = function(){
-
-            //first we save stuff   
-            
-
-
-            
-
-            //console.log("SAVE radio");
-            vm.show_radio = false;
-        }
-
-        $scope.show_noise = function(){
-            //console.log("SHOW radio HERE");
-            vm.show_noise = true;
-
-        }
-
-        $scope.close_noise = function(){
-            //console.log("CLOSE radio");
-            vm.show_noise = false;
-        }
-
-        $scope.save_noise = function(){
-
-            //first we save stuff              
-            //console.log("SAVE radio");
-            vm.show_noise = false;
-        }
-
-
-        $scope.show_maintenance = function(){
-            //console.log("SHOW maintenance HERE");
-            vm.show_maintenance = true;
-
-        }
-
-        $scope.close_maintenance = function(){
-            //console.log("CLOSE maintenance");
-            vm.show_maintenance = false;
-        }
-
-        $scope.save_maintenance = function(){
-
-            //first we save stuff   
-
-            //console.log("SAVE maintenance");
-            vm.show_maintenance = false;
-        }
-
-
-        vm.add_defect = function(){
-
-
-                var obj = {
-                    club_id: vm.club_id,
-                    user_id: vm.user_id,
-                    plane_id: vm.this_plane_id,
-                    defect: vm.defect,
-                    severity: vm.defect_severity.title,
-                    status: "open"
-                }
-
-
-
-                PlaneService.AddDefect(obj)
-                 .then(function (data) {
-                        ////console.log("data is : ", data);
-                        data.item.can_delete = true;
-
-                        //HELLO
-                        vm.club.plane.defects.push(data.item);
-                        //vm.reported_defects.push(data.item);
-
-                        vm.defect = "";
-                        vm.defect_severity = "";
-
-
-
-                    });
-
-            }
-
-            vm.delete_defect = function(id){
-               // //console.log("UNDO DEFECT ID ", id);
-
-                PlaneService.DeleteDefect(id)
-                .then(function (data) {
-                        ////console.log("data is : ", data);
-                       
-                        PlaneService.GetOpenIssues(vm.bookout.plane_id)
-                        .then(function (data) {
-                                ////console.log("data is : ", data);
-                               vm.reported_defects = data;
-                            });
-
-
-                    });
-
-            }
-
-
+            vm.one_ticked = MF.resolvedDefects(vm.reported_defects).length > 0;
+        };
+        vm.check_ticked = $scope.check_ticked;
 
         $scope.back = function(){
             $rootScope.safeBack();
@@ -1054,49 +748,21 @@
 
         $scope.save = function(){
             if(vm.action == "add"){
-                // //console.log("CREATE click");
                 $scope.create();
             } else {
-                // //console.log("EDIT click");
-                // //console.log(vm.club.plane);
                 $scope.update();
             }
         }
 
 
         $scope.create = function(){
-            // //console.log("CREATE ME NOW");
             vm.club.plane.club_id = vm.club_id;
             vm.club.plane.add_documents = vm.plane_documents;
-            // //console.log("PLANE TO ADD, ", vm.club.plane);
-            //return false;
             PlaneService.Create(vm.club.plane)
                 .then(function(data){
-                    // //console.log(data);
                     $state.go('dashboard.manage_club.planes', {reload: true});
 
                 });
-        }
-
-        $scope.delete = function(){
-            // //console.log("CLICK");
-            ToastService.warning('Confirm Delete', 'Are you sure you would like to delete this plane?');
-            PlaneService.Update(vm.club.plane)
-                .then(function(data){
-                    // //console.log(data);
-                });
-        }
-
-        $scope.getColours = function(value){
-            if(value < 1){
-                return "red";
-            }
-            if(value < 5){
-                return "warning"
-            }
-            if(value < 10){
-                return "amber";
-            }
         }
 
         function get_update_docs(){
@@ -1442,13 +1108,12 @@
           //     //console.log($flow);
           //   });
 
-            vm.files = {
-                radio: [],
-                cert: [],
-                noise_cert: [],
-                insurance: [],
-                crs: []
-            }
+            // vm.files is initialised with the form state above (MF.freshFiles()) and
+            // reset after every successful save. A cancelled upload clears its slot so
+            // a later upload is the one sent (B9).
+            vm.removeUpload = function (location) {
+                if (vm.files && vm.files[location]) { vm.files[location] = []; }
+            };
 
 
             $scope.processFiles = function(files, location){
@@ -1475,6 +1140,17 @@
             }
 
 
+            /**
+             * A finished upload whose answer says success:false (10 Nov 2026: an image the server could not read, or a
+             * HEIC where it has no converter) is reported and taken out of the drop zone; true when the file is usable.
+             */
+            function mxUploadAccepted(j, flowFile) {
+                if (j && j.success !== false) { return true; }
+                ToastService.error('Upload failed', (j && j.message) || 'That file could not be uploaded. Please try a PDF, JPG or PNG.');
+                if (flowFile && typeof flowFile.cancel === 'function') { flowFile.cancel(); }
+                return false;
+            }
+
              $scope.processFile = function(files, location){
                  //console.log("files", files[0].file_return);
 
@@ -1484,13 +1160,15 @@
                     // //console.log("J is : ",j);
                     // //console.log("name is : ", j.files.file.name);
 
+                    if (!mxUploadAccepted(j, files[0])) { return; }
                     files[0].file.temp_path = j.saved_url;
                     files[0].file.save_name = j.files.file.name;
 
                     var ft = j.files.file.name;
                     // //console.log("ft", ft);
                     var fft = ft.split('.').pop();
-                    files[0].file.extension = fft;
+                    // the stored extension is the upload's answer (every image is stored as a JPEG since 10 Nov 2026)
+                    files[0].file.extension = j.extension || fft;
                     // //console.log("FILE is : ", files[0]);
 
                     // //console.log("file", files[i].file);
@@ -1864,8 +1542,10 @@
             if (!vm.this_plane_id) return;
             WorkpackService.GetByPlane(vm.this_plane_id)
                 .then(function (data) {
-                    if (data.success !== false) {
+                    if (data && data.success !== false) {
                         vm.workpacks = data.workpacks || [];
+                    } else {
+                        ToastService.error('Workpacks not loaded', readMessage(data, 'The workpacks could not be loaded.'));
                     }
                 });
         };
@@ -1874,12 +1554,15 @@
             if (!vm.this_plane_id) return;
             WorkpackService.GetOpenByPlane(vm.this_plane_id)
                 .then(function (data) {
-                    if (data.success !== false) {
+                    if (data && data.success !== false) {
                         vm.open_workpacks = data.workpacks || [];
                     }
+                    // the "link to an open workpack" option only — the full list toasts above
                 });
         };
 
+        // Standalone create (the "New workpack" button on the card). Resolves true on
+        // success, false on a refusal (which is toasted with the server's message).
         vm.createWorkpack = function () {
             var wp = {
                 club_id: vm.club_id,
@@ -1899,29 +1582,55 @@
                 wp.document_original_name = f.name;
             }
 
-            WorkpackService.Create(wp)
+            return WorkpackService.Create(wp)
                 .then(function (data) {
-                    if (data.success) {
+                    if (data && data.success) {
+                        vm.new_workpack_last_number = wp.workpack_number;
                         vm.show_create_workpack = false;
-                        vm.new_workpack = {};
+                        vm.new_workpack = { status: 'completed' };
                         vm.workpack_files = { workpack_doc: [] };
                         vm.loadWorkpacks();
                         vm.loadOpenWorkpacks();
-                    } else {
-                        ToastService.error('Workpack Error', data.message || 'Unknown error');
+                        return true;
                     }
+                    ToastService.error('Workpack not created', readMessage(data, 'The workpack could not be created.'));
+                    return false;
+                }, function () {
+                    ToastService.error('Workpack not created', 'The server could not be reached.');
+                    return false;
                 });
         };
 
         vm.viewWorkpack = function (id) {
             WorkpackService.GetById(id)
                 .then(function (data) {
-                    if (data.success !== false) {
+                    if (data && data.success !== false && data.workpack) {
                         vm.workpack = data.workpack;
                         vm.show_workpack_detail = true;
+                    } else {
+                        ToastService.error('Workpack not loaded', readMessage(data, 'The workpack could not be loaded.'));
                     }
                 });
         };
+
+        // U18: every workpack write says why it was refused (writeGuard swallows the codes)
+        function workpackWrite(label, promise, onOk) {
+            return $q.when(promise).then(function (data) {
+                if (data && data.success) {
+                    if (onOk) { onOk(data); }
+                } else {
+                    ToastService.error(label, readMessage(data, 'The change was not saved.'));
+                }
+                return data;
+            }, function () {
+                ToastService.error(label, 'The server could not be reached.');
+            });
+        }
+        function refreshWorkpack() {
+            if (vm.workpack) { vm.viewWorkpack(vm.workpack.id); }
+            vm.loadWorkpacks();
+            vm.loadOpenWorkpacks();
+        }
 
         vm.closeWorkpackDetail = function () {
             vm.workpack = null;
@@ -1934,55 +1643,32 @@
             if (!vm.workpack) return;
             var update = {};
             update[field] = value;
-            WorkpackService.Update(vm.workpack.id, update)
-                .then(function (data) {
-                    if (data.success) {
-                        vm.viewWorkpack(vm.workpack.id);
-                        vm.loadWorkpacks();
-                        vm.loadOpenWorkpacks();
-                    }
-                });
+            workpackWrite('Workpack not updated', WorkpackService.Update(vm.workpack.id, update), refreshWorkpack);
         };
 
         vm.completeWorkpack = function () {
             if (!vm.workpack) return;
             var a = confirm('Are you sure you want to mark this workpack as completed?');
             if (a) {
-                WorkpackService.Update(vm.workpack.id, { status: 'completed' })
-                    .then(function (data) {
-                        if (data.success) {
-                            vm.viewWorkpack(vm.workpack.id);
-                            vm.loadWorkpacks();
-                            vm.loadOpenWorkpacks();
-                        }
-                    });
+                workpackWrite('Workpack not completed', WorkpackService.Update(vm.workpack.id, { status: 'completed' }), refreshWorkpack);
             }
         };
 
         vm.reopenWorkpack = function () {
             if (!vm.workpack) return;
-            WorkpackService.Update(vm.workpack.id, { status: 'open' })
-                .then(function (data) {
-                    if (data.success) {
-                        vm.viewWorkpack(vm.workpack.id);
-                        vm.loadWorkpacks();
-                        vm.loadOpenWorkpacks();
-                    }
-                });
+            workpackWrite('Workpack not reopened', WorkpackService.Update(vm.workpack.id, { status: 'open' }), refreshWorkpack);
         };
 
         vm.deleteWorkpack = function () {
             if (!vm.workpack) return;
             var a = confirm('Are you sure you want to delete (archive) this workpack? This will unlink all defects and maintenance events.');
             if (a) {
-                WorkpackService.Delete(vm.workpack.id)
-                    .then(function (data) {
-                        if (data.success) {
-                            vm.closeWorkpackDetail();
-                            vm.loadWorkpacks();
-                            vm.loadOpenWorkpacks();
-                        }
-                    });
+                workpackWrite('Workpack not deleted', WorkpackService.Delete(vm.workpack.id), function () {
+                    vm.closeWorkpackDetail();
+                    vm.loadWorkpacks();
+                    vm.loadOpenWorkpacks();
+                    vm.loadMaintenanceEvents();
+                });
             }
         };
 
@@ -1990,27 +1676,22 @@
             if (!vm.workpack) return;
             if (vm.workpack_files.workpack_doc && vm.workpack_files.workpack_doc.length > 0) {
                 var f = vm.workpack_files.workpack_doc[0];
-                WorkpackService.Update(vm.workpack.id, {
+                workpackWrite('Document not uploaded', WorkpackService.Update(vm.workpack.id, {
                     document_temp_path: f.temp_path,
                     document_extension: f.extension,
                     document_original_name: f.name
-                }).then(function (data) {
-                    if (data.success) {
-                        vm.workpack_files = { workpack_doc: [] };
-                        vm.viewWorkpack(vm.workpack.id);
-                    }
+                }), function () {
+                    vm.workpack_files = { workpack_doc: [] };
+                    vm.viewWorkpack(vm.workpack.id);
                 });
             }
         };
 
         vm.removeWorkpackDocument = function () {
             if (!vm.workpack) return;
-            WorkpackService.Update(vm.workpack.id, { remove_document: true })
-                .then(function (data) {
-                    if (data.success) {
-                        vm.viewWorkpack(vm.workpack.id);
-                    }
-                });
+            workpackWrite('Document not removed', WorkpackService.Update(vm.workpack.id, { remove_document: true }), function () {
+                vm.viewWorkpack(vm.workpack.id);
+            });
         };
 
         $scope.downloadWorkpackDocument = function (filename) {
@@ -2043,40 +1724,42 @@
             if (!defect_id) return;
             var a = confirm('Unlink this defect from the workpack?');
             if (a) {
-                WorkpackService.UnlinkDefect(defect_id)
-                    .then(function (data) {
-                        if (data.success) {
-                            vm.viewWorkpack(vm.workpack.id);
-                        }
-                    });
+                workpackWrite('Defect not unlinked', WorkpackService.UnlinkDefect(defect_id), function () {
+                    vm.viewWorkpack(vm.workpack.id);
+                });
             }
         };
 
         // ── Link / Unlink Maintenance Events ──
 
+        // B4: the "Link a Maintenance Event" list — the aircraft's events (vm.maintenance_events)
+        // not on a workpack yet. The old template read a key the backend never sent.
+        vm.linkableEvents = function () {
+            var out = [];
+            for (var i = 0; i < (vm.maintenance_events || []).length; i++) {
+                var e = vm.maintenance_events[i];
+                if (!e.workpack_id || parseInt(e.workpack_id, 10) === 0) { out.push(e); }
+            }
+            return out;
+        };
+
         vm.linkMaintenanceToWorkpack = function (maintenance_check_id) {
             if (!vm.workpack || !maintenance_check_id) return;
-            WorkpackService.LinkMaintenance(vm.workpack.id, maintenance_check_id)
-                .then(function (data) {
-                    if (data.success) {
-                        vm.show_link_maintenance = false;
-                        vm.viewWorkpack(vm.workpack.id);
-                    } else {
-                        ToastService.error('Link Error', data.message || 'Error linking maintenance event.');
-                    }
-                });
+            workpackWrite('Event not linked', WorkpackService.LinkMaintenance(vm.workpack.id, maintenance_check_id), function () {
+                vm.show_link_maintenance = false;
+                vm.viewWorkpack(vm.workpack.id);
+                vm.loadMaintenanceEvents();
+            });
         };
 
         vm.unlinkMaintenance = function (maintenance_check_id) {
             if (!maintenance_check_id) return;
             var a = confirm('Unlink this maintenance event from the workpack?');
             if (a) {
-                WorkpackService.UnlinkMaintenance(maintenance_check_id)
-                    .then(function (data) {
-                        if (data.success) {
-                            vm.viewWorkpack(vm.workpack.id);
-                        }
-                    });
+                workpackWrite('Event not unlinked', WorkpackService.UnlinkMaintenance(maintenance_check_id), function () {
+                    vm.viewWorkpack(vm.workpack.id);
+                    vm.loadMaintenanceEvents();
+                });
             }
         };
 
@@ -2115,15 +1798,11 @@
 
             WorkpackService.UpdateDefectWorkpack(vm.selected_defect_for_wp.id, payload)
                 .then(function (data) {
-                    if (data.success) {
+                    if (data && data.success) {
                         vm.closeDefectWorkpack();
-                        // Refresh defects
-                        PlaneService.GetByIdMaintenance2(vm.this_plane_id, vm.club_id)
-                            .then(function (planeData) {
-                                vm.club.plane = planeData;
-                            });
+                        loadMaintenanceDetail();
                     } else {
-                        ToastService.error('Workpack Error', data.message || 'Error saving defect workpack info.');
+                        ToastService.error('Workpack not saved', readMessage(data, 'The defect workpack details could not be saved.'));
                     }
                 });
         };
@@ -2144,10 +1823,11 @@
             if (a) {
                 CrsService.Delete(id)
                     .then(function (data) {
-                        if (data.success) {
+                        if (data && data.success) {
                             vm.loadCrs();
-                            // Refresh plane data so vm.club.plane.crs updates
-                            $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                            loadMaintenanceDetail();
+                        } else {
+                            ToastService.error('CRS not archived', readMessage(data, 'The CRS could not be archived.'));
                         }
                     });
             }
@@ -2164,42 +1844,48 @@
         // Standalone CRS update (from document table UPDATE button)
         vm.saveCrsStandalone = function () {
             if (!vm.files.crs[0]) {
-                ToastService.warning('CRS Missing', 'Please upload the CRS certificate document.');
-                return;
+                ToastService.warning('CRS file required', 'Upload the CRS document (PDF or image).');
+                return false;
             }
             if (!vm.obj.crs_release_date || !vm.obj.crs_release_time) {
-                ToastService.warning('CRS Incomplete', 'Please provide both the release date and release time.');
-                return;
+                ToastService.warning('CRS incomplete', 'Both the release date and the release time are required.');
+                return false;
             }
             var payload = {
                 plane_id: parseInt(vm.this_plane_id),
-                release_date: moment(vm.obj.crs_release_date).format('YYYY-MM-DD'),
-                release_time: moment(vm.obj.crs_release_time).format('HH:mm:ss'),
+                release_date: toDateOnly(vm.obj.crs_release_date),
+                release_time: MF.hms(vm.obj.crs_release_time),
                 file: vm.files.crs[0].file
             };
+            vm.saving = true;
             CrsService.Create(payload)
                 .then(function (data) {
-                    if (data.success) {
-                        vm.files.crs = [];
-                        vm.obj.crs_release_date = null;
-                        vm.obj.crs_release_time = null;
+                    if (data && data.success) {
+                        ToastService.success('CRS updated', 'The Certificate of Release to Service was recorded.');
+                        MF.resetAfterSave(vm);
                         vm.show_overlay = false;
-                        $state.go('dashboard.manage_club.maintenance.detail', {plane_id: vm.this_plane_id}, {reload: true});
+                        loadMaintenanceDetail();
                     } else {
-                        ToastService.error('CRS Error', data.message || 'Unknown error');
+                        vm.saving = false;
+                        ToastService.error('CRS not saved', readMessage(data, 'The Certificate of Release to Service could not be saved.'));
                     }
+                }, function () {
+                    vm.saving = false;
+                    ToastService.error('CRS not saved', 'The server could not be reached.');
                 });
+            return true;
         };
 
         $scope.processWorkpackFile = function (files, location) {
             if (!files || files.length === 0) return;
             try {
                 var j = JSON.parse(files[0].file_return);
+                if (!mxUploadAccepted(j, files[0])) { return; }
                 files[0].file.temp_path = j.saved_url;
                 files[0].file.save_name = j.files.file.name;
                 var ft = j.files.file.name;
                 var fft = ft.split('.').pop();
-                files[0].file.extension = fft;
+                files[0].file.extension = j.extension || fft;   // images are stored as JPEG since 10 Nov 2026
 
                 if (location === 'workpack_doc') {
                     vm.workpack_files.workpack_doc = [files[0].file];
@@ -2217,11 +1903,12 @@
             if (!files || files.length === 0) return;
             try {
                 var j = JSON.parse(files[0].file_return);
+                if (!mxUploadAccepted(j, files[0])) { return; }
                 files[0].file.temp_path = j.saved_url;
                 files[0].file.save_name = j.files.file.name;
                 var ft = j.files.file.name;
                 var fft = ft.split('.').pop();
-                files[0].file.extension = fft;
+                files[0].file.extension = j.extension || fft;   // images are stored as JPEG since 10 Nov 2026
                 defect._uploaded_file = files[0].file;
             } catch (e) {
                 console.error('Error processing defect file upload:', e, files[0].file_return);
@@ -2237,6 +1924,7 @@
         // MAINTENANCE EVENT METHODS
         // ═══════════════════════════════════════════════
 
+        vm.event_filter_options = [{ key: 'all', label: 'All' }];
         vm.loadMaintenanceEvents = function () {
             if (!vm.this_plane_id) return;
             PlaneService.GetMaintenanceEvents(vm.this_plane_id)
@@ -2247,9 +1935,19 @@
                         vm.maintenance_events = data.events;
                     } else if (Array.isArray(data)) {
                         vm.maintenance_events = data;
+                    } else {
+                        ToastService.error('Events not loaded', readMessage(data, 'The maintenance events could not be loaded.'));
+                        return;
+                    }
+                    vm.refreshExtension();
+                    // B14 / U12: chips for every type present in the list
+                    vm.event_filter_options = MF.eventFilterOptions(vm.maintenance_events);
+                    if (vm.event_filter !== 'all' && !vm.event_filter_options.some(function (o) { return o.key === vm.event_filter; })) {
+                        vm.event_filter = 'all';
                     }
                 });
         };
+        vm.eventMatchesFilter = function (event) { return MF.eventMatchesFilter(event, vm.event_filter); };
 
         vm.viewEvent = function (event) {
             vm.selected_event = angular.copy(event);
@@ -2267,6 +1965,29 @@
 
             // Load logbook links for this event
             vm.loadLogbookLinks(event.id);
+        };
+
+        // batch 17: "Hours to next check not recorded — edit this check to add it" opens the anchor
+        // check's edit panel (maintenance.anchor_check_id); loads the events first when needed
+        vm.editAnchorCheck = function () {
+            var m = vm.club && vm.club.plane && vm.club.plane.maintenance;
+            var id = m ? parseInt(m.anchor_check_id, 10) : 0;
+            if (!id) { return; }
+            function open() {
+                for (var i = 0; i < (vm.maintenance_events || []).length; i++) {
+                    if (parseInt(vm.maintenance_events[i].id, 10) === id) {
+                        vm.viewEvent(vm.maintenance_events[i]);     // the overlay edit panel
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (open()) { return; }
+            PlaneService.GetMaintenanceEvents(vm.this_plane_id).then(function (data) {
+                vm.maintenance_events = (data && data.maintenance_events) || (data && data.events) || data || [];
+                vm.event_filter_options = MF.eventFilterOptions(vm.maintenance_events);
+                open();
+            });
         };
 
         vm.closeEventDetail = function () {
@@ -2303,12 +2024,8 @@
                 .then(function (data) {
                     if (data && data.success !== false) {
                         vm.closeEventDetail();
-                        vm.loadMaintenanceEvents();
-                        // Refresh plane data too
-                        PlaneService.GetByIdMaintenance2(vm.this_plane_id, vm.club_id)
-                            .then(function (planeData) {
-                                vm.club.plane = planeData;
-                            });
+                        // Refresh the figures, the events and the workpacks together
+                        loadMaintenanceDetail();
                     } else {
                         ToastService.error('Update Error', (data && data.message) || 'Error updating maintenance event.');
                     }
@@ -2323,23 +2040,13 @@
                 case 'extension': return 'fa-clock';
                 case 'interim': return 'fa-tools';
                 case '6months': return 'fa-calendar';
+                case 'workpack': return 'fa-archive';
                 default: return 'fa-wrench';
             }
         };
 
-        vm.getEventTypeLabel = function (type) {
-            if (!type) return 'Maintenance';
-            switch (type.toLowerCase()) {
-                case 'annual': return 'Annual';
-                case '50hours': return '50 Hour';
-                case '25hours': return '25 Hour';
-                case '100hours': return '100 Hour';
-                case 'extension': return 'Extension';
-                case 'interim': return 'Interim';
-                case '6months': return '6 Month';
-                default: return type;
-            }
-        };
+        // B2: a label for every type, including 'workpack' and the blank legacy rows
+        vm.getEventTypeLabel = MF.typeLabel;
 
         // ── Logbook Link Methods ──
 
@@ -2384,9 +2091,10 @@
                 });
 
             // Backend already auto-links airframe, so if only airframe is checked nothing extra to do
-            if (selectedLogbooks.length <= 1) return;
+            if (selectedLogbooks.length <= 1) return null;
 
-            LogbookLinkService.BulkLink(maintenance_check_id, selectedLogbooks);
+            // returned so the save flow can report it in the one outcome toast
+            return LogbookLinkService.BulkLink(maintenance_check_id, selectedLogbooks);
         };
 
         vm.toggleCreateLogbook = function (lb) {
@@ -2514,8 +2222,50 @@
 
         initController();
 
+        // Runs once everything above is defined: loadMaintenanceDetail() calls
+        // vm.loadWorkpacks / vm.loadMaintenanceEvents, which are assigned further down
+        // the file, so the list / detail bootstrap must not run before them.
         function initController() {
-           //console.log("check if access is okay");
+        switch(vm.action){
+            case "add":
+                // //console.log("adding a new plane please");
+                vm.page_title = "Add a New Plane";
+            break;
+            case "edit":
+                // //console.log("edit an existing plane");
+                
+                loadMaintenanceDetail();
+
+                // Reload data when navigating back from child states (e.g. logbook pages)
+                var deregisterStateChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
+                    if (toState.name === 'dashboard.manage_club.maintenance.detail') {
+                        loadMaintenanceDetail();
+                    }
+                });
+                $scope.$on('$destroy', deregisterStateChange);
+
+
+               
+
+
+            break;
+            case "list":
+                //need to update this to be part of the authentication
+                //to find out club id
+                loadMaintenanceList();
+
+                // Reload list when navigating back from child states (e.g. detail page)
+                var deregisterListChange = $scope.$on('$stateChangeSuccess', function(event, toState) {
+                    if (toState.name === 'dashboard.manage_club.maintenance') {
+                        loadMaintenanceList();
+                    }
+                });
+                $scope.$on('$destroy', deregisterListChange);
+            break;
+            default:
+                //console.log("none of the above... redirect somewhere?");
+            break;
+        }
         }
 
 
@@ -2800,13 +2550,29 @@
         //     return filename;
         // };
 
-        function titlepath(path,name){
+        /** The first bytes say what a document is: JPEG, PNG, GIF, WebP, BMP or PDF; null when unknown. */
+        function mxSniffMime(data) {
+            try {
+                var b = new Uint8Array(data, 0, Math.min(12, data.byteLength));
+                if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) { return 'image/jpeg'; }
+                if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) { return 'image/png'; }
+                if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) { return 'image/gif'; }
+                if (b[0] === 0x42 && b[1] === 0x4D) { return 'image/bmp'; }
+                if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) { return 'image/webp'; }
+                if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) { return 'application/pdf'; }
+            } catch (e) { /* not an ArrayBuffer */ }
+            return null;
+        }
+
+        function titlepath(path, name, mime) {
 
         //In this path defined as your pdf url and name (your pdf name)
             var prntWin = window.open();
-            prntWin.document.write("<html><head><title>"+name+"</title></head><body>"
-                + '<embed width="100%" height="100%" name="plugin" src="'+ path+ '" '
-                + 'type="application/pdf" internalinstanceid="21"></body></html>');
+            var isImage = typeof mime === 'string' && mime.indexOf('image/') === 0;
+            var body = isImage
+                ? '<img src="' + path + '" alt="' + name + '" style="display:block;max-width:100%;margin:0 auto">'
+                : '<embed width="100%" height="100%" name="plugin" src="' + path + '" type="' + (mime || 'application/pdf') + '" internalinstanceid="21">';
+            prntWin.document.write("<html><head><title>" + name + "</title></head><body style=\"margin:0;background:#262626\">" + body + "</body></html>");
             prntWin.document.close();
         }
         
@@ -2826,14 +2592,13 @@
             try {
 
                 $log.info("first try");
-                // Try using msSaveBlob if supported
-                var blob = new Blob([data], {
-                    //type: contentType
-                    type: 'application/pdf'
-                });
+                // the API serves every document as application/octet-stream, so the type comes from the bytes
+                // (10 Nov 2026: an image CRS used to be opened as a PDF → blank window)
+                var mime = mxSniffMime(data) || ((contentType && contentType !== octetStreamMime) ? contentType : 'application/pdf');
+                var blob = new Blob([data], { type: mime });
 
                 var fileURL = URL.createObjectURL(blob);
-                titlepath(fileURL, "Secure Documents");
+                titlepath(fileURL, "Secure Documents", mime);
 
                 // if (navigator.msSaveBlob)
                 //     navigator.msSaveBlob(blob, filename);

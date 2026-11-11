@@ -1,0 +1,50 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Briefings — mockups/instructor-dashboard/briefings.html (page "list").
+     BriefingsV2Controller (js/v2/instructor_briefings/instructor_briefings.js) · contract C37 (bookings/v2/briefings) ·
+     css/v2/instructor-briefings.css (brf-) on ta-base + v2/instructor.css. The snapshot dialog (snapshot.html) moves to <body>.
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="brf-list">
+
+  <!-- ── page bar: the zone tag, the count and the next lesson; the club switch and the smart search ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-chalkboard-teacher"></i></span><div><ins-tag></ins-tag><h2>Briefings</h2><p data-e2e="brf-hint">{{ vm.hint }}</p></div></div>
+      <span class="brf-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.load === 'ready' && vm.live.length">
+      <div class="brf-tools">
+        <div class="ta-scope" ng-if="vm.scopes.length"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-repeat="o in vm.scopes track by o.id" ng-class="{'ta-scope__opt--on': vm.S.club === o.id}" role="tab" aria-selected="{{ vm.S.club === o.id }}" ng-click="vm.setClub(o.id)" no-busy-guard data-e2e="brf-club"><span class="ta-desk-only">{{ o.label }}</span><span class="ta-phone-only">{{ o.tiny }}</span> <span class="ta-num">{{ o.n }}</span></button></div></div>
+        <ta-combo class="brf-find" cb-id="search" label="Search students or aircraft" placeholder="{{ vm.cbPh }}" placeholder-picked="Type to change" hl-sub="false"
+                  query="vm.cbQ" source="vm.cbSource(q)" on-pick="vm.cbPick(key)" on-leave="vm.cbLeave(q)" on-clear="vm.cbClear()" value="vm.cbValue" summary="vm.cbSum" clearable="vm.cbClearable" version="vm.cbVer"></ta-combo>
+      </div>
+    </div>
+    <div class="brf-v2row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading: skeleton rows (no full-page plane overlay) ── -->
+  <section class="ta-list" ng-if="vm.load === 'loading'" aria-busy="true" data-e2e="brf-loading"><div class="ins-q-skelnote"><span class="ta-spin ta-spin--dark"></span>Loading the lessons you're booked to teach…</div><div class="brf-skelrow" ng-repeat="i in vm.skel"><div class="ta-skel"></div><div class="ta-skel"></div><div><div class="ta-skel"></div><div class="ta-skel"></div></div></div></section>
+
+  <!-- ── the list could not be read (v1 showed nothing at all) ── -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'error'" data-e2e="brf-error"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load your briefings</h4><p>{{ vm.loadMsg }}</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></section>
+
+  <!-- ── nothing to brief ── -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && !vm.live.length && !vm.any" data-e2e="brf-empty"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-check"></i></span><h4>Nothing to brief</h4><p>Lessons you're booked to teach show up here from the day they're booked, until you brief them. Briefing marks the booking and takes you to the book-out.</p><button type="button" class="ta-btn" ng-click="vm.toScheduler()" no-busy-guard>Open the scheduler</button></div></section>
+
+  <!-- ── what the search narrowed to ── -->
+  <div class="ins-q-scopeln ins-rise" ng-if="vm.load === 'ready' && vm.scopeLn" data-e2e="brf-scopeln"><span ng-bind-html="vm.scopeLn"></span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.cbClear()" no-busy-guard><i class="fas fa-times"></i>Show every lesson</button></div>
+
+  <!-- ── the lessons, by day ── -->
+  <section class="ta-list brf-list" aria-label="Lessons to brief" ng-if="vm.load === 'ready' && (vm.live.length || vm.any)" data-e2e="brf-rows">
+    <div class="ta-list__tools"><div class="ta-chips" role="group" aria-label="Show"><button type="button" class="ta-chip" ng-repeat="c in vm.chips track by c.id" ng-class="{'ta-chip--on': vm.S.chip === c.id, 'ta-chip--attn': c.id === 'choose'}" ng-click="vm.setChip(c.id)" no-busy-guard data-e2e="brf-chip-{{ c.id }}"><i class="fas fa-exclamation-circle" ng-if="c.id === 'choose'"></i>{{ c.t }} <span class="ta-chip__n">{{ c.n }}</span></button></div></div>
+
+    <div class="ta-empty" ng-if="!vm.any" data-e2e="brf-none"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>{{ vm.q ? 'Nothing matches “' + vm.q + '”' : 'No lessons here' }}</h4><p>{{ vm.q ? 'Try a student\'s name, or the last two letters of a registration.' : 'Nothing in this view. Show every lesson to see the rest.' }}</p><button type="button" class="ta-btn" ng-click="vm.reset()" no-busy-guard>Show every lesson</button></div>
+
+    <div class="ta-list__cols" ng-if="vm.any"><span>Aircraft</span><span>Booked</span><span>Student · lesson to brief</span><span>Lesson</span><span></span></div>
+    <!-- day headers and rows are siblings, as in the mockup (one repeat; the element's class says which it is) -->
+    <div ng-repeat="it in vm.items track by (it.k + '.' + vm.gen)" ng-class="vm.cls(it)" ng-attr-style="{{ it.grp ? '--i: ' + it.i : '--ac: ' + (it.r.ac.colour || 'var(--ta-line)') + '; --i: ' + it.i }}" brf-leave="vm.leaves(it)" data-e2e="{{ it.grp ? 'brf-day' : 'brf-row' }}" ng-attr-data-id="{{ it.grp ? undefined : it.r.id }}"><span ng-if="it.grp">{{ it.head }}</span><span ng-if="it.grp">{{ it.count }}</span><button type="button" class="ta-row__main" ng-if="!it.grp" ng-click="vm.toggle(it.r)" aria-expanded="{{ vm.S.open === it.r.id }}" no-busy-guard data-e2e="brf-open"><span class="ins-q-reg" title="{{ it.r.ac.reg }}{{ it.r.ac.model ? ' · ' + it.r.ac.model : '' }}"><b>{{ it.r.ac.reg }}</b><small>{{ it.r.ac.type }}</small></span><span class="ins-q-when"><b>{{ it.r.t0 }}–{{ it.r.t1 }}</b><small>{{ it.r.len }}</small></span><span class="ta-row__txt"><span class="ta-row__title">{{ it.r.name }}</span><span class="ta-row__sub">{{ it.r.lessonTxt }}</span></span><span class="ta-row__meta"><span class="ins-q-meta"><span class="ta-pill ta-pill--{{ it.r.pill.tone }}"><i class="fas {{ it.r.pill.icon }}"></i>{{ it.r.pill.label }}</span><span class="ta-tag" ng-if="it.r.clubTag"><i class="fas fa-map-marker-alt"></i>{{ it.r.clubShort }}</span></span></span><span class="ta-row__acts"><span class="ta-ib" role="button" tabindex="0" ng-click="vm.snap(it.r, $event)" ng-keydown="vm.key($event, vm.snap, it.r)" no-busy-guard title="Student snapshot: contact details, progress and recent records" aria-label="Student snapshot for {{ it.r.name }}" data-e2e="brf-snap"><i class="fas fa-user-graduate"></i></span><span class="ta-btn ta-btn--sm brf-acts-btn" ng-class="{'ta-btn--primary': !it.r.out}" role="button" tabindex="0" ng-click="vm.brief(it.r, $event)" ng-keydown="vm.key($event, vm.brief, it.r)" no-busy-guard data-e2e="brf-brief">{{ it.r.go }}<i class="fas fa-angle-right"></i></span></span><span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span></button><div class="ta-detail" ng-if="!it.grp && vm.S.open === it.r.id" data-e2e="brf-detail"><div class="brf-detail"><div class="ta-panel ta-panel--white"><div class="brf-aim"><b>{{ it.r.aimT }}</b><br ng-if="it.r.aimS">{{ it.r.aimS }}</div><span class="brf-why"><i class="fas {{ it.r.whyIc }}"></i>{{ it.r.whyT }}</span><span class="brf-why" ng-if="it.r.note"><i class="fas fa-sticky-note"></i>Booking note: “{{ it.r.note }}”</span></div><div class="ta-panel ta-panel--white"><span class="ta-sec-k">{{ it.r.name }}</span><div class="brf-contact"><span ng-if="it.r.st.phone"><i class="fas fa-phone"></i>{{ it.r.st.phone }}</span><span ng-if="it.r.st.email"><i class="fas fa-envelope"></i>{{ it.r.st.email }}</span><span><i class="fas fa-plane"></i>{{ it.r.acLine }}</span></div></div><div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.snap(it.r, $event)" ng-if="it.r.st" no-busy-guard data-e2e="brf-snap2"><i class="fas fa-user-graduate"></i>Student snapshot</button><span class="ta-sp"></span><button type="button" class="ta-btn" ng-class="{'ta-btn--primary': !it.r.out}" ng-click="vm.brief(it.r, $event)" no-busy-guard data-e2e="brf-brief2"><i class="fas {{ it.r.goIc }}"></i>{{ it.r.goBtn }}</button></div></div></div></div>
+  </section>
+
+  <!-- ── the student snapshot (moved to <body> by brf-portal inside the directive) ── -->
+  <div ng-if="vm.snapFor"><brf-snapshot of="vm.snapFor" on-close="vm.snapClose()"></brf-snapshot></div>
+</main>

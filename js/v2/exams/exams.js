@@ -109,6 +109,16 @@ function QxV2Data($rootScope, CourseAssignmentService, CaaFormsService) {
     X.trunc = function (s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
     X.money = function (x, sym) { var n = X.num(x); return (n < 0 ? '−' : '') + (sym || '£') + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
+    // be-alex-3e (10 Nov): a granted retake's attempt exists before the student opens it (opened_at null, started: false;
+    // assignment rows: attempt_started) — it is set but not started, never "In progress / Continue". Absent = started as before.
+    // be-alex-3e (10 Nov): an instructor's explicit outcome on a reviewed attempt (the student gets it once reviewed AND
+    // released; null before) — "Passed" / "Not passed" instead of a plain "Reviewed"
+    X.outcome = function (at) {
+        var o = at && at.review_outcome;
+        return o === 'passed' ? { tone: 'good', label: 'Passed', ic: 'fa-check' } : o === 'not_passed' ? { tone: 'bad', label: 'Not passed', ic: 'fa-times-circle' } : null;
+    };
+    X.notStarted = function (at) { return !!at && (at.started === false || at.started === 0 || at.started === '0'); };
+
     /* ── the questionnaires hub: assignments + attempts merged per questionnaire (v1's mergeMine rule) ── */
     function attemptGroup(at) {
         var s = at.attempt_status || at.status;
@@ -142,7 +152,8 @@ function QxV2Data($rootScope, CourseAssignmentService, CaaFormsService) {
                 by: X.trim(a.assigned_by_name), target: X.trim(a.target_title) || null, booking: a.next_booking || null,
                 qn: +a.question_count || 0, limit: +a.time_limit_minutes || 0, instant: +a.instant_mc_score === 1,
                 // a retake set but not opened yet: its assignment is still open and links no attempt (or an older one)
-                retakeOpen: +a.is_retake === 1 && a.status !== 'completed', linkedAttempt: a.attempt_id ? +a.attempt_id : null };
+                retakeOpen: +a.is_retake === 1 && a.status !== 'completed', linkedAttempt: a.attempt_id ? +a.attempt_id : null,
+                linkedNotStarted: a.attempt_started === false || a.attempt_started === 0 || a.attempt_started === '0' };
             rows.push(byQ[a.item_id]);   // keep the backend's order (due date, then newest) for both kinds
         });
         attempts.filter(function (at) { return current[at.id]; }).forEach(function (at) {
@@ -159,7 +170,8 @@ function QxV2Data($rootScope, CourseAssignmentService, CaaFormsService) {
             r.attempt = at; r.group = attemptGroup(at);
             r.title = r.title || at.questionnaire_title || at.title;
             r.target = at.target_title || r.target || null;
-            r.inProgress = r.group === 'to_do' && (at.status === 'opened' || at.status === 'in_progress');
+            r.inProgress = r.group === 'to_do' && (at.status === 'opened' || at.status === 'in_progress')
+                && !X.notStarted(at) && !(r.linkedNotStarted && r.linkedAttempt === +at.id);
             r.score = (+at.score_released === 1 && at.max_score != null && +at.max_score > 0) ? { auto: X.num(at.auto_score), max: X.num(at.max_score) } : null;
             if (+at.attempt_number > 1 && r.group === 'to_do') { r.isRetake = true; }
         });
@@ -178,7 +190,7 @@ function QxV2Data($rootScope, CourseAssignmentService, CaaFormsService) {
             if (X.overdue(r)) { return { tone: 'bad', label: 'Overdue', ic: 'fa-exclamation-circle' }; }
             return { tone: 'warn', label: r.status === 'viewed' ? 'Opened' : (r.ft === 'video' ? 'To watch' : 'To read'), ic: 'fa-book-open' };
         }
-        if (r.group === 'reviewed') { return { tone: 'good', label: 'Reviewed', ic: 'fa-check' }; }
+        if (r.group === 'reviewed') { return X.outcome(r.attempt) || { tone: 'good', label: 'Reviewed', ic: 'fa-check' }; }
         if (r.group === 'awaiting_review') { return { tone: 'info', label: 'Awaiting review', ic: 'fa-hourglass-half' }; }
         if (X.overdue(r)) { return { tone: 'bad', label: 'Overdue', ic: 'fa-exclamation-circle' }; }
         if (r.isRetake) { return { tone: 'warn', label: 'Retake', ic: 'fa-redo' }; }
@@ -216,7 +228,7 @@ function QxV2Data($rootScope, CourseAssignmentService, CaaFormsService) {
     };
     X.doneDate = function (r) { return r.item === 'material' ? (r.completedAt || '') : ((r.attempt && (r.attempt.reviewed_at || r.attempt.submitted_at)) || ''); };
     X.histStatus = function (at) {
-        if (at.status === 'reviewed' || +at.score_released === 1) { return { tone: 'good', label: 'Reviewed', ic: 'fa-check' }; }
+        if (at.status === 'reviewed' || +at.score_released === 1) { return X.outcome(at) || { tone: 'good', label: 'Reviewed', ic: 'fa-check' }; }
         if (at.status === 'submitted') { return { tone: 'info', label: 'Awaiting review', ic: 'fa-hourglass-half' }; }
         return { tone: 'muted', label: 'Not submitted', ic: '' };
     };
@@ -409,7 +421,7 @@ function QxTakeV2Controller($rootScope, $scope, $state, $stateParams, $interval,
         });
         remember();
         // a saved attempt picks up where it was: the first unanswered question
-        if (saved && (vm.attempt.status === 'in_progress' || vm.attempt.status === 'opened')) {
+        if (saved && (vm.attempt.status === 'in_progress' || vm.attempt.status === 'opened') && !X.notStarted(vm.attempt)) {
             vm.step = 'q';
             var i = -1; vm.questions.some(function (qq, k) { if (!answered(qq)) { i = k; return true; } return false; });
             vm.idx = i < 0 ? 0 : i;
@@ -613,7 +625,8 @@ function QxResultV2Controller($rootScope, $state, $stateParams, $timeout, Questi
         vm.chips = [{ k: 'all', label: 'All', n: vm.rows.length }, { k: 'wrong', label: 'Wrong', n: vm.wrongN, attn: true }, { k: 'written', label: 'Written', n: vm.ftN }].filter(function (c) { return c.k === 'all' || c.n; });
         var kinds = {}; vm.rows.forEach(function (r) { kinds[r.kind] = 1; });
         vm.legend = [['good', 'Right'], ['bad', 'Wrong'], ['', 'Not marked yet'], ['info', 'Written · reviewed'], ['pend', 'Awaiting review']].filter(function (l) { return kinds[l[0]]; });
-        vm.sub = vm.reviewed ? ('Reviewed' + (vm.attempt.reviewed_at ? ' · ' + X.fDay(vm.attempt.reviewed_at) : '')) : (vm.released ? 'Score in · your instructor still reviews your written answers' : 'Waiting for your instructor to review it');
+        var oc = X.outcome(vm.attempt), ocAt = vm.attempt.outcome_at || vm.attempt.reviewed_at;
+        vm.sub = vm.reviewed ? ((oc ? oc.label + (vm.attempt.outcome_by_name ? ' · ' + vm.attempt.outcome_by_name : '') : 'Reviewed') + (ocAt || vm.attempt.reviewed_at ? ' · ' + X.fDay(oc ? ocAt : vm.attempt.reviewed_at) : '')) : (vm.released ? 'Score in · your instructor still reviews your written answers' : 'Waiting for your instructor to review it');
     }
     vm.show = function (r) { return vm.rf === 'all' || (vm.rf === 'wrong' && r.mc && vm.released && !r.right) || (vm.rf === 'written' && !r.mc); };
 }

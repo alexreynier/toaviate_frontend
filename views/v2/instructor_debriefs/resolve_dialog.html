@@ -1,0 +1,48 @@
+<!-- <dbl-resolve-dialog> · "Who was the student?" (DebriefsResolveV2Controller as rs, js/v2/instructor_debriefs/instructor_debriefs.js).
+     v1's missing_student_resolve modal as a record dialog in the aircraft's colour; a bottom sheet on phones.
+     Steps: pick (the sheet name's members, a search of the club's members, or a temporary member) → confirm | create.
+     Field ids kept from v1: field-msqm-first, field-msqm-last, field-msqm-email. -->
+<div class="ta-dlg-scrim dbl-rs-scrim" dbl-portal ng-click="rs.scrim($event)" no-busy-guard>
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-label="Who was the student?" tabindex="-1" data-e2e="dbl-rs">
+    <div class="ta-dlg__hd" style="--edge: {{ rs.f._edge }}">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="rs.close()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-user-plus"></i>Who was the student?</div>
+      <div class="ta-dlg__title">{{ rs.f._reg }} · {{ rs.f._day }}</div>
+      <div class="ta-dlg__sub">Brakes {{ rs.f._offT }}–{{ rs.f._onT }} · <span class="dbl-sheet" ng-if="rs.sheet">the sheet says <b>{{ rs.sheet }}</b></span><span ng-if="!rs.sheet">no name on the sheet</span></div>
+    </div>
+
+    <!-- ══ step 1: one of the sheet name's members, a member from the search, or a temporary member ══ -->
+    <div class="ta-dlg__body" ng-if="rs.step === 'pick'">
+      <div class="dbl-rs-wait" ng-if="rs.loading" data-e2e="dbl-rs-wait"><span class="ta-spin ta-spin--dark"></span>Looking for members with this name…</div>
+      <span class="ta-sec-k" ng-if="rs.cands.length">Is it one of these members?</span>
+      <div class="dbl-cands ins-rise" ng-if="rs.cands.length" data-e2e="dbl-rs-cands"><button type="button" class="ta-opt" ng-repeat="c in rs.cands track by c.id" ng-class="{'ta-opt--on': rs.isOn(c)}" aria-pressed="{{ rs.isOn(c) }}" ng-click="rs.choose(c)" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-user"></i></span><span><span class="ta-opt__t">{{ c.name }}{{ c.temp ? ' ' : '' }}<small ng-if="c.temp">· temporary member</small>{{ c.instructor ? ' ' : '' }}<small ng-if="c.instructor">· instructor</small></span><span class="ta-opt__s">{{ c.extra }}{{ c.extra && c.email ? ' · ' : '' }}{{ c.email }}</span></span><span class="ta-opt__dot"></span></button></div>
+      <div class="ta-field"><label class="ta-label" for="dbl-rs-q"><i class="fas fa-search"></i>Search all {{ rs.memberCount ? rs.memberCount + ' ' : '' }}members</label><label class="ta-search"><i class="fas fa-search"></i><input id="dbl-rs-q" type="text" ng-model="rs.q" ng-change="rs.typed()" placeholder="Name or email, e.g. {{ rs.example }}" autocomplete="off" autocorrect="off" spellcheck="false" data-e2e="dbl-rs-q"></label></div>
+      <div class="dbl-res" ng-if="rs.search.shown.length && (rs.q || '').trim().length >= 2" ng-class="{'dbl-res--busy': rs.search.busy}" data-e2e="dbl-rs-res"><button type="button" class="ta-opt" ng-repeat="m in rs.search.shown track by m.id" ng-class="{'ta-opt--on': rs.isOn(m)}" aria-pressed="{{ rs.isOn(m) }}" ng-click="rs.choose(m)" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-user"></i></span><span><span class="ta-opt__t">{{ m.name }}{{ m.temp ? ' ' : '' }}<small ng-if="m.temp">· temporary member</small>{{ m.instructor ? ' ' : '' }}<small ng-if="m.instructor">· instructor</small></span><span class="ta-opt__s">{{ m.email }}</span></span><span class="ta-opt__dot"></span></button><span class="dbl-res__more" ng-if="rs.search.more">{{ rs.search.more }}</span></div>
+      <div class="dbl-rs-wait" ng-if="rs.search.busy && !rs.search.shown.length && (rs.q || '').trim().length >= 2" data-e2e="dbl-rs-searching"><span class="ta-spin ta-spin--dark"></span>Searching the club’s members…</div>
+      <div class="ta-note" ng-if="!rs.search.busy && !rs.search.err && !rs.search.shown.length && rs.search.q.length >= 2 && (rs.q || '').trim().length >= 2" data-e2e="dbl-rs-none"><i class="fas fa-info-circle"></i><div>No members match “{{ rs.search.q }}”. Check the spelling, or create a temporary member below.</div></div>
+      <div class="ta-note ta-note--warn" ng-if="!rs.search.busy && rs.search.err && (rs.q || '').trim().length >= 2"><i class="fas fa-exclamation-triangle"></i><div>The search didn’t work. Please try again in a moment.</div></div>
+      <span class="ta-hint" ng-if="(rs.q || '').trim().length < 2">Type two letters or more. Names match from the start of each word.</span>
+      <div class="dbl-or">nobody yet?</div>
+      <button type="button" class="ta-btn" ng-click="rs.toCreate()" no-busy-guard data-e2e="dbl-rs-create"><i class="fas fa-user-plus"></i>Create a temporary member…</button>
+    </div>
+    <div class="ta-dlg__ft" ng-if="rs.step === 'pick'"><button type="button" class="ta-btn ta-btn--quiet" ng-click="rs.close()" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="rs.next()" ng-disabled="!rs.sel" no-busy-guard data-e2e="dbl-rs-next">Next<i class="fas fa-arrow-right"></i></button></div>
+
+    <!-- ══ step 2: attach the member, or create a temporary one: this flight, or every flight with the same name ══ -->
+    <div class="ta-dlg__body" ng-if="rs.step !== 'pick'">
+      <div class="ta-panel ta-panel--white" ng-if="rs.step === 'confirm'"><div class="dbl-line"><i class="fas fa-user"></i><span><b>{{ rs.sel.name }}</b>{{ rs.sel.email ? ' · ' + rs.sel.email : '' }}{{ rs.sel.temp ? ' · temporary member' : '' }}</span></div></div>
+      <p class="ta-hint" ng-if="rs.step === 'create'">Creates a <b>temporary member</b> and attaches the flight to them. They appear under Imported Users, where they can later be turned into a real account; their flights and records follow.</p>
+      <div class="ta-grid-2" ng-if="rs.step === 'create'">
+        <div class="ta-field" ng-class="{'ta-field--error': rs.err.first}"><label class="ta-label" for="field-msqm-first">First name</label><input class="ta-input" id="field-msqm-first" type="text" ng-model="rs.form.first" ng-change="rs.fixed('first')" ng-disabled="rs.busy" autocomplete="off"><span class="ta-field__msg" ng-if="rs.err.first">{{ rs.err.first }}</span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': rs.err.last}"><label class="ta-label" for="field-msqm-last">Last name</label><input class="ta-input" id="field-msqm-last" type="text" ng-model="rs.form.last" ng-change="rs.fixed('last')" ng-disabled="rs.busy" autocomplete="off"><span class="ta-field__msg" ng-if="rs.err.last">{{ rs.err.last }}</span></div>
+        <div class="ta-field ta-span-2" ng-class="{'ta-field--error': rs.err.email}"><label class="ta-label" for="field-msqm-email">Real email <em>optional</em></label><input class="ta-input" id="field-msqm-email" type="email" ng-model="rs.form.email" ng-model-options="{ allowInvalid: true }" ng-change="rs.fixed('email')" ng-disabled="rs.busy" placeholder="If you know it: used later to invite them to their account" autocomplete="off"><span class="ta-field__msg" ng-if="rs.err.email">{{ rs.err.email }}</span></div>
+      </div>
+      <span class="ta-sec-k" ng-if="rs.others.length">Attach {{ rs.step === 'confirm' ? (rs.sel.first_name || rs.sel.name) : 'them' }} to</span>
+      <div class="dbl-cands" role="radiogroup" ng-if="rs.others.length" data-e2e="dbl-rs-scope">
+        <button type="button" class="ta-opt" ng-class="{'ta-opt--on': rs.scope === 'one'}" role="radio" aria-checked="{{ rs.scope === 'one' }}" ng-click="rs.setScope('one')" no-busy-guard data-e2e="dbl-rs-one"><span class="ta-opt__ic"><i class="fas fa-plane"></i></span><span><span class="ta-opt__t">This flight only</span><span class="ta-opt__s">{{ rs.f._reg }} · {{ rs.f._day }}</span></span><span class="ta-opt__dot"></span></button>
+        <button type="button" class="ta-opt" ng-class="{'ta-opt--on': rs.scope === 'all'}" role="radio" aria-checked="{{ rs.scope === 'all' }}" ng-click="rs.setScope('all')" no-busy-guard data-e2e="dbl-rs-all"><span class="ta-opt__ic"><i class="fas fa-layer-group"></i></span><span><span class="ta-opt__t">This and the {{ rs.plural(rs.others.length, 'other flight') }} that say “{{ rs.sheet }}”</span><span class="ta-opt__s">{{ rs.othersText }}</span></span><span class="ta-opt__dot"></span></button>
+      </div>
+    </div>
+    <div class="ta-dlg__ft" ng-if="rs.step !== 'pick'"><button type="button" class="ta-btn ta-btn--quiet" ng-click="rs.back()" ng-disabled="rs.busy" no-busy-guard><i class="fas fa-arrow-left"></i>Back</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="rs.save()" aria-busy="{{ rs.busy }}" no-busy-guard data-e2e="dbl-rs-save"><span class="ta-spin" ng-if="rs.busy"></span><i class="fas fa-check" ng-if="!rs.busy"></i>{{ rs.busy ? 'Saving…' : rs.goLabel() }}</button></div>
+  </div>
+</div>

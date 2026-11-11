@@ -24,6 +24,8 @@ function InstructorScheduleController(
 
     vm.available_times = [];
     vm.available_time  = null;
+    vm.loaded          = false;   // the clubs + availability fetch has finished (with or without a club)
+    vm.loadError       = false;   // it failed: show "couldn't load" + Try again, not a spinner for ever
     vm.selected_club   = null;
     vm.activeTab       = 'schedule';
 
@@ -97,6 +99,7 @@ function InstructorScheduleController(
 
     $scope.setTab = function(tab) {
         vm.activeTab = tab;
+        vm.chosenTab = true;
     };
 
     $scope.selectClub = function(club) {
@@ -137,8 +140,14 @@ function InstructorScheduleController(
 
     $scope.setMode = function(mode) {
         if (vm.available_time.availability_mode === mode) return;
+        var before = vm.available_time.availability_mode;
         vm.available_time.availability_mode = mode;
-        saveScheduleToBackend(function() {
+        saveScheduleToBackend(function(resp) {
+            if (failed(resp)) {
+                vm.available_time.availability_mode = before;
+                ToastService.error('Mode Not Changed', failMessage(resp, 'Your scheduling mode could not be changed.'));
+                return;
+            }
             ToastService.success('Mode Updated', 'Switched to ' + (mode === 'adhoc' ? 'ad-hoc' : 'regular') + ' scheduling.');
             if (mode === 'adhoc') {
                 vm.activeTab = 'extra';
@@ -148,8 +157,12 @@ function InstructorScheduleController(
 
     $scope.saveSchedule = function() {
         vm.saving = true;
-        saveScheduleToBackend(function() {
+        saveScheduleToBackend(function(resp) {
             vm.saving = false;
+            if (failed(resp)) {
+                ToastService.error('Schedule Not Saved', failMessage(resp, 'Your weekly availability could not be saved.'));
+                return;
+            }
             ToastService.success('Schedule Saved', 'Your weekly availability has been updated.');
         });
     };
@@ -209,8 +222,8 @@ function InstructorScheduleController(
         AdhocAvailabilityService.Create(payload)
             .then(function(resp) {
                 vm.addingAdhoc = false;
-                if (resp && resp.success === false) {
-                    ToastService.error('Error', resp.message || 'Failed to add dates.');
+                if (failed(resp)) {
+                    ToastService.error('Dates Not Added', failMessage(resp, 'Your extra dates could not be added.'));
                     return;
                 }
                 var added  = (resp && resp.added)   ? resp.added.length   : 0;
@@ -255,8 +268,13 @@ function InstructorScheduleController(
             from_time: fromStr,
             to_time:   toStr,
             notes:     vm.editSlotNotes || null
-        }).then(function() {
+        }).then(function(resp) {
             vm.savingEdit = false;
+            if (failed(resp)) {
+                // the edit popup stays open with what was typed
+                ToastService.error('Slot Not Updated', failMessage(resp, 'Your availability slot could not be updated.'));
+                return;
+            }
             vm.editingSlot = null;
             ToastService.success('Slot Updated', 'Your availability slot has been updated.');
             loadAdhocDates();
@@ -266,7 +284,11 @@ function InstructorScheduleController(
     $scope.deleteAdhocSlot = function(slot) {
         if (!confirm('Remove availability on ' + slot.available_date + '?')) return;
         AdhocAvailabilityService.Delete(slot.id)
-            .then(function() {
+            .then(function(resp) {
+                if (failed(resp)) {
+                    ToastService.error('Not Removed', failMessage(resp, 'The availability slot could not be removed.'));
+                    return;
+                }
                 ToastService.success('Removed', 'Availability slot deleted.');
                 loadAdhocDates();
             });
@@ -300,6 +322,10 @@ function InstructorScheduleController(
         HolidayService.Create(vm.user_id, newHoliday)
             .then(function(data) {
                 vm.addingHoliday = false;
+                if (failed(data)) {
+                    ToastService.error('Time Off Not Added', failMessage(data, 'Your time off could not be booked.'));
+                    return;
+                }
                 ToastService.success('Holiday Added', 'Time off has been booked.');
                 // Reset form
                 vm.holidayStart  = null;
@@ -313,7 +339,11 @@ function InstructorScheduleController(
     $scope.deleteHoliday = function(hol, idx) {
         if (!confirm('Remove this holiday?')) return;
         HolidayService.Delete(vm.user_id, hol.id)
-            .then(function() {
+            .then(function(resp) {
+                if (failed(resp)) {
+                    ToastService.error('Not Removed', failMessage(resp, 'The holiday could not be removed.'));
+                    return;
+                }
                 vm.holidays.splice(idx, 1);
                 ToastService.success('Removed', 'Holiday deleted.');
             });
@@ -324,12 +354,28 @@ function InstructorScheduleController(
     // INTERNAL FUNCTIONS
     // ═════════════════════════════════════════════════════════════
 
+    $scope.retryLoad = function() {
+        vm.loaded = false;
+        vm.loadError = false;
+        loadAvailability();
+    };
+
+    // The fetch has finished: without an instructor club there is no weekly / extra-date schedule to show,
+    // but time off (per person, not per club) still is.
+    function finishLoad(error) {
+        vm.loaded = true;
+        vm.loadError = !!error && !vm.available_time;
+        if (!vm.available_time) { vm.activeTab = 'holidays'; }
+        else if (vm.activeTab === 'holidays' && !vm.chosenTab) { vm.activeTab = 'schedule'; }   // back from a no-club / failed load
+    }
+
     function loadAvailability() {
         // 1) Fetch all clubs this user is an instructor at
         // 2) Fetch existing availability records
         // 3) Merge: ensure every instructor club has an availability entry
         UserService.GetInstructorClubs(vm.user_id)
             .then(function(clubsResp) {
+                if (failed(clubsResp)) { return finishLoad(true); }
                 var clubs = (clubsResp && clubsResp.clubs) ? clubsResp.clubs : [];
                 if (!clubs.length) {
                     // Fallback to availability-only if GetAdminClubs returns nothing
@@ -338,6 +384,7 @@ function InstructorScheduleController(
 
                 InstructorService.GetAvailability(vm.user_id)
                     .then(function(data) {
+                        if (failed(data)) { return finishLoad(true); }
                         var existingRecords = (data && Array.isArray(data)) ? data : [];
 
                         // Index existing records by club_id for quick lookup
@@ -370,7 +417,7 @@ function InstructorScheduleController(
                             }
                         });
 
-                        if (!merged.length) return;
+                        if (!merged.length) return finishLoad();
 
                         vm.available_times = merged;
                         vm.selected_club   = vm.available_times[0];
@@ -380,6 +427,7 @@ function InstructorScheduleController(
                             vm.available_time.availability_mode = 'regular';
                         }
 
+                        finishLoad();
                         loadAdhocDates();
                     });
             });
@@ -389,12 +437,13 @@ function InstructorScheduleController(
     function loadAvailabilityOnly() {
         InstructorService.GetAvailability(vm.user_id)
             .then(function(data) {
-                if (!data || !data.length) return;
+                if (failed(data)) return finishLoad(true);
+                if (!data || !data.length) return finishLoad();
 
                 var valid = data.filter(function(rec) {
                     return rec && rec.club_id && rec.club_name;
                 });
-                if (!valid.length) return;
+                if (!valid.length) return finishLoad();
 
                 for (var i = 0; i < valid.length; i++) {
                     valid[i].club_id = parseInt(valid[i].club_id, 10);
@@ -409,6 +458,7 @@ function InstructorScheduleController(
                     vm.available_time.availability_mode = 'regular';
                 }
 
+                finishLoad();
                 loadAdhocDates();
             });
     }
@@ -480,6 +530,7 @@ function InstructorScheduleController(
 
         InstructorService.SetAvailability(payload)
             .then(function(data) {
+                if (failed(data)) { if (callback) callback(data); return; }
                 // Update the record in-place (don't mutate the array reference)
                 var targetId = parseInt(rec.club_id, 10);
                 for (var i = 0; i < vm.available_times.length; i++) {
@@ -488,7 +539,7 @@ function InstructorScheduleController(
                         break;
                     }
                 }
-                if (callback) callback();
+                if (callback) callback(data);
             });
     }
 
@@ -539,6 +590,25 @@ function InstructorScheduleController(
 
 
     // ─── Helpers ─────────────────────────────────────────────────
+
+    // A write was refused: {success:false} from a 200, or an HTTP error the services turned into
+    // {success:false, message: <body>, status} (an overlapping extra date answers OVERLAP; acting as a lapsed
+    // instructor answers 403).
+    function failed(resp) {
+        return !!resp && (resp.success === false || resp.success === 'false');
+    }
+    function failMessage(resp, fallback) {
+        var body = resp && resp.message && typeof resp.message === 'object' ? resp.message : resp;
+        var code = (body && body.error) || (resp && resp.error);
+        if (code === 'OVERLAP') {
+            return 'That overlaps availability you already have on that date. Change the times, or edit the existing slot.';
+        }
+        if ((resp && resp.status === 403) || code === 'FORBIDDEN') {
+            return 'You are not a current instructor at this club, so this can\'t be changed here. Ask a club manager.';
+        }
+        var text = body && typeof body.message === 'string' ? body.message : (resp && typeof resp.message === 'string' ? resp.message : '');
+        return text || fallback;
+    }
 
     function formatDate(d) {
         var yyyy = d.getFullYear();

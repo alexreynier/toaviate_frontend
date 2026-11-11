@@ -207,12 +207,15 @@ function TrnV2Data($q, $http, $state, CourseService, QuestionnaireService, Cours
             f.recIns = D.name(tr.record_instructor_first_name, tr.record_instructor_last_name) || f.insName;
             f.enteredBy = D.name(tr.on_behalf_by_first_name || tr.entered_by_first_name, tr.on_behalf_by_first_name ? tr.on_behalf_by_last_name : tr.entered_by_last_name);
             f.confirmed = tr.instructor_confirmed_at ? { by: D.name(tr.confirmed_by_first_name, tr.confirmed_by_last_name) || f.recIns, at: tr.instructor_confirmed_at } : null;
-            f.recordedAt = tr.created_at;
-            f.edited = (+tr.edited_by > 0 && tr.updated_at && tr.created_at && tr.updated_at !== tr.created_at)
-                ? { at: tr.updated_at, reason: D.trim(tr.edit_reason), by: +tr.edited_by === +tr.instructor_id ? f.recIns : '' } : null;
+            // be-alex-3e's edit signal (10 Nov): `edited` is the ONLY "changed after filing" flag (absent = false); recorded_at is
+            // the first filing, kept through edits (an edited row's created_at is the edit time); edit_reason alone can be a
+            // filing override note, so it shows only on an edited record
+            f.recordedAt = tr.recorded_at || tr.created_at;
+            f.edited = tr.edited === true || +tr.edited === 1
+                ? { at: tr.edited_at || tr.created_at, reason: D.trim(tr.edit_reason), by: D.trim(tr.edited_by_name) } : null;
             (tr.flight_tags || []).forEach(function (t) {
                 var title = t && (t.title || t.tag || t.name); if (!title) { return; }
-                var m = t.minutes != null ? +t.minutes : (t.time != null ? D.hoursToMins(t.time) : (t.hours != null ? D.hoursToMins(t.hours) : null));
+                var m = t.tag_minutes != null ? +t.tag_minutes : (t.tag_time != null ? D.hoursToMins(t.tag_time) : (t.minutes != null ? +t.minutes : (t.time != null ? D.hoursToMins(t.time) : (t.hours != null ? D.hoursToMins(t.hours) : null))));   // the API sends tag_minutes + tag_time (hours)
                 f.tags.push({ title: title, mins: m });
             });
         }
@@ -328,7 +331,7 @@ function TrnV2Data($q, $http, $state, CourseService, QuestionnaireService, Cours
                 var qid = q.questionnaire_id || q.id, timing = q.timing || 'pre';
                 var a = attempts.filter(function (at) { return String(at.questionnaire_id) === String(qid) && (at.timing || 'pre') === timing; })
                     .reduce(function (best, at) { return (!best || (+at.id || 0) >= (+best.id || 0)) ? at : best; }, null);
-                var x = { type: 'q', id: qid, title: q.title, desc: q.description, n: +q.question_count || 0, status: a ? a.status : 'not_started', attempt: a,
+                var x = { type: 'q', id: qid, title: q.title, desc: q.description, n: +q.question_count || 0, status: a && !QxV2Data.notStarted(a) ? a.status : 'not_started', attempt: a,
                     score: a && a.score_released && +a.max_score ? [a.auto_score, a.max_score] : null, at: a ? (a.submitted_at || a.updated_at) : null,
                     timing: timing, attachType: type, attachId: id };
                 (timing === 'post' ? out.post : out.pre).push(x);
@@ -340,6 +343,8 @@ function TrnV2Data($q, $http, $state, CourseService, QuestionnaireService, Cours
             return out;
         }, function () { return { pre: [], post: [] }; });
     };
+    D.notStarted = QxV2Data.notStarted;   // a granted retake not opened yet (exams.js)
+    D.outcome = QxV2Data.outcome;         // an instructor's Passed / Not passed on a reviewed attempt (exams.js)
     D.todoDone = function (x) { return x.type === 'm' ? !!x.done : (x.status === 'reviewed' || x.status === 'submitted'); };
     D.openCount = function (list) { return (list || []).filter(function (x) { return !D.todoDone(x); }).length; };
     D.qStatus = function (x, attn) {
@@ -347,7 +352,7 @@ function TrnV2Data($q, $http, $state, CourseService, QuestionnaireService, Cours
             return x.done ? { tone: 'good', ic: 'fa-check', label: 'Done', act: x.ft === 'video' ? 'Watch' : 'Read' }
                 : (attn ? { tone: 'warn', ic: 'fa-exclamation-circle', label: 'To do', act: x.ft === 'video' ? 'Watch' : 'Read' } : { tone: 'muted', ic: '', label: 'Not opened', act: x.ft === 'video' ? 'Watch' : 'Read' });
         }
-        if (x.status === 'reviewed') { return { tone: 'good', ic: 'fa-check', label: 'Reviewed', act: 'View result' }; }
+        if (x.status === 'reviewed') { var oc = QxV2Data.outcome(x.attempt); return { tone: oc ? oc.tone : 'good', ic: oc ? oc.ic : 'fa-check', label: oc ? oc.label : 'Reviewed', act: 'View result' }; }
         if (x.status === 'submitted') { return { tone: 'info', ic: 'fa-paper-plane', label: 'Submitted', act: 'View result' }; }
         if (x.status === 'in_progress' || x.status === 'opened') { return { tone: 'info', ic: 'fa-pen', label: 'In progress', act: 'Continue' }; }
         return attn ? { tone: 'warn', ic: 'fa-exclamation-circle', label: 'To do', act: 'Start' } : { tone: 'muted', ic: '', label: 'Not started', act: 'Start' };
@@ -804,9 +809,9 @@ function TrnRecordsV2Controller($rootScope, $scope, $q, $state, $stateParams, $d
             vm.exams = (r[1].exams || []).map(function (x) { return { x: x, r: recs[+x.id] || null }; });
             vm.examsTaken = vm.exams.filter(function (e) { return e.r; });
             vm.quiz = (r[1].questionnaires || []).map(function (q) {
-                var st = (q.status === 'reviewed' || q.score_released) ? { tone: 'good', ic: 'fa-check', label: 'Reviewed' }
+                var st = (q.status === 'reviewed' || q.score_released) ? (D.outcome(q) || { tone: 'good', ic: 'fa-check', label: 'Reviewed' })
                     : q.status === 'submitted' ? { tone: 'info', ic: 'fa-paper-plane', label: 'Submitted' }
-                    : (q.status === 'opened' || q.status === 'in_progress') ? { tone: 'info', ic: 'fa-pen', label: 'In progress' } : { tone: 'muted', ic: '', label: 'Not started' };
+                    : (q.status === 'opened' || q.status === 'in_progress') && !D.notStarted(q) ? { tone: 'info', ic: 'fa-pen', label: 'In progress' } : { tone: 'muted', ic: '', label: 'Not started' };
                 return { q: q, title: q.questionnaire_title || q.title, when: q.timing === 'post' ? 'After' : 'Before', at: q.submitted_at, st: st,
                     score: q.score_released && +q.max_score ? q.auto_score + ' / ' + q.max_score : null,
                     canOpen: !!(q.attempt_id && (q.status === 'submitted' || q.status === 'reviewed' || q.score_released)) };

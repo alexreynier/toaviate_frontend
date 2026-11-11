@@ -71,7 +71,7 @@ module.exports = function (grunt) {
               dest: 'dist/js/services.js',
             },
             libs: { //
-                src: ['libs/js/jquery.min.js', 'libs/js/isotope.js', 'libs/js/angular.min.js', 'libs/js/angular-bootstrap.js', 'libs/js/touch.js', 'libs/js/boostrap.collapse.js', 'libs/js/ui.bootstrap.js', 'libs/js/angular-ui-route.js', 'libs/js/angular-drag-drop.js', 'libs/js/angular-cookies.js', 'libs/js/angular-toggle.js', 'libs/js/angular-edit.js', 'libs/js/typeahead.js', 'libs/js/angular-tags-input.js', 'libs/js/angular-isotope.js', 'libs/js/angular-animate.js', 'libs/js/angular-sanitize.js', 'libs/js/select.js', 'libs/js/datetime.js', 'libs/js/moment.js', 'libs/js/angular-credit-cards.js', 'libs/js/phone.js', 'libs/js/phone2.js', 'libs/js/timepicker.js', 'libs/js/datetimepicker.js', 'libs/js/slider.js', 'libs/js/daterangepicker.min.js', 'libs/js/fullcalendar.js', 'libs/js/gcal.min.js', 'libs/js/scheduler.js', 'libs/js/flow.js', 'libs/js/ng-flow.js', 'libs/js/luxon.js', 'libs/js/qrcode-generator.js', 'libs/js/signature_pad.js', 'libs/js/toaviate-scheduler.js', 'libs/js/toaviate-datepicker.js'],
+                src: ['libs/js/jquery.min.js', 'libs/js/isotope.js', 'libs/js/angular.min.js', 'libs/js/angular-bootstrap.js', 'libs/js/touch.js', 'libs/js/boostrap.collapse.js', 'libs/js/ui.bootstrap.js', 'libs/js/angular-ui-route.js', 'libs/js/angular-drag-drop.js', 'libs/js/angular-cookies.js', 'libs/js/angular-toggle.js', 'libs/js/angular-edit.js', 'libs/js/typeahead.js', 'libs/js/angular-tags-input.js', 'libs/js/angular-isotope.js', 'libs/js/angular-animate.js', 'libs/js/angular-sanitize.js', 'libs/js/select.js', 'libs/js/datetime.js', 'libs/js/moment.js', 'libs/js/angular-credit-cards.js', 'libs/js/phone.js', 'libs/js/phone2.js', 'libs/js/timepicker.js', 'libs/js/datetimepicker.js', 'libs/js/slider.js', 'libs/js/daterangepicker.min.js', 'libs/js/fullcalendar.js', 'libs/js/gcal.min.js', 'libs/js/scheduler.js', 'libs/js/flow.js', 'libs/js/ng-flow.js', 'libs/js/luxon.js', 'libs/js/qrcode-generator.js', 'libs/js/signature_pad.js', 'libs/js/toaviate-scheduler.js', 'libs/js/toaviate-datepicker.js', 'libs/js/toaviate-display.js'],
                 dest: 'dist/js/libs.js'
             },
             css: {
@@ -114,6 +114,21 @@ module.exports = function (grunt) {
                     'css/v2/bookout.css',
                     'css/v2/enquiries.css',
                     'css/v2/enquiries_admin.css',
+                    'css/v2/login.css',
+                    // ── Instructor Dashboard v2 (mockups-40) — same order as index.html ──
+                    'css/v2/instructor.css',
+                    'css/v2/debrief.css',
+                    'css/v2/instructor-home.css',
+                    'css/v2/instructor-schedule.css',
+                    'css/v2/instructor-briefings.css',
+                    'css/v2/instructor-debriefs.css',
+                    'css/v2/instructor-students.css',
+                    'css/v2/instructor-questionnaires.css',
+                    'css/v2/instructor-signatures.css',
+                    'css/v2/instructor-caa-forms.css',
+                    'css/v2/instructor-hours.css',
+                    'css/v2/instructor-availability.css',
+                    'css/v2/find_a_slot.css',
                     'libs/css/slider.css',
                     'css/calendar.css',
                     'css/instructor-schedule.css',
@@ -121,6 +136,8 @@ module.exports = function (grunt) {
                     'css/voucher-booking.css',
                     'css/schedule-display.css',
                     'css/display-pairing.css',
+                    // Schedule display (clubhouse TV) v2: the TV + pairing pages (same place as in index.html)
+                    'css/schedule-display-v2.css',
                     'css/voucher-widget.css',
                     'css/flight-edit.css',
                     'css/flight-merge.css',
@@ -152,6 +169,7 @@ module.exports = function (grunt) {
                     'css/fox-track-tools.css',
                     'css/suspect-splits.css',
                     'css/instructed-hours.css',
+                    'css/my-schedule.css',
                     'css/daily-aircraft-status.css',
                     'css/club-automations.css',
                     'css/maintenance-org.css',
@@ -199,10 +217,14 @@ module.exports = function (grunt) {
                     // Scheduler v2: the two libraries, then the page chrome on top (same order as index.html).
                     'libs/css/toaviate-scheduler.css',
                     'libs/css/toaviate-datepicker.css',
+                    // Schedule display v2: the renderer library (after the scheduler's two, as in index.html)
+                    'libs/css/toaviate-display.css',
                     'css/scheduler-v2.css',
                     'css/booking-form.css',
                     'css/club-opening-hours.css',
                     'css/cancellation-fees.css',
+                    'css/reallocate-aircraft.css',
+                    'css/schedule-display-settings.css',
                     'css/bookout-presolo.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

@@ -561,7 +561,44 @@ reconciliation (added 2026-10-26; contract `FRONTEND_TRACK_DATA_GUIDE.md` /
   → checkbox; `BLOCKED` + blockers; money for a shared booking is reversed once, on leg 1).
 - The backend's error codes for this feature are in the write-guard `HANDLED_CODES`.
 
-## Members hub (Manage Club → Members / Requests / Instructors / Missing Students)
+## Manage Club area hubs (Ops · Accounting · Admin · Super-admin — batch 19, 2026-11-10)
+
+Step 2 of `../backend/ops/plans/PROPOSAL_MANAGE_CLUB_STRUCTURE.md` (§5 = the owner's areas). Four abstract parent
+states — `dashboard.manage_club.ops_hub` / `accounting_hub` / `admin_hub` / `super_admin_hub` (`url: ''`,
+`views/manageclub/area_hub.html`, `AreaHubController as hub`, registered directly under `dashboard.manage_club`) —
+own an area bar ("Back to Manage Club"), the area's TAB row and the active tab's PAGE row (pills) above a nested
+`<ui-view class="achub__view">`. **Every** Manage Club state is a child of one hub (`parent:` in app.js; dotted
+children such as `.vouchers.add` follow their dotted parent) and carries `data: { area: 'ops' | 'accounting' | 'admin'
+| 'super_admin' }` (children inherit it). Names, URLs, templates and controllers are unchanged — the hubs change the
+chrome, not the addresses — so no redirect state was needed. The tab → page map lives ONCE in
+`js/controllers/areaHubController.js` (`AREAS`); the home page `views/manage_club.html` (five tiles: the four areas
+listing their tabs + Safety, no controller) repeats it statically — keep the two in step. A page two areas use
+(Vouchers, Trackers, Invoices, Instructors, Records to File, Missing Students, the Settings cards) sits under ONE hub, but
+**the chrome follows the area the person ENTERED, not the page's home** (owner, 10 Nov): a tile click records the area
+(`mc-area-tile` directive → sessionStorage `ta_mc_area`), `AreaHubController.applyArea` keeps that area while it lists the
+page (else the page's own `data.area`), so Ops → Take payment shows Ops' bar with "Take payment" active on Accounting's
+Invoices page; there are no "opens in …" pills any more. The remembered area WINS while it lists the page, so a deep link to
+Invoices (memory becomes Accounting) followed by /manage_club/vouchers stays under Accounting (Reports → Voucher sales
+lists it) — by design, not a bug. A shared page's own sub-nav follows the area too
+(`hub.inArea('accounting')` on `_invoices_nav` / `_stats_nav`, `'ops'` on `_airfield_nav`, `'admin'` on `_vouchers_nav`;
+`$root.mcArea === 'ops'` on the Members hub bar, whose own controller is also `hub`).
+**Home page views (owner, 10 Nov):** two tabs on `views/manage_club.html` — Grouped view (the tiles) and Flat view (every page in
+one list + a filter box; Enter opens the first match — the DEFAULT since 10 Nov, owner; the box takes focus on desktop),
+`ManageClubHomeController as home` via `ng-controller` (no state change), a Grouped choice remembered in localStorage
+`ta_mc_home_view`. Ops → Take payment still opens Accounting's Invoices under the Ops bar — a front-desk "take payment" page
+was discussed but NOT built (owner, 10 Nov: ignore for now). The flat list is the file-level `MC_AREAS` flattened (plus the Safety screens), so it can't drift;
+the map and its helpers (`MC_PREFIX`, `mcPage`/`mcCard`/`mcTab`, `MC_SMS_STATES`, `MC_AREAS`; `AreaHubController.AREAS` still
+points at it) are file-level globals in areaHubController.js — keep the `mc`/`MC_` prefix. Styles `.mchome*` in manage-club-hubs.css. The older tab bars
+(`_vouchers_nav.html`, `_invoices_nav.html`, `_stats_nav.html`, `_airfield_nav.html`, `trackers/_nav.html`,
+`members_hub.html`) stay inside the pages; the Vouchers / Trackers ones carry `data-area` per tab. Settings cards are
+reached as `dashboard.manage_club.settings({card: '<id>'})` (`url: '/settings?card'`, `reloadOnSearch: false`; the
+hub scrolls to the card's `id` in settings.html) until step 3 splits that page. Zone colours + tile styles:
+`.achub--<area>` / `.mcarea--<area>` in `css/manage-club-hubs.css`. Access is still the single Manage Club guard
+(below); step 4 switches it on `data.area`. The hub chrome hides itself for the non-admin exceptions
+(`hub.showChrome`). Out of the nav on purpose: `payments_to` (`/bank_settings`, a dead 2017 Stripe card form that
+throws on load) — see `../backend/ops/plans/LATEST_DOING.md` 19.2.
+
+## Members hub (Manage Club → Ops → Members: Members / Requests / Instructors / Missing Students / Records to File)
 
 `dashboard.manage_club.members_hub` is an abstract PARENT state (`views/manageclub/members_hub.html`,
 `MembersHubController as hub`) that owns the gradient header + tab bar; the four screens are its children
@@ -573,6 +610,15 @@ reconciliation (added 2026-10-26; contract `FRONTEND_TRACK_DATA_GUIDE.md` /
 missing, so a child that names the hub via `parent:` must be registered AFTER the hub in app.js (the hub sits
 directly under `dashboard.manage_club`). The host `ui-view` is widened with `:has(> .mhub)` because
 `.centre_align_boxes2 > div` is a centred flex row that shrink-wraps pages to their content.
+
+**Other Manage Club hubs** are tab bars only (`_vouchers_nav.html`, `_invoices_nav.html`, `_stats_nav.html`,
+`_airfield_nav.html`, ng-included under each page's own header; see `css/manage-club-hubs.css`). Since 2026-11-10
+(batch 18) Settings is only settings: Schedule Display (`dashboard.manage_club.schedule_display`), Data Import
+(`.data_import`, hosts `tpc_import_home.html` + `training_record_reassign.html`), BookedScheduler Sync (`.bs_sync`),
+the Voucher Widget (Vouchers hub tab) and Airfield Bookout + AirfieldHub (Airfield Integration hub, URLs under
+`/manage_club/airfield/…`, old URLs redirect via redirect STATES `*_legacy` / `airfield_index` in app.js — not
+`$urlRouterProvider.when`, which loops with the Manage Club guard) are Manage Club sections of their own. Since batch 19
+(same day) the landing is the five area tiles above and the members hub itself is a child of `ops_hub`.
 
 ## v2 designs beside v1 (the "Try our v2 designs" switch, 8 Nov 2026)
 
@@ -600,14 +646,17 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   every element, centring, phone padding) reach v2. `body.ta-v2` padding-top puts the page 18px under the 50px header (12px on
   phones) like the mockup frames; `--ta-top-offset: 50px` starts ta-base's full-screen layers (`.ta-dlg-scrim`, the open
   `.ta-combo`) below `#main_header2` (the mockups leave it 0); `.ta-page` keeps 16px gutters from 769px until its width fits.
+  Desktop dialogs still centre on the WINDOW like the mockups (core.css, 10 Nov): the scrim's bottom padding gives the offset
+  back, and `.ta-dlg-scrim > .ta-dlg` has `margin-block: auto` + `max-height: calc(100% + offset)`, so a tall dialog runs
+  from 20px under the header to 20px above the bottom. Don't add per-page scrim padding for this.
 - **v2 baseline (core.css)** — the mockups run on browser defaults + ta-base only; the app's bootstrap / styles.css ELEMENT
   rules are undone inside v2 at specificity 0,0,1 (`:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) tag`, loaded later, so
   every class still wins): `* {font-family: Arial}`, button / input line-height + font-weight, checkbox / radio margins (back
-  to the browser's), `label`, `output`, `small`, `dl/dd`, `th`, table margin + table-part vertical-align, `ul li {color:#999;
-  cursor:pointer}`, `a {color:#39c; font-weight:400}`, bootstrap `a:hover/a:focus` colour + underline, the
-  `.ng-valid/.ng-invalid.ng-dirty` green / red borders (ta-base field borders restated for dirty fields), body weight 300.
+  to the browser's), `label`, `output`, `small` + `a small` (11px / #777 / block / −0.6em pull-up), `dl/dd`, `th`, table margin + table-part vertical-align, `ul li {color:#999;
+  cursor:pointer; transition}` + its `:hover {color:#111; underline}`, `a {color:#39c; font-weight:400}`, bootstrap `a:hover/a:focus` colour + underline, the
+  `.ng-valid/.ng-invalid.ng-dirty` green / red borders (ta-base field borders restated for dirty fields), body weight 300, bootstrap `kbd` caps and the hidden search-field clear ×.
   styles.css's own `a:hover` / `a:active` (#4BF / #1FB on black) skip v2 via a zero-weight `:where(:not(.v2-host *, …))`.
-  **Rule: every link class on an `<a>` states its own :hover / :focus colour.** Found a new leak? Fix it in core.css (one
+  **Rule: every link class on an `<a>` states its own :hover / :focus colour.** (ta-base now does for `.ta-back` and every `.ta-btn` variant.) Found a new leak? Fix it in core.css (one
   place), not per page — confirm with `whorule.js` first.
 - **Design fidelity (8–9 Nov):** every v2 page was compared with its approved mockup (same viewport + theme, the API
   answered with the mockup scenario's own data) — `scratchpad/v2/fidelity/fidelity.js` (computed-style diff per class
@@ -657,10 +706,95 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   **Units:** fuel uplift = litres (the pump), the check dialog's fuel = US gallons (the aircraft gauge), oil = quarts (the
   tank, and uplifts come in quart cans) — the journey log column `oil_uplift_litres` actually holds QUARTS. Lead checks:
   `scratchpad/v2/lead/v2_all.js` (switch on) + `v1_all.js` (switch off, every mapped classic state) + `admin_smoke.js`.
+- **10 Nov owner additions:** v2 Bookings shows lesson requests an instructor DECLINED (48 h, the instructor's reason quoted;
+  upcoming `declined[]`, be-alex-3e C45). Split flights: leg 1 is charged to the split point the user picks, leg 2 from it
+  (C46: the split preview's `split_at` → the v2 quote's `split {at, part:1, crew_mode}`); one per-flight surcharge per leg
+  stays the default. Pre-solo questionnaires pass only on an instructor's explicit outcome (`outcome: 'passed'`; `Mark
+  reviewed` takes an attempt off the list without a pass): the classic review page has "Mark as passed" (owner's v1
+  exception), v2 shows Passed / Not passed (`review_outcome`). Manage Club → Settings "Who Confirms Voucher Lesson
+  Requests" (`clubs.voucher_request_routing` both | instructor | club; `pending_by: 'both'` → "Dana or the club").
+  Otherwise v1 is frozen (owner, 10 Nov: v2 becomes the only design soon).
+- **Amend a waiting flight's times (owner 10 Nov, be-alex-3e C47):** Manage Club → Settings "Who Can Amend Flight Times on Claim
+  a Flight" (`clubs.claim_times_edit` off | admins | staff, OFF by default). v2 Claim a Flight: staff get "Amend times" on an
+  unclaimed, unsplit flight (`can_amend_times` per flight decides) — TPC clubs enter take-off + landing and the server adds the pad
+  (`tpc_pad_minutes`, 5) either side, others the four times; a reason is required. Like the TPC import, the tracker's own times are
+  kept (`times_amended.original`), every change is logged (`fox/claim_times/{pls}/history`) and "Put back the tracker's times"
+  reverts until the flight is claimed. The amended times count everywhere (billing, logbooks, aircraft hours); v2 book-in shows
+  "These times were amended by …" and, for staff, its own "Amend times" button + "Put back the tracker's times" on the Times card
+  (a direct claim reloads the page after a save; a claim onto the pilot's own sheet re-fills the card, re-fetches the context and
+  re-quotes). The dialog is ONE directive, `<claim-times-dialog am on-saved on-close>` (views/v2/claim/_amend_dialog.html), and
+  `ClaimV2Data` (js/v2/claim) holds the calls + `form / check / body / whyOf / amendedOf` (its refusal table sits BEFORE
+  `return service` on purpose). ⚠️ The amend / revert reply `flight` is a tracker-list row whose `id` is the tracker entry, not
+  the sheet — copy its time fields, never the row. NOT_CLAIMABLE / SPLIT_LEG / NOT_AMENDED / *_FAILED are in HANDLED_CODES.
+- **Sign-in, two-factor and password reset v2 (owner 10 Nov, mockups/login/login.html):** PUBLIC states `login_v2` (`/v2/login`),
+  `password_reset_v2`, `password_reset2_v2` (`/v2/password_reset[/:token]`) in js/v2/login/login.js map the classic `login` /
+  `password_reset` / `password_reset2` (e-mailed reset links and the services' 401 → `/login` open whichever design the switch
+  says); they are in app.js `publicStates` / `publicPages`, and a stale 401 on `/v2/login` is no freeze either. The sign-in page
+  runs the LIVE `LoginController` on the v2 template — `LoginV2Controller` instantiates it with two locals: a quiet
+  `ToastService` (warnings / errors are said in the card — a field message after `highlightField`, else a note; successes and
+  anything raised while signing in stay toasts; `handledInline()` keeps the write guard quiet) and an `AuthenticationService`
+  wrapper (`Login2` accepted → the signing-in card with the runway; `SetCredentials2` → "Opening your clubs" → "Ready"). Keep the
+  ids `email / password / email_code / two_factor_code / two_factor_lost_why` — the controller focuses and highlights by them.
+  Forgot / reset have their own `PasswordResetV2Controller` (five live rules, dead link = a done card). `body.ta-login` drops the
+  body padding (the page draws its own header, logo + Main website + Sign in). CSS css/v2/login.css (`.lg-*`).
+  **The "Try our v2 designs" switch is a fixed bottom-right pill on every page** (`<design-switch>`, core.css `.v2-switch`):
+  mounted once in views/dashboard.html and on the v2 AND classic sign-in / reset pages (the menu tag is gone); on phones it hides on v2 pages
+  (their hero has "Back to classic designs") and while a `.ta-actionbar`, the logbook save bar, the booking panel or the scheduler sheet shows.
+- **The runway — v2's loader (owner, 10 Nov):** `<ta-runway text steps step flying compact>` (js/v2/core/runway.js, styles
+  `.ta-runway*` in ta-base.css; guidelines 4.15) is the shared "we're working on it" piece: the sign-in card uses it with
+  three steps, Claim a Flight while the trackers are checked (`compact`), the book-in Finish card while saving / paying
+  (`vm.bk_wait_steps` / `vm.bk_wait_step()`). **The default slow-wait indicator** (`RunwayWait` + `runwayWaitInterceptor`,
+  registered in the same file): any `/api/v1/` call pending for over 1.2 s on a v2 page sets `$rootScope.taSlow`, and
+  views/dashboard.html floats a small runway ("Still working…", `.ta-runway-float`) until every call has answered — no
+  page has to do anything; it stays quiet while a page shows a `<ta-runway>` of its own (`$rootScope.taRunwayInline`).
+  Skeletons stay the right thing for a list that is loading. Walk: scratchpad `runway/walk.js` (8 checks). The scheduler v2 page
+  opens on it too (owner, 11 Nov): `.sv2-boot` card with two steps, held `BOOT_HOLD_MS` (1.4 s) from the page's start so it reads as
+  an opening, the board hidden until then (`vm.booting`); an error on the first read drops straight to the error card. `sdx/boot.js` (8).
+- **The boot splash (owner, 11 Nov):** `<div id="ta-boot">` is the FIRST thing in index.html's `<body>`, before any `<script>` — the
+  runway drawn with its own inline CSS and an inline SVG plane (no stylesheet, font or Angular needed), so on a slow network the page
+  paints it (~300 ms) while the 400 scripts download (dev; one bundle in prod). app.js's run block keeps it until the first
+  `$viewContentLoaded` (15 s fallback), then fades + removes it; after 25 s its own inline script adds "taking longer than usual".
+  Keep it tiny and first. The slow-wait float (`RunwayWait`) now covers EVERY page, classic ones too, and counts `views/*.html`
+  template fetches as well as API calls. Check: scratchpad `boot/throttle.js` (CDP slow-4G, cold cache: login + scheduler reload
+  + an in-app route change; 5 checks).
+ while the switch is on, design.js sets `body[data-zone]` from the state name — `account`
+  (`dashboard.my_account*`, `dashboard.v2.*`) or `instructor` (`dashboard.manage_user*`) — and core.css draws a 3px line
+  under `#main_header2` in `--ta-zone` (My Account navy, Instructor Dashboard mulberry `#7a3366`) and lights that area's
+  menu link (solid colour: the header stays white at night). The `--ta-zone*` tokens (ta-base.css, on `body`) are for the
+  instructor pages' place markers (mockups/instructor-dashboard/zone.css); Manage Club gets graphite later.
 - **Also from round 2:** cancel reasons are SHOWN in sentence case (`CancellationFeesService.reasonText`, the picker), the
   stored label stays verbatim; Manage Club → Settings "Members Can Pay at the Card Machine" (`clubs.card_machine_members`,
   be-alex-3e C10; pay facts `machine.members_allowed` / `can_use`; v2 book-in + invoices honour it); SMS bulletins take
   `valid_from` / `valid_until` (C11; admin form sends plain YYYY-MM-DD, members see validity / Upcoming / Expired).
+
+## Schedule display (clubhouse TV) v2 — settings page (11 Nov 2026)
+
+Manage Club → Settings → Schedule display is the approved mockup `mockups/schedule-display/settings.html` built on ta-base INSIDE the
+classic shell: `views/manageclub/schedule_display.html` is wrapped in `.v2-host.sdx` so core.css's element resets apply (the trick for any
+ta-base page that lives under Manage Club), styles `.sdx-*` in css/schedule-display-settings.css (the mockup's CSS verbatim + app rules),
+`DashboardClubScheduleDisplayController` + three small directives (`sdx-mini` layout drawings, `sdx-sample` booking sample, `sdx-tv`
+scales the 1920×1080 preview iframe into the bezel). Options contract: `FRONTEND_SCHEDULE_DISPLAY_V2_GUIDE.md` §2 —
+`ScheduleDisplayService.GetDisplayOptions` (settings + defaults + page_turn + options), `SaveDisplayOptions` = a PUT of ONLY the changed
+keys (`pageturn` as a number; `VALIDATION_ERROR` + `field` named in the toast), `ResetDisplayOptions` exists but the page resets the DRAFT
+(mockup: "save to send it"). Every value is kept as a string client-side. The preview is the real TV page in an iframe:
+`/display/{token}?preview=1&set=<urlencoded JSON of the draft>` (mockups-40's TV page honours `set`); no token → "Pair a TV or create the
+link". Option lists live in the controller (`NAME_OPTS` / `REG_OPTS`): an ngRepeat literal containing " as " is read as an alias.
+The KEY LIST is the server's `defaults` (a new option such as `badge: initials | logo`, 11 Nov, arrives that way; a field is shown only
+when `options.<key>` exists); the settings read also carries `logo` (the club's uploaded logo as a data URI, null → the Club badge
+field warns "no logo uploaded yet"). **Which day the TV shows** (owner via alex-3e, 11 Nov): option `day_switch` close (default) | last_booking | midnight = when the TV
+moves on to tomorrow (a normal draft option, "Moving on to tomorrow" under Hours and extras); and `settings.show_date` (null = the
+rule, else a pinned day today … +31; GET also carries `today` / `tomorrow`) = the "What the TV shows now" control in the preview
+card — an ACTION, each press PUTs `{show_date}` at once (`''` = back to the rule), never part of the draft / `changed[]`;
+"Return to default options" clears it too; the preview iframe reloads when it changes. Owner adds on the TV (mockups-40): the real logo images/main_logo.png (light plate on dark),
+"Powered by [logo] · Updated HH:MM:SS" bottom-right costing no row, a quiet Full screen / F control (not in preview), the club logo
+in place of the mono tile when badge = logo and `club.logo` is sent. The
+TV page `/display/:token` and the pairing page are mockups-40's (renderer `libs/js/toaviate-display.js` + `libs/css/toaviate-display.css`,
+shell css/schedule-display-v2.css, 1rem = 100vh/54, nothing scrolls; `?set=` coerced + merged over the fetched settings, `?date=`,
+`?preview=1` = no version poll; a same-origin `postMessage({type:'schedule-display-preview', set})` redraws without a reload — the
+settings page uses it after the first load; tracker `../mockups/v2-build/fe-tv-display.md`). The TV's pairing QR opens
+`/dashboard/manage_club/schedule_display?pair_tv=CODE` (the state declares `?pair_tv`, `reloadOnSearch:false`; the page fills the
+code in and drops the param). css/schedule-display.css + display-pairing.css are unused now but still registered (remove with the old
+service methods). Walk: scratchpad `sdx/walk.js` (55).
 
 ## Scheduler v2 (`/dashboard/bookings_v2`)
 
@@ -821,6 +955,23 @@ Contract: backend repo `FRONTEND_SCHEDULER_V2_GUIDE.md` (§1 reads, §2 waiting 
 - Library drag callbacks are not `ng-click`, so the busy guard does not cover them: the controller's own `inFlight` flag rejects
   a second move while one is saving. The lib reverts a chip when the promise rejects or resolves `{ok:false}`.
 - **Club filter** (2026-11-03): chips in the page bar (All clubs · one chip per club, only when the viewer has >1 club) → `club_id` on day/month/version calls; remembered in localStorage `toaviate_sv2_club` (0 = all); busy-dot caches reset on change.
+- **Re-allocate aircraft (owner go 11 Nov 2026; managers only):** bar button `#sv2-reallocate` (`vm.isManager` = manager / super-admin
+  somewhere; the backend gates per club) → `views/modals/reallocate_panel.html` + `ReallocatePanelController` (schedulerV2ModalControllers.js,
+  `.rea-*` in css/reallocate-aircraft.css, same chrome as Cancellations). One day: `SchedulerV2Service.Reallocate(club, date, 0)` previews
+  (`eligible` + `reason`, `moves[]` "10:00–11:00 · pilot with instructor · G-A → G-B — why", `kept[]` = id + reason, enriched from the
+  scheduler's own day when the dates match), Apply posts `apply: 1`; the next N days (5–31) is `ReallocateBatch` — applied directly, so the
+  button asks twice; a closed panel with `changed` refetches the scheduler. Club = the scheduler's filter when it is one the viewer manages,
+  else `defaultClubId` (the admin club) with a select. NOT_ELIGIBLE is in HANDLED_CODES (the panel shows the reason). Walk: scratchpad
+  `realloc/walk.js` (31 checks, real backend on booking-free days from `php/realloc_fixtures.php freedays`; the batch is MOCKED there because
+  a real one runs from today over the club's live bookings).
+- **Re-allocate aircraft — the swap rule (owner, 11 Nov):** an owner's aircraft of the day per type is the one holding the MOST of their
+  bookings (two needed to claim; ties → the earlier first booking on it; after losing a contention one booking is enough for the next
+  candidate; no aircraft with two → no claim, they hop regardless), and overlaps are cleared against the FINAL picture, so two instructors
+  can swap aircraft for the afternoon (Eva ↔ Tim, 12 Nov). Moves carry `swap_with {booking_id, name}` → the panel's "Swapped with …" pill.
+  **"Prioritise the instructors' allocations"** (owner via alex-3e, 11 Nov): the panel's switch → `instructors_first: 1` on preview, apply
+  and batch (remembered in localStorage `toaviate_sv2_realloc_instructors_first`): a hire holding an instructor's slot is moved to a free
+  aircraft instead (`displaced_for: "Mark Giachi"` → the "for Mark Giachi" pill), else the instructor's whole day goes to an aircraft free
+  for all of it; neither → the normal rule.
 - **Page bar** (2026-11-05): two rows — title + hint with the actions (Find a slot → `dashboard.slot_search`, Waiting list,
   Back to classic designs) on the right; a filters row with "Showing" + the club chips (several clubs only) and the "Times are club
   local time" pill at the far right. Phones: the two buttons share a row, Back to classic designs below, chips full width.
@@ -858,6 +1009,22 @@ migration `2026_11_05_000003` (every column read behind SHOW COLUMNS — before 
   can still be claimed later; a claimed one can't be claimed twice. Error codes are in the write-guard `HANDLED_CODES`.
 - Tests: `api_tests/tests/CancellationFeesTest.php` (13); real-backend `scratchpad/ih_e2e/cxf_real.js` (85, fixtures
   `php/cxf_fixtures.php`).
+
+## Maintenance extensions (owner's rule, 10 Nov 2026)
+
+An **extension** is a grant on top of the last check — never a check itself. Its **date** extends the ARC / CofA (not a
+permit) and with it the next-check date (usually up to a month); its **hours** add to the hours to the next check (usually
+up to 5 h). It never extends the radio licence or the insurance. Backend (be-alex-3e): `Planes::fast_hours_remaining`
+takes `next_maintenance = max(check expiry, ext until)` and the (extended) ARC may still cut it short; the status block
+carries `extension {id, until, hours, granted_by, recorded_at, in_force}`, `next_check_reason` (check | extension |
+certificate), `certificate_extended_until`; the ARC rows (`arc`, `airworthiness_document`) keep their own `date_expiry`
+and add `extended_until` / `effective_expiry` (their `days_to_expiry` / `status` count to the effective date).
+Frontend: `MaintenanceFormService.extensionInForce(maintenance, events)` (the backend block first, the latest extension
+event after the anchor as the fallback) feeds the "Extension in force" banner under the status tiles of
+`views/manageclub/maintenance_detail.html` (`.mx-ext-banner`, `.mx-ext-pill` in styles.css, night mode included), the
+"Extended to …" notes on the Days tile / ARC row / fleet list, the extension's relabelled fields in the Edit Maintenance
+Event panel ("Hours granted" / "Runs until"), and the v2 aircraft page (`p._ext`, memoised — a fresh object per digest
+looped the digest; documents use `extended_until` for the days). Walk: scratchpad `ext/walk.js` (G-BOJS, 11 checks).
 
 ## Hours Instructed (instructor dashboard)
 
@@ -925,6 +1092,26 @@ satis", a lesson, a grade) makes it a real record; "Ex: 8b [TPC import …]" cou
 - UI: `.rtf-chip--import` ("import note only", info blue, dashed) everywhere; Records to File filter `record_kind`
   (`none` | `import_note`) + `summary.import_notes`; the debrief page shows a "saving replaces the note" banner
   (`import_note` on `bookings/for_debrief_pls`). No migration: plain LIKE/LOCATE SQL, same on every MySQL.
+
+## BookedScheduler sync — editing a temporary (imported) user (owner, 11 Nov 2026)
+
+Manage Club → Integrations → BookedScheduler sync → Imported Users: each unconverted row has an "edit" control (the Name cell) →
+first name, last name and the REAL email, saved with `BsSyncService.UpdateImported` = `PUT bs_sync/imported/{club}/{user}` (partial
+patch of what changed; club managers; `ALREADY_CONVERTED`, `VALIDATION_ERROR` + field, `INVALID_EMAIL`, `EMAIL_TAKEN` + holder when
+the address is another stub's; an address of a REAL account is allowed and the reply's `email_status` / `email_owner` feed the
+convert's merge panel). The reply `user` is the GET-list row shape; `applyImportedRow` updates the row in place. An EMPTY email
+clears it. ⚠️ The email input carries `ng-model-options="{allowInvalid: true}"`: a `type="email"` field hands Angular an EMPTY model
+for an invalid address, and an empty email means "clear it" — without the option a typo wiped the stored address (it did, once, on
+local; restored). The names survive a later sync (the sync only inserts). Walk: scratchpad `bsedit/walk.js` (real backend, club 3,
+edits user 1823 and puts it back). **Pending invitations survive a reload** (owner, 11 Nov): every list / PUT row carries
+`invitation` (null | {id, status:'invited', email, sent_at, mode signup|merge, membership {id, member_since, term_start, end,
+payment_required}}); `loadImportedUsers` turns it into the same `_converted` / `_membership` state as a fresh convert, so the row
+reads "Invited · date" with the summary, no edit / change / tier / Convert, and Convert All skips it. **Resend** = a second
+`POST bs_sync/convert` with the invitation's tier + dates (the backend re-sends the same link with the offer refreshed and answers
+`resent: true`) → "Invitation re-sent". Walk: `bsedit/invited.js` (resend mocked — never re-sends the owner's real invitation 4031). **Local e-mail:** every e-mail is written to `email_log` with status `logged` and NEVER handed
+to Postmark unless `$GLOBALS['LOCAL_SEND_EMAILS'] = true` in the backend's `api/v1/includes/con.inc.php` local blocks — and even then
+only to the environment's default_email (`intended_to` keeps the real recipient). "email_sent: true" from an endpoint means "handed
+to the mailer", which locally means logged. The log is Manage Club → Email log (`dashboard.manage_club.email_log`).
 
 ## Signup flows (invitations, club, maintenance, passenger) — contract since 2026-11-02
 

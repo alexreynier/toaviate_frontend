@@ -1,0 +1,47 @@
+<!-- THE STUDENT: the hero (where they are, the medical, change course, export, questionnaires) + the tabs, shared by
+     Flights · Progress · Pre-solo · Exams & forms -->
+<section class="ta-hero ins-hero" data-e2e="stu-hero">
+  <div class="ta-hero__top"><a class="ta-hero__back" href="" ng-click="vm.heroBack()" data-e2e="stu-hero-back"><i class="fas fa-arrow-left"></i>{{ vm.heroBackLabel() }}</a><span class="stu-hero__r"><span class="stu-hero__classic"><design-back></design-back></span><ins-tag></ins-tag></span></div>
+  <div class="ta-hero__head"><span class="ta-hero__badge" aria-hidden="true"><i class="fas fa-user-graduate"></i></span><div><div class="ta-hero__title">{{ vm.X.name || 'Student' }}</div><div class="ta-hero__sub"><span ng-if="vm.X.sub">{{ vm.X.sub }}</span><span class="stu-skel__hero ta-skel" ng-if="!vm.X.sub && vm.X.st !== 'error'"></span><span ng-if="vm.X.st === 'error'">Records unavailable</span></div></div></div>
+  <div class="ta-hero__facts" ng-if="vm.X.facts && vm.X.st !== 'loading' && vm.X.st !== 'error'"><div class="ta-hero__fact ins-rise" ng-repeat="f in vm.X.facts track by f.k" ng-attr-style="--i: {{ $index }}"><div class="ta-hero__fact-k">{{ f.k }}</div><div class="ta-hero__fact-v" title="{{ f.v }}">{{ f.v }}</div><div class="ins-fact-s" ng-if="f.s" title="{{ f.s }}">{{ f.s }}</div></div></div>
+  <div class="ta-hero__facts" ng-if="(!vm.X.facts || vm.X.st === 'loading') && vm.X.st !== 'error'" aria-hidden="true"><div class="ta-hero__fact stu-skel__fact" ng-repeat="i in [0, 1, 2, 3]"><span class="stu-skel__lt"></span><span class="stu-skel__lt stu-skel__lt--v"></span><span class="stu-skel__lt stu-skel__lt--s"></span></div></div>
+  <div class="stu-hero__acts" ng-if="vm.X.st !== 'error'">
+    <button type="button" class="ta-hero__btn stu-medbtn" ng-if="vm.X.medSt !== 'forbidden'" ng-click="vm.openMedical()" ng-disabled="!vm.X.med" title="{{ vm.X.first }}’s medical file" no-busy-guard data-e2e="stu-medbtn"><span class="stu-medbtn__dot stu-medbtn__dot--{{ vm.X.medS ? vm.X.medS.tone : 'none' }}" aria-hidden="true"></span><i class="fas fa-heartbeat"></i>{{ vm.X.medS ? vm.X.medS.btn : (vm.X.medSt === 'error' ? 'Medical · couldn’t load' : 'Medical') }}</button>
+    <button type="button" class="ta-hero__btn" ng-click="vm.openCourses()" no-busy-guard data-e2e="stu-course"><i class="fas fa-exchange-alt"></i><span class="ta-desk-only">Change course</span><span class="ta-phone-only">Course</span></button>
+    <button type="button" class="ta-hero__btn" ng-if="vm.X.p && vm.X.p.flights.length" ng-click="vm.openExport()" no-busy-guard data-e2e="stu-export"><i class="fas fa-file-pdf"></i><span class="ta-desk-only">Export PDF</span><span class="ta-phone-only">PDF</span></button>
+    <a class="ta-hero__btn" href="" ng-click="vm.allQuestionnaires()"><i class="fas fa-clipboard-check"></i>Questionnaires</a>
+  </div>
+</section>
+
+<div class="stu-tabsrow" ng-if="vm.X.tabs && vm.X.st !== 'loading'"><div class="ta-tabs" role="tablist" aria-label="{{ vm.X.name }}"><button type="button" class="ta-tab" ng-repeat="t in vm.X.tabs track by t.k" ng-class="{'ta-tab--on': vm.tab === t.k}" role="tab" aria-selected="{{ vm.tab === t.k }}" ng-click="vm.setTab(t.k)" no-busy-guard data-e2e="stu-tab-{{ t.k }}"><i class="fas {{ t.ic }}" aria-hidden="true"></i>{{ t.label }}<span class="ta-tab__n" ng-if="t.n">{{ t.n }}</span></button></div></div>
+<div class="stu-v2row ta-phone-only"><design-back></design-back></div>
+
+<!-- loading: the page's shape (tabs, a card, rows), then the content rises in -->
+<div class="stu-part" ng-if="vm.X.st === 'loading'">
+  <div class="stu-tabsrow" aria-hidden="true"><div class="stu-skel__tabs"><span class="ta-skel"></span><span class="ta-skel"></span><span class="ta-skel"></span><span class="ta-skel"></span></div></div>
+  <section class="ta-card" aria-busy="true" aria-label="Loading the records"><div class="ta-tiles stu-skel__tiles"><span class="ta-skel" ng-repeat="i in [0, 1, 2, 3]"></span></div></section>
+  <section class="ta-list" aria-hidden="true"><div class="stu-skel" ng-repeat="i in vm.skel"><span class="ta-skel stu-skel__av"></span><span class="stu-skel__txt"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></span><span class="ta-skel stu-skel__meta"></span><span class="ta-skel stu-skel__pill"></span></div></section>
+</div>
+
+<section class="ta-card ins-rise" ng-if="vm.X.st === 'error'">
+  <div class="ta-empty"><span class="ta-empty__ic"><i class="fas" ng-class="vm.X.err === 'forbidden' ? 'fa-lock' : 'fa-exclamation-triangle'"></i></span>
+    <h4>{{ vm.X.err === 'forbidden' ? 'You can’t see these records' : 'The records didn’t load' }}</h4>
+    <p>{{ vm.X.err === 'forbidden' ? (vm.X.errMsg || 'Training records are open to the club’s instructors and Head of Training.') : 'Check your connection and try again.' }}</p>
+    <div class="stu-foot-acts"><button type="button" class="ta-btn ta-btn--primary" ng-if="vm.X.err !== 'forbidden'" ng-click="vm.retryStudent()" no-busy-guard><i class="fas fa-redo"></i>Try again</button><button type="button" class="ta-btn" ng-click="vm.showFind()" no-busy-guard><i class="fas fa-search"></i>Find another student</button></div></div>
+</section>
+
+<section class="ta-card ins-rise" ng-if="vm.X.st === 'nocourse'">
+  <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>{{ vm.clubTitle() }} has no courses yet</h4><p>{{ vm.X.first || 'This student' }}’s records appear here once the club adds a course (Manage Club → Courses) and the first lesson is debriefed.</p></div>
+</section>
+
+<!-- the tabs -->
+<div class="stu-part" ng-if="(vm.X.st === 'ready' || vm.X.st === 'reload') && vm.tab === 'flights'" ng-include="'views/v2/instructor_students/_flights.html'"></div>
+<div class="stu-part" ng-if="(vm.X.st === 'ready' || vm.X.st === 'reload') && vm.tab === 'progress'" ng-include="'views/v2/instructor_students/_progress.html'"></div>
+<div class="stu-part" ng-if="(vm.X.st === 'ready' || vm.X.st === 'reload') && vm.tab === 'presolo'" ng-include="'views/v2/instructor_students/_presolo.html'"></div>
+<div class="stu-part" ng-if="(vm.X.st === 'ready' || vm.X.st === 'reload') && vm.tab === 'exams'" ng-include="'views/v2/instructor_students/_exams.html'"></div>
+
+<!-- no records on this course yet (Flights, Progress) -->
+<script type="text/ng-template" id="stu-norecords.html">
+  <section class="ta-card ins-rise"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>No training records on {{ vm.X.courseTitle }} yet</h4><p>{{ vm.X.first }}’s records appear here after the first debrief: each flight, the objectives graded and your remarks. Fly the lesson, book it in, then debrief it.</p>
+    <div class="stu-foot-acts"><button type="button" class="ta-btn" ng-click="vm.openCourses()" no-busy-guard><i class="fas fa-exchange-alt"></i>Another course</button><a class="ta-btn" ui-sref="dashboard.manage_user.debriefing_list"><i class="fas fa-clipboard-check"></i>What the debrief looks like</a></div></div></section>
+</script>

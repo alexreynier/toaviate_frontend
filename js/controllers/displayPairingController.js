@@ -1,148 +1,140 @@
- app.controller('DisplayPairingController', DisplayPairingController);
+app.controller('DisplayPairingController', DisplayPairingController);
 
-    DisplayPairingController.$inject = ['ScheduleDisplayService', '$scope', '$interval', '$timeout', '$window'];
-    function DisplayPairingController(ScheduleDisplayService, $scope, $interval, $timeout, $window) {
+    // Pair a TV, /display/tv (public, no login). New look 11 Nov 2026 from the approved mockup
+    // mockups/schedule-display/tv.html (screen "Pairing code" / "Connected"); the pairing calls are unchanged:
+    // POST schedule_display_pairing → {code, session_uuid, expires_at}; GET schedule_display_pairing/{uuid} every 3 s →
+    // {paired, token} | {expired}. Nothing to press on a TV: an expired code is replaced by a new one by itself, and a
+    // failed request retries every 20 s. Once a manager enters the code: "Connected to …" and the schedule opens.
+    DisplayPairingController.$inject = ['ScheduleDisplayService', 'TvFullscreen', '$scope', '$interval', '$timeout', '$window', '$document', '$sce', '$location'];
+    function DisplayPairingController(ScheduleDisplayService, TvFullscreen, $scope, $interval, $timeout, $window, $document, $sce, $location) {
         var vm = this;
+        var POLL_MS = 3000;
+        var CODE_S = 600;              // a code lives 10 minutes (schedule_display_pairing.model.php)
+        var RETRY_S = 20;
+        var OPEN_MS = 2500;            // "Connected" stays up this long before the schedule opens
+        // where a manager pairs the TV (frontend-6f's settings page, dashboard.manage_club.schedule_display)
+        var SETTINGS_PATH = '/dashboard/manage_club/schedule_display';
 
-        // ── State ──
+        vm.view = 'loading';           // loading | code | paired | error
         vm.code = '';
-        vm.codeDigits = [];
-        vm.sessionUuid = '';
-        vm.paired = false;
-        vm.expired = false;
-        vm.loading = true;
-        vm.error = false;
-        vm.error_message = '';
-        vm.countdown = 600; // 10 minutes
-        vm.countdownDisplay = '10:00';
-        vm.current_time = '';
+        vm.code_spaced = '';
+        vm.digits = [];
+        vm.countdown = '';
+        vm.clock = '';
+        vm.club_name = '';
+        vm.retry_in = RETRY_S;
+        vm.qr = null;
 
-        var pollTimer = null;
-        var countdownTimer = null;
-        var clockTimer = null;
+        var doc = $document[0], html = doc.documentElement, body = doc.body;
+        var hadNight = body.classList.contains('night-mode');
+        var sessionUuid = '', secondsLeft = CODE_S, requesting = false;
+        var clockTimer = null, pollTimer = null, countdownTimer = null, retryTimer = null, openTimer = null;
 
-        // ── Initialise ──
-        init();
+        html.classList.add('sdv-html');
+        body.classList.add('sdv-body');
+        body.classList.remove('night-mode');   // the pairing screen is in the light theme (no club yet, so no TV options)
+        vm.fs = TvFullscreen.attach($scope);
 
-        function init() {
-            updateClock();
-            clockTimer = $interval(updateClock, 1000);
-            requestNewCode();
-        }
+        updateClock();
+        clockTimer = $interval(updateClock, 1000);
+        requestNewCode();
 
-        // ── Clock ──
         function updateClock() {
             var now = new Date();
-            var hours = String(now.getHours()).padStart(2, '0');
-            var mins  = String(now.getMinutes()).padStart(2, '0');
-            var secs  = String(now.getSeconds()).padStart(2, '0');
-            vm.current_time = hours + ':' + mins + ':' + secs;
+            vm.clock = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
         }
 
-        // ── Request a new pairing code ──
+        // ── a code ──
         function requestNewCode() {
-            vm.loading = true;
-            vm.expired = false;
-            vm.paired = false;
-            vm.error = false;
-
-            ScheduleDisplayService.RequestPairingCode()
-                .then(function(data) {
-                    vm.loading = false;
-                    if (data.success) {
-                        vm.code = data.code;
-                        vm.codeDigits = data.code.split('');
-                        vm.sessionUuid = data.session_uuid;
-
-                        // Calculate countdown from expiry
-                        var expiresAt = new Date(data.expires_at).getTime();
-                        vm.countdown = Math.floor((expiresAt - Date.now()) / 1000);
-                        if (vm.countdown < 0) vm.countdown = 600;
-
-                        updateCountdownDisplay();
-                        startPolling();
-                        startCountdown();
-                    } else {
-                        vm.error = true;
-                        vm.error_message = data.message || 'Failed to generate pairing code. Please refresh the page.';
-                    }
-                }, function() {
-                    vm.loading = false;
-                    vm.error = true;
-                    vm.error_message = 'Could not connect to the server. Please check your internet connection and refresh.';
-                });
+            if (requesting) { return; }
+            requesting = true;
+            stopPolling(); stopCountdown(); stopRetry();
+            ScheduleDisplayService.RequestPairingCode().then(function (data) {
+                requesting = false;
+                if (!data || !data.success || !data.code) { failed(); return; }
+                vm.code = String(data.code);
+                vm.digits = vm.code.split('');
+                vm.code_spaced = vm.code.length === 6 ? vm.code.substr(0, 3) + ' ' + vm.code.substr(3) : vm.code;
+                sessionUuid = data.session_uuid;
+                // the server's expiry is in its own time zone; trust it only when it says something sensible
+                var left = Math.floor((new Date(String(data.expires_at || '').replace(' ', 'T')).getTime() - new Date().getTime()) / 1000);
+                secondsLeft = left > 0 && left <= CODE_S ? left : CODE_S;
+                updateCountdown();
+                vm.qr = qrSvg($window.location.origin + SETTINGS_PATH + '?pair_tv=' + vm.code);
+                vm.view = 'code';
+                startPolling();
+                startCountdown();
+            });
         }
-
-        vm.requestNewCode = requestNewCode;
-
-        // ── Poll for pairing status ──
-        function startPolling() {
-            stopPolling();
-            pollTimer = $interval(function() {
-                if (!vm.sessionUuid || vm.paired || vm.expired) return;
-
-                ScheduleDisplayService.CheckPairingStatus(vm.sessionUuid)
-                    .then(function(data) {
-                        if (data.success && data.paired) {
-                            vm.paired = true;
-                            stopPolling();
-                            stopCountdown();
-
-                            // Redirect to the actual display page after a brief pause
-                            $timeout(function() {
-                                $window.location.href = '/display/' + data.token;
-                            }, 2500);
-                        }
-
-                        if (!data.success && data.expired) {
-                            vm.expired = true;
-                            stopPolling();
-                            stopCountdown();
-                        }
-                    }, function() {
-                        // Network error — will retry next poll
-                    });
-            }, 3000);
-        }
-
-        function stopPolling() {
-            if (pollTimer) {
-                $interval.cancel(pollTimer);
-                pollTimer = null;
-            }
-        }
-
-        // ── Countdown timer ──
-        function startCountdown() {
-            stopCountdown();
-            countdownTimer = $interval(function() {
-                vm.countdown--;
-                updateCountdownDisplay();
-                if (vm.countdown <= 0) {
-                    vm.expired = true;
-                    stopCountdown();
-                    stopPolling();
-                }
+        function failed() {
+            vm.view = 'error';
+            vm.retry_in = RETRY_S;
+            stopRetry();
+            retryTimer = $interval(function () {
+                vm.retry_in -= 1;
+                if (vm.retry_in <= 0) { stopRetry(); requestNewCode(); }
             }, 1000);
         }
 
-        function stopCountdown() {
-            if (countdownTimer) {
-                $interval.cancel(countdownTimer);
-                countdownTimer = null;
-            }
-        }
-
-        function updateCountdownDisplay() {
-            var mins = Math.max(0, Math.floor(vm.countdown / 60));
-            var secs = Math.max(0, vm.countdown % 60);
-            vm.countdownDisplay = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-        }
-
-        // ── Cleanup ──
-        $scope.$on('$destroy', function() {
+        // ── waiting for a manager to enter it ──
+        function startPolling() {
             stopPolling();
+            pollTimer = $interval(function () {
+                if (!sessionUuid || vm.view !== 'code') { return; }
+                ScheduleDisplayService.CheckPairingStatus(sessionUuid).then(function (data) {
+                    if (vm.view !== 'code') { return; }
+                    if (data && data.success && data.paired && data.token) { paired(data.token); return; }
+                    if (data && !data.success && data.expired) { requestNewCode(); }   // a new code, by itself
+                    // a network error: the next poll tries again
+                });
+            }, POLL_MS);
+        }
+        function paired(token) {
+            stopPolling(); stopCountdown();
+            vm.view = 'paired';
+            ScheduleDisplayService.GetClubInfo(token).then(function (data) {
+                if (data && data.success && data.club && data.club.title) { vm.club_name = data.club.title; }
+            });
+            // an in-app route, not a page load: a TV put in full screen while pairing stays in it
+            openTimer = $timeout(function () { $location.url('/display/' + encodeURIComponent(token)); }, OPEN_MS);
+        }
+
+        // ── "A new code in 8:41" ──
+        function startCountdown() {
             stopCountdown();
+            countdownTimer = $interval(function () {
+                secondsLeft -= 1;
+                updateCountdown();
+                if (secondsLeft <= 0) { requestNewCode(); }
+            }, 1000);
+        }
+        function updateCountdown() {
+            var s = Math.max(0, secondsLeft);
+            vm.countdown = Math.floor(s / 60) + ':' + pad2(s % 60);
+        }
+
+        function stopPolling() { if (pollTimer) { $interval.cancel(pollTimer); pollTimer = null; } }
+        function stopCountdown() { if (countdownTimer) { $interval.cancel(countdownTimer); countdownTimer = null; } }
+        function stopRetry() { if (retryTimer) { $interval.cancel(retryTimer); retryTimer = null; } }
+
+        // a QR code to pair from a phone: the settings page, with the code (libs/js/qrcode-generator.js)
+        function qrSvg(text) {
+            if (typeof $window.qrcode !== 'function') { return null; }
+            try {
+                var qr = $window.qrcode(0, 'M');
+                qr.addData(text);
+                qr.make();
+                return $sce.trustAsHtml(qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }));
+            } catch (e) { return null; }
+        }
+        function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+        $scope.$on('$destroy', function () {
+            stopPolling(); stopCountdown(); stopRetry();
             if (clockTimer) { $interval.cancel(clockTimer); }
+            if (openTimer) { $timeout.cancel(openTimer); }
+            html.classList.remove('sdv-html');
+            body.classList.remove('sdv-body');
+            body.classList.toggle('night-mode', hadNight);
         });
     }

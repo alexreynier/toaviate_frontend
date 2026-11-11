@@ -21,7 +21,7 @@
       <span class="v2b-inline"><design-back></design-back></span>
       <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
     </div>
-    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.load === 'ready' && (vm.everAny || vm.q)">
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.load === 'ready' && (vm.everAny || vm.q || vm.hasOffers())">
       <div class="ta-scope" ng-if="vm.clubs.length > 1">
         <span class="ta-scope__k">Showing</span>
         <div class="ta-scope__set" role="tablist" aria-label="Club">
@@ -61,7 +61,7 @@
   </section>
 
   <!-- ── nothing booked at all ── -->
-  <section class="ta-card" ng-if="vm.load === 'ready' && !vm.everAny && !vm.q && !vm.club" data-e2e="bkg-empty">
+  <section class="ta-card" ng-if="vm.load === 'ready' && !vm.everAny && !vm.q && !vm.club && !vm.hasOffers()" data-e2e="bkg-empty">
     <div class="ta-empty">
       <span class="ta-empty__ic"><i class="fas fa-calendar-plus"></i></span>
       <h4>No upcoming bookings</h4>
@@ -83,8 +83,14 @@
     </div>
   </div>
 
+  <!-- ── the e-mail's ?offer= link found an ended offer, or none (C44) ── -->
+  <div class="bkg-ofnote" ng-if="vm.load === 'ready' && vm.offerNote" role="status" data-e2e="bkg-ofnote">
+    <div class="ta-note ta-note--{{ vm.offerNote.tone }}"><i class="fas" ng-class="vm.offerNote.icon"></i><div><b>{{ vm.offerNote.title }}</b> {{ vm.offerNote.text }}</div>
+      <button type="button" class="ta-ib bkg-ofnote__x" ng-click="vm.closeOfferNote()" no-busy-guard title="Close" aria-label="Close this note"><i class="fas fa-times"></i></button></div>
+  </div>
+
   <!-- ── the agenda ── -->
-  <div class="bkg-agenda" ng-if="vm.load === 'ready' && (vm.everAny || vm.q || vm.club)">
+  <div class="bkg-agenda" ng-if="vm.load === 'ready' && (vm.everAny || vm.q || vm.club || vm.hasOffers())">
     <div class="bkg-tools">
       <div class="ta-chips" role="tablist" aria-label="Filter bookings" ng-if="vm.nAttn || vm.nWait">
         <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.filter === 'all'}" ng-click="vm.setFilter('all')" no-busy-guard role="tab">All<span class="ta-chip__n">{{ vm.allCount }}</span></button>
@@ -95,8 +101,119 @@
       <span class="bkg-tz"><i class="fas fa-globe-europe"></i>Times are club local time</span>
     </div>
 
+    <!-- ═══ Suggest a time (C44): other times your instructor suggested — design: mockups/instructor-dashboard/my-schedule.html,
+         page "Sam's side · Bookings". Open offers first ("Needs you"), then replied ones and those that ended (48 h). ═══ -->
+    <section class="bkg-sec" ng-if="vm.ofNeed.length" data-e2e="bkg-needs">
+      <div class="ta-sh bkg-sh bkg-sh--attn"><div><h3><i class="fas fa-exclamation-circle"></i>Needs you <span class="bkg-sh__n">{{ vm.ofNeed.length }}</span></h3>
+        <p>{{ vm.ofNeed.length === 1 ? 'Your instructor suggested other times for a lesson you asked for.' : 'Your instructors suggested other times for lessons you asked for.' }}</p></div></div>
+
+      <article class="bkg-bk bkg-bk--{{ it.kind }} bkg-bk--pend bkg-bk--moved" id="bkg-of-{{ it.offer_id }}" ng-repeat="it in vm.ofNeed track by it.offer_id" ng-init="u = vm.ui(it)"
+               ng-class="{'bkg-flash': vm.offerHi === it.offer_id}" style="{{ it.aircraft.colour ? '--ac: ' + it.aircraft.colour : '' }}" data-e2e="bkg-offer">
+        <div class="bkg-bk__row">
+          <div class="bkg-bk__main">
+            <span class="bkg-bk__time" title="The time you asked for — released"><b>{{ vm.D.fTime(it.start) }}</b><i class="bkg-bk__dash ta-phone-only" aria-hidden="true">–</i><span>{{ vm.D.fTime(it.end) }}</span><em>{{ vm.D.len(it.minutes) }}</em></span>
+            <span class="bkg-bk__txt">
+              <span class="bkg-bk__l1">
+                <span class="ta-kind ta-kind--sm ta-kind--{{ it.kind }}" title="{{ vm.D.kindLabel(it.kind) }}"><i class="fas" ng-class="vm.D.kindIcon(it.kind)"></i></span>
+                <span class="bkg-bk__title">{{ vm.title(it) }}<small ng-if="vm.subParts(it)"> · {{ vm.subParts(it) }}</small></span>
+                <span class="bkg-bk__date">{{ it._date }}</span>
+              </span>
+              <span class="bkg-bk__l2">
+                <span class="ta-ac" ng-if="it.aircraft" style="{{ it.aircraft.colour ? '--ac: ' + it.aircraft.colour : '' }}" title="{{ it.aircraft.reg }} · {{ it.aircraft.model }}">{{ it.aircraft.reg }}<span>{{ it.aircraft.type }}</span></span>
+                <span class="bkg-who" ng-if="it._insAv"><span class="ta-av ta-av--sm" style="{{ it._insAv.colour ? '--av: ' + it._insAv.colour : '' }}" title="{{ it.instructor.name }} (instructor)">{{ it._insAv.code }}</span>{{ it.instructor.name }}</span>
+                <span class="ta-pill ta-pill--warn"><i class="fas fa-exchange-alt"></i>{{ it._by }} suggested other times</span>
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <!-- the times: one row each, Take this time books it -->
+        <div class="bkg-pick">
+          <div class="bkg-pick__hd"><b>{{ it._lead }}</b> {{ it._agreed }}</div>
+          <div class="ta-note ta-note--bad" ng-if="u.err" role="alert" data-e2e="bkg-of-err"><i class="fas fa-exclamation-triangle"></i><div><b>{{ u.err.title }}</b> {{ u.err.text }}</div></div>
+          <div class="bkg-oquote" ng-if="it.offer.note"><span class="ta-av" ng-if="it._av" style="{{ it._av.colour ? '--av: ' + it._av.colour : '' }}">{{ it._av.code }}</span><div><q>{{ it.offer.note }}</q><small>{{ it._av.name || it._by }}<span ng-if="it._sent"> · {{ it._sent }}</span></small></div></div>
+          <div class="ta-note ta-note--warn" ng-if="!it._liveN"><i class="fas fa-exclamation-circle"></i><div><b>None of these times is free any more.</b> Ask {{ it._to }} for other times, or cancel the request.</div></div>
+          <div class="bkg-takes">
+            <div class="bkg-take" ng-repeat="t in it._times track by t.index" ng-class="{'bkg-take--gone': t.gone}" style="{{ t.plane.colour ? '--ac: ' + t.plane.colour : '' }}" data-e2e="bkg-take-row">
+              <div class="bkg-take__when"><b>{{ t.when }}</b><span>{{ t.len }}{{ t.sameDay ? ' · the day you asked for' : '' }}<span ng-if="t.soon"> · <b class="bkg-take__soon">take it before {{ t.soon }}</b></span></span></div>
+              <div class="bkg-take__ac"><span class="ta-ac" ng-if="t.plane.reg" style="{{ t.plane.colour ? '--ac: ' + t.plane.colour : '' }}">{{ t.plane.reg }}<span>{{ t.plane.type }}</span></span><span class="bkg-why" ng-if="t.why" ng-class="{'bkg-why--diff': !t.same}"><i class="fas fa-exchange-alt" ng-if="!t.same"></i>{{ t.why }}</span></div>
+              <span class="bkg-take__gone" ng-if="t.gone">{{ t.goneWhy }}</span>
+              <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="!t.gone" ng-click="vm.take(it, t)" ng-disabled="!!u.busy || !it.can_take" no-busy-guard data-e2e="bkg-take"><span class="ta-spin" ng-if="u.taking === t.index"></span><i class="fas fa-check" ng-if="u.taking !== t.index"></i>{{ u.taking === t.index ? 'Booking…' : 'Take this time' }}</button>
+            </div>
+          </div>
+          <div class="bkg-pick__ft"><span>Open until {{ it._until }}{{ it._soonAny ? '; a time starting sooner can be taken until it starts' : '' }}. After that the request closes and nothing is booked.</span>
+            <button type="button" class="ta-btn ta-btn--sm" ng-if="!u.nowork && (it.can_reply || it.can_cancel)" ng-click="vm.noWork(it)" no-busy-guard data-e2e="bkg-nowork">None of these work</button></div>
+          <!-- none of these work: ask for others with a note, or cancel the request (confirmed in place) -->
+          <div class="bkg-nowork" ng-if="u.nowork" data-e2e="bkg-nowork-panel">
+            <label class="ta-field" ng-if="it.can_reply"><span class="ta-label">Tell {{ it._to }} what would work <em>optional</em></span>
+              <textarea class="ta-textarea" rows="2" maxlength="1000" ng-model="u.text" ng-disabled="!!u.busy" placeholder="e.g. Weekdays after 5pm, or Saturday mornings" data-e2e="bkg-nowork-text"></textarea></label>
+            <div class="bkg-nowork__ft" ng-if="!u.cancelAsk">
+              <button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-if="it.can_cancel" ng-click="vm.cancelAsk(it)" ng-disabled="!!u.busy" no-busy-guard data-e2e="bkg-of-cancel">Cancel my request</button>
+              <span class="ta-sp"></span>
+              <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="it.can_reply" ng-click="vm.askAgain(it)" ng-disabled="!!u.busy" no-busy-guard data-e2e="bkg-ask"><span class="ta-spin" ng-if="u.busy === 'reply'"></span><i class="fas fa-paper-plane" ng-if="u.busy !== 'reply'"></i>Ask {{ it._to }} for other times</button>
+            </div>
+            <div class="bkg-nowork__ft" ng-if="u.cancelAsk">
+              <span>Cancel your request? Nothing is booked.</span><span class="ta-sp"></span>
+              <button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-click="vm.cancelNo(it)" ng-disabled="!!u.busy" no-busy-guard>Keep it</button>
+              <button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.cancelOffer(it)" ng-disabled="!!u.busy" no-busy-guard data-e2e="bkg-of-cancel-yes"><span class="ta-spin" ng-if="u.busy === 'cancel'"></span><i class="fas fa-times" ng-if="u.busy !== 'cancel'"></i>Cancel my request</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- replied (waiting for the instructor) and ended in the last two days -->
+    <section class="bkg-day bkg-day--req" ng-if="vm.ofOther.length || vm.decShown.length" data-e2e="bkg-requests">
+      <div class="bkg-day__hd"><span class="bkg-day__t"><b>Your requests</b></span><span class="bkg-day__n">{{ vm.reqNote() }}</span></div>
+        <div class="bkg-ghost bkg-ghost--{{ it._end.tone }}" id="{{ it._end ? 'bkg-of-' + it.offer_id : '' }}" ng-repeat-start="it in vm.ofOther track by it.offer_id" ng-show="it._end" ng-class="{'bkg-flash': vm.offerHi === it.offer_id}" data-e2e="bkg-of-ended">
+          <i class="fas" ng-class="it._end.icon"></i>
+          <span><b>{{ it._end.b }}</b> · {{ it._end.txt }}</span>
+          <span class="ta-sp"></span>
+          <button type="button" class="ta-link" ng-if="it._end.go === 'taken'" ng-click="vm.showTaken(it)" no-busy-guard data-e2e="bkg-of-show">Show booking <i class="fas fa-arrow-right"></i></button>
+          <button type="button" class="ta-link" ng-if="it._end.go === 'book'" ng-click="vm.bookAnother(it)" no-busy-guard>Book another time <i class="fas fa-arrow-right"></i></button>
+        </div>
+        <article class="bkg-bk bkg-bk--{{ it.kind }} bkg-bk--pend bkg-bk--moved" id="{{ it._end ? '' : 'bkg-of-' + it.offer_id }}" ng-repeat-end ng-show="!it._end" ng-init="u = vm.ui(it)"
+                 ng-class="{'bkg-flash': vm.offerHi === it.offer_id}" style="{{ it.aircraft.colour ? '--ac: ' + it.aircraft.colour : '' }}" data-e2e="bkg-of-replied">
+          <div class="bkg-bk__row">
+            <div class="bkg-bk__main">
+              <span class="bkg-bk__time" title="The time you asked for — released"><b>{{ vm.D.fTime(it.start) }}</b><i class="bkg-bk__dash ta-phone-only" aria-hidden="true">–</i><span>{{ vm.D.fTime(it.end) }}</span><em>{{ vm.D.len(it.minutes) }}</em></span>
+              <span class="bkg-bk__txt">
+                <span class="bkg-bk__l1">
+                  <span class="ta-kind ta-kind--sm ta-kind--{{ it.kind }}" title="{{ vm.D.kindLabel(it.kind) }}"><i class="fas" ng-class="vm.D.kindIcon(it.kind)"></i></span>
+                  <span class="bkg-bk__title">{{ vm.title(it) }}<small ng-if="vm.subParts(it)"> · {{ vm.subParts(it) }}</small></span>
+                  <span class="bkg-bk__date">{{ it._date }}</span>
+                </span>
+                <span class="bkg-bk__l2">
+                  <span class="ta-ac" ng-if="it.aircraft" style="{{ it.aircraft.colour ? '--ac: ' + it.aircraft.colour : '' }}" title="{{ it.aircraft.reg }} · {{ it.aircraft.model }}">{{ it.aircraft.reg }}<span>{{ it.aircraft.type }}</span></span>
+                  <span class="bkg-who" ng-if="it._insAv"><span class="ta-av ta-av--sm" style="{{ it._insAv.colour ? '--av: ' + it._insAv.colour : '' }}" title="{{ it.instructor.name }} (instructor)">{{ it._insAv.code }}</span>{{ it.instructor.name }}</span>
+                  <span class="ta-pill ta-pill--pend"><i class="fas fa-hourglass-half"></i>Asked {{ it._to }} for other times</span>
+                </span>
+              </span>
+            </div>
+          </div>
+          <div class="bkg-snote">
+            <div class="ta-note ta-note--bad" ng-if="u.err" role="alert"><i class="fas fa-exclamation-triangle"></i><div><b>{{ u.err.title }}</b> {{ u.err.text }}</div></div>
+            <div class="ta-note ta-note--info"><i class="fas fa-hourglass-half"></i><div><b>You asked {{ it._to }} for other times</b> {{ it._replied }}{{ it.offer.reply ? ': “' + it.offer.reply + '”' : '.' }} Waiting for {{ it._to }} to suggest new times — you'll get an email when {{ it._to }} answers. The time you first asked for has been released.
+              <span class="bkg-snote__acts" ng-if="it.can_cancel">
+                <button type="button" class="ta-link" ng-if="!u.cancelAsk" ng-click="vm.cancelAsk(it)" no-busy-guard>Cancel my request</button>
+                <span ng-if="u.cancelAsk">Cancel your request? Nothing is booked.</span>
+                <button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-if="u.cancelAsk" ng-click="vm.cancelNo(it)" ng-disabled="!!u.busy" no-busy-guard>Keep it</button>
+                <button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-if="u.cancelAsk" ng-click="vm.cancelOffer(it)" ng-disabled="!!u.busy" no-busy-guard data-e2e="bkg-of-cancel-yes"><span class="ta-spin" ng-if="u.busy === 'cancel'"></span><i class="fas fa-times" ng-if="u.busy !== 'cancel'"></i>Cancel my request</button>
+              </span></div></div>
+          </div>
+        </article>
+        <!-- a lesson request an instructor declined (48 h), with their reason when given -->
+        <div class="bkg-ghost bkg-ghost--bad" ng-repeat="d in vm.decShown track by d.id" data-e2e="bkg-declined">
+          <i class="fas fa-ban"></i>
+          <span><b>Declined</b> · {{ d.txt }}</span>
+          <span class="ta-sp"></span>
+          <button type="button" class="ta-link" ng-click="vm.bookAnother(d)" no-busy-guard>Book another time <i class="fas fa-arrow-right"></i></button>
+        </div>
+    </section>
+    <div class="bkg-quiet" ng-if="!vm.groups.length && (vm.ofNeed.length || vm.ofOther.length || vm.decShown.length)"><i class="fas fa-calendar"></i>{{ vm.q ? 'No booking matches “' + vm.q + '”.' : vm.filter !== 'all' ? 'No other booking needs a look.' : 'Nothing else booked yet.' }}</div>
+
     <!-- nothing matches the search / filter -->
-    <section class="ta-card" ng-if="!vm.groups.length">
+    <section class="ta-card" ng-if="!vm.groups.length && !vm.ofNeed.length && !vm.ofOther.length && !vm.decShown.length">
       <div class="ta-empty" ng-if="vm.q">
         <span class="ta-empty__ic"><i class="fas fa-search"></i></span>
         <h4>Nothing matches “{{ vm.q }}”</h4>
@@ -130,7 +247,7 @@
         </div>
 
         <article class="bkg-bk bkg-bk--{{ b.kind }}" id="bkg-bk-{{ b.id }}" ng-repeat-end ng-show="!b._cancelled" data-e2e="bkg-card"
-                 ng-class="{'bkg-bk--pend': vm.D.notFinal(b), 'bkg-bk--open': vm.openId === b.id}"
+                 ng-class="{'bkg-bk--pend': vm.D.notFinal(b), 'bkg-bk--open': vm.openId === b.id, 'bkg-bk--hi': vm.justBooked === b.id}"
                  style="{{ b.aircraft.colour ? '--ac: ' + b.aircraft.colour : '' }}">
           <div class="bkg-bk__row">
             <button type="button" class="bkg-bk__main" ng-click="vm.toggle(b)" no-busy-guard aria-expanded="{{ vm.openId === b.id }}">
@@ -166,7 +283,7 @@
               <button type="button" class="ta-link" ng-if="b.can_edit" ng-click="vm.edit(b)" no-busy-guard>Edit passengers <i class="fas fa-arrow-right"></i></button></div></div>
           </div>
           <div class="bkg-bk__note" ng-if="b._attn === 'pending'">
-            <div class="ta-note ta-note--warn"><i class="fas fa-hourglass-half"></i><div><b>{{ b.instructor ? b.instructor.name + ' hasn\'t' : 'The club hasn\'t' }} confirmed yet</b> — you asked on {{ vm.D.fDay(b.created_at) }}. The slot is held for you; you'll get an email when it's confirmed or declined. If it's getting close, call the club.</div></div>
+            <div class="ta-note ta-note--warn"><i class="fas fa-hourglass-half"></i><div><b>{{ vm.pendingWho(b) }} hasn't confirmed yet</b> — you asked on {{ vm.D.fDay(b.created_at) }}. The slot is held for you; you'll get an email when it's confirmed or declined. If it's getting close, call the club.</div></div>
           </div>
           <div class="bkg-bk__note" ng-if="b._attn === 'confirm'">
             <div class="ta-note ta-note--warn"><i class="fas fa-exclamation-circle"></i><div><b>{{ b.pilot.name || 'The pilot' }} is waiting for your yes or no.</b> Asked {{ vm.D.fDay(b.created_at) }}.<br>

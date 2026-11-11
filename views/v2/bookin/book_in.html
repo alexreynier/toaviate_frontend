@@ -48,7 +48,7 @@
           <div><h3>Planned {{ vm.bookout.solo_intent === 'solo_check' ? 'solo check' : 'student solo' }}</h3>
             <p>Booked out as a possible {{ vm.bookout.solo_intent === 'solo_check' ? 'solo check' : 'student solo' }}. If {{ vm.bk_student_first() }} went solo, send it now: the airfield display lights up and the authorisation is recorded against your name. If not, stand it down, or just book in and it closes by itself.</p></div></div>
         <div class="ta-note ta-note--bad" ng-if="vm.solo_send.failures.length"><i class="fas fa-times-circle"></i><div><b>Solo blocked by the pilot checks.</b>
-          <ul class="bki-fails"><li ng-repeat="failure in vm.solo_send.failures">{{ failure.message }}<span ng-if="vm.soloStateAction(failure.state)"> — {{ vm.soloStateAction(failure.state) }}</span>
+          <ul class="bki-fails"><li ng-repeat="failure in vm.solo_send.failures">{{ failure.message }}<span ng-if="vm.soloStateAction(failure.state, failure)"> — {{ vm.soloStateAction(failure.state, failure) }}</span>
             <button type="button" class="ta-link" ng-if="failure.state === 'pending_review'" ng-click="vm.soloReviewStudent()"><i class="fas fa-clipboard-check"></i>Review the questionnaire now</button></li></ul>
           <button type="button" class="ta-btn ta-btn--danger ta-btn--sm" ng-if="vm.solo_send.can_force" ng-click="vm.send_solo(true)" ng-disabled="vm.solo_send.working"><i class="fas fa-exclamation-triangle"></i>Force send solo</button></div></div>
         <div class="bki-row">
@@ -62,8 +62,8 @@
       <!-- ═════ 1 · TIMES ═════ -->
       <section class="ta-card bki-card" id="bki-c-times" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'times'}" aria-label="Times">
         <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('times')}"><i class="fas" ng-class="vm.bk_card_done('times') ? 'fa-check' : 'fa-stopwatch'"></i><span class="ta-card__step">{{ vm.bk_n('times') }}</span></span>
-          <div class="ta-card__ttl"><h3>Times</h3><p>{{ vm.bk_claimed() ? 'Recorded by ' + vm.bk_reg() + '\'s tracker' : (vm.bk_claim_avail() ? 'From the tracker, or enter them yourself' : 'Brakes off to brakes on, in club time') }}</p></div>
-          <span class="ta-card__right" ng-if="vm.bk_claimed()"><span class="ta-pill ta-pill--info"><i class="fas fa-satellite-dish"></i>From the tracker</span></span></div>
+          <div class="ta-card__ttl"><h3>Times</h3><p>{{ vm.bk_claimed() ? (vm.bk_claimed_amended() ? 'Recorded by ' + vm.bk_reg() + '\'s tracker, amended by ' + vm.bk_claimed_amended().by : 'Recorded by ' + vm.bk_reg() + '\'s tracker') : (vm.bk_claim_avail() ? 'From the tracker, or enter them yourself' : 'Brakes off to brakes on, in club time') }}</p></div>
+          <span class="ta-card__right" ng-if="vm.bk_claimed()"><span class="ta-pill ta-pill--info" ng-if="!vm.bk_claimed_amended()"><i class="fas fa-satellite-dish"></i>From the tracker</span><span class="ta-pill ta-pill--warn" ng-if="vm.bk_claimed_amended()"><i class="fas fa-pen"></i>Amended</span></span></div>
 
         <!-- the tracker's unclaimed flights on this aircraft -->
         <div class="ta-panel bki-claim" ng-if="vm.bk_claim_avail()" data-e2e="bki-claim">
@@ -71,7 +71,7 @@
           <span class="bki-sub">{{ vm.bk_many_flights() ? 'Best matches for this booking (' + vm.bk_booking_when() + '), closest first.' : 'Use the tracker\'s times and landing counts, or enter the times yourself below.' }}</span>
           <button type="button" class="ta-opt" ng-repeat="f in vm.bk_flight_cards() track by f.id" ng-class="{'ta-opt--on': vm.bk.pick === f.id}" aria-pressed="{{ vm.bk.pick === f.id }}" ng-click="vm.bk.pick = f.id" title="{{ vm.bk_flight_txt(f).tip }}" data-e2e="bki-flight">
             <span class="ta-opt__ic"><i class="fas fa-route"></i></span>
-            <span><span class="ta-opt__t">{{ vm.bk_flight_txt(f).t }}<span class="bki-tag-warn" ng-if="vm.bk_other_day(f)"><i class="fas fa-exclamation-triangle"></i>Not your booking's day</span></span>
+            <span><span class="ta-opt__t">{{ vm.bk_flight_txt(f).t }}<span class="bki-tag-warn" ng-if="vm.bk_other_day(f)"><i class="fas fa-exclamation-triangle"></i>Not your booking's day</span><span class="bki-tag-warn" ng-if="vm.bk_amended(f)" data-e2e="bki-flight-amended"><i class="fas fa-pen"></i>Times amended</span></span>
               <span class="ta-opt__s">{{ vm.bk_flight_txt(f).s }}</span></span><span class="ta-opt__dot"></span></button>
           <span class="bki-sub" ng-if="vm.bk_many_flights() && !vm.bk_flight_cards().length"><i class="fas fa-info-circle"></i> None on the booking's day — search them below.</span>
           <div class="bki-row bki-row--end" ng-if="vm.bk_flight_cards().length"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.bk_use_flight()" ng-disabled="!vm.bk.pick" data-e2e="bki-claim-use"><i class="fas fa-check"></i>Use this flight</button></div>
@@ -87,6 +87,10 @@
 
         <!-- claimed: the tracker's times, in the club's display -->
         <div ng-if="vm.bk_claimed()" class="bki-sec">
+          <div class="ta-note ta-note--warn" ng-if="vm.bk_claimed_amended()" data-e2e="bki-amended"><i class="fas fa-pen"></i><div><b>These times were amended by {{ vm.bk_claimed_amended().by }}</b><span ng-if="vm.bk_claimed_amended().when"> on {{ vm.bk_claimed_amended().when }}</span><span ng-if="vm.bk_claimed_amended().reason"> — “{{ vm.bk_claimed_amended().reason }}”</span>. The tracker recorded {{ vm.bk_claimed_amended().orig }}.
+            <div class="bki-row" ng-if="vm.bk_amend_can() && !vm.bk.revertAsk"><button type="button" class="ta-link" ng-click="vm.bk_revert_ask()" no-busy-guard data-e2e="bki-revert"><i class="fas fa-undo"></i>Put back the tracker’s times</button></div>
+            <div class="ta-confirm ta-confirm--inline" role="group" aria-label="Confirm putting back the tracker’s times" ng-if="vm.bk.revertAsk"><span>Put back the times the tracker recorded? The change stays in the flight’s history.</span><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.bk_revert_keep()" no-busy-guard>Keep these</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.bk_revert()" ng-disabled="vm.bk.reverting" data-e2e="bki-revert-yes">Put them back</button></div>
+            <div class="ta-field__msg" ng-if="vm.bk.revertErr" role="alert">{{ vm.bk.revertErr }}</div></div></div>
           <div class="bki-times bki-times--4">
             <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().off) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().off) : '' }}"><span class="bki-tv__k"><i class="fas fa-play"></i>Brakes off</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().off, vm.bk_eff().off_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.bk.showRec && vm.bk_exact(vm.bk_eff().off)">recorded {{ vm.bk_exact(vm.bk_eff().off) }}</span></div>
             <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().to) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().to) : '' }}"><span class="bki-tv__k"><i class="fas fa-plane-departure"></i>Takeoff</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().to, vm.bk_eff().to_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.bk.showRec && vm.bk_exact(vm.bk_eff().to)">recorded {{ vm.bk_exact(vm.bk_eff().to) }}</span></div>
@@ -94,6 +98,7 @@
             <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().on) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().on) : '' }}"><span class="bki-tv__k"><i class="fas fa-stop"></i>Brakes on</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().on, vm.bk_eff().on_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.split_flight_confirmation == 1">the split</span><span class="bki-tv__s" ng-if="vm.split_flight_confirmation != 1 && vm.bk.showRec && vm.bk_exact(vm.bk_eff().on)">recorded {{ vm.bk_exact(vm.bk_eff().on) }}</span></div>
           </div>
           <div class="bki-row bki-row--between"><span class="bki-sub"><i class="fas fa-info-circle"></i> {{ vm.bk_disp_note() }}</span>
+            <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.bk_amend_can()" ng-click="vm.bk_amend_open()" no-busy-guard data-e2e="bki-amend" title="Correct the tracker’s times — the tracker’s own are kept and can be put back"><i class="fas fa-pen"></i>Amend times</button>
             <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-if="vm.bk_can_unclaim()" ng-click="vm.bk_unclaim()"><i class="fas fa-undo"></i>Enter the times myself</button></div>
 
           <!-- split this flight (FRONTEND_TRACK_DATA_GUIDE §3): ground stops, rounding, who flew part 2 -->
@@ -267,7 +272,7 @@
               <span class="ta-toggle__s" ng-if="vm.receipt.reimbursement && !(vm.bk_up_foreign() && vm.receipt.reimbursed_amount)">Credited on this invoice once the club approves the receipt.</span>
               <span class="ta-toggle__s" ng-if="vm.receipt.reimbursement && vm.bk_up_foreign() && vm.receipt.reimbursed_amount">You'll be credited {{ vm.bk_money(vm.receipt.reimbursed_amount) }} ({{ vm.receipt.currency.iso_code }} {{ vm.receipt.price | number:2 }} at the Wise rate, 1 {{ vm.receipt.currency.iso_code }} = {{ vm.receipt.reimbursed_rate }} {{ vm.receipt.reimbursed_currency }}<span ng-if="vm.receipt.reimbursed_datetime">, {{ vm.receipt.reimbursed_datetime | asDate | date:'d MMM HH:mm' }}</span>), once the club approves the receipt.</span></span><span class="ta-switch"></span></label>
           <div class="ta-field" ng-if="vm.receipt.reimbursement" ng-class="{'ta-field--error': vm.bk.up.err.receipt}"><span class="ta-label"><i class="fas fa-receipt"></i>Receipt</span>
-            <div flow-init="{target: '/upload.php'}" flow-files-submitted="$flow.upload()" flow-file-success="$file.file_return = $message" flow-complete="vm.bk_receipt_uploaded($flow)" flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1}[$file.getExtension()]">
+            <div flow-init="{target: '/upload.php'}" flow-files-submitted="$flow.upload()" flow-file-success="$file.file_return = $message" flow-complete="vm.bk_receipt_uploaded($flow)" flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
               <div class="ta-drop ta-drop--sm" role="button" tabindex="0" flow-btn flow-drop ng-class="{'ta-drop--done': vm.receipt.image}" data-e2e="bki-up-receipt"><i class="fas" ng-class="vm.receipt.image ? 'fa-check-circle' : 'fa-camera'"></i>{{ vm.receipt.image ? 'Receipt attached · tap to replace' : 'Take a photo or drop your receipt here' }}</div>
             </div>
             <span class="ta-field__msg" ng-if="vm.bk.up.err.receipt">{{ vm.bk.up.err.receipt }}</span><span class="ta-hint" ng-if="!vm.bk.up.err.receipt">Needed to claim it back (PNG or JPG).</span></div>
@@ -392,6 +397,7 @@
         <div class="ta-note ta-note--info" ng-if="vm.bk_mode() === 'split'"><i class="fas fa-cut"></i><div>Part 1 is booked in now, part 2 straight after (or by whoever flew it). The booking is paid when the whole flight is booked in.</div></div>
         <ul class="ta-left" ng-class="{'ta-left--bad': vm.bk.showErr}" ng-if="vm.bk.ready.left.length" data-e2e="bki-left">
           <li ng-repeat="i in vm.bk.ready.left track by i.k"><button type="button" ng-click="vm.bk_goto(i.card)"><i class="fas fa-exclamation-circle"></i>{{ i.n }}<i class="fas fa-arrow-up"></i></button></li></ul>
+        <div class="bki-finishing" ng-if="vm.bk_waiting()" data-e2e="bki-runway"><ta-runway steps="vm.bk_wait_steps" step="vm.bk_wait_step()" compact="true"></ta-runway></div>
         <div class="ta-final__acts">
           <button type="button" class="ta-btn ta-btn--primary ta-cta ta-final__go" ng-click="vm.bk_finish()" ng-disabled="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy) || vm.bk_mode() === 'noperm'" no-busy-guard data-e2e="bki-finish">
             <span class="ta-cta__main"><span class="ta-spin" ng-if="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy)"></span><i class="fas {{ vm.bk_finish_parts().ic }}" ng-if="!(vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy))"></i>{{ (vm.pay && vm.pay.busy) ? 'Processing…' : vm.bk_finish_parts().t }}</span><span class="ta-cta__sub" ng-if="vm.bk_finish_parts().s">{{ vm.bk_finish_parts().s }}</span></button>
@@ -425,6 +431,8 @@
 
   <!-- ═════ dialogs ═════ -->
   <!-- the tracker flight is from another day -->
+  <!-- staff amend the tracker flight's times (C47) — the dialog shared with Claim a Flight -->
+  <claim-times-dialog ng-if="vm.bk.amend" am="vm.bk.amend" on-saved="vm.bk_amend_saved(flight)" on-close="vm.bk.amend = null"></claim-times-dialog>
   <div class="ta-dlg-scrim" ng-if="vm.bk.dlg === 'mismatch'" ng-click="$event.target === $event.currentTarget && vm.bk_mismatch_back()">
     <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="bki-mm-t"><div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-calendar-times"></i></span>
       <div><div class="ta-dlg__title" id="bki-mm-t">This flight is from {{ vm.bk_fday(vm.claimed_flight.flight_date) }}</div><div class="ta-dlg__sub">Your booking is on {{ vm.bk_fday(vm.bookout.flight_date) }}.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.bk_mismatch_back()" aria-label="Close">×</button></div>

@@ -1,0 +1,38 @@
+<!-- an open record (inside .ta-detail): who entered it, the flight, the objectives graded on THIS flight, the remark, the
+     trail, the weather, and the instructor's actions at the foot -->
+<div class="ta-note ta-note--warn" ng-if="f.mineAw"><i class="fas fa-pen-nib"></i><div><b>{{ f.enteredBy || 'Someone else' }} entered this record for you</b> on {{ vm.C.fDay(f.recAt || f.date) }}. It already counts towards {{ vm.X.first }}’s course; it shows as awaiting until you confirm it was your lesson. Check the grades and remarks, then confirm — or edit it first.</div></div>
+<div class="ta-note ta-note--info" ng-if="f.onBehalf && f.awaiting && !f.mineAw"><i class="fas fa-hourglass-half"></i><div>{{ f.enteredBy || 'Someone else' }} entered this record for {{ f.recIns }}. It already counts; it shows as awaiting until {{ vm.C.firstName(f.recIns) }} confirms it.<span ng-if="f.canCfi"> If {{ vm.C.firstName(f.recIns) }} can’t, you can confirm it for them as a club admin.</span></div></div>
+<div class="ta-note ta-note--info" ng-if="f.ph"><i class="fas fa-file-import"></i><div>This flight came across from {{ vm.clubTitle() }}’s previous system with no exercise and no remarks. It counts towards the course hours. Filling in the record (the debrief) replaces this note.</div></div>
+
+<div class="ta-panel ta-panel--white"><span class="ta-sec-k">Flight</span><dl class="ta-facts ta-facts--3">
+  <div class="ta-fact"><dt>Date</dt><dd>{{ f.dayLong }}</dd></div>
+  <div class="ta-fact" ng-if="f.reg"><dt>Aircraft</dt><dd><span class="ta-ac" ng-attr-style="{{ f.acColour ? '--ac:' + f.acColour : undefined }}" title="{{ f.reg }}">{{ f.reg }}<span ng-if="f.type">{{ f.type }}</span></span> <small ng-if="f.model">{{ f.model }}</small></dd></div>
+  <div class="ta-fact" title="{{ f.tip || (f.recorded ? 'Recorded ' + f.recorded : '') }}"><dt>Brakes off – on</dt><dd>{{ f.from }}–{{ f.to }} <small ng-if="f.recorded">· rounded to 5 min · recorded {{ f.recorded }}</small></dd></div>
+  <div class="ta-fact"><dt>Counts towards the course</dt><dd>{{ f.hm }} <small>{{ f.role === 'solo' ? 'solo, in command' : f.role === 'picus' ? 'in command under supervision' : 'dual, under training' }}</small></dd></div>
+  <div class="ta-fact"><dt>{{ f.ficTitle }}</dt><dd><span class="stu-who" ng-if="f.role === 'solo'"><span class="ta-av ta-av--member ta-av--sm" title="Member"><i class="fas fa-user"></i></span>{{ vm.X.name }}<span ng-if="f.insAv"> · </span><span class="ta-av ta-av--sm" ng-if="f.insAv" ng-attr-style="--av:{{ f.insAv.colour }}" title="{{ f.insAv.title }}">{{ f.insAv.code }}</span>{{ f.insName }}</span><span class="stu-who" ng-if="f.role !== 'solo'"><span class="ta-av ta-av--sm" ng-if="f.insAv" ng-attr-style="--av:{{ f.insAv.colour }}" title="{{ f.insAv.title }}">{{ f.insAv.code }}</span>{{ f.insName || 'Instructor not named' }} · {{ vm.X.first }}</span></dd></div>
+  <div class="ta-fact" ng-if="f.dep.code || f.arr.code"><dt>Route</dt><dd><span class="ta-route"><b class="ta-icao">{{ f.dep.code || '—' }}</b><span ng-if="f.dep.name">{{ f.dep.name }}</span><i class="fas fa-long-arrow-alt-right"></i><b class="ta-icao">{{ f.arr.code || '—' }}</b><span ng-if="f.arr.name">{{ f.arr.name }}</span></span></dd></div>
+  <div class="ta-fact" ng-if="f.tags.length"><dt>Flight tags</dt><dd><span ng-repeat="t in f.tags">{{ vm.tagName(t.title) }} <small ng-if="t.mins != null">{{ vm.C.hmMin(t.mins) }}</small>{{ $last ? '' : ', ' }}</span></dd></div>
+</dl></div>
+
+<div class="ta-panel ta-panel--white" ng-if="f.objN"><span class="ta-sec-k">Objectives graded on this flight · {{ f.objN }}{{ f.objOf ? ' of ' + f.objOf : '' }}</span>
+  <div class="stu-objs"><div class="stu-part" ng-repeat="grp in f.objGroups"><div class="stu-obj__lh" ng-if="grp.head">{{ grp.head }}</div><div class="stu-obj" ng-repeat="o in grp.rows"><span class="stu-obj__t">{{ o.t }}</span><span class="ta-pill {{ o.pill.cls }}"><i class="fas {{ o.pill.ic }}" aria-hidden="true"></i>{{ o.pill.label }}</span><span class="stu-obj__r" ng-if="o.rem"><i class="fas fa-comment-alt"></i> {{ o.rem }}</span></div></div></div>
+  <span class="ta-hint" ng-if="f.skipped > 0">{{ vm.C.plural(f.skipped, 'objective') }} of this lesson not graded on this flight.</span>
+</div>
+<div class="ta-note" ng-if="!f.objN && f.lesson && !f.ph"><i class="fas fa-info-circle"></i><div>{{ f.imp ? 'Imported record: the exercise and remarks came across from the previous system, without grades on the objectives.' : 'No objectives were graded on this flight.' }}</div></div>
+<div class="ta-panel ta-panel--white" ng-if="!f.ph && f.remarks"><span class="ta-sec-k">Instructor’s remarks</span><div class="stu-remark"><span class="ta-av" ng-if="f.insAv" ng-attr-style="--av:{{ f.insAv.colour }}" title="{{ f.insAv.title }}">{{ f.insAv.code }}</span><span class="ta-av ta-av--member" ng-if="!f.insAv" title="Member"><i class="fas fa-user"></i></span><div><p>{{ f.remarks }}</p><small>{{ f.recIns || f.insName }}</small></div></div></div>
+<div class="ta-panel ta-panel--white" ng-if="f.ph"><span class="ta-sec-k">Record</span><span class="ta-ref">{{ f.tr.general_remarks || '[import note]' }}</span></div>
+<div class="stu-trail" ng-if="f.trail.length"><span ng-repeat="t in f.trail">{{ t.a }}<b ng-if="t.b">{{ t.b }}</b>{{ t.c }}</span></div>
+
+<div class="ta-panel ta-panel--white stu-wxp" ng-if="vm.R.wx === f.id"><span class="ta-sec-k">Weather at take-off and landing</span><flight-weather-panel flight-id="f.id" dep-name="f.dep.name" arr-name="f.arr.name"></flight-weather-panel></div>
+
+<div class="ta-detail__foot">
+  <button type="button" class="ta-btn" ng-if="f.track" ng-click="vm.replay(f)" data-e2e="stu-replay"><i class="fas fa-play-circle"></i>Replay</button>
+  <button type="button" class="ta-btn" ng-click="vm.toggleWx(f)" aria-expanded="{{ vm.R.wx === f.id }}" no-busy-guard data-e2e="stu-wx"><i class="fas fa-cloud-sun"></i>{{ vm.R.wx === f.id ? 'Hide weather' : 'Weather' }}</button>
+  <button type="button" class="ta-btn ta-btn--quiet" ng-if="f.lesson" ng-click="vm.lessonOpen(f)" no-busy-guard>{{ f.lesson.code }} progress <i class="fas fa-arrow-right"></i></button>
+  <span class="ta-sp"></span>
+  <button type="button" class="ta-btn ta-btn--quiet" ng-if="vm.R.linked === f.id && vm.originLabel" ng-click="vm.goOrigin()" data-e2e="stu-backorigin"><i class="fas fa-arrow-left"></i>Back to {{ vm.originLabel }}</button>
+  <button type="button" class="ta-btn" ng-if="f.canEdit" ng-click="vm.edit(f)" no-busy-guard data-e2e="stu-edit"><i class="fas fa-pen"></i>Edit record</button>
+  <button type="button" class="ta-btn ta-btn--primary" ng-if="f.mineAw" ng-click="vm.confirmRec(f)" ng-disabled="vm.R.busy === f.id" data-e2e="stu-confirm"><span class="ta-spin" ng-if="vm.R.busy === f.id"></span><i class="fas fa-check" ng-if="vm.R.busy !== f.id"></i>{{ vm.R.busy === f.id ? 'Confirming…' : 'Confirm it was my lesson' }}</button>
+  <button type="button" class="ta-btn ta-btn--primary" ng-if="f.ph" ng-click="vm.fillIn(f)" data-e2e="stu-fillin"><i class="fas fa-pen"></i>Fill in the record</button>
+  <button type="button" class="ta-btn" ng-if="f.canCfi" ng-click="vm.openCfi(f)" no-busy-guard data-e2e="stu-cfi"><i class="fas fa-user-check"></i>Confirm for {{ vm.C.firstName(f.recIns) }}</button>
+</div>

@@ -1,0 +1,261 @@
+<!-- Manage Club → Settings → Schedule display — rebuilt 2026-11-11 from the approved mockup
+     mockups/schedule-display/settings.html (page prefix sdx-, css/schedule-display-settings.css, on ta-base.css).
+     Wrapped in .v2-host so core.css undoes the classic element styles inside it. DashboardClubScheduleDisplayController as vm. -->
+<div class="v2-host sdx" data-e2e="schedule-display-page">
+
+  <section class="ta-bar sdx-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <a class="ta-back" ui-sref="dashboard.manage_club" aria-label="Back to Manage Club"><i class="fas fa-arrow-left"></i></a>
+        <span class="ta-bar__icon"><i class="fas fa-tv"></i></span>
+        <div><h2>Schedule display</h2><p>What your club-house TV shows. Saved changes reach every TV within 30 seconds.</p></div>
+      </div>
+      <span class="ta-pill ta-pill--good" ng-show="vm.display_token" data-e2e="sdx-link-on"><i class="fas fa-circle"></i>Link active</span>
+      <span class="ta-pill ta-pill--muted" ng-show="!vm.display_token && !vm.display_loading" data-e2e="sdx-link-off">No TV link yet</span>
+    </div>
+  </section>
+
+  <div class="sdx-grid">
+
+    <!-- ── the preview, save and reset ── -->
+    <aside class="sdx-side">
+      <section class="ta-card sdx-prev">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-eye"></i></span><div class="ta-card__ttl"><h3>Preview</h3><p>Today at {{ vm.club_title }}, with these options</p></div></div>
+        <div>
+          <div class="sdx-tv">
+            <div class="sdx-tv__screen" sdx-tv id="sdx-tv">
+              <iframe ng-if="vm.previewUrl()" title="TV preview" ng-src="{{ vm.previewUrl() }}" onload="this.classList.add('is-loaded')"></iframe>
+              <div class="sdx-tv__none" ng-if="!vm.previewUrl()"><i class="fas fa-tv"></i><span>Pair a TV or create the link to see the preview.</span></div>
+            </div>
+          </div>
+          <div class="sdx-tv__stand"></div>
+        </div>
+        <div class="sdx-prev__meta" ng-if="!vm.optionsLoading && !vm.optionsError">
+          <span class="ta-pill ta-pill--info" ng-show="vm.fromDef().length" data-e2e="sdx-differs">{{ vm.plural(vm.fromDef().length, 'option differs', 'options differ') }} from the default</span>
+          <span class="sdx-diff" ng-show="vm.fromDef().length"><button type="button" ng-repeat="k in vm.fromDef() track by k" ng-click="vm.jump(k)" no-busy-guard>{{ vm.LABEL[k] }}</button></span>
+          <span class="ta-pill ta-pill--good" ng-show="!vm.fromDef().length" data-e2e="sdx-default"><i class="fas fa-check"></i>Default view</span>
+          <span ng-show="!vm.fromDef().length">The view most clubs start with: instructors, then shared hire lines, over the whole day.</span>
+        </div>
+        <div class="ta-note ta-note--warn" ng-if="vm.optionsError"><i class="fas fa-exclamation-triangle"></i><span>{{ vm.optionsError }}</span></div>
+        <div class="sdx-save ta-desk-only" ng-if="vm.unsaved().length" data-e2e="sdx-savebox">
+          <span class="sdx-save__n">{{ vm.plural(vm.unsaved().length, 'change', 'changes') }} not saved yet</span>
+          <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.discard()" no-busy-guard>Discard</button>
+          <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.save()" ng-disabled="vm.saving" data-e2e="sdx-save"><i class="fas" ng-class="vm.saving ? 'fa-spinner fa-spin' : 'fa-check'"></i>Save changes</button>
+        </div>
+        <div class="ta-confirm" ng-if="vm.askReset" data-e2e="sdx-reset-confirm">
+          <div><b>Return every option to the default view?</b> {{ vm.plural(vm.fromDef().length, 'option changes', 'options change') }}. Your TVs follow once you save.</div>
+          <div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.resetYes()" no-busy-guard data-e2e="sdx-reset-yes"><i class="fas fa-undo"></i>Return to default</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.resetNo()" no-busy-guard>Keep my options</button></div>
+        </div>
+        <!-- what the TV shows now (owner, 11 Nov): pin a day, or follow the rule -->
+        <div class="sdx-now" ng-if="vm.today" data-e2e="sdx-now">
+          <div class="sdx-now__k"><span class="ta-label">What the TV shows now</span><span class="ta-pill" ng-class="vm.showDate ? 'ta-pill--info' : 'ta-pill--muted'" data-e2e="sdx-now-label">{{ vm.showDateLabel() }}</span></div>
+          <div class="sdx-now__acts">
+            <span class="ta-stepper ta-stepper--joined" role="group" aria-label="Day shown">
+              <button type="button" class="ta-stepper__b" ng-click="vm.stepShown(-1)" ng-disabled="vm.showBusy || !vm.canStep(-1)" aria-label="A day earlier" no-busy-guard data-e2e="sdx-now-prev"><i class="fas fa-chevron-left"></i></button>
+              <span class="ta-stepper__n sdx-now__n">{{ vm.showDate ? (vm.showDate | date:'EEE d MMM') : 'Today' }}</span>
+              <button type="button" class="ta-stepper__b" ng-click="vm.stepShown(1)" ng-disabled="vm.showBusy || !vm.canStep(1)" aria-label="A day later" no-busy-guard data-e2e="sdx-now-next"><i class="fas fa-chevron-right"></i></button>
+            </span>
+            <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.showTomorrow()" ng-disabled="vm.showBusy || vm.showDate === vm.tomorrow" no-busy-guard data-e2e="sdx-now-tomorrow"><i class="fas fa-forward"></i>Show tomorrow now</button>
+            <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.showByRule()" ng-disabled="vm.showBusy || !vm.showDate" no-busy-guard data-e2e="sdx-now-rule"><i class="fas fa-undo"></i>Back to the rule</button>
+          </div>
+          <span class="ta-hint">A pinned day stays up until it is over, then the TV follows the rule again. Every TV follows within 30 seconds.</span>
+        </div>
+        <div class="sdx-prev__acts">
+          <button type="button" class="ta-btn" ng-click="vm.openFullScreen()" ng-disabled="!vm.display_token" no-busy-guard><i class="fas fa-expand"></i>Open full screen</button>
+          <button type="button" class="ta-btn" ng-click="vm.resetAsk()" ng-disabled="!vm.fromDef().length || vm.optionsError" title="{{ vm.fromDef().length ? '' : 'Already the default view' }}" no-busy-guard data-e2e="sdx-reset"><i class="fas fa-undo"></i>Return to default options</button>
+        </div>
+      </section>
+    </aside>
+
+    <div class="sdx-main" ng-class="{'sdx-main--loading': vm.optionsLoading}">
+
+      <!-- ── Layout ── -->
+      <section class="ta-card" id="sdx-layout">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-columns"></i></span><div class="ta-card__ttl"><h3>Layout</h3><p>How the screen is laid out.</p></div></div>
+        <div class="sdx-choices">
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.layout === 'timeline'}" aria-pressed="{{ vm.draft.layout === 'timeline' }}" ng-click="vm.set('layout', 'timeline')" no-busy-guard data-e2e="sdx-layout-timeline">
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="timeline"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Timeline, full width<span class="ta-tag sdx-def" ng-show="vm.isDef('layout', 'timeline')">Default</span></span><span class="sdx-choice__s">Every booking on one screen; free aircraft in the bottom line.</span></span>
+          </button>
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.layout === 'split'}" aria-pressed="{{ vm.draft.layout === 'split' }}" ng-click="vm.set('layout', 'split')" no-busy-guard data-e2e="sdx-layout-split">
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="split"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Timeline + now &amp; next<span class="ta-tag sdx-def" ng-show="vm.isDef('layout', 'split')">Default</span></span><span class="sdx-choice__s">A side panel: who is flying, what is next.</span></span>
+          </button>
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.layout === 'board'}" aria-pressed="{{ vm.draft.layout === 'board' }}" ng-click="vm.set('layout', 'board')" no-busy-guard data-e2e="sdx-layout-board">
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="board"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Departures board<span class="ta-tag sdx-def" ng-show="vm.isDef('layout', 'board')">Default</span></span><span class="sdx-choice__s">One line per booking with big times. For small or far-away screens.</span></span>
+          </button>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.pageturn }}</span><span class="sdx-changed" ng-show="vm.changed('pageturn')">Changed from default</span></div>
+          <div class="sdx-turn">
+            <span class="ta-stepper ta-stepper--joined" role="group" aria-label="Page turn in seconds">
+              <button type="button" class="ta-stepper__b" ng-click="vm.turnBy(-1)" ng-disabled="+vm.draft.pageturn <= vm.turn.min" aria-label="{{ vm.turn.step }} seconds less" no-busy-guard data-e2e="sdx-turn-less"><i class="fas fa-minus"></i></button>
+              <span class="ta-stepper__n sdx-turn__n" aria-live="polite" data-e2e="sdx-turn-n">{{ vm.draft.pageturn }} s</span>
+              <button type="button" class="ta-stepper__b" ng-click="vm.turnBy(1)" ng-disabled="+vm.draft.pageturn >= vm.turn.max" aria-label="{{ vm.turn.step }} seconds more" no-busy-guard data-e2e="sdx-turn-more"><i class="fas fa-plus"></i></button>
+            </span>
+            <span class="ta-tag sdx-def" ng-show="vm.isDef('pageturn', vm.draft.pageturn)">Default</span>
+            <button type="button" class="ta-link sdx-turn__def" ng-show="!vm.isDef('pageturn', vm.draft.pageturn)" ng-click="vm.set('pageturn', vm.DEF.pageturn)" no-busy-guard>Back to {{ vm.DEF.pageturn }} s</button>
+          </div>
+          <span class="ta-hint">When there are more rows than fit on the screen, they split into pages; each one stays up this long ({{ vm.turn.min }}–{{ vm.turn.max }} seconds) before the next. Nothing ever scrolls.</span>
+        </div>
+      </section>
+
+      <!-- ── Rows ── -->
+      <section class="ta-card" id="sdx-rows">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-stream"></i></span><div class="ta-card__ttl"><h3>Rows</h3><p>{{ vm.board() ? 'The departures board lists bookings, so these apply to the timeline only.' : 'What each line of the timeline is.' }}</p></div></div>
+        <div class="sdx-choices" ng-class="{'sdx-field--off': vm.board()}">
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.rows === 'packed'}" aria-pressed="{{ vm.draft.rows === 'packed' }}" ng-click="vm.set('rows', 'packed')" no-busy-guard>
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="packed"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Instructors, then shared hire lines<span class="ta-tag sdx-def" ng-show="vm.isDef('rows', 'packed')">Default</span></span><span class="sdx-choice__s">A row per instructor; hire, solo and maintenance packed into as few lines as fit.</span></span>
+          </button>
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.rows === 'instructors'}" aria-pressed="{{ vm.draft.rows === 'instructors' }}" ng-click="vm.set('rows', 'instructors')" no-busy-guard>
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="instructors"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Instructors, then aircraft<span class="ta-tag sdx-def" ng-show="vm.isDef('rows', 'instructors')">Default</span></span><span class="sdx-choice__s">A row per instructor, then a row per aircraft for bookings without one.</span></span>
+          </button>
+          <button type="button" class="sdx-choice" ng-class="{'sdx-choice--on': vm.draft.rows === 'aircraft'}" aria-pressed="{{ vm.draft.rows === 'aircraft' }}" ng-click="vm.set('rows', 'aircraft')" no-busy-guard data-e2e="sdx-rows-aircraft">
+            <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-mini="aircraft"></span>
+            <span class="sdx-choice__body"><span class="sdx-choice__t">Aircraft only<span class="ta-tag sdx-def" ng-show="vm.isDef('rows', 'aircraft')">Default</span></span><span class="sdx-choice__s">A row per aircraft; instructors as initials on the bookings.</span></span>
+          </button>
+        </div>
+        <div class="sdx-field" ng-class="{'sdx-field--off': vm.board() || vm.draft.rows === 'aircraft'}">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.insrows }}</span><span class="sdx-changed" ng-show="vm.changed('insrows')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.insrows }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.insrows === 'booked'}" role="radio" aria-checked="{{ vm.draft.insrows === 'booked' }}" ng-disabled="vm.board() || vm.draft.rows === 'aircraft'" ng-click="vm.set('insrows', 'booked')" no-busy-guard><i class="fas fa-eye-slash"></i>Hide <span class="ta-tag sdx-def" ng-show="vm.isDef('insrows', 'booked')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.insrows === 'working'}" role="radio" aria-checked="{{ vm.draft.insrows === 'working' }}" ng-disabled="vm.board() || vm.draft.rows === 'aircraft'" ng-click="vm.set('insrows', 'working')" no-busy-guard><i class="fas fa-user-clock"></i>Show if working today <span class="ta-tag sdx-def" ng-show="vm.isDef('insrows', 'working')">Default</span></button>
+          </div>
+          <span class="ta-hint">{{ vm.draft.rows === 'aircraft' ? 'Only with instructor rows.' : '"Show" keeps an empty row for each instructor working today, so you can see who is free.' }}</span>
+        </div>
+        <div class="sdx-field" ng-class="{'sdx-field--off': vm.board() || vm.draft.rows !== 'aircraft'}">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.idle }}</span><span class="sdx-changed" ng-show="vm.changed('idle')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.idle }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.idle === 'strip'}" role="radio" aria-checked="{{ vm.draft.idle === 'strip' }}" ng-disabled="vm.board() || vm.draft.rows !== 'aircraft'" ng-click="vm.set('idle', 'strip')" no-busy-guard><i class="fas fa-th-large"></i>One block <span class="ta-tag sdx-def" ng-show="vm.isDef('idle', 'strip')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.idle === 'rows'}" role="radio" aria-checked="{{ vm.draft.idle === 'rows' }}" ng-disabled="vm.board() || vm.draft.rows !== 'aircraft'" ng-click="vm.set('idle', 'rows')" no-busy-guard><i class="fas fa-bars"></i>Own rows <span class="ta-tag sdx-def" ng-show="vm.isDef('idle', 'rows')">Default</span></button>
+          </div>
+          <span class="ta-hint">{{ vm.draft.rows === 'aircraft' ? 'One block at the bottom keeps the rows for aircraft that are flying.' : 'Only for Aircraft only: with instructor rows, free aircraft always sit in the bottom line.' }}</span>
+        </div>
+      </section>
+
+      <!-- ── Bookings ── -->
+      <section class="ta-card" id="sdx-bookings">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-id-badge"></i></span><div class="ta-card__ttl"><h3>Bookings</h3><p>How each booking reads from across the room.</p></div></div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.names }}</span><span class="sdx-changed" ng-show="vm.changed('names')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg sdx-seg--many" role="radiogroup" aria-label="{{ vm.LABEL.names }}">
+            <button type="button" class="ta-seg__opt" ng-repeat="o in vm.NAME_OPTS track by o[0]" ng-class="{'ta-seg__opt--on': vm.draft.names === o[0]}" role="radio" aria-checked="{{ vm.draft.names === o[0] }}" ng-click="vm.set('names', o[0])" no-busy-guard data-e2e="sdx-names-{{ o[0] }}">{{ o[1] }} <span class="ta-tag sdx-def" ng-show="vm.isDef('names', o[0])">Default</span></button>
+          </div>
+          <span class="ta-hint">{{ vm.namesHint[vm.draft.names] }}</span>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.reg }}</span><span class="sdx-changed" ng-show="vm.changed('reg')">Changed from default</span></div>
+          <div class="sdx-choices sdx-choices--5">
+            <button type="button" class="sdx-choice" ng-repeat="o in vm.REG_OPTS track by o[0]"
+                    ng-class="{'sdx-choice--on': vm.draft.reg === o[0]}" aria-pressed="{{ vm.draft.reg === o[0] }}" ng-click="vm.set('reg', o[0])" no-busy-guard data-e2e="sdx-reg-{{ o[0] }}">
+              <span class="sdx-choice__tick"><i class="fas fa-check"></i></span><span sdx-sample="{{ o[0] }}" pos="vm.draft.regpos"></span>
+              <span class="sdx-choice__body"><span class="sdx-choice__t">{{ o[1] }}<span class="ta-tag sdx-def" ng-show="vm.isDef('reg', o[0])">Default</span></span><span class="sdx-choice__s">{{ o[2] }}</span></span>
+            </button>
+          </div>
+          <span class="ta-hint">Two aircraft ending in the same letters get three (MTJ, BTJ).</span>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.regpos }}</span><span class="sdx-changed" ng-show="vm.changed('regpos')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.regpos }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.regpos === 'right'}" role="radio" aria-checked="{{ vm.draft.regpos === 'right' }}" ng-click="vm.set('regpos', 'right')" no-busy-guard><i class="fas fa-align-right"></i>Right-aligned <span class="ta-tag sdx-def" ng-show="vm.isDef('regpos', 'right')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.regpos === 'under'}" role="radio" aria-checked="{{ vm.draft.regpos === 'under' }}" ng-click="vm.set('regpos', 'under')" no-busy-guard><i class="fas fa-level-down-alt"></i>Under the name <span class="ta-tag sdx-def" ng-show="vm.isDef('regpos', 'under')">Default</span></button>
+          </div>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.times }}</span><span class="sdx-changed" ng-show="vm.changed('times')">Changed from default</span></div>
+          <label class="ta-toggle"><input class="ta-toggle__input" type="checkbox" ng-model="vm.draft.times" ng-true-value="'on'" ng-false-value="'off'" data-e2e="sdx-times">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t">Show start and end times<span class="ta-tag sdx-def" ng-show="vm.isDef('times', vm.draft.times)">Default</span></span><span class="ta-toggle__s">Off: the hour axis gives the times and the screen stays calm. Long bookings show them when there is room.</span></span><span class="ta-switch"></span></label>
+        </div>
+      </section>
+
+      <!-- ── Hours and extras ── -->
+      <section class="ta-card" id="sdx-extras">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-sliders-h"></i></span><div class="ta-card__ttl"><h3>Hours and extras</h3><p>What else is on the screen.</p></div></div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.window }}</span><span class="sdx-changed" ng-show="vm.changed('window')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.window }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.window === 'day'}" role="radio" aria-checked="{{ vm.draft.window === 'day' }}" ng-click="vm.set('window', 'day')" no-busy-guard><i class="fas fa-sun"></i>Whole day <span class="ta-tag sdx-def" ng-show="vm.isDef('window', 'day')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.window === 'rest'}" role="radio" aria-checked="{{ vm.draft.window === 'rest' }}" ng-click="vm.set('window', 'rest')" no-busy-guard data-e2e="sdx-window-rest"><i class="fas fa-hourglass-half"></i>Rest of the day <span class="ta-tag sdx-def" ng-show="vm.isDef('window', 'rest')">Default</span></button>
+          </div>
+          <span class="ta-hint">{{ vm.draft.window === 'day' ? 'From opening to closing; finished bookings fade.' : 'From an hour ago to closing: fewer hours, wider bookings.' }}</span>
+        </div>
+        <div class="sdx-field" ng-if="vm.options.day_switch">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.day_switch }}</span><span class="sdx-changed" ng-show="vm.changed('day_switch')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.day_switch }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.day_switch === 'close'}" role="radio" aria-checked="{{ vm.draft.day_switch === 'close' }}" ng-click="vm.set('day_switch', 'close')" no-busy-guard data-e2e="sdx-dayswitch-close"><i class="fas fa-door-closed"></i>At closing time <span class="ta-tag sdx-def" ng-show="vm.isDef('day_switch', 'close')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.day_switch === 'last_booking'}" role="radio" aria-checked="{{ vm.draft.day_switch === 'last_booking' }}" ng-click="vm.set('day_switch', 'last_booking')" no-busy-guard data-e2e="sdx-dayswitch-last"><i class="fas fa-flag-checkered"></i>After the last booking <span class="ta-tag sdx-def" ng-show="vm.isDef('day_switch', 'last_booking')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.day_switch === 'midnight'}" role="radio" aria-checked="{{ vm.draft.day_switch === 'midnight' }}" ng-click="vm.set('day_switch', 'midnight')" no-busy-guard data-e2e="sdx-dayswitch-midnight"><i class="fas fa-moon"></i>At midnight <span class="ta-tag sdx-def" ng-show="vm.isDef('day_switch', 'midnight')">Default</span></button>
+          </div>
+          <span class="ta-hint">{{ vm.draft.day_switch === 'close' ? 'The TV moves on to tomorrow when the club closes for the day.' : vm.draft.day_switch === 'last_booking' ? 'The TV moves on to tomorrow once the last booking of the day has ended.' : 'The TV stays on today until midnight.' }}</span>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.notices }}</span><span class="sdx-changed" ng-show="vm.changed('notices')">Changed from default</span></div>
+          <label class="ta-toggle"><input class="ta-toggle__input" type="checkbox" ng-model="vm.draft.notices" ng-true-value="'on'" ng-false-value="'off'" data-e2e="sdx-notices">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t">Safety notices<span class="ta-tag sdx-def" ng-show="vm.isDef('notices', vm.draft.notices)">Default</span></span><span class="ta-toggle__s">SMS bulletins valid today run along the bottom. Nothing shows when there are none.</span></span><span class="ta-switch"></span></label>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.weather }}</span><span class="sdx-changed" ng-show="vm.changed('weather')">Changed from default</span></div>
+          <label class="ta-toggle"><input class="ta-toggle__input" type="checkbox" ng-model="vm.draft.weather" ng-true-value="'on'" ng-false-value="'off'" data-e2e="sdx-weather">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t">Weather<span class="ta-tag sdx-def" ng-show="vm.isDef('weather', vm.draft.weather)">Default</span></span><span class="ta-toggle__s">Wind, visibility, cloud, QNH and temperature from the latest METAR for your airfield, or the nearest station that reports.</span></span><span class="ta-switch"></span></label>
+        </div>
+        <div class="sdx-field" ng-if="vm.options.badge">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.badge }}</span><span class="sdx-changed" ng-show="vm.changed('badge')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.badge }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.badge === 'initials'}" role="radio" aria-checked="{{ vm.draft.badge === 'initials' }}" ng-click="vm.set('badge', 'initials')" no-busy-guard><i class="fas fa-font"></i>Initials <span class="ta-tag sdx-def" ng-show="vm.isDef('badge', 'initials')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.badge === 'logo'}" role="radio" aria-checked="{{ vm.draft.badge === 'logo' }}" ng-click="vm.set('badge', 'logo')" no-busy-guard data-e2e="sdx-badge-logo"><i class="far fa-image"></i>Club logo <span class="ta-tag sdx-def" ng-show="vm.isDef('badge', 'logo')">Default</span></button>
+          </div>
+          <span class="ta-hint" ng-show="vm.draft.badge !== 'logo'">The club's initials in a colour tile, top left of the screen.</span>
+          <span class="ta-hint sdx-logo-hint" ng-show="vm.draft.badge === 'logo' && vm.club_logo"><img class="sdx-logo-thumb" ng-src="{{ vm.club_logo }}" alt="">Your club logo, top left of the screen, in place of the initials.</span>
+          <span class="ta-hint sdx-hint--warn" ng-show="vm.draft.badge === 'logo' && !vm.club_logo"><i class="fas fa-exclamation-triangle"></i> No club logo uploaded yet — the TV keeps the initials until one is added in <a ui-sref="dashboard.manage_club.settings">Manage Club → Settings</a>.</span>
+        </div>
+        <div class="sdx-field">
+          <div class="sdx-k"><span class="ta-label">{{ vm.LABEL.theme }}</span><span class="sdx-changed" ng-show="vm.changed('theme')">Changed from default</span></div>
+          <div class="ta-seg ta-seg--row sdx-seg" role="radiogroup" aria-label="{{ vm.LABEL.theme }}">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.theme === 'light'}" role="radio" aria-checked="{{ vm.draft.theme === 'light' }}" ng-click="vm.set('theme', 'light')" no-busy-guard><i class="fas fa-sun"></i>Light <span class="ta-tag sdx-def" ng-show="vm.isDef('theme', 'light')">Default</span></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.draft.theme === 'dark'}" role="radio" aria-checked="{{ vm.draft.theme === 'dark' }}" ng-click="vm.set('theme', 'dark')" no-busy-guard data-e2e="sdx-theme-dark"><i class="fas fa-moon"></i>Dark <span class="ta-tag sdx-def" ng-show="vm.isDef('theme', 'dark')">Default</span></button>
+          </div>
+          <span class="ta-hint">Dark is calmer on a big screen in a dim room.</span>
+        </div>
+      </section>
+
+      <!-- ── TV link and pairing ── -->
+      <section class="ta-card" id="sdx-link" data-e2e="sdx-link-card">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-link"></i></span><div class="ta-card__ttl"><h3>TV link and pairing</h3><p>{{ vm.display_token ? 'One link for every TV in the club. No login on the TV: the link shows the schedule only.' : 'Show today’s schedule on any screen: a club-house TV, the reception monitor or the briefing room.' }}</p></div></div>
+        <div class="sdx-url" ng-if="vm.display_token">
+          <span class="sdx-url__v" title="{{ vm.display_url }}"><i class="fas fa-circle"></i>{{ vm.shortUrl() }}</span>
+          <input type="text" class="sdx-url__raw" id="sd_token_url" ng-model="vm.display_url" readonly tabindex="-1" aria-hidden="true">
+          <button type="button" class="ta-btn" ng-click="vm.copyDisplayUrl()" no-busy-guard data-e2e="sdx-copy"><i class="far" ng-class="vm.display_copied ? 'fa-check-circle' : 'fa-copy'"></i>{{ vm.display_copied ? 'Copied' : 'Copy' }}</button>
+          <button type="button" class="ta-btn" ng-click="vm.openDisplayInNewTab()" no-busy-guard><i class="fas fa-external-link-alt"></i>Open</button>
+        </div>
+        <div class="ta-empty" ng-if="!vm.display_token && !vm.display_loading"><span class="ta-empty__ic"><i class="fas fa-tv"></i></span><h4>No TV link yet</h4><p>Pair a TV with the code it shows, or create a link to open on any screen. No login on the TV.</p></div>
+        <div class="sdx-pair">
+          <ol class="sdx-pair__steps">
+            <li><span>On the TV, open <b>{{ vm.pairing_host }}</b>.</span></li>
+            <li><span>Type the 6-digit code it shows here. {{ vm.display_token ? 'The TV switches to the schedule by itself.' : 'The link is created for you.' }}</span></li>
+          </ol>
+          <div class="sdx-code">
+            <label class="ta-label" for="sdx-code">Code on the TV</label>
+            <input class="ta-input" id="sdx-code" inputmode="numeric" maxlength="7" placeholder="000 000" autocomplete="off" ng-model="vm.pairing_code" ng-change="vm.codeTyped()" ng-keydown="$event.keyCode === 13 && vm.linkPairingCode()">
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.linkPairingCode()" ng-disabled="vm.pairing_loading" data-e2e="sdx-pair"><i class="fas" ng-class="vm.pairing_loading ? 'fa-spinner fa-spin' : 'fa-tv'"></i>Pair this TV</button>
+          </div>
+        </div>
+        <ul class="sdx-how" ng-if="vm.display_token"><li>The screen updates within 30 seconds when a booking changes.</li><li>It moves on to tomorrow as set under "Moving on to tomorrow" above.</li></ul>
+        <div class="ta-confirm" ng-if="vm.display_token && vm.askOff" data-e2e="sdx-off-confirm">
+          <div><b>Turn off the TV link?</b> Every TV using it stops showing the schedule straight away. You can pair them again afterwards; they get a new link.</div>
+          <div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.offYes()" data-e2e="sdx-off-yes"><i class="fas fa-ban"></i>Turn off the link</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.offNo()" no-busy-guard data-e2e="sdx-off-no">Keep it</button></div>
+        </div>
+        <div class="sdx-off" ng-if="vm.display_token && !vm.askOff"><span>Lost a TV, or someone has the link who shouldn’t?</span><button type="button" class="ta-btn ta-btn--danger ta-btn--sm" ng-click="vm.offAsk()" no-busy-guard data-e2e="sdx-off"><i class="fas fa-ban"></i>Turn off the link</button></div>
+        <div class="sdx-off" ng-if="!vm.display_token && !vm.display_loading"><span>No TV to hand? Create the link now and open it on any screen.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.generateDisplayToken()" data-e2e="sdx-create"><i class="fas fa-plus"></i>Create a TV link</button></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="ta-actionbar ta-phone-only" ng-if="vm.unsaved().length" data-e2e="sdx-phonebar">
+    <span class="ta-actionbar__hint">{{ vm.unsaved().length }} not saved</span>
+    <button type="button" class="ta-btn" ng-click="vm.discard()" no-busy-guard>Discard</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.save()" ng-disabled="vm.saving"><i class="fas fa-check"></i>Save</button>
+  </div>
+</div>

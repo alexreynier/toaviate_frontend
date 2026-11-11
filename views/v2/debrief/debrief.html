@@ -1,0 +1,237 @@
+<!-- Instructor Dashboard v2 · Debrief — DebriefV2Controller (js/v2/debrief/debrief.js). Markup = mockups/instructor-dashboard/debrief-core.js
+     render() (hero, numbered cards, the "Before you save" rail), CSS = css/v2/debrief.css (dbf-) on ta-base. -->
+<main class="ta-page ta-page--has-bar" data-e2e="dbf" dbf-plain>
+
+  <!-- ═════ loading: the shapes of the hero and the first cards ═════ -->
+  <div class="dbf-skel" ng-if="vm.state === 'loading'" aria-busy="true" aria-label="Loading the debrief">
+    <div class="ta-skel dbf-skel__hero"></div>
+    <div class="ta-cols ta-cols--rail dbf-cols">
+      <div class="ta-stack"><div class="ta-skel dbf-skel__card"></div><div class="ta-skel dbf-skel__card dbf-skel__card--tall"></div></div>
+      <div class="ta-skel dbf-skel__rail ta-desk-only"></div>
+    </div>
+  </div>
+
+  <!-- ═════ couldn't load ═════ -->
+  <section class="ta-card ins-rise" ng-if="vm.state === 'error'">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas" ng-class="vm.err === 'notfound' ? 'fa-search' : vm.err === 'forbidden' ? 'fa-lock' : 'fa-exclamation-triangle'"></i></span>
+      <h4>{{ vm.err === 'notfound' ? 'This flight wasn’t found' : vm.err === 'forbidden' ? 'You can’t debrief this flight' : 'The debrief didn’t load' }}</h4>
+      <p>{{ vm.err === 'notfound' ? 'It may have been merged into another flight or cancelled.' : vm.err === 'forbidden' ? 'Only staff of the flight’s club, or its instructor, can file its record.' : 'Check your connection and try again. Nothing has been lost.' }}</p>
+      <div class="dbf-row dbf-row--c">
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.origin.go()"><i class="fas fa-arrow-left"></i>{{ vm.origin.label }}</button>
+        <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="vm.err === 'load'" ng-click="vm.reload()"><i class="fas fa-redo"></i>Try again</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════ HERO ═════ -->
+  <section class="ta-hero dbf-hero ins-rise" style="--i: 0" ng-if="vm.state === 'ready'">
+    <div class="ta-hero__top"><a class="ta-hero__back" href="" ng-click="vm.back()" data-e2e="dbf-back"><i class="fas fa-arrow-left"></i>{{ vm.origin.label }}</a>
+      <span class="dbf-hero__right"><a class="dbf-staff" ng-if="vm.D.staff && vm.D.plsId" ui-sref="dashboard.super_admin.fox_track_tools({pls: vm.D.plsId})" title="ToAviate staff only" aria-label="Track analysis (ToAviate staff only)"><i class="fas fa-route"></i><span>Track analysis</span></a><span class="ta-desk-only"><design-back></design-back></span><ins-tag></ins-tag><span class="ta-hero__eyebrow"><i class="fas fa-clipboard-check"></i>Debrief</span></span></div>
+    <div class="ta-hero__head"><span class="ta-hero__badge"><i class="fas fa-user-graduate"></i></span><div><div class="ta-hero__title" data-e2e="dbf-student">{{ vm.hero.title }}</div><div class="ta-hero__sub">{{ vm.hero.sub }}</div></div></div>
+    <div class="ta-hero__facts"><div class="ta-hero__fact" ng-repeat="f in vm.hero.facts track by f.k" ng-attr-title="{{ f.tip || undefined }}"><div class="ta-hero__fact-k">{{ f.k }}</div><div class="ta-hero__fact-v">{{ f.v }}</div><div class="dbf-fact-s" ng-if="f.s">{{ f.s }}</div></div></div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail dbf-cols" ng-if="vm.state === 'ready'">
+    <div class="ta-stack">
+
+      <!-- ═════ not booked in yet ═════ -->
+      <section class="ta-card dbf-card dbf-edge dbf-edge--warn ins-rise" id="dbf-c-booked" style="--i: 1" ng-if="!vm.D.booked" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'booked'}" data-e2e="dbf-booked">
+        <div class="dbf-sit"><span class="dbf-sit__ic"><i class="fas fa-plane-arrival"></i></span><div><h3>{{ vm.D.flight.reg || 'This flight' }} hasn't been booked in yet</h3><p>Book it in first: the times and the payment are settled there, and it brings you straight back here. You can look through the lesson meanwhile.</p></div></div>
+        <div class="dbf-row"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bookIn()"><i class="fas fa-plane-arrival"></i>Book this flight in</button></div>
+      </section>
+
+      <!-- ═════ 1 · instructor who gave the lesson (filing on someone's behalf) ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-instr" style="--i: 1" ng-if="vm.D.behalf" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'instr'}" data-e2e="dbf-instr">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.instr}"><i class="fas" ng-class="vm.cd.instr ? 'fa-check' : 'fa-user-edit'"></i><span class="ta-card__step">{{ vm.num.instr }}</span></span>
+          <div class="ta-card__ttl"><h3>Instructor who gave the lesson</h3><p>You're not this flight's instructor, so say who taught it</p></div></div>
+        <dbf-pick f="instr"></dbf-pick>
+        <div class="dbf-row" ng-if="vm.D.viewerIsInstr && vm.S.instr !== vm.D.viewer.id"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.instrSelf()"><i class="fas fa-user-check"></i>I gave this lesson</button></div>
+        <div class="ta-note" ng-if="vm.S.instr && vm.S.instr === vm.D.viewer.id"><i class="fas fa-user-check"></i><div>You're recorded as the instructor who gave this lesson.</div></div>
+        <div class="ta-note ta-note--info" ng-if="vm.S.instr && vm.S.instr !== vm.D.viewer.id"><i class="fas fa-user-edit"></i><div>You're filing this for <b>{{ vm.pf.instr.title }}</b>. It shows as awaiting their confirmation until {{ vm.pf.instr.first }} confirms it.</div></div>
+      </section>
+
+      <!-- ═════ no student identified on the flight (v1: a toast on save) ═════ -->
+      <div class="ta-note ta-note--warn ins-rise" ng-if="!vm.D.student" data-e2e="dbf-nostudent"><i class="fas fa-user-slash"></i><div><b>No student is attached to this flight yet</b>, so its record can't be filed. Resolve the student first (Missing Students), then come back to it.</div></div>
+
+      <!-- ═════ only the TPC import note on this flight ═════ -->
+      <div class="ta-note ta-note--info ins-rise" ng-if="vm.D.importNote" data-e2e="dbf-import"><i class="fas fa-file-import"></i><div><b>Only the TPC import note is on this flight</b> (<span class="dbf-ref">{{ vm.D.importNote }}</span>), so it hasn't been debriefed yet. Saving your debrief replaces the note.</div></div>
+
+      <!-- ═════ a record already filed for this flight (C36 existing_record): shown before anything is typed ═════ -->
+      <div class="ta-note ta-note--warn ins-rise" ng-if="vm.D.existing" data-e2e="dbf-existing"><i class="fas fa-clipboard-check"></i><div><b>{{ vm.who }}'s record for this flight is already filed</b>{{ vm.existLine }}. A second one can't be saved for the same flight: open it to make a change. <button type="button" class="ta-link" ng-click="vm.openRecord()">Open the record <i class="fas fa-arrow-right"></i></button></div></div>
+
+      <!-- ═════ a temporary member (C36 student.temporary: imported, no account of their own yet) ═════ -->
+      <div class="ta-note ta-note--info ins-rise" ng-if="vm.D.student.temporary" data-e2e="dbf-temporary"><i class="fas fa-user-clock"></i><div><b>{{ vm.D.student.name }} is a temporary member</b>, imported without an account of their own yet. The record is filed as usual; they can't sign in to see it until the club sets up their account.</div></div>
+
+      <!-- ═════ split flight: part 2 still to book in ═════ -->
+      <section class="ta-card dbf-card dbf-edge dbf-edge--solo ins-rise" id="dbf-c-split" style="--i: 1" ng-if="vm.D.split" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'split'}" data-e2e="dbf-split">
+        <div class="dbf-sit"><span class="dbf-sit__ic"><i class="fas fa-cut"></i></span><div><h3>Part 2 still needs booking in</h3><p>{{ vm.D.split.line }}</p></div></div>
+        <div class="dbf-row"><span class="ta-label">After saving</span><div class="dbf-seg2" role="group" aria-label="After saving"><button type="button" aria-pressed="{{ vm.S.split === 'now' }}" ng-click="vm.setSplit('now')">Book in part 2</button><button type="button" aria-pressed="{{ vm.S.split === 'later' }}" ng-click="vm.setSplit('later')">Leave it for later</button></div></div>
+        <p class="dbf-sub">{{ vm.S.split === 'now' ? 'Saving takes you straight to part 2.' : 'Part 2 stays under your flights to book in and on Claim a Flight.' }}</p>
+      </section>
+
+      <!-- ═════ LESSON ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-lesson" style="--i: 2" ng-class="{'ta-card--bad': vm.lessonErr, 'ta-card--attn dbf-flash': vm.S.flash === 'lesson'}" data-e2e="dbf-lesson">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.lesson}"><i class="fas" ng-class="vm.cd.lesson ? 'fa-check' : 'fa-chalkboard-teacher'"></i><span class="ta-card__step">{{ vm.num.lesson }}</span></span>
+          <div class="ta-card__ttl"><h3>Lesson</h3><p>{{ vm.C ? vm.C.t + ' · check it before grading' : 'Choose the course, then the lesson' }}</p></div><span class="ta-card__right"><button type="button" class="ta-pill ta-pill--{{ vm.chip.tone }} dbf-chip-btn" ng-click="vm.toggleChange()" title="Change course or lesson" aria-label="{{ vm.chip.t }} — change course or lesson" data-e2e="dbf-chip"><i class="fas {{ vm.chip.ic }}"></i>{{ vm.chip.t }}<i class="fas fa-exchange-alt dbf-chip-btn__swap" aria-hidden="true"></i></button></span></div>
+
+        <div class="dbf-les" ng-if="vm.L">
+          <div class="dbf-les__num">Lesson {{ vm.L.n }} · {{ vm.C.t }}<span ng-if="vm.L.check"> <span class="ta-pill ta-pill--pend"><i class="fas fa-flag"></i>Check point</span></span></div>
+          <h4 class="dbf-les__t" data-e2e="dbf-lesson-t">{{ vm.L.t }}</h4>
+          <p class="dbf-les__aim" ng-if="vm.L.aim">{{ vm.L.aim }}</p>
+          <div class="dbf-les__meta"><span ng-if="vm.L.ref"><i class="fas fa-book-open"></i>{{ vm.L.ref }}</span><span ng-if="vm.L.desc"><i class="far fa-clock"></i>{{ vm.L.desc }}</span><span><i class="fas fa-bullseye"></i>{{ vm.L.items.length }} objective{{ vm.L.items.length === 1 ? '' : 's' }}</span></div>
+          <p class="dbf-les__why" ng-if="vm.why.kind === 'history'"><i class="fas fa-history"></i><span>{{ vm.who }}'s last recorded lesson here was <b>{{ vm.why.title }}</b> ({{ vm.why.when }}), so this is the suggested {{ vm.why.what }}.</span></p>
+          <p class="dbf-les__why" ng-if="vm.why.kind === 'booking'"><i class="fas fa-calendar-check"></i><span>The lesson on the booking.</span></p>
+          <div class="dbf-les__acts" ng-if="!vm.S.change"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.toggleChange()" data-e2e="dbf-change"><i class="fas fa-exchange-alt"></i>Change course or lesson</button></div>
+        </div>
+        <div class="dbf-les dbf-les--none" ng-if="!vm.L"><div class="dbf-les__num">{{ vm.C ? vm.C.t : 'No course yet' }}</div><h4 class="dbf-les__t">Which lesson did you teach?</h4><p class="dbf-les__aim">Choose it below. Its objectives, brief and sign-off open as soon as you do.</p></div>
+
+        <div class="ta-note ta-note--warn" ng-if="!vm.C"><i class="fas fa-exclamation-circle"></i><div>This flight was claimed without a booked lesson and has no course on it. <b>Pick the course first</b>, then the lesson.</div></div>
+        <div class="ta-note ta-note--warn" ng-if="vm.C && !vm.L"><i class="fas fa-exclamation-circle"></i><div>This flight was claimed without a booked lesson. <b>Pick the lesson you taught</b> to complete {{ vm.who }}'s record.</div></div>
+        <div class="ta-note ta-note--warn" ng-if="vm.L && vm.S.sugg === 'course_start'"><i class="fas fa-info-circle"></i><div>No lessons are recorded for {{ vm.who }} on this course yet, so Lesson {{ vm.firstN }} is suggested. Change it if the flight was further along.</div></div>
+
+        <div class="dbf-pickers" ng-if="vm.S.change || !vm.L" data-e2e="dbf-pickers">
+          <dbf-pick f="course"></dbf-pick>
+          <dbf-pick f="lesson"></dbf-pick>
+          <div class="dbf-pickers__foot" ng-if="vm.L"><span class="dbf-sub">Nothing changes until you pick a different lesson.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.toggleChange()">Done</button></div>
+        </div>
+
+        <div class="dbf-hist" ng-if="vm.C"><span class="ta-label"><i class="fas fa-clipboard-list"></i>Recent records on this course</span>
+          <div class="dbf-hist__list" ng-if="vm.recsLoading" aria-busy="true" aria-label="Loading the records"><span class="ta-skel dbf-hist__skel" ng-repeat="w in [132, 118, 140, 124, 150] track by $index" ng-attr-style="width: {{ w }}px"></span></div>
+          <div class="dbf-hist__list" ng-if="vm.recs5.length && !vm.recsLoading"><span class="dbf-hist__i" ng-repeat="r in vm.recs5" ng-class="r.cls" title="{{ r.tip }}"><i class="fas {{ r.ic }}"></i><span class="dbf-hist__n">L{{ r.n }}</span><span>{{ r.t }}</span></span><span class="dbf-hist__more" ng-if="vm.recsMore">+{{ vm.recsMore }} earlier</span></div>
+          <span class="dbf-sub" ng-if="!vm.recs5.length && !vm.recsLoading">No lessons recorded on this course yet.</span>
+        </div>
+      </section>
+
+      <!-- ═════ the lesson brief (reference, not a step) ═════ -->
+      <section class="ta-card dbf-card dbf-brief ins-rise" id="dbf-c-brief" style="--i: 3" ng-if="vm.L && vm.brief.parts.length" ng-class="{'dbf-brief--open': vm.S.brief}" data-e2e="dbf-brief">
+        <button type="button" class="dbf-brief__hd" ng-click="vm.toggleBrief()" aria-expanded="{{ vm.S.brief }}"><span class="ta-card__icon"><i class="fas fa-book-open"></i></span><div class="ta-card__ttl"><h3>Lesson brief</h3><p>{{ vm.S.brief ? 'For reference while you debrief' : vm.brief.summary }}</p></div><i class="fas fa-chevron-right dbf-brief__chev"></i></button>
+        <div class="dbf-sums" ng-if="!vm.S.brief"><button type="button" class="dbf-sum-chip" ng-repeat="p in vm.brief.parts track by p.id" ng-click="vm.briefTab(p.id)"><i class="fas {{ p.ic }}"></i>{{ p.t }} · {{ p.n }}</button></div>
+        <div class="ta-tabs" role="tablist" ng-if="vm.S.brief"><button type="button" class="ta-tab" ng-repeat="p in vm.brief.parts track by p.id" ng-class="{'ta-tab--on': p.id === vm.brief.tab}" role="tab" aria-selected="{{ p.id === vm.brief.tab }}" ng-click="vm.briefTab(p.id)"><i class="fas {{ p.ic }}"></i>{{ p.t }}<span class="ta-tab__n">{{ p.n }}</span></button></div>
+
+        <div class="dbf-files" ng-if="vm.S.brief && vm.brief.tab === 'files'">
+          <div class="dbf-files__main" ng-class="{'dbf-files__main--pdf': vm.brief.file.k === 'pdf' && vm.brief.file.uri}">
+            <span class="ta-spin ta-spin--dark" ng-if="!vm.brief.file.uri && !vm.brief.file.err"></span>
+            <span class="dbf-sub" ng-if="vm.brief.file.err"><i class="fas fa-exclamation-triangle"></i> This file couldn't be loaded.</span>
+            <img class="dbf-files__img" ng-if="vm.brief.file.uri && vm.brief.file.k === 'img'" ng-src="{{ vm.brief.file.src }}" alt="{{ vm.brief.file.n }}">
+            <object class="dbf-files__pdf" ng-if="vm.brief.file.uri && vm.brief.file.k === 'pdf'" ng-attr-data="{{ vm.brief.file.src }}" type="application/pdf"><span class="dbf-sub">This browser can't show the PDF here: open it instead.</span></object>
+          </div>
+          <div class="dbf-files__cap"><span>{{ vm.brief.file.n }}</span><button type="button" class="ta-link" ng-if="vm.brief.file.k === 'pdf'" ng-click="vm.openPdf(vm.brief.file)" ng-disabled="!vm.brief.file.uri">Open the PDF <i class="fas fa-external-link-alt"></i></button></div>
+          <div class="dbf-files__thumbs" ng-if="vm.files.length > 1"><button type="button" class="dbf-thumb" ng-repeat="x in vm.files track by x.id" ng-class="{'dbf-thumb--on': $index === vm.brief.fileIdx}" ng-click="vm.fileSel($index)"><span class="dbf-thumb__ic" ng-class="{'dbf-thumb__ic--pdf': x.k === 'pdf'}"><i class="fas" ng-class="x.k === 'pdf' ? 'fa-file-pdf' : 'fa-image'"></i></span><span>{{ x.n }}</span></button></div>
+        </div>
+        <div class="ta-table-wrap dbf-tem-table" ng-if="vm.S.brief && vm.brief.tab === 'tem'"><table class="ta-table"><thead><tr><th>Threat or error</th><th>Consequence</th><th>Mitigation</th></tr></thead><tbody><tr ng-repeat="t in vm.L.tem"><td><b>{{ t.a }}</b></td><td>{{ t.b }}</td><td>{{ t.c }}</td></tr></tbody></table></div>
+        <div class="dbf-tem-cards" ng-if="vm.S.brief && vm.brief.tab === 'tem'"><div class="dbf-tem-card" ng-repeat="t in vm.L.tem"><b>{{ t.a }}</b><dl><dt>Consequence</dt><dd>{{ t.b }}</dd><dt>Mitigation</dt><dd>{{ t.c }}</dd></dl></div></div>
+        <ol class="dbf-bul" ng-if="vm.S.brief && vm.brief.list.length"><li ng-repeat="b in vm.brief.list" ng-class="{'dbf-bul__h': b.h}">{{ b.t }}</li></ol>
+      </section>
+
+      <!-- ═════ OBJECTIVES ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-objs" style="--i: 3" ng-if="vm.L" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'objs'}" data-e2e="dbf-objs">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.objs}"><i class="fas" ng-class="vm.cd.objs ? 'fa-check' : 'fa-bullseye'"></i><span class="ta-card__step">{{ vm.num.objs }}</span></span>
+          <div class="ta-card__ttl"><h3>Objectives</h3><p>{{ vm.objs.sub }}</p></div><span class="ta-card__right" ng-if="vm.L.items.length"><span class="dbf-opt-k dbf-scale-k" title="The club's grades">{{ vm.D.scaleText }}</span></span></div>
+        <div class="dbf-tools"><div class="ta-scope"><div class="ta-scope__set" role="group" aria-label="Show"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.scope !== 'course'}" ng-click="vm.setScope('lesson')">This lesson</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.scope === 'course'}" ng-click="vm.setScope('course')" data-e2e="dbf-whole">Whole course</button></div></div>
+          <label class="ta-search"><i class="fas fa-search"></i><input id="dbf-q" type="search" autocomplete="off" placeholder="Search the whole course" ng-model="vm.S.q" aria-label="Search objectives across the whole course" data-e2e="dbf-q"></label></div>
+
+        <div class="ta-empty" ng-if="vm.objs.empty"><span class="ta-empty__ic"><i class="fas fa-clipboard"></i></span><h4>Nothing to grade on this lesson</h4><p>Write a general remark, or mark the lesson completed, to save it. Grading another lesson's objective? Use Whole course.</p></div>
+
+        <div class="dbf-prog" ng-if="!vm.objs.empty" ng-class="vm.prog.done ? 'dbf-prog--done' : 'dbf-prog--todo'" data-e2e="dbf-prog"><span class="dbf-prog__t"><i class="fas {{ vm.prog.ic }}"></i>{{ vm.prog.g }} of {{ vm.prog.n }} graded{{ vm.prog.onCourse }}</span><div class="ta-meter" ng-class="{'ta-meter--good': vm.prog.done}"><div class="ta-meter__bar" ng-attr-style="--v: {{ vm.prog.pct }}%"></div></div><span class="dbf-mix" ng-if="vm.prog.mix.length"><span ng-repeat="x in vm.prog.mix track by x.id"><i ng-attr-style="{{ x.vars || undefined }}"></i>{{ x.n }} {{ x.t }}</span></span><button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-if="vm.prog.rest" ng-click="vm.restNA()" title="Grades every objective you haven't graded as {{ vm.prog.na }}" data-e2e="dbf-rest">Mark the other {{ vm.prog.rest }} {{ vm.prog.na }}</button><button type="button" class="ta-link" ng-if="!vm.prog.rest && vm.prog.undo" ng-click="vm.undoNA()" data-e2e="dbf-undo"><i class="fas fa-undo"></i>Undo {{ vm.prog.undo }} × {{ vm.prog.na }}</button></div>
+
+        <div class="ta-field" ng-if="!vm.objs.empty" ng-class="{'ta-field--error': vm.objErr}"><div class="dbf-objs">
+          <!-- this lesson -->
+          <div class="dbf-obj" ng-repeat="it in (vm.objs.mode === 'lesson' ? vm.L.items : []) track by it.id" ng-init="idx = $index + 1" ng-include="'views/v2/debrief/_obj.html'"
+               ng-class="[vm.S.grades[it.id] ? 'dbf-obj--graded' : 'dbf-obj--todo', vm.S.kb === it.id ? 'dbf-obj--kb' : '']" ng-attr-style="{{ vm.gradeOf(it.id).vars || undefined }}" id="dbf-o-{{ it.id }}" tabindex="0" data-obj="{{ it.id }}"></div>
+          <!-- the whole course (or a search), grouped by lesson -->
+          <button type="button" class="dbf-grp" ng-repeat-start="gr in vm.objs.groups track by gr.id" ng-class="{'dbf-grp--this': gr.isThis, 'dbf-grp--open': gr.open}" ng-click="vm.toggleGroup(gr)" aria-expanded="{{ gr.open }}"><span class="dbf-grp__t">{{ gr.name }}<span ng-if="gr.isThis"> <span class="ta-pill ta-pill--info">This flight's lesson</span></span></span><span class="dbf-grp__n">{{ gr.count }}</span><i class="fas fa-chevron-right dbf-grp__chev"></i></button>
+          <div class="dbf-grp__rows" ng-repeat-end>
+            <div class="dbf-obj" ng-repeat="x in gr.shown track by x.it.id" ng-init="it = x.it; idx = x.i" ng-include="'views/v2/debrief/_obj.html'"
+                 ng-class="[vm.S.grades[x.it.id] ? 'dbf-obj--graded' : 'dbf-obj--todo', vm.S.kb === x.it.id ? 'dbf-obj--kb' : '']" ng-attr-style="{{ vm.gradeOf(x.it.id).vars || undefined }}" id="dbf-o-{{ x.it.id }}" tabindex="0" data-obj="{{ x.it.id }}"></div>
+          </div>
+          <div class="ta-empty" ng-if="vm.objs.mode === 'groups' && vm.objs.none"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No objective matches ‘{{ vm.objs.q }}’</h4><p>Search looks through every lesson on {{ vm.C.t }}.</p><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.qClear()">Clear the search</button></div>
+        </div><span class="ta-field__msg" ng-if="vm.objErr">Grade at least one objective, or write a general remark below.</span></div>
+        <div class="dbf-kbd" ng-if="!vm.objs.empty"><i class="fas fa-keyboard"></i><span>Faster: click an objective, then press <span ng-repeat="g in vm.D.scale track by g.id">{{ $first ? '' : ' ' }}<kbd>{{ $index + 1 }}</kbd></span> to grade it and move to the next. <kbd>↑</kbd> <kbd>↓</kbd> move.</span></div>
+      </section>
+
+      <!-- ═════ GENERAL REMARKS ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-remarks" style="--i: 4" ng-if="vm.L" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'remarks'}" data-e2e="dbf-remarks">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.remarks}"><i class="fas" ng-class="vm.cd.remarks ? 'fa-check' : 'fa-comment-dots'"></i><span class="ta-card__step">{{ vm.num.remarks }}</span></span>
+          <div class="ta-card__ttl"><h3>General remarks</h3><p>What went well and what to work on · {{ vm.who }} sees this in My Training</p></div><span class="ta-card__right"><span class="dbf-opt-k">Optional when you have graded</span></span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.objErr}"><label class="ta-label" for="dbf-remarks">Remarks for {{ vm.who }}'s record</label><textarea class="ta-textarea" id="dbf-remarks" ng-model="vm.S.remarks" placeholder="e.g. Good circuit spacing and lookout. Work on holding the attitude in the flare."></textarea><span class="ta-field__msg" ng-if="vm.objErr">Write a general remark, or grade at least one objective.</span></div>
+      </section>
+
+      <!-- ═════ FLIGHT TAGS ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-tags" style="--i: 4" ng-if="vm.L" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'tags'}" data-e2e="dbf-tags">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.tags}"><i class="fas" ng-class="vm.cd.tags ? 'fa-check' : 'fa-tags'"></i><span class="ta-card__step">{{ vm.num.tags }}</span></span>
+          <div class="ta-card__ttl"><h3>Flight tags</h3><p>Count this flight towards a tagged requirement, like navigation or instrument time</p></div><span class="ta-card__right"><span class="dbf-opt-k">Optional</span></span></div>
+        <div class="dbf-tags" ng-if="vm.S.tags.length"><div class="dbf-tag" ng-repeat="t in vm.S.tags track by t.id"><span class="dbf-tag__nm"><i class="fas fa-tag"></i>{{ t.title }}</span><button type="button" class="dbf-tag__x" ng-click="vm.tagDel(t)" aria-label="Remove {{ t.title }}"><i class="fas fa-times"></i></button>
+          <div class="dbf-tag__ctl"><div class="dbf-seg2" role="group" aria-label="How much of the flight"><button type="button" aria-pressed="{{ t.whole }}" ng-click="vm.tagWhole(t, true)">Whole flight · {{ vm.hm(vm.D.maxMin) }}</button><button type="button" aria-pressed="{{ !t.whole }}" ng-click="vm.tagWhole(t, false)">Part of it</button></div>
+            <span class="ta-stepper" ng-if="!t.whole"><button type="button" class="ta-stepper__b" ng-click="vm.tagMin(t, -5)" aria-label="5 minutes less" ng-disabled="t.min <= 5"><i class="fas fa-minus"></i></button><span class="ta-stepper__n" aria-live="polite">{{ vm.hm(t.min) }}</span><button type="button" class="ta-stepper__b" ng-click="vm.tagMin(t, 5)" aria-label="5 minutes more" ng-disabled="t.min >= vm.D.maxMin"><i class="fas fa-plus"></i></button></span></div></div></div>
+        <div class="ta-field" ng-if="vm.tagsAll.length && vm.tagsAvail.length"><span class="ta-label">{{ vm.S.tags.length ? 'Add another tag' : 'Add a tag' }}</span><div class="dbf-chipadd"><button type="button" class="ta-chip" ng-repeat="t in vm.tagsAvail track by t.id" ng-click="vm.tagAdd(t)"><i class="fas fa-plus"></i>{{ t.title }}</button></div></div>
+        <span class="dbf-sub" ng-if="!vm.tagsAll.length">{{ vm.C ? vm.C.t : 'This course' }} has no flight tags.</span>
+      </section>
+
+      <!-- ═════ LESSON STATUS (required: completed or not, decided 8 Nov 2026) ═════ -->
+      <section class="ta-card dbf-card ins-rise" id="dbf-c-status" style="--i: 5" ng-if="vm.L" ng-class="{'ta-card--attn dbf-flash': vm.S.flash === 'status'}" data-e2e="dbf-status">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.status}"><i class="fas" ng-class="vm.cd.status ? 'fa-check' : 'fa-flag-checkered'"></i><span class="ta-card__step">{{ vm.num.status }}</span></span>
+          <div class="ta-card__ttl"><h3>Lesson status</h3><p>Signs Lesson {{ vm.L.n }} off, or keeps it for next time</p></div><span class="ta-card__right"><span class="ta-req">Required</span></span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.statusErr}"><div class="dbf-status" role="radiogroup" aria-label="Was the lesson completed?">
+          <button type="button" class="ta-opt dbf-opt--done" ng-class="{'ta-opt--on': vm.S.status === 'done'}" role="radio" aria-checked="{{ vm.S.status === 'done' }}" ng-click="vm.setStatus('done')" data-e2e="dbf-done"><span class="ta-opt__ic"><i class="fas fa-check-double"></i></span><span><span class="ta-opt__t">Completed — sign it off</span><span class="ta-opt__s">Lesson {{ vm.L.n }} is signed off on {{ vm.who }}'s record</span></span><span class="ta-opt__dot"></span></button>
+          <button type="button" class="ta-opt" ng-class="{'ta-opt--on': vm.S.status === 'notdone'}" role="radio" aria-checked="{{ vm.S.status === 'notdone' }}" ng-click="vm.setStatus('notdone')" data-e2e="dbf-notdone"><span class="ta-opt__ic"><i class="fas fa-redo"></i></span><span><span class="ta-opt__t">Not completed</span><span class="ta-opt__s">{{ vm.who }}'s next booking suggests Lesson {{ vm.L.n }} again</span></span><span class="ta-opt__dot"></span></button>
+        </div><span class="ta-field__msg" ng-if="vm.statusErr">Say whether the lesson was completed: it decides what the next booking suggests.</span></div>
+        <div class="dbf-next" ng-if="vm.S.status === 'done'"><span class="ta-label"><i class="fas fa-forward"></i>Next lesson for {{ vm.who }}</span><div class="dbf-status" role="radiogroup" aria-label="Next lesson">
+            <button type="button" class="ta-opt" ng-if="vm.nextL" ng-class="{'ta-opt--on': vm.S.next === 'order'}" role="radio" aria-checked="{{ vm.S.next === 'order' }}" ng-click="vm.setNext('order')"><span class="ta-opt__ic"><i class="fas fa-list-ol"></i></span><span><span class="ta-opt__t">Next in the course</span><span class="ta-opt__s">{{ vm.lname(vm.nextL) }}</span></span><span class="ta-opt__dot"></span></button>
+            <div class="ta-note" ng-if="!vm.nextL"><i class="fas fa-flag-checkered"></i><div>This is the last lesson on {{ vm.C.t }}.</div></div>
+            <button type="button" class="ta-opt" ng-class="{'ta-opt--on': vm.S.next === 'pick'}" role="radio" aria-checked="{{ vm.S.next === 'pick' }}" ng-click="vm.setNext('pick')" data-e2e="dbf-next-pick"><span class="ta-opt__ic"><i class="fas fa-random"></i></span><span><span class="ta-opt__t">Another lesson</span><span class="ta-opt__s">{{ vm.nextPicked ? vm.lname(vm.nextPicked) : 'Skip ahead, or go back to one' }}</span></span><span class="ta-opt__dot"></span></button></div>
+          <dbf-pick f="next" ng-if="vm.S.next === 'pick'"></dbf-pick>
+          <span class="ta-hint">{{ vm.who }}'s next booking suggests this lesson.</span></div>
+      </section>
+
+      <!-- ═════ no lesson yet ═════ -->
+      <section class="ta-card ins-rise" ng-if="!vm.L"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>Then: grade, remark and sign it off</h4><p>The objectives, the lesson brief, remarks, flight tags and the sign-off open once the lesson is chosen.</p></div></section>
+
+      <!-- ═════ SAVE ═════ -->
+      <section class="ta-card dbf-card ta-final ins-rise" id="dbf-c-final" style="--i: 5" ng-class="{'ta-final--ready': vm.rd.all, 'ta-card--attn dbf-flash': vm.S.flash === 'final'}" data-e2e="dbf-final">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.cd.final}"><i class="fas" ng-class="vm.cd.final ? 'fa-check' : 'fa-save'"></i><span class="ta-card__step">{{ vm.num.final }}</span></span>
+          <div class="ta-card__ttl"><h3>Save</h3><p>Check the summary, then save the record</p></div></div>
+        <div class="ta-sum">
+          <div class="ta-sum__row" ng-if="vm.D.behalf"><i class="fas fa-user-edit"></i><span class="ta-sum__k">Instructor</span><span class="ta-sum__v"><span ng-if="vm.sum.instr">{{ vm.sum.instr }}</span><em ng-if="!vm.sum.instr">Not chosen yet</em></span></div>
+          <div class="ta-sum__row"><i class="fas fa-chalkboard-teacher"></i><span class="ta-sum__k">Lesson</span><span class="ta-sum__v"><span ng-if="vm.L">{{ vm.lname(vm.L) }}</span> <span class="dbf-sub" ng-if="vm.L">{{ vm.C.t }}</span><em ng-if="!vm.L">Not chosen yet</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.L"><i class="fas fa-bullseye"></i><span class="ta-sum__k">Objectives</span><span class="ta-sum__v"><span ng-if="vm.L.items.length">{{ vm.sum.objs }}</span><span class="dbf-mix" ng-if="vm.L.items.length && vm.sum.mix.length"><span ng-repeat="x in vm.sum.mix track by x.id"><i ng-attr-style="{{ x.vars || undefined }}"></i>{{ x.n }} {{ x.t }}</span></span><span ng-if="!vm.L.items.length">None on this lesson</span></span></div>
+          <div class="ta-sum__row" ng-if="vm.L"><i class="fas fa-comment-dots"></i><span class="ta-sum__k">Remarks</span><span class="ta-sum__v"><span ng-if="vm.sum.remarks">{{ vm.sum.remarks }}</span><em ng-if="!vm.sum.remarks">None</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.L"><i class="fas fa-tags"></i><span class="ta-sum__k">Flight tags</span><span class="ta-sum__v"><span ng-if="vm.sum.tags">{{ vm.sum.tags }}</span><em ng-if="!vm.sum.tags">None</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.L"><i class="fas fa-flag-checkered"></i><span class="ta-sum__k">Status</span><span class="ta-sum__v"><span ng-if="vm.sum.status">{{ vm.sum.status }}</span><em ng-if="!vm.sum.status">Not chosen yet</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.D.split"><i class="fas fa-cut"></i><span class="ta-sum__k">Part 2</span><span class="ta-sum__v">{{ vm.S.split === 'now' ? 'Booked in straight after saving' : 'Left for later' }}</span></div>
+        </div>
+        <ul class="ta-left" ng-class="{'ta-left--bad': vm.S.showErr}" ng-if="vm.rd.left.length" data-e2e="dbf-left"><li ng-repeat="i in vm.rd.left track by i.card"><button type="button" ng-click="vm.goTo(i.card)"><i class="fas fa-exclamation-circle"></i>{{ i.n }}<i class="fas fa-arrow-up"></i></button></li></ul>
+        <div class="ta-confirm" ng-if="vm.S.override" role="alert" data-e2e="dbf-override"><span><b>{{ vm.S.override.name ? vm.S.override.name + ' is this flight\'s student' : 'This flight has no student identified' }}</b>, not {{ vm.hero.title }}. File the record for {{ vm.who }} anyway? It's noted on the record.</span><div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.overrideNo()">Don't file it</button><button type="button" class="ta-btn ta-btn--danger-solid ta-btn--sm" ng-click="vm.save(true)" no-busy-guard data-e2e="dbf-override-go">File it for {{ vm.who }} anyway</button></div></div>
+        <button type="button" class="ta-btn ta-cta ta-final__go" ng-class="vm.sp.wait ? 'ta-cta--wait' : 'ta-btn--primary'" ng-click="vm.sp.wait ? vm.bookIn() : vm.save()" ng-disabled="vm.S.busy" no-busy-guard data-e2e="dbf-save"><span class="ta-cta__main"><span class="ta-spin" ng-if="vm.sp.busy"></span><i class="fas {{ vm.sp.ic }}" ng-if="!vm.sp.busy"></i>{{ vm.sp.t }}</span><span class="ta-cta__sub" ng-if="vm.sp.s">{{ vm.sp.s }}</span></button>
+      </section>
+
+      <div class="dbf-classic ta-phone-only"><design-back></design-back></div>
+    </div>
+
+    <!-- ═════ BEFORE YOU SAVE: a rail on desktop; a strip + a bottom bar on phones ═════ -->
+    <aside class="ta-rail ta-ready-rail ins-rise" style="--i: 1" aria-label="Before you save" data-e2e="dbf-rail"><div class="ta-card ta-ready" ng-class="{'ta-ready--done': vm.rd.all}">
+      <div class="ta-ready__hd"><div class="ta-ring" ng-class="{'ta-ring--done': vm.rd.all}"><svg viewBox="0 0 58 58" aria-hidden="true"><circle class="ta-ring__bg" cx="29" cy="29" r="23"></circle><circle class="ta-ring__fg" cx="29" cy="29" r="23" ng-attr-stroke-dasharray="{{ vm.rd.C }}" ng-attr-stroke-dashoffset="{{ vm.rd.off }}"></circle></svg><b>{{ vm.rd.done }}/{{ vm.rd.total }}</b></div>
+        <div class="ta-ready__ttl"><h3><i class="fas fa-check-circle" ng-if="vm.rd.all"></i>{{ vm.rd.all ? 'Ready to save' : 'Before you save' }}</h3><p>{{ vm.rd.lead }}</p></div><span class="ta-ready__count">{{ vm.rd.done }} of {{ vm.rd.total }}</span></div>
+      <div class="ta-meter ta-ready__meter" ng-class="{'ta-meter--good': vm.rd.all}"><div class="ta-meter__bar" ng-attr-style="--v: {{ vm.rd.pct }}%"></div></div>
+      <ul class="ta-cks"><li ng-repeat="i in vm.rd.cks track by i.card"><button type="button" class="ta-ck" ng-class="i.cls" ng-click="vm.goTo(i.card)"><span class="ta-ck__ic"><i class="fas {{ i.ic }}"></i></span><span class="ta-ck__t">{{ i.t }}<small ng-if="i.s">{{ i.s }}</small></span><i class="fas fa-chevron-right ta-ck__go"></i></button></li></ul>
+      <div class="ta-actionbar ta-ready__foot" data-e2e="dbf-foot">
+        <div class="ta-ready__row" ng-if="vm.rd.phone.graded" ng-class="{'dbf-ungraded': vm.rd.phone.ung}"><span>{{ vm.rd.phone.g }} of {{ vm.rd.phone.n }} graded</span><div class="ta-meter" ng-class="{'ta-meter--good': !vm.rd.phone.ung}"><div class="ta-meter__bar" ng-attr-style="--v: {{ vm.rd.phone.pct }}%"></div></div><button type="button" class="ta-link" ng-if="vm.rd.phone.ung && vm.rd.phone.showNext" ng-click="vm.nextTodo()">Next to grade <i class="fas fa-arrow-down"></i></button><span ng-if="!vm.rd.phone.ung"><i class="fas fa-check"></i> All graded</span></div>
+        <div class="ta-ready__row" ng-if="!vm.rd.phone.graded"><span>{{ vm.rd.all ? 'Ready to save' : vm.rd.done + ' of ' + vm.rd.total + ' done' }}</span><div class="ta-meter" ng-class="{'ta-meter--good': vm.rd.all}"><div class="ta-meter__bar" ng-attr-style="--v: {{ vm.rd.phone.pct }}%"></div></div></div>
+        <button type="button" class="ta-btn ta-btn--block" ng-if="vm.rd.next" ng-click="vm.goTo(vm.rd.next.card)" data-e2e="dbf-next-step"><i class="fas fa-arrow-down"></i>Next: {{ vm.rd.next.n }}</button>
+        <button type="button" class="ta-btn ta-btn--primary ta-btn--block ta-ready__desk" ng-if="!vm.rd.next" ng-click="vm.goTo('final')"><i class="fas fa-arrow-down"></i>Review &amp; save</button>
+        <button type="button" class="ta-btn ta-cta ta-btn--block ta-ready__phone" ng-if="!vm.rd.next" ng-class="vm.sp.wait ? 'ta-cta--wait' : 'ta-btn--primary'" ng-click="vm.sp.wait ? vm.bookIn() : vm.save()" ng-disabled="vm.S.busy" no-busy-guard data-e2e="dbf-save-phone"><span class="ta-cta__main"><span class="ta-spin" ng-if="vm.sp.busy"></span><i class="fas {{ vm.sp.ic }}" ng-if="!vm.sp.busy"></i>{{ vm.sp.t }}</span><span class="ta-cta__sub" ng-if="vm.sp.s">{{ vm.sp.s }}</span></button>
+      </div>
+      <div class="ta-ready__remind"><i class="fas fa-info-circle"></i><span>The save button is at the end of the page, under a summary of the record.</span></div></div></aside>
+  </div>
+
+  <!-- ═════ dialogs: switch the course / lesson (clears what was entered) · leave without saving ═════ -->
+  <div class="ta-dlg-scrim" ng-if="vm.S.dlg.k === 'switch'" ng-click="vm.scrim($event)" data-e2e="dbf-dlg-switch"><div class="ta-dlg" role="alertdialog" aria-labelledby="dbf-dlg-t"><div class="ta-dlg__grab"></div>
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-exchange-alt"></i></span><div><div class="ta-dlg__title" id="dbf-dlg-t">Switch {{ vm.S.dlg.kind }}?</div><div class="ta-dlg__sub">{{ vm.dlgTitle() }}</div></div><button type="button" class="ta-dlg__x" ng-click="vm.dlgClose()" aria-label="Close">×</button></div>
+    <div class="ta-dlg__body"><p>You've <span ng-repeat="b in vm.dlgParts">{{ $first ? '' : ', ' }}{{ b.pre }}<b ng-if="b.b">{{ b.b }}</b></span> for {{ vm.L ? vm.lname(vm.L) : 'this lesson' }}. Switching clears them, so you grade the right objectives.</p></div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" id="dbf-dlg-keep" ng-click="vm.dlgClose()">Keep what I entered</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.switchOk()" data-e2e="dbf-switch-ok"><i class="fas fa-exchange-alt"></i>Switch and clear</button></div></div></div>
+
+  <div class="ta-dlg-scrim" ng-if="vm.S.dlg.k === 'leave'" ng-click="vm.scrim($event)" data-e2e="dbf-dlg-leave"><div class="ta-dlg" role="alertdialog" aria-labelledby="dbf-dlg-t2"><div class="ta-dlg__grab"></div>
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-sign-out-alt"></i></span><div><div class="ta-dlg__title" id="dbf-dlg-t2">Leave without saving?</div><div class="ta-dlg__sub">{{ vm.hero.title }}{{ vm.D.flight.date ? ' · ' + vm.dayOf(vm.D.flight.date) : '' }}</div></div><button type="button" class="ta-dlg__x" ng-click="vm.dlgClose()" aria-label="Close">×</button></div>
+    <div class="ta-dlg__body"><p>What you've entered isn't saved. The flight stays in your debriefs, so you can come back to it.</p></div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--primary" id="dbf-dlg-keep" ng-click="vm.dlgClose()">Stay and finish</button><span class="ta-sp"></span><button type="button" class="ta-btn" ng-click="vm.leave()" data-e2e="dbf-leave-go">Leave without saving</button></div></div></div>
+</main>

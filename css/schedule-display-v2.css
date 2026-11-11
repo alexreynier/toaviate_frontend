@@ -1,0 +1,69 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Schedule display (clubhouse TV) v2 — the TV page (/display/:token, views/schedule_display.html) and the pairing
+   page (/display/tv, views/display_pairing.html). Page prefix sdv-; tokens only (ta-base.css, ta-night.css).
+   Approved mockup: mockups/schedule-display/tv.html (owner, 11 Nov 2026) — its tv-scr / tv-panel / pairing rules,
+   renamed. The schedule itself is drawn by libs/js/toaviate-display.js (styles libs/css/toaviate-display.css, tad-*).
+   The canvas: 1rem = screen height / 54 (20px on a 1080p TV, 13.3px at 720p, 40px on a 4K panel), so every TV shows
+   the same layout and the whole screen is always on screen. Inside the settings page's preview iframe the "screen"
+   is the iframe (1920 × 1080), so 100vh is the iframe's own height.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* the page shell: the controllers put sdv-html on <html> and sdv-body on <body> while the page is open */
+html.sdv-html { font-size: calc(100vh / 54); }
+html.sdv-html, html.sdv-html body { height: 100%; margin: 0; overflow: hidden; }
+body.sdv-body { padding: 0; background: var(--ta-ground); color: var(--ta-ink); font-family: var(--ta-font); font-size: 1rem; font-weight: 400; line-height: 1.3; }
+body.sdv-body .demo_version_notice { display: none; }
+body.sdv-body .main_container { padding: 0; margin: 0; }
+
+.sdv { position: relative; height: 100vh; overflow: hidden; }
+.sdv, .sdv *, .sdv *::before, .sdv *::after { box-sizing: border-box; }
+.sdv-host { height: 100%; }
+/* the app's legacy element rules (css/styles.css, bootstrap) undone at their own weight, as in css/v2/core.css */
+:where(.sdv) * { font-family: inherit; }
+:where(.sdv) h1 { color: inherit; font-family: inherit; line-height: 1.3; }
+:where(.sdv) p, :where(.sdv) ol, :where(.sdv) ul { margin: 0; }
+:where(.sdv) ol li { color: inherit; cursor: inherit; transition: none; }
+:where(.sdv) b { font-weight: 700; }
+
+/* ── full-screen states: pairing, connected, starting, link turned off, no connection ── */
+.sdv-scr { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 5; display: grid; place-items: center; padding: 2rem; background: var(--ta-ground); }
+.sdv-scr__clock { position: absolute; top: 1.4rem; right: 1.8rem; font-size: 1.8rem; font-weight: 800; color: var(--ta-muted); font-variant-numeric: tabular-nums; }
+.sdv-scr__brand { position: absolute; top: 1.5rem; left: 1.8rem; display: inline-flex; align-items: center; }
+.sdv-scr__brand img { display: block; height: 1.4rem; width: auto; }   /* the real logo (images/main_logo.png), the mockup mark's height */
+.sdv--dark .sdv-scr__brand img { height: 1.9rem; padding: 0.25rem 0.45rem; border-radius: 0.4rem; background: #fff; }   /* navy on a light plate at night (as the v2 sign-in), not a filter */
+.sdv-panel { width: 58rem; max-width: 100%; padding: 2.4rem 2.8rem; display: grid; justify-items: center; gap: 1.1rem; text-align: center; background: var(--ta-paper); border: 1px solid var(--ta-line); border-radius: 1.3rem; box-shadow: var(--ta-shadow-2); }
+.sdv-panel h1 { margin: 0; font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; }
+.sdv-panel p { margin: 0; font-size: 1.15rem; color: var(--ta-muted); max-width: 44rem; }
+.sdv-panel__ic { width: 4.4rem; height: 4.4rem; border-radius: 1.1rem; display: grid; place-items: center; font-size: 2rem; color: #fff; background: var(--ta-grad); }   /* white on the gradient in both themes */
+.sdv-panel__ic--good { background: var(--ta-grad-good); }
+.sdv-panel__ic--bad { background: var(--ta-grad-bad); }
+.sdv-panel__ic--warn { background: var(--ta-grad-warn); }
+.sdv-digits { display: flex; gap: 0.8rem; margin: 0.4rem 0; }
+.sdv-digit { width: 4.8rem; height: 6rem; border-radius: 0.9rem; display: grid; place-items: center; background: var(--ta-tint); border: 2px solid var(--ta-brand-line); color: var(--ta-accent); font-size: 3.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sdv-digit--gap { margin-left: 1rem; }
+.sdv-pair__how { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.6rem; align-items: center; width: 100%; padding-top: 1.1rem; border-top: 1px solid var(--ta-line); text-align: left; }
+.sdv-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.65rem; counter-reset: s; }
+.sdv-steps li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.7rem; align-items: start; font-size: 1.05rem; color: var(--ta-ink-2); counter-increment: s; }
+.sdv-steps li::before { content: counter(s); width: 2rem; height: 2rem; border-radius: 50%; background: var(--ta-tint); color: var(--ta-accent); display: grid; place-items: center; font-weight: 800; font-size: 0.95rem; }
+.sdv-steps b { color: var(--ta-ink); font-weight: 700; }
+.sdv-qr { display: grid; justify-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 700; color: var(--ta-muted); }
+.sdv-qr__box { width: 8.4rem; height: 8.4rem; padding: 0.35rem; border-radius: 0.7rem; background: #fff; border: 1px solid var(--ta-line); }   /* a QR code reads dark on white, in both themes */
+.sdv-qr__box svg { width: 100%; height: 100%; display: block; }
+.sdv-chipline { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.4rem 1rem; border-radius: 999px; background: var(--ta-paper-3); color: var(--ta-ink-2); font-size: 1rem; font-weight: 700; }
+.sdv-chipline--warn { background: var(--ta-warn-bg); color: var(--ta-warn-ink); }
+.sdv-chipline b { font-variant-numeric: tabular-nums; }
+.sdv-url { font-family: var(--ta-mono); font-size: 1.3rem; font-weight: 700; color: var(--ta-ink); padding: 0.5rem 1.1rem; border-radius: 0.6rem; background: var(--ta-paper-3); }
+.sdv-bar { width: 22rem; height: 0.4rem; border-radius: 999px; background: var(--ta-paper-3); overflow: hidden; }
+.sdv-bar i { display: block; height: 100%; width: 100%; background: var(--ta-grad-good); border-radius: 999px; transform-origin: 0 50%; animation: sdv-fill 2.5s ease-out forwards; }   /* fills while the screen opens the schedule */
+@keyframes sdv-fill { from { transform: scaleX(0.04); } to { transform: scaleX(1); } }
+.sdv-spin { width: 3.6rem; height: 3.6rem; border-radius: 50%; border: 0.35rem solid var(--ta-paper-3); border-top-color: var(--ta-accent); animation: sdv-spin 1s linear infinite; }
+@keyframes sdv-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sdv-spin { animation-duration: 3s; } .sdv-bar i { animation: none; } }
+
+/* Full screen (owner, 11 Nov): a small quiet button in the top margin (above the header, never over the schedule);
+   faint until the mouse moves or it has the keyboard focus. TvFullscreen (js/services/tvFullscreenService.js). */
+.sdv-fs { position: fixed; top: 0.18rem; right: 0.6rem; z-index: 20; display: inline-flex; align-items: center; gap: 0.3rem; height: 0.8rem; margin: 0; padding: 0 0.45rem; border: 0; border-radius: 999px; background: transparent; color: var(--ta-muted); font-family: inherit; font-size: 0.55rem; font-weight: 700; line-height: 1; text-transform: none; cursor: pointer; opacity: 0.35; transition: opacity 0.25s ease; }
+.sdv-fs i { font-size: 0.6rem; }
+.sdv-fs--awake, .sdv-fs:hover, .sdv-fs:focus { opacity: 1; background: var(--ta-paper); }
+.sdv-fs:focus { outline: 2px solid var(--ta-accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .sdv-fs { transition: none; } }

@@ -674,13 +674,38 @@ app.controller('CourseContentController', CourseContentController);
             var a = vm.answerFor(q);
             return a && (a.is_correct === 0 || a.is_correct === '0');
         };
-        vm.saveReview = function(release) {
+        // be-alex-3e (10 Nov, owner): a review-required pre-solo check passes only on an instructor's explicit "passed"
+        // (outcome). Mark reviewed takes the attempt off the list WITHOUT a pass; Release with no outcome yet records
+        // passed. review_outcome absent = the backend before its migration: reviewed counted, no outcome to send.
+        vm.outcomeSupported = function() { return !!vm.attempt && vm.attempt.hasOwnProperty('review_outcome'); };
+        vm.passed = function() {
+            if (!vm.attempt) { return false; }
+            return vm.outcomeSupported() ? vm.attempt.review_outcome === 'passed' : vm.attempt.status === 'reviewed';
+        };
+        vm.canPass = function() {
+            return vm.outcomeSupported() && (vm.attempt.status === 'submitted' || vm.attempt.status === 'reviewed') && vm.attempt.review_outcome !== 'passed';
+        };
+        // D25: notes alone keep a submitted attempt on the review list; markReviewed takes it off without releasing.
+        vm.saveReview = function(release, markReviewed, outcome) {
             vm.saving = true;
-            QuestionnaireService.SaveReview(vm.attemptId, { instructor_notes: vm.reviewNotes, release: release ? true : false }).then(function(data) {
+            var body = { instructor_notes: vm.reviewNotes, release: release ? true : false };
+            if (markReviewed && !release) { body.mark_reviewed = true; }
+            if (outcome) { body.outcome = outcome; }
+            QuestionnaireService.SaveReview(vm.attemptId, body).then(function(data) {
                 vm.saving = false;
                 if (data && data.success) {
-                    ToastService.success(release ? 'Released to student' : 'Saved', release ? 'The student can now see their score & notes.' : 'Notes saved.');
                     vm.attempt = data.attempt || vm.attempt;
+                    if (release) {
+                        ToastService.success('Released to student', 'The student can now see their score & notes.');
+                    } else if (body.outcome === 'passed') {
+                        ToastService.success('Marked as passed', vm.attempt.score_released ? 'It counts as passed for solo.' : 'It counts as passed for solo and is off your review list. The student sees the score once you release it.');
+                    } else if (body.mark_reviewed) {
+                        ToastService.success('Marked reviewed', 'It\'s off your review list. The student sees the score once you release it.');
+                    } else if (vm.attempt.status === 'submitted') {
+                        ToastService.success('Notes saved', 'It\'s still on your review list. Mark it as passed, mark it reviewed, or release the score to take it off.');
+                    } else {
+                        ToastService.success('Notes saved', vm.attempt.score_released ? 'The student can see them.' : 'Shared when you release the score.');
+                    }
                 } else {
                     ToastService.error('Could not save', (data && data.message) || '');
                 }

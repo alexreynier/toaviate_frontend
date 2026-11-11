@@ -11,6 +11,8 @@
      members_hub.html    Members · Requests · Instructors · Missing Students (a real
                          parent STATE — header + tabs persist, only the body swaps)
      _stats_nav.html     Statistics · Accounting Export
+     _airfield_nav.html  Airfield Bookout · AirfieldHub (added 2026-11-10, batch 18,
+                         when both pages left the Settings page)
 
    Each partial is ng-include'd directly BELOW the host page's existing
    header. Those headers are deliberately left alone: unlike the My
@@ -195,4 +197,411 @@ body.night-mode .mchub-tabs .trk-tab--active:focus {
     .mhub__tabs .trk-tab i { display: none; }
     .mhub__actions { position: static; transform: none; margin-top: 14px; }
     .mhub__actions .members-page__add-btn { width: 100%; text-align: center; padding: 12px 20px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   AREA HUBS + HOME TILES (2026-11-10, batch 19 — step 2 of
+   ops/plans/PROPOSAL_MANAGE_CLUB_STRUCTURE.md §5)
+   ═══════════════════════════════════════════════════════════════
+   Four abstract hub states (ops_hub / accounting_hub / admin_hub /
+   super_admin_hub, AreaHubController, views/manageclub/area_hub.html) sit
+   between dashboard.manage_club and every Manage Club page: an area bar,
+   the area's tab row and the active tab's page row above the nested
+   ui-view. The pages render unchanged below (their own headers and the
+   older tab bars above stay). One zone colour per area — the same four
+   variables drive the hub chrome (.achub--<area>) and the home tiles
+   (.mcarea--<area>, views/manage_club.html). ── */
+
+/* Zone colours (light). --mc-zone = what tells you where you are; what you
+   press stays the brand navy (DESIGN_GUIDELINES §2 "zones"). */
+.achub, .mcarea {
+    --mc-zone: var(--ta-brand, #1e3a5f);
+    --mc-grad: var(--ta-grad, linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%));
+    --mc-ink: var(--ta-brand, #1e3a5f);
+    --mc-wash: var(--ta-tint-2, #f0f6fd);
+    --mc-line: var(--ta-brand-line, #bfdbfe);
+}
+.achub--ops, .mcarea--ops {                      /* teal — the desk */
+    --mc-zone: #0f766e; --mc-grad: linear-gradient(135deg, #115e59 0%, #0d9488 100%);
+    --mc-ink: #115e59; --mc-wash: #effbf9; --mc-line: #b9e9e2;
+}
+.achub--accounting, .mcarea--accounting {        /* green — the money */
+    --mc-zone: #15803d; --mc-grad: linear-gradient(135deg, #166534 0%, #16a34a 100%);
+    --mc-ink: #166534; --mc-wash: #f1faf3; --mc-line: #bfe6c9;
+}
+.achub--admin, .mcarea--admin {                  /* brand navy — configure */
+    --mc-zone: var(--ta-brand-2, #2d5a8e); --mc-grad: var(--ta-grad, linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%));
+    --mc-ink: var(--ta-brand, #1e3a5f); --mc-wash: var(--ta-tint-2, #f0f6fd); --mc-line: var(--ta-brand-line, #bfdbfe);
+}
+.achub--super_admin, .mcarea--super_admin {      /* graphite — the keys */
+    --mc-zone: #334155; --mc-grad: linear-gradient(135deg, #1f2937 0%, #475569 100%);
+    --mc-ink: #1f2937; --mc-wash: #f3f5f8; --mc-line: #cbd5e1;
+}
+.mcarea--safety {                                /* amber — SMS */
+    --mc-zone: #b45309; --mc-grad: linear-gradient(135deg, #92400e 0%, #d97706 100%);
+    --mc-ink: #92400e; --mc-wash: #fff8ed; --mc-line: #fcd9a8;
+}
+
+/* ── Host width: the hub (bar + nested view) fills the centred flex row
+   (.centre_align_boxes2 > div), as members_hub does, so the page width does
+   not jump between tabs. */
+.centre_align_boxes2 > div > ui-view:has(> .achub),
+.centre_align_boxes2 > div > ui-view:has(> .achub__view) {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+}
+.achub__view {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+.achub__view > .snazzy-page,
+.achub__view > .mdhub-page { max-width: 100%; }
+.achub__view:has(> .mhub) { width: 100%; }
+
+/* ── The area bar ── */
+.achub {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    margin: 0 0 14px;
+}
+.achub__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    padding: 9px 14px;
+    border-radius: 12px;
+    background: var(--mc-wash);
+    border: 1px solid var(--mc-line);
+    border-left: 6px solid var(--mc-zone);
+    margin-bottom: 10px;
+}
+.achub__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mc-ink);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.achub__back:hover, .achub__back:focus { color: var(--mc-zone); text-decoration: none; }
+.achub__back:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14); border-radius: 6px; }
+.achub__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--mc-ink);
+}
+.achub__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--mc-zone); flex: 0 0 auto; }
+.achub__name > .fa { font-size: 14px; color: var(--mc-zone); }
+.achub__title { font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.achub__hint { font-size: 12.5px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Area tabs (row 1): .trk-tabs/.mchub-tabs look, zone colour for the active one. */
+.achub__tabs { margin-bottom: 8px; }
+.achub__tabs .trk-tab--active,
+.achub__tabs .trk-tab--active:hover,
+.achub__tabs .trk-tab--active:focus {
+    color: var(--mc-ink);
+    border-bottom-color: var(--mc-zone);
+}
+
+/* ── Pages of the active tab (row 2): pills; a dashed pill opens in another area. */
+.achub__pages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 16px;
+}
+.achub__page {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.achub__page .fa { font-size: 11.5px; opacity: 0.85; }
+.achub__page:hover, .achub__page:focus { background: var(--mc-wash); color: var(--mc-ink); border-color: var(--mc-line); text-decoration: none; }
+.achub__page:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14); }
+.achub__page--active, .achub__page--active:hover, .achub__page--active:focus {
+    background: var(--mc-zone);
+    border-color: var(--mc-zone);
+    color: #fff;
+}
+.achub__page--cross { border-style: dashed; }
+.achub__cross { font-size: 9px; margin-left: 2px; opacity: 0.7; }
+
+/* ── Home tiles (views/manage_club.html). The grid host is the legacy
+   .centre_align_boxes2 > div rule (a centred wrapping flex row), so the tiles
+   size themselves with flex-basis instead of a grid. */
+.mcareas {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 1240px;
+    margin: 6px auto 28px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    text-align: left;
+}
+.mcarea {
+    flex: 1 1 300px;
+    max-width: 400px;
+    min-width: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px 15px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-top: 6px solid var(--mc-zone);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mcarea:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); }
+.mcarea__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    color: var(--mc-ink);
+}
+.mcarea__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    background: var(--mc-grad);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex: 0 0 auto;
+}
+.mcarea__titles { display: flex; flex-direction: column; min-width: 0; }
+.mcarea__title { font-size: 16px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.2; }
+.mcarea__sub { font-size: 12.5px; color: #64748b; }
+.mcarea__tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 13px;
+}
+.mcarea__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: var(--mc-wash);
+    border: 1px solid var(--mc-line);
+    color: var(--mc-ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.mcarea__tab .fa, .mcarea__tab .fas { font-size: 11px; opacity: 0.85; }
+.mcarea__tab:hover, .mcarea__tab:focus { background: var(--mc-zone); color: #fff; text-decoration: none; }
+.mcarea__tab:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16); }
+
+/* ── Manage Club home: Grouped view / Flat view (owner, 10 Nov 2026;
+   views/manage_club.html, ManageClubHomeController). The flat list sits on the
+   same zone variables as the tiles (.mcarea--<area> on each group / item). ── */
+/* The host ui-view is a flex item of the dashboard's centred row and shrink-wraps to its content (355px on a
+   1440 screen) — widen it as the area hub and the Members hub do (`:has(.mchome)`: a .centre_align_boxes2 div sits
+   between). */
+.centre_align_boxes2 > div > ui-view:has(.mchome) { flex: 1 1 100%; width: 100%; min-width: 0; }
+.mchome {
+    /* styles.css makes every `.centre_align_boxes2 > div` a centred flex ROW (0,7,1 specificity), which laid the
+       tab row and the list side by side — this host is a block */
+    display: block !important;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 8px;
+    box-sizing: border-box;
+    text-align: left;
+}
+.mchome__flat { max-width: 1240px; }
+.mchome__tabs { margin: 0 0 14px; }
+.mchome__tabs .trk-tab { cursor: pointer; }
+.mchome__flat { margin: 0 0 28px; }
+.mchome__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin: 0 0 8px;
+}
+.mchome__search-ic {
+    position: absolute;
+    left: 14px;
+    color: #94a3b8;
+    font-size: 14px;
+    pointer-events: none;
+}
+.mchome__q {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 44px 10px 40px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    color: #1e293b;
+    font-size: 16px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.mchome__q::placeholder { color: #94a3b8; font-weight: 400; }
+.mchome__q:focus { outline: none; border-color: #2d5a8e; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+.mchome__q::-webkit-search-cancel-button { display: none; }
+.mchome__clear {
+    position: absolute;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+.mchome__clear:hover, .mchome__clear:focus { background: #f1f5f9; color: #1e293b; outline: none; }
+.mchome__hint, .mchome__empty { margin: 0 2px 14px; font-size: 12.5px; color: #64748b; }
+.mchome__empty { padding: 18px 0; font-size: 14px; }
+.mchome__group { margin: 0 0 18px; }
+.mchome__group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mc-ink);
+}
+.mchome__group-title .fas { font-size: 11px; opacity: 0.8; }
+.mchome__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mc-zone); }
+.mchome__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 8px;
+}
+.mchome__item { min-width: 0; }
+.mchome__link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 54px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-left: 5px solid var(--mc-zone);
+    color: #1e293b;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.mchome__link:hover, .mchome__link:focus { background: var(--mc-wash); border-color: var(--mc-line); border-left-color: var(--mc-zone); color: var(--mc-ink); text-decoration: none; transform: translateY(-1px); }
+.mchome__link:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14); }
+.mchome__ic {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--mc-grad);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex: 0 0 auto;
+}
+.mchome__txt { display: flex; flex-direction: column; min-width: 0; }
+.mchome__label { font-size: 14px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mchome__sub { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.night-mode .mchome__q { background: #0f172a; border-color: #334155; color: #e2e8f0; box-shadow: none; }
+body.night-mode .mchome__clear:hover, body.night-mode .mchome__clear:focus { background: #1e293b; color: #e2e8f0; }
+body.night-mode .mchome__hint, body.night-mode .mchome__empty, body.night-mode .mchome__sub { color: #94a3b8; }
+/* Night: the page ground under Manage Club home stays WHITE (the app's night mode never darkens it), so the group
+   titles keep their zone ink — a light title there was invisible. The rows are dark cards on that ground. */
+body.night-mode .mchome .mchome__group-title, body.night-mode .mchome .mchome__group-title .fas { color: var(--mc-ink) !important; opacity: 1; }
+body.night-mode .mchome__link { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+body.night-mode .mchome__link:hover, body.night-mode .mchome__link:focus { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+
+/* ── Phone ── */
+@media only screen and (max-width: 768px) {
+    .achub { margin-bottom: 10px; }
+    .achub__bar { padding: 8px 10px; border-left-width: 5px; }
+    .achub__hint { display: none; }
+    .achub__back span { font-size: 12.5px; }
+    .achub__tabs {
+        margin-bottom: 8px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .achub__tabs::-webkit-scrollbar { display: none; }
+    .achub__tabs .trk-tab { padding: 10px 12px; font-size: 12.5px; flex: 0 0 auto; }
+    .achub__pages { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; scrollbar-width: none; }
+    .achub__pages::-webkit-scrollbar { display: none; }
+    .mcareas { gap: 12px; padding: 0; margin: 0 0 20px; }
+    .mchome { padding: 0; }
+    .mchome__tabs { margin-bottom: 10px; }
+    .mchome__list { grid-template-columns: 1fr; gap: 6px; }
+    .mchome__link { min-height: 50px; }
+    .mchome__q { font-size: 16px; }   /* iOS: never smaller, or Safari zooms */
+    .mcarea { flex: 1 1 100%; max-width: 100%; padding: 14px 14px 13px; }
+}
+@media only screen and (max-width: 420px) {
+    .achub__tabs .trk-tab i { display: inline; }   /* icon-less tabs would read as bare words here; keep them */
+    .achub__back span { display: inline; }
+}
+
+/* ── Night mode ── */
+body.night-mode .achub__bar { background: #1e293b; border-color: #334155; }
+body.night-mode .achub__back, body.night-mode .achub__name { color: #e2e8f0; }
+body.night-mode .achub__hint { color: #94a3b8; }
+body.night-mode .achub__tabs .trk-tab--active { color: #e2e8f0; }
+body.night-mode .achub__page { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+body.night-mode .achub__page:hover, body.night-mode .achub__page:focus { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+body.night-mode .achub__page--active, body.night-mode .achub__page--active:hover { background: var(--mc-zone); border-color: var(--mc-zone); color: #fff; }
+body.night-mode .mcarea { background: #1e293b; border-color: #334155; box-shadow: none; }
+body.night-mode .mcarea__head { color: #e2e8f0; }
+body.night-mode .mcarea__sub { color: #94a3b8; }
+body.night-mode .mcarea__tab { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+body.night-mode .mcarea__tab:hover, body.night-mode .mcarea__tab:focus { background: var(--mc-zone); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+    .mcarea, .achub__page, .mcarea__tab, .mchome__link { transition: none; }
+    .mchome__link:hover { transform: none; }
+    .mcarea:hover { transform: none; }
 }

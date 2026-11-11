@@ -2,7 +2,7 @@
    v2 DESIGNS BESIDE v1 (owner, 8 Nov 2026) — the one switch for the whole app.
 
    • The switch: localStorage `toaviate_design_v2 = '1'` (per browser), shown as the "Try our v2 designs"
-     tag in the main menu (<design-switch>). Every v2 page offers "Back to classic designs".
+     pill in the bottom-right corner of every page (<design-switch>). Every v2 page offers "Back to classic designs".
    • Routing: every v2 screen registers its states under `dashboard.v2.*` (URL /dashboard/v2/…) in its own
      file (js/v2/<screen>/<screen>.js) and maps each v1 state it replaces:
          app.config(['DesignRoutesProvider', function (DesignRoutesProvider) {
@@ -109,7 +109,14 @@ app.run(['$rootScope', '$state', '$location', 'DesignService', 'DesignRoutes', f
         var intent = DesignService.intentFor(toState.name);
         if (intent) { if (DesignService.isV2() !== intent.on) { DesignService.write(intent.on); } return; }
         var on = DesignService.isV2();
+        // a link to something only v2 has (e.g. a Suggest-a-time offer from an e-mail: data.keepV2With = 'offer') stays on
+        // v2 with the switch off — the classic page could not show it
+        var keep = toState.data && toState.data.keepV2With;
+        if (!on && keep && toParams && toParams[keep]) { return; }
         var target = on ? DesignRoutes.v2For(toState.name) : DesignRoutes.v1For(toState.name);
+        // a signed-in user landing on /login (an unknown URL falls back there) is bounced straight to the dashboard by
+        // LoginController — sending them through the v2 sign-in first only adds a hop (10 Nov: it tripped $rootScope:infdig)
+        if (target && toState.name === 'login') { var cu = $rootScope.globals && $rootScope.globals.currentUser; if (cu && cu.id) { return; } }
         if (target) {
             event.preventDefault();
             // URL-driven (typed URL, e-mail link, refresh, browser Back): the browser already shows the other design's
@@ -127,18 +134,61 @@ app.run(['$rootScope', '$state', '$location', 'DesignService', 'DesignRoutes', f
         document.body.classList.toggle('ta-v2', v2);
         // views/dashboard.html swaps its two .centre_align_boxes2 wrappers for .v2-shell while a v2 page shows
         $rootScope.v2Page = v2;
+        applyZone();
     });
+    // the switch can flip without a page change (a page with no other design), so follow it too
+    $rootScope.$watch('designV2', applyZone);
+
+    // Which area the page belongs to, for the zone strip under the header (css/v2/core.css, tokens in ta-base.css):
+    // My Account (v1 + v2 pages) = 'account', the Instructor Dashboard = 'instructor'. Only while the v2 switch is on.
+    function zoneOf(name) {
+        if (/^dashboard\.v2\.instructor_/.test(name)) { return 'instructor'; }   // Instructor Dashboard v2 (before the dashboard.v2.* catch-all)
+        // the scheduler v2 (/dashboard/bookings_v2) is a My Account page too (owner, 11 Nov 2026)
+        if (/^dashboard\.(my_account|v2\.|questions_link|scheduler_v2(\.|$))/.test(name)) { return 'account'; }   // the booking panel (scheduler_v2.add / .edit) keeps the strip
+        if (/^dashboard\.manage_user(\.|$)/.test(name)) { return 'instructor'; }
+        return '';
+    }
+    // Which header menu item the page belongs to, for the lit menu link (css/v2/core.css body[data-nav]) — owner, 11 Nov
+    // 2026: the link of the page you are ON is lit (Scheduler on the scheduler), while the strip still says the area.
+    // Order matters: the specific items before the My Account catch-all (dashboard.v2.*).
+    function navOf(name) {
+        if (/^dashboard\.(add_booking|scheduler_v2)(\.|$)/.test(name)) { return 'scheduler'; }
+        if (/^dashboard\.(slot_search|v2\.find_a_slot)(\.|$)/.test(name)) { return 'find_slot'; }
+        if (/^dashboard\.(manage_user(\.|$)|v2\.instructor_)/.test(name)) { return 'instructor'; }
+        if (/^dashboard\.(manage_club|manage_instructor_bookings)(\.|$)/.test(name)) { return 'manage_club'; }
+        if (/^dashboard\.super_admin(\.|$)/.test(name)) { return 'admin'; }
+        if (/^dashboard\.(my_account|v2\.|questions_link)/.test(name)) { return 'account'; }
+        return '';
+    }
+    function applyZone() {
+        var name = $state.current.name || '';
+        var zone = DesignService.isV2() ? zoneOf(name) : '';
+        if (zone) { document.body.setAttribute('data-zone', zone); } else { document.body.removeAttribute('data-zone'); }
+        var nav = DesignService.isV2() ? navOf(name) : '';
+        if (nav) { document.body.setAttribute('data-nav', nav); } else { document.body.removeAttribute('data-nav'); }
+        // the v2 switch itself (every page, v1 or v2): the app header takes the v2 typography (css/v2/core.css)
+        document.body.classList.toggle('design-v2', DesignService.isV2());
+    }
 }]);
 
-// The "Try our v2 designs" tag in the main menu (desktop header and the phone menu).
+// ngAnimate off INSIDE every v2 page (<main class="ta-page">). An element with a CSS animation that ng-if / ng-repeat
+// removes otherwise lingers for the animation's length (the trap lgbPlainClass and instructor_core's ins-plain solved per
+// page; those stay harmless). Entering elements still play their own CSS animations, and the page's ui-view clone is
+// outside <main>, so the route fade (snazzy-pages.css [ui-view].ng-enter) still runs.
+app.directive('taPage', ['$animate', function ($animate) {
+    return { restrict: 'C', link: function (scope, element) { $animate.enabled(element, false); } };
+}]);
+
+// The "Try our v2 designs" pill: fixed in the bottom-right corner of the page (owner, 10 Nov 2026; css/v2/core.css
+// .v2-switch). Mounted once in views/dashboard.html (every signed-in page) and on each public sign-in page.
 app.directive('designSwitch', ['DesignService', '$rootScope', function (DesignService, $rootScope) {
     return {
         restrict: 'E',
         scope: { onDone: '&' },
-        template: '<a class="v2-switch" ng-class="{\'v2-switch--on\': on()}" ng-click="flip()" no-busy-guard role="button" tabindex="0"' +
+        template: '<button type="button" class="v2-switch" ng-class="{\'v2-switch--on\': on()}" ng-click="flip()" no-busy-guard' +
             ' title="{{ on() ? \'You are trying the v2 designs. Go back to the classic designs.\' : \'Try the new designs. You can switch back at any time.\' }}">' +
             '<i class="fas" ng-class="on() ? \'fa-undo\' : \'fa-magic\'"></i>' +
-            '<span ng-if="!on()">Try our v2 designs</span><span ng-if="on()">v2 designs · back to classic</span></a>',
+            '<span ng-if="!on()">Try our v2 designs</span><span ng-if="on()">v2 designs · back to classic</span><small ng-if="!on()">· new</small></button>',
         link: function (scope) {
             scope.on = function () { return !!$rootScope.designV2; };
             scope.flip = function () { DesignService.toggle(); scope.onDone(); };

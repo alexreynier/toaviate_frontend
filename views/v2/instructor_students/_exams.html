@@ -1,0 +1,42 @@
+<!-- EXAMS & FORMS (page "exams"): every ground-exam sitting (edit, history, delete for admins, add a result), the course's
+     questionnaires, and the student's completed CAA forms -->
+<section class="ta-list stu-exams ins-rise" data-e2e="stu-exams">
+  <div class="stu-listhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-graduation-cap"></i></span><div class="ta-card__ttl"><h3>Ground exams</h3><p>{{ vm.X.exams.length ? vm.C.plural(vm.X.exams.length, 'result') + ' · every sitting, newest result per exam last' : 'No results entered yet' }}</p></div></div><button type="button" class="ta-btn" ng-click="vm.examAdd()" ng-if="vm.X.examList.length" no-busy-guard data-e2e="stu-examadd"><i class="fas fa-plus"></i>Add a result</button></div>
+  <div class="ta-list__cols" ng-if="vm.X.exams.length"><span></span><span>Exam</span><span>Date</span><span>Score</span><span>Outcome</span><span></span></div>
+  <div class="ta-row" ng-repeat="e in vm.X.exams track by e.id" ng-class="{'ta-row--open': vm.Ex.open === e.id}" data-e2e="stu-exam">
+    <button type="button" class="ta-row__main" ng-click="vm.examToggle(e)" aria-expanded="{{ vm.Ex.open === e.id }}" no-busy-guard>
+      <span class="ta-row__lead"><span class="ta-kind ta-kind--exam" title="Exam"><i class="fas fa-graduation-cap"></i></span></span>
+      <span class="ta-row__txt"><span class="ta-row__title">{{ e.title }} <span class="stu-sitting" ng-if="e.many">· sitting {{ e.sitting }}</span></span><span class="ta-row__sub">Sitting {{ e.sitting }}{{ e.set ? ' · set ' + e.set : '' }}{{ e.examiner ? ' · examiner ' + e.examiner : '' }}</span></span>
+      <span class="ta-row__meta"><span class="ta-row__date">{{ e.date ? vm.C.fDate(e.date) : '—' }}</span><span class="stu-score">{{ e.result != null ? e.result + '%' : '—' }}</span><span class="ta-pill {{ e.pill.cls }}"><i class="fas {{ e.pill.ic }}" ng-if="e.pill.ic"></i>{{ e.pill.label }}</span></span>
+      <span class="ta-row__acts"><span class="ta-btn ta-btn--sm" role="button" tabindex="0" ng-click="vm.examEdit(e, $event)" ng-keydown="vm.examKey($event, e)" no-busy-guard><i class="fas fa-pen"></i>Edit</span></span><span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+    </button>
+    <div class="ta-detail" ng-if="vm.Ex.open === e.id">
+      <div class="ta-panel ta-panel--white"><dl class="ta-facts ta-facts--3"><div class="ta-fact"><dt>Date sat</dt><dd>{{ e.date ? vm.C.fDayLong(e.date) : 'Not given' }}</dd></div><div class="ta-fact"><dt>Score</dt><dd>{{ e.result != null ? e.result + '%' : 'Not given' }} <small>· the pass is the examiner’s call, not the score’s</small></dd></div><div class="ta-fact"><dt>Examiner</dt><dd>{{ e.examiner || 'Not given' }}</dd></div><div class="ta-fact" ng-if="e.notes"><dt>Notes</dt><dd>{{ e.notes }}</dd></div></dl></div>
+      <div class="ta-confirm ta-confirm--inline" ng-if="vm.Ex.del === e.id"><span>Delete this {{ e.title }} result from {{ vm.X.first }}’s records? It stays in the history.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.examDelNo()" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.examDelete(e)" ng-disabled="vm.Ex.busy" data-e2e="stu-examdeldo"><span class="ta-spin" ng-if="vm.Ex.busy === 'del:' + e.id"></span>{{ vm.Ex.busy === 'del:' + e.id ? 'Deleting…' : 'Delete' }}</button></div>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.examHistory(e)" no-busy-guard data-e2e="stu-examhist"><i class="fas fa-history"></i>History</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--danger" ng-if="vm.isAdmin && vm.Ex.del !== e.id" ng-click="vm.examDelAsk(e)" no-busy-guard data-e2e="stu-examdel"><i class="fas fa-trash-alt"></i>Delete</button><button type="button" class="ta-btn" ng-click="vm.examEdit(e)" no-busy-guard data-e2e="stu-examedit"><i class="fas fa-pen"></i>Edit result</button></div>
+    </div>
+  </div>
+  <div class="ta-empty" ng-if="!vm.X.exams.length"><span class="ta-empty__ic"><i class="fas fa-graduation-cap"></i></span><h4>No exam results yet</h4><p>{{ vm.X.examList.length ? 'Results the club enters after each sitting appear here, with every re-sit.' : vm.X.courseTitle + ' has no ground exams.' }}</p></div>
+  <div class="stu-listfoot" ng-if="vm.X.notTaken.length"><span class="ta-hint">Not taken yet: {{ vm.X.notTaken.join(', ') }}</span></div>
+</section>
+
+<section class="ta-list stu-quiz ins-rise" style="--i: 1" data-e2e="stu-quiz">
+  <div class="stu-listhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-list"></i></span><div class="ta-card__ttl"><h3>Questionnaires on this course</h3><p>The latest attempt at each one attached to {{ vm.X.courseTitle }} or its lessons</p></div></div><a class="ta-btn" href="" ng-click="vm.allQuestionnaires()"><i class="fas fa-clipboard-check"></i>All of {{ vm.X.first }}’s questionnaires</a></div>
+  <div class="ta-list__cols" ng-if="vm.X.quiz.length"><span></span><span>Questionnaire</span><span>Submitted</span><span>Status</span><span class="ta-r">Score</span></div>
+  <div class="ta-row" ng-repeat="q in vm.X.quiz track by q.id"><button type="button" class="ta-row__main" ng-click="vm.openQuiz(q)" title="{{ q.review ? 'Review ' + q.title : 'Open ' + q.title }}">
+    <span class="ta-row__lead"><span class="ta-ic ta-ic--brand"><i class="fas fa-clipboard-check"></i></span></span>
+    <span class="ta-row__txt"><span class="ta-row__title">{{ q.title }}</span><span class="ta-row__sub">{{ q.when }}{{ q.attempt > 1 ? ' · attempt ' + q.attempt : '' }}</span></span>
+    <span class="ta-row__meta"><span class="ta-row__date">{{ q.at ? vm.C.fDate(q.at) : '—' }}</span><span class="ta-pill {{ q.pill.cls }}"><i class="fas {{ q.pill.ic }}" ng-if="q.pill.ic"></i>{{ q.pill.label }}</span></span>
+    <span class="ta-row__end"><span class="stu-score" ng-if="q.score">{{ q.score.a }}<small>/{{ q.score.b }}</small></span><span class="stu-score" ng-if="!q.score">—</span></span><span class="ta-row__chev"><i class="fas fa-chevron-right"></i></span></button></div>
+  <div class="ta-empty" ng-if="!vm.X.quiz.length"><span class="ta-empty__ic"><i class="fas fa-clipboard-list"></i></span><h4>No questionnaires taken on this course</h4><p>Questionnaires attached to the course or its lessons appear here once {{ vm.X.first }} opens one.</p></div>
+</section>
+
+<section class="ta-list stu-docs ins-rise" style="--i: 2" data-e2e="stu-docs">
+  <div class="stu-listhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-file-contract"></i></span><div class="ta-card__ttl"><h3>CAA documents</h3><p>{{ vm.X.first }}’s completed CAA forms at {{ vm.clubTitle() }}</p></div></div></div>
+  <div class="ta-row" ng-repeat="d in vm.X.docs track by d.id"><button type="button" class="ta-row__main" ng-click="vm.openDoc(d)" title="Open the form (and come back here)">
+    <span class="ta-row__lead"><span class="ta-ic"><i class="fas fa-file-contract"></i></span></span>
+    <span class="ta-row__txt"><span class="ta-row__title">{{ d.title }}</span><span class="ta-row__sub">Completed {{ vm.C.fDate(d.at) }}{{ d.by ? ' · signed by ' + d.by : '' }}</span></span>
+    <span class="ta-row__meta"><span class="ta-pill ta-pill--good"><i class="fas fa-check"></i>Completed</span></span><span class="ta-row__acts"><span class="ta-ib" role="button" tabindex="0" ng-click="vm.docPdf(d, $event)" ng-keydown="vm.docKey($event, d)" title="Download the PDF" aria-label="Download the PDF" no-busy-guard data-e2e="stu-docpdf"><span class="ta-spin ta-spin--dark" ng-if="vm.Ex.pdf === d.id"></span><i class="fas fa-file-pdf" ng-if="vm.Ex.pdf !== d.id"></i></span></span><span class="ta-row__chev"><i class="fas fa-chevron-right"></i></span></button></div>
+  <div class="ta-row stu-docs__loading" ng-if="vm.X.docsSt === 'loading'"><div class="stu-skel"><span class="ta-skel stu-skel__av"></span><span class="stu-skel__txt"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></span></div></div>
+  <div class="ta-empty" ng-if="vm.X.docsSt === 'ready' && !vm.X.docs.length"><span class="ta-empty__ic"><i class="fas fa-file-contract"></i></span><h4>No completed CAA forms</h4><p>Forms {{ vm.X.first }} completes at the club (certified copies, SRG forms) appear here to open or download.</p></div>
+</section>

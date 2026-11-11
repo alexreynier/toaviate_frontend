@@ -25,7 +25,19 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     vm.settings = {};
     vm.loading = false;
     vm.error = null;
+    // first load (owner, 11 Nov): the shared runway (<ta-runway>) instead of a spinner line, held for a moment so it
+    // reads as an opening, not a flicker — the board appears once the day is in AND BOOT_HOLD_MS have passed
+    var BOOT_HOLD_MS = 1400, bootAt = Date.now();
+    vm.booting = true;
+    vm.bootSteps = ['Fetching the bookings', 'Drawing the schedule'];
+    vm.bootStep = 0;
+    function bootDone() {
+        if (!vm.booting) { return; }
+        vm.bootStep = 1;
+        $timeout(function () { vm.booting = false; }, Math.max(0, BOOT_HOLD_MS - (Date.now() - bootAt)));
+    }
     vm.isStaff = isStaffAnywhere();
+    vm.isManager = isManagerAnywhere();   // Re-allocate aircraft is managers-only (the backend gates per club)
     vm.waitingBadge = 0;
     vm.match = null;            // { count, slot } — "people on the waiting list could take this slot" banner
     vm.scheduler = null;        // directive api
@@ -80,9 +92,11 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
                 vm.loading = false;
                 if (!data || !data.success) {
                     vm.error = textOf(data && data.message) || 'The schedule could not be loaded.';
+                    vm.booting = false;      // the error card, not the runway
                     return data;
                 }
                 vm.day = data;
+                bootDone();
                 vm.settings = data.settings || {};
                 vm.version = data.schedule_version;
                 if (typeof vm.settings.is_staff !== 'undefined') { vm.isStaff = !!vm.settings.is_staff; }
@@ -646,6 +660,30 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
         });
     };
 
+    // Re-allocate aircraft (owner, 10 Nov 2026; managers only): one aircraft per instructor per type for a day,
+    // previewed then applied, or the next N days in one go. Only the clubs the viewer manages; the scheduler's club
+    // filter wins when it is one of them. The panel starts on the scheduler's day and refetches on a change.
+    vm.openReallocate = function () {
+        loadClubs().then(function (clubs) {
+            var a = (vm.user && vm.user.access) || {};
+            var managerIds = [].concat(a.manager || [], a.super_admin || []).map(function (x) { return parseInt(x, 10); });
+            var mine = (clubs || []).filter(function (c) { return managerIds.indexOf(parseInt(c.id, 10)) > -1; });
+            if (!mine.length) { ToastService.warning('Managers only', 'Only a club manager can re-allocate aircraft.'); return; }
+            var pick = (vm.clubFilter && mine.some(function (c) { return parseInt(c.id, 10) === vm.clubFilter; })) ? vm.clubFilter : defaultClubId(mine);
+            if (!mine.some(function (c) { return parseInt(c.id, 10) === parseInt(pick, 10); })) { pick = parseInt(mine[0].id, 10); }
+            // the day's bookings, so the panel can say WHICH booking stays put (kept rows carry only an id + reason)
+            var byId = {};
+            angular.forEach((vm.day && vm.day.bookings) || [], function (b) { if (b && b.id) { byId[b.id] = b; } });
+            $uibModal.open({
+                templateUrl: 'views/modals/reallocate_panel.html',
+                controller: 'ReallocatePanelController',
+                controllerAs: 'vm',
+                windowClass: 'sv2-modal-window sv2-wide-window',
+                resolve: { ctx: function () { return { clubs: mine, club_id: pick, date: vm.date, bookings: byId, schedulerDate: vm.date }; } }
+            }).result.then(function (r) { if (r && r.changed) { vm.refetch(); } }, function (r) { if (r && r.changed) { vm.refetch(); } });
+        });
+    };
+
     function openStaffPanel(clubs, slot, opts) {
         opts = opts || {};
         var bookingIds = {};
@@ -767,6 +805,10 @@ function SchedulerV2Controller($rootScope, $scope, $state, $stateParams, $uibMod
     };
 
     // ── helpers ──
+    function isManagerAnywhere() {
+        var a = (vm.user && vm.user.access) || {};
+        return !!((a.manager && a.manager.length) || (a.super_admin && a.super_admin.length));
+    }
     function isStaffAnywhere() {
         var a = (vm.user && vm.user.access) || {};
         return !!((a.manager && a.manager.length) || (a.instructor && a.instructor.length) || (a.super_admin && a.super_admin.length));

@@ -42,11 +42,11 @@ confirmed present on `local-api` (they return 403 without a session, 200 for
 
 ---
 
-## B. Club screen — Manage Club → Settings → AirfieldHub
+## B. Club screen — Manage Club → Ops → Aircraft → Airfield → AirfieldHub tab (was Settings → AirfieldHub until 2026-11-10; also linked from Super-admin → Integrations)
 
 | # | Step | Expected |
 |---|---|---|
-| B1 | Settings page | New **AirfieldHub** card after "Airfield Bookout System" |
+| B1 | Manage Club home | **Ops** tile → **Aircraft** tab → **Airfield** page opens Airfield Bookout with an **AirfieldHub (PPR)** tab (`/dashboard/manage_club/airfield/airfield_hub`; the old `/manage_club/airfield_hub` URL redirects) |
 | B2 | Open it | Header shows **Active** / **Not active** pill; hero explains the feature in one line |
 | B3 | **Setup**, no environment chosen | Enable toggle is **disabled**, sub-label reads "Choose an environment first" |
 | B4 | Environment dropdown | Lists **only** environments with a key. Hint says keys never appear in the browser |

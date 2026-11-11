@@ -1,0 +1,25 @@
+<!-- Signatures · sign one line (InstructorSignaturesV2Controller, vm.form). A record dialog in the aircraft's colour; a bottom sheet on phones.
+     Field ids kept from v1's sign modal: end-sign-name, end-sign-number, end-sign-text. -->
+<div class="ta-dlg-scrim" sgn-portal ng-click="vm.scrim($event)" no-busy-guard>
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sgn-dlg-t" tabindex="-1" data-e2e="sgn-dlg-sign">
+    <div class="ta-dlg__hd" style="--edge: {{ vm.form.row.line.colour || 'var(--ta-brand-2)' }}">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-file-signature"></i>Sign logbook entry</div>
+      <div class="ta-dlg__title" id="sgn-dlg-t">{{ vm.form.row.dlgTitle }}</div>
+      <div class="ta-dlg__sub">{{ vm.form.row.dlgSub }}<b>{{ vm.form.row.pilot }}</b>’s logbook</div>
+    </div>
+    <div class="ta-dlg__body">
+      <div class="sgn-quote" ng-if="vm.form.row.note"><i class="fas fa-comment-alt"></i><div>“{{ vm.form.row.note }}”<small>{{ vm.form.row.first }}, {{ vm.form.row.askedShort }}</small></div></div>
+      <div class="ta-grid-2">
+        <div class="ta-field" ng-class="{'ta-field--error': vm.form.err.name}"><label class="ta-label" for="end-sign-name">Your full name</label><input class="ta-input" id="end-sign-name" ng-model="vm.form.name" ng-change="vm.fixed(vm.form, 'name')" maxlength="255" autocomplete="name" no-busy-guard><span class="ta-field__msg" ng-if="vm.form.err.name">{{ vm.form.err.name }}</span></div>
+        <div class="ta-field"><label class="ta-label" for="end-sign-number">FI / CRI / FE number <em>optional</em></label><input class="ta-input" id="end-sign-number" ng-model="vm.form.num" maxlength="100" autocomplete="off" no-busy-guard placeholder="e.g. 501685A"></div>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.form.err.text}"><label class="ta-label" for="end-sign-text">Endorsement wording</label><div class="sgn-words"><button type="button" class="ta-chip" ng-repeat="w in vm.wordings" ng-class="{'ta-chip--on': vm.form.text === w}" ng-click="vm.pickWord(vm.form, w)" no-busy-guard>{{ w }}</button></div><textarea class="ta-textarea" id="end-sign-text" ng-model="vm.form.text" ng-change="vm.fixed(vm.form, 'text')" rows="2" maxlength="2000" no-busy-guard placeholder="Or type your own wording"></textarea><span class="ta-field__msg" ng-if="vm.form.err.text">{{ vm.form.err.text }}</span></div>
+      <label class="ta-toggle" ng-if="vm.stamp"><input type="checkbox" class="ta-toggle__input" ng-model="vm.form.saved" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-stamp"></i>Use my saved signature</span><span class="ta-toggle__s">{{ vm.form.savedFrom }} Turn off to draw a new one for this line only.</span></span><span class="ta-switch" aria-hidden="true"></span></label>
+      <div class="sgn-saved" ng-if="vm.stamp && vm.form.saved"><span class="sgn-stamp__sig"><span class="sgn-sig" sgn-ink="vm.stamp.image"></span></span><small>Applied to this line when you sign. Blank name or number fields take the stamp’s.</small></div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.form.err.sig}" ng-show="!vm.stamp || !vm.form.saved"><span class="ta-label">Your signature</span><sgn-pad class="sgn-padw" image="vm.form.image" label="Sign here with your finger or mouse" clear-label="Clear and sign again" on-draw="vm.fixed(vm.form, 'sig')"></sgn-pad><span class="ta-field__msg" ng-if="vm.form.err.sig">{{ vm.form.err.sig }}</span><span class="ta-hint" ng-if="!vm.stamp">Tip: save a stamp with “Save my stamp” on this page and skip the pad next time.</span></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.signGo()" ng-disabled="vm.busy" no-busy-guard data-e2e="sgn-sign-go"><span class="ta-spin" ng-if="vm.busy"></span><i class="fas fa-stamp" ng-if="!vm.busy"></i>{{ vm.busy ? 'Signing…' : 'Sign entry' }}</button></div>
+  </div>
+</div>

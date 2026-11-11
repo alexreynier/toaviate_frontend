@@ -8,6 +8,16 @@
 /* the app's fixed header (#main_header2, 50px, z-index int-max) covers anything fixed at top 0: ta-base's full-screen
    layers (.ta-dlg-scrim, the open .ta-combo) start below it. The mockups don't set this, so they keep top 0. */
 :root { --ta-top-offset: 50px; }
+/* desktop dialogs centre on the WINDOW, as the mockups draw them: the scrim starts under the header, so its bottom padding
+   gives that height back. A dialog taller than the space starts at the top (auto margins never go negative) and may run
+   into the given-back strip, so it is no shorter than before. Phones keep the bottom sheet. */
+@media (min-width: 601px) {
+  .ta-dlg-scrim { padding-bottom: calc(20px + var(--ta-top-offset, 0px)); }
+  .ta-dlg-scrim > .ta-dlg { margin-block: auto; max-height: calc(100% + var(--ta-top-offset, 0px)); }
+}
+/* the dialog panel itself takes focus when it opens (for screen readers): no ring round the whole panel (ta-base's
+   :focus-visible), the mockups never draw one; the controls inside keep theirs */
+.ta-dlg-scrim > .ta-dlg:focus, .ta-dlg-scrim > .ta-dlg:focus-visible { outline: none; }
 
 /* ── v2 baseline: the mockups run on the browser defaults + ta-base.css only. The app also loads bootstrap.min.css and
    styles.css, whose ELEMENT rules leak into v2 (found by the fidelity pass, scratchpad v2/fidelity). These rules undo
@@ -54,10 +64,20 @@
 :where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) a:hover, :where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) a:focus { color: var(--ta-accent); }
 /* bootstrap small 85%, dl/dt/dd, hr, table th, fieldset/legend, img vertical-align */
 :where(.v2-host, .ta-dlg-scrim) small { font-size: smaller; }
+/* bootstrap `kbd { padding; colour #fff; background #333; radius 3px; box-shadow inset }`: key caps style themselves */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) kbd { padding: 0; color: inherit; background-color: transparent; border-radius: 0; box-shadow: none; font-family: monospace; }   /* the browser's own kbd font (the * inherit above caught it); caps whose class sets a font keep it */
+/* bootstrap / normalize hide the browser's own clear × on search fields (appearance none on the field and its cancel button) */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) input[type="search"],
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: auto; appearance: auto; }
+/* styles.css `a small { font-size: 11px; color: #777; margin-top: -0.6em; display: block }` (it pulled a link's small up) */
+:where(.v2-host, .ta-dlg-scrim) a small { display: inline; margin-top: 0; font-size: smaller; color: inherit; }
 :where(.v2-host, .ta-dlg-scrim) dl { margin: 0; } :where(.v2-host, .ta-dlg-scrim) dt { font-weight: inherit; } :where(.v2-host, .ta-dlg-scrim) dd { margin: 0; }
 /* styles.css `ul li { color: #999; cursor: pointer }` (0,0,2): list items take their colour / cursor from their own
    class or their parent, as in the mockups */
-:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) ul li { color: inherit; cursor: inherit; }
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) ul li { color: inherit; cursor: inherit; transition: none; }   /* + its `transition: all 0.3s` */
+/* …and its `ul li:hover { color: #111; text-decoration: underline }` (0,1,2): same weight here, loaded later, so it is undone;
+   a page's own hover rule (a class + :hover, 0,2,x) still wins. Found by the Briefings build (rail links, .ta-pickmenu__list li). */
+:where(.v2-host, .ta-dlg-scrim, .ta-pickmenu) ul li:hover { color: inherit; text-decoration: none; }
 :where(.v2-host, .ta-dlg-scrim) th { text-align: inherit; }
 /* styles.css's reset puts `vertical-align: baseline` on every table part; the browser default is middle */
 :where(.v2-host, .ta-dlg-scrim) thead, :where(.v2-host, .ta-dlg-scrim) tbody, :where(.v2-host, .ta-dlg-scrim) tfoot,
@@ -79,31 +99,94 @@ body.ta-v2 { padding-top: 28px; }
 body.night-mode.ta-v2 { background: var(--ta-ground); }
 
 /* "Try our v2 designs" — a tag in the main menu */
-.v2-switch { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--ta-brand-2); background: var(--ta-tint); color: var(--ta-brand); font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; cursor: pointer; text-decoration: none; }
-.v2-switch:hover, .v2-switch:focus { background: var(--ta-group); color: var(--ta-brand); text-decoration: none; }
-.v2-switch i { font-size: 11px; }
-.v2-switch--on { border-style: solid; background: var(--ta-grad); color: #fff; border-color: transparent; }
-.v2-switch--on:hover, .v2-switch--on:focus { color: #fff; filter: brightness(1.08); background: var(--ta-grad); }
-body.night-mode .v2-switch:not(.v2-switch--on) { color: var(--ta-accent); }
-#main_menu > li.menu_v2 { display: flex; align-items: center; }
-@media (max-width: 768px) { #main_menu > li.menu_v2 { padding: 10px 16px; } .v2-switch { font-size: 14px; padding: 8px 14px; } }
+/* "Try our v2 designs": ONE pill, fixed in the bottom-right corner of every page (owner, 10 Nov — it used to be a tag in
+   the main menu) — the <design-switch> directive, mounted once in views/dashboard.html and on each public sign-in page.
+   Dialog scrims and fixed bottom bars sit above it; on phones it hides while a bottom action bar / the booking panel shows. */
+.v2-switch { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 1000; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; padding: 8px 14px 8px 12px; border-radius: 999px; border: 1px solid var(--ta-line-2); background: var(--ta-paper); color: var(--ta-ink); font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1.2; letter-spacing: 0; text-transform: none; white-space: nowrap; box-shadow: var(--ta-shadow-2); cursor: pointer; text-decoration: none; -webkit-appearance: none; appearance: none; transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease; }
+.v2-switch i { font-size: 12px; color: var(--ta-accent); }
+.v2-switch small { font-size: 12px; font-weight: 600; opacity: 0.8; }
+.v2-switch:hover { background: var(--ta-tint); border-color: var(--ta-brand-line); color: var(--ta-ink); text-decoration: none; }
+.v2-switch:focus { color: var(--ta-ink); outline: none; text-decoration: none; }
+.v2-switch:focus-visible { outline: 2px solid var(--ta-focus-outline); outline-offset: 2px; }
+.v2-switch:active { transform: translateY(1px); }
+.v2-switch--on { background: var(--ta-grad); color: #fff; border-color: transparent; }
+.v2-switch--on i { color: #fff; }
+.v2-switch--on:hover, .v2-switch--on:focus { background: var(--ta-brand-2); color: #fff; border-color: transparent; }
+@media (max-width: 768px) {
+  .v2-switch { min-height: 38px; padding: 7px 12px 7px 11px; font-size: 12.5px; }
+  .v2-switch small { display: none; }
+  /* v2 pages carry "Back to classic designs" in their hero, so on a phone the pill would only cover their content */
+  body.ta-v2 .v2-switch, body:has(.ta-actionbar, .lgb-savebar, .bkf, .sv2-sheet-window, .main_menu.is-open) .v2-switch { display: none; }
+}
 
-/* "Back to classic designs" — a quiet link in a v2 page bar or hero */
-.v2-back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ta-accent); cursor: pointer; text-decoration: none; }
-.v2-back:hover, .v2-back:focus { text-decoration: underline; color: var(--ta-accent); }
-.ta-hero .v2-back, .ta-hero .v2-back:hover, .ta-hero .v2-back:focus { color: rgba(255, 255, 255, 0.85); }
+/* ── v2 switch on (body.design-v2, design.js applyZone): the app header's links take the sign-in header's typography
+   (views/v2/login/_top.html, css/v2/login.css .lg-top__links) — owner, 11 Nov 2026. Day colours on purpose: the app
+   header stays white at night (ta-night turns --ta-ink-2 / --ta-accent light). Before the zone rules, so a lit area
+   link keeps its zone colour. ── */
+body.design-v2 #main_menu li a { font-family: var(--ta-font); font-weight: 600; letter-spacing: -0.005em; color: #334155; transition: color 0.12s ease; }
+body.design-v2 #main_menu li a:hover, body.design-v2 #main_menu li a:focus-visible { color: #2d5a8e; text-decoration: none; }
+/* each item hovers in its own lit colour, whatever page you are on (owner, 11 Nov 2026): the Instructor Dashboard in its
+   area's mulberry (--ta-zone of [data-zone="instructor"], ta-base.css), everything else in the navy above (My Account /
+   Scheduler / Find a Slot = the My Account area; Manage Club / ToAviate Admin light in the accent navy too). */
+body.design-v2 #main_menu li a[ui-sref="dashboard.manage_user"]:hover,
+body.design-v2 #main_menu li a[ui-sref="dashboard.manage_user"]:focus-visible { color: #7a3366; }
+/* no focus box: Bootstrap's a:focus ring stayed on a clicked menu link (owner: "looks a bit naff"). Keyboard users get
+   an underline instead of the box. A clicked link does NOT stay blue (only :focus-visible colours it). */
+body.design-v2 #main_menu li a:focus { outline: none; box-shadow: none; }
+/* no black flash while a header link is pressed: styles.css's legacy `a:active { background: black }` exempts the v2
+   pages (.v2-host) but not the app header (owner, 11 Nov 2026). Both designs — the header is shared. */
+#main_menu li a:active { background: transparent; }
+body.design-v2 #main_menu li a:focus-visible { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+@media (min-width: 1101px) { body.design-v2 #main_menu li a { font-size: clamp(13px, 1.1vw, 14px); } }
 
-/* the legacy menu styles (#main_menu li a) set colour, padding and display on every link: win them back */
-#main_menu .v2-switch { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; margin: 0; color: var(--ta-brand); line-height: 1.4; font-size: 12.5px; font-weight: 700; }
-#main_menu .v2-switch--on, #main_menu .v2-switch--on:hover, #main_menu .v2-switch--on:focus { color: #fff; }
-body.night-mode #main_menu .v2-switch:not(.v2-switch--on) { color: var(--ta-accent); }
-@media (max-width: 768px) { #main_menu .v2-switch { font-size: 14px; padding: 8px 14px; } }
+/* ── zone strip: a 3px line in the area's colour under the app header says where you are (My Account navy, Instructor
+   Dashboard mulberry — body[data-zone], set by design.js while the v2 switch is on), and the area's menu link is lit.
+   A pseudo-element, so it sits above the header's own content and keeps the header's shadow. ── */
+body[data-zone] #main_header2::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--ta-zone); pointer-events: none; }
+/* the lit menu link = the menu item of the page you are on (body[data-nav], design.js navOf — owner, 11 Nov 2026: on the
+   Scheduler the Scheduler link is lit, not My Account). The strip above still says the AREA. Colour: the zone's when the
+   page has one, else the accent (solid hex — the header stays white at night). Only one of Manage Club / Safety
+   Management is ever shown, so both are listed for 'manage_club'. */
+body[data-nav="account"] #main_menu li a[ui-sref="dashboard.my_account"],
+body[data-nav="scheduler"] #main_menu li a[ui-sref="dashboard.add_booking"],
+body[data-nav="find_slot"] #main_menu li a[ui-sref="dashboard.slot_search"],
+body[data-nav="instructor"] #main_menu li a[ui-sref="dashboard.manage_user"],
+body[data-nav="manage_club"] #main_menu li a[ui-sref="dashboard.manage_club"],
+body[data-nav="manage_club"] #main_menu li a[ui-sref="dashboard.manage_club.sms"],
+body[data-nav="admin"] #main_menu li a[ui-sref="dashboard.super_admin"] { color: var(--ta-zone, #2d5a8e); }
+/* the phone menu (a slide-out list from 1100px down): the lit row also gets a bar on its left edge */
+@media (max-width: 1100px) {
+  body[data-nav="account"] #main_menu li a[ui-sref="dashboard.my_account"],
+  body[data-nav="scheduler"] #main_menu li a[ui-sref="dashboard.add_booking"],
+  body[data-nav="find_slot"] #main_menu li a[ui-sref="dashboard.slot_search"],
+  body[data-nav="instructor"] #main_menu li a[ui-sref="dashboard.manage_user"],
+  body[data-nav="manage_club"] #main_menu li a[ui-sref="dashboard.manage_club"],
+  body[data-nav="manage_club"] #main_menu li a[ui-sref="dashboard.manage_club.sms"],
+  body[data-nav="admin"] #main_menu li a[ui-sref="dashboard.super_admin"] { box-shadow: inset 3px 0 0 var(--ta-zone, #2d5a8e); font-weight: 600; }
+}
+
+/* ── phones: an open <ta-combo> search covers the whole screen, as the mockups draw it. The fixed app header (z-index
+   int-max, so no layer in the page can sit above it) steps aside while the search is open; .ta-combo-lock is on <body>
+   only while a phone search is open (js/v2/logbook taCombo). ── */
+@media (max-width: 768px) {
+  body.ta-combo-lock #main_header2 { visibility: hidden; }
+  body.ta-combo-lock .ta-combo--open { top: 0; }
+}
+
+/* the phone / tablet slide-out menu (styles.css #main_menu.main_menu, ≤1100px) sits off-screen while closed, but its
+   -8px shadow still fell on the page's right edge: no shadow while closed (kept until the close slide ends) */
+@media (max-width: 1100px) {
+  body.ta-v2 #main_menu.main_menu:not(.is-open) { box-shadow: none; transition: transform 0.28s ease, box-shadow 0s linear 0.28s; }
+}
+/* <ta-date-picker>'s button (toaviate-datepicker.css, 40px) beside ta-base fields: the same height as .ta-input */
+:where(.v2-host, .ta-dlg-scrim) .ta-field .tadp-btn { min-height: 44px; }
+@media (min-width: 769px) { :where(.v2-host, .ta-dlg-scrim) .ta-field .tadp-btn { min-height: 42px; } }
 
 /* ── phones: 44px touch targets without changing the approved look — an invisible hit area centred on the small
    controls (ta-base sizes them 18–36px). .ta-dlg__x is already absolutely positioned, so it only gets the ::after. ── */
 @media (max-width: 768px) {
-  :where(.v2-host, .ta-dlg-scrim) :is(.ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button) { position: relative; }
-  :where(.v2-host, .ta-dlg-scrim) :is(.ta-dlg__x, .ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button)::after {
+  :where(.v2-host, .ta-dlg-scrim) :is(.ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button, .ta-scope__opt, .ta-check, .ta-combo__x) { position: relative; }
+  :where(.v2-host, .ta-dlg-scrim) :is(.ta-dlg__x, .ta-hero__back, .ta-btn--sm, .ta-tab, .v2-back, .fw-phase__station-btn, .ta-back, .ta-tile__go, .ta-chip, .ta-link, .ta-left > li > button, .ta-scope__opt, .ta-check, .ta-combo__x)::after {
     content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
   }
 }

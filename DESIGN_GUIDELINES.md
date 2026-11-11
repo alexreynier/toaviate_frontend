@@ -381,6 +381,13 @@ ui-select's z-index of 9999 (the booking panel uses 10010).
 Each of these was invented more than once under a page prefix while the My Account mockups were made. They now live
 once in `ta-base.css`; use them before writing page CSS. Variants that differ on purpose are modifiers.
 
+- **The runway (`<ta-runway>`, `.ta-runway*`, js/v2/core/runway.js — 2026-11-10):** the "we're working on it" piece
+  born on the sign-in page: the strip with its markings, the aircraft taking off, optional `steps` + `step` (ticked in
+  turn, with a progress bar) and a `text` line; `compact` for a sheet or dialog. Use it for a wait where the app is
+  DOING something for the person (signing in, saving, paying, searching) — skeletons remain the right thing for a list
+  that is loading. The **default slow-wait indicator** needs nothing from a page: when an API call has been pending
+  over 1.2 s on a v2 page, a small runway floats at the bottom ("Still working…", `.ta-runway-float` in
+  views/dashboard.html) until every call has answered, and stays quiet while the page shows a runway of its own.
 - **Readiness (`.ta-ready`, `.ta-ring`, `.ta-cks` / `.ta-ck`, `.ta-ready__foot`):** "Before you finish / save" — a rail
   on desktop (ring, checklist, Next button), a scrolling strip plus a fixed bottom bar on phones, all from one markup.
   Checklist states: `--done`, `--part` (met, not complete), `--bad` (after a failed attempt), `--opt` (optional).

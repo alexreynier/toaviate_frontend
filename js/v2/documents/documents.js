@@ -295,9 +295,17 @@ function ClubDocsV2Controller($rootScope, $scope, $state, $http, $window, $timeo
     }
     // a reply that is not the file (a refusal sent as JSON, or nothing at all)
     function notAFile(res) { var t = (res && res.headers && res.headers('Content-Type')) || ''; return !res || !res.data || !res.data.byteLength || t.indexOf('application/json') > -1; }
+    // the document in a dialog (Alex, 10 Nov 2026: shown here, not "click to preview") — PDFs and images; the
+    // rest (video…) still opens in a new tab
+    vm.docView = null;
+    vm.closeDocView = function () { vm.docView = null; };
+    function docViewKey(e) { if ((e.key === 'Escape' || e.keyCode === 27) && vm.docView) { $scope.$applyAsync(vm.closeDocView); } }
+    $window.document.addEventListener('keydown', docViewKey);
+    $scope.$on('$destroy', function () { $window.document.removeEventListener('keydown', docViewKey); });
     function viewDoc(d) {
         if (!d.file) { ToastService.warning('No file attached', 'The club hasn\'t uploaded a file for ' + d.title + ' yet.'); return; }
         if (!d.ft.view) { downloadDoc(d); return; }
+        if (d.ft.k === 'pdf' || d.ft.k === 'img') { vm.docView = d; markSeen(d); return; }
         if (d._busy) { return; }   // one open at a time per document (a GET: the busy guard doesn't cover it)
         d._busy = true;
         // the window opens inside the click, so popup blockers allow it; it is pointed at the file once it arrives

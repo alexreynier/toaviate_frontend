@@ -81,7 +81,7 @@
             flow-file-success="$file.file_return = $message"
             flow-complete="processWorkpackFile($flow.files, 'workpack_doc')"
             flow-file-limit="1"
-            flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+            flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
             <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="vm.workpack_files.workpack_doc.length < 1">
               <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
               <span>Click or drag a file to upload</span>
@@ -126,12 +126,8 @@
           <div class="wp-list-item-body">
             <div class="wp-list-item-main">
               <span class="wp-defect-text">{{ defect.defect }}</span>
-              <span class="wp-severity-tag" ng-class="{
-                'wp-severity-nofly': defect.severity.indexOf('No Fly') > -1,
-                'wp-severity-flyable': defect.severity.indexOf('Flyable') > -1,
-                'wp-severity-noting': defect.severity.indexOf('Not urgent') > -1,
-                'wp-severity-unsure': defect.severity.indexOf('Unsure') > -1
-              }">{{ defect.severity }}</span>
+              <!-- B1: the shared severity → tone map -->
+              <span class="wp-severity-tag" ng-class="vm.severityChipClass(defect.severity)" title="{{ defect.severity }}">{{ vm.severityShort(defect.severity) }}</span>
             </div>
             <div class="wp-list-item-meta">
               <span><i class="fa fa-clock"></i> {{ defect.created_at | myDateTime }}</span>
@@ -196,13 +192,13 @@
         <div class="wp-list-item" ng-repeat="event in vm.workpack.maintenance_events">
           <div class="wp-list-item-body">
             <div class="wp-list-item-main">
-              <span class="wp-event-type">{{ event.maintenance_type }}</span>
+              <span class="wp-event-type">{{ vm.typeLabel(event.maintenance_type) }}</span>
               <span class="wp-event-desc" ng-if="event.description"> — {{ event.description }}</span>
             </div>
             <div class="wp-list-item-meta">
-              <span><i class="fa fa-calendar"></i> {{ event.check_date | date:'dd/MM/yyyy' }}</span>
-              <span ng-if="event.expiry_date"><i class="fa fa-clock"></i> Expires: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
-              <span ng-if="event.hours_remaining"><i class="fa fa-tachometer-alt"></i> {{ event.hours_remaining }} hrs</span>
+              <span><i class="fa fa-calendar"></i> {{ event.check_date | myDateTime }}</span>
+              <span ng-if="vm.displayDate(event.expiry_date)"><i class="fa fa-clock"></i> Next: {{ vm.displayDate(event.expiry_date) }}</span>
+              <span ng-if="event.hours_remaining"><i class="fa fa-tachometer-alt"></i> {{ event.hours_remaining | number:1 }} h</span>
             </div>
           </div>
           <div class="wp-list-item-action" ng-if="vm.workpack.status === 'open'">
@@ -222,19 +218,20 @@
       <!-- Link Maintenance Inline Form -->
       <div ng-if="vm.show_link_maintenance" class="wp-link-form">
         <h4 class="wp-link-form-title">Select a maintenance event to link:</h4>
-        <div ng-if="vm.club.plane.maintenance_history && vm.club.plane.maintenance_history.length > 0">
-          <div class="wp-link-option" ng-repeat="event in vm.club.plane.maintenance_history" ng-if="!event.workpack_id">
+        <!-- B4: fed from vm.maintenance_events (the old key was never sent by the backend) -->
+        <div ng-if="vm.linkableEvents().length > 0">
+          <div class="wp-link-option" ng-repeat="event in vm.linkableEvents()">
             <div class="wp-link-option-info">
-              <strong>{{ event.maintenance_type }}</strong>
-              <span class="wp-meta-small">{{ event.check_date | date:'dd/MM/yyyy' }} &middot; {{ event.description || '—' }}</span>
+              <strong>{{ vm.typeLabel(event.maintenance_type) }}</strong>
+              <span class="wp-meta-small">{{ event.check_date | myDateTime }} &middot; {{ event.description || '—' }}</span>
             </div>
             <button class="wp-btn wp-btn-success wp-btn-sm" ng-click="vm.linkMaintenanceToWorkpack(event.id)">
               <i class="fa fa-link"></i> Link
             </button>
           </div>
         </div>
-        <div ng-if="!vm.club.plane.maintenance_history || vm.club.plane.maintenance_history.length === 0">
-          <p class="wp-empty-text">No maintenance events available to link.</p>
+        <div ng-if="vm.linkableEvents().length === 0">
+          <p class="wp-empty-text">Every maintenance event of this aircraft is already on a workpack (or there are none yet).</p>
         </div>
         <button class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.show_link_maintenance = false" style="margin-top: 10px;">Cancel</button>
       </div>

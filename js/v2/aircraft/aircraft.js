@@ -153,7 +153,10 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
 
     var WARN_DAYS = 30;   // AircraftAirworthiness::EXPIRY_WARN_DAYS — the backend's own warning window for documents
     function hTone(h) { return h <= 0 ? 'bad' : h <= 5 ? 'warn' : 'good'; }
-    function dTone(d) { return d <= 0 ? 'bad' : d <= 10 ? 'warn' : 'good'; }
+    // batch 17: the backend counts days exclusively — 0 is the due / expiry day itself (still valid until
+    // 23:59, flagged due_today / expires_today); a 0 without the flag is "no date" and reads as overdue
+    function dTone(d, today) { return (d < 0 || (d === 0 && !today)) ? 'bad' : d <= 10 ? 'warn' : 'good'; }
+    function hoursNull(m) { return m.hours_remaining === null || m.hours_remaining === undefined; }
     // the bars EMPTY like a fuel gauge as hours / days run out (a sliver stays while any time is left)
     function barPct(left, interval) { return Math.max(left > 0 ? 4 : 0, Math.min(100, Math.round(left / (interval || 1) * 100))); }
 
@@ -181,9 +184,15 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
                 // a blank expiry is "not on file", never "expired" (backend B8 does the same)
                 d.tone = 'quiet'; d.pill = pill('muted', 'No date on file', 'fa-question-circle'); d.sub = d.file ? 'No expiry date on file — ask the club' : 'Not on file — ask the club'; return;
             }
-            d.days = daysTo(d.doc.date_expiry);
-            d.sub = (d.days <= 0 ? 'Expired ' : 'Expires ') + vm.fDate(d.doc.date_expiry);
-            if (d.days <= 0) { d.tone = 'bad'; d.pill = pill('bad', 'Expired', 'fa-times-circle'); }
+            // an extension in force lifts the ARC / certificate (be-alex-3e, 10 Nov 2026): the document keeps its own
+            // date_expiry, extended_until / effective_expiry carry the date that counts — never the insurance or radio licence
+            var ext = d.doc.extended_until && realDate(d.doc.extended_until) && String(d.doc.extended_until).slice(0, 10) > String(d.doc.date_expiry).slice(0, 10) ? String(d.doc.extended_until).slice(0, 10) : null;
+            d.expiry = ext || d.doc.date_expiry;
+            d.days = daysTo(d.expiry);
+            // the expiry day itself is valid until 23:59 — "Expires today", never "Expired" (batch 17)
+            d.sub = (d.days < 0 ? 'Expired ' : d.days === 0 ? 'Expires today, ' : 'Expires ') + vm.fDate(d.doc.date_expiry) + (ext ? ' · extended until ' + vm.fDate(ext) + (d.doc.extended_by ? ' by ' + d.doc.extended_by : '') : '');
+            if (d.days < 0) { d.tone = 'bad'; d.pill = pill('bad', 'Expired', 'fa-times-circle'); }
+            else if (d.days === 0) { d.tone = 'warn'; d.pill = pill('warn', 'Expires today', 'fa-hourglass-half'); }
             else if (d.days <= WARN_DAYS) { d.tone = 'warn'; d.pill = pill('warn', plural(d.days, 'day') + ' left', 'fa-hourglass-half'); }
             else { d.tone = 'good'; d.pill = pill('good', plural(d.days, 'day') + ' left', 'fa-check'); }
         });
@@ -206,24 +215,36 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
     function figHours(p) {
         var m = p.maintenance || {};
         if (noRecord(p)) { return { tone: 'bad', v: '—', s: 'No record' }; }
+        if (hoursNull(m)) { return { tone: 'quiet', v: '—', s: 'Hours not recorded' }; }   // a legacy check without hours (batch 17)
         var h = parseFloat(m.hours_remaining) || 0, t = hTone(h), every = +p.hours_between_checks || 0;
         return { tone: t, v: hmSigned(h), s: t === 'bad' ? 'Overdue' : t === 'warn' ? 'Due soon' : (every ? 'every ' + every + ' hours' : 'left'), pct: barPct(h, every || 50) };
     }
     function noDate(p) { var m = p.maintenance || {}; return !noRecord(p) && !realDate(m.next_maintenance); }
+    // an extension in force (owner, 10 Nov 2026): the status block's extension_until / extension_hours — the date extends the
+    // ARC and the next check, the hours the hours to the next check; never the radio licence or insurance
+    vm.extOf = function (p) {
+        var m = (p && p.maintenance) || {}, until = realDate(m.extension_until) ? String(m.extension_until).slice(0, 10) : null, h = parseFloat(m.extension_hours) || 0;
+        if (until && until < TODAY) { until = null; }
+        if (!until && h <= 0) { return null; }
+        return { until: until, hours: h, hoursText: h ? (h % 1 ? h.toFixed(1) : String(h)) + ' h' : '' };
+    };
     function figDays(p) {
         var m = p.maintenance || {};
         if (noRecord(p)) { return { tone: 'bad', v: '—', s: 'No record' }; }
         if (noDate(p)) { return { tone: 'quiet', v: '—', s: 'No date recorded', unit: '' }; }
-        var d = parseInt(m.days_remaining, 10) || 0, t = dTone(d), when = vm.fDate(m.next_maintenance);
+        var d = parseInt(m.days_remaining, 10) || 0, t = dTone(d, !!m.due_today), when = vm.fDate(m.next_maintenance);
+        if (m.due_today) { return { tone: 'warn', v: 'Due today', words: true, unit: '', s: 'Valid until 23:59 · ' + when, pct: barPct(0, parseFloat(m.normal_limit) || 365) }; }
         if (d < -365) { return { tone: 'bad', v: 'Over a year', words: true, unit: 'overdue', s: 'Overdue · was due ' + when, pct: 0 }; }
-        return { tone: t, v: String(d).replace('-', '−'), unit: 'days', s: (t === 'bad' ? 'Was due ' : t === 'warn' ? 'Due by ' : 'by ') + when, pct: barPct(d, parseFloat(m.normal_limit) || 365) };
+        var ext = vm.extOf(p);
+        return { tone: t, v: String(d).replace('-', '−'), unit: 'days', s: (t === 'bad' ? 'Was due ' : t === 'warn' ? 'Due by ' : 'by ') + when + (ext && ext.until ? ' · extended' : ''), pct: barPct(d, parseFloat(m.normal_limit) || 365) };
     }
 
     function acStatus(p) {
         var m = p.maintenance || {}, docs = p._docs, open = p._open;
         var nofly = open.filter(function (d) { return vm.sev(d).k === 'nofly'; });
         var expired = docs.filter(function (d) { return d.tone === 'bad'; }), soon = docs.filter(function (d) { return d.tone === 'warn'; });
-        var h = parseFloat(m.hours_remaining) || 0, dd = noDate(p) ? 9999 : (parseInt(m.days_remaining, 10) || 0);     // no real date: only hours decide
+        var h = hoursNull(m) ? 9999 : (parseFloat(m.hours_remaining) || 0), dd = noDate(p) ? 9999 : (parseInt(m.days_remaining, 10) || 0);     // no real date / no hours recorded: the other figure decides
+        var dueToday = !!m.due_today;
         if (isGrounded(p)) {
             var why = 'Out of service' + (p.grounded_since ? ' since ' + vm.fDay(p.grounded_since) + ' ' + vm.fTime(p.grounded_since) : '')
                 + (p.grounded_until ? ', booked for maintenance until ' + (String(p.grounded_until).slice(0, 10) === TODAY ? vm.fTime(p.grounded_until) : vm.fDay(p.grounded_until) + ' ' + vm.fTime(p.grounded_until)) : '')
@@ -232,11 +253,11 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
             return { k: 'grounded', tone: 'bad', label: 'Grounded', ic: 'fa-ban', why: why };
         }
         if (noRecord(p)) { return { k: 'norecord', tone: 'bad', label: 'No maintenance record', ic: 'fa-question-circle', why: 'The club has no record of its last maintenance, so its hours and days can’t be worked out. Check with the club before you book it.' }; }
-        if (h <= 0 || dd <= 0) { return { k: 'overdue', tone: 'bad', label: 'Maintenance overdue', ic: 'fa-times-circle', why: h <= 0 ? 'Over its hours by ' + hm(-h) + ' — it needs maintenance before it flies.' : 'Maintenance was due ' + vm.fDate(m.next_maintenance) + '.' }; }
-        if (expired.length) { return { k: 'expired', tone: 'bad', label: 'Document expired', ic: 'fa-times-circle', why: expired[0].t + ' expired on ' + vm.fDate(expired[0].doc.date_expiry) + '.' }; }
+        if (h <= 0 || dd < 0 || (dd === 0 && !dueToday)) { return { k: 'overdue', tone: 'bad', label: 'Maintenance overdue', ic: 'fa-times-circle', why: h <= 0 ? 'Over its hours by ' + hm(-h) + ' — it needs maintenance before it flies.' : 'Maintenance was due ' + vm.fDate(m.next_maintenance) + '.' }; }
+        if (expired.length) { return { k: 'expired', tone: 'bad', label: 'Document expired', ic: 'fa-times-circle', why: expired[0].t + ' expired on ' + vm.fDate(expired[0].expiry || expired[0].doc.date_expiry) + '.' }; }
         if (nofly.length) { return { k: 'nofly', tone: 'bad', label: 'No-fly defect', ic: 'fa-ban', why: nofly[0].defect + '.' }; }
-        if (h <= 5 || dd <= 10) { return { k: 'due', tone: 'warn', label: 'Maintenance due soon', ic: 'fa-hourglass-half', why: h <= 5 ? 'Only ' + hm(h) + ' left before its next maintenance — longer flights may not fit.' : 'Its next maintenance is due in ' + plural(dd, 'day') + '.' }; }
-        if (soon.length) { return { k: 'doc', tone: 'warn', label: 'Document expiring', ic: 'fa-file-alt', why: soon[0].t + ' expires in ' + plural(soon[0].days, 'day') + ' (' + vm.fDate(soon[0].doc.date_expiry) + ').' }; }
+        if (h <= 5 || dd <= 10) { return { k: 'due', tone: 'warn', label: 'Maintenance due soon', ic: 'fa-hourglass-half', why: h <= 5 ? 'Only ' + hm(h) + ' left before its next maintenance — longer flights may not fit.' : (dueToday ? 'Its next maintenance is due today.' : 'Its next maintenance is due in ' + plural(dd, 'day') + '.') }; }
+        if (soon.length) { return { k: 'doc', tone: 'warn', label: 'Document expiring', ic: 'fa-file-alt', why: soon[0].t + (soon[0].days === 0 ? ' expires today' : ' expires in ' + plural(soon[0].days, 'day')) + ' (' + vm.fDate(soon[0].expiry || soon[0].doc.date_expiry) + ').' }; }
         if (open.length) { return { k: 'defect', tone: 'warn', label: 'Defect open', ic: 'fa-tools', why: plural(open.length, 'open defect') + ': ' + String(open[0].defect).toLowerCase() + '.' }; }
         return { k: 'ok', tone: 'good', label: 'Serviceable', ic: 'fa-check', why: '' };
     }
@@ -299,6 +320,7 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
         p._live = p.defects.filter(isLive);
         p._older = p.defects.length - p._live.length;
         p._st = acStatus(p);
+        p._ext = vm.extOf(p);   // computed once per load: a fresh object per digest would loop the digest
         p._hours = figHours(p);
         p._days = figDays(p);
         p._meter = meterOf(p);
@@ -361,9 +383,9 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
         }
         var docs = p._docs, bad = docs.filter(function (d) { return d.tone === 'bad'; }), soon = docs.filter(function (d) { return d.tone === 'warn'; });
         var ren = docs.filter(function (d) { return d.days != null; }).sort(function (a, b) { return a.days - b.days; })[0];
-        if (bad.length) { p._lnDoc = { tone: 'bad', b: docShort(bad[0]) + ' expired', rest: vm.fDate(bad[0].doc.date_expiry) }; }
-        else if (soon.length) { p._lnDoc = { tone: 'warn', b: docShort(soon[0]) + ' expires in ' + plural(soon[0].days, 'day'), rest: vm.fDate(soon[0].doc.date_expiry) }; }
-        else { p._lnDoc = { rest: 'All in date' + (ren ? ' · ' + docShort(ren) + ' next, ' + vm.fDate(ren.doc.date_expiry) : '') }; }
+        if (bad.length) { p._lnDoc = { tone: 'bad', b: docShort(bad[0]) + ' expired', rest: vm.fDate(bad[0].expiry || bad[0].doc.date_expiry) }; }
+        else if (soon.length) { p._lnDoc = { tone: 'warn', b: docShort(soon[0]) + ' expires in ' + plural(soon[0].days, 'day'), rest: vm.fDate(soon[0].expiry || soon[0].doc.date_expiry) }; }
+        else { p._lnDoc = { rest: 'All in date' + (ren ? ' · ' + docShort(ren) + ' next, ' + vm.fDate(ren.expiry || ren.doc.date_expiry) : '') }; }
         var c = (p._checks || []).filter(function (x) { return String(x.checked_at || '').slice(0, 10) === TODAY; })[0];
         if (!c) { p._lnChk = { rest: isGrounded(p) ? 'None today · out of service' : 'None yet today' }; }
         else { p._lnChk = { b: vm.checkName(c), rest: (c.first_name ? initial(c.first_name) + ' ' + (c.last_name || '') + ' at ' : 'At ') + vm.fTime(c.checked_at) + ' · ' + nf1(c.fuel_us_gallons) + ' US gal, ' + nf1(c.oil_quarts) + ' qt' }; }
@@ -634,6 +656,8 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
         $scope.$applyAsync(function () { vm.form.files = (vm.form.files || []).concat(files); input.value = ''; });
     };
     vm.removeFile = function (i) { vm.form.files.splice(i, 1); };
+    // a regex literal can't sit in an Angular expression ($parse:lexerr) — by MIME type, else by the extension (a HEIC/MOV from iOS can arrive with an empty type)
+    vm.isVideo = function (f) { return !!f && (/^video\//.test(f.type || '') || /\.(mp4|mov|m4v|webm|avi|mkv|3gp)$/i.test(f.name || '')); };
     vm.saveDefect = function () {
         if (vm.busy) { return; }
         var p = vm.dp, F = vm.form;
@@ -653,12 +677,16 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
             var told = +data.alerted || 0;
             vm.closeAsk = false;
             ToastService.success('Defect reported', 'On ' + p.registration + '. ' + (told > 0 ? 'The club has been told (' + told + (told === 1 ? ' person' : ' people') + ').' : 'The club sees it on its maintenance page.'));
-            (F.files || []).forEach(function (file, idx) {
-                DefectMediaService.UploadAndAttach(file, item.id, p._club.id, idx, vm.user_id).then(function (r) {
-                    if (r && r.success) { item.media_count = (+item.media_count || 0) + 1; }
-                    else { ToastService.warning('A photo didn’t upload', (r && r.message) || file.name); }
+            // one file at a time (not all at once): the backend's "one video per defect" rule is judged per attach, and a
+            // phone on a slow link is kinder to one upload than six; a failure is said per file, the rest carry on
+            (F.files || []).reduce(function (chain, file, idx) {
+                return chain.then(function () {
+                    return DefectMediaService.UploadAndAttach(file, item.id, p._club.id, idx, vm.user_id).then(function (r) {
+                        if (r && r.success) { item.media_count = (+item.media_count || 0) + 1; }
+                        else { ToastService.warning((vm.isVideo(file) ? 'A video' : 'A photo') + ' didn’t upload', file.name + (r && r.message && r.message !== 'Upload failed' ? ' — ' + r.message : (r && (r.status === 0 || r.status === -1) ? ' — the upload service couldn’t be reached' : ''))); }
+                    });
                 });
-            });
+            }, $q.when());
             vm.dlg = null;
         });
     };
@@ -820,7 +848,10 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
             vm.loading = false;
             if (!data || data.success === false) { vm.loadError = true; return; }
             vm.aircraft = data.aircraft || {};
-            vm.aircraft._model = tidyModel([vm.aircraft.manufacturer, vm.aircraft.type_name].filter(function (x) { return x && x !== '-'; }).join(' '));
+            var man = vm.aircraft.manufacturer && vm.aircraft.manufacturer !== '-' ? String(vm.aircraft.manufacturer).trim() : '',
+                tn = vm.aircraft.type_name && vm.aircraft.type_name !== '-' ? String(vm.aircraft.type_name).trim() : '';
+            if (man && (tn.toLowerCase() + ' ').indexOf(man.toLowerCase() + ' ') === 0) { man = ''; }   // "Piper" + "Piper PA-28 Warrior": the model alone
+            vm.aircraft._model = tidyModel([man, tn].filter(Boolean).join(' '));
             vm.journeyClub = data.club_id || vm.aircraft.club_id || null;
             vm.td = td(vm.journeyClub);
             if (vm.aircraft.time_display) { vm.td.setPlane(vm.aircraft.time_display); }

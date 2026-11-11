@@ -45,7 +45,8 @@ app.directive('boPresolo', ['SoloRequirementsService', 'MemberService', 'ToastSe
         manual: 'Instructor sign-off'
     };
 
-    var FAIL_STATES = ['medical_expired', 'medical_class_not_accepted', 'below_min_score', 'not_passed', 'no_medical'];
+    // medical_limitation (C39 / D19): a medical with an OSL-type limitation fails the solo check — a safety rule shared with the backend
+    var FAIL_STATES = ['medical_expired', 'medical_class_not_accepted', 'medical_limitation', 'below_min_score', 'not_passed', 'no_medical'];
 
     // ── date helpers (all dates are local calendar days, 'YYYY-MM-DD') ──
     function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -377,7 +378,8 @@ app.directive('boPresolo', ['SoloRequirementsService', 'MemberService', 'ToastSe
                 var so = req.sign_off;
                 var parts;
                 if (type === 'medical' && ev.component_title && ev.expiry_date) {
-                    return ev.component_title + ' — valid until ' + fmtDate(ev.expiry_date) + ' (medical records)';
+                    var lim = Array.isArray(ev.limitations) ? ev.limitations.join(', ') : (ev.limitations || '');
+                    return ev.component_title + ' — valid until ' + fmtDate(ev.expiry_date) + (lim ? ', limitation ' + lim : '') + ' (medical records)';
                 }
                 if (type === 'exam' && (ev.result !== undefined || ev.date)) {
                     var hasResult = ev.result !== null && ev.result !== undefined && ev.result !== '';

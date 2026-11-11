@@ -1,0 +1,145 @@
+<div class="rea">
+  <div class="rea__hd">
+    <span class="rea__hd-icon"><i class="fas fa-random"></i></span>
+    <div>
+      <h3 class="rea__title">Re-allocate aircraft</h3>
+      <p class="rea__sub">One aircraft per instructor per type for the day — same type, same times, only onto an aircraft that is free. Members aren't told; every move is in the booking's history.</p>
+    </div>
+    <button type="button" class="rea__close" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+  </div>
+
+  <div class="rea__bar">
+    <div class="rea__tabs" role="tablist" aria-label="Re-allocate">
+      <button type="button" class="rea__tab" role="tab" id="rea-tab-day" aria-selected="{{ vm.mode === 'day' }}" ng-class="{'rea__tab--on': vm.mode === 'day'}" ng-click="vm.setMode('day')" no-busy-guard>One day</button>
+      <button type="button" class="rea__tab" role="tab" id="rea-tab-batch" aria-selected="{{ vm.mode === 'batch' }}" ng-class="{'rea__tab--on': vm.mode === 'batch'}" ng-click="vm.setMode('batch')" no-busy-guard>The next days</button>
+    </div>
+    <div class="rea__filters">
+      <div class="rea__filter" ng-show="vm.clubs.length > 1">
+        <label class="rea__label" for="rea-club">Club</label>
+        <select id="rea-club" class="rea__select" ng-model="vm.club_id" ng-options="c.id as c.title for c in vm.clubs" ng-change="vm.changeClub()" no-busy-guard></select>
+      </div>
+      <div class="rea__day" ng-show="vm.mode === 'day'">
+        <button type="button" class="rea__day-arrow" ng-click="vm.prevDay()" ng-disabled="!vm.canPrev()" no-busy-guard aria-label="Previous day"><i class="fas fa-chevron-left"></i></button>
+        <ta-date-picker ng-model="vm.day" options="vm.pickerOptions" format="short" placeholder="Pick a day"></ta-date-picker>
+        <button type="button" class="rea__day-arrow" ng-click="vm.nextDay()" no-busy-guard aria-label="Next day"><i class="fas fa-chevron-right"></i></button>
+        <button type="button" class="rea__day-today" ng-click="vm.goToday()" ng-disabled="vm.isToday()" no-busy-guard>Today</button>
+      </div>
+    </div>
+  </div>
+
+  <label class="rea__pref" title="When a self-fly hire holds an instructor's slot, move the hire to an aircraft with nothing on it instead, so the instructor's lessons stay on one aircraft">
+    <input type="checkbox" class="rea__pref-input" ng-model="vm.instructorsFirst" ng-change="vm.instructorsFirstChanged()" id="rea-instructors-first">
+    <span class="rea__pref-switch" aria-hidden="true"></span>
+    <span class="rea__pref-txt"><b>Prioritise the instructors' allocations</b><span>A hire in an instructor's slot is moved to a free aircraft instead; if it can't move, the instructor's whole day goes to an aircraft that is free for all of it.</span></span>
+  </label>
+
+  <!-- ── One day: preview → Apply ── -->
+  <div ng-show="vm.mode === 'day'">
+    <div class="rea__dayline">
+      <strong id="rea-dayline">{{ vm.dayLabel() }}</strong>
+      <span class="rea__muted" ng-show="!vm.loading && vm.plan.eligible" id="rea-summary">{{ vm.summary() }}</span>
+    </div>
+
+    <div class="rea__body" ng-class="{'rea__body--busy': vm.loading}">
+      <div class="rea__empty" ng-show="vm.loading && !vm.plan"><i class="fas fa-circle-notch fa-spin"></i> Working out the moves…</div>
+      <div class="rea__empty rea__empty--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-triangle"></i> {{ vm.error }}</div>
+
+      <div class="rea__note rea__note--skip" ng-show="!vm.loading && vm.plan && !vm.plan.eligible" id="rea-ineligible">
+        <i class="fas fa-lock"></i>
+        <span><b>Can't re-allocate {{ vm.fmtDay(vm.day) }}.</b> {{ vm.plan.reason }}</span>
+      </div>
+
+      <div class="rea__note rea__note--done" ng-show="vm.done" id="rea-done">
+        <i class="fas fa-check-circle"></i>
+        <span><b>Done.</b> {{ vm.done.moved }} of {{ vm.done.planned }} moved — the scheduler updates when you close this.</span>
+      </div>
+
+      <div class="rea__empty" ng-show="!vm.loading && vm.plan.eligible && !vm.plan.moves.length && !vm.done">
+        <i class="fas fa-check-circle"></i>
+        Nothing to move on {{ vm.fmtDay(vm.day) }} — every booking is already on its instructor's aircraft of that type.
+      </div>
+
+      <div class="rea__move" ng-repeat="m in (vm.done ? vm.done.moves : vm.plan.moves) track by m.booking_id" ng-class="{'rea__move--done': vm.done}" id="rea-move-{{ m.booking_id }}">
+        <div class="rea__time">{{ vm.time(m) }}</div>
+        <div class="rea__main">
+          <div class="rea__line1"><strong class="rea__who">{{ vm.who(m) }}</strong><span class="rea__type" ng-show="m.type">{{ m.type }}</span><span class="rea__swap" ng-show="m.swap_with"><i class="fas fa-exchange-alt"></i> Swapped with {{ m.swap_with.name }}</span><span class="rea__swap rea__swap--for" ng-show="m.displaced_for"><i class="fas fa-chalkboard-teacher"></i> for {{ m.displaced_for }}</span></div>
+          <div class="rea__line2"><span class="rea__reg">{{ m.from.registration }}</span><i class="fas fa-long-arrow-alt-right rea__arrow"></i><span class="rea__reg rea__reg--to">{{ m.to.registration }}</span></div>
+          <div class="rea__line3">{{ m.reason }}</div>
+        </div>
+      </div>
+
+      <div ng-show="!vm.loading && vm.plan.eligible && vm.plan.kept.length">
+        <button type="button" class="rea__kept-toggle" ng-click="vm.showKept = !vm.showKept" no-busy-guard id="rea-kept-toggle">
+          <i class="fas" ng-class="vm.showKept ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+          Why {{ vm.plan.kept.length === 1 ? 'one booking stays' : vm.plan.kept.length + ' bookings stay' }} put
+        </button>
+        <div class="rea__kept" ng-show="vm.showKept">
+          <div class="rea__kept-row" ng-repeat="k in vm.plan.kept track by k.booking_id">
+            <span class="rea__kept-time">{{ vm.keptRow(k).time }}</span>
+            <span class="rea__kept-who"><span ng-show="vm.keptRow(k).who">{{ vm.keptRow(k).who }}</span><span class="rea__reg rea__reg--sm" ng-show="vm.keptRow(k).reg">{{ vm.keptRow(k).reg }}</span></span>
+            <span class="rea__kept-why">{{ k.reason }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rea__ft">
+      <span class="rea__ft-hint" ng-show="!vm.loading && vm.plan.eligible && vm.plan.moves.length && !vm.done">Check the list — Apply makes these moves now.</span>
+      <span class="rea__sp"></span>
+      <button type="button" class="rea__btn" ng-click="vm.close()" no-busy-guard>{{ vm.changed ? 'Done' : 'Close' }}</button>
+      <button type="button" class="rea__btn rea__btn--primary" id="rea-apply" ng-show="!vm.done" ng-disabled="vm.loading || vm.applying || !vm.plan.eligible || !vm.plan.moves.length" ng-click="vm.apply()">
+        <i class="fas" ng-class="vm.applying ? 'fa-spinner fa-spin' : 'fa-random'"></i> Apply {{ vm.plan.moves.length ? vm.plan.moves.length + (vm.plan.moves.length === 1 ? ' move' : ' moves') : '' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ── The next N days: applied in one go, no preview (two presses) ── -->
+  <div ng-show="vm.mode === 'batch'">
+    <div class="rea__batch-bar">
+      <label class="rea__label" for="rea-days">Re-allocate the next</label>
+      <select id="rea-days" class="rea__select" ng-model="vm.batch.days" ng-options="d as (d + ' days') for d in vm.batch.options" ng-change="vm.cancelBatch()" no-busy-guard ng-disabled="vm.batch.busy"></select>
+      <span class="rea__muted">from today — each day that hasn't started is re-allocated straight away; there is no preview for this.</span>
+    </div>
+
+    <div class="rea__body">
+      <div class="rea__confirm" ng-show="vm.batch.confirm" role="alert" id="rea-batch-confirm">
+        <span><b>Re-allocate the next {{ vm.batch.days }} days now?</b> Every eligible day is changed at once.</span>
+        <button type="button" class="rea__btn rea__btn--sm" ng-click="vm.cancelBatch()" no-busy-guard>Keep as it is</button>
+        <button type="button" class="rea__btn rea__btn--sm rea__btn--primary" id="rea-batch-go" ng-click="vm.runBatch()">Yes, re-allocate</button>
+      </div>
+      <div class="rea__empty" ng-show="vm.batch.busy"><i class="fas fa-circle-notch fa-spin"></i> Re-allocating {{ vm.batch.days }} days…</div>
+      <div class="rea__empty rea__empty--bad" ng-show="!vm.batch.busy && vm.batch.error"><i class="fas fa-exclamation-triangle"></i> {{ vm.batch.error }}</div>
+      <div class="rea__empty" ng-show="!vm.batch.busy && !vm.batch.result && !vm.batch.confirm && !vm.batch.error">
+        <i class="fas fa-calendar-check"></i>
+        Each day is treated like the one-day view: a day that has started, or has nothing booked, is left alone.
+      </div>
+
+      <div ng-show="vm.batch.result" id="rea-batch-result">
+        <div class="rea__note rea__note--done"><i class="fas fa-check-circle"></i><span><b>{{ vm.batch.result.moved }} moved</b> over {{ vm.batch.result.days }} days from {{ vm.fmtDay(vm.batch.result.from) }}.</span></div>
+        <div class="rea__days">
+          <div class="rea__dayrow" ng-repeat="r in vm.batch.result.results track by r.date" ng-class="'rea__dayrow--' + vm.dayTone(r)">
+            <span class="rea__dayrow-date">{{ vm.fmtDay(r.date) }}</span>
+            <span class="rea__dayrow-n" ng-show="r.eligible">{{ r.bookings }} booked</span>
+            <span class="rea__dayrow-res">{{ vm.dayResult(r) }}</span>
+            <button type="button" class="rea__kept-toggle rea__kept-toggle--sm" ng-show="vm.hasDetail(r)" ng-click="vm.toggleDetail(r)" no-busy-guard><i class="fas" ng-class="vm.batch.open[r.date] ? 'fa-chevron-down' : 'fa-chevron-right'"></i> moves</button>
+            <div class="rea__dayrow-detail" ng-show="vm.batch.open[r.date] && vm.hasDetail(r)">
+              <div class="rea__kept-row" ng-repeat="m in r.detail track by m.booking_id">
+                <span class="rea__kept-time">{{ vm.time(m) }}</span>
+                <span class="rea__kept-who">{{ vm.who(m) }}</span>
+                <span class="rea__kept-why"><span class="rea__reg rea__reg--sm">{{ m.from.registration }}</span> <i class="fas fa-long-arrow-alt-right"></i> <span class="rea__reg rea__reg--sm rea__reg--to">{{ m.to.registration }}</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rea__ft">
+      <span class="rea__sp"></span>
+      <button type="button" class="rea__btn" ng-click="vm.close()" no-busy-guard>{{ vm.changed ? 'Done' : 'Close' }}</button>
+      <button type="button" class="rea__btn rea__btn--primary" id="rea-batch" ng-show="!vm.batch.confirm" ng-disabled="vm.batch.busy" ng-click="vm.runBatch()">
+        <i class="fas" ng-class="vm.batch.busy ? 'fa-spinner fa-spin' : 'fa-calendar-alt'"></i> Re-allocate {{ vm.batch.days }} days
+      </button>
+    </div>
+  </div>
+</div>

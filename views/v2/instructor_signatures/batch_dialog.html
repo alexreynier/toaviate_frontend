@@ -1,0 +1,26 @@
+<!-- Signatures · sign several lines with the saved stamp (vm.form.rows). One call per line: each line shows how it went;
+     lines that fail stay here with the reason, the signed ones leave the queue. A bottom sheet on phones. -->
+<div class="ta-dlg-scrim" sgn-portal ng-click="vm.scrim($event)" no-busy-guard>
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sgn-dlg-t" tabindex="-1" data-e2e="sgn-dlg-batch">
+    <div class="ta-dlg__hd" style="--edge: var(--ta-brand-2)">
+      <div class="ta-dlg__grab"></div>
+      <button type="button" class="ta-dlg__x" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-stamp"></i>Sign with my stamp</div>
+      <div class="ta-dlg__title" id="sgn-dlg-t">{{ vm.form.title }}</div>
+      <div class="ta-dlg__sub">{{ vm.form.sub }}</div>
+    </div>
+    <div class="ta-dlg__body">
+      <div class="sgn-lines" aria-live="polite">
+        <div class="sgn-lines__r" id="sgn-ln-{{ r.id }}" ng-repeat="r in vm.form.rows track by r.id" style="--ac: {{ r.line.colour || 'var(--ta-line)' }}"
+             ng-class="{'sgn-lines__r--st': r._st, 'sgn-lines__r--done': r._st === 'done', 'sgn-lines__r--bad': r._st === 'bad'}"><b>{{ r.line.reg }}</b><span>{{ r.batchSub }}</span><em>{{ r.line.hm }} {{ r.line.cap.label }}</em><i class="sgn-lines__st" ng-if="r._st" ng-switch="r._st"><span class="ta-spin ta-spin--dark" ng-switch-when="busy" aria-label="Signing"></span><i class="fas fa-check" ng-switch-when="done" aria-label="Signed"></i><i class="fas fa-exclamation-circle" ng-switch-when="bad" aria-label="Not signed"></i><i class="far fa-circle" ng-switch-default aria-hidden="true"></i></i><small class="sgn-lines__err" ng-if="r._err">{{ r._err }}</small></div>
+      </div>
+      <div class="ta-grid-2">
+        <div class="ta-field" ng-class="{'ta-field--error': vm.form.err.name}"><label class="ta-label" for="end-sign-name">Your full name</label><input class="ta-input" id="end-sign-name" ng-model="vm.form.name" ng-change="vm.fixed(vm.form, 'name')" maxlength="255" autocomplete="name" no-busy-guard><span class="ta-field__msg" ng-if="vm.form.err.name">{{ vm.form.err.name }}</span></div>
+        <div class="ta-field"><label class="ta-label" for="end-sign-number">FI / CRI / FE number <em>optional</em></label><input class="ta-input" id="end-sign-number" ng-model="vm.form.num" maxlength="100" autocomplete="off" no-busy-guard placeholder="e.g. 501685A"></div>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.form.err.text}"><label class="ta-label" for="end-sign-text">Endorsement wording</label><div class="sgn-words"><button type="button" class="ta-chip" ng-repeat="w in vm.wordings" ng-class="{'ta-chip--on': vm.form.text === w}" ng-click="vm.pickWord(vm.form, w)" no-busy-guard>{{ w }}</button></div><textarea class="ta-textarea" id="end-sign-text" ng-model="vm.form.text" ng-change="vm.fixed(vm.form, 'text')" rows="2" maxlength="2000" no-busy-guard placeholder="Or type your own wording"></textarea><span class="ta-field__msg" ng-if="vm.form.err.text">{{ vm.form.err.text }}</span></div>
+      <div class="sgn-saved"><span class="sgn-stamp__sig"><span class="sgn-sig" sgn-ink="vm.stamp.image"></span></span><small>Your saved signature goes on every line above, with this wording. Each student sees it on their own logbook; you can withdraw any one afterwards.</small></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.batchGo()" ng-disabled="vm.busy" no-busy-guard data-e2e="sgn-batch-go"><span class="ta-spin" ng-if="vm.busy"></span><i class="fas fa-stamp" ng-if="!vm.busy"></i>{{ vm.busy ? 'Signing ' + vm.form.at + ' of ' + vm.form.n + '…' : 'Sign ' + (vm.form.rows.length === 1 ? '1 line' : vm.form.rows.length + ' lines') }}</button></div>
+  </div>
+</div>

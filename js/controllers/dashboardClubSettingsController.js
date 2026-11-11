@@ -1,7 +1,7 @@
  app.controller('DashboardClubSettingsController', DashboardClubSettingsController);
 
-    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'ScheduleDisplayService', 'VoucherWidgetService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'AirfieldHubService', 'TimeDisplayService', 'CancellationFeesService'];
-    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, ScheduleDisplayService, VoucherWidgetService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, AirfieldHubService, TimeDisplayService, CancellationFeesService) {
+    DashboardClubSettingsController.$inject = ['UserService', 'ClubService', 'PaymentService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$window', '$http', '$log', 'ToastService', 'AircraftChecksService', 'DailyAircraftStatusService', 'PaymentModeService', '$uibModal', 'SoloRequirementsService', 'CourseService', 'QuestionnaireService', 'MedicalService', 'TimeDisplayService', 'CancellationFeesService'];
+    function DashboardClubSettingsController(UserService, ClubService, PaymentService, $rootScope, $location, $scope, $state, $stateParams, $window, $http, $log, ToastService, AircraftChecksService, DailyAircraftStatusService, PaymentModeService, $uibModal, SoloRequirementsService, CourseService, QuestionnaireService, MedicalService, TimeDisplayService, CancellationFeesService) {
         var vm = this;
 
         vm.user = null;
@@ -44,10 +44,6 @@
         // Saved on clubs.time_display with the rest of the settings PUT.
         vm.time_display_modes = TimeDisplayService.MODES;
         vm.time_display_example = { brakes_off: '10:32:55', takeoff_time: '10:38:12', landing_time: '11:41:03', brakes_on: '11:46:41' };
-
-        // ── Voucher Widget status ──
-        vm.voucher_widget_active = false;
-        vm.afh_effective = false;   // AirfieldHub live for this club (badge on the settings card)
 
         vm.club_id = $rootScope.globals.currentUser.current_club_admin.id;
         vm.user = $rootScope.globals.currentUser;
@@ -491,123 +487,7 @@
                 });
         };
 
-        // ── Schedule Display Token Management ──
-        vm.display_token = null;
-        vm.display_url = '';
-        vm.display_loading = false;
-        vm.display_copied = false;
-        vm.show_all_instructors = true;
-        vm.pairing_code = '';
-        vm.pairing_loading = false;
-        vm.display_pairing_url = window.location.origin + '/display/tv';
-
-        vm.loadDisplayToken = function() {
-            vm.display_loading = true;
-            ScheduleDisplayService.GetToken(vm.club_id)
-                .then(function(data) {
-                    vm.display_loading = false;
-                    if (data.success && data.token) {
-                        vm.display_token = data.token;
-                        vm.display_url = window.location.origin + '/display/' + data.token;
-                        vm.show_all_instructors = data.show_all_instructors === 1 || data.show_all_instructors === true;
-                    } else {
-                        vm.display_token = null;
-                        vm.display_url = '';
-                    }
-                }, function() {
-                    vm.display_loading = false;
-                });
-        };
-
-        vm.generateDisplayToken = function() {
-            vm.display_loading = true;
-            ScheduleDisplayService.GenerateToken(vm.club_id)
-                .then(function(data) {
-                    vm.display_loading = false;
-                    if (data.success && data.token) {
-                        vm.display_token = data.token;
-                        vm.display_url = window.location.origin + '/display/' + data.token;
-                        ToastService.success('Display Link Created', 'Copy the URL and open it on your clubhouse TV.');
-                    } else {
-                        ToastService.error('Error', data.message || 'Failed to generate display token.');
-                    }
-                }, function() {
-                    vm.display_loading = false;
-                    ToastService.error('Error', 'Could not connect to the server.');
-                });
-        };
-
-        vm.revokeDisplayToken = function() {
-            if (!confirm('Are you sure? This will immediately disable the schedule display on any TV currently using this link.')) return;
-            vm.display_loading = true;
-            ScheduleDisplayService.RevokeToken(vm.club_id)
-                .then(function(data) {
-                    vm.display_loading = false;
-                    if (data.success) {
-                        vm.display_token = null;
-                        vm.display_url = '';
-                        ToastService.success('Revoked', 'Schedule display access has been disabled.');
-                    } else {
-                        ToastService.error('Error', data.message || 'Failed to revoke token.');
-                    }
-                }, function() {
-                    vm.display_loading = false;
-                    ToastService.error('Error', 'Could not connect to the server.');
-                });
-        };
-
-        vm.copyDisplayUrl = function() {
-            var input = document.getElementById('sd_token_url');
-            if (input) {
-                input.select();
-                document.execCommand('copy');
-                vm.display_copied = true;
-                ToastService.success('Copied!', 'Display URL copied to clipboard.');
-                setTimeout(function() {
-                    $scope.$apply(function() { vm.display_copied = false; });
-                }, 2000);
-            }
-        };
-
-        vm.openDisplayInNewTab = function() {
-            window.open(vm.display_url, '_blank');
-        };
-
-        vm.toggleShowAllInstructors = function() {
-            ScheduleDisplayService.UpdateDisplaySettings(vm.club_id, {
-                show_all_instructors: vm.show_all_instructors ? 1 : 0
-            }).then(function(data) {
-                if (data.success) {
-                    ToastService.success('Updated', 'Display setting saved. The TV will update automatically.');
-                } else {
-                    ToastService.error('Error', data.message || 'Failed to update setting.');
-                    vm.show_all_instructors = !vm.show_all_instructors; // revert
-                }
-            }, function() {
-                ToastService.error('Error', 'Could not connect to the server.');
-                vm.show_all_instructors = !vm.show_all_instructors; // revert
-            });
-        };
-
-        vm.linkPairingCode = function() {
-            if (!vm.pairing_code || vm.pairing_code.length < 6) return;
-            vm.pairing_loading = true;
-            ScheduleDisplayService.LinkPairingCode(vm.pairing_code, vm.club_id)
-                .then(function(data) {
-                    vm.pairing_loading = false;
-                    if (data.success) {
-                        ToastService.success('TV Paired!', data.message || 'The TV display is now connected and will show your schedule.');
-                        vm.pairing_code = '';
-                        // Refresh the token display in case it was auto-generated
-                        vm.loadDisplayToken();
-                    } else {
-                        ToastService.error('Pairing Failed', data.message || 'Invalid or expired code. Please check the code on the TV screen.');
-                    }
-                }, function() {
-                    vm.pairing_loading = false;
-                    ToastService.error('Error', 'Could not connect to the server.');
-                });
-        };
+        // (Schedule Display token management moved to DashboardClubScheduleDisplayController, 2026-11-10.)
 
         // ── Booking Edit Time Limits helpers ──
         var standardPresets = ['0','30','60','120','240','720','1440','2880','10080'];
@@ -1048,6 +928,9 @@
                         vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages == 1)? true : false;
                         vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation == 1)? true : false;
                         vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors == 1)? true : false;
+                        // v2 Find a slot: grid only (clubs.find_a_slot_grid_only, owner 10 Nov 2026; absent before the backend migration)
+                        vm.findSlotGridSupported = !!(data && data.hasOwnProperty('find_a_slot_grid_only'));
+                        vm.club.settings.find_a_slot_grid_only = (vm.club.settings.find_a_slot_grid_only == 1)? true : false;
                         // payment method to self-book (clubs.require_payment_method; absent before the backend migration)
                         vm.paymentMethodRuleSupported = !!(data && data.hasOwnProperty('require_payment_method'));
                         vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method == 1)? true : false;
@@ -1055,6 +938,10 @@
                         vm.cardMachineRuleSupported = !!(data && data.hasOwnProperty('card_machine_members'));
                         // split flights: taxi time once per flight / on each leg (clubs.split_taxi_mode; absent before the migration)
                         vm.splitTaxiSupported = !!(data && data.hasOwnProperty('split_taxi_mode'));
+                        // who confirms a voucher lesson request (clubs.voucher_request_routing; absent before the migration)
+                        vm.voucherRoutingSupported = !!(data && data.hasOwnProperty('voucher_request_routing'));
+                        // staff amending a waiting flight's times on Claim a Flight (clubs.claim_times_edit; off by default; absent before the migration)
+                        vm.claimTimesSupported = !!(data && data.hasOwnProperty('claim_times_edit'));
                         // who can see flight tracks (clubs.flight_tracks, C30; absent before the migration)
                         vm.flightTracksSupported = !!(data && data.hasOwnProperty('flight_tracks'));
                         vm.club.settings.flight_tracks = (vm.club.settings.flight_tracks === 'all_members') ? 'all_members' : 'crew_once_booked_in';
@@ -1064,6 +951,10 @@
                         // who may add a second booking on a taken slot (the aircraft waiting list); pre-migration GETs omit it
                         vm.club.settings.double_booking_by = (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) > -1)
                             ? vm.club.settings.double_booking_by : 'everyone';
+                        vm.club.settings.voucher_request_routing = (['both', 'club', 'instructor'].indexOf(vm.club.settings.voucher_request_routing) > -1)
+                            ? vm.club.settings.voucher_request_routing : 'both';
+                        vm.club.settings.claim_times_edit = (['off', 'admins', 'staff'].indexOf(vm.club.settings.claim_times_edit) > -1)
+                            ? vm.club.settings.claim_times_edit : 'off';
                         // opening hours arrive DECODED ({"1":{open,close}|null…} or null); the editor rows are built from them
                         vm.ohInit(vm.club.settings.opening_hours);
                         // cancellation fees arrive DECODED ({reason_key: amount} or null); absent before the migration
@@ -1103,23 +994,6 @@
 
                 // Load the pre-solo requirements checklist
                 vm.loadSoloRequirements();
-
-                // Load schedule display token
-                vm.loadDisplayToken();
-
-                // Load voucher widget token status
-                VoucherWidgetService.GetToken(vm.club_id)
-                    .then(function(data) {
-                        vm.voucher_widget_active = !!(data.success && data.token && data.token.active);
-                    });
-
-                // AirfieldHub: `effective` already means enabled AND an
-                // environment chosen AND that environment has a key. Stage 0
-                // dispatches nothing, so it is not "Active" to a manager.
-                AirfieldHubService.GetConfig(vm.club_id)
-                    .then(function(data) {
-                        vm.afh_effective = !!(data && data.success && data.effective && Number(data.stage) > 0);
-                    });
 
                 // Load daily aircraft status report settings (manager-gated)
                 if (vm.is_manager) {
@@ -1260,6 +1134,11 @@
             vm.club.settings.tpc_aircraft_surchages = (vm.club.settings.tpc_aircraft_surchages)? 1 : 0;
             vm.club.settings.require_booking_confirmation = (vm.club.settings.require_booking_confirmation)? 1 : 0;
             vm.club.settings.hide_unavailable_instructors = (vm.club.settings.hide_unavailable_instructors)? 1 : 0;
+            if (vm.findSlotGridSupported) {
+                vm.club.settings.find_a_slot_grid_only = (vm.club.settings.find_a_slot_grid_only)? 1 : 0;
+            } else {
+                delete vm.club.settings.find_a_slot_grid_only;
+            }
             if (vm.paymentMethodRuleSupported) {
                 vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method)? 1 : 0;
             } else {
@@ -1274,6 +1153,16 @@
             if (!vm.flightTracksSupported) { delete vm.club.settings.flight_tracks; }
             if (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) < 0) {
                 vm.club.settings.double_booking_by = 'everyone';
+            }
+            if (!vm.claimTimesSupported) {
+                delete vm.club.settings.claim_times_edit;
+            } else if (['off', 'admins', 'staff'].indexOf(vm.club.settings.claim_times_edit) < 0) {
+                vm.club.settings.claim_times_edit = 'off';
+            }
+            if (!vm.voucherRoutingSupported) {
+                delete vm.club.settings.voucher_request_routing;
+            } else if (['both', 'club', 'instructor'].indexOf(vm.club.settings.voucher_request_routing) < 0) {
+                vm.club.settings.voucher_request_routing = 'both';
             }
 
             // ── Booking Edit Time Limits ──

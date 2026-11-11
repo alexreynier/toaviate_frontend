@@ -128,6 +128,9 @@ app.factory('writeGuardInterceptor', ['WriteGuard', '$q', '$injector', function 
     // hidden controls, retries) — never auto-toast these.
     var HANDLED_CODES = {
         CONFIRM_REQUIRED: 1, FORBIDDEN: 1, ALREADY_COPIED: 1, COPY_BUSY: 1,
+        TOO_SOON: 1, NO_EMAIL: 1,   // C39 reminders (medicals/remind, course_assignments/{id}/remind): once a week (next_allowed_at); member muted e-mails — shown on the page
+        NOT_CLAIMABLE: 1, SPLIT_LEG: 1, NOT_AMENDED: 1, AMEND_FAILED: 1, REVERT_FAILED: 1,
+        NOT_ELIGIBLE: 1,   // scheduler/v2/reallocate on a day that has started — the Re-allocate panel shows the reason   // staff amending a waiting flight's times on Claim a Flight (owner, 10 Nov) — the dialog says why
         not_configured: 1, stripe_js_unavailable: 1, LOOKUP_UNAVAILABLE: 1,
         LOOKUP_FAILED: 1, AUTHENTICATION: 1, requires_action: 1, two_factor_required: 1,
         two_factor_setup_required: 1, existing_account: 1, out_of_stock: 1,

@@ -99,7 +99,7 @@ var app = angular
 
             // Already on the login screen (e.g. a stale in-flight call raced
             // a manual logout) — nothing to hide, no freeze needed.
-            if ($location.path() === '/login') { return; }
+            if ($location.path() === '/login' || $location.path() === '/v2/login') { return; }
 
             console.log('Session expired — freezing the app until the user returns.');
             $injector.get('$rootScope').sessionFrozen = true;
@@ -546,6 +546,53 @@ var app = angular
                 templateUrl: 'views/manage_club.html'
             })
 
+            // ── AREA HUBS (2026-11-10, batch 19 — step 2 of ops/plans/PROPOSAL_MANAGE_CLUB_STRUCTURE.md §5) ──
+            // Four abstract parents — Ops (the front desk), Accounting, Admin,
+            // Super-admin — sharing views/manageclub/area_hub.html + AreaHubController
+            // (area bar, the area's tabs, the active tab's page row, nested ui-view).
+            // EVERY Manage Club page below is re-parented into one of them with
+            // `parent:` (names, URLs, templates, controllers unchanged; `url: ''`
+            // here keeps the children's URLs where they were) and tagged
+            // `data.area` (children inherit it) so step 4 can gate by area without
+            // touching the states again. A page two areas use (Vouchers, Trackers,
+            // Invoices, the Settings cards) lives under ONE hub; the other hubs link
+            // to it from their tab / page rows. Still ONE access rule today: the
+            // Manage Club guard in the run block, which walks `parent:` chains.
+            // ui-router gotcha (as for members_hub): a child naming its hub via
+            // `parent:` must be registered AFTER the hub — keep these four here.
+            .state('dashboard.manage_club.ops_hub', {
+                abstract: true,
+                url: '',
+                controller: 'AreaHubController',
+                templateUrl: 'views/manageclub/area_hub.html',
+                controllerAs: 'hub',
+                data: { area: 'ops' }
+            })
+            .state('dashboard.manage_club.accounting_hub', {
+                abstract: true,
+                url: '',
+                controller: 'AreaHubController',
+                templateUrl: 'views/manageclub/area_hub.html',
+                controllerAs: 'hub',
+                data: { area: 'accounting' }
+            })
+            .state('dashboard.manage_club.admin_hub', {
+                abstract: true,
+                url: '',
+                controller: 'AreaHubController',
+                templateUrl: 'views/manageclub/area_hub.html',
+                controllerAs: 'hub',
+                data: { area: 'admin' }
+            })
+            .state('dashboard.manage_club.super_admin_hub', {
+                abstract: true,
+                url: '',
+                controller: 'AreaHubController',
+                templateUrl: 'views/manageclub/area_hub.html',
+                controllerAs: 'hub',
+                data: { area: 'super_admin' }
+            })
+
             // ── MEMBERS HUB — one header + tab bar, four child screens ──
             // ui-router only queues a state whose DOTTED-name parent is missing, so a
             // child that names this hub via `parent:` must be registered AFTER it —
@@ -553,11 +600,13 @@ var app = angular
             // re-parented with `parent:` so only the nested ui-view swaps
             // (no header/tab flicker, one stable page width).
             .state('dashboard.manage_club.members_hub', {
+                parent: 'dashboard.manage_club.ops_hub',
                 abstract: true,
                 url: '',
                 controller: 'MembersHubController',
                 templateUrl: 'views/manageclub/members_hub.html',
-                controllerAs: 'hub'
+                controllerAs: 'hub',
+                data: { area: 'ops' }
             })
 
             // Lives in the Members hub (parent above) but keeps its historic
@@ -1048,11 +1097,13 @@ var app = angular
             // FLYING INCOMPLETE
 
             .state('dashboard.manage_club.flying', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/flying',
                 controller: 'DashboardClubFlyingController',
                 templateUrl: 'views/manageclub/flying.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1060,11 +1111,13 @@ var app = angular
             // ALL FLIGHTS
             
             .state('dashboard.manage_club.flights', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/flights',
                 controller: 'DashboardClubFlightsController',
                 templateUrl: 'views/manageclub/flights.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1073,11 +1126,13 @@ var app = angular
             // no landing between the legs (FRONTEND_TRACK_DATA_GUIDE.md §4.2)
 
             .state('dashboard.manage_club.split_review', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/flights/split_review',
                 controller: 'SplitReviewController',
                 templateUrl: 'views/manageclub/split_review.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1085,22 +1140,26 @@ var app = angular
             // CLUB ITEMS
 
             .state('dashboard.manage_club.receipts', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/receipts',
                 controller: 'DashboardClubReceiptsController',
                 templateUrl: 'views/manageclub/receipts.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
 
 
             .state('dashboard.manage_club.receipt_approval', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/receipt_approval',
                 controller: 'DashboardClubReceiptsApprovalController',
                 templateUrl: 'views/manageclub/receipt_approval.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1109,31 +1168,37 @@ var app = angular
             // CLUB ITEMS
 
             .state('dashboard.manage_club.items', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/items',
                 controller: 'DashboardClubItemsController',
                 templateUrl: 'views/manageclub/items.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'accounting',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_item', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/add_items',
                 controller: 'DashboardClubItemsController',
                 templateUrl: 'views/manageclub/item_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'accounting',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_item', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/edit_items/:item_id',
                 controller: 'DashboardClubItemsController',
                 templateUrl: 'views/manageclub/item_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'accounting',
                     action: 'edit'
                 }
             })
@@ -1142,49 +1207,59 @@ var app = angular
             // CLUB SHOP ITEMS
 
             .state('dashboard.manage_club.shop_items', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/shop',
                 controller: 'DashboardClubShopItemsController',
                 templateUrl: 'views/manageclub/shop_items.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_shop_item', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/add_shop_item',
                 controller: 'DashboardClubShopItemsController',
                 templateUrl: 'views/manageclub/shop_item_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_shop_item', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/edit_shop_items/:item_id',
                 controller: 'DashboardClubShopItemsController',
                 templateUrl: 'views/manageclub/shop_item_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'edit'
                 }
             })
 
             .state('dashboard.manage_club.the_shop', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/the_shop',
                 controller: 'DashboardClubShopSaleController',
                 templateUrl: 'views/manageclub/the_shop.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'ops' }
             })
 
             // Exam results admin — outstanding results, purchase history,
             // audit activity + per-course pricing (BACKEND_EXAM_SALES_GUIDE.md)
             .state('dashboard.manage_club.exam_results', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/exam_results?tab',
                 controller: 'ExamResultsController',
                 templateUrl: 'views/manageclub/exam_results.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'admin' }
             })
 
 
@@ -1194,11 +1269,13 @@ var app = angular
             // INSTRUCTOR CHARGES
 
             .state('dashboard.manage_club.instructor_charges', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/instructor_charges',
                 controller: 'DashboardClubInstructorChargesController',
                 templateUrl: 'views/manageclub/instructor_charges.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
@@ -1228,11 +1305,13 @@ var app = angular
             // EXPERIENCES AVAILABLE
 
             .state('dashboard.manage_club.experiences', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/experiences',
                 controller: 'DashboardClubExperiencesController',
                 templateUrl: 'views/manageclub/experiences.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
@@ -1260,11 +1339,13 @@ var app = angular
             // EXPERIENCES AVAILABLE
 
             .state('dashboard.manage_club.experience_discounts', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/experience_discounts',
                 controller: 'DashboardClubExperienceDiscountsController',
                 templateUrl: 'views/manageclub/experience_discounts.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
@@ -1293,11 +1374,13 @@ var app = angular
             // VOUCHERS
 
             .state('dashboard.manage_club.vouchers', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/vouchers',
                 controller: 'DashboardClubVouchersController',
                 templateUrl: 'views/manageclub/vouchers.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1328,11 +1411,13 @@ var app = angular
             //CLUB DOCUMENTS
 
             .state('dashboard.manage_club.documents', {
+                parent: 'dashboard.manage_club.ops_hub',
             url: '/documents',
             templateUrl: 'views/manageclub/documents.html',
             controller: 'ClubDocumentsController',
             controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1364,31 +1449,37 @@ var app = angular
             // PLANES
 
             .state('dashboard.manage_club.planes', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/planes',
                 controller: 'DashboardClubPlanesController',
                 templateUrl: 'views/manageclub/planes.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_plane', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/add_plane',
                 controller: 'DashboardClubPlanesController',
                 templateUrl: 'views/manageclub/plane_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_plane', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/edit_plane/:plane_id',
                 controller: 'DashboardClubPlanesController',
                 templateUrl: 'views/manageclub/plane_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'edit'
                 }
             })
@@ -1398,51 +1489,61 @@ var app = angular
             // COURSES
 
             .state('dashboard.manage_club.courses', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/courses',
                 controller: 'DashboardClubCourseController',
                 templateUrl: 'views/manageclub/courses.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_course', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/add_course',
                 controller: 'DashboardClubCourseController',
                 templateUrl: 'views/manageclub/course_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_course', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/edit_course/:course_id',
                 controller: 'DashboardClubCourseController',
                 templateUrl: 'views/manageclub/course_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'edit'
                 }
             })
 
             .state('dashboard.manage_club.add_lesson', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/edit_course/:course_id/add_lesson',
                 controller: 'DashboardClubLessonController',
                 templateUrl: 'views/manageclub/lesson_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_lesson', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/edit_course/:course_id/edit_lesson/:lesson_id',
                 controller: 'DashboardClubLessonController',
                 templateUrl: 'views/manageclub/lesson_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'edit'
                 }
             })
@@ -1454,27 +1555,30 @@ var app = angular
             // ════════════════════════════════════════════════════
             // Manage a course's/lesson's questionnaires + materials (instructor/admin)
             .state('dashboard.manage_club.course_content', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/course_content/:attach_type/:attach_id?title',
                 controller: 'CourseContentController',
                 templateUrl: 'views/manageclub/course_content/manage.html',
                 controllerAs: 'vm',
-                data: { screen: 'manage' }
+                data: { area: 'admin', screen: 'manage'  },
             })
             // Questionnaire builder (author questions/options/links)
             .state('dashboard.manage_club.questionnaire_builder', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/questionnaire/:questionnaire_id/build',
                 controller: 'CourseContentController',
                 templateUrl: 'views/manageclub/course_content/builder.html',
                 controllerAs: 'vm',
-                data: { screen: 'builder' }
+                data: { area: 'admin', screen: 'builder'  },
             })
             // Review queue for a questionnaire
             .state('dashboard.manage_club.questionnaire_attempts', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/questionnaire/:questionnaire_id/attempts',
                 controller: 'CourseContentController',
                 templateUrl: 'views/manageclub/course_content/attempts.html',
                 controllerAs: 'vm',
-                data: { screen: 'attempts' }
+                data: { area: 'admin', screen: 'attempts'  },
             })
             // Instructor: search a student → all their questionnaire attempts
             .state('dashboard.manage_user.student_questionnaires', {
@@ -1486,19 +1590,21 @@ var app = angular
             })
             // Review a single attempt (mark + notes + release)
             .state('dashboard.manage_club.questionnaire_review', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/questionnaire/attempt/:attempt_id/review',
                 controller: 'CourseContentController',
                 templateUrl: 'views/manageclub/course_content/review.html',
                 controllerAs: 'vm',
-                data: { screen: 'review' }
+                data: { area: 'admin', screen: 'review'  },
             })
             // Material engagement / access report
             .state('dashboard.manage_club.material_access', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/material/:material_id/access',
                 controller: 'CourseContentController',
                 templateUrl: 'views/manageclub/course_content/access.html',
                 controllerAs: 'vm',
-                data: { screen: 'access' }
+                data: { area: 'admin', screen: 'access'  },
             })
 
 
@@ -1731,31 +1837,37 @@ var app = angular
 
             // PACKAGES
             .state('dashboard.manage_club.package', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/packages',
                 controller: 'DashboardClubPackagesController',
                 templateUrl: 'views/manageclub/packages.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_package', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/add_package',
                 controller: 'DashboardClubPackagesController',
                 templateUrl: 'views/manageclub/packages_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_package', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/edit_package/:package_id',
                 controller: 'DashboardClubPackagesController',
                 templateUrl: 'views/manageclub/packages_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'edit'
                 }
             })
@@ -1765,21 +1877,13 @@ var app = angular
             // MAINTENANCE
 
             .state('dashboard.manage_club.maintenance', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/maintenance',
                 controller: 'DashboardClubMaintenanceController',
                 templateUrl: 'views/manageclub/maintenance.html',
                 controllerAs: 'vm',
                 data: {
-                    action: 'list'
-                }
-            })
-
-             .state('dashboard.manage_club.maintenance.add_maintenance', {
-                url: '/add',
-                controller: 'DashboardClubMaintenanceController',
-                templateUrl: 'views/manageclub/add_maintenance.html',
-                controllerAs: 'vm',
-                data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -1830,16 +1934,6 @@ var app = angular
 
 
 
-            .state('dashboard.manage_club.maintenance.review', {
-                url: '/review/:review_id',
-                controller: 'DashboardClubMaintenanceController',
-                templateUrl: 'views/manageclub/maintenance_review.html',
-                controllerAs: 'vm',
-                data: {
-                    action: 'list'
-                }
-            })
-
 
 
 
@@ -1849,11 +1943,13 @@ var app = angular
 
 
             .state('dashboard.manage_club.payments', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/payments',
                 controller: 'DashboardClubPaymentsController',
                 templateUrl: 'views/manageclub/payments.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'accounting',
                     action: 'list'
                 }
             })
@@ -1861,10 +1957,12 @@ var app = angular
 
             //ALL INVOICES
             .state('dashboard.manage_club.invoices', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/invoices',
                 templateUrl: 'views/manageclub/all_invoices.html',
                 controller: 'DashboardClubInvoicesController',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'accounting' }
             })
 
             // .state('dashboard.manage_club.edit_payments', {
@@ -1884,20 +1982,24 @@ var app = angular
             // ACCOUNTING EXPORT
 
             .state('dashboard.manage_club.accounting_export', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/accounting_export',
                 controller: 'DashboardAccountingExportController',
                 templateUrl: 'views/manageclub/accounting_export.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'accounting' }
             })
 
             // CLUB STATISTICS
 
             .state('dashboard.manage_club.club_stats', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/club_stats',
                 controller: 'DashboardClubStatsController',
                 templateUrl: 'views/manageclub/club_stats.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'accounting',
                     action: 'list'
                 }
             })
@@ -1910,10 +2012,12 @@ var app = angular
             // TPC training-records import — run review (filters live in the
             // URL so fix-it queues are shareable/bookmarkable)
             .state('dashboard.manage_club.tpc_import_run', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/data_import/run/:run_id?status&action&issue&q&edited&page',
                 controller: 'TpcImportRunController',
                 templateUrl: 'views/manageclub/tpc_import_run.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'admin' }
             })
 
             // Missing students queue — imported flights whose student could not
@@ -1947,47 +2051,92 @@ var app = angular
                 }
             })
 
+            // ?card=<id> (batch 19): the area hubs open a Settings card by its id
+            // (scrolled to by AreaHubController); reloadOnSearch:false so hopping
+            // between cards does not reload the page.
             .state('dashboard.manage_club.settings', {
-                url: '/settings',
+                parent: 'dashboard.manage_club.admin_hub',
+                url: '/settings?card',
+                reloadOnSearch: false,
                 controller: 'DashboardClubSettingsController',
                 templateUrl: 'views/manageclub/settings.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: "list"
                 }
             })
 
             .state('dashboard.manage_club.automations', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/settings/automations',
                 controller: 'DashboardClubAutomationsController',
                 templateUrl: 'views/manageclub/automations.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'admin' }
             })
 
-            // VOUCHER WIDGET
+            // ── Out of Settings (2026-11-10, batch 18) ──
+            // Schedule Display, Data Import, BookedScheduler Sync, the Voucher
+            // Widget and the two Airfield pages were sections / cards of the
+            // Settings page; each is a Manage Club section of its own now
+            // (tiles in views/manage_club.html). Behaviour inside is unchanged.
+
+            // SCHEDULE DISPLAY (clubhouse TV) — was an inline Settings section
+            .state('dashboard.manage_club.schedule_display', {
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/schedule_display?pair_tv',     // ?pair_tv=472913 — the TV's pairing QR pre-fills the code (2026-11-11)
+                reloadOnSearch: false,                // the page drops the param itself without re-entering the state
+                controller: 'DashboardClubScheduleDisplayController',
+                templateUrl: 'views/manageclub/schedule_display.html',
+                controllerAs: 'vm',
+                data: { area: 'ops' }
+            })
+
+            // DATA IMPORT — training-records workbook import + course reassign
+            // (was an inline Settings section; run review below keeps its URL)
+            .state('dashboard.manage_club.data_import', {
+                parent: 'dashboard.manage_club.admin_hub',
+                url: '/data_import',
+                controller: 'DashboardClubDataImportController',
+                templateUrl: 'views/manageclub/data_import.html',
+                controllerAs: 'vm',
+                data: { area: 'admin' }
+            })
+
+            // VOUCHER WIDGET — a tab of the Vouchers hub (_vouchers_nav.html)
             .state('dashboard.manage_club.voucher_widget', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/voucher_widget',
                 controller: 'DashboardClubVoucherWidgetController',
                 templateUrl: 'views/manageclub/voucher_widget.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'admin' }
             })
 
             // (Cron status moved to the dashboard.super_admin hub.)
 
             // BOOKEDSCHEDULER SYNC
             .state('dashboard.manage_club.bs_sync', {
+                parent: 'dashboard.manage_club.super_admin_hub',
                 url: '/bs_sync',
                 controller: 'DashboardClubBsSyncController',
                 templateUrl: 'views/manageclub/bs_sync.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'super_admin' }
             })
 
-            // AIRFIELD BOOKOUT SYSTEM (Admin Settings)
+            // ── AIRFIELD INTEGRATION hub — Airfield Bookout · AirfieldHub ──
+            // Two leaf states sharing one tab bar (_airfield_nav.html). Their
+            // URLs moved under /airfield/ on 2026-11-10; the old ones are
+            // redirect STATES (below) so bookmarks and e-mail links keep working.
             .state('dashboard.manage_club.airfield_bookout', {
-                url: '/airfield_bookout',
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/airfield/bookout',
                 controller: 'DashboardClubAirfieldBookoutController',
                 templateUrl: 'views/manageclub/airfield_bookout.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'ops' }
             })
 
             // AIRFIELDHUB — per-club settings (managers): enable, environment,
@@ -1995,10 +2144,44 @@ var app = angular
             // The server-wide half (environments / directory / queue) is
             // ToAviate-staff only — see dashboard.super_admin.airfield_hub.
             .state('dashboard.manage_club.airfield_hub', {
-                url: '/airfield_hub',
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/airfield/airfield_hub',
                 controller: 'AirfieldHubClubController',
                 templateUrl: 'views/manageclub/airfield_hub_club.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'ops' }
+            })
+
+            // Old URLs of the two Airfield pages (and the bare hub URL) → redirect
+            // states. Why not $urlRouterProvider.when: see the note above
+            // $urlRouterProvider.otherwise. The $timeout lets the entering
+            // transition finish before the next one starts (no "superseded" noise).
+            .state('dashboard.manage_club.airfield_bookout_legacy', {
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/airfield_bookout',
+                template: '',
+                controller: ['$state', '$timeout', function ($state, $timeout) {
+                    $timeout(function () { $state.go('dashboard.manage_club.airfield_bookout', {}, { location: 'replace' }); });
+                }],
+                data: { area: 'ops' }
+            })
+            .state('dashboard.manage_club.airfield_hub_legacy', {
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/airfield_hub',
+                template: '',
+                controller: ['$state', '$timeout', function ($state, $timeout) {
+                    $timeout(function () { $state.go('dashboard.manage_club.airfield_hub', {}, { location: 'replace' }); });
+                }],
+                data: { area: 'ops' }
+            })
+            .state('dashboard.manage_club.airfield_index', {
+                parent: 'dashboard.manage_club.ops_hub',
+                url: '/airfield',
+                template: '',
+                controller: ['$state', '$timeout', function ($state, $timeout) {
+                    $timeout(function () { $state.go('dashboard.manage_club.airfield_bookout', {}, { location: 'replace' }); });
+                }],
+                data: { area: 'ops' }
             })
 
 
@@ -2007,125 +2190,143 @@ var app = angular
             // All share SmsController; the screen is chosen by data.screen.
             // ════════════════════════════════════════════════════
             .state('dashboard.manage_club.reminders', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/reminders',
                 controller: 'ClubRemindersController',
                 templateUrl: 'views/manageclub/reminders.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'admin' }
             })
 
             // EMAIL LOG — scoped to the admin's club (managers)
             .state('dashboard.manage_club.email_log', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/email_log',
                 controller: 'EmailLogController',
                 templateUrl: 'views/manageclub/email_log.html',
                 controllerAs: 'vm',
-                data: { scope: 'club' }
+                data: { area: 'admin', scope: 'club'  },
             })
 
             .state('dashboard.manage_club.sms', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/dashboard.html',
                 controllerAs: 'vm',
-                data: { screen: 'dashboard' }
+                data: { area: 'admin', screen: 'dashboard'  },
             })
             .state('dashboard.manage_club.sms_hazards', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/hazards',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/hazards.html',
                 controllerAs: 'vm',
-                data: { screen: 'hazards' }
+                data: { area: 'admin', screen: 'hazards'  },
             })
             .state('dashboard.manage_club.sms_occurrences', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/occurrences',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/occurrences.html',
                 controllerAs: 'vm',
-                data: { screen: 'occurrences' }
+                data: { area: 'admin', screen: 'occurrences'  },
             })
             .state('dashboard.manage_club.sms_risks', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/risks',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/risks.html',
                 controllerAs: 'vm',
-                data: { screen: 'risks' }
+                data: { area: 'admin', screen: 'risks'  },
             })
             .state('dashboard.manage_club.sms_actions', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/actions',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/actions.html',
                 controllerAs: 'vm',
-                data: { screen: 'actions' }
+                data: { area: 'admin', screen: 'actions'  },
             })
             .state('dashboard.manage_club.sms_audits', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/audits',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/audits.html',
                 controllerAs: 'vm',
-                data: { screen: 'audits' }
+                data: { area: 'admin', screen: 'audits'  },
             })
             .state('dashboard.manage_club.sms_documents', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/documents',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/documents.html',
                 controllerAs: 'vm',
-                data: { screen: 'documents' }
+                data: { area: 'admin', screen: 'documents'  },
             })
             .state('dashboard.manage_club.sms_meetings', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/meetings',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/meetings.html',
                 controllerAs: 'vm',
-                data: { screen: 'meetings' }
+                data: { area: 'admin', screen: 'meetings'  },
             })
             .state('dashboard.manage_club.sms_change', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/change',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/change.html',
                 controllerAs: 'vm',
-                data: { screen: 'change' }
+                data: { area: 'admin', screen: 'change'  },
             })
             .state('dashboard.manage_club.sms_instructors', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/instructors',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/instructors.html',
                 controllerAs: 'vm',
-                data: { screen: 'instructors' }
+                data: { area: 'admin', screen: 'instructors'  },
             })
             .state('dashboard.manage_club.sms_students', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/students',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/students.html',
                 controllerAs: 'vm',
-                data: { screen: 'students' }
+                data: { area: 'admin', screen: 'students'  },
             })
             .state('dashboard.manage_club.sms_erp', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/erp',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/erp.html',
                 controllerAs: 'vm',
-                data: { screen: 'erp' }
+                data: { area: 'admin', screen: 'erp'  },
             })
             .state('dashboard.manage_club.sms_bulletins', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/bulletins',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/bulletins.html',
                 controllerAs: 'vm',
-                data: { screen: 'bulletins' }
+                data: { area: 'admin', screen: 'bulletins'  },
             })
             .state('dashboard.manage_club.sms_settings', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/settings',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/settings.html',
                 controllerAs: 'vm',
-                data: { screen: 'settings' }
+                data: { area: 'admin', screen: 'settings'  },
             })
             .state('dashboard.manage_club.sms_audit_view', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/sms/audit_view',
                 controller: 'SmsController',
                 templateUrl: 'views/manageclub/sms/audit_view.html',
                 controllerAs: 'vm',
-                data: { screen: 'audit_view' }
+                data: { area: 'admin', screen: 'audit_view'  },
             })
 
             // ── TRACKER COMMERCE (club side) ──
@@ -2134,101 +2335,117 @@ var app = angular
             // the deep links the backend puts in its emails
             // (dashboard/manage_club/trackers/…).
             .state('dashboard.manage_club.trackers', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/trackers',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/units.html',
                 controllerAs: 'vm',
-                data: { screen: 'units' }
+                data: { area: 'ops', screen: 'units'  },
             })
             .state('dashboard.manage_club.trackers_shop', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/trackers/shop',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/shop.html',
                 controllerAs: 'vm',
-                data: { screen: 'shop' }
+                data: { area: 'accounting', screen: 'shop'  },
             })
             .state('dashboard.manage_club.trackers_orders', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/trackers/orders',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/orders.html',
                 controllerAs: 'vm',
-                data: { screen: 'orders' }
+                data: { area: 'accounting', screen: 'orders'  },
             })
             .state('dashboard.manage_club.trackers_order_detail', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/trackers/orders/:id',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/order_detail.html',
                 controllerAs: 'vm',
-                data: { screen: 'order_detail' }
+                data: { area: 'accounting', screen: 'order_detail'  },
             })
             .state('dashboard.manage_club.trackers_billing', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/trackers/billing',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/billing.html',
                 controllerAs: 'vm',
-                data: { screen: 'billing' }
+                data: { area: 'accounting', screen: 'billing'  },
             })
             // GoCardless redirect-flow return page (?redirect_flow_id=RE…)
             .state('dashboard.manage_club.trackers_dd_confirm', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/trackers/billing/dd_confirm',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/dd_confirm.html',
                 controllerAs: 'vm',
-                data: { screen: 'dd_confirm' }
+                data: { area: 'accounting', screen: 'dd_confirm'  },
             })
             .state('dashboard.manage_club.trackers_unit_detail', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/trackers/units/:id',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/unit_detail.html',
                 controllerAs: 'vm',
-                data: { screen: 'unit_detail' }
+                data: { area: 'ops', screen: 'unit_detail'  },
             })
             .state('dashboard.manage_club.trackers_returns', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/trackers/returns',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/returns.html',
                 controllerAs: 'vm',
-                data: { screen: 'returns' }
+                data: { area: 'ops', screen: 'returns'  },
             })
             .state('dashboard.manage_club.trackers_return_detail', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/trackers/returns/:id',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/return_detail.html',
                 controllerAs: 'vm',
-                data: { screen: 'return_detail' }
+                data: { area: 'ops', screen: 'return_detail'  },
             })
             .state('dashboard.manage_club.trackers_activity', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/trackers/activity',
                 controller: 'TrackerClubController',
                 templateUrl: 'views/manageclub/trackers/activity.html',
                 controllerAs: 'vm',
-                data: { screen: 'activity' }
+                data: { area: 'ops', screen: 'activity'  },
             })
 
             // CLUB PAYMENTS TO:::
             .state('dashboard.manage_club.payments_to', {
+                parent: 'dashboard.manage_club.accounting_hub',
                 url: '/bank_settings',
                 controller: 'ClubPaymentsController',
                 templateUrl: 'views/manageclub/payment_to.html',
-                controllerAs: 'vm'
+                controllerAs: 'vm',
+                data: { area: 'accounting' }
             })
 
             .state('dashboard.manage_club.stripe_rtn', {
+                parent: 'dashboard.manage_club.super_admin_hub',
                 url: '/settings/stripe_return/:stripe_id',
                 controller: 'DashboardClubSettingsController',
                 templateUrl: 'views/manageclub/settings_strip_return.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'super_admin',
                     action: "stripe_return"
                 }
             })
 
             .state('dashboard.manage_club.stripe_refresh', {
+                parent: 'dashboard.manage_club.super_admin_hub',
                 url: '/settings/stripe_refresh/:stripe_id',
                 controller: 'DashboardClubSettingsController',
                 templateUrl: 'views/manageclub/settings_strip_refresh.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'super_admin',
                     action: "stripe_refresh"
                 }
             })
@@ -2240,31 +2457,37 @@ var app = angular
             // MEMBERSHIPS
 
             .state('dashboard.manage_club.memberships', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/memberships',
                 controller: 'DashboardClubMembershipsController',
                 templateUrl: 'views/manageclub/memberships.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
 
             .state('dashboard.manage_club.add_membership', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/add_membership',
                 controller: 'DashboardClubMembershipsController',
                 templateUrl: 'views/manageclub/membership_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.edit_membership', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/edit_membership/:membership_id',
                 controller: 'DashboardClubMembershipsController',
                 templateUrl: 'views/manageclub/membership_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'edit'
                 }
             })
@@ -2285,21 +2508,25 @@ var app = angular
             })
 
             .state('dashboard.manage_club.add_member', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/add_member',
                 controller: 'DashboardClubMembersController',
                 templateUrl: 'views/manageclub/member_invite.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'add'
                 }
             })
 
             .state('dashboard.manage_club.import_members', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/import_members',
                 controller: 'DashboardClubMembersController',
                 templateUrl: 'views/manageclub/member_import.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'list'
                 }
             })
@@ -2307,11 +2534,13 @@ var app = angular
 
 
             .state('dashboard.manage_club.edit_member', {
+                parent: 'dashboard.manage_club.ops_hub',
                 url: '/edit_member/:member_id',
                 controller: 'DashboardClubMembersController',
                 templateUrl: 'views/manageclub/member_form.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'ops',
                     action: 'edit'
                 }
             })
@@ -2330,11 +2559,13 @@ var app = angular
 
 
             .state('dashboard.manage_club.booking_slots', {
+                parent: 'dashboard.manage_club.admin_hub',
                 url: '/booking_slots',
                 controller: 'BookingSlotsAdminController',
                 templateUrl: 'views/manageclub/booking_slots.html',
                 controllerAs: 'vm',
                 data: {
+                    area: 'admin',
                     action: 'list'
                 }
             })
@@ -3440,6 +3671,14 @@ var app = angular
             templateUrl: 'views/forms/passenger_signup_complete/thank_you.html'
         });
 
+        // Moved Manage Club URLs are redirected by the *_legacy states above, NOT
+        // by $urlRouterProvider.when: the Manage Club guard preventDefaults the
+        // first state change of a page load (it waits for the server copy of the
+        // user), and ui-router then resets the URL to the one it started from —
+        // which re-fires a .when rule, and so on until $rootScope:infdig (seen
+        // 2026-11-10). A redirect state is a normal transition, so the guard's
+        // one-time wait and the redirect happen in order.
+
         $urlRouterProvider.otherwise('/login');
 
     }
@@ -3622,6 +3861,23 @@ var app = angular
  	//RUN INJECT
     run.$inject = ['$rootScope', '$location', '$cookieStore', '$http', 'EnvConfig', '$state', '$uibModalStack', 'TwoFactorService', '$injector'];
     function run($rootScope, $location, $cookieStore, $http, EnvConfig, $state, $uibModalStack, TwoFactorService, $injector) {
+        // the boot splash in index.html (the runway drawn inline, shown while the scripts downloaded): it stays until the FIRST
+        // view has rendered (on a slow network the first template fetch is still ahead of us here), with a 15 s fallback
+        (function () {
+            var b = document.getElementById('ta-boot');
+            if (!b) { return; }
+            var off = null, done = false;
+            function bootDone() {
+                if (done) { return; }
+                done = true;
+                if (off) { off(); }
+                b.className += ' ta-boot-done';
+                setTimeout(function () { if (b.parentNode) { b.parentNode.removeChild(b); } }, 300);
+            }
+            off = $rootScope.$on('$viewContentLoaded', bootDone);
+            setTimeout(bootDone, 15000);
+        })();
+
         // keep user logged in after page refresh
 
         //console.log("RUNNING");
@@ -3678,7 +3934,7 @@ var app = angular
         // day in a clubhouse or tower for students and instructors to walk up to.
         // They show nothing private, so the privacy blur is pure obstruction —
         // exempt them even if someone happens to be logged in on that machine.
-        var idleExemptStates = ['airfield_bookout_form', 'airfield_bookout_display', 'schedule_display'];
+        var idleExemptStates = ['airfield_bookout_form', 'airfield_bookout_display', 'schedule_display', 'display_pairing'];   // + the TV's pairing screen (11 Nov 2026)
 
         function isIdleExemptState() {
             return $state.current && idleExemptStates.indexOf($state.current.name) > -1;
@@ -3733,7 +3989,8 @@ var app = angular
         // Track the previous ui-router state so we can avoid going back to login/public pages.
         var previousStateName = null;
         var previousStateParams = null;
-        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel', 'passenger_decline', 'two_factor_reset_cancel', 'flight_share'];
+        var publicStates = ['login', 'gallery', 'disabled', 'club_signup', 'passenger_signup', 'schedule_display', 'display_pairing', 'airfield_bookout_form', 'airfield_bookout_display', 'password_reset', 'password_reset2', 'registration_verification', 'free_logbook', 'logbook_invite', 'endorsement_confirm', 'caa_form_confirm', 'email_confirm', 'email_cancel', 'passenger_decline', 'two_factor_reset_cancel', 'flight_share',
+            'login_v2', 'password_reset_v2', 'password_reset2_v2'];   // the v2 sign-in pages (js/v2/login/login.js)
 
         $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState, fromParams) {
             if (fromState && fromState.name) {
@@ -3747,6 +4004,32 @@ var app = angular
                     ? { name: fromState.name, params: angular.copy(fromParams) || {} }
                     : null;
             }
+        });
+
+        // Moving to another page starts at the top (owner, 11 Nov 2026: scrolled down the Scheduler, "My Account" in the
+        // header kept the scroll and looked odd). The "page" of a state is the state itself, or — for a PANEL (a child that
+        // renders into a NAMED view of an ancestor, e.g. 'panel@dashboard.scheduler_v2', so the page behind stays mounted)
+        // — the page it opens over. Kept: the same state with new params (the page decides, e.g. the scheduler's date),
+        // opening / closing / switching panels over the same page, and any state with data.keepScroll.
+        function isPanelState(state) {
+            if (!state || !state.views) { return false; }
+            for (var key in state.views) {
+                if (state.views.hasOwnProperty(key) && key.indexOf('@') > 0) { return true; }
+            }
+            return false;
+        }
+        function pageOf(name) {
+            var st = $state.get(name);
+            while (st && isPanelState(st) && st.name.lastIndexOf('.') > 0) {
+                st = $state.get(st.name.slice(0, st.name.lastIndexOf('.')));
+            }
+            return st ? st.name : name;
+        }
+        $rootScope.$on('$stateChangeSuccess', function(event, toState, toParams, fromState) {
+            if (!fromState || !fromState.name || toState.name === fromState.name) { return; }
+            if (toState.data && toState.data.keepScroll) { return; }
+            if (pageOf(toState.name) === pageOf(fromState.name)) { return; }
+            window.setTimeout(function() { window.scrollTo(0, 0); }, 0);
         });
 
         // True when the user arrived at the current page from state `name`.
@@ -3807,6 +4090,7 @@ var app = angular
         // index 0 (they start with /dashboard).
         var publicPages = [
             '/login', '/gallery', '/disabled',
+            '/v2/login', '/v2/password_reset',   // the v2 sign-in pages (js/v2/login/login.js)
             '/password_reset', '/registration_verification',
             '/display',
             '/club_signup',                 // club signup wizard

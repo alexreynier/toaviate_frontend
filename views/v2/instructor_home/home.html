@@ -1,0 +1,55 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Home — mockups/instructor-dashboard/home.html (page "home").
+     InstructorHomeV2Controller (js/v2/instructor_home/instructor_home.js) · contract C43 · css/v2/instructor-home.css (ih-).
+     Every one of v1's nine tiles (views/manage_user.html) is here, grouped, with a live line and a badge where something waits.
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="ih-home">
+
+  <!-- ── page bar: what needs you ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-chalkboard-teacher"></i></span><div><ins-tag></ins-tag><h2>Instructor Dashboard</h2><p data-e2e="ih-sub">{{ vm.sub }}</p></div></div>
+      <span class="ih-baracts"><span class="ih-attn__k ih-attn__k--ok ins-rise" ng-if="vm.st === 'ready' && vm.upToDate" data-e2e="ih-uptodate"><i class="fas fa-check-circle"></i>All up to date</span><span class="ih-v2back"><design-back></design-back></span><button type="button" class="ta-btn" ng-if="vm.st !== 'none'" ng-click="vm.go('schedule')" no-busy-guard title="Your lessons in the scheduler" aria-label="My schedule" data-e2e="ih-bar-schedule"><i class="fas fa-calendar-alt"></i><span class="ta-desk-only">My schedule</span></button></span>
+    </div>
+    <!-- while the read is on its way: the row keeps its place (the bar doesn't jump), and folds away if nothing needs you -->
+    <div class="ta-bar__row ta-bar__row--tools ih-attnrow" ng-if="vm.attnSkel" aria-hidden="true" data-e2e="ih-attn-skel"><div class="ih-attn"><span class="ih-attn__k"><span class="ta-skel ih-skelk"></span>&#8203;</span><div class="ih-attn__set"><span class="ta-skel ih-skelchip" ng-repeat="i in vm.skel"></span></div></div></div>
+    <div class="ta-bar__row ta-bar__row--tools ih-attnrow" ng-if="vm.st === 'ready' && vm.attn.length" data-e2e="ih-attn">
+      <div class="ih-attn" ng-class="{'ih-attn--all': vm.attnAll}" role="group" aria-label="Needs you"><span class="ih-attn__k"><i class="fas fa-exclamation-circle"></i>Needs you · {{ vm.attn.length }}</span><div class="ih-attn__set"><button type="button" class="ih-chip ins-rise" ng-repeat="a in vm.attn track by a.key" ng-class="[a.tone ? 'ih-chip--' + a.tone : '', $index >= 3 ? 'ih-chip--extra' : '']" style="--i: {{ $index }}" ng-click="vm.needGo(a)" no-busy-guard title="{{ a.sub }}" data-e2e="ih-chip" data-key="{{ a.key }}"><span class="ih-chip__ic"><i class="fas {{ a.ic }}"></i></span><span class="ih-chip__txt"><span class="ih-chip__t">{{ a.title }}</span><span class="ih-chip__s">{{ a.sub }}</span></span><span class="ih-chip__go">{{ a.go }}<i class="fas fa-arrow-right"></i></span></button><button type="button" class="ih-chip ih-chip--more" ng-if="vm.attn.length > 3" ng-click="vm.attnMore()" no-busy-guard aria-expanded="{{ vm.attnAll }}" data-e2e="ih-more">{{ vm.attnAll ? 'Show fewer' : '+' + (vm.attn.length - 3) + ' more' }}</button></div></div>
+    </div>
+    <div class="ih-v2row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading: the skeleton ── -->
+  <section class="ta-card ih-skel" ng-if="vm.st === 'loading'" aria-busy="true" aria-label="Loading your Instructor Dashboard" data-e2e="ih-skel"><div class="ta-skel" ng-repeat="i in vm.skel"></div></section>
+
+  <!-- ── not an instructor at any club (D5) ── -->
+  <section class="ta-card ins-rise" ng-if="vm.st === 'none'" data-e2e="ih-none">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-chalkboard-teacher"></i></span><h4>You’re not an instructor at a club yet</h4><p>When a club adds you as an instructor, your lessons, students and sign-offs show here.</p>
+      <button type="button" class="ta-btn" ui-sref="dashboard.my_account" no-busy-guard><i class="fas fa-user-circle"></i>Go to My Account</button></div>
+  </section>
+
+  <!-- ── the summary could not be read: say so, and keep every part of the dashboard one tap away ── -->
+  <section class="ta-card ins-rise" ng-if="vm.st === 'error'" data-e2e="ih-error">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load what needs you today</h4><p>{{ vm.err }}</p>
+      <button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard data-e2e="ih-retry"><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <!-- ── Today: each lesson with its next action; the first thing to do is highlighted ── -->
+  <section class="ta-card ih-today ins-rise" style="--i: 0" aria-label="Today" ng-if="vm.st === 'ready'" data-e2e="ih-today">
+    <div class="ih-today__hd"><h3><span class="ih-dot" aria-hidden="true"></span>Today <span>{{ vm.todayLine }}</span></h3></div>
+    <div class="ih-lesson" ng-repeat="l in vm.rows track by l.id" id="ih-l-{{ l.id }}" data-e2e="ih-row" data-state="{{ l.state }}">
+      <div class="ih-row" ng-class="{'ih-row--lead': l.id === vm.leadId}" role="group" aria-label="{{ l.aria }}"><span class="ih-kind"><span class="ta-kind ta-kind--{{ l.kind }} ta-kind--sm" title="{{ l.k.label }}"><i class="fas {{ l.k.ic }}"></i></span></span><span class="ih-time"><b>{{ l.range }}</b><span>{{ l.dur }}</span></span><span class="ih-main"><span class="ih-main__t">{{ l.title }} <span ng-if="l.lessonT">· {{ l.lessonT }}</span></span><span class="ih-meta"><span class="ta-ac" ng-if="l.ac" style="{{ l.acStyle }}" title="{{ l.acTitle }}">{{ l.ac.reg }}<span ng-if="l.ac.type">{{ l.ac.type }}</span></span><span class="ih-who"><span class="ta-av ta-av--sm ta-av--member" title="Member"><i class="fas fa-user"></i></span>{{ l.who }}</span><span class="ih-fact" ng-repeat="f in l.facts track by $index"><i class="fas {{ f.ic }}"></i>{{ f.t }}</span></span></span><span class="ih-pill"><span class="ta-pill ta-pill--{{ l.st.tone }}"><i class="fas {{ l.st.ic }}"></i>{{ l.st.label }}</span></span><span class="ih-acts"><button type="button" class="ta-btn ta-btn--sm" ng-if="l.act === 'debrief'" ng-class="{'ta-btn--primary': l.id === vm.leadId}" ng-click="vm.act(l)" no-busy-guard data-e2e="ih-debrief"><i class="fas fa-clipboard-check"></i>Debrief {{ l.first }}</button><button type="button" class="ta-btn ta-btn--sm" ng-if="l.act === 'brief'" ng-class="{'ta-btn--primary': l.id === vm.leadId}" ng-click="vm.act(l)" no-busy-guard data-e2e="ih-brief"><i class="fas fa-chalkboard"></i>Brief {{ l.first }}</button><button type="button" class="ta-btn ta-btn--sm" ng-if="l.act === 'open'" ng-click="vm.act(l)" no-busy-guard data-e2e="ih-openbrief"><i class="fas fa-chalkboard"></i>Open brief</button><button type="button" class="ta-btn ta-btn--sm" ng-if="l.act === 'answer'" ng-class="{'ta-btn--primary': l.id === vm.leadId}" ng-click="vm.accept(l)" ng-disabled="!!vm.busy[l.id]" no-busy-guard data-e2e="ih-accept"><span class="ta-spin" ng-if="vm.busy[l.id] === 'accept'" ng-class="{'ta-spin--dark': l.id !== vm.leadId}"></span><i class="fas fa-check" ng-if="vm.busy[l.id] !== 'accept'"></i>{{ vm.busy[l.id] === 'accept' ? 'Accepting…' : 'Accept' }}</button><button type="button" class="ta-btn ta-btn--sm" id="ih-decline-{{ l.id }}" ng-if="l.act === 'answer'" ng-click="vm.declineAsk(l)" ng-disabled="!!vm.busy[l.id]" no-busy-guard aria-expanded="{{ vm.decline === l.id }}" data-e2e="ih-decline">Decline</button></span></div>
+      <div class="ih-confirm" ng-if="vm.decline === l.id && l.act === 'answer'" data-e2e="ih-confirm"><div class="ta-confirm" role="group" aria-label="Confirm declining"><span><b>Decline {{ l.first }}’s request?</b> They’re told by email and the slot frees up.</span><div class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--sm" id="ih-keep-{{ l.id }}" ng-click="vm.declineNo()" ng-disabled="!!vm.busy[l.id]" no-busy-guard data-e2e="ih-keep">Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.declineYes(l)" ng-disabled="!!vm.busy[l.id]" no-busy-guard data-e2e="ih-decline-yes"><span class="ta-spin" ng-if="vm.busy[l.id] === 'decline'"></span>{{ vm.busy[l.id] === 'decline' ? 'Declining…' : 'Decline' }}</button></div></div></div>
+    </div>
+    <div class="ih-quiet" ng-if="!vm.rows.length && vm.lessonsFailed" data-e2e="ih-today-failed"><i class="fas fa-exclamation-triangle"></i><span>Today’s lessons couldn’t be loaded.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+    <div class="ih-quiet" ng-if="!vm.rows.length && !vm.lessonsFailed" data-e2e="ih-quiet"><i class="fas" ng-class="vm.newbie ? 'fa-calendar-check' : 'fa-mug-hot'"></i><span>{{ vm.newbie ? 'Your lessons show here on the day. Set your availability so students can book you.' : 'No lessons today.' }}</span><button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="vm.newbie" ng-click="vm.go('availability')" no-busy-guard data-e2e="ih-setavail"><i class="fas fa-calendar-check"></i>Set availability</button></div>
+    <div class="ih-next" ng-if="vm.up.length" data-e2e="ih-next"><span class="ih-next__k">Coming up</span><div class="ih-next__set"><button type="button" class="ih-up" ng-repeat="u in vm.up track by u.id" ng-click="vm.go('schedule')" no-busy-guard data-e2e="ih-up"><span class="ta-kind ta-kind--{{ u.kind }}" title="{{ u.k.label }}"><i class="fas {{ u.k.ic }}"></i></span>{{ u.when }}<span class="ih-up__s">{{ u.sub }}</span></button></div><button type="button" class="ta-link" ng-click="vm.go('schedule')" no-busy-guard data-e2e="ih-next-all">My schedule <i class="fas fa-arrow-right"></i></button></div>
+  </section>
+
+  <!-- ── every part of the Instructor Dashboard (v1's nine tiles), grouped, each with a live line ── -->
+  <div class="ta-sh ins-rise" style="--i: 1" ng-if="vm.st === 'ready' || vm.st === 'error'"><div><h3>Everything you do as an instructor</h3><p>Each part of the Instructor Dashboard, with what’s going on in it</p></div></div>
+  <div class="ih-groups" ng-if="vm.st === 'ready' || vm.st === 'error'" data-e2e="ih-groups">
+    <section class="ta-card ih-group ins-rise" ng-repeat="g in vm.groups track by g.key" style="--i: {{ $index + 2 }}" aria-label="{{ g.label }}"><div class="ih-group__k"><i class="fas {{ g.ic }}"></i><span class="ta-sec-k">{{ g.label }}</span></div><button type="button" class="ih-tile" ng-repeat="t in g.tiles track by t.key" ng-click="vm.tileGo(t)" no-busy-guard data-e2e="ih-tile" data-key="{{ t.key }}"><span class="ih-ic"><i class="fas {{ t.ic }}"></i></span><span><span class="ih-tile__t">{{ t.t }}</span><span class="ih-tile__s" ng-class="t.tone ? 'ih-tile__s--' + t.tone : ''"><i class="fas fa-exclamation-circle" ng-if="t.tone"></i>{{ t.line }}</span></span><span class="ih-tile__end"><span class="ih-badge" ng-if="t.badge">{{ t.badge }}</span><i class="fas fa-chevron-right"></i></span></button></section>
+  </div>
+
+</main>

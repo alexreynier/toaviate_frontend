@@ -1,0 +1,139 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Student questionnaires — mockups/instructor-dashboard/student-questionnaires.html
+     (pages "find" and "student"). InstructorQuestionnairesV2Controller (js/v2/instructor_questionnaires/
+     instructor_questionnaires.js) · contract C40 · css/v2/instructor-questionnaires.css (sqn-) on ta-base + v2/instructor.css.
+     A student's row is _row.html (sqn-row); Set a questionnaire is set_dialog.html (moved to <body>).
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-page="sqn" data-e2e="sqn">
+
+  <!-- ══════════ the clubs are loading (first paint) ══════════ -->
+  <div class="sqn-pg" ng-if="vm.load === 'loading' && vm.page === 'find'">
+    <section class="ta-bar">
+      <div class="ta-bar__row">
+        <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-clipboard-check"></i></span><div><ins-tag></ins-tag><h2>Student questionnaires</h2><p>Review what students submit, see what is set, and set something new</p></div></div>
+        <span class="sqn-v2back"><design-back></design-back></span>
+        <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+      </div>
+      <div class="ta-bar__row ta-bar__row--tools"><div class="ins-find"><div class="ta-skel sqn-skel__find"></div></div></div>
+    </section>
+    <section class="ta-list" aria-busy="true"><div class="sqn-skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div></section>
+  </div>
+
+  <!-- ══════════ not an instructor anywhere ══════════ -->
+  <div class="sqn-pg" ng-if="vm.load === 'noclubs'">
+    <section class="ta-bar"><div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-clipboard-check"></i></span><div><ins-tag></ins-tag><h2>Student questionnaires</h2><p>Review what students submit, see what is set, and set something new</p></div></div>
+      <span class="sqn-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div></section>
+    <section class="ta-card ins-rise"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-chalkboard-teacher"></i></span><h4>You’re not an instructor at a club yet</h4><p>Student questionnaires are for a club’s instructors and its Head of Training. Ask the club to add you as an instructor.</p></div></section>
+  </div>
+
+  <!-- ══════════════════════════════ PAGE · Find a student (and what is waiting) ══════════════════════════════ -->
+  <div class="sqn-pg" ng-if="vm.load === 'ready' && vm.page === 'find'" data-e2e="sqn-find">
+    <section class="ta-bar">
+      <div class="ta-bar__row">
+        <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-clipboard-check"></i></span><div><ins-tag></ins-tag><h2>Student questionnaires</h2><p>Review what students submit, see what is set, and set something new</p></div></div>
+        <span class="sqn-v2back"><design-back></design-back></span>
+        <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+      </div>
+      <div class="ta-bar__row ta-bar__row--tools">
+        <div class="ins-find">
+          <div class="ta-scope" ng-if="vm.clubs.length > 1"><span class="ta-scope__k ta-desk-only">Club</span><div class="ta-scope__set" role="group" aria-label="Club"><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.club === c.id}" aria-pressed="{{ vm.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard data-e2e="sqn-club"><span class="ta-desk-only">{{ c.title || 'Club ' + c.id }}</span><span class="ta-phone-only">{{ c.short || c.title || 'Club ' + c.id }}</span></button></div></div>
+          <ta-combo class="sqn-find" cb-id="sq" label="Search for a student" placeholder="Name or e-mail of a student"
+                    query="vm.cbQ" source="vm.cbSource(q)" on-pick="vm.cbPick(key)" on-type="vm.cbType(q)" on-clear="vm.cbClear()" clearable="!!vm.cbQ" version="vm.cbVer" foot-keys="true" enter-word="open"></ta-combo>
+        </div>
+      </div>
+      <div class="sqn-v2row ta-phone-only"><design-back></design-back></div>
+    </section>
+
+    <div class="ta-sh">
+      <div>
+        <h3>Waiting at {{ vm.clubTitle() }}</h3>
+        <p>{{ vm.Q.f === 'review' ? 'Submitted questionnaires to mark, oldest first' : 'Work past its due date' }} · open a student for everything they have been set</p>
+      </div>
+    </div>
+
+    <!-- the queue is loading -->
+    <section class="ta-list" ng-if="vm.Q.state === 'loading'" aria-busy="true" data-e2e="sqn-q-loading"><div class="sqn-skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div></section>
+
+    <!-- the queue could not be read -->
+    <section class="ta-card ins-rise" ng-if="vm.Q.state === 'error'" data-e2e="sqn-q-error"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load what’s waiting</h4><p>{{ vm.Q.msg }}</p><button type="button" class="ta-btn" ng-click="vm.reloadQueue()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></section>
+
+    <!-- the queue -->
+    <section class="ta-list sqn-queue ins-rise" aria-label="Waiting across your students" ng-if="vm.Q.state === 'ready'" data-e2e="sqn-queue">
+      <div class="ta-list__tools">
+        <div class="ta-chips"><button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.Q.f === 'review', 'ta-chip--attn': vm.Q.counts.to_review}" ng-click="vm.setQf('review')" no-busy-guard data-e2e="sqn-qf-review">To review<span class="ta-chip__n">{{ vm.Q.counts.to_review }}</span></button><button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.Q.f === 'od'}" ng-click="vm.setQf('od')" no-busy-guard data-e2e="sqn-qf-od">Overdue<span class="ta-chip__n">{{ vm.Q.counts.overdue }}</span></button></div>
+        <div class="ta-scope"><div class="ta-scope__set" role="group" aria-label="Whose"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.Q.scope === 'mine'}" aria-pressed="{{ vm.Q.scope === 'mine' }}" ng-click="vm.setScope('mine')" no-busy-guard data-e2e="sqn-scope-mine">Your students</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.Q.scope === 'club'}" aria-pressed="{{ vm.Q.scope === 'club' }}" ng-click="vm.setScope('club')" no-busy-guard data-e2e="sqn-scope-club">Everyone at the club</button></div></div>
+      </div>
+      <div class="ta-list__cols"><span></span><span>Student · questionnaire</span><span>For</span><span>{{ vm.Q.f === 'review' ? 'Submitted' : 'Due' }}</span><span>Status</span><span></span></div>
+
+      <div class="ta-row ins-rise" ng-repeat="x in vm.qshown() track by (x.key + '.' + vm.Q.gen)" style="--i: {{ $index }}" sqn-leave="x.out" id="sqn-q-{{ x.key }}" data-e2e="sqn-qrow">
+        <a class="ta-row__main" href="" ng-click="vm.queueOpen(x, $event)" no-busy-guard>
+          <span class="ta-row__lead"><span class="ta-av ta-av--member" title="Member"><i class="fas fa-user"></i></span></span>
+          <span class="ta-row__txt"><span class="ta-row__title">{{ x.stu.name }}</span><span class="ta-row__sub">{{ x.title }}</span></span>
+          <span class="ta-row__meta"><span class="ta-row__sub ta-desk-only">{{ x.forW }}</span><span class="ins-when" ng-class="{'sqn-when--bad': x.kind === 'overdue'}"><b>{{ x.whenB }}</b><span>{{ x.whenS }}</span></span><span class="ta-pill ta-pill--{{ x.st.tone }}"><i class="fas {{ x.st.ic }}" aria-hidden="true" ng-if="x.st.ic"></i>{{ x.st.label }}</span></span>
+          <span class="ta-row__acts"><span class="ta-btn ta-btn--sm ta-btn--primary" role="button" tabindex="0" ng-if="x.kind === 'review'" ng-click="vm.review(x.attemptId, $event)" ng-keydown="vm.keyAct($event, 'review', x)" no-busy-guard data-e2e="sqn-qreview">Review</span><span class="ta-btn ta-btn--sm" role="button" tabindex="0" ng-if="x.kind !== 'review'" ng-click="vm.queueOpen(x, $event)" ng-keydown="vm.keyAct($event, 'open', x)" no-busy-guard>Open</span></span>
+          <span class="ta-row__chev"><i class="fas fa-chevron-right"></i></span>
+        </a>
+      </div>
+
+      <div class="ta-empty ins-rise" ng-if="!vm.qlist().length" data-e2e="sqn-q-empty"><span class="ta-empty__ic"><i class="fas fa-check"></i></span><h4>{{ vm.Q.f === 'review' ? 'Nothing waiting for review' : 'Nothing overdue' }}</h4><p>{{ vm.Q.f === 'review' ? 'When a student submits a questionnaire that needs marking, it appears here, oldest first.' : 'Work set with a due date shows here once the date has passed.' }}</p></div>
+      <div class="ins-more" ng-if="!vm.Q.more && vm.qcount() > vm.qcap"><span>Showing the oldest {{ vm.qcap }} of {{ vm.qcount() }}</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.qmore()" no-busy-guard data-e2e="sqn-qmore">Show all {{ vm.qcount() }}</button></div>
+      <div class="ins-more" ng-if="vm.Q.more && vm.Q.paging"><span class="ta-spin ta-spin--dark"></span><span>Loading the rest…</span></div>
+    </section>
+  </div>
+
+  <!-- ══════════════════════════════ PAGE · One student ══════════════════════════════ -->
+  <div class="sqn-pg" ng-if="vm.page === 'student' && vm.S" data-e2e="sqn-student">
+    <section class="ta-hero ins-hero" data-e2e="sqn-hero">
+      <div class="ta-hero__top"><a class="ta-hero__back" href="" ng-click="vm.toFind($event)" no-busy-guard data-e2e="sqn-back"><i class="fas fa-arrow-left"></i>Student questionnaires</a><span class="sqn-hero__right"><span class="sqn-v2back"><design-back></design-back></span><ins-tag></ins-tag></span></div>
+      <div class="ta-hero__head"><span class="ta-hero__badge"><i class="fas fa-user-graduate"></i></span><div>
+        <div class="ta-hero__title" ng-if="vm.S.stu">{{ vm.S.stu.name }}</div><div class="ta-hero__sub" ng-if="vm.S.stu && vm.S.stu.sub">{{ vm.S.stu.sub }}</div>
+        <div class="sqn-hskel" ng-if="!vm.S.stu && vm.S.state === 'loading'"><span class="ta-skel"></span><span class="ta-skel"></span></div>
+        <div class="ta-hero__title" ng-if="!vm.S.stu && vm.S.state !== 'loading'">{{ vm.S.state === 'notfound' ? 'Student not found' : 'Student questionnaires' }}</div>
+      </div></div>
+      <div class="ta-hero__facts" ng-if="vm.S.state === 'ready'">
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">To review</div><div class="ta-hero__fact-v">{{ vm.S.counts.review }}</div><div class="ins-fact-s">{{ vm.S.counts.review ? 'Submitted, waiting for an instructor' : 'Nothing waiting' }}</div></div>
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">Set, not done</div><div class="ta-hero__fact-v">{{ vm.S.counts.set }}</div><div class="ins-fact-s">{{ vm.S.counts.od ? vm.S.counts.od + ' overdue' : 'Questionnaires and reading' }}</div></div>
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">Reviewed</div><div class="ta-hero__fact-v">{{ vm.S.counts.done }}</div><div class="ins-fact-s">Marked by an instructor</div></div>
+        <div class="ta-hero__fact"><div class="ta-hero__fact-k">Last submitted</div><div class="ta-hero__fact-v">{{ vm.S.counts.last ? vm.dayW(vm.S.counts.last) : '—' }}</div><div class="ins-fact-s">{{ vm.S.counts.last ? vm.fTime(vm.S.counts.last) + ' · club time' : 'Nothing submitted yet' }}</div></div>
+      </div>
+      <div class="ta-hero__facts" ng-if="vm.S.state === 'loading'" aria-hidden="true">
+        <div class="ta-hero__fact sqn-hfact" ng-repeat="k in ['To review', 'Set, not done', 'Reviewed', 'Last submitted']"><div class="ta-hero__fact-k">{{ k }}</div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+      </div>
+      <div class="sqn-hero__acts" ng-if="vm.S.state === 'ready' || vm.S.state === 'loading' || vm.S.stu"><button type="button" class="ta-hero__btn" ng-click="vm.openSet()" ng-disabled="vm.S.state !== 'ready'" no-busy-guard data-e2e="sqn-set"><i class="fas fa-paper-plane"></i>Set a questionnaire</button><a class="ta-hero__btn" ui-sref="dashboard.manage_user.student_records({ club_id: vm.club, student_id: vm.S.id })"><i class="fas fa-user-graduate"></i><span class="ta-desk-only">Training records</span><span class="ta-phone-only">Records</span></a></div>
+    </section>
+
+    <!-- loading: the two lists (shown while they load) -->
+    <section class="ta-list" aria-busy="true" ng-if="vm.S.state === 'loading'" data-e2e="sqn-s-loading"><div class="sqn-skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div></section>
+
+    <!-- could not be read / not at this club -->
+    <section class="ta-card ins-rise" ng-if="vm.S.state === 'error'" data-e2e="sqn-s-error"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load these questionnaires</h4><p>{{ vm.S.msg }}</p><button type="button" class="ta-btn" ng-click="vm.reloadStudent()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></section>
+    <section class="ta-card ins-rise" ng-if="vm.S.state === 'notfound'" data-e2e="sqn-s-notfound"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-user-slash"></i></span><h4>This student isn’t at your club</h4><p>We couldn’t find them at {{ vm.clubs.length > 1 ? 'any of your clubs' : vm.clubTitle() }}. Search for them by name instead.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.toFind()" no-busy-guard><i class="fas fa-search"></i>Find a student</button></div></section>
+
+    <!-- nothing set or taken yet -->
+    <section class="ta-card ins-rise" ng-if="vm.S.state === 'ready' && !vm.S.rows.length && !vm.S.g.review.length" data-e2e="sqn-s-empty"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-clipboard-check"></i></span><h4>Nothing set or taken yet</h4><p>Questionnaires {{ vm.S.stu.first }} takes, and anything you set, appear here. Setting one adds it to {{ vm.S.stu.first }}’s Questionnaires and can e-mail a link.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.openSet()" no-busy-guard data-e2e="sqn-set-empty"><i class="fas fa-paper-plane"></i>Set a questionnaire</button></div></section>
+
+    <!-- something is overdue -->
+    <div class="ta-note ta-note--bad ins-rise" ng-if="vm.S.state === 'ready' && vm.S.note" data-e2e="sqn-s-note"><i class="fas fa-exclamation-circle"></i><div><b>{{ vm.S.note.b }}</b>{{ vm.S.note.t }}</div></div>
+
+    <!-- the student's questionnaires and reading, grouped by who acts next -->
+    <section class="ta-list sqn-list ins-rise" style="--i: 1" aria-label="{{ vm.S.stu.first }}’s questionnaires" ng-if="vm.S.state === 'ready' && (vm.S.rows.length || vm.S.g.review.length)" data-e2e="sqn-list">
+      <div class="ta-list__tools"><div class="ta-chips"><button type="button" class="ta-chip" ng-repeat="c in vm.S.chips track by c.k" ng-class="{'ta-chip--on': vm.S.f === c.k, 'ta-chip--attn': c.attn}" ng-click="vm.setF(c.k)" no-busy-guard data-e2e="sqn-f-{{ c.k }}">{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button></div></div>
+      <div class="ta-list__cols"><span></span><span>Questionnaire or reading</span><span>When</span><span>Status</span><span class="ta-r">Score</span><span></span></div>
+
+      <div class="ta-group ta-group--attn" ng-if="vm.showG('review')"><span><i class="fas fa-clipboard-check"></i>Waiting for review</span><span>{{ vm.S.g.review.length }}</span></div>
+      <div class="ta-row ins-rise" ng-repeat="r in vm.gl('review') track by (r.key + '.' + vm.S.gen)" ng-class="{'ta-row--open': vm.S.open === r.key}" id="sqn-r-{{ r.key }}" style="--i: {{ r._i }}" sqn-leave="r.out" sqn-row data-e2e="sqn-row"></div>
+      <div class="ta-group" ng-if="vm.showG('set')"><span><i class="fas fa-paper-plane"></i>Set, not done yet</span><span>{{ vm.S.counts.set }}</span></div>
+      <div class="ta-row ins-rise" ng-repeat="r in vm.gl('set') track by (r.key + '.' + vm.S.gen)" ng-class="{'ta-row--open': vm.S.open === r.key}" id="sqn-r-{{ r.key }}" style="--i: {{ r._i }}" sqn-leave="r.out" sqn-row data-e2e="sqn-row"></div>
+      <div class="ta-group" ng-if="vm.showG('done')"><span><i class="fas fa-check"></i>Reviewed</span><span>{{ vm.S.counts.done }}</span></div>
+      <div class="ta-row ins-rise" ng-repeat="r in vm.gl('done') track by (r.key + '.' + vm.S.gen)" ng-class="{'ta-row--open': vm.S.open === r.key}" id="sqn-r-{{ r.key }}" style="--i: {{ r._i }}" sqn-leave="r.out" sqn-row data-e2e="sqn-row"></div>
+    </section>
+
+    <div class="sqn-classic ta-phone-only"><design-back></design-back></div>
+  </div>
+
+  <!-- ══════════ Set a questionnaire: the dialog in use (its scrim moves to <body>) ══════════ -->
+  <div ng-if="vm.dlg && vm.as" ng-include="'views/v2/instructor_questionnaires/set_dialog.html'"></div>
+</main>

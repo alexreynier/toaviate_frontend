@@ -23,6 +23,10 @@
                 title="Recent cancellations: charge or waive no-show and late cancellation fees">
           <i class="fas fa-receipt"></i> Cancellations
         </button>
+        <button type="button" class="sv2-btn sv2-btn--outline" id="sv2-reallocate" ng-show="vm.isManager" ng-click="vm.openReallocate()" no-busy-guard
+                title="One aircraft per instructor per type for the day — preview the moves, then apply">
+          <i class="fas fa-random"></i> Re-allocate aircraft
+        </button>
         <a class="sv2-link" ng-click="vm.classic()" no-busy-guard title="Back to the classic designs, including the classic calendar (remembers your choice)">
           <i class="fas fa-history"></i> Back to classic designs
         </a>
@@ -59,7 +63,11 @@
   </div>
 
   <!-- ── The scheduler ── -->
-  <div class="sv2-board" ng-class="{'sv2-board--loading': vm.loading}">
+  <!-- first load: the shared runway (owner, 11 Nov), held ~1.4 s so it reads as an opening -->
+  <div class="sv2-boot" ng-if="vm.booting" data-e2e="sv2-boot">
+    <ta-runway text="Opening the scheduler…" steps="vm.bootSteps" step="vm.bootStep"></ta-runway>
+  </div>
+  <div class="sv2-board" ng-class="{'sv2-board--loading': vm.loading}" ng-show="!vm.booting">
     <ta-scheduler data="vm.day" date="vm.date" days="vm.days" hide-on="vm.hideUnavailable" show-all="vm.showAll" mode="auto" api="vm.scheduler"
                   get-busy="vm.busyFor(date)"
                   on-date-change="vm.onDateChange(date)"
@@ -72,7 +80,7 @@
                   on-show-all-toggle="vm.toggleShowAll(on)"
                   on-pick-date="vm.pickDate(anchor)"
                   on-group-toggle="vm.groupToggle(group, open)"></ta-scheduler>
-    <div class="sv2-loading" ng-show="vm.loading && !vm.day">
+    <div class="sv2-loading" ng-show="vm.loading && !vm.day && !vm.booting">
       <span class="sv2-spinner"></span> Loading the schedule…
     </div>
   </div>

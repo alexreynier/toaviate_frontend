@@ -134,7 +134,13 @@ app.filter('bov2PlaneModel', function () {
 
         // Friendly next-step for an unmet requirement's state
         // (BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4.3/§4.4).
-        vm.soloStateAction = function(state){
+        // be-alex-3e (10 Nov): a review-required questionnaire passes only on an instructor's explicit "passed" —
+        // pending_review now also means "reviewed, not marked passed yet", and not_passed can be a questionnaire
+        // (the failure rows name no type: auto_type when sent, else the detail says "reviewed")
+        vm.soloStateAction = function(state, failure){
+            var isQ = !!failure && (failure.auto_type === 'questionnaire' || /reviewed/i.test(failure.message || ''));
+            if (state === 'pending_review' && isQ) { return 'Ask an instructor to mark it as passed'; }
+            if (state === 'not_passed' && isQ) { return 'Talk to your instructor — they can set a retake'; }
             switch (state) {
                 case 'pending_review':              return 'Ask an instructor to review the questionnaire';
                 case 'in_progress':                 return 'Finish and submit the questionnaire';
@@ -144,6 +150,7 @@ app.filter('bov2PlaneModel', function () {
                 case 'no_medical':                  return 'Add a medical to the student\'s records';
                 case 'medical_expired':             return 'The medical has expired — renew it';
                 case 'medical_class_not_accepted':  return 'A different medical class is required';
+                case 'medical_limitation':          return 'The medical has a limitation (OSL) that rules out solo flight';
                 case 'not_signed_off':              return 'Needs an instructor sign-off';
                 default:                            return '';
             }
@@ -1471,7 +1478,8 @@ app.filter('bov2PlaneModel', function () {
 
             if(plane.maintenance){
 
-                $scope.status.days = (plane.maintenance.days_remaining > 0)? "ok" : "expired";
+                // batch 17: 0 days = due today (valid until 23:59) when due_today; a 0 without it = no date
+                $scope.status.days = (plane.maintenance.days_remaining > 0 || plane.maintenance.due_today)? "ok" : "expired";
                 $scope.status.hours = (plane.maintenance.hours_remaining > 0)? "ok" : "expired";
 
             }
@@ -1482,7 +1490,7 @@ app.filter('bov2PlaneModel', function () {
             function docStatus(doc){
                 if (!doc) { return "expired"; }
                 if (doc.status) { return doc.status; }
-                return (doc.days_to_expiry > 0) ? "ok" : "expired";
+                return (doc.days_to_expiry > 0 || doc.expires_today) ? "ok" : "expired";
             }
             $scope.status.certificate = docStatus(plane.airworthiness_document || plane.certificate);
             $scope.status.insurance = docStatus(plane.insurance);
@@ -2207,7 +2215,7 @@ app.filter('bov2PlaneModel', function () {
                     function isExpired(doc){
                         if (!doc) { return false; }
                         if (doc.status) { return String(doc.status).toLowerCase() === 'expired'; }
-                        if (typeof doc.days_to_expiry !== 'undefined') { return doc.days_to_expiry <= 0; }
+                        if (typeof doc.days_to_expiry !== 'undefined') { return doc.days_to_expiry < 0 || (doc.days_to_expiry === 0 && !doc.expires_today); }
                         return false;
                     }
 
@@ -2249,7 +2257,7 @@ app.filter('bov2PlaneModel', function () {
                                 severity: 'warning', icon: 'fa-clock' });
                         }
                         var days = plane.maintenance.days_remaining;
-                        if (days != null && days <= 0) {
+                        if (days != null && (days < 0 || (days === 0 && !plane.maintenance.due_today))) {
                             issues.push({ key: 'days', label: 'Maintenance overdue (calendar)',
                                 detail: 'No days remaining to the next maintenance.',
                                 severity: 'critical', icon: 'fa-calendar-times' });
@@ -2899,6 +2907,10 @@ OLD VERSION FOR LEGACY PURPOSES
             function boMaint(){ return (vm.club && vm.club.plane && vm.club.plane.maintenance) || null; }
             function boHours(){ var m = boMaint(); return m ? boNum(m.hours_remaining) : null; }
             function boDays(){ var m = boMaint(); return m ? boNum(m.days_remaining) : null; }
+            // batch 17: days are counted exclusively — 0 is the due day itself (valid until 23:59) when the
+            // backend flags due_today; a 0 without the flag is "no date on file" and reads as overdue
+            function boDueToday(){ var m = boMaint(); return !!(m && m.due_today); }
+            function boDaysOver(){ var d = boDays(); return d !== null && (Math.round(d) < 0 || (Math.round(d) === 0 && !boDueToday())); }
             function boTone(v, warn_below){
                 if (v === null) { return 'na'; }
                 if (v <= 0) { return 'bad'; }
@@ -2919,22 +2931,26 @@ OLD VERSION FOR LEGACY PURPOSES
             };
             vm.bod_hours_text = function(){ var n = vm.bod_hours(); return n === null ? '—' : $scope.get_hours_from_decimal(Math.abs(n)); };
             vm.bo_hours_tone = function(){ return vm.bo_plane_loaded ? boTone(boHours(), 5) : 'na'; };
-            vm.bo_days_tone = function(){ return vm.bo_plane_loaded ? boTone(boDays(), 14) : 'na'; };
+            vm.bo_days_tone = function(){
+                if (!vm.bo_plane_loaded || boDays() === null) { return 'na'; }
+                return boDaysOver() ? 'bad' : (boDays() < 14 ? 'warn' : 'ok');
+            };
             // UX pass 2: the tiles show the size of the gap and say "over" — never "-37:36 · Maintenance overdue"
             vm.bo_hours_text = function(){ var h = boHours(); return h === null ? '—' : $scope.get_hours_from_decimal(Math.abs(h)); };
-            vm.bo_days_text = function(){ var d = boDays(); return d === null ? '—' : String(Math.abs(Math.round(d))); };
+            vm.bo_days_text = function(){ var d = boDays(); return d === null ? '—' : (boDueToday() ? 'Today' : String(Math.abs(Math.round(d)))); };
             vm.bo_hours_over = function(){ var h = boHours(); return h !== null && h <= 0; };
-            vm.bo_days_over = function(){ var d = boDays(); return d !== null && Math.round(d) <= 0; };
+            vm.bo_days_over = function(){ return boDaysOver(); };
             // UX pass 2: the summary's maintenance words — never "-37:36 h / -53 days to next maintenance"
             vm.bo_maint_sum = function(){
                 var h = boHours(), d = boDays(), over = [], left = [];
                 if (h !== null) { (h <= 0 ? over : left).push($scope.get_hours_from_decimal(Math.abs(h)) + ' h'); }
-                if (d !== null) { var dn = Math.abs(Math.round(d)); (d <= 0 ? over : left).push(dn + (dn === 1 ? ' day' : ' days')); }
+                if (d !== null && !boDueToday()) { var dn = Math.abs(Math.round(d)); (boDaysOver() ? over : left).push(dn + (dn === 1 ? ' day' : ' days')); }
                 if (over.length) { return 'maintenance overdue by ' + over.join(' / ') + (left.length ? ' (' + left.join(' / ') + ' left)' : ''); }
+                if (boDueToday()) { return (left.length ? left.join(' / ') + ' left, ' : '') + 'next maintenance due today'; }
                 return left.length ? left.join(' / ') + ' to next maintenance' : 'next maintenance not recorded';
             };
             vm.bo_hours_sub = function(){ var h = boHours(); return h === null ? 'Not recorded' : (h <= 0 ? 'Maintenance overdue' : 'to next maintenance'); };
-            vm.bo_days_sub = function(){ var d = boDays(); return d === null ? 'Not recorded' : (d <= 0 ? 'Maintenance overdue' : 'to next maintenance'); };
+            vm.bo_days_sub = function(){ var d = boDays(); return d === null ? 'Not recorded' : (boDaysOver() ? 'Maintenance overdue' : (boDueToday() ? 'Due today — valid until 23:59' : 'to next maintenance')); };
             vm.bo_hours_pct = function(){ var h = boHours(); return h === null ? 0 : Math.max(0, Math.min(100, h / 50 * 100)); };
             vm.bo_days_pct = function(){ var d = boDays(); return d === null ? 0 : Math.max(0, Math.min(100, d / 365 * 100)); };
             vm.bo_meter_text = function(){
@@ -2961,10 +2977,12 @@ OLD VERSION FOR LEGACY PURPOSES
                 if (days === null && doc.date_expiry && moment(doc.date_expiry).isValid()) {
                     days = moment(doc.date_expiry).startOf('day').diff(moment().startOf('day'), 'days');
                 }
-                var expired = doc.status ? String(doc.status).toLowerCase() === 'expired' : (days !== null && days <= 0);
+                var expired = doc.status ? String(doc.status).toLowerCase() === 'expired' : (days !== null && days < 0);
                 var when = boFmtDate(doc.date_expiry);
                 if (expired) { return { tone: 'bad', chip: 'Expired', chip_icon: 'fa-times', sub: when ? 'Expired ' + when : 'Expired', days: days }; }
                 if (days === null) { return na; }
+                // the expiry day itself: valid until 23:59, said as "Expires today" (batch 17)
+                if (doc.expires_today || (days === 0 && doc.date_expiry)) { return { tone: 'warn', chip: 'Expires today', chip_icon: 'fa-hourglass-half', sub: 'Expires today — valid until 23:59', days: 0 }; }
                 if (days < 30) {
                     return { tone: 'warn', chip: boPlural(Math.max(1, Math.floor(days)), 'day') + ' left', chip_icon: 'fa-hourglass-half', sub: when ? 'Expires ' + when : 'Expires soon', days: days };
                 }

@@ -1276,8 +1276,21 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
                         // follow the account when it is converted.
                         source:                u.source,   // 'bookedscheduler' | 'training_import' | 'manual'
                         flight_count:          u.flight_count,
-                        training_record_count: u.training_record_count
+                        training_record_count: u.training_record_count,
+                        // A pending CONVERT invitation already exists (owner, 11 Nov: a reload must not show the
+                        // person as unconverted): the row renders as Invited, like straight after Convert.
+                        invitation:            u.invitation || null
                     };
+                }).map(function(row) {
+                    var inv = row.invitation;
+                    if (inv && (inv.status === 'invited' || !inv.status)) {
+                        row._converted = true;
+                        row._mode = inv.mode || 'signup';
+                        row._membership = inv.membership || null;
+                        row._invitedAt = inv.sent_at || null;
+                        if (inv.email) { row.bs_email = inv.email; row.needs_email = false; }
+                    }
+                    return row;
                 });
             }, function() {
                 vm.loading.imported = false;
@@ -1511,6 +1524,77 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
             u._email = u.bs_email || '';
             u._emailError = null;
         };
+        // Resend a pending invitation (owner, 11 Nov): the backend re-sends on a second convert — same token, the
+        // offer refreshed with the tier / dates sent — and says `resent: true`.
+        vm.resendInvitation = function(u) {
+            if (!u._converted || u._converting) { return; }
+            var m = u._membership || {};
+            var body = {};
+            if (m.id) { body.membership_id = m.id; }
+            if (m.term_start) { body.term_start = m.term_start; }
+            if (m.end) { body.membership_ends = m.end; }
+            if (m.payment_required !== undefined && m.payment_required !== null) { body.require_payment = +m.payment_required ? 1 : 0; }
+            u._converting = true;
+            return BsSyncService.ConvertUser(vm.club_id, u.ta_user_id, body).then(function(data) {
+                u._converting = false;
+                if (data && data.success) {
+                    if (data.membership) { u._membership = data.membership; }
+                    if (data.real_email) { u.bs_email = data.real_email; }
+                    ToastService.success(data.resent ? 'Invitation re-sent' : 'Invitation sent', 'To ' + (u.bs_email || 'their email') + '.');
+                } else {
+                    ToastService.error('Not sent', (data && data.message) || 'The invitation could not be sent again.');
+                }
+            });
+        };
+
+        // ── Edit a temporary user (owner, 11 Nov): first name, last name and real email stay editable on this
+        //    screen until the person is converted. PUT bs_sync/imported/{club}/{user}; the row is updated in place
+        //    from the backend's reply, so the clash flags follow a changed email.
+        var EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        vm.startEdit = function(u) {
+            u._edit = { first_name: u.bs_first_name || '', last_name: u.bs_last_name || '', email: u.bs_email || '' };
+            u._editError = null;
+        };
+        vm.cancelEdit = function(u) { u._edit = null; u._editError = null; };
+        vm.saveEdit = function(u) {
+            var e = u._edit; if (!e) { return; }
+            var first = (e.first_name || '').trim(), last = (e.last_name || '').trim(), email = (e.email || '').trim();
+            if (!first || !last) { u._editError = 'First and last name are both needed.'; return; }
+            if (email && !EMAIL_RX.test(email)) { u._editError = 'That doesn\'t look like an email address.'; return; }
+            var patch = {};
+            if (first !== (u.bs_first_name || '')) { patch.first_name = first; }
+            if (last !== (u.bs_last_name || '')) { patch.last_name = last; }
+            if (email !== (u.bs_email || '')) { patch.email = email; }
+            if (!Object.keys(patch).length) { vm.cancelEdit(u); return; }
+            u._editSaving = true;
+            return BsSyncService.UpdateImported(vm.club_id, u.ta_user_id, patch).then(function(data) {
+                u._editSaving = false;
+                if (data && data.success) {
+                    applyImportedRow(u, data.user || {}, patch);
+                    vm.cancelEdit(u);
+                    ToastService.success('Saved', (u.bs_first_name + ' ' + u.bs_last_name).trim() + (patch.email ? ' · ' + u.bs_email : ''));
+                    return;
+                }
+                var code = data && data.error;
+                var holder = data && data.holder ? ((data.holder.first_name || '') + ' ' + (data.holder.last_name || '')).trim() : '';
+                u._editError = (code === 'ALREADY_CONVERTED') ? 'This person has already been converted — edit them under Members.'
+                    : (code === 'EMAIL_TAKEN') ? 'That email is already the real email of another temporary user' + (holder ? ': ' + holder : '') + '.'
+                    : (data && data.message) || 'The change could not be saved.';
+            });
+        };
+        // the backend's reply row (GET bs_sync/imported shape) → the fields this screen shows; the patch is the
+        // fallback while the backend's reply is thinner than the list's rows
+        function applyImportedRow(u, row, patch) {
+            u.bs_first_name = row.first_name || patch.first_name || u.bs_first_name;
+            u.bs_last_name  = row.last_name  || patch.last_name  || u.bs_last_name;
+            var email = row.original_email || row.matching_email || (patch.email !== undefined ? patch.email : u.bs_email) || null;
+            u.bs_email = email || null;
+            u.needs_email = !email;
+            u.email_status = row.email_status || (email ? (patch.email !== undefined ? 'free' : u.email_status) : 'none');
+            u.email_owner = row.email_owner || (patch.email !== undefined ? null : u.email_owner);
+            u._emailOverride = false; u._email = ''; u._emailError = null;
+        }
+
         vm.cancelEmailOverride = function(u) {
             u._emailOverride = false;
             u._email = '';
@@ -1519,7 +1603,6 @@ app.controller('DashboardClubBsSyncController', DashboardClubBsSyncController);
 
         // Light-touch validity: backend is authoritative (INVALID_EMAIL), this
         // just stops obvious slips before a round-trip.
-        var EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         vm.emailLooksValid = function(u) {
             return !!(u._email && EMAIL_RX.test(u._email.trim()));
         };

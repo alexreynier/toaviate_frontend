@@ -2622,6 +2622,7 @@
                 case 'no_medical':                  return 'No acceptable medical on record';
                 case 'medical_expired':             return 'The medical has expired';
                 case 'medical_class_not_accepted':  return 'The medical held is not an accepted class for this course';
+                case 'medical_limitation':          return 'The medical has a limitation (OSL) that rules out solo flight';
                 case 'not_signed_off':              return 'Needs an instructor sign-off on the student record';
                 default:                            return '';
             }

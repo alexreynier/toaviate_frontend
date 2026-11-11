@@ -211,8 +211,8 @@ function SchedulerConflictController($uibModalInstance, dialog) {
 // Member: new waiting request + my requests
 // ═══════════════════════════════════════════════════════════════════════
 app.controller('WaitingRequestFormController', WaitingRequestFormController);
-WaitingRequestFormController.$inject = ['$scope', '$uibModalInstance', '$timeout', 'WaitingRequestsService', 'MemberService', 'ToastService', 'ctx'];
-function WaitingRequestFormController($scope, $uibModalInstance, $timeout, WaitingRequestsService, MemberService, ToastService, ctx) {
+WaitingRequestFormController.$inject = ['$scope', '$uibModalInstance', '$timeout', 'WaitingRequestsService', 'MemberService', 'CourseService', 'ToastService', 'ctx'];
+function WaitingRequestFormController($scope, $uibModalInstance, $timeout, WaitingRequestsService, MemberService, CourseService, ToastService, ctx) {
     var vm = this;
     vm.ctx = ctx || {};
     vm.enums = WaitingRequestsService.enums;
@@ -242,6 +242,8 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
         instructor_id: '',         // '' = any instructor
         notice: '60',
         notes: '',
+        course_id: null,           // batch 21: null = no particular course, else a live course of the club
+        slots_needed: 1,           // batch 21: 2 = double slot (two club slots back to back)
         dates: []                  // [{date, preference}]
     };
     vm.fleetFor = function () {
@@ -255,6 +257,36 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
         return out;
     };
     vm.setKind = function (k) { vm.form.kind = k; if (k !== 'dual') { vm.form.instructor_id = ''; vm.instructor = null; vm.instructorSearch = ''; } };
+
+    // ── course picker (batch 21): the club's live courses — the same courses/club list the booking panel and
+    //    Find a slot v2 use; a club change empties the pick (a course belongs to one club) ──
+    vm.courses = [];                // {id, title}
+    vm.coursesLoading = false;
+    var coursesFor = null;
+    function loadCourses() {
+        var cid = parseInt(vm.form.club_id, 10) || 0;
+        if (!cid || coursesFor === cid) { return; }
+        coursesFor = cid; vm.coursesLoading = true; vm.courses = [];
+        CourseService.GetCoursesByClubId(cid).then(function (data) {
+            if (coursesFor !== cid) { return; }
+            vm.coursesLoading = false;
+            var items = (data && data.items) ? data.items : (angular.isArray(data) ? data : []);
+            vm.courses = (CourseService.sortByDisplayOrder ? CourseService.sortByDisplayOrder(items) : items)
+                .filter(function (c) { return c && !(+c.deleted) && (!c.club_id || String(c.club_id) === String(cid)); })
+                .map(function (c) { return { id: parseInt(c.id, 10), title: String(c.title || '').trim() }; });
+            if (vm.form.course_id && !courseOf(vm.form.course_id)) { vm.form.course_id = null; }
+        });
+    }
+    function courseOf(id) { for (var i = 0; i < vm.courses.length; i++) { if (vm.courses[i].id === parseInt(id, 10)) { return vm.courses[i]; } } return null; }
+    // "PPL course · double slot" — for the confirmation toast; '' when neither is set
+    function extrasLine() {
+        var c = vm.form.course_id ? courseOf(vm.form.course_id) : null, out = [];
+        if (c) { out.push(c.title); }
+        if (vm.form.slots_needed === 2) { out.push('double slot'); }
+        return out.join(' · ');
+    }
+    loadCourses();
+    $scope.$watch('vm.form.club_id', function (n, o) { if (n !== o) { vm.form.course_id = null; loadCourses(); } });
 
     // ── staff: member picker — every CURRENT member of the chosen club, searched on the server as you type
     //    (members/search/{club}?q=; the old active_club list only held members with a paid tier) ──
@@ -368,9 +400,12 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
             instructor_id: (f.kind === 'dual' && f.instructor_id) ? parseInt(f.instructor_id, 10) : null,
             notice: f.notice,
             notes: String(f.notes || '').trim(),
+            course_id: f.course_id ? parseInt(f.course_id, 10) : null,
+            slots_needed: f.slots_needed === 2 ? 2 : 1,
             dates: f.dates.map(function (d) { return { date: d.date, preference: d.preference }; })
         };
         if (vm.staff) { body.user_id = vm.member.user_id; }
+        var extras = extrasLine();
         vm.saving = true;
         WaitingRequestsService.Create(body).then(function (data) {
             vm.saving = false;
@@ -378,11 +413,11 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
                 vm.changed = true;
                 if (vm.staff) {
                     // back to the panel, which reloads its list
-                    ToastService.success('Added to the waiting list', vm.memberName(vm.member) + ' will get a confirmation email.', { confetti: false });
+                    ToastService.success('Added to the waiting list', (extras ? extras + ' — ' : '') + vm.memberName(vm.member) + ' will get a confirmation email.', { confetti: false });
                     $uibModalInstance.close({ changed: true, request: data.request || null });
                     return;
                 }
-                ToastService.success('On the waiting list', "We'll call you if a matching slot comes up.", { confetti: false });
+                ToastService.success('On the waiting list', (extras ? extras + ' — w' : 'W') + "e'll call you if a matching slot comes up.", { confetti: false });
                 vm.form.dates = []; vm.form.notes = '';
                 vm.showMine();
             } else {
@@ -430,7 +465,7 @@ function WaitingRequestFormController($scope, $uibModalInstance, $timeout, Waiti
     vm.confirmDiscard = false;
     var discardOk = false;
     function unsaved() {
-        return vm.tab === 'new' && !vm.saving && (vm.form.dates.length > 0 || !!String(vm.form.notes || '').trim() || !!(vm.staff && vm.member));
+        return vm.tab === 'new' && !vm.saving && (vm.form.dates.length > 0 || !!String(vm.form.notes || '').trim() || !!(vm.staff && vm.member) || !!vm.form.course_id || vm.form.slots_needed === 2);
     }
     $scope.$on('modal.closing', function (e, reason, closing) {
         if (closing || discardOk || !unsaved()) { return; }
@@ -852,4 +887,150 @@ function CancellationsPanelController($uibModalInstance, CancellationFeesService
 
     // a message fit to show: never a server error page (HTML from a PHP fatal / 500), a raw code (NOT_FOUND) or a dump
     function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Re-allocate aircraft (owner, 10 Nov 2026) — managers only.
+   One aircraft per instructor per type for the day (the one their bookings use most; a booking without an
+   instructor follows the pilot's own aircraft of the day), same type, same times, only onto an aircraft that is
+   free — so members are never told; every move is in the booking's history. One day: preview → Apply. Next N
+   days: applied in one go (the backend offers no preview for the batch), behind a second press.
+   Backend: POST scheduler/v2/reallocate {club_id, date, apply} · scheduler/v2/reallocate_batch {club_id, days}.
+   ═══════════════════════════════════════════════════════════════════ */
+app.controller('ReallocatePanelController', ReallocatePanelController);
+ReallocatePanelController.$inject = ['$scope', '$uibModalInstance', 'SchedulerV2Service', 'ToastService', 'ctx'];
+function ReallocatePanelController($scope, $uibModalInstance, SchedulerV2Service, ToastService, ctx) {
+    var vm = this;
+    ctx = ctx || {};
+    vm.clubs = (ctx.clubs || []).map(function (c) { return { id: parseInt(c.id, 10), title: String(c.title || '').trim() }; });
+    vm.club_id = parseInt(ctx.club_id, 10) || (vm.clubs.length ? vm.clubs[0].id : 0);
+    vm.today = moment().format('YYYY-MM-DD');
+    vm.day = validDate(ctx.date) || vm.today;
+    vm.mode = 'day';                    // 'day' | 'batch'
+    vm.pickerOptions = { allowPast: false, dots: false, shortcuts: true };
+    vm.plan = null;                     // the preview (apply 0) for vm.day
+    vm.loading = false;
+    vm.error = null;
+    vm.applying = false;
+    vm.done = null;                     // after Apply: { moved, moves }
+    vm.showKept = false;
+    vm.changed = false;                 // something was applied → the scheduler refetches on close
+    vm.batch = { days: 10, options: [5, 7, 10, 14, 31], confirm: false, busy: false, result: null, error: null, open: {} };
+    var bookings = ctx.bookings || {};  // the scheduler's day, keyed by booking id (only for its own date)
+    // "Prioritise the instructors' allocations" (owner, 11 Nov): remembered per browser
+    var IF_KEY = 'toaviate_sv2_realloc_instructors_first';
+    vm.instructorsFirst = readLocal(IF_KEY) === '1';
+    vm.instructorsFirstChanged = function () {
+        writeLocal(IF_KEY, vm.instructorsFirst ? '1' : '0');
+        vm.batch.result = null; vm.batch.confirm = false;
+        preview();
+    };
+    function opts() { return { instructors_first: vm.instructorsFirst }; }
+    var req = 0;
+
+    // ── words ──
+    vm.dayLabel = function () {
+        var m = moment(vm.day, 'YYYY-MM-DD');
+        return (vm.day === vm.today ? 'Today · ' : '') + m.format('ddd D MMM YYYY');
+    };
+    vm.isToday = function () { return vm.day === vm.today; };
+    vm.time = function (m) { return SchedulerV2Service.fmtRange(m.start, m.end); };
+    vm.who = function (m) {
+        var p = (m.pilot && m.pilot.name) || 'Unnamed booking';
+        return m.instructor && m.instructor.name ? p + ' with ' + m.instructor.name : p;
+    };
+    vm.keptRow = function (k) {
+        // the backend now sends kept rows in the move's shape (start, end, registration, pilot, instructor); older replies
+        // carry only an id + reason, so the scheduler's own day is the fallback and "Booking #id" the last resort
+        var b = (k && k.start) ? k : ((vm.day === ctx.schedulerDate) ? bookings[k.booking_id] : null);
+        if (!b) { return { time: 'Booking #' + k.booking_id, who: '', reg: '' }; }
+        var pilot = (b.pilot && b.pilot.name) || b.pilot_name || '';
+        var inst = (b.instructor && b.instructor.name) || b.instructor_name || '';
+        return { time: SchedulerV2Service.fmtRange(b.start, b.end), who: inst ? pilot + ' with ' + inst : pilot, reg: b.registration || (b.plane && b.plane.registration) || '' };
+    };
+    vm.summary = function () {
+        var p = vm.plan;
+        if (!p || !p.eligible) { return ''; }
+        var n = (p.moves || []).length, k = (p.kept || []).length;
+        if (!n) { return 'Nothing to move — ' + plural(p.bookings, 'booking') + ' already on the right aircraft.'; }
+        return plural(n, 'booking') + ' of ' + p.bookings + ' would move' + (k ? ' · ' + k + ' stay' + (k === 1 ? 's' : '') + ' put' : '') + '.';
+    };
+    vm.dayResult = function (r) {
+        if (!r.eligible) { return r.reason || 'Not eligible'; }
+        if (!r.bookings) { return 'Nothing booked'; }
+        return r.moved > 0 ? plural(r.moved, 'booking') + ' moved' : 'Nothing to move';
+    };
+    vm.dayTone = function (r) { return !r.eligible ? 'skip' : (r.moved > 0 ? 'moved' : 'quiet'); };
+    vm.fmtDay = function (d) { var m = moment(d, 'YYYY-MM-DD'); return m.isValid() ? m.format('ddd D MMM') : d; };
+
+    // ── one day ──
+    vm.setDay = function (d) { d = validDate(d); if (d && d !== vm.day) { vm.day = d; } };
+    vm.prevDay = function () { vm.setDay(moment(vm.day).subtract(1, 'day').format('YYYY-MM-DD')); };
+    vm.nextDay = function () { vm.setDay(moment(vm.day).add(1, 'day').format('YYYY-MM-DD')); };
+    vm.goToday = function () { vm.setDay(vm.today); };
+    vm.canPrev = function () { return vm.day > vm.today; };
+    vm.setMode = function (m) { vm.mode = m; };
+    vm.changeClub = function () { vm.batch.result = null; vm.batch.confirm = false; preview(); };
+    vm.reload = preview;
+    vm.close = function () { $uibModalInstance.close({ changed: vm.changed }); };
+
+    vm.apply = function () {
+        var p = vm.plan;
+        if (!p || !p.eligible || !(p.moves || []).length || vm.applying) { return; }
+        vm.applying = true;
+        var planned = p.moves.slice();
+        return SchedulerV2Service.Reallocate(vm.club_id, vm.day, 1, opts()).then(function (res) {
+            vm.applying = false;
+            if (res && res.success) {
+                var moved = parseInt(res.moved, 10) || 0;
+                vm.changed = vm.changed || moved > 0;
+                vm.done = { moved: moved, planned: planned.length, moves: res.moves || planned };
+                vm.plan = res;      // the day as it stands after the moves (apply returns the plan it acted on)
+                ToastService.success('Aircraft re-allocated', moved === planned.length ? plural(moved, 'booking') + ' moved on ' + vm.fmtDay(vm.day) + '.' : plural(moved, 'booking') + ' moved; ' + (planned.length - moved) + ' had changed since the preview.', { confetti: false });
+                return;
+            }
+            var code = res && res.error;
+            if (code === 'NOT_ELIGIBLE') { vm.plan = angular.extend({}, p, { eligible: false, reason: textOf(res && res.message) || 'That day can no longer be re-allocated.' }); return; }
+            ToastService.error('Not re-allocated', textOf(res && res.message) || 'The moves could not be made.');
+        });
+    };
+
+    // ── the next N days ──
+    vm.runBatch = function () {
+        if (vm.batch.busy) { return; }
+        if (!vm.batch.confirm) { vm.batch.confirm = true; return; }
+        vm.batch.confirm = false; vm.batch.busy = true; vm.batch.error = null; vm.batch.result = null;
+        return SchedulerV2Service.ReallocateBatch(vm.club_id, vm.batch.days, opts()).then(function (res) {
+            vm.batch.busy = false;
+            if (!res || !res.success) { vm.batch.error = textOf(res && res.message) || 'The days could not be re-allocated.'; ToastService.error('Not re-allocated', vm.batch.error); return; }
+            vm.batch.result = res;
+            var moved = parseInt(res.moved, 10) || 0;
+            vm.changed = vm.changed || moved > 0;
+            ToastService.success('Aircraft re-allocated', moved ? plural(moved, 'booking') + ' moved over the next ' + plural(res.days || vm.batch.days, 'day') + '.' : 'Nothing to move over the next ' + plural(res.days || vm.batch.days, 'day') + '.', { confetti: false });
+            if (vm.plan) { preview(); }   // the one-day view may be stale now
+        });
+    };
+    vm.cancelBatch = function () { vm.batch.confirm = false; };
+    vm.toggleDetail = function (r) { vm.batch.open[r.date] = !vm.batch.open[r.date]; };
+    vm.hasDetail = function (r) { return !!(r.detail && r.detail.length); };
+
+    function preview() {
+        if (!vm.club_id) { vm.plan = null; vm.error = 'Pick a club.'; return; }
+        var mine = ++req;
+        vm.loading = true; vm.error = null; vm.done = null; vm.showKept = false;
+        return SchedulerV2Service.Reallocate(vm.club_id, vm.day, 0, opts()).then(function (res) {
+            if (mine !== req) { return; }
+            vm.loading = false;
+            if (!res || !res.success) { vm.plan = null; vm.error = textOf(res && res.message) || 'The preview could not be loaded.'; return; }
+            vm.plan = res;
+        });
+    }
+    function plural(n, w) { n = parseInt(n, 10) || 0; return n + ' ' + w + (n === 1 ? '' : 's'); }
+    function readLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function writeLocal(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    function validDate(d) { return (d && /^\d{4}-\d{2}-\d{2}$/.test(String(d)) && moment(d, 'YYYY-MM-DD', true).isValid()) ? String(d).substr(0, 10) : null; }
+    function textOf(m) { if (!m) { return ''; } if (typeof m === 'string') { return (/<[a-z!\/]/i.test(m) || /^[A-Z0-9_]+$/.test(m) || m.length > 300) ? '' : m; } return textOf(m.message || m.error || ''); }
+
+    $scope.$watch('vm.day', function (n, o) { if (n !== o) { preview(); } });
+    preview();
 }

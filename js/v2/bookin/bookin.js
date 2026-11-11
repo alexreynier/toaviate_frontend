@@ -31,6 +31,14 @@ app.config(['$stateProvider', 'DesignRoutesProvider', function ($stateProvider, 
         .map('dashboard.my_account.finish_and_pay', 'dashboard.v2.finish_and_pay');
 }]);
 
+/* make + model for the hero lines ("Cessna 152"): the model alone when it already starts with the make ("Piper" + "Piper PA-28
+   Warrior"), the backend's SchedulerV2::plane_model rule. Used by the book-in and the finish & pay controllers. */
+function bkV2MakeModel(man, tn) {
+    man = String(man || '').trim(); tn = String(tn || '').trim();
+    if (man && (tn.toLowerCase() + ' ').indexOf(man.toLowerCase() + ' ') === 0) { man = ''; }
+    return [man, tn].filter(Boolean).join(' ');
+}
+
 /* ═══ BookinV2Data — the v2 book-in's server maths (be-alex-3e C4): context (C4.1), quote (C4.2) and the commit (C4.3):
        the server prices, saves, THEN charges. Split flights still save on today's PUT plane_log_sheets/booking_in/{id}. ═══ */
 app.factory('BookinV2Data', BookinV2Data);
@@ -84,8 +92,8 @@ app.directive('bkiPickField', function () {
 });
  app.controller('BookinV2Controller', BookinV2Controller);
 
-    BookinV2Controller.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService', 'DefectMediaService', 'FoxTrackService', 'ClubService', 'TimeDisplayService', 'BookinV2Payment', 'BookinV2Data', '$q'];
-    function BookinV2Controller($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService, DefectMediaService, FoxTrackService, ClubService, TimeDisplayService, BookinV2Payment, BookinV2Data, $q) {
+    BookinV2Controller.$inject = ['$sce', 'UserService', 'MemberService', 'FoxService', 'InstructorService', 'MembershipService', 'HolidayService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', '$compile', '$interval', '$timeout', 'uiCalendarConfig', 'BookingService', 'LicenceService', 'BookoutService', '$filter', 'PlaneService', 'InstructorCharges', 'PaymentService', 'InvoicesService', 'PackageService', 'CourseService', '$anchorScroll', 'smoothScroll', 'EnvConfig', 'ToastService', 'DefectMediaService', 'FoxTrackService', 'ClubService', 'TimeDisplayService', 'BookinV2Payment', 'BookinV2Data', 'ClaimV2Data', '$q'];
+    function BookinV2Controller($sce, UserService, MemberService, FoxService, InstructorService, MembershipService, HolidayService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, $compile, $interval, $timeout, uiCalendarConfig, BookingService, LicenceService, BookoutService, $filter, PlaneService, InstructorCharges, PaymentService, InvoicesService, PackageService, CourseService, $anchorScroll, smoothScroll, EnvConfig, ToastService, DefectMediaService, FoxTrackService, ClubService, TimeDisplayService, BookinV2Payment, BookinV2Data, ClaimV2Data, $q) {
         
         var vm = this;
 
@@ -1151,6 +1159,8 @@ app.directive('bkiPickField', function () {
                     }
                     vm.split_phantom = null;
                     vm.split_one = data.first_flight;
+                    // C46: the split point the user picked (leg 1 is charged up to it, leg 2 from it) — sent on the quote
+                    vm.split_at = data.split_at || (data.first_flight && data.first_flight.tpc_split_at) || null;
 
                     vm.split_flight = 1;
                     // vm.split_one.brakes_off = {"time": vm.split_one.brakes_off};
@@ -2695,9 +2705,14 @@ app.directive('bkiPickField', function () {
 
         // Friendly next-step per unmet-requirement state (failures now carry
         // `state` — BACKEND_PRE_SOLO_COURSE_REQUIREMENTS_GUIDE.md §4.4).
-        vm.soloStateAction = function(state){
+        // be-alex-3e (10 Nov): reviewed is not passed — the instructor marks a review-required questionnaire passed
+        // (pending_review = not reviewed / reviewed without an outcome; not_passed can be a questionnaire)
+        vm.soloStateAction = function(state, failure){
+            var isQ = !!failure && (failure.auto_type === 'questionnaire' || /reviewed/i.test(failure.message || ''));
+            if (state === 'pending_review' && isQ) { return 'Mark the questionnaire as passed if it is, then send solo again'; }
+            if (state === 'not_passed' && isQ) { return 'It was marked not passed — set a retake, or change the outcome after reviewing it again'; }
             switch (state) {
-                case 'pending_review':              return 'Review the questionnaire with the student, then send solo again';
+                case 'pending_review':              return 'Review the questionnaire with the student and mark it as passed, then send solo again';
                 case 'in_progress':                 return 'The questionnaire was started but never submitted';
                 case 'not_attempted':               return 'The linked questionnaire/exam has not been attempted';
                 case 'below_min_score':             return 'The pass mark was not reached';
@@ -2705,6 +2720,7 @@ app.directive('bkiPickField', function () {
                 case 'no_medical':                  return 'No acceptable medical on record';
                 case 'medical_expired':             return 'The medical has expired';
                 case 'medical_class_not_accepted':  return 'The medical held is not an accepted class for this course';
+                case 'medical_limitation':          return 'The medical has a limitation (OSL) that rules out solo flight';
                 case 'not_signed_off':              return 'Needs an instructor sign-off on the student record';
                 default:                            return '';
             }
@@ -5016,6 +5032,10 @@ app.directive('bkiPickField', function () {
         vm.club = null;
         vm.td = TimeDisplayService.context(null);
         vm.pay = null;                // BookinV2Payment state (the pay choice in the Finish card)
+        // the runway while the flight is booked in and paid (<ta-runway> in the Finish card): saving, then the payment
+        vm.bk_wait_steps = ['Saving the flight', 'Taking the payment', 'Done'];
+        vm.bk_wait_step = function(){ return (vm.pay && vm.pay.busy) ? 1 : 0; };
+        vm.bk_waiting = function(){ return !!(vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy)); };
 
         /* ── leaving a half-filled book-in asks first (owner 9 Nov): the back link, browser Back, the menu and "Back to classic
               designs"; never when nothing was entered or once saved; the browser asks on reload. The snapshot follows the page
@@ -5242,6 +5262,8 @@ app.directive('bkiPickField', function () {
                 pic_id: b.pic_id || 0, put_id: b.put_id || 0, instructor_id: b.instructor_id || 0, tuition_id: b.tuition_id || 0, payer_id: b.payer_id || 0,
                 booking_id: vm.bk_linked() ? vm.bk.link.booking_id : undefined,   // C26: quote + commit on the linked booking
                 claimed_fox_plane_log_sheet_id: (vm.split_flight_confirmation == 1) ? null : ((vm.has_used_claimed_flight && vm.claimed_flight && vm.claimed_flight.id) || null),
+                // C46 (owner, 10 Nov): a confirmed split's part 1 is charged up to the picked split point, with no overlap with part 2
+                split: split_quote(),
                 receipt_ids: (vm.lubricant_receipts || []).filter(function(r){ return r.reimbursement == 1; }).map(function(r){ return r.id; }),
                 _local: {
                     units: units, charge_type: pc.charge_type, tpc: is_tpc_charging(), claimed: !!vm.has_used_claimed_flight,
@@ -5349,6 +5371,12 @@ app.directive('bkiPickField', function () {
             q.quote_hash = hash_of({ l: lines, t: q.booking_total, m: missing });
             return q;
         }
+        function split_quote(){
+            if(vm.split_flight_confirmation != 1){ return undefined; }
+            var at = pad_time(vm.split_at || (vm.bookout && vm.bookout.tpc_split_at));
+            return at ? { at: at, part: 1, crew_mode: vm.split_crew_mode || 'same' } : undefined;
+        }
+        $scope.$watch(function(){ return vm.split_flight_confirmation == 1 ? (vm.split_crew_mode || 'same') : ''; }, function(n, o){ if(n !== o && n){ schedule_quote(); } });
         function pad_time(t){ t = time_str(t); if(!t){ return null; } var m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m ? ('0' + m[1]).slice(-2) + ':' + m[2] + (m[3] ? ':' + m[3] : '') : null; }
         function nearest5(t){ t = time_str(t); return t ? TimeDisplayService.roundToFive(t) : null; }
 
@@ -5507,6 +5535,72 @@ app.directive('bkiPickField', function () {
                      off_r: b.brakes_off_rounded, on_r: b.brakes_on_rounded, to_r: b.takeoff_rounded, ld_r: b.landing_rounded };
         };
         vm.bk_claimed = function(){ return !!vm.has_used_claimed_flight; };
+        // a tracker flight whose times club staff amended before the claim (owner, 10 Nov; times_amended on the unclaimed rows):
+        // who, when, why and what the tracker recorded — shown on its card and above the times once it's used
+        var amended_cache = {};
+        vm.bk_amended = function(f){
+            var a = f && f.times_amended;
+            if(!a || typeof a !== 'object'){ return null; }
+            var key = f.id + '|' + (a.at || '') + '|' + (a.count || 1);
+            if(amended_cache[key]){ return amended_cache[key]; }
+            var o = a.original || {}, to = roundTimeToMinute(o.takeoff_time), ld = roundTimeToMinute(o.landing_time);
+            var at = String(a.at || '');
+            amended_cache[key] = { by: String(a.by_name || '').trim() || 'a club instructor', when: at ? fday(at.slice(0, 10)) : '',
+                reason: String(a.reason || '').trim(), orig: (to && ld) ? 'take-off ' + to + ', landing ' + ld : 'different times' };
+            return amended_cache[key];
+        };
+        // ── the tracker flight the Times card shows, and whether this viewer may amend its times (C47, owner 10 Nov) ──
+        // a direct claim: the sheet being booked in IS the unclaimed tracker flight (fox_log_id, auto_claim; claimed_flight stays {});
+        // a claim onto the pilot's own sheet: the flight picked from the unclaimed list. The backend's can_amend_times decides.
+        function amend_target(){
+            if(vm.has_used_claimed_flight && vm.claimed_flight && vm.claimed_flight.id){
+                return { row: vm.claimed_flight, pls: vm.claimed_flight.id, can: vm.claimed_flight.can_amend_times === true, direct: false };
+            }
+            if(vm.auto_claim === 1 && vm.has_used_claimed_flight && vm.bookout && vm.bookout.id && vm.ctx && vm.ctx.sheet){
+                var sh = vm.ctx.sheet, b = vm.bookout;
+                var row = { id: b.id, registration: vm.bk_reg(), flight_date: b.flight_date, aircraft_colour: b.aircraft && b.aircraft.colour,
+                    brakes_off: b.brakes_off, takeoff_time: b.takeoff_time, landing_time: b.landing_time, brakes_on: b.brakes_on,
+                    times_amended: sh.times_amended || b.times_amended || null };
+                return { row: row, pls: b.id, can: sh.can_amend_times === true, direct: true };
+            }
+            return null;
+        }
+        vm.bk_claimed_amended = function(){ var t = amend_target(); return t ? vm.bk_amended(t.row) : null; };
+        vm.bk_amend_can = function(){ var t = amend_target(); return !!(t && t.can) && !vm.split_flight && !vm.split_flight_confirmation; };
+        vm.bk_amend_open = function(){
+            var t = amend_target(); if(!t || !t.can){ return; }
+            vm.bk.amend = ClaimV2Data.form(t.row, is_tpc_charging(), (vm.ctx && vm.ctx.club && vm.ctx.club.tpc_pad_minutes) || 5, { pls: t.pls });
+        };
+        // after a save or a revert the sheet's stored times (and derived fields) changed: a direct claim reloads the page; a claim
+        // onto the pilot's own sheet takes the row's new times, re-fills the card, re-fetches the context and re-quotes
+        function amend_refresh(flight, word){
+            var t = amend_target();
+            vm.bk.amend = null; vm.bk.revertAsk = false;
+            if(!t || t.direct){ ToastService.success(word, 'Reloading the flight with its new times…'); $timeout(function(){ $window.location.reload(); }, 900); return; }
+            // the reply row is a tracker-list row (its id is the tracker entry, not the sheet): take only the times and the amend facts
+            if(flight){
+                ['brakes_off', 'takeoff_time', 'landing_time', 'brakes_on', 'brakes_off_rounded', 'takeoff_rounded', 'landing_rounded', 'brakes_on_rounded',
+                 'brakes_time', 'brakes_times_rounded', 'airborne_time', 'airborne_rounded', 'flight_time', 'times_amended', 'airborne_seconds_amended', 'can_amend_times']
+                    .forEach(function(k){ if(k in flight){ vm.claimed_flight[k] = flight[k]; } else if(k === 'times_amended' || k === 'airborne_seconds_amended'){ vm.claimed_flight[k] = null; } });
+            }
+            amended_cache = {}; flight_txt_cache = {};
+            $scope.claim_my_flight(true);
+            load_context(); schedule_quote();
+            ToastService.success(word, 'The card shows the new times; the price follows them.');
+        }
+        vm.bk_amend_saved = function(flight){ amend_refresh(flight, 'Times amended'); };
+        vm.bk_revert_ask = function(){ vm.bk.revertAsk = true; };
+        vm.bk_revert_keep = function(){ vm.bk.revertAsk = false; };
+        vm.bk_revert = function(){
+            var t = amend_target(); if(!t || !t.can || vm.bk.reverting){ return; }
+            vm.bk.reverting = true;
+            return ClaimV2Data.RevertTimes(t.pls, {}).then(function(data){
+                vm.bk.reverting = false;
+                if(data && data.success){ amend_refresh(data.flight, 'Tracker times back'); return; }
+                ToastService.handledInline();
+                vm.bk.revertErr = ClaimV2Data.whyOf(data, 'The tracker’s times weren’t put back. Try again in a moment.');
+            });
+        };
         vm.bk_is_fox = function(){ return !!(vm.bookout && vm.bookout.fox_log_id > 0); };
         vm.bk_claim_avail = function(){
             return !!(vm.claim_a_flight && vm.claim_a_flight.length > 0 && !vm.has_used_claimed_flight && (!(vm.bookout.fox_log_id > 0) || vm.auto_claim !== 1));
@@ -6162,7 +6256,7 @@ app.directive('bkiPickField', function () {
         /* ═════ the hero ═════ */
         vm.bk_reg = function(){ var b = vm.bookout || {}; return (b.aircraft && b.aircraft.registration) || (b.booking && b.booking.registration) || b.registration || ''; };
         vm.bk_type = function(){ var a = (vm.bookout && vm.bookout.aircraft) || {}; return a.plane_type || ''; };
-        vm.bk_model = function(){ var a = (vm.bookout && vm.bookout.aircraft) || {}; var m = [a.manufacturer ? title_case(a.manufacturer.replace(/ AIRCRAFT.*| CORP.*| INC.*/i, '')) : '', a.type_name ? title_case(a.type_name) : ''].filter(Boolean).join(' '); return m; };
+        vm.bk_model = function(){ var a = (vm.bookout && vm.bookout.aircraft) || {}; return bkV2MakeModel(a.manufacturer ? title_case(a.manufacturer.replace(/ AIRCRAFT.*| CORP.*| INC.*/i, '')) : '', a.type_name ? title_case(a.type_name) : ''); };
         function title_case(s){ return String(s || '').toLowerCase().replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); }); }
         vm.bk_ac_colour = function(){ var a = (vm.bookout && vm.bookout.aircraft) || {}; return a.colour || 'var(--ta-brand-2)'; };
         // "Fri 6 Nov, 09:00–11:00" (the claim panel's best matches)
@@ -6222,7 +6316,7 @@ app.directive('bkiPickField', function () {
             var stops = (f.stops || []).length;
             var out = { t: fday(f.flight_date) + ' · ' + (v.window === 'airborne' ? 'airborne' : 'block') + ' ' + v.from + '–' + v.to,
                         s: (local ? (from.code || '') + ' ' + af_name(from) + ', local' : (from.code || '') + ' → ' + (to.code || '') + ' ' + af_name(to)) + ' · ' + plural(n, 'landing') + ' · ' + other + (stops ? ' · ' + plural(stops, 'ground stop') : ''),
-                        tip: 'Recorded: brakes ' + (roundTimeToMinute(f.brakes_off) || '—') + '–' + (roundTimeToMinute(f.brakes_on) || '—') + ', airborne ' + (roundTimeToMinute(f.takeoff_time) || '—') + '–' + (roundTimeToMinute(f.landing_time) || '—') };
+                        tip: (f.times_amended ? 'Amended times: brakes ' : 'Recorded: brakes ') + (roundTimeToMinute(f.brakes_off) || '—') + '–' + (roundTimeToMinute(f.brakes_on) || '—') + ', airborne ' + (roundTimeToMinute(f.takeoff_time) || '—') + '–' + (roundTimeToMinute(f.landing_time) || '—') };
             flight_txt_cache[key] = out;
             return out;
         };
@@ -6325,7 +6419,7 @@ app.directive('bkiPickField', function () {
         };
         vm.bk_split_close = function(){
             // nothing confirmed yet: just close the panel (v1's CANCEL SPLIT also restored the sheet)
-            vm.split_flight = 0; vm.split_flight_time = null; vm.split_one = null; vm.split_two = null; vm.split_phantom = null;
+            vm.split_flight = 0; vm.split_flight_time = null; vm.split_one = null; vm.split_two = null; vm.split_phantom = null; vm.split_at = null;
         };
         vm.bk_split_part = function(p, k){ // p: split_one | split_two; k: off|to|ld|on → the time shown
             if(!p){ return '—'; }
@@ -8365,7 +8459,7 @@ function BookinV2Payment(PaymentService, BookoutService, ToastService, $timeout,
         // "Cessna 152" from the booking's aircraft (as the book-in's hero), else the invoice's type
         vm.fp_model = function(){
             var a = (vm.bookout && vm.bookout.plane) || {}, tc = function(x){ return String(x || '').toLowerCase().replace(/\b[a-z]/g, function(ch){ return ch.toUpperCase(); }); };
-            var m = [a.manufacturer ? tc(String(a.manufacturer).replace(/ AIRCRAFT.*| CORP.*| INC.*/i, '')) : '', a.type_name ? tc(a.type_name) : ''].filter(Boolean).join(' ');
+            var m = bkV2MakeModel(a.manufacturer ? tc(String(a.manufacturer).replace(/ AIRCRAFT.*| CORP.*| INC.*/i, '')) : '', a.type_name ? tc(a.type_name) : '');
             return m || vm.fp_type();
         };
         vm.fp_ac_colour = function(){ var a = (vm.bookout && vm.bookout.plane) || {}; return a.colour || a.booking_colour || 'var(--ta-brand-2)'; };

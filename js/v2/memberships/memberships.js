@@ -826,7 +826,10 @@ function MembershipDetailV2Controller($rootScope, $scope, $state, $stateParams, 
             });
         }
     };
-    vm.doc = function (d) { D.openDoc(d.file, d.label); };
+    // the document in a dialog (Alex, 10 Nov 2026); none uploaded → the same notice as before
+    vm.docView = null;
+    vm.doc = function (d) { if (!d.file) { D.openDoc(d.file, d.label); return; } vm.docView = d; };
+    vm.closeDocView = function () { vm.docView = null; };
     vm.manageCards = function () { $state.go('dashboard.my_account.payment_methods', { club_id: vm.clubId }); };
     vm.addCard = function () { $state.go('dashboard.my_account.payment_methods.add', { club_id: vm.clubId }); };
 
@@ -837,7 +840,7 @@ function MembershipDetailV2Controller($rootScope, $scope, $state, $stateParams, 
         D.goToGoCardless(vm.user.id, vm.clubId, vm.id).then(function (ok) { if (!ok) { G.busy = false; } });
     };
     vm.closeDlg = function () { if (vm.dlg && !vm.dlg.busy) { vm.dlg = null; } };
-    function onKey(e) { if ((e.which || e.keyCode) === 27 && vm.dlg) { $scope.$applyAsync(vm.closeDlg); } }
+    function onKey(e) { if ((e.which || e.keyCode) === 27) { if (vm.docView) { $scope.$applyAsync(vm.closeDocView); } else if (vm.dlg) { $scope.$applyAsync(vm.closeDlg); } } }
     $document.on('keydown', onKey);
     $scope.$on('$destroy', function () { $document.off('keydown', onKey); });
 

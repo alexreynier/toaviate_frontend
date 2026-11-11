@@ -203,7 +203,8 @@ app.controller('CaaFormsController', CaaFormsController);
             (liveElig.checks || []).forEach(function(c) { if (c.id === 'training_flight') { live = c; } });
             if (!live) { return; }
             if (live.pass) {
-                vm.liveTrainingDone = live.evidence || {};
+                // evidence is a list of endorsed flights (short refreshers can sum to the hour): show the latest
+                vm.liveTrainingDone = latestEvidence(live.evidence) || {};
                 vm.liveCandidates = [];
             } else {
                 vm.liveCandidates = live.candidates || [];
@@ -226,10 +227,27 @@ app.controller('CaaFormsController', CaaFormsController);
             if (!vm.eligibility || !vm.eligibility.checks) { return null; }
             for (var i = 0; i < vm.eligibility.checks.length; i++) {
                 var c = vm.eligibility.checks[i];
-                if (c.id === 'training_flight') { return (c.pass && c.evidence) || null; }
+                if (c.id === 'training_flight') { return c.pass ? evidenceList(c) : null; }
             }
             return null;
         };
+        // The training_flight check's evidence is an ARRAY of endorsed flights (one or several that sum to the
+        // hour). An older snapshot may hold a single object; either way the card gets a stable list to repeat.
+        function evidenceList(check) {
+            var ev = check.evidence;
+            if (Array.isArray(ev)) { return ev.length ? ev : null; }
+            if (ev && typeof ev === 'object') {
+                if (!check._evidenceList) { check._evidenceList = [ev]; }
+                return check._evidenceList;
+            }
+            return null;
+        }
+        function latestEvidence(ev) {
+            if (!Array.isArray(ev)) { return ev || null; }
+            var latest = null;
+            ev.forEach(function(e) { if (e && (!latest || String(e.flight_date) > String(latest.flight_date))) { latest = e; } });
+            return latest;
+        }
         // On LOCKED forms the displayed checklist is the frozen snapshot —
         // whose candidates may predate ref_id/kind (and reality). These hold
         // the LIVE actionable state fetched alongside it.
@@ -1062,6 +1080,13 @@ app.controller('CaaFormsController', CaaFormsController);
                 }, function() {});
             };
 
+            // Decline: whoever may sign may decline, except an UNNAMED instructor / examiner box: any club instructor may
+            // claim and sign it, but only the Head of Training may decline it (C35 refuses anyone else with FORBIDDEN).
+            vm.canDecline = function(box) {
+                if (!vm.canSign(box)) { return false; }
+                if ((box.role === 'instructor' || box.role === 'examiner') && !box.signer_user_id) { return !!vm.isHotHere; }
+                return true;
+            };
             // Decline — inline expand on the signature box (transient _fields).
             vm.toggleDecline = function(box) { box._declineOpen = !box._declineOpen; };
             vm.decline = function(box) {

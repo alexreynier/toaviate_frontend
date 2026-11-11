@@ -547,7 +547,7 @@
         vm.soloStateKind = function(req){
             if (req.satisfied) { return 'ok'; }
             if (req.state === 'pending_review' || req.state === 'in_progress') { return 'review'; }
-            if (req.state === 'medical_expired' || req.state === 'medical_class_not_accepted' ||
+            if (req.state === 'medical_expired' || req.state === 'medical_class_not_accepted' || req.state === 'medical_limitation' ||
                 req.state === 'below_min_score' || req.state === 'not_passed' || req.state === 'no_medical') { return 'fail'; }
             return 'todo';
         };

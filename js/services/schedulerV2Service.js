@@ -25,6 +25,8 @@ function SchedulerV2Service($http, $location, $q) {
     service.GetMonth = GetMonth;
     service.GetVersion = GetVersion;
     service.InvalidateMonths = InvalidateMonths;
+    service.Reallocate = Reallocate;                      // POST scheduler/v2/reallocate {club_id, date, apply}
+    service.ReallocateBatch = ReallocateBatch;            // POST scheduler/v2/reallocate_batch {club_id, days}
 
     service.kindLabel = kindLabel;
     service.kindColour = kindColour;
@@ -61,6 +63,21 @@ function SchedulerV2Service($http, $location, $q) {
             if (data && data.success && data.settings) { service.lastSettings = data.settings; }
             return data;
         }, handleError2);
+    }
+
+    // ── Re-allocate aircraft (owner, 10 Nov 2026; managers only; Models\ReallocateAircraftV2) ──
+    // apply 0 = the preview (never writes): {eligible, reason, bookings, movable, moves[], kept[]};
+    // apply 1 = make those moves: + {applied: 1, moved}. An ineligible day answers NOT_ELIGIBLE on apply.
+    // opts.instructors_first (owner, 11 Nov): a hire holding an instructor's slot is moved off instead (to an aircraft with nothing
+    // on it first), or the instructor's whole programme goes to an aircraft free for every slot; moves carry `displaced_for`.
+    function Reallocate(club_id, date, apply, opts) {
+        var body = { club_id: parseInt(club_id, 10), date: date, apply: apply ? 1 : 0, instructors_first: (opts && opts.instructors_first) ? 1 : 0 };
+        return $http.post('/api/v1/scheduler/v2/reallocate', body).then(handleSuccess, handleError2);
+    }
+    // the next N days (1..31, default 10), applied directly: {from, days, moved, results: [{date, eligible, reason, bookings, moves, moved, detail?}]}
+    function ReallocateBatch(club_id, days, opts) {
+        var body = { club_id: parseInt(club_id, 10), days: parseInt(days, 10) || 10, instructors_first: (opts && opts.instructors_first) ? 1 : 0 };
+        return $http.post('/api/v1/scheduler/v2/reallocate_batch', body).then(handleSuccess, handleError2);
     }
 
     // GET scheduler/v2/booking/{id}
