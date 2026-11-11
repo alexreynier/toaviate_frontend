@@ -32,7 +32,10 @@ app.provider('DesignRoutes', function DesignRoutesProvider() {
     };
     this.$get = function () {
         return {
-            v2For: function (name) { return toV2[name] || null; },
+            // v2 has no landing page: the classic /dashboard screen (the CLUB / INSTRUCTOR / PILOT tiles) opens My Account
+            // instead (owner, 11 Nov 2026 — everyone who can sign in has one; the header menu carries the other areas).
+            // One-way on purpose: switching v2 off on My Account goes to classic My Account, not back to the tiles.
+            v2For: function (name) { return toV2[name] || (name === 'dashboard' ? toV2['dashboard.my_account'] : null) || null; },
             // a v2 child state with no mapping of its own (e.g. scheduler_v2.add, the booking panel) goes back with its
             // parent's classic page; v1 → v2 never walks up (a v1 child without a v2 stays v1)
             v1For: function (name) {
@@ -192,6 +195,49 @@ app.directive('designSwitch', ['DesignService', '$rootScope', function (DesignSe
         link: function (scope) {
             scope.on = function () { return !!$rootScope.designV2; };
             scope.flip = function () { DesignService.toggle(); scope.onDone(); };
+        }
+    };
+}]);
+
+// The advert for the switch on the CLASSIC sign-in page (owner, 11 Nov 2026: "much more prominent"): a card under the
+// form in place of the corner pill — headline, three feature chips, the button, and a miniature of the new design drawn
+// in CSS (css/v2/core.css .v2-promo*). <design-promo></design-promo>; it draws nothing while the switch is on.
+// No ul / li / p inside: styles.css's element rules (ul li colour + hover underline, p margins) would reach them.
+app.directive('designPromo', ['DesignService', '$rootScope', function (DesignService, $rootScope) {
+    return {
+        restrict: 'E',
+        scope: {},
+        template: '<aside class="v2-promo" ng-if="!on()" aria-label="Try the new ToAviate designs">' +
+            '<svg class="v2-promo__path" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true"><path d="M-10 196 C 110 170, 250 90, 410 14"/></svg>' +
+            '<i class="fas fa-plane v2-promo__plane" aria-hidden="true"></i>' +
+            '<div class="v2-promo__copy">' +
+                '<div class="v2-promo__eyebrow"><span class="v2-promo__new">New</span><span>v2 designs</span></div>' +
+                '<h3 class="v2-promo__title">ToAviate has a new look</h3>' +
+                '<div class="v2-promo__text">Cleaner pages, a faster scheduler and everything a tap away on your phone. Same account, same data.</div>' +
+                '<div class="v2-promo__feats">' +
+                    '<span class="v2-promo__feat"><i class="fas fa-calendar-alt" aria-hidden="true"></i>New scheduler</span>' +
+                    '<span class="v2-promo__feat"><i class="fas fa-mobile-alt" aria-hidden="true"></i>Made for phones</span>' +
+                    '<span class="v2-promo__feat"><i class="fas fa-moon" aria-hidden="true"></i>Night mode</span>' +
+                '</div>' +
+                '<div class="v2-promo__actions">' +
+                    '<button type="button" class="v2-promo__cta" ng-click="go()" no-busy-guard>Try the v2 designs<i class="fas fa-arrow-right" aria-hidden="true"></i></button>' +
+                    '<span class="v2-promo__note">You can switch back at any time.</span>' +
+                '</div>' +
+            '</div>' +
+            '<div class="v2-promo__art" aria-hidden="true">' +
+                '<div class="v2-promo__win">' +
+                    '<div class="v2-promo__winbar"><img src="images/main_logo.png" alt=""><span></span><span></span><span class="v2-promo__winbar-on"></span></div>' +
+                    '<div class="v2-promo__winbody">' +
+                        '<div class="v2-promo__hero"><span class="v2-promo__ic"></span><span class="v2-promo__ln v2-promo__ln--a"></span><span class="v2-promo__ln v2-promo__ln--b"></span><span class="v2-promo__pillbtn"></span></div>' +
+                        '<div class="v2-promo__tiles"><span></span><span></span><span></span><span></span></div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="v2-promo__phone"><div class="v2-promo__screen"><span class="v2-promo__pbar"></span><span class="v2-promo__phero"></span><span class="v2-promo__pcard"></span><span class="v2-promo__pcard"></span></div></div>' +
+            '</div>' +
+            '</aside>',
+        link: function (scope) {
+            scope.on = function () { return !!$rootScope.designV2; };
+            scope.go = function () { DesignService.set(true); };
         }
     };
 }]);

@@ -591,8 +591,8 @@
                   <span class="bo-chip" ng-class="'bo-chip--' + (doc.tone === 'bad' ? 'no' : (doc.tone === 'warn' ? 'wait' : (doc.tone === 'ok' ? 'ok' : 'muted')))">
                     <i class="fas" ng-class="doc.chip_icon" ng-if="doc.chip_icon"></i>{{ doc.chip }}
                   </span>
-                  <button type="button" class="bo-btn bo-btn--quiet bo-btn--sm" ng-click="vm.bo_open_doc(doc)" ng-disabled="!doc.file || vm.bo_doc_opening === doc.key" title="{{ doc.file ? 'Open the document' : 'No file on record' }}">
-                    <i class="fas" ng-class="vm.bo_doc_opening === doc.key ? 'fa-spinner fa-spin' : 'fa-external-link-alt'"></i> Open
+                  <button type="button" class="bo-btn bo-btn--quiet bo-btn--sm" ng-click="vm.bo_open_doc(doc)" ng-disabled="!doc.file" title="{{ doc.file ? 'Open the document' : 'No file on record' }}" data-e2e="bo-doc-open-{{ doc.key }}" no-busy-guard>
+                    <i class="fas fa-external-link-alt"></i> Open
                   </button>
                 </div>
               </div>
@@ -838,7 +838,25 @@
 
   <!-- ═════ DIALOGS — centred on desktop, bottom sheets on phones ═════ -->
 
-  <!-- document viewer (legacy embed overlay; Open downloads the file today) -->
+  <!-- a document, shown in the dialog (11 Nov 2026): the Aircraft status dialog (views/v2/aircraft/_dialogs.html) on
+       ta-base, with the shared viewer <ta-doc-view> (js/v2/core/docview.js) — vm.bo_open_doc / bo_close_doc / bo_download_doc -->
+  <div class="ta-dlg-scrim" ng-if="vm.bo_doc_view" ng-click="vm.bo_close_doc()" data-e2e="bo-doc-dialog">
+    <div class="ta-dlg ta-dlg--wide" role="dialog" aria-modal="true" aria-labelledby="bo-doc-ttl" ng-click="$event.stopPropagation()">
+      <div class="ta-dlg__hd" style="--edge: {{ vm.bo_doc_view.edge }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.bo_close_doc()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-file-alt"></i>{{ vm.bookout.plane.registration }} · document</div><div class="ta-dlg__title" id="bo-doc-ttl">{{ vm.bo_doc_view.title }}</div><div class="ta-dlg__sub">{{ vm.bo_doc_view.sub }}</div></div>
+      <div class="ta-dlg__body">
+        <ta-doc-view route="{{ vm.bo_doc_view.route }}" file="vm.bo_doc_view.file" title="vm.bo_doc_view.title"></ta-doc-view>
+        <dl class="ta-facts">
+          <div class="ta-fact"><dt>Status</dt><dd><span class="ta-pill" ng-class="'ta-pill--' + vm.bo_doc_view.pill.tone"><i class="fas" ng-class="vm.bo_doc_view.pill.ic" ng-show="vm.bo_doc_view.pill.ic"></i>{{ vm.bo_doc_view.pill.label }}</span></dd></div>
+          <div class="ta-fact"><dt>{{ vm.bo_doc_view.when_label }}</dt><dd>{{ vm.bo_doc_view.sub }}</dd></div>
+        </dl>
+      </div>
+      <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.bo_close_doc()" no-busy-guard>Close</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bo_download_doc()" ng-disabled="vm.bo_doc_opening" no-busy-guard data-e2e="bo-doc-download"><i class="fas fa-spinner fa-spin" ng-show="vm.bo_doc_opening"></i><i class="fas fa-download" ng-show="!vm.bo_doc_opening"></i>Download</button></div>
+    </div>
+  </div>
+
+  <!-- document viewer (legacy embed overlay — nothing opens it any more) -->
   <div class="bo-scrim" ng-if="show_file_now" ng-click="close_file()">
     <div class="bo-dialog bo-dialog--wide" role="dialog" aria-modal="true" aria-label="Document" ng-click="$event.stopPropagation()">
       <div class="bo-dialog__grab" aria-hidden="true"></div>

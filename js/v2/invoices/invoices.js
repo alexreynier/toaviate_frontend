@@ -501,7 +501,7 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
         var attn = rows.filter(function (i) { return i.attn; }), rest = rows.filter(function (i) { return !i.attn; });
         vm.invGroups = [];
         if (attn.length) {
-            vm.invGroups.push({ key: 'attn', attn: true, label: 'Needs your attention', rows: attn,
+            vm.invGroups.push({ key: 'attn', attn: true, label: 'Needs your attention', rows: attn, payAll: payAllBundles(),
                 totalTxt: money(r2(attn.reduce(function (s, i) { return s + (i.total > 0 ? i.total : 0); }, 0)), scopeCur()) });
         }
         vm.invGroups = vm.invGroups.concat(groupByMonth(rest, function (i) { return i.total; }, function (g) { return g.rows[0].cur; }));
@@ -581,6 +581,35 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
        (js/directives/datetime.js), so the server sees exactly what v1 sends; Stripe steps keep their own busy flag. ═════ */
     var stripePay = null;   // { stripe, elements, element, intentId } for the "New card" option
 
+    /* ── "Pay all" (11 Nov 2026): a club's unpaid invoices in ONE payment — backend `invoice_ids`
+          (BACKEND_PAY_TOGETHER_GUIDE.md). Per club only: each club is paid on its own account. A bundle stands in for
+          the invoice in the pay dialog (same fields: club, total, num…) with `bundle: true` and its invoices. ── */
+    var PAY_ALL_MAX = 30;   // Invoices::PAY_TOGETHER_MAX
+    function payAllBundle(c) {
+        // every payable invoice of the club (not only the rows a search or a chip leaves in view), oldest first
+        var invs = vm.invoices.filter(function (i) { return i.club === c && i.payable; })
+            .sort(function (a, b) { return a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0; });
+        if (invs.length < 2) { return null; }
+        var more = invs.length > PAY_ALL_MAX ? invs.length - PAY_ALL_MAX : 0;
+        if (more) { invs = invs.slice(0, PAY_ALL_MAX); }
+        var total = r2(invs.reduce(function (s, i) { return s + i.total; }, 0));
+        return { bundle: true, payable: true, club: c, invs: invs, ids: invs.map(function (i) { return i.id; }), n: invs.length, more: more,
+            total: total, totalTxt: money(total, c.cur), num: invs.length + ' invoices', title: invs.length + ' invoices', kindIc: 'fa-layer-group' };
+    }
+    // the clubs in view with two or more invoices to pay: [{ club, n, totalTxt, label }]
+    function payAllBundles() {
+        var clubs = vm.clubs.filter(function (c) { return vm.ui.club === 'all' || c.id === vm.ui.club; });
+        var out = clubs.map(payAllBundle).filter(Boolean);
+        out.forEach(function (b) { b.label = 'Pay all ' + b.n + (out.length > 1 ? ' · ' + b.club.title : '') + ' · ' + b.totalTxt; });
+        return out;
+    }
+    vm.payAllFor = function (c) { return payAllBundle(c); };
+    vm.openPayAll = function (c, $event) {
+        if ($event) { $event.stopPropagation(); }
+        var b = payAllBundle(c);
+        if (b) { vm.openPay(b); }
+    };
+
     vm.openPay = function (i, $event) {
         if ($event) { $event.stopPropagation(); }
         if (!i.payable) { return; }
@@ -615,10 +644,11 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
                     s: 'Saved card' + (k.exp_month && k.exp_year ? ' · expires ' + ('0' + k.exp_month).slice(-2) + '/' + String(k.exp_year).slice(-2) : '') });
             });
             opts.push({ id: 'new', ic: 'fas fa-plus', t: 'New card', s: 'Debit or credit card' });
-            if (machineMine) { opts.push({ id: 'machine', ic: 'fas fa-cash-register', t: 'Card machine', s: 'At the club desk — the reader shows the amount' }); }
+            // the card machine takes one invoice at a time (not offered for "Pay all")
+            if (machineMine && !i.bundle) { opts.push({ id: 'machine', ic: 'fas fa-cash-register', t: 'Card machine', s: 'At the club desk — the reader shows the amount' }); }
             P.opts = opts;
             P.info = info;
-            P.send = { club_id: c.id, user_id: vm.user.id, invoice_id: i.id };
+            P.send = i.bundle ? { club_id: c.id, user_id: vm.user.id, invoice_ids: i.ids } : { club_id: c.id, user_id: vm.user.id, invoice_id: i.id };
             P.stage = 'choose';
             vm.pickPay(opts[0].id);
         });
@@ -636,7 +666,7 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
         var P = vm.pay;
         if (!P || !P.method) { return ''; }
         var amt = P.inv.totalTxt;
-        return P.method === 'dd' ? 'Add to direct debit' : P.method === 'machine' ? 'Send ' + amt + ' to the reader' : 'Pay ' + amt;
+        return P.method === 'dd' ? (P.inv.bundle ? 'Add all ' + P.inv.n + ' to direct debit' : 'Add to direct debit') : P.method === 'machine' ? 'Send ' + amt + ' to the reader' : 'Pay ' + amt;
     };
     vm.payPrimaryIc = function () {
         var m = vm.pay && vm.pay.method;
@@ -834,7 +864,9 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
     function record(P, methodLabel, paymentIntent) {
         var i = P.inv;
         P.stage = 'busy';
-        PaymentService.ProcessPayment({ user_id: vm.user.id, club_id: i.club.id, paymentIntent: paymentIntent, invoice_id: i.id, method: methodLabel })
+        var body = { user_id: vm.user.id, club_id: i.club.id, paymentIntent: paymentIntent, method: methodLabel };
+        if (i.bundle) { body.invoice_ids = i.ids; } else { body.invoice_id = i.id; }
+        PaymentService.ProcessPayment(body)
             .then(function (data) {
                 if (vm.pay !== P) { return; }
                 if (data && data.success) {
@@ -847,7 +879,7 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
                         P.doneTitle = 'Paid';
                         P.doneText = (methodLabel === 'card-machine' ? 'Paid at the club\'s card machine.' : 'Paid with ' + (k.card ? k.t : 'your card') + '.') + ' The receipt is in Payments.';
                     }
-                    ToastService.success(methodLabel === 'direct-debit' ? 'Added to your direct debit' : 'Payment received', 'Invoice ' + i.num + ' · ' + i.totalTxt);
+                    ToastService.success(methodLabel === 'direct-debit' ? 'Added to your direct debit' : 'Payment received', (i.bundle ? i.n + ' invoices' : 'Invoice ' + i.num) + ' · ' + i.totalTxt);
                     reload(true);
                     focusSoon('[data-e2e=bil-pay-dlg] .ta-dlg__ft .ta-btn--primary');
                 } else {
@@ -855,7 +887,7 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
                     var why = bilWhy(data) || '';
                     if (methodLabel === 'direct-debit') {
                         P.stage = 'choose';
-                        P.err = why || 'The direct debit couldn\'t be set up for this invoice — nothing was taken. Try again, or choose another way to pay.';
+                        P.err = why || 'The direct debit couldn\'t be set up for ' + (i.bundle ? 'these invoices' : 'this invoice') + ' — nothing was taken. Try again, or choose another way to pay.';
                         ToastService.error('Not added to your direct debit', P.err);
                     } else {
                         // the card / reader HAS been charged: never offer a second charge — say so, give the reference
@@ -863,7 +895,7 @@ function InvoicesV2Controller($rootScope, $scope, $state, $timeout, $document, $
                         P.ref = (data && data.payment_intent_id) || (paymentIntent && (paymentIntent.id || paymentIntent.payment_intent)) || '';
                         // the server e-mails the club's managers for these refusals of a succeeded payment (once per pi_)
                         P.clubTold = !!(data && ['AMOUNT_MISMATCH', 'CURRENCY_MISMATCH', 'CUSTOMER_MISMATCH', 'INVOICE_MISMATCH', 'INVOICE_NOT_FOUND'].indexOf(data.error) > -1);
-                        ToastService.error('Payment not recorded', 'Your card was charged, but the invoice wasn\'t updated. ' + (P.clubTold ? 'The club has been told — don\'t pay again.' : 'Don\'t pay again — contact ' + i.club.title + '.'));
+                        ToastService.error('Payment not recorded', 'Your card was charged, but the invoice' + (i.bundle ? 's weren\'t' : ' wasn\'t') + ' updated. ' + (P.clubTold ? 'The club has been told — don\'t pay again.' : 'Don\'t pay again — contact ' + i.club.title + '.'));
                         reload(true);
                     }
                 }

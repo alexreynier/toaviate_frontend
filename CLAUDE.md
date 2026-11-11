@@ -663,6 +663,40 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   signature + side-by-side shots, `routes` fixtures, `HOVER=1`), `agg.py`, `whorule.js`; brief `../mockups/v2-build/
   FIDELITY_BRIEF.md`; per-page results and deliberate differences in each `fe-<group>.md` "## Fidelity pass". Use the
   mockup's markup (a `div` where the mockup has a `button` changes line-height, alignment and focus).
+- **Documents open IN the page** (`<ta-doc-view route file title>`, js/v2/core/docview.js, `.ta-docview*` / `.ta-docfull*` in
+  ta-base.css): the file is fetched through its `show_file` route and drawn in the dialog (image, or a PDF frame). Used by
+  Aircraft status (`vm.openDoc`, views/v2/aircraft/_dialogs.html) and, since 11 Nov, v2 book-out (`vm.bo_open_doc` — it only
+  downloaded before; same ta-dlg markup, the dialog's Download still saves). **Full screen** (owner, 11 Nov — the defect photo
+  lightbox's look): the image or the "Full screen" button opens `.ta-docfull`, a near-black lightbox appended to `<body>` —
+  image click = zoom (fit ↔ large, scroll to pan), a PDF fills the screen in the browser's reader; Download ("Insurance.pdf")
+  and Open in a new tab are icons in its bar; Esc (caught in the capture phase) closes the lightbox only, and the app header
+  steps aside (`body.ta-docfull-open`, core.css). iOS PDFs keep "Open in a new tab". Any new v2 document row should use it.
+- **My Logbook says the pilot's name, not "Self"** (owner, 11 Nov): `vm.me` in js/v2/logbook (from the signed-in user) —
+  "A. Reynier", a quiet initial + the surname strong (`.lgb-me`), in the PIC / instructor column and the opened flight's PIC line.
+- **Times you type or pick: `<ta-time ng-model input-id label near min step format ng-disabled>`** (js/v2/core/timefield.js,
+  `.ta-time*` in ta-base.css; owner, 11 Nov — "use it on every v2 screen that takes brakes off / take-off / landing / brakes
+  on"): a time of day as a text field + a list under it. Type "1050" / "10:50" / "10.5" / "950" / "9" (committed on Enter /
+  Tab / leaving; number pad on phones) or pick from the list of 5-minute times. The list opens only when ASKED (click / tap,
+  typing, an arrow key — never on focus alone, so Tab and a page's focus-the-error don't drop it over the next control), at
+  the value, else at `near`; it narrows as you type, greys times before `min`, and sizes / flips itself to stay inside the
+  window and any scrolling ancestor (a `.ta-dlg`). Esc undoes, emptying clears, text that isn't a time puts the old value back.
+  `step` = what a TYPED time is rounded to: 5 (default) or `step="1"` (keeps the minute; the exact minute joins the list). A
+  value already off the step (a tracker's 09:58 in a 5-minute field) is shown as it is and never changed by looking at it.
+  **Owner's rule (11 Nov): BRAKES off / on and logbook OFF / ON BLOCKS = 5-minute steps; TAKE-OFF and LANDING = the minute.**
+  `format` = the model: 'H:mm' (default, v1's), `HH:mm` (logbook), `date` (a Date on 1 Jan 1970 / null — what `type="time"`
+  gave; the amend dialog). **Where:** v2 book-in's four manual times (all step 5 — club times; the gap since the time before
+  is a `.ta-hint` under the field — `vm.bk_time_gap`, list start `vm.bk_time_near`), the amend-times dialog
+  `<claim-times-dialog>` (Claim a Flight + book-in; brakes 5, take-off / landing 1; date), the logbook entry's Off / On blocks
+  and the SkyDemon import cards (step 5, HH:mm, `ng-disabled` on a skipped card), and the CLASSIC "Add flight" dialog
+  (`views/modals/manual_flight_form.html` — owner's exception to "v1 is frozen", 11 Nov; brakes 5, takeoff / landing 1).
+  **Imports are rounded as the file is read** (owner, 11 Nov): the logbook's SkyDemon cards round off / on blocks and the Add
+  flight dialog rounds brakes off / on to the nearest 5 minutes (`round5`); takeoff / landing and SkyDemon's own TOTAL are kept.
+  **The 24-hour-clock question** (`early="8"`, default; "0" = off): a time ENTERED before 08:00 gets an amber line under the
+  field — "01:05 is in the middle of the night. Did you mean 13:05?" + "Use 13:05" / "Keep 01:05" (`.ta-time__ask`). Never
+  for a time that was already there (tracker, import, a value the page sets). NOT converted: the pre-flight check's time and the safety
+  report's time (not flight times). Walks: scratchpad `hdr/times.js` (book-in, needs an open book-out), `times2.js` (67:
+  amend dialog, logbook list + entry, SkyDemon), `times4.js` (40: the question, the Add flight dialog, import rounding, fonts),
+  `times3.js` (30: the default mode in a harness) — real backend, every write intercepted.
 - **Screens:** home + reminders, bookings + history (`bookings/v2/upcoming`, C1), book-out (v1 = the 5 Nov files, v2 =
   js/v2/bookout `BookoutV2Controller`), book-in + finish & pay (server maths, below), claim a flight (journey log retired →
   logbook), logbook (+ shared `<ta-combo>` / `TaComboMatch` / `LgbFmt` in js/v2/logbook, aircraft search C7, currency C8),
@@ -738,7 +772,7 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   Forgot / reset have their own `PasswordResetV2Controller` (five live rules, dead link = a done card). `body.ta-login` drops the
   body padding (the page draws its own header, logo + Main website + Sign in). CSS css/v2/login.css (`.lg-*`).
   **The "Try our v2 designs" switch is a fixed bottom-right pill on every page** (`<design-switch>`, core.css `.v2-switch`):
-  mounted once in views/dashboard.html and on the v2 AND classic sign-in / reset pages (the menu tag is gone); on phones it hides on v2 pages
+  mounted once in views/dashboard.html and on the v2 sign-in / reset pages and the classic reset pages (the menu tag is gone). The CLASSIC sign-in page advertises it instead (owner, 11 Nov): `<design-promo>` (design.js, `.v2-promo*` in core.css) — a brand-gradient card under the form (headline, three chips, the button, a CSS miniature of v2 that shows only where the card is ~670px wide), first step only, nothing while the switch is on; walk scratchpad `hdr/promo.js` (44); on phones it hides on v2 pages
   (their hero has "Back to classic designs") and while a `.ta-actionbar`, the logbook save bar, the booking panel or the scheduler sheet shows.
 - **The runway — v2's loader (owner, 10 Nov):** `<ta-runway text steps step flying compact>` (js/v2/core/runway.js, styles
   `.ta-runway*` in ta-base.css; guidelines 4.15) is the shared "we're working on it" piece: the sign-in card uses it with
@@ -762,6 +796,20 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   under `#main_header2` in `--ta-zone` (My Account navy, Instructor Dashboard mulberry `#7a3366`) and lights that area's
   menu link (solid colour: the header stays white at night). The `--ta-zone*` tokens (ta-base.css, on `body`) are for the
   instructor pages' place markers (mockups/instructor-dashboard/zone.css); Manage Club gets graphite later.
+  **The app header matches the sign-in header while the switch is on** (owner, 11 Nov; core.css `body.design-v2 #main_header2
+  / #main_title / #main_logo1 / #main_menu li a`): `.lg-top`'s HEIGHT (60px, 54px to 899px), soft shadow, the logo 30px high
+  and 24px in (26 / 16px to 899px), links 26px apart and 24px from the right, in `--ta-font` — the device's own system font, which the
+  sign-in pages now state too (`.lg` in css/v2/login.css; they had fallen back to bootstrap's Helvetica Neue until 11 Nov).
+  **The header is no longer always 50px:** `--ta-top-offset` = its height (50px classic; 60 / 54px on `body.design-v2`) and
+  `--ta-head-extra` = what it gained (0 / 10 / 4px). New v2 CSS under the bar uses them (`top: var(--ta-top-offset, 50px)`,
+  `calc(70px + var(--ta-head-extra, 0px))`), never a bare 50px; JS reads `#main_header2.offsetHeight`. The classic files keep
+  their 50px and are answered in ONE block in core.css ("classic layers that start under the header": side panels, drawers,
+  the phone menu, sticky bars, `.main_div` page offset, and `.modal` / `.snazzy-overlay` start lower by `--ta-head-extra` so
+  every pop-up keeps its place relative to the bar) — add a line there when a classic layer tucks under the bar.
+  **v2 has no landing page** (owner, 11 Nov): with the switch on, the bare `dashboard` state (`/dashboard`, the CLUB /
+  INSTRUCTOR / PILOT tiles) opens My Account (`DesignRoutes.v2For('dashboard')` → the v2 home; one-way, so switching off on
+  My Account goes to classic My Account). Login, "Back to dashboard" links and `safeBack` all land there. Walk: scratchpad
+  `hdr/check.js` (47 checks: three widths, switch on + off).
 - **Also from round 2:** cancel reasons are SHOWN in sentence case (`CancellationFeesService.reasonText`, the picker), the
   stored label stays verbatim; Manage Club → Settings "Members Can Pay at the Card Machine" (`clubs.card_machine_members`,
   be-alex-3e C10; pay facts `machine.members_allowed` / `can_use`; v2 book-in + invoices honour it); SMS bulletins take

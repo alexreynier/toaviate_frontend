@@ -101,6 +101,7 @@
           <span class="ta-tile__v">{{ vm.money(c.s.toPay, c.cur) }}</span>
           <span class="ta-tile__s">{{ c.s.owedCount }} invoice{{ c.s.owedCount === 1 ? '' : 's' }} with no payment method yet<span ng-if="c.s.creditNotes > 0"> · {{ vm.money(c.s.creditNotes, c.cur) }} in credit notes in your favour</span></span>
           <button type="button" class="ta-tile__go" ng-click="vm.showTodo(c)">Show {{ c.s.owedCount === 1 ? 'it' : 'them' }} <i class="fas fa-arrow-right"></i></button>
+          <button type="button" class="ta-tile__go" ng-if="c.s.owedCount > 1" ng-click="vm.openPayAll(c, $event)" data-e2e="bil-pay-all-tile">Pay all {{ c.s.owedCount }} in one payment <i class="fas fa-arrow-right"></i></button>
         </div>
         <div class="ta-tile ta-tile--good" ng-if="!(c.s.toPay > 0)">
           <span class="ta-tile__k"><i class="fas fa-check-circle"></i>To pay</span>
@@ -175,7 +176,10 @@
     </div>
 
     <div ng-repeat="f in vm.invFlat track by f.key" class="{{ f.g ? 'ta-group' : 'ta-row' }}" ng-class="{'ta-group--attn': f.g.attn, 'ta-row--open': f.x && vm.open['inv:' + f.x.id]}" data-e2e="{{ f.x ? 'bil-inv-row' : 'bil-group' }}">
-      <span ng-if="f.g"><i class="fas fa-exclamation-circle" ng-if="f.g.attn"></i>{{ f.g.label }}</span><span ng-if="f.g">{{ f.g.totalTxt }}</span>
+      <span ng-if="f.g"><i class="fas fa-exclamation-circle" ng-if="f.g.attn"></i>{{ f.g.label }}</span>
+      <!-- "Pay all": a club's unpaid invoices in one payment (two or more; one button per club — each club is paid directly) -->
+      <span class="bil-payall" ng-if="f.g && f.g.payAll.length"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-repeat="b in f.g.payAll track by b.club.id" ng-click="vm.openPayAll(b.club, $event)" data-e2e="bil-pay-all"><i class="fas fa-layer-group"></i>{{ b.label }}</button></span>
+      <span ng-if="f.g">{{ f.g.totalTxt }}</span>
       <button type="button" class="ta-row__main" ng-if="f.x" ng-click="vm.toggle('inv:' + f.x.id)" aria-expanded="{{ !!vm.open['inv:' + f.x.id] }}">
         <span class="ta-row__lead"><span class="ta-kind ta-kind--{{ f.x.kind }}" title="{{ f.x.kindLabel }}"><i class="fas {{ f.x.kindIc }}"></i></span></span>
         <span class="ta-row__txt"><span class="ta-row__title">{{ f.x.title }}</span><span class="ta-row__sub">{{ f.x.sub }}{{ vm.allView ? ' · ' + f.x.club.title : '' }}</span></span>
@@ -266,17 +270,27 @@
 
 <!-- ═════ pay dialog: the mockup's record dialog (bottom sheet on phones); calls as the shared payment accordion ═════ -->
 <div class="ta-dlg-scrim" ng-if="vm.pay" bil-portal ng-click="vm.closePay()" no-busy-guard data-e2e="bil-pay-dlg">
-  <div class="ta-dlg" role="dialog" aria-modal="true" aria-label="Pay invoice {{ vm.pay.inv.num }}" ng-click="$event.stopPropagation()" no-busy-guard>
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-label="{{ vm.pay.inv.bundle ? 'Pay ' + vm.pay.inv.n + ' invoices' : 'Pay invoice ' + vm.pay.inv.num }}" ng-click="$event.stopPropagation()" no-busy-guard>
     <div class="ta-dlg__hd" style="--edge:{{ vm.pay.edge }}"><div class="ta-dlg__grab"></div>
       <button class="ta-dlg__x" ng-click="vm.closePay()" aria-label="Close" ng-disabled="vm.pay.stage === 'busy'">×</button>
-      <div class="ta-dlg__eyebrow"><i class="fas {{ vm.pay.inv.kindIc }}"></i>Pay invoice {{ vm.pay.inv.num }}</div>
+      <div class="ta-dlg__eyebrow"><i class="fas {{ vm.pay.inv.kindIc }}"></i>{{ vm.pay.inv.bundle ? 'Pay ' + vm.pay.inv.n + ' invoices in one payment' : 'Pay invoice ' + vm.pay.inv.num }}</div>
       <div class="ta-dlg__amt">{{ vm.pay.inv.totalTxt }}</div>
-      <div class="ta-dlg__sub">{{ vm.pay.inv.title }} · {{ vm.pay.inv.dateTxt }} · {{ vm.pay.inv.club.title }}</div></div>
+      <div class="ta-dlg__sub" ng-if="!vm.pay.inv.bundle">{{ vm.pay.inv.title }} · {{ vm.pay.inv.dateTxt }} · {{ vm.pay.inv.club.title }}</div>
+      <div class="ta-dlg__sub" ng-if="vm.pay.inv.bundle">{{ vm.pay.inv.club.title }} · paid to the club in one go</div></div>
 
     <div class="ta-dlg__body" ng-if="vm.pay.stage === 'loading'"><span class="bil-pay__wait"><span class="ta-spin ta-spin--dark"></span>Getting your payment options…</span><div class="ta-skel bil-skel-o"></div><div class="ta-skel bil-skel-o"></div></div>
     <div class="ta-dlg__body" ng-if="vm.pay.stage === 'error'"><div class="ta-note ta-note--bad"><i class="fas fa-times-circle"></i><div>{{ vm.pay.err }}</div></div></div>
 
-    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'choose' || vm.pay.stage === 'busy'"><span class="ta-sec-k">How would you like to pay?</span>
+    <div class="ta-dlg__body" ng-if="vm.pay.stage === 'choose' || vm.pay.stage === 'busy'">
+      <!-- "Pay all": what the one payment covers -->
+      <div class="bil-bundle" ng-if="vm.pay.inv.bundle" data-e2e="bil-bundle">
+        <span class="ta-sec-k">What you're paying</span>
+        <ul class="bil-bundle__list">
+          <li ng-repeat="x in vm.pay.inv.invs track by x.id"><span class="bil-bundle__t">{{ x.title }}<span class="bil-bundle__s">{{ x.num }} · {{ x.dateTxt }}</span></span><span class="bil-bundle__a">{{ x.totalTxt }}</span></li>
+        </ul>
+        <span class="ta-hint" ng-if="vm.pay.inv.more"><i class="fas fa-info-circle"></i> The {{ vm.pay.inv.n }} oldest — {{ vm.pay.inv.more }} more can be paid afterwards.</span>
+      </div>
+      <span class="ta-sec-k">How would you like to pay?</span>
       <button class="ta-opt" ng-repeat-start="o in vm.pay.opts track by o.id" ng-class="{'ta-opt--on': vm.pay.method === o.id}" ng-click="vm.pickPay(o.id)" aria-pressed="{{ vm.pay.method === o.id }}" ng-disabled="vm.pay.stage === 'busy'" no-busy-guard data-e2e="bil-opt"><span class="ta-opt__ic"><i class="{{ o.ic }}"></i></span><span><span class="ta-opt__t">{{ o.t }}<span class="ta-pill ta-pill--{{ o.tag.t }} bil-opt-tag" ng-if="o.tag">{{ o.tag.l }}</span></span><span class="ta-opt__s">{{ o.s }}</span></span><span class="ta-opt__dot"></span></button>
       <div class="ta-panel bil-cardel" ng-repeat-end ng-show="o.id === 'new' && vm.pay.method === 'new'">
         <div id="bil-card-el" class="bil-cardel__mount" ng-if="o.id === 'new'"></div>
@@ -295,7 +309,7 @@
     </div>
 
     <div class="ta-dlg__body" ng-if="vm.pay.stage === 'unrecorded'">
-      <div class="ta-note ta-note--bad" role="alert"><i class="fas fa-exclamation-triangle"></i><div><b>Your card was charged, but the payment couldn't be added to this invoice.</b> {{ vm.pay.clubTold ? 'The club has been told and will sort it out — don\'t pay again. If you contact ' + vm.pay.inv.club.title + ', quote' : (vm.pay.err ? vm.pay.err + ' ' : '') + 'Don\'t pay again: contact ' + vm.pay.inv.club.title + ' so they can match it' + (vm.pay.ref ? ' — quote' : '.') }} <span class="ta-ref" ng-if="vm.pay.ref">{{ vm.pay.ref }}</span></div></div>
+      <div class="ta-note ta-note--bad" role="alert"><i class="fas fa-exclamation-triangle"></i><div><b>Your card was charged, but the payment couldn't be added to {{ vm.pay.inv.bundle ? 'these invoices' : 'this invoice' }}.</b> {{ vm.pay.clubTold ? 'The club has been told and will sort it out — don\'t pay again. If you contact ' + vm.pay.inv.club.title + ', quote' : (vm.pay.err ? vm.pay.err + ' ' : '') + 'Don\'t pay again: contact ' + vm.pay.inv.club.title + ' so they can match it' + (vm.pay.ref ? ' — quote' : '.') }} <span class="ta-ref" ng-if="vm.pay.ref">{{ vm.pay.ref }}</span></div></div>
     </div>
     <div ng-if="vm.pay.stage === 'done'"><div class="ta-dlg__done"><span class="ta-dlg__check"><i class="fas fa-check"></i></span><h3>{{ vm.pay.doneTitle }}</h3><p>{{ vm.pay.doneText }}</p></div></div>
 

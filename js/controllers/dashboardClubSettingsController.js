@@ -931,6 +931,13 @@
                         // v2 Find a slot: grid only (clubs.find_a_slot_grid_only, owner 10 Nov 2026; absent before the backend migration)
                         vm.findSlotGridSupported = !!(data && data.hasOwnProperty('find_a_slot_grid_only'));
                         vm.club.settings.find_a_slot_grid_only = (vm.club.settings.find_a_slot_grid_only == 1)? true : false;
+                        // fuel & oil claims flagged above this amount (clubs.receipt_review_amount, owner 11 Nov 2026; absent before
+                        // the backend migration). A number for the input; an empty box is sent as "" = unchanged.
+                        vm.receiptReviewSupported = !!(data && data.hasOwnProperty('receipt_review_amount'));
+                        if (vm.receiptReviewSupported) {
+                            var rra = parseFloat(vm.club.settings.receipt_review_amount);
+                            vm.club.settings.receipt_review_amount = isNaN(rra) ? null : rra;
+                        }
                         // payment method to self-book (clubs.require_payment_method; absent before the backend migration)
                         vm.paymentMethodRuleSupported = !!(data && data.hasOwnProperty('require_payment_method'));
                         vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method == 1)? true : false;
@@ -1138,6 +1145,11 @@
                 vm.club.settings.find_a_slot_grid_only = (vm.club.settings.find_a_slot_grid_only)? 1 : 0;
             } else {
                 delete vm.club.settings.find_a_slot_grid_only;
+            }
+            // an empty / invalid amount is not sent (the backend keeps what it has)
+            if (!vm.receiptReviewSupported || vm.club.settings.receipt_review_amount === null || vm.club.settings.receipt_review_amount === undefined
+                || vm.club.settings.receipt_review_amount === '') {
+                delete vm.club.settings.receipt_review_amount;
             }
             if (vm.paymentMethodRuleSupported) {
                 vm.club.settings.require_payment_method = (vm.club.settings.require_payment_method)? 1 : 0;

@@ -1,6 +1,8 @@
 <!-- <claim-times-dialog am="…" on-saved="…(flight)" on-close="…"> — staff amend a waiting tracker flight's times (owner 10 Nov,
      be-alex-3e C47). Shared by Claim a Flight (js/v2/claim) and the v2 book-in. `am` = ClaimV2Data.form(flight, tpc, pad).
-     The tracker's own times are kept on the server; every change needs a reason; a typed reason survives Esc / the backdrop. -->
+     The tracker's own times are kept on the server; every change needs a reason; a typed reason survives Esc / the backdrop.
+     The four times are <ta-time> fields (js/v2/core/timefield.js, 11 Nov), model = Date. Owner's rule: BRAKES off / on in 5-minute
+     steps, TAKE-OFF and LANDING to the minute. A time that is only looked at keeps its minute (the tracker's 09:58 stays 09:58). -->
 <div class="ta-dlg-scrim" ng-click="scrim($event)">
   <form class="ta-dlg cj-am" role="dialog" aria-modal="true" aria-labelledby="cj-am-t" ng-submit="amSave()" novalidate>
     <div class="ta-dlg__hd" ng-attr-style="{{ am.edge ? '--edge:' + am.edge : undefined }}">
@@ -15,22 +17,22 @@
       <div class="ta-grid-2">
         <div class="ta-field" ng-if="!am.tpc" ng-class="{'ta-field--error': am.errs.off}">
           <label class="ta-label" for="cj-am-off">Brakes off</label>
-          <input class="ta-input" id="cj-am-off" type="time" step="60" ng-model="am.off" ng-change="amTyped('off')">
+          <ta-time ng-model="am.off" ng-change="amTyped('off')" input-id="cj-am-off" label="Brakes off" step="5" format="date" near="am.to"></ta-time>
           <span class="ta-field__msg" ng-if="am.errs.off">{{ am.errs.off }}</span>
         </div>
         <div class="ta-field" ng-if="!am.tpc" ng-class="{'ta-field--error': am.errs.on}">
           <label class="ta-label" for="cj-am-on">Brakes on</label>
-          <input class="ta-input" id="cj-am-on" type="time" step="60" ng-model="am.on" ng-change="amTyped('on')">
+          <ta-time ng-model="am.on" ng-change="amTyped('on')" input-id="cj-am-on" label="Brakes on" step="5" format="date" near="am.ld || am.to || am.off" min="am.ld || am.to || am.off"></ta-time>
           <span class="ta-field__msg" ng-if="am.errs.on">{{ am.errs.on }}</span>
         </div>
         <div class="ta-field" ng-class="{'ta-field--error': am.errs.to}">
           <label class="ta-label" for="cj-am-to">Take-off time</label>
-          <input class="ta-input" id="cj-am-to" type="time" step="60" ng-model="am.to" ng-change="amTyped('to')">
+          <ta-time ng-model="am.to" ng-change="amTyped('to')" input-id="cj-am-to" label="Take-off time" step="1" format="date" near="am.off" min="am.off"></ta-time>
           <span class="ta-field__msg" ng-if="am.errs.to">{{ am.errs.to }}</span>
         </div>
         <div class="ta-field" ng-class="{'ta-field--error': am.errs.ld}">
           <label class="ta-label" for="cj-am-ld">Landing time</label>
-          <input class="ta-input" id="cj-am-ld" type="time" step="60" ng-model="am.ld" ng-change="amTyped('ld')">
+          <ta-time ng-model="am.ld" ng-change="amTyped('ld')" input-id="cj-am-ld" label="Landing time" step="1" format="date" near="am.to || am.off" min="am.to || am.off"></ta-time>
           <span class="ta-field__msg" ng-if="am.errs.ld">{{ am.errs.ld }}</span>
         </div>
       </div>

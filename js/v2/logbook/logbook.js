@@ -426,6 +426,13 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
     vm.Fmt = F;
     vm.screen = ($state.current.data && $state.current.data.screen) || 'list';
     vm.user = $rootScope.globals.currentUser;
+    // the pilot's own name where the logbook used to say "Self" (owner, 11 Nov 2026): "A. Reynier" — a quiet initial and
+    // the surname strong, as a paper logbook's PIC column reads. No surname on the account -> the first name, else "Self".
+    vm.me = (function () {
+        var f = String((vm.user && vm.user.first_name) || '').trim(), l = String((vm.user && vm.user.last_name) || '').trim();
+        var ini = f ? f.charAt(0).toUpperCase() + '.' : '';
+        return { ini: l ? ini : '', strong: l || f || 'Self', short: l ? (ini ? ini + ' ' : '') + l : (f || 'Self') };
+    })();
     vm.T = F.today();
     vm.tab = vm.screen === 'list' ? 'logbook' : vm.screen === 'stats' ? 'stats' : (vm.screen === 'import' || vm.screen === 'skydemon') ? 'import' : 'entry';
     vm.loading = false;
@@ -891,7 +898,7 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
         if (!e) { return; }
         var ci = vm.capInfo(e.capacity);
         var who = (e.capacity === 'PUT' || e.capacity === 'PICUS') ? { k: 'Instructor', v: e.instructor_name || '—', av: !!e.instructor_name }
-            : e._solo ? { k: 'Solo', v: 'Authorised by ' + e.instructor_name } : { k: 'PIC', v: 'Self' };
+            : e._solo ? { k: 'Solo', v: 'Authorised by ' + e.instructor_name } : { k: 'PIC', v: vm.me.short, me: true };
         e._d = {
             dateLong: F.fDayLong(e.flight_date),
             acLine: [e._acName, e.aircraft_class].filter(Boolean).join(', '),
@@ -1118,6 +1125,12 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
             cap: 'P1', manualTotal: false, total: '', night: '', nightEst: 0, ifr: '', xc: '', ldd: 1, ldn: 0, instr: '', club: '', remarks: '', found: null, pre: {} };
     }
     function toHHMM(t) { if (!t) { return ''; } var m = String(t).match(/^(\d{1,2}):(\d{2})/); return m ? F.p2(+m[1]) + ':' + m[2] : String(t); }
+    // "09:13" / "09:13:40" -> "09:15" (nearest 5 minutes, never past 23:55); anything else as toHHMM gives it
+    function round5(t) {
+        var m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(t || '').trim()); if (!m || +m[1] > 23 || +m[2] > 59) { return toHHMM(t); }
+        var mins = Math.min(1435, Math.round((+m[1] * 60 + (+m[2]) + (+(m[3] || 0)) / 60) / 5) * 5);
+        return F.p2(Math.floor(mins / 60)) + ':' + F.p2(mins % 60);
+    }
     function minsOf(t) { var m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '').trim()); if (!m) { return null; } var h = +m[1], mi = +m[2]; if (h > 23 || mi > 59) { return null; } return h * 60 + mi; }
     function dur(off, on) { var a = minsOf(off), b = minsOf(on); if (a == null || b == null) { return 0; } var d = b - a; if (d < 0) { d += 1440; } return d / 60; }
     function classOk(c) {
@@ -1835,7 +1848,9 @@ function LogbookV2Controller(PersonalLogbookService, LogbookEndorsementsService,
         var c = f, e = c.entry || (c.entry = {});
         c._include = true; c._error = null;
         e.flight_date = e.flight_date ? String(e.flight_date).slice(0, 10) : '';
-        e.departure_time = toHHMM(e.departure_time); e.arrival_time = toHHMM(e.arrival_time);
+        // off / on blocks are 5-minute times in the logbook (owner, 11 Nov 2026): SkyDemon's to-the-second times are
+        // rounded to the nearest 5 minutes as the file is read. The TOTAL is left as SkyDemon measured it.
+        e.departure_time = round5(e.departure_time); e.arrival_time = round5(e.arrival_time);
         e.capacity = CAP[e.capacity] ? e.capacity : 'P1';
         c._dep = pickSd(c.departure_candidates, e.departure_airfield_id);
         c._arr = pickSd(c.arrival_candidates, e.arrival_airfield_id);

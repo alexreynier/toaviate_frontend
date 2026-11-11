@@ -146,23 +146,24 @@
             <div class="bki-row bki-row--mt"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.cancel_split()"><i class="fas fa-times"></i>Cancel split</button></div></div></div>
         </div>
 
-        <!-- entered by hand: 5-minute steps, in timeline order, each showing the time since the one before -->
+        <!-- entered by hand: <ta-time> (js/v2/core/timefield.js) — type the time or pick it, 5-minute steps, in timeline
+             order; the gap since the time before sits under each field (owner, 11 Nov 2026: not in the value) -->
         <div ng-if="!vm.bk_claimed()" class="bki-sec">
           <div class="bki-times" ng-class="{'bki-times--4': vm.bk_show_to()}">
             <div class="ta-field" ng-class="{'ta-field--error': vm.bk_time_err('off')}"><label class="ta-label" for="bki-t-off"><i class="fas fa-play"></i>Brakes off</label>
-              <select class="ta-select" id="bki-t-off" ng-model="vm.bk.t.off" ng-change="vm.bk_time_changed('off')" ng-options="o.v as o.label for o in vm.bk_time_opts('off')" data-e2e="bki-t-off"><option value="">Choose</option></select>
+              <ta-time ng-model="vm.bk.t.off" ng-change="vm.bk_time_changed('off')" input-id="bki-t-off" label="Brakes off" near="vm.bk_time_near('off')"></ta-time>
               <span class="ta-field__msg" ng-if="vm.bk_time_err('off')">{{ vm.bk_time_err('off') }}</span></div>
             <div class="ta-field" ng-if="vm.bk_show_to()" ng-class="{'ta-field--error': vm.bk_time_err('to')}"><label class="ta-label" for="bki-t-to"><i class="fas fa-plane-departure"></i>Takeoff<em ng-if="!vm.bk_need_to()"> (optional)</em></label>
-              <select class="ta-select" id="bki-t-to" ng-model="vm.bk.t.to" ng-change="vm.bk_time_changed('to')" ng-options="o.v as o.label for o in vm.bk_time_opts('to')" data-e2e="bki-t-to"><option value="">Choose</option></select>
-              <span class="ta-field__msg" ng-if="vm.bk_time_err('to')">{{ vm.bk_time_err('to') }}</span></div>
+              <ta-time ng-model="vm.bk.t.to" ng-change="vm.bk_time_changed('to')" input-id="bki-t-to" label="Takeoff" near="vm.bk_time_near('to')" min="vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('to')">{{ vm.bk_time_err('to') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('to') && vm.bk_time_gap('to')" data-e2e="bki-gap-to">{{ vm.bk_time_gap('to') }}</span></div>
             <div class="ta-field" ng-if="vm.bk_show_to()" ng-class="{'ta-field--error': vm.bk_time_err('ld')}"><label class="ta-label" for="bki-t-ld"><i class="fas fa-plane-arrival"></i>Landing<em ng-if="!vm.bk_need_to()"> (optional)</em></label>
-              <select class="ta-select" id="bki-t-ld" ng-model="vm.bk.t.ld" ng-change="vm.bk_time_changed('ld')" ng-options="o.v as o.label for o in vm.bk_time_opts('ld')" data-e2e="bki-t-ld"><option value="">Choose</option></select>
-              <span class="ta-field__msg" ng-if="vm.bk_time_err('ld')">{{ vm.bk_time_err('ld') }}</span></div>
+              <ta-time ng-model="vm.bk.t.ld" ng-change="vm.bk_time_changed('ld')" input-id="bki-t-ld" label="Landing" near="vm.bk_time_near('ld')" min="vm.bk.t.to || vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('ld')">{{ vm.bk_time_err('ld') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('ld') && vm.bk_time_gap('ld')" data-e2e="bki-gap-ld">{{ vm.bk_time_gap('ld') }}</span></div>
             <div class="ta-field" ng-class="{'ta-field--error': vm.bk_time_err('on')}"><label class="ta-label" for="bki-t-on"><i class="fas fa-stop"></i>Brakes on</label>
-              <select class="ta-select" id="bki-t-on" ng-model="vm.bk.t.on" ng-change="vm.bk_time_changed('on')" ng-options="o.v as o.label for o in vm.bk_time_opts('on')" data-e2e="bki-t-on"><option value="">Choose</option></select>
-              <span class="ta-field__msg" ng-if="vm.bk_time_err('on')">{{ vm.bk_time_err('on') }}</span></div>
+              <ta-time ng-model="vm.bk.t.on" ng-change="vm.bk_time_changed('on')" input-id="bki-t-on" label="Brakes on" near="vm.bk_time_near('on')" min="vm.bk.t.ld || vm.bk.t.to || vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('on')">{{ vm.bk_time_err('on') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('on') && vm.bk_time_gap('on')" data-e2e="bki-gap-on">{{ vm.bk_time_gap('on') }}</span></div>
           </div>
-          <span class="bki-sub"><i class="fas fa-info-circle"></i> Club time, in 5-minute steps; each list shows the time since the one before.{{ vm.bk_need_to() ? ' Takeoff and landing are needed because this aircraft is charged on airborne time.' : (vm.bk_show_to() ? ' Takeoff and landing are optional: the club shows airborne times, the charge uses ' + vm.bk_charge_words() + '.' : '') }}</span>
+          <span class="bki-sub"><i class="fas fa-info-circle"></i> Club time, in 5-minute steps — type it (1050 or 10:50) or pick it from the list.{{ vm.bk_need_to() ? ' Takeoff and landing are needed because this aircraft is charged on airborne time.' : (vm.bk_show_to() ? ' Takeoff and landing are optional: the club shows airborne times, the charge uses ' + vm.bk_charge_words() + '.' : '') }}</span>
         </div>
 
         <div class="ta-tiles">

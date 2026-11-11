@@ -5685,19 +5685,29 @@ app.directive('bkiPickField', function () {
         };
 
         /* ═════ times (manual entry) ═════ */
-        // 5-minute steps, v1's value format ('H:mm' in {time}) so every v1 calculation reads them unchanged
-        var TIME_VALUES = [];
-        for(var th = 0; th < 24; th++){ for(var tm = 0; tm < 60; tm += 5){ TIME_VALUES.push({ v: th + ':' + ('0' + tm).slice(-2), label: ('0' + th).slice(-2) + ':' + ('0' + tm).slice(-2), m: th * 60 + tm }); } }
-        var time_opt_cache = {};
-        vm.bk_time_opts = function(f){
-            var ref = f === 'to' ? vm.bk.t.off : f === 'ld' ? vm.bk.t.to : f === 'on' ? vm.bk.t.off : '';
-            var refm = to_min(ref), key = f + '|' + ref;
-            if(time_opt_cache[key]){ return time_opt_cache[key]; }
-            var out = TIME_VALUES.map(function(o){
-                return { v: o.v, label: o.label + ((refm !== null && o.m > refm) ? '  ·  ' + hm((o.m - refm) / 60) : '') };
-            });
-            time_opt_cache[key] = out;
-            return out;
+        // <ta-time> fields (js/v2/core/timefield.js): typed or picked, 5-minute steps, v1's value format ('H:mm' in
+        // {time}) so every v1 calculation reads them unchanged. (Until 11 Nov 2026: four native selects of 288 options.)
+        // Where a field's list opens while it is still empty: at the time before it; brakes off at the booked-out time,
+        // else the booking's start, else now.
+        vm.bk_time_near = function(f){
+            var t = vm.bk.t;
+            if(f === 'to'){ return t.off || ''; }
+            if(f === 'ld'){ return t.to || t.off || ''; }
+            if(f === 'on'){ return t.ld || t.to || t.off || ''; }
+            var b = vm.bookout || {}, c = b.created_at ? String(b.created_at) : '';
+            if(c && b.flight_date && c.slice(0, 10) === String(b.flight_date).slice(0, 10) && /^\d{2}:\d{2}/.test(c.slice(11, 16))){ return c.slice(11, 16); }
+            if(b.booking && b.booking.start && /^\d{2}:\d{2}/.test(String(b.booking.start).slice(11, 16))){ return String(b.booking.start).slice(11, 16); }
+            var now = new Date(); return now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);
+        };
+        // the gap since the time before, said under the field ("10 min after brakes off") — it used to sit inside every
+        // option of the lists. Nothing when either time is missing or they are out of order (the error says that).
+        function gap_words(mins){ var h = Math.floor(mins / 60), m = mins % 60; return (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m || !h ? m + ' min' : ''); }
+        vm.bk_time_gap = function(f){
+            var t = vm.bk.t, v = to_min(t[f]); if(v === null){ return ''; }
+            var ref = f === 'to' ? ['off', 'brakes off'] : f === 'ld' ? ['to', 'takeoff'] : f === 'on' ? (to_min(t.ld) !== null ? ['ld', 'landing'] : ['off', 'brakes off']) : null;
+            if(!ref){ return ''; }
+            var r = to_min(t[ref[0]]); if(r === null || v <= r){ return ''; }
+            return gap_words(v - r) + ' after ' + ref[1];
         };
         vm.bk_time_changed = function(f){
             var v = vm.bk.t[f] || '';
@@ -6110,7 +6120,8 @@ app.directive('bkiPickField', function () {
             else if(o === 'split'){ sub = 'Part 2 waits as an open flight'; }
             else { sub = ''; }
             if(o === 'pay_failed'){ sub = money(due) + ' is on an invoice to ' + payer + ' — ' + (String(vm.bk.payFailMsg || 'the payment didn\'t go through').replace(/[.\s]+$/, '')) + '. Pay it from Invoices & payments.'; }
-            if(o === 'dd_not_queued'){ sub = money(due) + ' is on an invoice to ' + payer + ' — it couldn\'t be added to the direct debit. Pay it from Invoices & payments.'; }
+            // the server says why (payment.detail, 11 Nov 2026: no usable Direct Debit any more, the club stopped collecting them …)
+            if(o === 'dd_not_queued'){ sub = money(due) + ' is on an invoice to ' + payer + ' — ' + (vm.bk.ddFailMsg ? String(vm.bk.ddFailMsg).replace(/[.\s]+$/, '') + '.' : 'it couldn\'t be added to the direct debit.') + ' Pay it from Invoices & payments.'; }
             if(vm.pay && vm.pay.chargedRef){ return; }   // "Your card was charged — don't pay again" already said it all
             if(o === 'machine_unpaid' || o === 'pay_failed' || o === 'dd_not_queued'){ ToastService.warning('Flight booked in · not paid yet', sub); }
             else { ToastService.success('Flight booked in', sub, { confetti: false }); }
@@ -6145,7 +6156,7 @@ app.directive('bkiPickField', function () {
                         return res; }); },
                     onCommitted: function(data, how, msg){
                         if(how === 'failed'){ vm.bk.payFailMsg = msg || (data.payment && data.payment.message) || ''; after_commit(data, 'pay_failed'); return; }
-                        if(how === 'not_queued'){ after_commit(data, 'dd_not_queued'); return; }
+                        if(how === 'not_queued'){ vm.bk.ddFailMsg = (data.payment && data.payment.detail) || ''; after_commit(data, 'dd_not_queued'); return; }
                         after_commit(data, 'pay');
                     },
                     // C3: the reader is started with invoice_id (commit) / booking_id (today's route) — never an amount
@@ -6245,7 +6256,8 @@ app.directive('bkiPickField', function () {
             vm.bk.pk = null;
             $timeout(function(){
                 var el = document.getElementById('bki-c-' + card); if(!el){ return; }
-                var top = el.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop) - 62;
+                var head = document.getElementById('main_header2');   // 12px under the app header, whatever its height
+                var top = el.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop) - ((head ? head.offsetHeight : 50) + 12);
                 try { window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); } catch(e){ window.scrollTo(0, Math.max(0, top)); }
             }, 30);
             vm.bk.flash = card;

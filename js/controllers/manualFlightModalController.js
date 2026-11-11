@@ -9,6 +9,13 @@ app.controller('ManualFlightModalController', ManualFlightModalController);
     function ManualFlightModalController($scope, $timeout, $uibModalInstance, ManualFlightService, PlaneService, ToastService, clubId, planeId) {
 
         var TIME_REGEX = /^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+        // "09:13" / "09:13:40" -> "09:15" (nearest 5 minutes, never past 23:55); '' when there is no time
+        function round5(t) {
+            var m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(t || '').trim());
+            if (!m || +m[1] > 23 || +m[2] > 59) { return t || ''; }
+            var mins = Math.min(1435, Math.round((+m[1] * 60 + (+m[2]) + (+(m[3] || 0)) / 60) / 5) * 5);
+            return ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2);
+        }
         var MAX_FILE_BYTES = 20 * 1024 * 1024;
 
         // ═══════════════════════════════════════════════
@@ -164,10 +171,12 @@ app.controller('ManualFlightModalController', ManualFlightModalController);
 
             $scope.flight = newBlankFlight();
             $scope.flight.flight_date = parseYMD(prefill.flight_date);
-            $scope.flight.brakes_off = prefill.brakes_off || '';
+            // brakes off / on are 5-minute times (owner, 11 Nov 2026): the log's to-the-second values are rounded to
+            // the nearest 5 minutes as the file is read; takeoff and landing keep their minute
+            $scope.flight.brakes_off = round5(prefill.brakes_off);
             $scope.flight.takeoff_time = prefill.takeoff_time || '';
             $scope.flight.landing_time = prefill.landing_time || '';
-            $scope.flight.brakes_on = prefill.brakes_on || '';
+            $scope.flight.brakes_on = round5(prefill.brakes_on);
             $scope.flight.full_stop_landings = angular.isNumber(prefill.full_stop_landings) ? prefill.full_stop_landings : 1;
             $scope.flight.touch_and_go = prefill.touch_and_go || 0;
             $scope.flight.source = prefill.source || 'skydemon';

@@ -2775,6 +2775,8 @@ OLD VERSION FOR LEGACY PURPOSES
                         vm.bo_close_reject();
                     } else if (vm.show_new_passenger_invitation) {
                         if (vm.bo_inv_confirm) { vm.bo_inv_keep(); } else { vm.close_passenger_invitation(); }
+                    } else if (vm.bo_doc_view) {
+                        vm.bo_close_doc();
                     } else if ($scope.show_file_now) {
                         $scope.close_file();
                     }
@@ -3043,11 +3045,29 @@ OLD VERSION FOR LEGACY PURPOSES
                     note: bad ? bad.title + ' expired' : (info_expired ? info_expired.title + ' expired (for information)' : (soon ? soon.title + ': ' + soon.chip : (unknown ? unknown.title + ': no expiry on file' : 'All in date')))
                 };
             }
+            // "Open" shows the document IN a dialog — the one Aircraft status uses (views/v2/aircraft/_dialogs.html):
+            // <ta-doc-view> (js/v2/core/docview.js) fetches the file through its show_file route and draws it (image /
+            // PDF), with "Open in a new tab"; the dialog's Download saves it. Until 11 Nov 2026 "Open" only downloaded.
+            // The route per document type is the one $scope.show_file (the download) uses.
+            var BO_DOC_ROUTES = { radio: 'plane_radio_licence', insurance: 'plane_insurance', certificate: 'plane_certificate',
+                                  arc: 'plane_arc', noise: 'plane_noise_certificate', crs: 'plane_crs', docs: 'plane_documents' };
+            var BO_DOC_TONES = { ok: 'good', warn: 'warn', bad: 'bad' };
+            vm.bo_doc_view = null;           // the document shown in the dialog
             vm.bo_open_doc = function(doc){
-                if (!doc || !doc.file || vm.bo_doc_opening) { return; }
-                vm.bo_doc_opening = doc.key;
+                if (!doc || !doc.file) { return; }
+                vm.bo_doc_view = { key: doc.key, type: doc.type, title: doc.title, sub: doc.sub, file: doc.file,
+                                   route: BO_DOC_ROUTES[doc.type] || 'plane_documents',
+                                   pill: { tone: BO_DOC_TONES[doc.tone] || 'muted', label: doc.chip, ic: doc.chip_icon },
+                                   edge: doc.tone === 'bad' ? 'var(--ta-bad)' : doc.tone === 'warn' ? 'var(--ta-warn)' : doc.tone === 'ok' ? 'var(--ta-good)' : 'var(--ta-line-2)',
+                                   when_label: doc.key === 'crs' ? 'Released' : (doc.key === 'noise' ? 'Validity' : 'Expiry') };
+            };
+            vm.bo_close_doc = function(){ vm.bo_doc_view = null; };
+            vm.bo_download_doc = function(){
+                var d = vm.bo_doc_view;
+                if (!d || !d.file || vm.bo_doc_opening) { return; }
+                vm.bo_doc_opening = d.key;
                 var done = function(){ vm.bo_doc_opening = null; };
-                var p = $scope.show_file(doc.file, doc.type);
+                var p = $scope.show_file(d.file, d.type);
                 if (p && p['finally']) { p['finally'](done); } else { done(); }
             };
 

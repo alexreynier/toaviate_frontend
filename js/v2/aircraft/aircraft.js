@@ -111,6 +111,14 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
     function hmSigned(h) { return (h < 0 ? '−' : '') + hm(h); }
     function nf1(n) { var x = parseFloat(n); return isNaN(x) ? '—' : x.toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
     vm.nf1 = nf1;
+    // a fuel / oil quantity as it was entered: FUEL to two decimal places (owner, 11 Nov 2026 — that is what a pump
+    // shows: 33.23 L), at least one ("40.0"), so older one-decimal entries read as before; oil stays one decimal (quarts)
+    function nfq(n, item) {
+        if (item === 'Oil') { return nf1(n); }
+        var x = parseFloat(n);
+        return isNaN(x) ? '—' : x.toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+    vm.nfq = nfq;
     function plural(n, w, ws) { return n + ' ' + (n === 1 ? w : (ws || w + 's')); }
     vm.plural = plural;
     function initial(n) { return n ? String(n).charAt(0) + '.' : ''; }
@@ -301,8 +309,8 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
         var fs = +l.full_stop_landings || 0, tg = +l.touch_and_go || 0;
         l._ldg = (fs || tg) ? [fs ? plural(fs, 'full stop') : '', tg ? tg + ' touch-and-go' : ''].filter(Boolean).join(' · ') : 'None recorded';
         var fu = parseFloat(l.fuel_uplift_litres) || 0, ou = parseFloat(l.oil_uplift_litres) || 0;
-        l._up = (fu ? '+' + nf1(fu).replace(/\.0$/, '') + ' L' : '') + (ou ? (fu ? ' · ' : '+') + nf1(ou).replace(/\.0$/, '') + ' qt' : '');
-        l._fuel = fu ? nf1(fu).replace(/\.0$/, '') + ' litres' : 'None';
+        l._up = (fu ? '+' + nfq(fu, 'Fuel').replace(/\.0$/, '') + ' L' : '') + (ou ? (fu ? ' · ' : '+') + nf1(ou).replace(/\.0$/, '') + ' qt' : '');
+        l._fuel = fu ? nfq(fu, 'Fuel').replace(/\.0$/, '') + ' litres' : 'None';
         l._oil = ou ? nf1(ou).replace(/\.0$/, '') + ' quarts' : 'None';
         l._replay = !!(l.has_track && l.id);
         l._hay = null;
@@ -773,19 +781,21 @@ function AircraftV2Controller(AircraftV2Data, BookoutService, PlaneService, Airc
         var p = vm.dp, F = vm.form;
         vm.err = {};
         if (!(parseFloat(F.qty) > 0)) { vm.err.qty = 'Enter how much you added'; }
+        // fuel is kept to the pump's two decimal places (33.23 L); anything finer is rounded, never refused
+        var qty = F.item === 'Oil' ? parseFloat(F.qty) : Math.round(parseFloat(F.qty) * 100) / 100;
         if (F.reimb && !F.file) { vm.err.file = 'Add a photo of the receipt so the club can pay you back'; }
         if (Object.keys(vm.err).length) { return; }
         vm.busy = true;     // the upload goes first, so the write guard can't see this press: own flag
         uploadReceipt(F.file).then(function (path) {
             return PlaneService.AddReceipt({ plane_id: p.plane_id, club_id: p._club.id, user_id: vm.user_id, plane_log_sheet_id: null, reimbursement: F.reimb,
-                image: path || '', currency: F.currency ? F.currency.iso_code : '', item: F.item, quantity: parseFloat(F.qty), price: F.price });
+                image: path || '', currency: F.currency ? F.currency.iso_code : '', item: F.item, quantity: qty, price: F.price });
         }).then(function (r) {
             vm.busy = false;
             if (r && r.item) {
                 p.receipts = p.receipts || [];
                 p.receipts.unshift(r.item);
                 decoratePlane(p, p._club);
-                ToastService.success(F.item + ' saved', nf1(F.qty) + (F.item === 'Oil' ? ' quarts' : ' litres') + ' for ' + p.registration + '.');
+                ToastService.success(F.item + ' saved', nfq(qty, F.item) + (F.item === 'Oil' ? ' quarts' : ' litres') + ' for ' + p.registration + '.');
                 vm.dlg = null;
             } else {
                 ToastService.error('Not saved', (r && r.message) || 'The uplift could not be saved.');

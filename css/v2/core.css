@@ -7,7 +7,12 @@
 
 /* the app's fixed header (#main_header2, 50px, z-index int-max) covers anything fixed at top 0: ta-base's full-screen
    layers (.ta-dlg-scrim, the open .ta-combo) start below it. The mockups don't set this, so they keep top 0. */
-:root { --ta-top-offset: 50px; }
+:root { --ta-top-offset: 50px; --ta-head-extra: 0px; }
+/* while the v2 switch is on the app header is as tall as the sign-in header (60px, 54px to 899px — "the app header, v2
+   switch on" below): --ta-top-offset = its height, --ta-head-extra = what it gained on the classic 50px. Everything that
+   starts under the header reads one of the two; the classic design (switch off) keeps 50px / 0. */
+body.design-v2 { --ta-top-offset: 60px; --ta-head-extra: 10px; }
+@media (max-width: 899px) { body.design-v2 { --ta-top-offset: 54px; --ta-head-extra: 4px; } }
 /* desktop dialogs centre on the WINDOW, as the mockups draw them: the scrim starts under the header, so its bottom padding
    gives that height back. A dialog taller than the space starts at the top (auto margins never go negative) and may run
    into the given-back strip, so it is no shorter than before. Phones keep the bottom sheet. */
@@ -97,6 +102,16 @@ body.ta-v2 { padding-top: 28px; }
 /* body's font-weight is 300 in styles.css: v2 text outside .ta-page (dialogs, overlays) is 400 like the mockups */
 .v2-host { font-weight: 400; }
 body.night-mode.ta-v2 { background: var(--ta-ground); }
+/* the scheduler v2 (dashboard.scheduler_v2 — not a dashboard.v2.* state, it keeps the classic shell its layout was built
+   in) sits on the same grey ground as every other v2 page (owner, 11 Nov 2026); the booking panel is a child of the page */
+body.design-v2:has(.sv2-page), body.night-mode.design-v2:has(.sv2-page) { background: var(--ta-ground); }
+/* …and starts as far under the header as they do: 18px (12px on phones), not the classic shell's 40px (up to 64px on
+   phones, where the two .centre_align_boxes2 wrappers add their own top padding — dropped here; the side gutters stay) */
+body.design-v2:has(.sv2-page) { padding-top: 28px; }
+@media (max-width: 768px) {
+  body.design-v2:has(.sv2-page) { padding-top: 22px; }
+  body.design-v2 .centre_align_boxes2:has(> #dashboard_bit > .sv2-page), body.design-v2 #dashboard_bit:has(> .sv2-page) { padding-top: 0; }
+}
 
 /* "Try our v2 designs" — a tag in the main menu */
 /* "Try our v2 designs": ONE pill, fixed in the bottom-right corner of every page (owner, 10 Nov — it used to be a tag in
@@ -119,11 +134,86 @@ body.night-mode.ta-v2 { background: var(--ta-ground); }
   body.ta-v2 .v2-switch, body:has(.ta-actionbar, .lgb-savebar, .bkf, .sv2-sheet-window, .main_menu.is-open) .v2-switch { display: none; }
 }
 
+/* ── the advert for the switch on the CLASSIC sign-in page (<design-promo>, js/v2/core/design.js — owner, 11 Nov 2026):
+   a brand-gradient card under the form: eyebrow + headline + line + three chips + the button, and beside them a
+   miniature of the new design drawn in CSS (a window and a phone). Fixed day colours from the design tokens: the card is
+   dark in both themes. It lives on a classic page, so every text element states its own font, colour and margins. ── */
+.v2-promo-wrap { clear: both; padding-top: 4px; padding-bottom: 32px; }
+design-promo { display: block; }
+.v2-promo { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 208px; align-items: center; gap: 10px 20px; margin: 0; padding: 28px 32px; border-radius: 20px; color: #fff; text-align: left;
+  background: radial-gradient(110% 130% at 100% 0%, rgba(59, 130, 246, 0.42) 0%, rgba(59, 130, 246, 0) 58%), radial-gradient(90% 120% at 0% 100%, rgba(15, 23, 42, 0.5) 0%, rgba(15, 23, 42, 0) 62%), linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 22px 44px rgba(30, 58, 95, 0.26), 0 4px 12px rgba(30, 58, 95, 0.16);
+  animation: v2-promo-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s backwards; }
+.v2-promo :where(div, h3, span, button) { font-family: var(--ta-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif); }
+@keyframes v2-promo-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+/* the flight path behind everything: a dashed climb from the bottom-left to the aircraft in the top-right corner */
+.v2-promo__path { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+.v2-promo__path path { fill: none; stroke: rgba(255, 255, 255, 0.2); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 1 9; vector-effect: non-scaling-stroke; }
+.v2-promo i.v2-promo__plane { position: absolute; z-index: -1; right: 14px; top: 12px; font-size: 15px; color: rgba(255, 255, 255, 0.45); transform: rotate(-28deg); }
+.v2-promo__copy { min-width: 0; }
+.v2-promo__eyebrow { display: flex; align-items: center; gap: 9px; font-size: 11.5px; line-height: 1; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.78); }
+.v2-promo__new { padding: 5px 9px; border-radius: 999px; background: #fef3c7; color: #92400e; letter-spacing: 0.07em; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2); }
+.v2-promo h3.v2-promo__title { margin: 14px 0 8px; padding: 0; font-size: 28px; line-height: 1.12; font-weight: 800; letter-spacing: -0.022em; color: #fff; text-wrap: balance; }
+.v2-promo__text { max-width: 46ch; margin: 0; padding: 0; font-size: 15px; line-height: 1.5; font-weight: 400; color: rgba(255, 255, 255, 0.86); }
+.v2-promo__feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.v2-promo__feat { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.11); color: #fff; font-size: 12px; line-height: 1.2; font-weight: 600; white-space: nowrap; }
+.v2-promo__feat i { font-size: 11px; color: rgba(255, 255, 255, 0.8); }
+.v2-promo__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 22px; }
+.v2-promo__cta { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; margin: 0; padding: 0 22px; border: 0; border-radius: 12px; background: #fff; color: #1e3a5f; font-size: 15.5px; line-height: 1.2; font-weight: 700; letter-spacing: -0.005em; text-transform: none; white-space: nowrap; cursor: pointer; -webkit-appearance: none; appearance: none; box-shadow: 0 10px 22px rgba(15, 23, 42, 0.3); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.v2-promo__cta i { font-size: 13px; color: #2d5a8e; transition: transform 0.15s ease; }
+.v2-promo__cta:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(15, 23, 42, 0.36); color: #1e3a5f; }
+.v2-promo__cta:hover i { transform: translateX(4px); }
+.v2-promo__cta:active { transform: translateY(0); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.3); }
+.v2-promo__cta:focus { outline: none; }
+.v2-promo__cta:focus-visible { outline: 3px solid rgba(255, 255, 255, 0.75); outline-offset: 3px; }
+/* a slow sheen across the button every few seconds */
+.v2-promo__cta::after { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 42%; background: linear-gradient(100deg, rgba(45, 90, 142, 0) 0%, rgba(45, 90, 142, 0.16) 50%, rgba(45, 90, 142, 0) 100%); transform: skewX(-18deg); pointer-events: none; animation: v2-promo-sheen 5s ease-in-out 1.4s infinite; }
+@keyframes v2-promo-sheen { 0%, 62% { left: -60%; } 100% { left: 130%; } }
+.v2-promo__note { font-size: 12.5px; line-height: 1.3; color: rgba(255, 255, 255, 0.72); }
+/* the miniature: a tilted window showing a v2 page, a phone in front of it */
+.v2-promo__art { position: relative; width: 208px; height: 184px; justify-self: end; animation: v2-promo-float 7s ease-in-out infinite; }
+@keyframes v2-promo-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.v2-promo__win { position: absolute; right: 0; top: 8px; width: 190px; border-radius: 11px; overflow: hidden; background: #f1f5f9; box-shadow: 0 22px 40px rgba(15, 23, 42, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.12); transform: perspective(900px) rotateY(-13deg) rotateX(5deg); transform-origin: right center; }
+.v2-promo__winbar { display: flex; align-items: center; gap: 6px; height: 25px; padding: 0 9px; background: #fff; border-bottom: 2px solid #2d5a8e; }
+.v2-promo__winbar img { display: block; height: 9px; width: auto; margin-right: auto; }
+.v2-promo__winbar span { width: 17px; height: 4px; border-radius: 2px; background: #94a3b8; opacity: 0.6; }
+.v2-promo__winbar span.v2-promo__winbar-on { background: #2d5a8e; opacity: 1; }
+.v2-promo__winbody { display: grid; gap: 7px; padding: 9px; }
+.v2-promo__hero { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 4px 8px; padding: 9px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; }
+.v2-promo__ic { grid-row: 1 / 3; width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); }
+.v2-promo__ln { height: 6px; border-radius: 3px; background: #1e293b; }
+.v2-promo__ln--a { width: 62%; align-self: end; }
+.v2-promo__ln--b { grid-column: 2; width: 86%; height: 4px; background: #94a3b8; opacity: 0.7; align-self: start; }
+.v2-promo__pillbtn { grid-column: 3; grid-row: 1 / 3; width: 34px; height: 14px; border-radius: 5px; border: 1px solid #e2e8f0; background: #f8fafc; }
+.v2-promo__tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.v2-promo__tiles span { position: relative; height: 31px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; }
+.v2-promo__tiles span::before { content: ""; position: absolute; left: 8px; top: 8px; width: 14px; height: 14px; border-radius: 5px; background: #dbeafe; }
+.v2-promo__tiles span::after { content: ""; position: absolute; left: 29px; right: 12px; top: 13px; height: 5px; border-radius: 3px; background: #334155; opacity: 0.55; }
+.v2-promo__tiles span:nth-child(2)::before { background: #dcfce7; } .v2-promo__tiles span:nth-child(3)::before { background: #fef3c7; }
+.v2-promo__phone { position: absolute; left: 0; bottom: 0; width: 68px; padding: 4px; border-radius: 15px; background: #0f172a; box-shadow: 0 16px 30px rgba(15, 23, 42, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.v2-promo__screen { display: grid; gap: 4px; align-content: start; height: 116px; padding: 0 0 5px; border-radius: 11px; overflow: hidden; background: #f1f5f9; }
+.v2-promo__pbar { height: 12px; background: #fff; border-bottom: 2px solid #2d5a8e; }
+.v2-promo__phero { height: 34px; margin: 1px 5px 0; border-radius: 6px; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); }
+.v2-promo__pcard { height: 20px; margin: 0 5px; border-radius: 5px; border: 1px solid #e2e8f0; background: #fff; }
+body.night-mode .v2-promo { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 22px 44px rgba(0, 0, 0, 0.4); }
+/* the miniature needs a card about 670px wide. The card follows the form's bootstrap column — half the window from
+   992px, the whole window below it — so it shows from 1400px and again between 700 and 991px; otherwise the copy takes
+   the full card. (Media queries, not a container query: the build's cssmin is old.) */
+@media (max-width: 699px), (min-width: 992px) and (max-width: 1399px) { .v2-promo { grid-template-columns: minmax(0, 1fr); } .v2-promo__art { display: none; } }
+@media (max-width: 640px) {
+  .v2-promo-wrap { padding-bottom: 24px; }
+  .v2-promo { padding: 24px 20px 22px; border-radius: 18px; }
+  .v2-promo h3.v2-promo__title { font-size: 24px; }
+  .v2-promo__actions { display: grid; justify-items: center; gap: 10px; margin-top: 20px; }
+  .v2-promo__cta { width: 100%; min-height: 50px; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .v2-promo, .v2-promo__art, .v2-promo__cta::after { animation: none; } .v2-promo__cta, .v2-promo__cta i { transition: none; } }
+
 /* ── v2 switch on (body.design-v2, design.js applyZone): the app header's links take the sign-in header's typography
    (views/v2/login/_top.html, css/v2/login.css .lg-top__links) — owner, 11 Nov 2026. Day colours on purpose: the app
    header stays white at night (ta-night turns --ta-ink-2 / --ta-accent light). Before the zone rules, so a lit area
    link keeps its zone colour. ── */
-body.design-v2 #main_menu li a { font-family: var(--ta-font); font-weight: 600; letter-spacing: -0.005em; color: #334155; transition: color 0.12s ease; }
+body.design-v2 #main_menu li a { font-family: var(--ta-font); font-weight: 600; letter-spacing: -0.005em; color: #334155; transition: color 0.12s ease; }   /* --ta-font = the device's own system font (ta-base.css); the sign-in pages use it too (css/v2/login.css .lg) */
 body.design-v2 #main_menu li a:hover, body.design-v2 #main_menu li a:focus-visible { color: #2d5a8e; text-decoration: none; }
 /* each item hovers in its own lit colour, whatever page you are on (owner, 11 Nov 2026): the Instructor Dashboard in its
    area's mulberry (--ta-zone of [data-zone="instructor"], ta-base.css), everything else in the navy above (My Account /
@@ -138,6 +228,60 @@ body.design-v2 #main_menu li a:focus { outline: none; box-shadow: none; }
 #main_menu li a:active { background: transparent; }
 body.design-v2 #main_menu li a:focus-visible { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
 @media (min-width: 1101px) { body.design-v2 #main_menu li a { font-size: clamp(13px, 1.1vw, 14px); } }
+/* …and the bar itself matches the sign-in header (.lg-top) — owner, 11 Nov 2026: its HEIGHT (60px, 54px to 899px =
+   --ta-top-offset, set at the top of this file), its soft shadow (a hairline + a wide 5% blur) instead of the classic
+   material one, the logo 30px high, centred, 24px from the left (26px / 16px to 899px, as there), the links 26px apart
+   with the last one 24px from the right edge. Day colours — the header stays white at night. */
+body.design-v2 #main_header2 { height: var(--ta-top-offset); line-height: var(--ta-top-offset); -webkit-box-shadow: 0 1px 0 #e2e8f0, 0 4px 16px rgba(15, 23, 42, 0.05); box-shadow: 0 1px 0 #e2e8f0, 0 4px 16px rgba(15, 23, 42, 0.05); }
+body.design-v2 #main_title { display: flex; align-items: center; height: var(--ta-top-offset); line-height: var(--ta-top-offset); padding-left: 24px; }
+body.design-v2 #main_logo1 { display: block; height: 30px; width: auto; max-width: none; padding-top: 0; }
+@media (min-width: 1101px) {
+  body.design-v2 #main_menu li a { padding: 0 13px; line-height: var(--ta-top-offset); }
+  body.design-v2 #main_menu li:last-child a { padding-right: 24px; }
+}
+@media (max-width: 899px) {
+  body.design-v2 #main_title { padding-left: 16px; }
+  body.design-v2 #main_logo1 { height: 26px; }
+}
+/* the slide-out menu and its backdrop (from 1100px down) hang under the bar */
+body.design-v2 .menu_backdrop { inset: var(--ta-top-offset) 0 0 0; }
+@media (max-width: 1100px) { body.design-v2 #main_menu.main_menu { top: var(--ta-top-offset); height: calc(100vh - var(--ta-top-offset)); } }
+/* the page starts that much lower (styles.css gives body its padding for a 50px bar; .main_div is views/dashboard.html's
+   wrapper — the :has keeps this off the public pages that reuse the class) */
+body.design-v2 .main_div:has(> #main_header2) { padding-top: var(--ta-head-extra); }
+
+/* ── classic layers that start under the header (their files say 50px; v1 is frozen, so the taller bar is answered
+   here, in one place, at their selector + body.design-v2). Add a line when a classic panel tucks under the bar. ── */
+/* side panels, drawers and their scrims: pinned to the bar's bottom edge */
+body.design-v2 .bkf-backdrop, body.design-v2 .bkf-panel, body.design-v2 .iq-panel-backdrop, body.design-v2 .iq-panel,
+body.design-v2 .ib-avail-backdrop, body.design-v2 .ib-avail-editor-panel, body.design-v2 .wp-overlay-backdrop,
+body.design-v2 .wp-overlay-panel, body.design-v2 .tpcdrawer, body.design-v2 .lhc-history-panel,
+body.design-v2 #mini_view_left, body.design-v2 #calendar .fc-head { top: var(--ta-top-offset); }
+body.design-v2 .tpcdrawer__scrim { inset: var(--ta-top-offset) 0 0 0; }
+body.design-v2 .bkf-panel { height: calc(100vh - var(--ta-top-offset)); height: calc(100dvh - var(--ta-top-offset)); }
+body.design-v2 .lhc-history-panel, body.design-v2 #mini_view_left { height: calc(100vh - var(--ta-top-offset)); }
+@media only screen and (max-width: 768px) {
+  body.design-v2 #mini_view_left { top: var(--ta-top-offset) !important; height: calc(100vh - var(--ta-top-offset)) !important; height: calc(100dvh - var(--ta-top-offset)) !important; }
+}
+/* the student-record drawer: 12px under the bar, full height under it on phones */
+body.design-v2 .sr-modal { top: calc(var(--ta-top-offset) + 12px); max-height: calc(100vh - var(--ta-top-offset) - 24px); }
+@media (max-width: 768px) { body.design-v2 .sr-modal { top: var(--ta-top-offset); height: calc(100% - var(--ta-top-offset)); max-height: none; } }
+/* pop-ups: a $uibModal dialog (bootstrap .modal, 30px from the window's top — 10px on phones) and a .snazzy-overlay are
+   placed from the WINDOW, so the taller bar would cover that much more of their title bars. The whole layer starts lower
+   by what the bar gained: every dialog keeps the place it has today relative to the bar (window classes with their own
+   margin-top included). The backdrops stay full-screen. */
+body.design-v2 .modal, body.design-v2 .snazzy-overlay { top: var(--ta-head-extra); }
+body.design-v2 .snazzy-overlay--scroll .snazzy-modal { max-height: calc(100vh - 89px - var(--ta-head-extra)); }
+/* sticky bars / rails and scroll targets that sit a few px under the bar: the same gap as before */
+body.design-v2 .bop-return { top: calc(58px + var(--ta-head-extra)); }
+@media (max-width: 768px) { body.design-v2 .bop-return { top: calc(54px + var(--ta-head-extra)); } }
+body.design-v2 .sd-bar { top: calc(56px + var(--ta-head-extra)); }
+body.design-v2 .bo-rail { top: calc(66px + var(--ta-head-extra)); }
+body.design-v2 .bo-card { scroll-margin-top: calc(66px + var(--ta-head-extra)); }
+body.design-v2 .trk-basket { top: calc(76px + var(--ta-head-extra)); }
+body.design-v2 .snazzy-pager-anchor { scroll-margin-top: calc(72px + var(--ta-head-extra)); }
+body.design-v2 .ta-cols--rail > .ta-rail { top: calc(70px + var(--ta-head-extra)); }   /* ta-base says 70px (the mockups' 50px frame bar + 20) */
+@media (min-width: 481px) { body.design-v2 .club-select-wrapper { top: calc(54px + var(--ta-head-extra)); } }
 
 /* ── zone strip: a 3px line in the area's colour under the app header says where you are (My Account navy, Instructor
    Dashboard mulberry — body[data-zone], set by design.js while the v2 switch is on), and the area's menu link is lit.
@@ -164,6 +308,10 @@ body[data-nav="admin"] #main_menu li a[ui-sref="dashboard.super_admin"] { color:
   body[data-nav="manage_club"] #main_menu li a[ui-sref="dashboard.manage_club.sms"],
   body[data-nav="admin"] #main_menu li a[ui-sref="dashboard.super_admin"] { box-shadow: inset 3px 0 0 var(--ta-zone, #2d5a8e); font-weight: 600; }
 }
+
+/* the document full screen (<ta-doc-view>'s lightbox, .ta-docfull in ta-base.css) covers the whole window: the fixed app
+   header (z-index int-max — nothing in the page can sit above it) steps aside while it shows */
+body.ta-docfull-open #main_header2 { visibility: hidden; }
 
 /* ── phones: an open <ta-combo> search covers the whole screen, as the mockups draw it. The fixed app header (z-index
    int-max, so no layer in the page can sit above it) steps aside while the search is open; .ta-combo-lock is on <body>
