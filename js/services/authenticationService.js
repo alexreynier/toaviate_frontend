@@ -55,7 +55,8 @@
         // "Persisted login state".
         var GLOBALS_COOKIE_BUDGET = 3500;   // bytes of `globals=<encoded JSON>` (browsers drop > 4096)
         var ACCESS_ARRAYS = ['manager', 'pilot', 'instructor', 'super_admin', 'passenger', 'sms_post'];
-        var ACCESS_FLAGS = ['show_manager', 'show_sms', 'show_instructor', 'show_booking', 'show_approval_warning'];
+        // toaviate_staff: users.toaviate_staff, from GET users/{id}/access — what $rootScope.isToAviateStaff() reads
+        var ACCESS_FLAGS = ['show_manager', 'show_sms', 'show_instructor', 'show_booking', 'show_approval_warning', 'toaviate_staff'];
         // the admin club fields code may read before Rehydrate lands: the id
         // everywhere, the title (headers / trackers), the booking edit windows
         // (bookings / scheduler edit checks)
@@ -200,7 +201,7 @@
         function applyServerState(current, accessRes, clubsRes) {
             var accessOk = !!(accessRes && accessRes.success && angular.isArray(accessRes.access));
             if (accessOk) {
-                current.access = processAccess(accessRes.access);
+                current.access = processAccess(accessRes.access, accessRes.toaviate_staff);
                 var ins = current.access.instructor;
                 if (ins.length === 0) {
                     delete current.current_club_instructor;
@@ -473,9 +474,12 @@
                 //console.log("vm.clubs[0]", vm.clubs[0]);
         }
 
-        function processAccess(access){
+        // staff: the access read's toaviate_staff (the account's ToAviate-staff flag). A caller that has only the
+        // membership rows (none today) leaves it out and gets false.
+        function processAccess(access, staff){
 
             var obj = {
+                toaviate_staff: Number(staff) === 1 || staff === true,
                 manager: [],
                 pilot: [],
                 instructor: [],
@@ -577,14 +581,13 @@
                                 // identifies the user by credential), so the
                                 // `email` argument is undefined there — and a
                                 // missing email silently breaks anything keyed
-                                // off it, e.g. isToAviateStaff() → the
-                                // ToAviate Admin menu never renders.
+                                // off it.
                                 email: (user && user.email) ? user.email : email,
                                 authdata: authdata,
                                 id: user.id,
                                 first_name: user.first_name,
                                 last_name: user.last_name,
-                                access: processAccess(data.access)
+                                access: processAccess(data.access, data.toaviate_staff)
                             }
                         };
 
@@ -651,14 +654,13 @@
                                 // identifies the user by credential), so the
                                 // `email` argument is undefined there — and a
                                 // missing email silently breaks anything keyed
-                                // off it, e.g. isToAviateStaff() → the
-                                // ToAviate Admin menu never renders.
+                                // off it.
                                 email: (user && user.email) ? user.email : email,
                                 authdata: authdata,
                                 id: user.id,
                                 first_name: user.first_name,
                                 last_name: user.last_name,
-                                access: processAccess(data.access)
+                                access: processAccess(data.access, data.toaviate_staff)
                             }
                         };
 

@@ -9,7 +9,7 @@
 //          (the member is e-mailed a STOP link → the public /two_factor_reset_cancel/:token page)
 //        POST two_factor/admin_reset/{user_id}/complete {step_up_token} once the hold has passed
 //        GET  two_factor/admin_reset/{user_id} → requests[] (newest first) — all times UTC
-//  Backend is authoritative (non-staff get 403); the @toaviate.com
+//  Backend is authoritative (non-staff get 403); the staff
 //  gate here is UX only, same as PlatformKeysController.
 //  Backend contract: FRONTEND_TWO_FACTOR_GUIDE.md §4
 // ═══════════════════════════════════════════════════════════════════

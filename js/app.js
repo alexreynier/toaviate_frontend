@@ -625,8 +625,10 @@ var app = angular
 
 
             // ── TOAVIATE SUPER-ADMIN HUB (platform staff only) ──
-            // One place for platform-wide tools. The hub controller gates on
-            // @toaviate.com and bounces non-staff to /dashboard. The child tools
+            // One place for platform-wide tools. ToAviate staff only
+            // ($rootScope.isToAviateStaff — the guard at the end of this file
+            // waits for the server's answer on a refresh / deep link; the hub
+            // controller bounces non-staff to /dashboard). The child tools
             // reuse their existing controllers + views (moved here from
             // dashboard.manage_club.*).
 
@@ -3895,13 +3897,16 @@ var app = angular
 
         // ── ToAviate platform staff ──
         // Single source of truth for gating the super-admin hub and its tools.
-        // Platform staff are identified by their @toaviate.com email (matches the
-        // backend PAYMENT_MODE_SUPER_ADMINS allow-list). Exposed on $rootScope so
-        // any template can call isToAviateStaff() via prototype inheritance.
-        // The backend remains authoritative for each tool.
+        // ToAviate staff = the account's flag (users.toaviate_staff), which the
+        // server sends with the access read (GET users/{id}/access) and
+        // AuthenticationService keeps as currentUser.access.toaviate_staff.
+        // Not the e-mail address (every imported member has an @toaviate.com
+        // placeholder) and not a role in any club (2026-11-11). Exposed on
+        // $rootScope so any template can call isToAviateStaff() via prototype
+        // inheritance. The backend remains authoritative for each tool.
         $rootScope.isToAviateStaff = function() {
             var u = $rootScope.globals && $rootScope.globals.currentUser;
-            return !!(u && u.email && /@toaviate\.com$/i.test(u.email));
+            return !!(u && u.access && u.access.toaviate_staff === true);
         };
 
         // ── Session-expired freeze ──
@@ -4353,5 +4358,46 @@ var app = angular
                 }
             }
             auth.Rehydrate(ready).then(decide, decide);
+        });
+
+        // ── ToAviate Admin (dashboard.super_admin and its tools) ──
+        // Staff is the account's flag, which comes with the access read. After a
+        // refresh / deep link the login is the slim cookie — and a cookie written
+        // before the flag existed has none — so the first ToAviate Admin page of
+        // a page load waits for the server copy, as Manage Club does above. The
+        // pages' own controllers then read isToAviateStaff() on the spot.
+        var staffAreaWaitGaveUp = false;
+        function isStaffAreaState(st) {
+            var name = (st && st.name) || '';
+            return name === 'dashboard.super_admin' || name.indexOf('dashboard.super_admin.') === 0;
+        }
+        $rootScope.$on('$stateChangeStart', function (event, toState, toParams, fromState) {
+            if (!isStaffAreaState(toState)) { return; }
+            var user = $rootScope.globals && $rootScope.globals.currentUser;
+            if (!user || !user.id) { return; }   // logged out: the $locationChangeStart guard owns this
+            var auth = $injector.get('AuthenticationService');
+            if (auth.IsHydrated() || staffAreaWaitGaveUp) {
+                if ($rootScope.isToAviateStaff()) { return; }
+                event.preventDefault();
+                if (!fromState || !fromState.name || fromState.abstract) { $state.go('dashboard.my_account'); }
+                return;
+            }
+            event.preventDefault();
+            var decided = false;
+            var $timeout = $injector.get('$timeout');
+            var giveUp = $timeout(function () { staffAreaWaitGaveUp = true; decide(); }, MANAGE_CLUB_WAIT_MS);
+            function decide() {
+                if (decided) { return; }
+                decided = true;
+                $timeout.cancel(giveUp);
+                var current = $rootScope.globals && $rootScope.globals.currentUser;
+                if (!current || String(current.id) !== String(user.id)) { return; }   // logged out meanwhile
+                if ($rootScope.isToAviateStaff()) {
+                    $state.go(toState.name, toParams);
+                } else if (!fromState || !fromState.name || fromState.abstract) {
+                    $state.go('dashboard.my_account');
+                }
+            }
+            auth.Rehydrate(false).then(decide, decide);
         });
     }

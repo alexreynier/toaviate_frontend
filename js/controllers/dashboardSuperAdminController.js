@@ -7,11 +7,11 @@ app.controller('DashboardSuperAdminController', DashboardSuperAdminController);
         vm.user = $rootScope.globals.currentUser;
 
         // ── ToAviate platform-staff gate ──
-        // Only @toaviate.com staff may reach the hub. This matches the shared
-        // $rootScope.isToAviateStaff() helper; we also hard-stop non-staff who
-        // deep-link straight to /dashboard/super_admin by bouncing them home.
-        vm.is_toaviate_staff = !!(vm.user && vm.user.email &&
-            /@toaviate\.com$/i.test(vm.user.email));
+        // Only ToAviate staff may reach the hub: the shared
+        // $rootScope.isToAviateStaff() (the account's staff flag). We also
+        // hard-stop non-staff who deep-link straight to /dashboard/super_admin
+        // by bouncing them home.
+        vm.is_toaviate_staff = $rootScope.isToAviateStaff();
 
         if (!vm.is_toaviate_staff) {
             $location.path('/dashboard');

@@ -10,7 +10,7 @@ function DashboardFoxTrackersController($rootScope, $scope, $state, $stateParams
 
     // ── Auth gate — ToAviate platform staff ──
     // Same gate as the ToAviate Admin tab (the shared $rootScope.isToAviateStaff
-    // helper). Currently any @toaviate.com user; per-staff roles can refine this
+    // helper: the account's staff flag). Per-staff roles can refine this
     // single block in future without touching every tool.
     vm.user = $rootScope.globals.currentUser;
     vm.authorised = $rootScope.isToAviateStaff();

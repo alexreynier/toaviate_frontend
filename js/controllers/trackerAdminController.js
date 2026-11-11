@@ -10,7 +10,7 @@ app.controller('TrackerAdminController', TrackerAdminController);
     function TrackerAdminController(TrackerCommerceService, ClubService, PaymentModeService, ToastService, $rootScope, $scope, $state, $stateParams, $location, $timeout, $uibModal) {
         var vm = this;
         vm.user = $rootScope.globals.currentUser;
-        vm.is_toaviate_staff = !!(vm.user && vm.user.email && /@toaviate\.com$/i.test(vm.user.email));
+        vm.is_toaviate_staff = $rootScope.isToAviateStaff();   // the account's staff flag
         if (!vm.is_toaviate_staff) {
             $location.path('/dashboard');
             return;

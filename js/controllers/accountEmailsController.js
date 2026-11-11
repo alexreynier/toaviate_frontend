@@ -352,15 +352,11 @@ EmailMakePrimaryModalController.$inject = ['$uibModalInstance', 'address', 'curr
 function EmailMakePrimaryModalController($uibModalInstance, address, currentEmail) {
     var vm = this;
 
-    var STAFF_RE = /@toaviate\.com$/i;
-
     vm.address = address || {};
     vm.currentEmail = currentEmail || '';
 
-    // Plan §6 caveat: isToAviateStaff() is a regex on @toaviate.com, so a
-    // staff member moving to a non-staff address loses the admin menu
-    // until the platform-admin flag lands.
-    vm.staffWarning = STAFF_RE.test(vm.currentEmail) && !STAFF_RE.test(vm.address.email || '');
+    // (No staff warning any more: ToAviate staff is a flag on the account since
+    // 2026-11-11, so changing address no longer loses the ToAviate Admin menu.)
 
     vm.confirm = function () { $uibModalInstance.close(true); };
     vm.cancel = function () { $uibModalInstance.dismiss('cancel'); };

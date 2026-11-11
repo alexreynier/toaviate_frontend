@@ -445,7 +445,7 @@ function SecurityV2Controller($rootScope, $scope, $q, $timeout, $interval, TwoFa
     };
     vm.emPrimary = function (r) {
         var cur = vm.primary() ? vm.primary().email : (vm.me.email || '');
-        vm.mp = { row: r, current: cur, staff: /@toaviate\.com$/i.test(cur) && !/@toaviate\.com$/i.test(r.email) };
+        vm.mp = { row: r, current: cur };
         vm.dlg = 'primary';
     };
     vm.mpGo = function () {

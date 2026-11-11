@@ -29,15 +29,12 @@
 
         // ── ToAviate platform staff ──
         // Payment-mode switching is a PLATFORM-staff action, not a per-club
-        // super-admin one (access.super_admin is club-scoped). ToAviate staff are
-        // identified by their @toaviate.com email, matching the backend's
-        // PAYMENT_MODE_SUPER_ADMINS allow-list (see dashboardFoxTrackersController
-        // for the same email-based platform gate). The backend remains
-        // authoritative — a non-permitted user gets a 'forbidden' response — so
-        // this only decides whether to surface the switch control.
-        vm.is_toaviate_staff = !!($rootScope.globals.currentUser &&
-            $rootScope.globals.currentUser.email &&
-            /@toaviate\.com$/i.test($rootScope.globals.currentUser.email));
+        // super-admin one (access.super_admin is club-scoped). ToAviate staff:
+        // $rootScope.isToAviateStaff() (the account's staff flag). The backend
+        // has its own, narrower list for this switch (PAYMENT_MODE_SUPER_ADMINS)
+        // and remains authoritative — a non-permitted user gets a 'forbidden'
+        // response — so this only decides whether to surface the switch control.
+        vm.is_toaviate_staff = $rootScope.isToAviateStaff();
 
         // ── Flight Times Display (club-wide convention, TimeDisplayService) ──
         // One of block_rounded | block_exact | airborne_rounded | airborne_exact.

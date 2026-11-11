@@ -11,7 +11,7 @@ app.controller('GclMonitorController', GclMonitorController);
     function GclMonitorController(GclMonitorService, ToastService, $rootScope, $scope, $state, $stateParams, $location, $interval) {
         var vm = this;
         vm.user = $rootScope.globals.currentUser;
-        vm.is_toaviate_staff = !!(vm.user && vm.user.email && /@toaviate\.com$/i.test(vm.user.email));
+        vm.is_toaviate_staff = $rootScope.isToAviateStaff();   // the account's staff flag
         if (!vm.is_toaviate_staff) {
             $location.path('/dashboard');
             return;
