@@ -1,0 +1,234 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 CLAIM A FLIGHT (dashboard.v2.claim_a_flight) — design: mockups/my-account/claim-journey.html.
+     ClaimV2Controller (js/v2/claim/claim.js), styles css/v2/claim.css (.cj-*) on ta-base.css.
+     One list, newest first, grouped by day; one smart search (aircraft + club); each row opens in place;
+     "This was me" → the book-in, as v1's CLAIM.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page cj">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-paper-plane"></i></span>
+        <div><h2>Claim a flight</h2><p>{{ vm.loading ? 'Flights your clubs’ trackers recorded that nobody has booked in yet' : vm.hint }}</p><design-back class="cj-designback"></design-back></div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="!vm.loading && vm.all.length">
+      <div class="cj-tools">
+        <ta-combo cb-id="aircraft" label="Search aircraft" placeholder="{{ vm.placeholder }}" placeholder-picked="Type to change" caps="true"
+                  query="vm.acq" source="vm.acGroups(q)" on-pick="vm.acPick(key)" on-clear="vm.acClear()"
+                  value="vm.acValue" summary="vm.acSummary" clearable="vm.v.kind !== 'all'" version="vm.cbVer"></ta-combo>
+        <button type="button" class="ta-btn ta-btn--sm cj-tdbtn" ng-click="vm.openTimes()" title="How flight times are shown — switch to compare; the club default is set in Club Settings" no-busy-guard>
+          <i class="fas fa-clock" aria-hidden="true"></i>Times: {{ vm.modeDef().short }}<span class="ta-tag" ng-if="vm.isOverride()">yours</span><i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <section class="ta-list" ng-if="vm.loading" aria-busy="true">
+    <div class="cj-skelnote cj-skelnote--runway"><ta-runway text="Checking your clubs’ trackers for unclaimed flights…" compact="true"></ta-runway></div>
+    <div class="cj-skelrow" ng-repeat="i in [1, 2, 3]"><div class="ta-skel"></div><div><div class="ta-skel"></div><div class="ta-skel"></div></div><div class="ta-skel"></div></div>
+  </section>
+
+  <!-- didn't load -->
+  <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+      <h4>The flights to claim didn’t load</h4><p>Check your connection, then try again.</p>
+      <button type="button" class="ta-btn" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo" aria-hidden="true"></i>Try again</button>
+    </div>
+  </section>
+
+  <!-- none of the clubs has a tracker -->
+  <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.all.length && !vm.trackers.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-satellite-dish" aria-hidden="true"></i></span>
+      <h4>None of your clubs has a tracker fitted yet</h4>
+      <p>Fox trackers record brakes off, take-off, landing and brakes on to within 10 seconds and send them straight to ToAviate. If you fly without booking out, your flight then shows up here, ready to claim.</p>
+      <enq-ask topic="trackers" context="vm.enqCtx" club-id="vm.enqClubId" label="Ask us about trackers" icon="fa-comment"></enq-ask>
+    </div>
+    <div class="cj-how">
+      <div class="cj-how__s"><span class="cj-how__n"><i class="fas fa-stopwatch" aria-hidden="true"></i></span><span><span class="cj-how__t">Exact times</span><span class="cj-how__d">Logbooks get the real times, not times rounded to 5 minutes.</span></span></div>
+      <div class="cj-how__s"><span class="cj-how__n"><i class="fas fa-wrench" aria-hidden="true"></i></span><span><span class="cj-how__t">Longer between checks</span><span class="cj-how__d">Clubs gain on average 3:40 between 50-hour checks by counting true airborne time.</span></span></div>
+      <div class="cj-how__s"><span class="cj-how__n"><i class="fas fa-keyboard" aria-hidden="true"></i></span><span><span class="cj-how__t">Nothing to type</span><span class="cj-how__d">Book in with the times already filled in — or claim the flight afterwards.</span></span></div>
+    </div>
+  </section>
+
+  <!-- trackers fitted, nothing to claim -->
+  <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.all.length && vm.trackers.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-check" aria-hidden="true"></i></span>
+      <h4>Nothing to claim</h4>
+      <p>Every flight your clubs’ trackers recorded has been booked in. If you fly without booking out, your flight shows up here soon after you land.</p>
+    </div>
+    <div class="ta-panel">
+      <span class="ta-sec-k">Trackers fitted</span>
+      <div class="cj-trk" ng-repeat="c in vm.trackerClubs"><span class="ta-ac" ng-repeat="p in c.planes" ng-attr-style="{{ p.colour ? '--ac:' + p.colour : undefined }}" title="{{ p.reg }} · {{ p.model }}">{{ p.reg }}<span>{{ p.type }}</span></span><span class="ta-muted">{{ c.club }}</span></div>
+    </div>
+  </section>
+
+  <!-- what you're looking at: one aircraft as the headline, or what the letters matched -->
+  <section class="cj-acban" ng-if="!vm.loading && vm.all.length && vm.banner" ng-attr-style="{{ vm.banner.p.colour ? '--ac:' + vm.banner.p.colour : undefined }}">
+    <div class="cj-acban__id"><span class="cj-acban__k">Flights on</span><span class="cj-acban__reg">{{ vm.banner.p.reg }}</span><span class="cj-acban__sub">{{ vm.banner.p.model }} · {{ vm.banner.p.club }}</span></div>
+    <dl class="cj-acban__facts" ng-if="vm.banner.n"><div><dt>To claim</dt><dd>{{ vm.banner.n }}</dd></div><div ng-if="vm.banner.latest"><dt>Latest</dt><dd>{{ vm.banner.latest }}</dd></div></dl>
+    <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.banner.n" ng-click="vm.acClear()" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i>All aircraft</button>
+  </section>
+  <div class="cj-scopeln" ng-if="!vm.loading && vm.all.length && vm.v.kind === 'q' && vm.v.planes.length">
+    <span><b>{{ vm.Fmt.plural(vm.v.planes.length, 'aircraft', 'aircraft') }}</b> matching “{{ vm.v.q }}” · {{ vm.Fmt.plural(vm.v.n, 'flight') }}</span><span class="ta-sp"></span>
+    <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.acClear()" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i>Clear</button>
+  </div>
+  <div class="cj-scopeln" ng-if="!vm.loading && vm.all.length && vm.v.kind === 'club'">
+    <span>Every aircraft at <b>{{ vm.v.club }}</b> · {{ vm.Fmt.plural(vm.v.n, 'flight') }}</span><span class="ta-sp"></span>
+    <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.acClear()" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i>All aircraft</button>
+  </div>
+
+  <!-- searched or picked, but nothing to list: say why -->
+  <section class="ta-card" ng-if="!vm.loading && vm.all.length && vm.vempty">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas {{ vm.vempty.ic }}" aria-hidden="true"></i></span>
+      <h4>{{ vm.vempty.t }}</h4><p>{{ vm.vempty.d }}</p>
+      <div class="cj-meaacts">
+        <a class="ta-btn" ng-if="vm.vempty.bookings" ui-sref="dashboard.my_account.upcoming_bookings">My bookings</a>
+        <button type="button" class="ta-btn" ng-click="vm.acClear()" no-busy-guard>Show all aircraft</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- "Looks like yours" (flights in the member's own bookings, C26) first, then everyone's by day — one repeat over the two
+       sections so the rows are written once; the wrapper passes through (display: contents) -->
+  <div class="cj-sec" ng-repeat="sec in vm.sections track by sec.k">
+  <!-- how claiming works -->
+  <div class="cj-howln" ng-if="!vm.loading && !sec.mine && vm.shownN">
+    <i class="fas fa-info-circle" aria-hidden="true"></i>
+    <span>Everyone’s unbooked flights are here, not only yours. Check the aircraft and the time before you claim.</span>
+    <button type="button" class="cj-howln__btn" ng-click="vm.howOpen = !vm.howOpen" aria-expanded="{{ vm.howOpen ? 'true' : 'false' }}" no-busy-guard>How claiming works<i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+  </div>
+  <section class="ta-card" ng-if="!vm.loading && !sec.mine && vm.shownN && vm.howOpen">
+    <div class="cj-how">
+      <div class="cj-how__s"><span class="cj-how__n">1</span><span><span class="cj-how__t">Find your flight</span><span class="cj-how__d">Search for the aircraft you flew, then find the date and time.</span></span></div>
+      <div class="cj-how__s"><span class="cj-how__n">2</span><span><span class="cj-how__t">Say who flew</span><span class="cj-how__d">Just you, or a lesson or solo with an instructor.</span></span></div>
+      <div class="cj-how__s"><span class="cj-how__n">3</span><span><span class="cj-how__t">Book it in</span><span class="cj-how__d">Times and landings are filled in; add fuel, any defects, then pay.</span></span></div>
+    </div>
+  </section>
+
+  <!-- the list (grouped by day), or the "Looks like yours" card -->
+  <section class="ta-list cj-clist" ng-class="{'cj-mine': sec.mine}" aria-label="{{ sec.mine ? 'Looks like yours' : 'Unclaimed flights' }}" ng-if="!vm.loading && (sec.mine || vm.restN || vm.foot)">
+    <div class="cj-mine__hd" ng-if="sec.mine"><i class="fas fa-user-check" aria-hidden="true"></i><div><b>Looks like yours</b>{{ sec.flat.length === 1 ? 'A tracker recorded this flight during your booking, and you never booked out.' : 'The trackers recorded these flights during your bookings, and you never booked out.' }}</div></div>
+    <div class="ta-list__cols" ng-if="!sec.mine && vm.restN"><span>Aircraft</span><span>{{ vm.winLabel }} · route</span><span>Airborne</span><span>Landings</span><span></span></div>
+    <!-- day headers and rows are siblings in the list, as in the mockup (one flat repeat; the row's own blocks switch on it.g) -->
+    <div ng-repeat="it in sec.flat track by it.k" ng-class="it.g ? 'ta-group' : (vm.open === it.f._k ? 'ta-row cj-crow ta-row--open' : 'ta-row cj-crow')" ng-attr-style="{{ !it.g && it.f._ac ? '--ac:' + it.f._ac : undefined }}">
+      <span ng-if="it.g">{{ it.g.label }}</span><span ng-if="it.g">{{ it.g.n }}</span>
+      <div class="cj-rowhead" ng-if="!it.g">
+      <button type="button" class="ta-row__main" ng-click="vm.toggle(it.f)" aria-expanded="{{ vm.open === it.f._k ? 'true' : 'false' }}" no-busy-guard>
+        <span class="cj-reg" title="{{ it.f.registration }} · {{ it.f.type_name }} · {{ it.f.club_name }}"><b>{{ it.f.registration }}</b><small>{{ it.f.type_name }}</small></span>
+        <span class="ta-row__txt"><span class="ta-row__title"><span title="{{ it.f._t.tip }}">{{ it.f._t.from }} → {{ it.f._t.to }}</span></span><span class="ta-row__sub" ng-bind-html="it.f._sub"></span><span class="cj-c-pill-d" ng-if="it.f._flag || it.f._match || it.f._amended"><span class="ta-pill ta-pill--good" ng-if="it.f._match"><i class="fas fa-calendar-check" aria-hidden="true"></i>{{ it.f._match.label }}</span><span class="ta-pill ta-pill--{{ it.f._flag.tone }}" ng-if="it.f._flag"><i class="fas {{ it.f._flag.icon }}" aria-hidden="true"></i>{{ it.f._flag.label }}</span><span class="ta-pill ta-pill--warn" ng-if="it.f._amended" title="Times amended by {{ it.f._amended.by }}{{ it.f._amended.atDay ? ' · ' + it.f._amended.atDay : '' }}"><i class="fas fa-pen" aria-hidden="true"></i>Times amended</span></span></span>
+        <span class="ta-row__meta"><span class="cj-c-ldg" title="{{ it.f._ldgTip }}"><span class="cj-fig"><b>{{ it.f._ldg }}</b><small>{{ it.f._ldg === 1 ? 'landing' : 'landings' }}</small></span></span><span class="cj-c-pill-p" ng-if="it.f._flag || it.f._match || it.f._amended"><span class="ta-pill ta-pill--good" ng-if="it.f._match"><i class="fas fa-calendar-check" aria-hidden="true"></i>{{ it.f._match.label }}</span><span class="ta-pill ta-pill--{{ it.f._flag.tone }}" ng-if="it.f._flag"><i class="fas {{ it.f._flag.icon }}" aria-hidden="true"></i>{{ it.f._flag.label }}</span><span class="ta-pill ta-pill--warn" ng-if="it.f._amended"><i class="fas fa-pen" aria-hidden="true"></i>Times amended</span></span></span>
+        <span class="ta-row__end"><span class="cj-fig" title="{{ it.f._airTip }}"><b>{{ it.f._air }}</b><small>airborne</small></span></span>
+        <span class="ta-row__acts" aria-hidden="true"></span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+      </button>
+      <!-- the row's actions are real buttons beside the row button (not inside it); laid over its last column on desktop -->
+      <div class="ta-row__acts cj-acts">
+        <button type="button" class="ta-ib" ng-if="it.f._canReplay" ng-click="vm.replay(it.f)" title="Watch the replay" aria-label="Watch the replay {{ it.f.registration }} {{ it.f._t.from }}" no-busy-guard><i class="fas fa-play" aria-hidden="true"></i></button><span class="ta-ib ta-btn--disabled" ng-if="!it.f._canReplay" title="No track to replay" aria-label="No track to replay"><i class="fas fa-play" aria-hidden="true"></i></span><button type="button" class="ta-btn ta-btn--primary ta-btn--sm cj-acts-btn" ng-click="vm.claim(it.f)" aria-label="This was me — {{ it.f.registration }}, {{ it.f._t.from }} to {{ it.f._t.to }}" no-busy-guard>This was me</button>
+      </div>
+      </div>
+      <div class="ta-detail" ng-if="!it.g && vm.open === it.f._k">
+        <!-- staff amended this flight's times: who, when, why, what the tracker recorded; History; put the tracker's back -->
+        <div class="ta-note ta-note--warn cj-amd" ng-if="it.f._amended" data-e2e="cj-amended">
+          <i class="fas fa-pen" aria-hidden="true"></i>
+          <div class="cj-amd__body">
+            <div><b>Times amended by {{ it.f._amended.by }}</b><span ng-if="it.f._amended.atDay"> · {{ it.f._amended.atDay }}</span><span ng-if="it.f._amended.reason"> — “{{ it.f._amended.reason }}”</span></div>
+            <div class="cj-amd__orig">The tracker recorded {{ it.f._amended.orig }}.<span ng-if="it.f._amended.n > 1"> Changed {{ it.f._amended.n }} times.</span></div>
+            <div class="cj-amd__acts">
+              <button type="button" class="ta-link" ng-click="vm.toggleHistory(it.f)" aria-expanded="{{ it.f._hist ? 'true' : 'false' }}" no-busy-guard><i class="fas fa-history" aria-hidden="true"></i>{{ it.f._hist ? 'Hide history' : 'History' }}</button>
+              <button type="button" class="ta-link" ng-if="it.f._canAmend && vm.rv !== it.f._k" ng-click="vm.askRevert(it.f)" no-busy-guard data-e2e="cj-revert"><i class="fas fa-undo" aria-hidden="true"></i>Put back the tracker’s times</button>
+            </div>
+            <div class="ta-confirm ta-confirm--inline" role="group" aria-label="Confirm putting back the tracker’s times" ng-if="vm.rv === it.f._k">
+              <span>Put back the times the tracker recorded? The change stays in the history.</span>
+              <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.keepRevert()" no-busy-guard>Keep these</button>
+              <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.revert(it.f)" data-e2e="cj-revert-yes">Put them back</button>
+            </div>
+            <div class="ta-field__msg" ng-if="it.f._revertErr" role="alert">{{ it.f._revertErr }}</div>
+            <ol class="cj-hist" ng-if="it.f._hist" aria-label="Changes to this flight's times">
+              <li ng-if="it.f._hist.loading" class="cj-hist__row"><span class="ta-spin ta-spin--dark"></span>Loading the history…</li>
+              <li ng-if="it.f._hist.err" class="cj-hist__row ta-field__msg">{{ it.f._hist.err }}</li>
+              <li ng-if="!it.f._hist.loading && !it.f._hist.err && !it.f._hist.rows.length" class="cj-hist__row">No changes recorded.</li>
+              <li class="cj-hist__row" ng-repeat="h in it.f._hist.rows">
+                <span class="ta-pill ta-pill--{{ h.tone }}">{{ h.verb }}</span>
+                <span><b>{{ h.by }}</b><span ng-if="h.at"> · {{ h.at }}</span> · {{ h.from }} → {{ h.to }}<span ng-if="h.reason"> — “{{ h.reason }}”</span></span>
+              </li>
+            </ol>
+          </div>
+        </div>
+        <div class="ta-note" ng-if="it.f._flag" ng-class="'ta-note--' + (it.f._flag.tone === 'muted' ? 'quiet' : it.f._flag.tone)"><i class="fas {{ it.f._flag.icon }}" aria-hidden="true"></i><div><b>{{ it.f._flag.label }}.</b> {{ it.f._flag.why }}</div></div>
+        <div class="ta-panel ta-panel--white">
+          <div class="cj-tl">
+            <div class="cj-tl__p" ng-repeat="p in it.f._pts" ng-class="{'cj-tl__p--air': p.air}"><i></i><span class="cj-tl__k">{{ p.k }}</span><span class="cj-tl__v">{{ p.v }}</span><span class="cj-tl__s">{{ p.r ? 'rounds to ' + p.r : '\u00a0' }}</span></div>
+          </div>
+          <div class="cj-tl__cap"><span>{{ it.f._shownK }} shown: <b>{{ it.f._t.dur || '—' }}</b></span><span>·</span><span>Block exact: <b>{{ it.f._blockExact }}</b></span></div>
+        </div>
+        <div class="ta-panel ta-panel--white">
+          <dl class="ta-facts ta-facts--3">
+            <div class="ta-fact"><dt>Airborne</dt><dd>{{ it.f._air }} <small>· {{ it.f._airWords }}</small></dd></div>
+            <div class="ta-fact"><dt>Landings</dt><dd>{{ it.f._ldg }} <small>· {{ it.f._ldgWords }}</small></dd></div>
+            <div class="ta-fact"><dt>Aircraft</dt><dd>{{ it.f.registration }} <small>· {{ it.f.type_name }} · {{ it.f.club_name }}</small></dd></div>
+          </dl>
+        </div>
+        <div class="ta-detail__foot">
+          <button type="button" class="ta-btn" ng-if="it.f._canReplay" ng-click="vm.replay(it.f)" no-busy-guard><i class="fas fa-play" aria-hidden="true"></i>Watch the replay</button>
+          <span class="cj-src" ng-if="!it.f._canReplay"><i class="fas fa-info-circle" aria-hidden="true"></i>No replay — {{ it.f.track_calculated_status === 'file_mismatch' ? 'the recording on file isn’t this flight' : 'no track was recorded' }}</span>
+          <span class="ta-sp"></span>
+          <button type="button" class="ta-btn" ng-if="it.f._canAmend" ng-click="vm.openAmend(it.f)" no-busy-guard data-e2e="cj-amend"><i class="fas fa-pen" aria-hidden="true"></i>Amend times</button>
+          <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.claim(it.f)" no-busy-guard><i class="fas fa-hand-paper" aria-hidden="true"></i>This was me</button>
+        </div>
+      </div>
+    </div>
+    <div class="cj-foot" ng-if="!sec.mine && vm.foot">
+      <div class="cj-foot__row">
+        <i class="fas fa-check ta-muted" ng-if="!vm.foot.more" aria-hidden="true"></i><span>{{ vm.foot.text }}</span><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.foot.more" ng-click="vm.more()" ng-disabled="vm.loadingMore" no-busy-guard>
+          <span class="ta-spin ta-spin--dark" ng-if="vm.loadingMore"></span><i class="fas fa-angle-double-down" ng-if="!vm.loadingMore" aria-hidden="true"></i>{{ vm.loadingMore ? 'Loading…' : 'Show older flights' }}
+        </button>
+      </div>
+      <span class="ta-hint" ng-if="vm.foot.more">The newest 10 flights per aircraft load first, then 20 more each time.</span>
+    </div>
+  </section>
+  </div>
+
+  <!-- questions you've sent ToAviate (sales enquiries) -->
+  <p class="cj-enqln" ng-if="!vm.loading && vm.enq.n">
+    <i class="fas fa-comments" aria-hidden="true"></i>
+    <span>You’ve sent ToAviate {{ vm.enq.n === 1 ? 'a question' : vm.enq.n + ' questions' }}<span ng-if="vm.enq.answered"> · <b>{{ vm.enq.answered }} answered</b></span>.</span>
+    <a class="ta-link" ui-sref="dashboard.v2.enquiries">See your questions <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+  </p>
+
+  <!-- staff: amend a waiting flight's times — the shared dialog (views/v2/claim/_amend_dialog.html) -->
+  <claim-times-dialog ng-if="vm.dlg === 'amend' && vm.am" am="vm.am" on-saved="vm.amSaved(flight)" on-close="vm.closeDlg()"></claim-times-dialog>
+
+  <!-- how times are shown -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'td'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="cj-td-t">
+      <div class="ta-dlg__hd">
+        <div class="ta-dlg__grab"></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button>
+        <div class="ta-dlg__eyebrow"><i class="fas fa-clock" aria-hidden="true"></i>Flight times</div>
+        <div class="ta-dlg__title" id="cj-td-t">How times are shown</div>
+        <div class="ta-dlg__sub">Your clubs show {{ vm.clubDef().short }}. Pick another to compare — it’s remembered on this device only.</div>
+      </div>
+      <div class="ta-dlg__body">
+        <button type="button" class="ta-opt" ng-repeat="m in vm.MODES" ng-class="{'ta-opt--on': vm.modeDef().value === m.value}" ng-click="vm.setMode(m.value)" no-busy-guard>
+          <span class="ta-opt__ic"><i class="fas {{ vm.modeIcon(m) }}" aria-hidden="true"></i></span>
+          <span><span class="ta-opt__t">{{ m.title }}{{ m.value === vm.clubDef().value ? ' · club default' : '' }}</span><span class="ta-opt__s">{{ m.sub }}</span></span>
+          <span class="ta-opt__dot"></span>
+        </button>
+      </div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn ta-btn--quiet" ng-if="vm.isOverride()" ng-click="vm.resetMode()" no-busy-guard><i class="fas fa-undo" aria-hidden="true"></i>Back to the club default</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.closeDlg()" no-busy-guard>Done</button>
+      </div>
+    </div>
+  </div>
+</main>

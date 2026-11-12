@@ -1,0 +1,57 @@
+<!-- FLIGHTS (page "flights"): the record, flight by flight. A row opens in place (the same row the student sees in My Training);
+     the instructor's actions sit at the foot of the open row. -->
+<div class="stu-part" ng-if="!vm.X.flights.length" ng-include="'stu-norecords.html'"></div>
+<div class="stu-part" ng-if="vm.X.flights.length">
+
+<div class="ta-note ta-note--warn ins-rise" ng-if="vm.X.mineAw.length" ng-class="{'stu-leave': vm.R.leaving && vm.X.mineAw.length === 1}" data-e2e="stu-mineaw-note"><i class="fas fa-pen-nib"></i><div><b>Your lesson of {{ vm.X.mineAw[0].day }} was entered for you by {{ vm.X.mineAw[0].enteredBy || 'someone else' }}.</b> Check it and confirm it was your lesson. <button type="button" class="ta-link" ng-click="vm.showRec(vm.X.mineAw[0])" no-busy-guard>Show it <i class="fas fa-arrow-right"></i></button></div></div>
+<div class="ta-note ta-note--warn ins-rise" ng-if="vm.X.kcReview" data-e2e="stu-review-note"><i class="fas fa-clipboard-check"></i><div><b>{{ vm.X.first }}’s {{ vm.X.kcReview.name }} is waiting for review.</b> It is one of the checks before the first solo. <button type="button" class="ta-link" ng-click="vm.setTab('presolo')" no-busy-guard>Pre-solo checks <i class="fas fa-arrow-right"></i></button></div></div>
+
+<!-- flights without a record (club admins of this club): file them from here -->
+<section class="ta-list stu-unfiled ins-rise" aria-label="Flights without a record" ng-if="vm.isAdmin && vm.X.unfiled.length" data-e2e="stu-unfiled">
+  <div class="ta-group ta-group--attn"><span><i class="fas fa-file-signature"></i>Flights without a record</span><span>{{ vm.C.plural(vm.X.unfiledTotal, 'flight') }}</span></div>
+  <div class="ta-row" ng-repeat="u in vm.X.unfiled track by u.id"><div class="ta-row__main">
+    <span class="ta-row__lead"><span class="ta-kind ta-kind--{{ u.kind }}" title="{{ u.kindWord }}"><i class="fas" ng-class="u.kind === 'solo' ? 'fa-user' : 'fa-user-friends'"></i></span></span>
+    <span class="ta-row__txt"><span class="ta-row__title">{{ u.day }}</span><span class="ta-row__sub">{{ u.win }} · {{ u.hm }} · {{ u.kindWord }}<span ng-if="u.part"> · {{ u.part }}</span></span></span>
+    <span class="ta-row__meta"><span class="ta-ac" ng-if="u.reg" ng-attr-style="{{ u.acColour ? '--ac:' + u.acColour : undefined }}" title="{{ u.reg }}">{{ u.reg }}<span ng-if="u.type">{{ u.type }}</span></span><span class="stu-who"><span ng-if="u.ins" class="stu-who"><span class="ta-av ta-av--sm" ng-attr-style="--av:{{ u.ins.av.colour }}" title="{{ u.ins.av.title }}">{{ u.ins.av.code }}</span>{{ u.ins.name }}</span><span class="ta-muted" ng-if="!u.ins">No instructor named</span></span></span>
+    <span class="ta-row__acts"><span class="ta-pill ta-pill--pend" ng-if="u.needsBookIn"><i class="fas fa-plane-arrival"></i>Book in part 2 first</span><a class="ta-btn ta-btn--sm ta-btn--primary" href="" ng-if="!u.needsBookIn" ng-click="vm.fileUnfiled(u.raw)" title="Opens the debrief for this flight, filed for its instructor" data-e2e="stu-file"><i class="fas fa-file-signature"></i>File the record</a></span>
+  </div></div>
+  <div class="stu-listfoot"><span class="ta-hint">Shown to club admins: {{ vm.X.first }}’s flights here that nobody has debriefed{{ vm.X.unfiledTotal > vm.X.unfiled.length ? ' (the latest ' + vm.X.unfiled.length + ' of ' + vm.X.unfiledTotal + ')' : '' }}. Filing opens the debrief for the flight’s instructor and comes back here. The rest of the club’s are on </span><button type="button" class="ta-link" ng-click="vm.toRecordsToFile()" no-busy-guard>Records to File <i class="fas fa-arrow-right"></i></button></div>
+</section>
+
+<!-- course hours -->
+<section class="ta-card ins-rise" data-e2e="stu-hours">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clock"></i></span><div class="ta-card__ttl"><h3>Course hours</h3><p>{{ vm.X.courseTitle }} · brakes off to on, {{ vm.C.plural(vm.X.p.flights.length, 'flight') }}</p></div></div>
+  <div class="ta-tiles">
+    <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-user-friends"></i>Dual · under training</span><span class="ta-tile__v">{{ vm.C.hmMin(vm.X.p.putMins || vm.X.p.totalMins - vm.X.p.picMins) }}</span><span class="ta-tile__s">With an instructor in command (PUT)</span></div>
+    <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-user"></i>Solo · in command</span><span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.X.p.picMins}">{{ vm.C.hmMin(vm.X.p.picMins) }}</span><span class="ta-tile__s">{{ vm.X.p.picMins ? 'As pilot in command (PIC)' : 'Starts with the first solo (PIC)' }}</span></div>
+    <div class="ta-tile" ng-if="vm.X.p.picusMins"><span class="ta-tile__k">PICUS</span><span class="ta-tile__v">{{ vm.C.hmMin(vm.X.p.picusMins) }}</span><span class="ta-tile__s">In command under supervision</span></div>
+    <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-plane"></i>Flights</span><span class="ta-tile__v">{{ vm.X.p.flights.length }}</span><span class="ta-tile__s">{{ vm.X.p.ph ? vm.X.p.ph + ' imported without a debrief' : 'All with a debrief' }}</span></div>
+    <div class="ta-tile ta-tile--progress" ng-if="vm.X.p.minH"><span class="ta-tile__k"><i class="fas fa-flag-checkered"></i>Towards the minimum</span><span class="ta-tile__v">{{ vm.C.hmMin(vm.X.p.totalMins) }} <span class="stu-fig-of">of {{ vm.C.hmMin(vm.X.p.minMins) }}</span></span><div class="ta-meter stu-trn-tile-meter"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.X.p.minPct }}%"></div></div><span class="ta-tile__s">The course minimum is {{ vm.X.p.minText }}</span></div>
+  </div>
+  <div class="stu-tagsrow" ng-if="vm.X.p.customTags.length"><span class="ta-sec-k">Flight tags</span><span class="ta-tag" ng-repeat="t in vm.X.p.customTags track by t.title"><i class="fas fa-tag"></i>{{ vm.tagName(t.title) }} · {{ vm.C.hmMin(t.mins) }}</span></div>
+</section>
+
+<div class="ta-sh"><div><h3>Flights</h3><p>Newest first · open one for the full debrief</p></div></div>
+<section class="ta-list" id="stu-flights" data-e2e="stu-flights">
+  <div class="ta-list__tools"><div class="ta-chips"><button type="button" class="ta-chip" ng-repeat="c in vm.X.rChips track by c.k" ng-class="{'ta-chip--on': vm.R.chip === c.k, 'ta-chip--attn': c.attn}" aria-pressed="{{ vm.R.chip === c.k }}" ng-click="vm.setRChip(c.k)" no-busy-guard data-e2e="stu-rchip-{{ c.k }}">{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button></div>
+    <label class="ta-search"><i class="fas fa-search"></i><input id="stu-rq" type="search" placeholder="Search lesson, date, aircraft, instructor" ng-model="vm.R.q" ng-change="vm.rSearch()" ng-model-options="{ debounce: 120 }" aria-label="Search flights" autocomplete="off" data-e2e="stu-rq"></label></div>
+  <div class="stu-legend"><b class="ta-sec-k">Grades</b><span class="stu-legend__i" ng-repeat="g in vm.X.legend track by g.name"><span class="ta-pill {{ g.cls }}"><i class="fas {{ g.ic }}" aria-hidden="true"></i>{{ g.name }}</span><span>{{ g.help }}</span></span></div>
+  <div ng-repeat="x in vm.X.rItems track by x.key + ':' + vm.X.rGen" ng-class="vm.recCls(x)" ng-attr-id="{{ x.grp ? undefined : 'stu-r' + x.f.id }}" ng-attr-style="{{ x.grp ? undefined : '--i: ' + x.i }}">
+    <span ng-if="x.grp">{{ x.label }}</span><span ng-if="x.grp">{{ x.right }}</span>
+    <button type="button" class="stu-rec__main" ng-if="!x.grp" ng-click="vm.toggleRec(x.f)" aria-expanded="{{ vm.R.open === x.f.id }}" no-busy-guard data-e2e="stu-rec">
+      <span><span class="ta-kind ta-kind--{{ x.f.kind }}" title="{{ x.f.kind === 'solo' ? 'Solo' : 'Dual lesson' }}"><i class="fas" ng-class="x.f.kind === 'solo' ? 'fa-user' : 'fa-user-friends'"></i></span></span>
+      <span class="stu-rec__body">
+        <span class="stu-rec__top"><span class="stu-rec__title">{{ x.f.title }}</span><span class="ta-pill {{ p.cls }}" ng-repeat="p in x.f.pills" ng-class="{'stu-leave stu-leave--pill': p.aw && vm.R.leaving === x.f.id}"><i class="fas {{ p.ic }}" ng-if="p.ic" aria-hidden="true"></i>{{ p.label }}</span></span>
+        <span class="stu-rec__sub"><span>{{ x.f.dayLong }}</span><span class="ta-ac" ng-if="x.f.reg" ng-attr-style="{{ x.f.acColour ? '--ac:' + x.f.acColour : undefined }}" title="{{ x.f.reg }}{{ x.f.model ? ' · ' + x.f.model : '' }}">{{ x.f.reg }}<span ng-if="x.f.type">{{ x.f.type }}</span></span><span>{{ x.f.from }}–{{ x.f.to }}</span><span class="stu-who"><span class="ta-av ta-av--sm" ng-if="x.f.insAv" ng-attr-style="--av:{{ x.f.insAv.colour }}" title="{{ x.f.insAv.title }}">{{ x.f.insAv.code }}</span><span class="ta-av ta-av--member ta-av--sm" ng-if="!x.f.insAv" title="Member"><i class="fas fa-user"></i></span>{{ x.f.insName }}</span></span>
+        <span class="stu-rec__grades" ng-if="x.f.countPills.length"><span class="ta-pill {{ p.cls }}" ng-repeat="p in x.f.countPills"><i class="fas {{ p.ic }}" aria-hidden="true"></i>{{ p.label }}</span><span class="stu-rec__work" ng-if="x.f.workText"><i class="fas fa-redo"></i>Work on: {{ x.f.workText }}</span></span>
+        <span class="stu-rec__sub" ng-if="x.f.ph">Imported from the previous system — no debrief was written for this flight.</span>
+        <span class="stu-rec__quote" ng-if="!x.f.ph && x.f.remarks">{{ x.f.remarks }}</span>
+      </span>
+      <span class="stu-rec__end"><span class="stu-rec__h">{{ x.f.hm }}</span><span class="stu-rec__hk">{{ x.f.kindWord }}</span><i class="fas fa-chevron-down stu-rec__chev" aria-hidden="true"></i></span>
+    </button>
+    <div class="ta-detail" ng-if="!x.grp && vm.R.open === x.f.id" ng-include="'views/v2/instructor_students/_rec.html'" ng-init="f = x.f"></div>
+  </div>
+  <div class="ta-empty" ng-if="vm.X.rEmpty"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No flights match</h4><p>Try another word, or show all flights.</p><button type="button" class="ta-btn" ng-click="vm.rClear()" no-busy-guard>Show all flights</button></div>
+  <div class="ins-more" ng-if="vm.X.rMore"><span>Showing the newest {{ vm.X.rMore.shown }} of {{ vm.X.rMore.total }} flights</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.rMore()" no-busy-guard data-e2e="stu-rmore">Show the other {{ vm.X.rMore.rest }}</button></div>
+</section>
+</div>

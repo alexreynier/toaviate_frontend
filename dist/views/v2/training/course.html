@@ -1,0 +1,191 @@
+<!-- v2 · Training → one course (design: mockups/my-account/training.html, page "Course").
+     State dashboard.v2.syllabus_view_course (/my_account/syllabus/:course_id) → TrnCourseV2Controller. CSS: css/v2/training.css (trn-). -->
+<main class="ta-page trn-page">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-book-open" aria-hidden="true"></i></span>
+        <div>
+          <h2>{{ vm.course.title || 'Course' }}</h2>
+          <p><span ng-show="vm.clubTitle">{{ vm.clubTitle }} · </span>{{ vm.p ? (vm.p.lessons.length ? vm.D.plural(vm.p.lessons.length, 'lesson') + (vm.p.phases.length > 1 ? ' in ' + vm.p.phases.length + ' phases' : '') : 'no lessons yet') : 'Loading the syllabus…' }}</p>
+          <span class="trn-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="trn-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account.syllabus" title="Back to Syllabus" aria-label="Back to Syllabus" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Syllabus</span></a>
+      </span>
+    </div>
+  </section>
+
+  <div class="ta-note ta-note--warn" ng-show="!vm.loading && vm.progError"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>Your progress on this course couldn't be loaded, so every lesson shows as not started. <button type="button" class="ta-link" ng-click="vm.reload()" no-busy-guard>Try again</button></div></div>
+  <div class="ta-note ta-note--bad" ng-show="vm.error">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+    <div>{{ vm.error }} The syllabus is for current members of the club; your own training records are in <a ui-sref="dashboard.my_account.training_records">Training records</a>.</div>
+  </div>
+  <section class="ta-card" ng-show="vm.loading && !vm.error" aria-busy="true"><span class="ta-skel trn-skel__h"></span><span class="ta-skel trn-skel__box"></span><span class="ta-skel trn-skel__box"></span></section>
+
+  <div class="trn-stack" ng-if="!vm.loading && vm.p">
+
+    <!-- not started: what the course is, then its syllabus -->
+    <div class="ta-note" ng-if="!vm.p.enrolled">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
+      <div><span class="trn-desc" ng-show="vm.course.description">{{ vm.course.description }} </span>You haven't started this course — it shows your progress once your instructor files your first lesson on it.</div>
+    </div>
+
+    <!-- in training: progress -->
+    <div class="ta-tiles" ng-if="vm.p.enrolled">
+      <div class="ta-tile ta-tile--progress">
+        <span class="ta-tile__k"><i class="fas fa-check-circle"></i>Lessons signed off</span>
+        <span class="ta-tile__v">{{ vm.p.signed }} <span class="trn-fig-of">of {{ vm.p.lessons.length }}</span></span>
+        <div class="ta-meter trn-tile-meter"><div class="ta-meter__bar" style="--v:{{ vm.lessonsPct() }}%"></div></div>
+        <span class="ta-tile__s">Signed off by your instructors</span>
+      </div>
+      <div class="ta-tile">
+        <span class="ta-tile__k"><i class="fas fa-clock"></i>Course hours</span>
+        <span class="ta-tile__v">{{ vm.D.hm(vm.p.totalMins) }} <span class="trn-fig-of" ng-if="vm.p.minH">of {{ vm.D.hm(vm.p.minMins) }}</span></span>
+        <div class="ta-meter trn-tile-meter" ng-if="vm.p.minH" ng-class="{'ta-meter--good': vm.p.minOver}" role="img" aria-label="{{ vm.p.minPct }}% of the course minimum"><div class="ta-meter__bar" style="--v:{{ vm.p.minPct }}%"></div></div>
+        <span class="ta-tile__s">Brakes off to on, {{ vm.D.plural(vm.p.flights.length, 'flight') }}{{ vm.p.minH ? ' · course minimum ' + vm.p.minText : '' }}</span>
+      </div>
+      <div class="ta-tile">
+        <span class="ta-tile__k"><i class="fas fa-user-friends"></i>Dual · solo</span>
+        <span class="ta-tile__v">{{ vm.D.hm(vm.p.putMins) }} <span class="trn-fig-of">· {{ vm.D.hm(vm.p.picMins) }}</span></span>
+        <span class="ta-tile__s">Dual is under training with an instructor; solo hours start with {{ vm.firstSoloLesson ? vm.D.lessonLabel(vm.firstSoloLesson) : 'your first solo' }}</span>
+      </div>
+      <div class="ta-tile">
+        <span class="ta-tile__k"><i class="fas fa-star"></i>Objectives competent</span>
+        <span class="ta-tile__v">{{ vm.p.competent }} <span class="trn-fig-of">of {{ vm.p.items }}</span></span>
+        <span class="ta-tile__s">Your latest grade on each objective · {{ vm.p.revise }} still to revise</span>
+      </div>
+    </div>
+
+    <!-- up next -->
+    <section class="ta-card" ng-if="vm.p.enrolled && vm.nextLesson" ng-class="{'ta-card--attn': vm.D.openCount(vm.nextAtt.pre)}">
+      <div class="ta-card__hd">
+        <span class="trn-mark trn-mark--lg trn-mark--next" ng-class="{'trn-mark--solo': vm.nextLesson.solo}">{{ vm.nextLesson.n }}</span>
+        <div class="ta-card__ttl">
+          <h3>{{ vm.p.complete ? 'Course complete — last lesson ' : (vm.p.repeat ? 'Up next — repeat ' : 'Up next — ') }}{{ vm.D.lessonLabel(vm.nextLesson) }}</h3>
+          <p>{{ vm.nextLesson.solo ? 'Solo' : 'Dual' }}<span ng-show="vm.nextLesson.dur"> · {{ vm.nextLesson.dur }}</span><span ng-show="vm.nextLesson.ref"> · {{ vm.nextLesson.ref }}</span></p>
+        </div>
+        <span class="ta-card__right trn-tags">
+          <span class="ta-pill ta-pill--solo" ng-show="vm.nextLesson.solo"><i class="fas fa-user"></i>Solo</span>
+          <span class="ta-pill trn-pill--check" ng-show="vm.nextLesson.cp"><i class="fas fa-flag"></i>Check point</span>
+        </span>
+      </div>
+      <p class="trn-aim" ng-show="vm.nextLesson.aim">{{ vm.nextLesson.aim }}</p>
+      <div class="ta-panel" ng-if="vm.work.length">
+        <span class="ta-sec-k">To work on — from your flight on {{ vm.D.fDay(vm.p.st[vm.p.next].last.date) }} with {{ vm.p.st[vm.p.next].last.insName }}</span>
+        <div class="trn-objs">
+          <div class="trn-obj" ng-repeat="o in vm.work">
+            <span class="trn-obj__t">{{ o.title }}</span>
+            <span class="ta-pill ta-pill--{{ o.g.tone }}"><i class="fas {{ o.g.ic }}"></i>{{ o.g.name }}</span>
+            <span class="trn-obj__r" ng-show="o.rem"><i class="fas fa-comment-alt"></i> {{ o.rem }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="ta-panel ta-panel--white" ng-if="vm.nextAtt.pre.length">
+        <span class="ta-sec-k">Before the lesson · {{ vm.D.openCount(vm.nextAtt.pre) ? (vm.D.openCount(vm.nextAtt.pre) + ' to do') : 'all done' }}</span>
+        <div class="trn-todos"><div class="trn-todo" ng-repeat="x in vm.nextAtt.pre" ng-init="attnKey = 'next'" ng-include="'views/v2/training/_todo_row.html'"></div></div>
+      </div>
+      <div class="trn-acts">
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.openLesson(vm.nextLesson)" no-busy-guard><i class="fas fa-book-reader"></i>Prepare for this lesson</button>
+        <button type="button" class="ta-btn" ui-sref="dashboard.slot_search" no-busy-guard><i class="fas fa-calendar-plus"></i>Find a slot</button>
+      </div>
+    </section>
+
+    <div ng-if="vm.showSolo && vm.reqs.length" ng-include="'views/v2/training/_presolo.html'"></div>
+
+    <!-- the syllabus -->
+    <div class="trn-sec-h">
+      <h3>Syllabus</h3>
+      <p>{{ vm.D.plural(vm.p.lessons.length, 'lesson') }}{{ vm.p.phases.length > 1 ? ' in ' + vm.p.phases.length + ' phases' : '' }}<span ng-show="vm.p.items"> · {{ vm.p.items }} objectives</span></p>
+    </div>
+    <p class="trn-desc trn-desc--clamp" ng-if="vm.p.enrolled && vm.course.description" ng-class="{'trn-desc--open': vm.aboutOpen}">{{ vm.course.description }}</p>
+    <button type="button" class="ta-link trn-desc__more" ng-if="vm.p.enrolled && vm.course.description && vm.course.description.length > 220" ng-click="vm.aboutOpen = !vm.aboutOpen" no-busy-guard>{{ vm.aboutOpen ? 'Less' : 'About this course' }} <i class="fas" ng-class="vm.aboutOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i></button>
+
+    <section class="ta-card trn-empty-card" ng-if="!vm.p.lessons.length">
+      <div class="ta-empty">
+        <span class="ta-empty__ic"><i class="fas fa-list-ol" aria-hidden="true"></i></span>
+        <h4>No lessons in this course yet</h4>
+        <p>When the club adds lessons to {{ vm.course.title }}, they appear here with their aims, briefings and objectives.</p>
+      </div>
+    </section>
+
+    <section class="ta-list trn-lessons" ng-if="vm.p.lessons.length">
+      <div class="ta-list__tools">
+        <div class="ta-chips">
+          <button type="button" class="ta-chip" ng-repeat="c in vm.chips" ng-class="{'ta-chip--on': vm.lf === c.k}" ng-click="vm.setFilter(c.k)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+        </div>
+        <label class="ta-search trn-tools-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" placeholder="Search lessons and objectives" aria-label="Search lessons and objectives" ng-model="vm.lq" ng-change="vm.search()" ng-model-options="{ debounce: 150 }"></label>
+      </div>
+      <div class="ta-list__cols"><span></span><span>Lesson</span><span></span><span>{{ vm.p.enrolled ? 'Signed off · last flown' : 'Duration' }}</span><span class="ta-r">Objectives</span><span></span></div>
+      <div class="trn-gwrap" ng-repeat="g in vm.groups">
+      <div class="ta-group"><span>{{ g.t }}</span><span>{{ vm.p.enrolled ? (g.signed + ' of ' + g.total + ' signed off') : vm.D.plural(g.total, 'lesson') }}</span></div>
+      <div class="ta-row" ng-repeat="r in g.rows" ng-class="{'trn-row--next': r.state === 'next', 'trn-row--solo': r.state === 'next' && r.l.solo}">
+        <a class="ta-row__main" ui-sref="dashboard.my_account.syllabus_view_lesson({course_id: vm.courseId, lesson_id: r.l.id})" no-busy-guard>
+          <span class="ta-row__lead">
+            <span class="trn-mark trn-mark--done" ng-if="r.state === 'done'" title="Signed off"><i class="fas fa-check"></i></span>
+            <span class="trn-mark" ng-if="r.state !== 'done'" ng-class="{'trn-mark--next': r.state === 'next', 'trn-mark--solo': r.l.solo}">{{ r.l.n }}</span>
+          </span>
+          <span class="ta-row__txt"><span class="ta-row__title"><span class="trn-code" ng-show="r.l.code">{{ r.l.code }}</span> {{ r.l.title }}</span><span class="ta-row__sub">{{ r.sub }}</span></span>
+          <span class="ta-row__meta">
+            <span class="trn-tags">
+              <span class="ta-pill trn-pill--next" ng-if="r.state === 'next'"><i class="fas fa-forward"></i>{{ vm.p.repeat ? 'Up next · repeat' : 'Up next' }}</span>
+              <span class="ta-pill ta-pill--solo" ng-if="r.l.solo"><i class="fas fa-user"></i>Solo</span>
+              <span class="ta-pill trn-pill--check" ng-if="r.l.cp"><i class="fas fa-flag"></i>Check point</span>
+            </span>
+            <span class="trn-who" ng-if="r.who"><span class="ta-av ta-av--sm" style="--av:{{ r.who.f.ins.colour || 'var(--ta-brand-2)' }}" title="{{ r.who.f.insName }} (instructor)">{{ r.who.f.ins.code }}</span>{{ r.who.t }}</span>
+            <span class="trn-who trn-who--dur" ng-if="!r.who && r.l.dur"><i class="far fa-clock"></i>{{ r.l.dur }}</span>
+            <span ng-if="!r.who && !r.l.dur"></span>
+            <span class="ta-phone-only trn-ph-fig">{{ r.fig.t }}</span>
+          </span>
+          <span class="ta-row__end"><span class="trn-graded" ng-class="{'trn-graded--none': r.fig.none}">{{ r.fig.t }}<span class="ta-meter ta-meter--good" ng-if="!r.fig.none"><span class="ta-meter__bar" style="--v:{{ r.fig.pct }}%"></span></span></span></span>
+          <span class="ta-row__acts"><i class="fas fa-chevron-right trn-go" aria-hidden="true"></i></span>
+          <span class="ta-row__chev"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+        </a>
+      </div>
+      </div>
+      <div class="ta-empty" ng-show="!vm.rows.length">
+        <span class="ta-empty__ic"><i class="fas fa-search" aria-hidden="true"></i></span>
+        <h4>No lessons match</h4>
+        <p>Try another word, or clear the filter.</p>
+        <button type="button" class="ta-btn" ng-click="vm.clearFind()" no-busy-guard>Show all lessons</button>
+      </div>
+    </section>
+
+    <div class="ta-cols ta-cols--2" ng-if="vm.exams.length || vm.attAll.length">
+      <section class="ta-card" ng-if="vm.exams.length">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon"><i class="fas fa-graduation-cap" aria-hidden="true"></i></span>
+          <div class="ta-card__ttl"><h3>Ground exams</h3><p>{{ vm.p.enrolled ? (vm.examsPassed + ' of ' + vm.exams.length + ' passed · results entered by the club') : vm.D.plural(vm.exams.length, 'theory exam') }}</p></div>
+        </div>
+        <div class="trn-todos">
+          <div class="trn-todo" ng-repeat="x in vm.exams">
+            <span class="ta-ic" ng-class="{'trn-todo__ic--done': vm.examRecs[x.id] && vm.examRecs[x.id].pass_fail == 1}"><i class="fas fa-graduation-cap" aria-hidden="true"></i></span>
+            <div>
+              <div class="trn-todo__t">{{ x.title }}</div>
+              <div class="trn-todo__s" ng-if="vm.examRecs[x.id]">{{ vm.D.fDate(vm.examRecs[x.id].date) }}<span ng-show="vm.examRecs[x.id].result"> · {{ vm.examRecs[x.id].result }}%</span><span ng-show="vm.examRecs[x.id].sitting"> · sitting {{ vm.examRecs[x.id].sitting }}</span></div>
+              <div class="trn-todo__s" ng-if="!vm.examRecs[x.id]">{{ x.description || 'Theory exam' }}</div>
+            </div>
+            <!-- the pill is the row's last grid child, as in the mockup (no wrapper) -->
+            <span class="ta-pill ta-pill--good" ng-if="vm.p.enrolled && vm.examRecs[x.id] && vm.examRecs[x.id].pass_fail == 1"><i class="fas fa-check"></i>Passed</span>
+            <span class="ta-pill ta-pill--bad" ng-if="vm.p.enrolled && vm.examRecs[x.id] && vm.examRecs[x.id].pass_fail == 0"><i class="fas fa-times"></i>Not passed</span>
+            <span class="ta-pill ta-pill--muted" ng-if="vm.p.enrolled && !vm.examRecs[x.id]">Not taken</span>
+          </div>
+        </div>
+      </section>
+      <section class="ta-card" ng-if="vm.attAll.length">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--done': !vm.D.openCount(vm.attAll)}"><i class="fas fa-folder-open" aria-hidden="true"></i></span>
+          <div class="ta-card__ttl"><h3>Course material</h3><p>Questionnaires and reading for the whole course</p></div>
+          <span class="ta-card__right">
+            <span class="ta-pill ta-pill--muted" ng-show="vm.D.openCount(vm.attAll)">{{ vm.D.openCount(vm.attAll) }} to do</span>
+            <span class="ta-pill ta-pill--good" ng-show="!vm.D.openCount(vm.attAll)"><i class="fas fa-check"></i>All done</span>
+          </span>
+        </div>
+        <div class="trn-todos"><div class="trn-todo" ng-repeat="x in vm.attAll" ng-init="attnKey = 'none'" ng-include="'views/v2/training/_todo_row.html'"></div></div>
+      </section>
+    </div>
+
+    <p class="trn-foot-note" ng-if="vm.p.enrolled"><i class="fas fa-info-circle" aria-hidden="true"></i> Every flight, grade and remark is on <button type="button" class="ta-link" ui-sref="dashboard.v2.training_records({course_id: vm.courseId})" no-busy-guard>your training records <i class="fas fa-arrow-right"></i></button></p>
+  </div>
+</main>

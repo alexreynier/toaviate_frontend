@@ -103,6 +103,10 @@
                 </td>
                 <td>
                   <span class="snazzy-table__badge snazzy-table__badge--info">{{ request.status }}</span>
+                  <!-- the member set up their Direct Debit but the first payment failed / was not confirmed: the reason, then Accept retries it (BACKEND_MEMBERSHIP_INITIAL_PAYMENT_GUIDE.md) -->
+                  <div class="mr-tier-dates" ng-if="(request.first_payment_state == 'failed' || request.first_payment_state == 'unknown')" style="color:#b45309; max-width:260px; white-space:normal;">
+                    <i class="fa fa-exclamation-triangle"></i> First payment {{ request.first_payment_state == 'unknown' ? 'not confirmed - check GoCardless first' : 'failed' }}: {{ request.first_payment_detail }}
+                  </div>
                 </td>
                 <td class="snazzy-table__td-actions">
                   <!-- Edit membership (all requests) -->
@@ -122,6 +126,10 @@
                     <i class="fa fa-check"></i>
                   </button>
                   <!-- Club-initiated requests -->
+                  <button ng-if="request.requested_by == 'club' && (request.first_payment_state == 'failed' || request.first_payment_state == 'unknown')" ng-click="accept_request(request.id)"
+                    class="snazzy-table__action-btn snazzy-table__action-btn--success" uib-tooltip="Accept - retry the first payment">
+                    <i class="fa fa-check"></i>
+                  </button>
                   <button ng-if="request.requested_by == 'club'" ng-click="delete_request(request.id)"
                     class="snazzy-table__action-btn snazzy-table__action-btn--danger" uib-tooltip="Cancel Request">
                     <i class="fa fa-trash-alt"></i>
@@ -185,6 +193,9 @@
           <div class="snazzy-mobile-card__header">
             <span class="snazzy-mobile-card__title">{{ request.first_name }} {{ request.last_name }}</span>
             <span class="snazzy-table__badge snazzy-table__badge--info">{{ request.status }}</span>
+          </div>
+          <div class="mr-tier-dates" ng-if="(request.first_payment_state == 'failed' || request.first_payment_state == 'unknown')" style="color:#b45309; padding:0 14px;">
+            <i class="fa fa-exclamation-triangle"></i> First payment {{ request.first_payment_state == 'unknown' ? 'not confirmed - check GoCardless first' : 'failed' }}: {{ request.first_payment_detail }}
           </div>
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
@@ -252,6 +263,10 @@
               <i class="fa fa-times"></i> Decline
             </button>
             <button ng-if="request.requested_by == 'user'" ng-click="accept_request(request.id)"
+              class="snazzy-page__btn snazzy-page__btn--primary" style="font-size:12px; padding:6px 14px;">
+              <i class="fa fa-check"></i> Accept
+            </button>
+            <button ng-if="request.requested_by == 'club' && (request.first_payment_state == 'failed' || request.first_payment_state == 'unknown')" ng-click="accept_request(request.id)"
               class="snazzy-page__btn snazzy-page__btn--primary" style="font-size:12px; padding:6px 14px;">
               <i class="fa fa-check"></i> Accept
             </button>

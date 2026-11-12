@@ -1,0 +1,103 @@
+<!-- v2 · Proof of ID — add / update (mockups/my-account/profile.html, page "poid-form"). PoidV2Controller.
+     Photos: ng-flow → upload.php (staged temp/…), sent as {temp_path}; kept images as {id}. -->
+<div class="pro-wrap">
+<main class="ta-page pro-page ta-page--has-bar">
+
+    <section class="ta-bar">
+        <div class="ta-bar__row">
+            <div class="ta-bar__title">
+                <span class="ta-bar__icon"><i class="fas" ng-class="vm.action === 'edit' ? 'fa-sync-alt' : 'fa-id-badge'"></i></span>
+                <div>
+                    <h2>{{ vm.action === 'edit' ? 'Update proof of ID' : 'Add proof of ID' }}</h2>
+                    <p>{{ vm.action === 'edit' ? (vm.poid.title || 'Your ID') : 'A passport or driving licence — images are encrypted' }}</p>
+                    <design-back class="pro-classic"></design-back>
+                </div>
+            </div>
+            <a class="ta-back" ui-sref="dashboard.v2.poid" aria-label="Back to Proof of ID"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Proof of ID</span></a>
+        </div>
+    </section>
+
+    <section class="ta-card" ng-if="vm.loading"><span class="ta-skel pro-skel pro-skel--40"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section>
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-id-badge"></i></span><h4>That ID isn't on your account</h4><p>It may have been removed. Go back to your proof of ID.</p>
+            <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.poid')" no-busy-guard><i class="fas fa-arrow-left"></i>Proof of ID</button></div>
+    </section>
+
+    <form class="ta-stack" ng-if="!vm.loading && !vm.loadError" novalidate ng-submit="vm.save($flow)"
+          flow-init="{target: '/upload.php'}"
+          flow-files-submitted="vm.flowRef = $flow; $flow.upload(); vm.clearErr('images')"
+          flow-file-success="$file.file_return = $message"
+          flow-file-error="vm.flowFailed($file)"
+          flow-file-added="vm.flowAdded($file)">
+
+        <div class="ta-note ta-note--warn" ng-if="vm.action === 'edit'"><i class="fas fa-redo"></i><div>Saving creates a new record, so {{ vm.clubNames || 'your clubs' }} will need to check this ID again — until then it shows as <b>Awaiting check</b>.</div></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.action === 'edit' && vm.wasExpired"><i class="fas fa-calendar-times"></i><div>This ID has expired. Add the expiry date and photos of your new one.</div></div>
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-id-card"></i></span><div class="ta-card__ttl"><h3>The document</h3><p>What it is and when it runs out</p></div></div>
+            <div class="ta-grid-2">
+                <div class="ta-field" id="field-title" ng-class="{'ta-field--error': vm.errs.title}">
+                    <label class="ta-label" for="poid-title">ID type</label>
+                    <input class="ta-input" id="poid-title" ng-model="vm.poid.title" ng-change="vm.clearErr('title')" placeholder="e.g. UK passport">
+                    <div class="pro-quick"><button type="button" class="ta-chip" ng-repeat="t in vm.types" ng-class="{'ta-chip--on': vm.poid.title === t}" ng-click="vm.setType(t)" no-busy-guard>{{ t }}</button></div>
+                    <span class="ta-field__msg" ng-if="vm.errs.title">{{ vm.errs.title }}</span>
+                </div>
+                <div class="ta-field" id="field-exp" ng-class="{'ta-field--error': vm.errs.exp}">
+                    <label class="ta-label">Expiry date</label>
+                    <ta-date-picker ng-model="vm.poid.expiry_date" block="true" format="short" placeholder="Pick the expiry date" options="vm.expOptions" ng-change="vm.clearErr('exp')"></ta-date-picker>
+                    <span class="ta-field__msg" ng-if="vm.errs.exp">{{ vm.errs.exp }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.exp">As printed on the document</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd">
+                <span class="ta-card__icon"><i class="fas fa-images"></i></span>
+                <div class="ta-card__ttl"><h3>Photos of it</h3><p>The photo page of a passport, or both sides of a licence</p></div>
+                <span class="ta-card__right" ng-if="vm.poid.id && vm.poid.images.length">
+                    <button type="button" class="ta-link" ng-if="!vm.revealed" ng-click="vm.reveal()" ng-disabled="vm.revealing" no-busy-guard><i class="fas" ng-class="vm.revealing ? 'fa-circle-notch fa-spin' : 'fa-eye'"></i>Show images</button>
+                    <button type="button" class="ta-link" ng-if="vm.revealed" ng-click="vm.hide()" no-busy-guard><i class="fas fa-eye-slash"></i>Hide</button>
+                </span>
+            </div>
+            <div class="ta-field" id="field-images" ng-class="{'ta-field--error': vm.errs.images}">
+                <button type="button" class="ta-drop" flow-btn flow-drop flow-drag-enter="vm.over = true" flow-drag-leave="vm.over = false" ng-class="{'ta-drop--over': vm.over}" no-busy-guard>
+                    <span class="ta-drop__ic"><i class="fas fa-cloud-upload-alt"></i></span>
+                    <span class="ta-drop__t">Drop photos here, or choose files</span>
+                    <span class="ta-drop__s">JPG, PNG or GIF · make sure every corner and the text are sharp</span>
+                </button>
+                <span class="ta-field__msg" ng-if="vm.errs.images">{{ vm.errs.images }}</span>
+            </div>
+            <div class="pro-thumbs pro-thumbs--lg" ng-if="vm.poid.images.length || $flow.files.length">
+                <div class="pro-thumb" ng-repeat="im in vm.poid.images">
+                    <div class="pro-doc pro-doc--img" ng-if="vm.revealed && vm.formImg(im)"><img ng-src="{{ vm.formImg(im) }}" alt="Saved image {{ $index + 1 }}"></div>
+                    <div class="pro-doc pro-doc--blur" ng-if="!(vm.revealed && vm.formImg(im))" ng-class="{'pro-doc--back': $index % 2 === 1}">
+                        <span class="pro-doc__ph"><i class="fas fa-user"></i></span><span class="pro-doc__lines"><b></b><b></b><b></b><b></b></span>
+                        <span class="pro-doc__veil"><i class="fas fa-lock"></i>Encrypted</span>
+                    </div>
+                    <button type="button" class="pro-thumb__x" ng-click="vm.removeExisting(im)" no-busy-guard aria-label="Remove saved image {{ $index + 1 }}" title="Remove"><i class="fas fa-times"></i></button>
+                    <span class="pro-thumb__name">Saved image {{ $index + 1 }}</span>
+                </div>
+                <div class="pro-thumb" ng-repeat="f in $flow.files">
+                    <div class="pro-doc pro-doc--img"><img flow-img="f" alt="{{ f.name }}">
+                        <span class="pro-up" ng-if="vm.U.upState(f) === 'up'"><span>Uploading {{ vm.U.upPct(f) }}%</span><span class="ta-meter"><span class="ta-meter__bar" ng-attr-style="--v:{{ vm.U.upPct(f) }}%"></span></span></span>
+                        <span class="pro-up pro-up--bad" ng-if="vm.U.upState(f) === 'bad'"><span><i class="fas fa-exclamation-triangle"></i> Upload failed — remove it and try again</span></span>
+                    </div>
+                    <button type="button" class="pro-thumb__x" ng-click="vm.removeNew(f, $flow)" no-busy-guard aria-label="Remove {{ f.name }}" title="Remove"><i class="fas fa-times"></i></button>
+                    <span class="pro-thumb__name">{{ f.name }}</span>
+                </div>
+            </div>
+            <p class="pro-lockhint"><i class="fas fa-lock"></i><span>Encrypted when saved. Only managers at your clubs can open them to check it's you.</span></p>
+        </section>
+
+        <div class="ta-actionbar">
+            <span class="ta-actionbar__hint">{{ vm.imgCount($flow) ? vm.U.plural(vm.imgCount($flow), 'image') + ' attached' : 'Add at least one image' }}</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.go('dashboard.my_account.poid')" no-busy-guard>Cancel</button>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.saving"><i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : 'fa-check'"></i>{{ vm.saving ? 'Saving…' : 'Save proof of ID' }}</button>
+        </div>
+    </form>
+</main>
+
+<div ng-include="'views/v2/profile/_reveal_dlg.html'"></div>
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

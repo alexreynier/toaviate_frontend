@@ -1,0 +1,43 @@
+<!-- PROGRESS (page "progress"): the syllabus, lesson by lesson, with the latest grade on each objective -->
+<section class="ta-card ins-rise" ng-if="!vm.X.p.lessons.length"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-list-ol"></i></span><h4>{{ vm.X.courseTitle }} has no lessons yet</h4><p>When the club adds lessons and objectives to this course (Manage Club → Courses), progress shows here lesson by lesson.</p></div></section>
+<div class="stu-part" ng-if="vm.X.p.lessons.length && !vm.X.flights.length" ng-include="'stu-norecords.html'"></div>
+<div class="stu-part" ng-if="vm.X.p.lessons.length && vm.X.flights.length">
+
+<section class="ta-card ins-rise" data-e2e="stu-tiles">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-tasks"></i></span><div class="ta-card__ttl"><h3>Syllabus progress</h3><p>From {{ vm.X.first }}’s records · the latest grade on each objective counts</p></div></div>
+  <div class="ta-tiles">
+    <div class="ta-tile ta-tile--progress"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>Lessons signed off</span><span class="ta-tile__v">{{ vm.X.tiles.signed }} <span class="stu-fig-of">of {{ vm.X.tiles.n }}</span></span><div class="ta-meter stu-trn-tile-meter"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.X.tiles.pct }}%"></div></div><span class="ta-tile__s">{{ vm.X.tiles.phase }}</span></div>
+    <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-star"></i>Objectives competent</span><span class="ta-tile__v">{{ vm.X.tiles.competent }} <span class="stu-fig-of">of {{ vm.X.tiles.items }}</span></span><span class="ta-tile__s">The latest grade on each objective of the course</span></div>
+    <div class="ta-tile" ng-class="{'ta-tile--attn': vm.X.tiles.revise}"><span class="ta-tile__k"><i class="fas fa-redo"></i>Still to revise</span><span class="ta-tile__v">{{ vm.X.tiles.revise }}</span><span class="ta-tile__s">Objectives whose latest grade is {{ vm.X.tiles.reviseWords }}</span></div>
+    <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-forward"></i>Up next</span><span class="ta-tile__v ta-tile__v--words">{{ vm.X.tiles.next }}</span><span class="ta-tile__s">{{ vm.X.tiles.nextSub }}</span></div>
+  </div>
+</section>
+
+<div class="ta-sh"><div><h3>Lessons</h3><p>{{ vm.C.plural(vm.X.p.lessons.length, 'lesson') }}{{ vm.X.phaseN > 1 ? ' in ' + vm.X.phaseN + ' phases' : '' }} · {{ vm.X.p.items }} objectives · open a lesson for each objective’s latest grade</p></div></div>
+<section class="ta-list stu-lessons" data-e2e="stu-lessons">
+  <div class="ta-list__tools"><div class="ta-chips"><button type="button" class="ta-chip" ng-repeat="c in vm.X.lChips track by c.k" ng-class="{'ta-chip--on': vm.Pg.chip === c.k}" aria-pressed="{{ vm.Pg.chip === c.k }}" ng-click="vm.setLChip(c.k)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button></div>
+    <label class="ta-search"><i class="fas fa-search"></i><input id="stu-lq" type="search" placeholder="Search lessons and objectives" ng-model="vm.Pg.q" ng-change="vm.lSearch()" ng-model-options="{ debounce: 120 }" aria-label="Search lessons and objectives" autocomplete="off" data-e2e="stu-lq"></label></div>
+  <div class="stu-legend"><b class="ta-sec-k">Grades</b><span class="stu-legend__i" ng-repeat="g in vm.X.legend track by g.name"><span class="ta-pill {{ g.cls }}"><i class="fas {{ g.ic }}" aria-hidden="true"></i>{{ g.name }}</span><span>{{ g.help }}</span></span></div>
+  <div class="ta-list__cols" ng-if="!vm.X.lEmpty"><span></span><span>Lesson</span><span></span><span>Signed off by · last flown</span><span class="ta-r">Objectives</span></div>
+  <div ng-repeat="x in vm.X.lItems track by x.key + ':' + vm.X.lGen" ng-class="vm.lessonCls(x)" ng-attr-id="{{ x.grp ? undefined : 'stu-l' + x.l.i }}" ng-attr-style="{{ x.grp ? undefined : '--i: ' + x.i }}">
+    <span ng-if="x.grp">{{ x.label }}</span><span ng-if="x.grp">{{ x.right }}</span>
+    <button type="button" class="ta-row__main" ng-if="!x.grp" ng-click="vm.toggleLesson(x.l)" aria-expanded="{{ vm.lessonOpenNow(x.l) }}" no-busy-guard data-e2e="stu-lesson">
+      <span class="ta-row__lead"><span class="stu-mark stu-mark--done" ng-if="x.l.state === 'done'" title="Signed off"><i class="fas fa-check"></i></span><span class="stu-mark" ng-if="x.l.state !== 'done'" ng-class="{'stu-mark--next': x.l.state === 'next', 'stu-mark--solo': x.l.solo}">{{ x.l.n }}</span></span>
+      <span class="ta-row__txt"><span class="ta-row__title"><span class="stu-code">{{ x.l.code }}</span> {{ x.l.title }}</span><span class="ta-row__sub" ng-if="x.l.hit && x.l.hit.obj">Objective: <span ng-bind-html="vm.mark(x.l.hit.obj)"></span></span><span class="ta-row__sub" ng-if="!(x.l.hit && x.l.hit.obj)">{{ x.l.sub }}</span></span>
+      <span class="ta-row__meta"><span class="stu-tags"><span class="ta-pill {{ p.cls }}" ng-repeat="p in x.l.tags"><i class="fas {{ p.ic }}" ng-if="p.ic" aria-hidden="true"></i>{{ p.label }}</span></span><span class="stu-who" ng-if="x.l.who"><span class="ta-av ta-av--sm" ng-if="x.l.who.av" ng-attr-style="--av:{{ x.l.who.av.colour }}" title="{{ x.l.who.av.title }}">{{ x.l.who.av.code }}</span>{{ x.l.who.t }}</span><span ng-if="!x.l.who"></span><span class="ta-phone-only stu-ph-fig">{{ x.l.fig }}</span></span>
+      <span class="ta-row__end"><span class="stu-graded" ng-class="{'stu-graded--none': x.l.end.none}">{{ x.l.end.t }}<span class="ta-meter ta-meter--good" ng-if="!x.l.end.none"><span class="ta-meter__bar" ng-attr-style="--v:{{ x.l.end.pct }}%"></span></span></span></span>
+      <span class="ta-row__chev"><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+    </button>
+    <div class="ta-detail" ng-if="!x.grp && vm.lessonOpenNow(x.l)">
+      <div class="ta-panel ta-panel--white" ng-if="x.l.nObj"><span class="ta-sec-k">Latest grade on each objective · {{ x.l.gradedN }} of {{ x.l.nObj }} graded</span><div class="stu-objs">
+        <div class="stu-obj" ng-repeat="o in x.l.objs"><span class="stu-obj__t" ng-bind-html="vm.mark(o.t)"></span><span class="stu-obj__n" ng-if="o.none">Not graded yet</span><span class="ta-pill {{ o.pill.cls }}" ng-if="!o.none"><i class="fas {{ o.pill.ic }}" aria-hidden="true"></i>{{ o.pill.label }}</span>
+          <span class="stu-obj__d" ng-if="!o.none"><span>{{ o.day }}</span><span class="ta-ac" ng-if="o.reg" ng-attr-style="{{ o.acColour ? '--ac:' + o.acColour : undefined }}" title="{{ o.acTitle }}">{{ o.reg }}<span ng-if="o.acType">{{ o.acType }}</span></span><span class="stu-who" ng-if="o.insName"><span class="ta-av ta-av--sm" ng-if="o.av" ng-attr-style="--av:{{ o.av.colour }}" title="{{ o.av.title }}">{{ o.av.code }}</span>{{ o.insName }}</span><span ng-if="o.by">entered by {{ o.by }}</span></span>
+          <span class="stu-obj__r" ng-if="!o.none && o.rem"><i class="fas fa-comment-alt"></i> {{ o.rem }}</span></div>
+      </div></div>
+      <div class="ta-note" ng-if="!x.l.nObj"><i class="fas fa-info-circle"></i><div>{{ x.l.code }} has no objectives to grade. A general remark, or signing it off, records it.</div></div>
+      <div class="ta-detail__foot"><span class="ta-hint">{{ x.l.aim }}</span><span class="ta-sp"></span><button type="button" class="ta-btn" ng-if="x.l.nRecs" ng-click="vm.lessonFlights(x.l)" no-busy-guard><i class="fas fa-plane"></i>{{ vm.C.plural(x.l.nRecs, 'flight') }} on {{ x.l.code }}</button></div>
+    </div>
+  </div>
+  <div class="ta-empty" ng-if="vm.X.lEmpty"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No lessons match</h4><p>Try another word, or clear the filter.</p><button type="button" class="ta-btn" ng-click="vm.lClear()" no-busy-guard>Show all lessons</button></div>
+</section>
+</div>

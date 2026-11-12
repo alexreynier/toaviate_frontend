@@ -1,0 +1,154 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 · Reminders (My details hub → Reminders) — mockups/my-account/home.html, page "Reminders".
+     RemindersV2Controller (js/v2/home/home.js) · RemindersService / EmailLogService / MemberService / InstructorService
+     (v1's calls) · css/v2/home.css (.hm-*). Each change saves as it is made.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="hm-reminders">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-user"></i></span>
+        <div><h2>My details</h2><p>Choose which reminder emails you get, and when</p></div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="ta-tabs" role="tablist" aria-label="My details">
+        <button type="button" class="ta-tab" ng-click="vm.go('dashboard.my_account.manage')" no-busy-guard role="tab" aria-selected="false"><i class="fas fa-id-card"></i>Details</button>
+        <button type="button" class="ta-tab" ng-click="vm.go('dashboard.my_account.security')" no-busy-guard role="tab" aria-selected="false"><i class="fas fa-lock"></i>Security</button>
+        <button type="button" class="ta-tab" ng-click="vm.go('dashboard.my_account.nok')" no-busy-guard role="tab" aria-selected="false"><i class="fas fa-user-friends"></i>Next of kin</button>
+        <button type="button" class="ta-tab ta-tab--on" no-busy-guard role="tab" aria-selected="true"><i class="fas fa-bell"></i>Reminders</button>
+      </div>
+      <span class="v2b-tools"><design-back></design-back></span>
+    </div>
+  </section>
+
+  <!-- loading -->
+  <div class="hm-loading" ng-if="vm.loading" aria-label="Loading your reminder settings">
+    <div class="ta-card"><div class="ta-skel hm-skel--t"></div><div class="ta-skel hm-skel--b"></div></div>
+    <div class="ta-cols ta-cols--rail">
+      <div class="ta-card"><div class="ta-skel hm-skel--t"></div><div class="ta-skel hm-skel--b"></div><div class="ta-skel hm-skel--b"></div><div class="ta-skel hm-skel--b"></div></div>
+      <div class="ta-card"><div class="ta-skel hm-skel--t"></div><div class="ta-skel hm-skel--b"></div></div>
+    </div>
+  </div>
+
+  <!-- load failed -->
+  <section class="ta-card" ng-if="!vm.loading && vm.loadFailed">
+    <div class="ta-empty">
+      <span class="ta-empty__ic hm-ic-bad"><i class="fas fa-bell-slash"></i></span>
+      <h4>We couldn't load your reminders</h4>
+      <p>The connection to ToAviate dropped. Nothing has changed — try again in a moment.</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+    </div>
+  </section>
+
+  <!-- master switch -->
+  <label class="ta-toggle hm-master" ng-if="!vm.loading && !vm.loadFailed" data-e2e="hm-master">
+    <input type="checkbox" class="ta-toggle__input" ng-model="vm.muteAll" ng-change="vm.toggleMute()" ng-disabled="vm.muteSaving">
+    <span class="hm-ic"><i class="fas" ng-class="vm.muteAll ? 'fa-bell-slash' : 'fa-envelope-open-text'"></i></span>
+    <span class="ta-toggle__txt">
+      <span class="ta-toggle__t">Send me no reminder or notification emails
+        <span class="ta-pill ta-pill--bad" ng-if="vm.muteAll"><i class="fas fa-ban"></i>All off</span>
+        <span class="hm-saved" role="status" ng-if="vm.saved === 'master'"><i class="fas fa-check-circle"></i>Saved</span>
+      </span>
+      <span class="ta-toggle__s">Turns off every reminder (booking, expiry, aircraft, daily summaries) and every notification (new bookings, shared course material). You still get the emails you need to act on: invoices, invitations, password resets and confirmations of your own bookings.</span>
+      <span class="hm-meta" ng-if="vm.masterMeta()"><i class="fas fa-history"></i><span>{{ vm.masterMeta() }}</span></span>
+    </span>
+    <span class="ta-switch"></span>
+  </label>
+  <div class="ta-note ta-note--warn" ng-if="!vm.loading && !vm.loadFailed && vm.muteAll"><i class="fas fa-ban"></i><div><b>All reminder and notification emails are off.</b> The settings below are kept, and apply again as soon as you switch this off.</div></div>
+
+  <div class="ta-cols ta-cols--rail" ng-if="!vm.loading && !vm.loadFailed">
+    <div class="ta-stack">
+      <!-- expiry reminders -->
+      <section class="ta-card" ng-class="{'hm-dim': vm.muteAll}">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-hourglass-half"></i></span><div class="ta-card__ttl"><h3>Expiry reminders</h3><p>Emails before something on file runs out</p></div></div>
+        <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>Each time is a reminder <b>band</b> — for example 30, 14 and 1 days before, plus on the day. Everything due on the same day arrives as <b>one daily email</b>. Changes save as you make them.</div></div>
+        <div class="hm-rems">
+          <div class="hm-rem" ng-repeat="p in vm.prefs track by p.reminder_type" ng-class="{'hm-rem--off': !p._on}" data-e2e="hm-rem-{{ p.reminder_type }}">
+            <label class="ta-toggle">
+              <input type="checkbox" class="ta-toggle__input" ng-model="p._on" ng-change="vm.toggleType(p)" ng-disabled="vm.saving[p.reminder_type]">
+              <span class="hm-ic hm-ic--sm"><i class="fas" ng-class="vm.icon(p.reminder_type)"></i></span>
+              <span class="ta-toggle__txt">
+                <span class="ta-toggle__t">{{ p.label }}<span class="hm-saved" role="status" ng-if="vm.saved === p.reminder_type"><i class="fas fa-check-circle"></i>Saved</span></span>
+                <span class="ta-toggle__s">{{ p.description }}</span>
+                <span class="hm-rem__hint" ng-if="vm.hint(p.reminder_type)"><i class="fas fa-lightbulb"></i><span>{{ vm.hint(p.reminder_type) }}</span></span>
+              </span>
+              <span class="ta-switch"></span>
+            </label>
+            <div class="hm-rem__sum" ng-if="p._on && vm.openType !== p.reminder_type">
+              <span class="hm-rem__when"><i class="far fa-clock"></i><span>{{ vm.summary(p.offsets_days) }}</span></span>
+              <span class="ta-pill ta-pill--muted" ng-if="p.is_default == 1">Default times</span>
+              <span class="ta-pill ta-pill--info" ng-if="p.is_default != 1">Your times</span>
+              <button type="button" class="ta-link" ng-click="vm.openTimes(p)" no-busy-guard aria-expanded="false">Change times <i class="fas fa-chevron-down"></i></button>
+            </div>
+            <div class="hm-rem__body" ng-if="p._on && vm.openType === p.reminder_type">
+              <div class="hm-rem__k">
+                <span class="ta-sec-k">Days before it runs out</span>
+                <span class="ta-pill ta-pill--muted" ng-if="p.is_default == 1">Default times</span>
+                <button type="button" class="ta-link" ng-if="p.is_default != 1" ng-click="vm.resetToDefault(p)"><i class="fas fa-undo"></i>Reset to default</button>
+              </div>
+              <div class="hm-offs">
+                <span class="hm-off" ng-repeat="o in p.offsets_days track by o">{{ vm.offChip(o) }}<button type="button" class="hm-off__x" ng-click="vm.removeOffset(p, o)" title="Remove this reminder time" aria-label="Remove {{ vm.offWord(o) | lowercase }}">×</button></span>
+                <span class="hm-add" ng-class="{'ta-field--error': vm.err && vm.err.type === p.reminder_type}">
+                  <input class="ta-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" id="hm-add-{{ p.reminder_type }}" placeholder="Days"
+                         aria-label="Days before, for a new {{ p.label | lowercase }} reminder" ng-model="vm.newOff[p.reminder_type]" ng-keydown="vm.addKey($event, p)">
+                  <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.addOffset(p)"><i class="fas fa-plus"></i>Add</button>
+                </span>
+              </div>
+              <span class="ta-field__msg" ng-if="vm.err && vm.err.type === p.reminder_type">{{ vm.err.msg }}</span>
+              <div class="hm-rem__done"><span class="ta-hint">Each change saves straight away.</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openTimes(null)" no-busy-guard aria-expanded="true"><i class="fas fa-check"></i>Done</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="ta-rail ta-stack">
+      <!-- booking emails, per club -->
+      <section class="ta-card" ng-class="{'hm-dim': vm.muteAll}">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-calendar-check"></i></span><div class="ta-card__ttl"><h3>Booking emails</h3><p>Set per club — turn one off for a club and keep it for another</p></div></div>
+        <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>Instructors also set booking notifications and the daily schedule summary here.</div></div>
+        <div class="hm-skel-rows" ng-if="vm.bookingLoading" aria-label="Loading your clubs"><div class="ta-skel"></div><div class="ta-skel"></div></div>
+        <div class="ta-note" ng-if="!vm.bookingLoading && !vm.clubs.length"><i class="fas fa-info-circle"></i><div>You don't have a club membership yet, so there are no booking emails to set.</div></div>
+        <div class="ta-panel hm-club" ng-repeat="m in vm.clubs track by m.id">
+          <div class="hm-club__hd">
+            <span class="hm-ic hm-ic--sm"><i class="fas" ng-class="m.instructor == 1 ? 'fa-chalkboard-teacher' : 'fa-plane'"></i></span>
+            <span class="hm-club__nm"><b>{{ m.club_name }}</b><small>{{ m.membership_name }}</small></span>
+            <span class="ta-tag" ng-if="m.instructor == 1"><i class="fas fa-chalkboard-teacher"></i>Instructor</span>
+            <span class="hm-saved" role="status" ng-if="vm.saved === 'club' + m.id"><i class="fas fa-check-circle"></i>Saved</span>
+          </div>
+          <div class="ta-note ta-note--warn" ng-if="m._loadFailed"><i class="fas fa-exclamation-triangle"></i><div>We couldn't load this club's settings.
+            <div class="hm-retry"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.retryClub(m)" ng-disabled="m._retrying" no-busy-guard><i class="fas" ng-class="m._retrying ? 'fa-circle-notch fa-spin' : 'fa-redo'"></i>Try again</button></div></div></div>
+          <label class="ta-toggle" ng-repeat="pref in m._prefs track by pref.key" aria-disabled="{{ m._loadFailed ? 'true' : 'false' }}">
+            <input type="checkbox" class="ta-toggle__input" ng-model="pref.on" ng-change="vm.toggleBooking(m, pref)" ng-disabled="m._loadFailed">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas ta-muted" ng-class="pref.icon"></i>{{ pref.label }}</span><span class="ta-toggle__s">{{ pref.desc }}</span></span>
+            <span class="ta-switch"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- recently sent -->
+      <section class="ta-card ta-card--flush">
+        <button type="button" class="hm-hist__hd" ng-click="vm.toggleHistory()" no-busy-guard aria-expanded="{{ vm.histOpen }}">
+          <span class="ta-card__icon"><i class="fas fa-history"></i></span>
+          <span class="ta-card__ttl"><h3>Recently sent</h3><p>The last 30 reminder emails we sent you</p></span>
+          <i class="fas fa-chevron-down hm-hist__chev"></i>
+        </button>
+        <div class="hm-hist__body" ng-if="vm.histOpen">
+          <div class="hm-skel-rows" ng-if="vm.histLoading" aria-label="Loading"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+          <div class="ta-empty" ng-if="!vm.histLoading && !vm.history.length"><span class="ta-empty__ic"><i class="fas fa-envelope"></i></span><h4>No reminder emails yet</h4><p>When we email you about something running out, it's listed here.</p></div>
+          <div class="hm-hrow" ng-repeat="h in vm.history">
+            <span class="hm-ic hm-ic--sm"><i class="fas" ng-class="vm.icon(h.reminder_type)"></i></span>
+            <span>
+              <span class="hm-hrow__t">{{ vm.histLabel(h.reminder_type) }}</span>
+              <span class="hm-hrow__s">{{ vm.histLine(h) }}</span>
+              <span class="hm-hrow__d" ng-if="h.sent_at">Sent {{ vm.histWhen(h.sent_at) }}</span>
+            </span>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>

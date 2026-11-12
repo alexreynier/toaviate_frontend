@@ -1,0 +1,92 @@
+<!-- EDIT A RECORD (page "edit"): the debrief's form as this design draws it (stu-ox objective rows, the stu-grade bar in the club's
+     colours, stu-tag tags: css/v2/instructor-students.css), pre-filled by the debrief's data logic (DebriefV2Data.scale),
+     plus what only an edit needs — the lesson move warning and the reason for the edit. Save files a new version. -->
+<section class="ta-bar">
+  <div class="ta-bar__row">
+    <div class="ta-bar__title"><span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-pen"></i></span><div><ins-tag></ins-tag><h2>Edit training record</h2><p ng-if="vm.E.st === 'ready'">{{ vm.X.name }} · {{ vm.C.fDay(vm.E.f.date) }} · <span class="ta-nowrap">{{ vm.E.f.reg }}</span> · {{ vm.E.f.hm }} {{ vm.E.f.role === 'solo' ? 'solo' : 'dual' }} with {{ vm.E.f.insName || 'the instructor' }}</p><p ng-if="vm.E.st !== 'ready'">{{ vm.X.name }} · opening the record…</p></div></div>
+    <span class="stu-v2back"><design-back></design-back></span>
+    <a class="ta-back" href="" ng-click="vm.edCancel()" aria-label="Back to {{ vm.X.first }}’s flights" data-e2e="stu-edback"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">{{ vm.X.first }}’s flights</span></a>
+  </div>
+  <div class="stu-v2row ta-phone-only"><design-back></design-back></div>
+</section>
+
+<div class="stu-part" ng-if="vm.E.st === 'loading'">
+  <section class="ta-card" aria-busy="true"><div class="stu-skel__card"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></div></section>
+  <section class="ta-card" aria-hidden="true"><div class="stu-skel" ng-repeat="i in [0, 1, 2, 3]"><span class="ta-skel stu-skel__av"></span><span class="stu-skel__txt"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></span><span class="ta-skel stu-skel__bar"></span></div></section>
+</div>
+
+<div class="stu-part stu-edit" ng-if="vm.E.st === 'ready'">
+<div class="ta-note ta-note--info ins-rise"><i class="fas fa-history"></i><div>Saving files a new version of this record with your name and reason; the original stays in its history. {{ vm.X.first }} sees the changes in My Training.</div></div>
+
+<!-- the lesson this record is filed under -->
+<section class="ta-card ins-rise" style="--i: 1" data-e2e="stu-e-lesson">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-chalkboard-teacher"></i></span><div class="ta-card__ttl"><h3>Lesson</h3><p>The lesson this record is filed under</p></div></div>
+  <div class="ta-pickf"><button type="button" class="ta-pick" ng-click="vm.edPick('lesson')" aria-haspopup="listbox" aria-expanded="{{ vm.E.pick === 'lesson' }}" no-busy-guard data-e2e="stu-e-pick"><span class="ta-pick__ic"><i class="fas fa-book"></i></span><span class="ta-pick__txt"><span class="ta-pick__nm">{{ vm.E.L ? vm.E.L.code + ' · ' + vm.E.L.title : 'Choose the lesson' }}</span><span class="ta-pick__sub">{{ vm.E.moved && vm.E.origL ? 'Moved from ' + vm.E.origL.code + ' ' + vm.E.origL.title : 'As filed · ' + vm.C.plural(vm.E.nl, 'objective') }}</span></span><span class="ta-pick__end">Change <i class="fas fa-chevron-down"></i></span></button>
+    <div class="stu-part" ng-if="vm.E.pick === 'lesson'" ng-include="'stu-pickmenu.html'"></div></div>
+  <div class="ta-note ta-note--warn" ng-if="vm.E.moved"><i class="fas fa-exclamation-triangle"></i><div class="stu-moved"><b>You are moving this record from {{ vm.E.origL ? vm.E.origL.code : 'its lesson' }} to {{ vm.E.L.code }}.</b><span>The objectives graded on {{ vm.E.origL ? vm.E.origL.code : 'the old lesson' }} stay on this record, under that lesson. Give a reason for the move below.</span></div></div>
+</section>
+
+<!-- the objectives: the debrief's grade bar per objective, click a grade again to clear it -->
+<section class="ta-card ins-rise" style="--i: 2" id="stu-e-objs" data-e2e="stu-e-objs">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-bullseye"></i></span><div class="ta-card__ttl"><h3>Objectives</h3><p>{{ vm.E.nl ? vm.C.plural(vm.E.nl, 'objective') + ' on ' + vm.E.L.code + ' · click a grade again to clear it' : (vm.E.L ? vm.E.L.code : 'This lesson') + ' has no objectives' }}</p></div><span class="ta-card__right"><span class="stu-hd-k">{{ vm.edScaleWords() }}</span></span></div>
+  <div class="stu-etools"><div class="ta-scope"><div class="ta-scope__set" role="group" aria-label="Show"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.E.scope !== 'course'}" ng-click="vm.edScope('lesson')" no-busy-guard>This record</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.E.scope === 'course'}" ng-click="vm.edScope('course')" no-busy-guard data-e2e="stu-e-whole">Whole course</button></div></div>
+    <label class="ta-search"><i class="fas fa-search"></i><input id="stu-eq" type="search" placeholder="Search the whole course" ng-model="vm.E.q" ng-change="vm.edQ()" ng-model-options="{ debounce: 120 }" aria-label="Search objectives across the whole course" autocomplete="off"></label></div>
+  <div class="stu-prog" ng-if="vm.E.nl"><i class="fas fa-adjust"></i>{{ vm.E.gl }} of {{ vm.E.nl }} graded on {{ vm.E.L.code }}<div class="ta-meter" ng-class="{'ta-meter--good': vm.E.gl === vm.E.nl}"><div class="ta-meter__bar" ng-attr-style="--v: {{ vm.E.pct }}%"></div></div></div>
+  <div class="ta-field" ng-if="!vm.E.none" ng-class="{'ta-field--error': vm.E.err === 'empty'}"><div class="stu-objsx">
+    <!-- a lesson heading per group (shown when there is more than this record's lesson), then its objectives -->
+    <button type="button" class="stu-oxh" ng-repeat-start="gr in vm.E.groups track by gr.id" ng-show="vm.E.heads" ng-click="vm.edGroup(gr)" aria-expanded="{{ gr.open }}" no-busy-guard><span>{{ gr.name }}<span ng-if="gr.isThis"> <span class="ta-pill ta-pill--info">This record’s lesson</span></span></span><span>{{ gr.count }} <i class="fas fa-chevron-right"></i></span></button>
+    <div class="stu-part" ng-repeat-end>
+      <div class="stu-ox" ng-repeat="o in (gr.open ? gr.rows : []) track by o.it.id" ng-class="{'stu-ox--graded': vm.E.g[o.it.id], 'stu-ox--cleared': vm.edCleared(o.it)}" ng-attr-style="{{ vm.edGradeOf(o.it).vars || undefined }}" data-e2e="stu-e-obj">
+        <span class="stu-ox__n" aria-hidden="true"><i class="fas fa-check" ng-if="vm.E.g[o.it.id]"></i>{{ vm.E.g[o.it.id] ? '' : o.idx }}</span>
+        <div class="stu-ox__t"><b ng-bind-html="vm.edMark(o.it.t)"></b><span class="stu-ox__k stu-ox__k--bad" ng-if="vm.edCleared(o.it)">Grade cleared · was {{ vm.edWas(o.it) }}</span><span class="stu-ox__k" ng-if="!vm.E.g[o.it.id] && !vm.edCleared(o.it)">Not graded</span><button type="button" class="stu-ox__quote" ng-if="vm.E.rmOpen !== o.it.id && vm.edRmText(o.it)" ng-click="vm.edRmOpen(o.it)" title="Edit the remark" no-busy-guard><i class="fas fa-comment-dots"></i><span>{{ vm.E.rm[o.it.id] }}</span></button><button type="button" class="ta-link stu-ox__add" ng-if="vm.E.rmOpen !== o.it.id && !vm.edRmText(o.it)" ng-click="vm.edRmOpen(o.it)" no-busy-guard><i class="fas fa-plus"></i>Remark</button></div>
+        <div class="stu-grade" role="radiogroup" aria-label="Grade: {{ o.it.t }}" ng-attr-style="--n: {{ vm.E.scale.length }}"><button type="button" class="stu-grade__o" ng-repeat="g in vm.E.scale track by g.id" ng-class="{'stu-grade__o--plain': !g.c}" role="radio" aria-checked="{{ vm.E.g[o.it.id] == g.id }}" ng-click="vm.edGrade(o.it, g)" title="{{ g.t }}{{ vm.E.g[o.it.id] == g.id ? ' · click again to clear' : '' }}" ng-attr-style="{{ g.vars || undefined }}" no-busy-guard data-e2e="stu-e-g{{ $index + 1 }}"><i class="fas" ng-class="vm.E.g[o.it.id] == g.id ? 'fa-check' : g.ic"></i><span>{{ g.t }}</span></button></div>
+        <div class="stu-ox__rm" ng-if="vm.E.rmOpen === o.it.id"><textarea class="ta-textarea" id="stu-rm-{{ o.it.id }}" ng-model="vm.E.rm[o.it.id]" placeholder="Remark on “{{ o.it.t }}” (optional)"></textarea><div class="stu-etools"><span class="ta-hint">Kept with this objective on the record.</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.edRmDone()" no-busy-guard>Done</button></div></div>
+      </div>
+    </div>
+  </div><span class="ta-field__msg" ng-if="vm.E.err === 'empty'">Grade at least one objective, or write a general remark below.</span></div>
+  <div class="ta-empty" ng-if="vm.E.none"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No objective matches ‘{{ vm.E.q }}’</h4><p>Search looks through every lesson on {{ vm.X.courseTitle }}.</p><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.edQClear()" no-busy-guard>Clear the search</button></div>
+</section>
+
+<!-- general remarks -->
+<section class="ta-card ins-rise" style="--i: 3">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-comment-dots"></i></span><div class="ta-card__ttl"><h3>General remarks</h3><p>What went well and what to work on · {{ vm.X.first }} sees this</p></div></div>
+  <div class="ta-field" ng-class="{'ta-field--error': vm.E.err === 'empty'}"><label class="ta-label" for="stu-erem">Remarks for {{ vm.X.first }}’s record</label><textarea class="ta-textarea" id="stu-erem" ng-model="vm.E.remarks" ng-change="vm.edRemarks()" data-e2e="stu-erem"></textarea></div>
+</section>
+
+<!-- flight tags -->
+<section class="ta-card ins-rise" style="--i: 4">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-tags"></i></span><div class="ta-card__ttl"><h3>Flight tags</h3><p>Count this flight towards a tagged requirement · optional</p></div></div>
+  <div class="stu-tags-list" ng-if="vm.E.tags.length"><div class="stu-tag" ng-repeat="t in vm.E.tags track by t.fid"><span class="stu-tag__nm"><i class="fas fa-tag"></i>{{ t.title }}</span><button type="button" class="ta-ib" ng-click="vm.edTagDel(t)" aria-label="Remove {{ vm.tagName(t.title) }}" title="Remove" no-busy-guard><i class="fas fa-times"></i></button>
+    <div class="stu-tag__ctl"><div class="ta-scope"><div class="ta-scope__set" role="group" aria-label="How much of the flight"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': t.whole}" ng-click="vm.edTagWhole(t, true)" no-busy-guard>Whole flight · {{ vm.C.hmMin(vm.E.maxMin) }}</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': !t.whole}" ng-click="vm.edTagWhole(t, false)" no-busy-guard>Part of it</button></div></div>
+      <span class="ta-stepper" ng-if="!t.whole"><button type="button" class="ta-stepper__b" ng-click="vm.edTagMin(t, -5)" aria-label="5 minutes less" ng-disabled="t.min <= 5" no-busy-guard><i class="fas fa-minus"></i></button><span class="ta-stepper__n" aria-live="polite">{{ vm.C.hmMin(t.min) }}</span><button type="button" class="ta-stepper__b" ng-click="vm.edTagMin(t, 5)" aria-label="5 minutes more" ng-disabled="t.min >= vm.E.maxMin" no-busy-guard><i class="fas fa-plus"></i></button></span></div></div></div>
+  <div class="ta-field" ng-if="vm.E.tagsAvail.length"><span class="ta-label">{{ vm.E.tags.length ? 'Add another tag' : 'Add a tag' }}</span><div class="stu-chipadd"><button type="button" class="ta-chip" ng-repeat="t in vm.E.tagsAvail track by t.id" ng-click="vm.edTagAdd(t)" no-busy-guard><i class="fas fa-plus"></i>{{ vm.tagName(t.title) }}</button></div></div>
+  <span class="ta-hint" ng-if="!vm.E.tagsAll.length">{{ vm.X.courseTitle }} has no flight tags.</span>
+</section>
+
+<!-- lesson status: decides what the student flies next -->
+<section class="ta-card ins-rise" style="--i: 5">
+  <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-flag-checkered"></i></span><div class="ta-card__ttl"><h3>Lesson status</h3><p>Decides what {{ vm.X.first }} flies next</p></div></div>
+  <div class="ta-seg ta-seg--row" style="--seg-n:2" role="radiogroup" aria-label="Lesson status"><button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.E.status === 'done'}" role="radio" aria-checked="{{ vm.E.status === 'done' }}" ng-click="vm.edStatus('done')" no-busy-guard data-e2e="stu-e-done"><i class="fas fa-check-circle"></i>Completed</button><button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.E.status === 'repeat'}" role="radio" aria-checked="{{ vm.E.status === 'repeat' }}" ng-click="vm.edStatus('repeat')" no-busy-guard data-e2e="stu-e-repeat"><i class="fas fa-redo"></i>Not completed</button></div>
+  <div class="ta-field" ng-if="vm.E.status === 'done'"><span class="ta-label">Next lesson</span><div class="ta-pickf"><button type="button" class="ta-pick" ng-click="vm.edPick('next')" aria-haspopup="listbox" aria-expanded="{{ vm.E.pick === 'next' }}" no-busy-guard data-e2e="stu-e-next"><span class="ta-pick__ic"><i class="fas fa-forward"></i></span><span class="ta-pick__txt"><span class="ta-pick__nm">{{ vm.E.N ? vm.E.N.code + ' · ' + vm.E.N.title : 'Choose the next lesson' }}</span><span class="ta-pick__sub">{{ vm.E.next === 'order' ? 'Next in the course' : 'Chosen by you' }}</span></span><span class="ta-pick__end">Change <i class="fas fa-chevron-down"></i></span></button>
+    <div class="stu-part" ng-if="vm.E.pick === 'next'" ng-include="'stu-pickmenu.html'"></div></div></div>
+  <span class="ta-hint" ng-if="vm.E.status !== 'done'">{{ vm.X.first }} repeats {{ vm.E.L ? vm.E.L.code : 'this lesson' }} next.</span>
+</section>
+
+<!-- the reason for this edit: kept in the record's history; required when the lesson moves -->
+<section class="ta-card ins-rise" style="--i: 6">
+  <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.E.moved}"><i class="fas fa-history"></i></span><div class="ta-card__ttl"><h3>Reason for this edit</h3><p>Kept in the record’s history for the audit trail</p></div><span class="ta-card__right"><span class="ta-req" ng-if="vm.E.moved">Required</span><span class="stu-hd-k" ng-if="!vm.E.moved">Optional</span></span></div>
+  <div class="ta-field" ng-class="{'ta-field--error': vm.E.err === 'reason'}" id="field-edit-reason"><label class="ta-label" for="stu-ereason">Why is the record changing?</label><textarea class="ta-textarea" id="stu-ereason" maxlength="1000" ng-model="vm.E.reason" ng-change="vm.edReason()" placeholder="e.g. Filed under the wrong lesson; graded the flare after reviewing the track" data-e2e="stu-ereason"></textarea><span class="ta-field__msg" ng-if="vm.E.err === 'reason'">You moved this record to another lesson: say why.</span></div>
+</section>
+
+<div class="ta-actionbar stu-ebar"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.edCancel()" no-busy-guard data-e2e="stu-e-cancel">Cancel</button><span class="ta-actionbar__hint ta-desk-only">{{ vm.E.hint }}</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.edSave()" ng-disabled="vm.E.saving" data-e2e="stu-e-save"><span class="ta-spin" ng-if="vm.E.saving"></span><i class="fas fa-check" ng-if="!vm.E.saving"></i>{{ vm.E.saving ? 'Saving…' : 'Save changes' }}</button></div>
+</div>
+
+<!-- the lesson picker's menu (picker A): a dropdown under the field on desktop, a bottom sheet on phones -->
+<script type="text/ng-template" id="stu-pickmenu.html">
+  <div class="ta-pickmenu-scrim" ng-click="vm.edPickClose()"></div>
+  <div class="ta-pickmenu" role="dialog" aria-label="{{ vm.E.pick === 'lesson' ? 'This record’s lesson' : 'Next lesson' }}" data-e2e="stu-e-pickmenu"><div class="ta-pickmenu__grab"></div><div class="ta-pickmenu__hd"><b>{{ vm.E.pick === 'lesson' ? 'This record’s lesson' : 'Next lesson' }}</b><button type="button" class="ta-dlg__x" ng-click="vm.edPickClose()" aria-label="Close" no-busy-guard>×</button></div>
+    <div class="ta-pickmenu__top"><label class="ta-search"><i class="fas fa-search"></i><input id="stu-pq" type="search" autocomplete="off" placeholder="Search lessons, e.g. stall or A13" ng-model="vm.E.pq" ng-change="vm.edPickQ()" ng-keydown="vm.edPickKey($event)" aria-label="Search lessons"></label></div>
+    <ul class="ta-pickmenu__list" role="listbox"><li class="ta-pickmenu__opt" ng-repeat="r in vm.E.pickRows track by r.l.id" ng-class="{'ta-pickmenu__opt--hi': $index === vm.E.pickHi}" role="option" aria-selected="{{ r.on }}" ng-click="vm.edPickDo(r)" data-e2e="stu-e-pickopt"><span class="ta-pickmenu__txt"><span class="ta-pickmenu__t">{{ r.t }}</span><span class="ta-pickmenu__s" ng-class="{'ta-pickmenu__s--good': r.good}">{{ r.s }}</span></span><i class="fas fa-check ta-pickmenu__chk" ng-if="r.on"></i></li>
+      <li class="ta-pickmenu__empty" ng-if="!vm.E.pickRows.length"><b>No lesson matches</b><span>Try a word from the title, or the code ({{ vm.X.p.lessons[0].code }}).</span></li></ul>
+    <div class="ta-pickmenu__foot"><span>{{ vm.C.plural(vm.X.p.lessons.length, 'lesson') }} in {{ vm.X.courseTitle }}</span></div></div>
+</script>

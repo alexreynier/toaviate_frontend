@@ -1,0 +1,170 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 · My Account home ("Home — v2 compact") — mockups/my-account/home.html.
+     HomeV2Controller (js/v2/home/home.js) · css/v2/home.css (.hm-* / .hmc-*). Every tile and link of v1's
+     views/my_account/home.html is here (gates are v1's), grouped.
+     The "Needs you" chips, "All up to date", the tiles' live lines and badges come from my_account/v2/summary (C29).
+     The "Get ready to fly" checklist (new members) is the summary's checklist (C31).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="hm-home">
+
+  <!-- ── page bar (a hub: no hero) ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-user-circle"></i></span>
+        <div><h2>My Account</h2><p>{{ vm.user.first_name }} {{ vm.user.last_name }} · {{ vm.longToday() }}</p></div>
+      </div>
+      <span class="hmc-baracts">
+        <span class="hmc-attn__k hmc-attn__k--ok" ng-if="vm.acct && !vm.attn.length && !vm.setup" data-e2e="hm-uptodate"><i class="fas fa-check-circle"></i>All up to date</span>
+        <span class="v2b-inline"><design-back></design-back></span>
+        <button type="button" class="ta-btn hm-bar-btn" ng-if="vm.showBooking()" ng-click="vm.bookFlight()" no-busy-guard title="Book a flight in the scheduler" aria-label="Book a flight"><i class="fas fa-calendar-plus"></i><span class="ta-desk-only">Book a flight</span></button>
+      </span>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.attn.length">
+      <div class="hmc-attn" role="group" aria-label="Needs your attention" data-e2e="hm-attn">
+        <span class="hmc-attn__k"><i class="fas fa-exclamation-circle"></i>Needs you · {{ vm.attn.length }}</span>
+        <div class="hmc-attn__set">
+          <button type="button" class="hmc-chip hmc-chip--{{ a.tone }}" ng-repeat="a in vm.attnShown() track by $index" ng-click="vm.attnGo(a)" no-busy-guard title="{{ a.sub }}" data-e2e="hm-chip"><span class="hmc-chip__ic"><i class="fas" ng-class="a.icon"></i></span>{{ a.title }}<span class="hmc-chip__go">{{ a.label }}<i class="fas fa-arrow-right"></i></span></button>
+          <button type="button" class="hmc-chip hmc-chip--more" ng-if="vm.attn.length > 3" ng-click="vm.attnAll = !vm.attnAll" no-busy-guard>{{ vm.attnAll ? 'Show fewer' : '+' + (vm.attn.length - 3) + ' more' }}</button>
+        </div>
+      </div>
+    </div>
+    <div class="v2b-row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── payment-mode switch banner (v1's rule, dismissal remembered per switch) ── -->
+  <div class="hm-banner" ng-class="{'hm-banner--info': !vm.payment_switch_banner.is_live}" role="status" ng-if="vm.payment_switch_banner">
+    <span class="ta-ic" ng-class="vm.payment_switch_banner.is_live ? 'ta-ic--warn' : 'ta-ic--group'"><i class="fas fa-credit-card"></i></span>
+    <div class="hm-banner__txt">
+      <b ng-if="vm.payment_switch_banner.is_live">{{ vm.payment_switch_banner.club_name }} has switched to live payments</b>
+      <span ng-if="vm.payment_switch_banner.is_live">Your old card and direct debit there were removed. Add a card or set up direct debit again to keep paying for flights.</span>
+      <b ng-if="!vm.payment_switch_banner.is_live">{{ vm.payment_switch_banner.club_name }} is now in test mode</b>
+      <span ng-if="!vm.payment_switch_banner.is_live">Payments are in test mode. Add demo payment details to keep going.</span>
+      <div class="hm-banner__acts">
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.go('dashboard.my_account.payment_methods.add')" no-busy-guard><i class="fas fa-plus"></i>Add a card</button>
+        <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.go('dashboard.my_account.memberships')" no-busy-guard><i class="fas fa-university"></i>Set up direct debit</button>
+      </div>
+    </div>
+    <button type="button" class="ta-ib" ng-click="vm.dismiss_payment_switch_banner()" no-busy-guard title="Hide this message" aria-label="Hide this message"><i class="fas fa-times"></i></button>
+  </div>
+
+  <!-- ── "Get ready to fly" (new members, C31): one line with the next step; "All steps" opens the checklist ── -->
+  <section class="ta-card hmc-setup" aria-label="Get ready to fly" ng-if="vm.setup && !vm.setupAll" data-e2e="hm-setup">
+    <div class="hmc-setup__row"><span class="ta-card__icon"><i class="fas fa-clipboard-check"></i></span>
+      <div class="hmc-setup__txt"><b>Get ready to fly · {{ vm.setup.done }} of {{ vm.setup.n }} done</b><span>{{ vm.setup.next ? 'Next: ' + vm.setup.next.t : 'All the club needs is done' }}</span><div class="ta-meter"><div class="ta-meter__bar" style="--v:{{ vm.setup.pct }}%"></div></div></div>
+      <div class="hmc-setup__acts"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="vm.setup.next" ng-click="vm.stepGo(vm.setup.next)" no-busy-guard data-e2e="hm-setup-next">{{ vm.setup.next.act }}</button><button type="button" class="ta-link" ng-click="vm.setupAll = true" no-busy-guard data-e2e="hm-setup-all-btn">All steps <i class="fas fa-chevron-down"></i></button></div>
+    </div>
+  </section>
+  <section class="ta-card" aria-label="Get ready to fly" ng-if="vm.setup && vm.setupAll" data-e2e="hm-setup-all">
+    <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-check"></i></span><div class="ta-card__ttl"><h3>Get ready to fly</h3><p>A few things the club needs before your first lesson</p></div></div>
+    <div class="hm-progress"><div class="hm-progress__k"><span>{{ vm.setup.done }} of {{ vm.setup.n }} done</span><span>{{ vm.setup.left }} to go</span></div><div class="ta-meter"><div class="ta-meter__bar" style="--v:{{ vm.setup.pct }}%"></div></div></div>
+    <div class="hm-steps">
+      <div class="hm-step" ng-repeat="s in vm.setup.steps track by s.key" ng-class="{'hm-step--done': s.done}" data-e2e="hm-step">
+        <span class="hm-step__dot" aria-hidden="true"><i class="fas fa-check" ng-if="s.done"></i>{{ s.done ? '' : $index + 1 }}</span>
+        <span><span class="hm-step__t">{{ s.t }}<span class="ta-pill ta-pill--good" ng-if="s.done"><i class="fas fa-check"></i>Done</span><span class="ta-pill ta-pill--muted" ng-if="!s.done && s.later">Later</span></span><span class="hm-step__s">{{ s.s }}</span></span>
+        <button type="button" class="ta-btn ta-btn--sm" ng-if="!s.done" ng-class="{'ta-btn--primary': s === vm.setup.next}" ng-click="vm.stepGo(s)" no-busy-guard>{{ s.act }}</button>
+      </div>
+    </div>
+    <div><button type="button" class="ta-link" ng-click="vm.setupAll = false" no-busy-guard>Show less <i class="fas fa-chevron-up"></i></button></div>
+  </section>
+
+  <!-- ── Today: one row per thing to do, then "Coming up" ── -->
+  <section class="ta-card hmc-today" aria-label="Today" ng-if="vm.showBooking() || vm.rows.length" data-e2e="hm-today">
+    <div class="hmc-today__hd">
+      <h3><span class="hmc-dot" aria-hidden="true"></span>Today <span>{{ vm.D.fDay(vm.today) }}<span ng-if="vm.todayCount"> · {{ vm.todayCount }} {{ vm.todayCount === 1 ? 'flight' : 'flights' }}</span></span></h3>
+      <button type="button" class="ta-link" ng-if="!vm.comingUp.length && vm.showBooking()" ng-click="vm.go('dashboard.my_account.upcoming_bookings')" no-busy-guard>All bookings <i class="fas fa-arrow-right"></i></button>
+    </div>
+
+    <div class="hmc-quiet" ng-if="vm.loading"><div class="ta-skel hm-skel-row"></div></div>
+    <div class="hmc-quiet" ng-if="!vm.loading && vm.loadFailed">
+      <i class="fas fa-exclamation-triangle"></i><span>We couldn't load today's flights.</span>
+      <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+    </div>
+    <div class="hmc-quiet" ng-if="!vm.loading && !vm.loadFailed && !vm.rows.length">
+      <i class="fas fa-plane"></i><span>{{ vm.setup ? 'Your first booking shows here on the day, with the button to book out.' : 'No flights booked.' }}</span>
+      <button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="vm.showBooking() && !vm.setup" ng-click="vm.bookFlight()" no-busy-guard><i class="fas fa-calendar-plus"></i>Book a flight</button>
+    </div>
+    <div class="hmc-quiet" ng-if="!vm.loading && vm.rows.length && vm.rows[0].type === 'next'"><i class="fas fa-mug-hot"></i><span>No flights today. Next one:</span></div>
+
+      <div class="hmc-row" ng-repeat-start="r in vm.rows track by r.key" ng-class="{'hmc-row--lead': r.lead}" role="group" aria-label="{{ r.title }}, {{ r.b.aircraft.reg }}, {{ vm.D.fTime(r.b.start) }}–{{ vm.D.fTime(r.b.end) }}" data-e2e="hm-row">
+        <span class="hmc-kind"><span class="ta-kind ta-kind--sm ta-kind--{{ r.b.kind }}" title="{{ vm.D.kindLabel(r.b.kind) }}"><i class="fas" ng-class="vm.D.kindIcon(r.b.kind)"></i></span></span>
+        <span class="hmc-time"><b>{{ vm.D.fTime(r.b.start) }}–{{ vm.D.fTime(r.b.end) }}</b><span>{{ vm.D.dayWord(r.b.start, vm.today) }} · {{ vm.dur(r.b.minutes) }}</span></span>
+        <span class="hmc-main">
+          <span class="hmc-main__t">{{ r.title }}<span ng-if="r.sub"> · {{ r.sub }}</span></span>
+          <span class="hmc-meta">
+            <span class="ta-ac" ng-if="r.b.aircraft" style="{{ r.b.aircraft.colour ? '--ac: ' + r.b.aircraft.colour : '' }}" title="{{ r.b.aircraft.reg }}{{ r.b.aircraft.model ? ' · ' + r.b.aircraft.model : '' }}">{{ r.b.aircraft.reg }}<span ng-if="r.b.aircraft.type">{{ r.b.aircraft.type }}</span></span>
+            <span class="hmc-who" ng-if="r.role === 'instructor'"><span class="ta-av ta-av--sm ta-av--member" title="Student"><i class="fas fa-user"></i></span>{{ r.b.pilot.name || 'Student' }}</span>
+            <span class="hmc-who" ng-if="r.role !== 'instructor' && r.b.instructor"><span class="ta-av ta-av--sm" style="{{ r.b.instructor.colour ? '--av: ' + r.b.instructor.colour : '' }}" title="{{ r.b.instructor.name }} (instructor)">{{ r.b.instructor.code }}</span>{{ r.b.instructor.name }}</span>
+            <span class="hmc-who" ng-if="r.role !== 'instructor' && !r.b.instructor && !r.b._whoUnknown"><span class="ta-av ta-av--sm ta-av--member"><i class="fas fa-user"></i></span>Just you</span>
+            <span class="ta-route" ng-if="r.type === 'bookout' && (r.from || r.to)"><b class="ta-icao" ng-if="r.from.code">{{ r.from.code }}</b><span ng-if="r.from.name">{{ r.from.name }}</span><i class="fas fa-long-arrow-alt-right"></i><b class="ta-icao" ng-if="r.to.code">{{ r.to.code }}</b><span ng-if="r.to.name">{{ r.to.name }}</span></span>
+            <span class="hmc-fact" ng-if="r.type === 'bookout'"><i class="fas fa-plane-departure"></i>{{ r.outAt ? 'Out ' + r.outAt + ' · ' : '' }}back by {{ vm.D.fTime(r.b.end) }}</span>
+            <span class="hmc-fact" ng-if="r.type === 'bookout' && r.pob"><i class="fas fa-users"></i>{{ r.pob }} on board</span>
+            <span class="hmc-fact" ng-if="r.type === 'topay' && r.blockedBy"><i class="fas fa-info-circle"></i>Book in {{ r.blockedBy }} first</span>
+            <span class="hmc-fact" ng-if="(r.type === 'booking' || r.type === 'next') && r.waiting"><i class="fas fa-hourglass-half"></i>{{ r.b.waiting_list > 0 ? 'On the waiting list — book out once it moves across' : 'Book out once it\'s confirmed' }}</span>
+          </span>
+        </span>
+        <span class="hmc-pill"><span class="ta-pill ta-pill--{{ r.state.tone }}"><i class="fas" ng-class="r.state.icon"></i>{{ r.state.label }}</span></span>
+        <span class="hmc-acts">
+          <!-- in the air -->
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'bookout'" ng-class="{'ta-btn--primary': r.lead}" ng-click="vm.act(r, 'bookin')" no-busy-guard data-e2e="hm-bookin"><i class="fas fa-plane-arrival"></i>Book in</button>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="r.type === 'bookout'" ng-click="vm.askCancelBookout(r)" no-busy-guard>Cancel book-out</button>
+          <!-- booked in, not paid -->
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'topay'" ng-class="{'ta-btn--primary': r.lead && !r.blockedBy}" ng-disabled="!!r.blockedBy" title="{{ r.blockedBy ? 'Book in ' + r.blockedBy + ' first' : '' }}" ng-click="vm.act(r, 'finish')" no-busy-guard><i class="fas fa-receipt"></i>Finish &amp; pay</button>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'topay'" ng-click="vm.act(r, 'leg')" no-busy-guard>Another leg</button>
+          <!-- split -->
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'split'" ng-class="{'ta-btn--primary': r.lead}" ng-click="vm.act(r, 'split')" no-busy-guard><i class="fas fa-code-branch"></i>Complete the split</button>
+          <!-- today's booking -->
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'booking' && r.role === 'instructor'" ng-class="{'ta-btn--primary': r.lead}" ng-click="vm.act(r, 'brief')" no-busy-guard><i class="fas fa-chalkboard-teacher"></i>Brief {{ vm.D.firstName(r.b.pilot.name) || 'student' }}</button>
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'booking' && r.role !== 'instructor' && !r.waiting && r.b.can_book_out" ng-class="{'ta-btn--primary': r.lead}" ng-click="vm.act(r, 'bookout')" no-busy-guard data-e2e="hm-bookout"><i class="fas fa-plane-departure"></i>Book out</button>
+          <!-- the next one (nothing today) -->
+          <button type="button" class="ta-btn ta-btn--sm" ng-if="r.type === 'next'" ng-class="{'ta-btn--primary': r.lead}" ng-click="vm.act(r, 'sched')" no-busy-guard><i class="fas fa-calendar-alt"></i>Show on the scheduler</button>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="(r.type === 'booking' || r.type === 'next' || r.type === 'split') && r.b.can_cancel" ng-click="vm.startCancel(r)" no-busy-guard data-e2e="hm-cancel">Cancel</button>
+        </span>
+      </div>
+      <div class="hmc-confirm" ng-repeat-end ng-show="r.type === 'bookout' && vm.cbo === r.key">
+        <div class="ta-confirm" role="group" aria-label="Confirm cancelling the book-out" ng-if="r.type === 'bookout' && vm.cbo === r.key">
+          <span><b>Cancel the book-out?</b> The flight record is deleted and the booking goes back to “ready to book out”.</span>
+          <div class="ta-confirm__btns">
+            <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepBookout()" no-busy-guard ng-disabled="vm.cboBusy">Keep it</button>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.cancelBookout(r)" ng-disabled="vm.cboBusy" data-e2e="hm-cbo-yes">Cancel book-out</button>
+          </div>
+        </div>
+      </div>
+
+    <div class="hmc-next" ng-if="vm.comingUp.length">
+      <span class="hmc-next__k">Coming up</span>
+      <div class="hmc-next__set">
+        <button type="button" class="hmc-up" ng-repeat="u in vm.comingUp track by u.id" ng-class="{'hmc-up--pend': vm.D.notFinal(u)}" ng-click="vm.openUp(u)" no-busy-guard title="{{ vm.D.state(u).label }}">
+          <span class="ta-kind ta-kind--{{ u.kind }}"><i class="fas" ng-class="vm.D.kindIcon(u.kind)"></i></span>{{ vm.D.fDay(u.start) }} · {{ vm.D.fTime(u.start) }}<span class="hmc-up__ac" ng-if="u.aircraft">{{ u.aircraft.reg }}</span>
+          <span class="ta-av ta-av--member" ng-if="u.role === 'instructor'" title="{{ u.pilot.name }} (student)"><i class="fas fa-user"></i></span>
+          <span class="ta-av" ng-if="u.role !== 'instructor' && u.instructor" style="{{ u.instructor.colour ? '--av: ' + u.instructor.colour : '' }}" title="{{ u.instructor.name }} (instructor)">{{ u.instructor.code }}</span>
+        </button>
+      </div>
+      <button type="button" class="ta-link" ng-click="vm.go('dashboard.my_account.upcoming_bookings')" no-busy-guard>All bookings <i class="fas fa-arrow-right"></i></button>
+    </div>
+  </section>
+
+  <!-- ── the sections: v1's tiles, grouped ── -->
+  <div class="ta-sh"><div><h3>Your account</h3><p>{{ vm.acct ? 'Every part of My Account, with what\'s going on in each' : 'Every part of My Account' }}</p></div></div>
+  <div class="hm-groups">
+    <section class="ta-card hm-group" ng-repeat="g in vm.groups track by g.label" aria-label="{{ g.label }}">
+      <div class="hm-group__k"><i class="fas" ng-class="g.ic"></i><span class="ta-sec-k">{{ g.label }}</span></div>
+      <div class="hm-tile" ng-repeat="t in g.tiles track by t.k" ng-class="{'hm-tile--quiet': t.quiet}" data-e2e="hm-tile-{{ t.k }}">
+        <button type="button" class="hm-tile__main" ng-click="vm.tile(t)" no-busy-guard>
+          <span class="hm-ic"><i class="fas" ng-class="t.ic"></i></span>
+          <span>
+            <span class="hm-tile__t">{{ t.t }}</span>
+            <span class="hm-tile__s" ng-if="t.s" ng-class="t.tone ? 'hm-tile__s--' + t.tone : ''"><i class="fas" ng-if="t.toneIcon" ng-class="t.toneIcon"></i>{{ t.s }}</span>
+            <span class="hm-tile__s hm-tile__s--inside ta-phone-only" ng-if="!t.s && t.inside">{{ t.inside }}</span>
+          </span>
+          <span class="hm-tile__end"><span class="hm-badge" ng-if="t.badge > 0" title="{{ t.badgeTitle }}" data-e2e="hm-badge-{{ t.k }}">{{ t.badge }}</span><i class="fas fa-chevron-right"></i></span>
+        </button>
+        <div class="hm-tile__links" ng-if="t.links.length">
+          <button type="button" class="hm-sub" ng-repeat="l in t.links" ng-click="vm.go(l[1])" no-busy-guard>{{ l[0] }}</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <bkg-cancel-dialog ng-if="vm.cx" booking="vm.cx" viewer-id="vm.user.id" on-done="vm.cancelled(result)" on-close="vm.closeCancel()"></bkg-cancel-dialog>
+</main>

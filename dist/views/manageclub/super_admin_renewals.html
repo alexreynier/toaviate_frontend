@@ -1,0 +1,199 @@
+<!-- Super-admin → Membership Renewals (SuperAdminRenewalsController).
+     Automatic membership renewals run for every club; ToAviate staff pause a club
+     that is not ready. Backend: BACKEND_MEMBERSHIP_RENEWALS_GUIDE.md §7. -->
+
+<!-- Access denied (non-staff deep link) -->
+<div class="sa-security sa-security--denied" ng-if="!vm.is_staff">
+    <i class="fas fa-user-shield"></i>
+    <h3>ToAviate staff only</h3>
+    <p>This area is restricted to platform administrators.</p>
+</div>
+
+<div class="sa-security sa-renewals" ng-if="vm.is_staff">
+
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.super_admin"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+            <div class="snazzy-page__title">
+                <h2><i class="fas fa-sync-alt"></i> Membership Renewals &amp; Direct Debit Collection</h2>
+                <p>Both run for every club — pause a club that is not ready</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- the global kill switch (server config) -->
+    <div class="sec-banner sa-renewals__banner--off" ng-if="!vm.loading && vm.disabled">
+        <i class="fas fa-power-off sec-banner__icon"></i>
+        <div>
+            <b>Automatic renewals are switched OFF for every club</b> (<code>MEMBERSHIP_RENEWALS_DISABLED</code> in the
+            server configuration). Nobody is charged or sent a renewal e-mail until it is removed — the pauses below
+            apply once it is.
+        </div>
+    </div>
+    <!-- the Direct Debit collection's kill switch (server config) — BACKEND_DD_COLLECTION_GUIDE.md §7 -->
+    <div class="sec-banner sa-renewals__banner--off" ng-if="!vm.loading && vm.ddDisabled">
+        <i class="fas fa-power-off sec-banner__icon"></i>
+        <div>
+            <b>The Direct Debit collection is switched OFF for every club</b> (<code>DD_COLLECTION_DISABLED</code> in the
+            server configuration). No queued invoice is collected until it is removed — earlier unconfirmed collections
+            are still checked with GoCardless. The collection pauses below apply once it is.
+        </div>
+    </div>
+    <div class="sec-banner" ng-if="!vm.loading && !vm.ddMigrated">
+        <i class="fas fa-database sec-banner__icon"></i>
+        <div><b>The Direct Debit collection tables are not migrated yet</b> — nothing is collected until the migrations have run.</div>
+    </div>
+    <div class="sec-banner" ng-if="!vm.loading && !vm.migrated">
+        <i class="fas fa-database sec-banner__icon"></i>
+        <div><b>The database is not migrated yet</b> — renewals do not run, and clubs cannot be paused, until the migrations have run.</div>
+    </div>
+
+    <div class="sec-card sa-renewals__intro">
+        <div class="sec-card__head">
+            <i class="fas fa-info-circle sec-card__icon"></i>
+            <div>
+                <h3 class="sec-card__title">How it works</h3>
+                <p class="sec-card__sub">Members with automatic renewal on, on a paid monthly / quarterly / annual membership</p>
+            </div>
+        </div>
+        <div class="sec-card__body">
+            <p class="sec-card__text">
+                <b>Running:</b> each member is e-mailed the amount and the date at least the club's reminder days before
+                anything is taken (Direct Debit or card), and charged from 7 days before their membership ends — never
+                after it has ended. Someone who can no longer be told in time is asked to renew by hand.
+            </p>
+            <p class="sec-card__text">
+                <b>Paused:</b> nobody in the club is charged or renewed automatically. Members whose membership would
+                have renewed are e-mailed that it will not renew automatically (and the club's digest lists them). A member
+                already told "it renews" and then "it will not" is not charged for that period even if you resume.
+            </p>
+            <p class="sec-card__text">
+                <b>Direct Debit collection</b> (a separate switch): on the club's billing day every invoice queued for Direct
+                Debit is collected — one GoCardless payment per member, however old the invoices. An invoice that matches a
+                GoCardless payment not linked to any invoice is <b>held</b> (never collected) until the club links, releases or
+                voids it. <b>Paused:</b> nothing is collected for the club; its queued invoices wait (and are all collected
+                at the first billing day after you resume).
+            </p>
+        </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+        <div class="sec-spinner"></div>
+        <span>Loading clubs…</span>
+    </div>
+
+    <div class="sec-card sa-renewals__list" ng-if="!vm.loading">
+        <div class="sec-card__head">
+            <i class="fas fa-building sec-card__icon"></i>
+            <div>
+                <h3 class="sec-card__title">Clubs</h3>
+                <p class="sec-card__sub">{{ vm.clubs.length }} clubs · renewals {{ vm.pausedCount() }} paused · Direct Debit collection {{ vm.ddPausedCount() }} paused</p>
+            </div>
+            <input type="text" class="sec-modal__input sa-renewals__search" ng-model="vm.search" placeholder="Search clubs…" />
+        </div>
+        <div class="sec-card__body">
+
+            <!-- inline confirmation -->
+            <div class="sa-security__confirm sa-renewals__confirm" ng-if="vm.confirm">
+                <div class="sec-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div ng-if="vm.confirm.kind === 'dd' && vm.confirm.paused">
+                        <b>Pause the Direct Debit collection for {{ vm.confirm.club.title }}?</b>
+                        Nothing is collected for the club until you resume; its queued invoices
+                        ({{ vm.confirm.club.dd_queued }}) wait.
+                    </div>
+                    <div ng-if="vm.confirm.kind === 'dd' && !vm.confirm.paused">
+                        <b>Resume the Direct Debit collection for {{ vm.confirm.club.title }}?</b>
+                        On its next billing day every queued invoice ({{ vm.confirm.club.dd_queued }}, {{ vm.confirm.club.dd_queued_total | number:2 }})
+                        is collected ({{ vm.confirm.club.payment_mode === 'live' ? 'LIVE — real money' : 'sandbox' }}).
+                    </div>
+                    <div ng-if="vm.confirm.kind !== 'dd' && vm.confirm.paused">
+                        <b>Pause automatic renewals for {{ vm.confirm.club.title }}?</b>
+                        Nobody there will be charged or renewed automatically; members whose renewal is coming up are
+                        e-mailed that it will not renew automatically.
+                    </div>
+                    <div ng-if="vm.confirm.kind !== 'dd' && !vm.confirm.paused">
+                        <b>Resume automatic renewals for {{ vm.confirm.club.title }}?</b>
+                        Members are e-mailed {{ vm.confirm.club.renewal_reminder_days }} days before any charge
+                        ({{ vm.confirm.club.payment_mode === 'live' ? 'LIVE — real money' : 'sandbox' }}).
+                    </div>
+                </div>
+                <div class="sa-security__reset-actions">
+                    <button class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.saving">Cancel</button>
+                    <button class="sec-btn" ng-class="vm.confirm.paused ? 'sec-btn--danger' : 'sec-btn--primary'"
+                            ng-click="vm.runToggle()" ng-disabled="vm.saving">
+                        {{ vm.saving ? 'Saving…' : (vm.confirm.paused ? 'Yes, pause' : 'Yes, resume') }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="sa-renewals__table-wrap">
+                <table class="sa-renewals__table">
+                    <thead>
+                        <tr>
+                            <th>Club</th>
+                            <th>Mode</th>
+                            <th>Takes</th>
+                            <th class="sa-renewals__num" title="Approved members with automatic renewal on, on a paid monthly / quarterly / annual membership that is still running">Auto-renew (paid)</th>
+                            <th class="sa-renewals__num">Ending ≤ 30 days</th>
+                            <th class="sa-renewals__num">Reminder days</th>
+                            <th>Renewals</th>
+                            <th></th>
+                            <th title="Invoices queued for Direct Debit / held as possible duplicates / collections GoCardless has not confirmed yet">Direct Debit collection</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="c in vm.clubs | filter:vm.matches track by c.id" ng-class="{'sa-renewals__row--paused': c.renewals_paused == 1}">
+                            <td><b>{{ c.title }}</b> <span class="sa-renewals__id">#{{ c.id }}</span></td>
+                            <td><span class="sec-pill" ng-class="c.payment_mode === 'live' ? 'sec-pill--on' : 'sec-pill--off'">{{ c.payment_mode || '—' }}</span></td>
+                            <td>
+                                <span ng-if="c.has_gocardless == 1">Direct Debit</span><span ng-if="c.has_gocardless == 1 && c.has_stripe == 1"> · </span><span ng-if="c.has_stripe == 1">Card</span>
+                                <span class="sa-renewals__muted" ng-if="c.has_gocardless != 1 && c.has_stripe != 1">neither</span>
+                            </td>
+                            <td class="sa-renewals__num">{{ c.auto_renew_paid }}</td>
+                            <td class="sa-renewals__num">{{ c.due_30 }}</td>
+                            <td class="sa-renewals__num">{{ c.renewal_reminder_days }}</td>
+                            <td>
+                                <span class="sec-pill sec-pill--on" ng-if="c.renewals_paused != 1"><span class="sec-pill__dot"></span> Running</span>
+                                <span class="sec-pill sa-renewals__pill--paused" ng-if="c.renewals_paused == 1"><span class="sec-pill__dot"></span> Paused</span>
+                                <div class="sa-renewals__muted" ng-if="c.renewals_paused_at">
+                                    {{ c.renewals_paused == 1 ? 'paused' : 'resumed' }} {{ c.renewals_paused_at | limitTo:16 }}<span ng-if="c.renewals_paused_by_name"> by {{ c.renewals_paused_by_name }}</span>
+                                </div>
+                            </td>
+                            <td class="sa-renewals__action">
+                                <button class="sec-btn" ng-class="c.renewals_paused == 1 ? 'sec-btn--primary' : 'sec-btn--danger-outline'"
+                                        ng-click="vm.askToggle(c)" ng-disabled="vm.saving || !vm.migrated">
+                                    <i class="fas" ng-class="c.renewals_paused == 1 ? 'fa-play' : 'fa-pause'"></i>
+                                    {{ c.renewals_paused == 1 ? 'Resume' : 'Pause' }}
+                                </button>
+                            </td>
+                            <td>
+                                <span class="sec-pill sec-pill--on" ng-if="c.dd_collection_paused != 1"><span class="sec-pill__dot"></span> Running</span>
+                                <span class="sec-pill sa-renewals__pill--paused" ng-if="c.dd_collection_paused == 1"><span class="sec-pill__dot"></span> Paused</span>
+                                <div class="sa-renewals__muted">
+                                    {{ c.billing_cycle || 'no billing cycle' }} · {{ c.dd_queued }} queued<span ng-if="c.dd_queued > 0"> ({{ c.dd_queued_total | number:2 }})</span>
+                                    <span ng-if="c.dd_held > 0"> · <b>{{ c.dd_held }} held</b></span>
+                                    <span ng-if="c.dd_unconfirmed > 0"> · <b>{{ c.dd_unconfirmed }} unconfirmed</b></span>
+                                </div>
+                                <div class="sa-renewals__muted" ng-if="c.dd_last_run">last run {{ c.dd_last_run.cycle_date | limitTo:10 }}<span ng-if="!c.dd_last_run.completed_at"> (open)</span></div>
+                                <div class="sa-renewals__muted" ng-if="c.dd_collection_paused_at">
+                                    {{ c.dd_collection_paused == 1 ? 'paused' : 'resumed' }} {{ c.dd_collection_paused_at | limitTo:16 }}<span ng-if="c.dd_collection_paused_by_name"> by {{ c.dd_collection_paused_by_name }}</span>
+                                </div>
+                            </td>
+                            <td class="sa-renewals__action">
+                                <button class="sec-btn" ng-class="c.dd_collection_paused == 1 ? 'sec-btn--primary' : 'sec-btn--danger-outline'"
+                                        ng-click="vm.askDdToggle(c)" ng-disabled="vm.saving || !vm.ddMigrated">
+                                    <i class="fas" ng-class="c.dd_collection_paused == 1 ? 'fa-play' : 'fa-pause'"></i>
+                                    {{ c.dd_collection_paused == 1 ? 'Resume' : 'Pause' }}
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>

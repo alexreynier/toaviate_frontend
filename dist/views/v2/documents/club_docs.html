@@ -1,0 +1,220 @@
+<!-- v2 · Club documents hub: Documents + Price list (design: mockups/my-account/vouchers-documents.html).
+     States dashboard.v2.all_documents / all_prices → ClubDocsV2Controller (js/v2/documents/documents.js). CSS: css/v2/documents.css (vd-). -->
+<main class="ta-page vd-page">
+
+  <!-- ── page bar: title, tabs, club scope, search ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-building" aria-hidden="true"></i></span>
+        <div>
+          <h2>Club documents</h2>
+          <p>Your clubs' documents, aircraft paperwork and price list</p>
+          <span class="vd-v2 ta-phone-only"><design-back></design-back></span>
+        </div>
+      </div>
+      <span class="vd-bar-end"><span class="ta-desk-only"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" title="Back to My Account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+      </span>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="ta-tabs" role="tablist" aria-label="Club documents">
+        <button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.page === 'documents'}" role="tab" aria-selected="{{ vm.page === 'documents' }}" ng-click="vm.go('dashboard.v2.all_documents')" no-busy-guard><i class="fas fa-folder-open" aria-hidden="true"></i>Documents<span class="ta-tab__n" ng-show="!vm.loading">{{ vm.view.total }}</span></button>
+        <button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.page === 'prices'}" role="tab" aria-selected="{{ vm.page === 'prices' }}" ng-click="vm.go('dashboard.v2.all_prices')" no-busy-guard><i class="fas fa-tags" aria-hidden="true"></i>Price list</button>
+      </div>
+      <div class="ta-scope" ng-show="vm.clubs.length > 1">
+        <span class="ta-scope__k">Showing</span>
+        <div class="ta-scope__set" role="group" aria-label="Club">
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.club === 'all'}" aria-pressed="{{ vm.club === 'all' }}" ng-click="vm.setClub('all')" no-busy-guard>All clubs</button>
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs" ng-class="{'ta-scope__opt--on': vm.club == c.id}" aria-pressed="{{ vm.club == c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c.title }}</button>
+        </div>
+      </div>
+      <label class="ta-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="search" autocomplete="off" ng-model="vm.q" ng-change="vm.recompute()" ng-model-options="{ debounce: 150 }"
+               placeholder="{{ vm.page === 'documents' ? 'Search documents' : 'Search prices' }}" aria-label="{{ vm.page === 'documents' ? 'Search documents' : 'Search prices' }}">
+      </label>
+    </div>
+  </section>
+
+  <!-- ── loading / error ── -->
+  <section class="ta-list vd-skel" ng-show="vm.loading" aria-busy="true" aria-label="Loading">
+    <div class="vd-skel__row"><span class="ta-skel vd-skel__ic"></span><span class="ta-skel vd-skel__t"></span></div>
+    <div class="vd-skel__row"><span class="ta-skel vd-skel__ic"></span><span class="ta-skel vd-skel__t"></span></div>
+    <div class="vd-skel__row"><span class="ta-skel vd-skel__ic"></span><span class="ta-skel vd-skel__t vd-skel__t--short"></span></div>
+  </section>
+  <div class="ta-note ta-note--bad vd-note" ng-show="!vm.loading && vm.error">
+    <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+    <div class="vd-note__body">{{ vm.error }}</div>
+    <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.reload()"><i class="fas fa-redo"></i>Try again</button>
+  </div>
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.clubs.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-building" aria-hidden="true"></i></span>
+      <h4>You're not a member of a club yet</h4>
+      <p>When you join a club, its documents, terms and prices appear here.</p>
+    </div>
+  </section>
+
+  <!-- ════════ DOCUMENTS ════════ -->
+  <div class="vd-stack" ng-if="vm.page === 'documents' && !vm.loading && !vm.error && vm.clubs.length">
+
+    <div class="ta-note ta-note--info vd-note" ng-show="vm.view.changed.length">
+      <i class="fas fa-bell" aria-hidden="true"></i>
+      <div class="vd-note__body">
+        <b>{{ vm.F.plural(vm.view.changed.length, 'document') }} new or changed since your last visit</b> on {{ vm.F.fDate(vm.seen.last) }}<span ng-show="vm.view.changed.length <= 2">: <span ng-repeat="d in vm.view.changed">{{ d.title }} ({{ d.club.title }}){{ $last ? '.' : ', ' }}</span></span><span ng-show="vm.view.changed.length > 2"> — marked below.</span>
+      </div>
+      <button type="button" class="ta-btn ta-btn--sm vd-note__act" ng-click="vm.markAllSeen()" no-busy-guard><i class="fas fa-check"></i>Mark as seen</button>
+    </div>
+
+    <section class="ta-list vd-club" ng-repeat="card in vm.view.cards">
+      <div class="vd-club__hd">
+        <span class="vd-well"><i class="fas fa-building" aria-hidden="true"></i></span>
+        <div class="vd-club__ttl"><h3>{{ card.club.title }}</h3><p ng-show="card.club.icao"><b class="ta-icao">{{ card.club.icao }}</b>{{ card.club.airfield }}</p></div>
+        <span class="vd-club__n">{{ vm.view.q ? (card.shown + ' of ' + card.total) : vm.F.plural(card.total, 'document') }}</span>
+      </div>
+
+      <div class="vd-club__empty" ng-show="!card.total">
+        <div class="ta-note"><i class="fas fa-folder-open" aria-hidden="true"></i><div>{{ card.club.title }} hasn't shared any documents yet. When the club uploads its rules, procedures or terms, they appear here.</div></div>
+      </div>
+
+      <div ng-show="card.terms.length">
+        <div class="ta-group"><span><i class="fas fa-file-contract" aria-hidden="true"></i>Terms and policies</span><span>{{ card.terms.length }}</span></div>
+        <div class="vd-doc" ng-repeat="d in card.terms" ng-class="{'vd-doc--fresh': d.fresh}" ng-include="'views/v2/documents/_doc_row.html'"></div>
+      </div>
+      <div ng-show="card.docs.length">
+        <div class="ta-group"><span><i class="fas fa-folder-open" aria-hidden="true"></i>Club documents</span><span>{{ card.docs.length }}</span></div>
+        <div class="vd-doc" ng-repeat="d in card.docs" ng-class="{'vd-doc--fresh': d.fresh}" ng-include="'views/v2/documents/_doc_row.html'"></div>
+      </div>
+
+      <button type="button" class="vd-acdocs" ng-show="card.aircraft" ng-click="vm.go('dashboard.my_account.aircraft_status')" no-busy-guard>
+        <span class="vd-well"><i class="fas fa-plane" aria-hidden="true"></i></span>
+        <span class="vd-acdocs__txt">
+          <span class="vd-acdocs__t">Aircraft documents</span>
+          <span class="vd-acdocs__s">Certificates, insurance, radio licence and CRS for {{ card.club.planes.length }} aircraft, with expiry dates</span>
+        </span>
+        <span class="vd-acdocs__go"><b>Aircraft status</b><i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+      </button>
+    </section>
+
+    <section class="ta-card" ng-show="!vm.view.cards.length">
+      <div class="ta-empty">
+        <span class="ta-empty__ic"><i class="fas fa-search" aria-hidden="true"></i></span>
+        <h4>No documents match "{{ vm.q }}"</h4>
+        <p>Try another word, or look in another club. Aircraft paperwork — insurance, airworthiness, the maintenance status — is on Aircraft status.</p>
+        <div class="vd-empty-acts">
+          <button type="button" class="ta-btn" ng-click="vm.clearQ()" no-busy-guard><i class="fas fa-times"></i>Clear search</button>
+          <button type="button" class="ta-btn" ng-click="vm.aircraftStatus()" no-busy-guard><i class="fas fa-plane" aria-hidden="true"></i>{{ vm.regLike() ? 'Aircraft status for ' + vm.regLike() : 'Aircraft status' }}</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ════════ PRICE LIST ════════ -->
+  <div class="vd-stack" ng-if="vm.page === 'prices' && !vm.loading && !vm.error && vm.clubs.length">
+
+    <section class="ta-card" ng-repeat="card in vm.view.cards">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon"><i class="fas fa-tags" aria-hidden="true"></i></span>
+        <div class="ta-card__ttl"><h3>{{ card.club.title }}</h3><p><span ng-show="card.club.myMem">Your membership: {{ card.club.myMem.name }}{{ card.club.icao ? ' · home airfield ' : '' }}</span><span ng-show="card.club.icao && !card.club.myMem">Home airfield </span><b class="ta-icao" ng-show="card.club.icao">{{ card.club.icao }}</b><span ng-show="card.club.icao"> {{ card.club.airfield }}</span><span ng-show="!card.club.icao && !card.club.myMem">Aircraft rates, instruction and memberships</span></p></div>
+        <span class="ta-card__right"><span class="ta-tag"><i class="fas fa-receipt" aria-hidden="true"></i>{{ card.club.vat ? ('Prices include VAT at ' + card.club.vatRate + '%') : 'No VAT charged' }}</span></span>
+      </div>
+
+      <p class="vd-quiet" ng-show="card.nothing">This club hasn't published any prices yet.</p>
+
+      <!-- aircraft hire: the one real table (phone: cards) -->
+      <div class="vd-sec" ng-show="card.planes.length">
+        <div class="vd-sec__hd">
+          <span class="ta-sec-k"><i class="fas fa-plane" aria-hidden="true"></i>Aircraft hire</span>
+          <span class="vd-sec__s">Per hour of charged time · landing fees at {{ card.club.airfield || 'the home airfield' }}</span>
+        </div>
+        <div class="ta-table-wrap ta-desk-only">
+          <table class="ta-table vd-tbl">
+            <thead><tr>
+              <th>Aircraft</th><th>Charged on</th><th class="ta-r">Per hour</th><th class="ta-r">Landing</th><th class="ta-r">Touch-and-go</th>
+              <th class="ta-r" ng-if="card.anySur">Surcharge</th><th class="ta-r"><span class="ta-muted">Status</span></th>
+            </tr></thead>
+            <tbody>
+              <tr ng-repeat="p in card.planes">
+                <td><span class="vd-acc"><span class="ta-ac" style="--ac:{{ p.colour || 'var(--ta-faint)' }}" title="{{ p.registration }}">{{ p.registration }}<span>{{ p.type }}</span></span><span class="vd-acc__m">{{ p.model }}</span></span></td>
+                <td><span ng-if="p.none" class="vd-none">—</span>{{ p.none ? '' : p.basis }}</td>
+                <td class="ta-r vd-tbl__rate"><span ng-show="p.none" class="vd-none">Ask the club</span><b ng-show="!p.none" class="ta-money">{{ vm.F.money(p.rate, card.club.currency) }}</b></td>
+                <td class="ta-r"><span ng-show="p.none || !p.landing" class="vd-none">—</span><span ng-show="!p.none && p.landing">{{ vm.F.money(p.landing, card.club.currency) }}</span></td>
+                <td class="ta-r"><span ng-show="p.none || !p.tg" class="vd-none">—</span><span ng-show="!p.none && p.tg">{{ vm.F.money(p.tg, card.club.currency) }}</span></td>
+                <td class="ta-r" ng-if="card.anySur"><span ng-show="!p.sur" class="vd-none">—</span><span ng-show="p.sur">{{ vm.F.money(p.surFee, card.club.currency) }} <span class="ta-muted">{{ p.surUnit }}</span></span></td>
+                <td class="ta-r"><button type="button" class="ta-link" ng-click="vm.go('dashboard.my_account.aircraft_status2', {registration: p.registration})" no-busy-guard>Status <i class="fas fa-arrow-right" aria-hidden="true"></i></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="vd-accards ta-phone-only">
+          <div class="vd-accard" ng-repeat="p in card.planes">
+            <div class="vd-accard__top">
+              <span class="vd-acc"><span class="ta-ac" style="--ac:{{ p.colour || 'var(--ta-faint)' }}">{{ p.registration }}<span>{{ p.type }}</span></span><span class="vd-acc__m">{{ p.model }}</span></span>
+              <span class="vd-quiet" ng-show="p.none">Ask the club</span>
+              <span class="vd-accard__price" ng-show="!p.none"><b class="vd-rate">{{ vm.F.money(p.rate, card.club.currency) }}</b><span class="vd-rate__u">/ hour</span></span>
+            </div>
+            <div class="vd-accard__basis">{{ p.none ? 'No hourly rate published yet' : p.basis }}</div>
+            <div class="vd-accard__ft">
+              <span ng-show="!p.none">Landing <b>{{ p.landing ? vm.F.money(p.landing, card.club.currency) : '—' }}</b></span>
+              <span ng-show="!p.none">Touch-and-go <b>{{ p.tg ? vm.F.money(p.tg, card.club.currency) : '—' }}</b></span>
+              <span ng-show="!p.none && p.sur">Surcharge <b>{{ vm.F.money(p.surFee, card.club.currency) }}</b> {{ p.surUnit }}</span>
+              <button type="button" class="ta-link" ng-click="vm.go('dashboard.my_account.aircraft_status2', {registration: p.registration})" no-busy-guard>Status <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="ta-note" ng-show="card.bases.length">
+          <i class="fas fa-stopwatch" aria-hidden="true"></i>
+          <div class="vd-explain">
+            <span ng-repeat="b in card.bases track by $index"><b>{{ b.s }}:</b> you're charged {{ b.x }}</span>
+            <span class="ta-muted">The same wording as your invoices. The rates shown are the ones your membership pays.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ta-cols ta-cols--2" ng-show="card.lessons.length || card.mems.length">
+        <div class="vd-sec" ng-show="card.lessons.length">
+          <div class="vd-sec__hd"><span class="ta-sec-k"><i class="fas fa-chalkboard-teacher" aria-hidden="true"></i>Instruction</span><span class="vd-sec__s">On top of the aircraft rate</span></div>
+          <div class="vd-plist">
+            <div class="vd-pli" ng-repeat="x in card.lessons">
+              <div class="vd-pli__txt"><span class="vd-pli__t">{{ x.title }}</span><span class="vd-pli__s">{{ x.charge }}</span></div>
+              <span class="ta-money">{{ vm.F.money(x.price, card.club.currency) }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="vd-sec" ng-show="card.mems.length">
+          <div class="vd-sec__hd"><span class="ta-sec-k"><i class="fas fa-id-card" aria-hidden="true"></i>Membership</span><span class="vd-sec__s">Memberships at this club</span></div>
+          <div class="vd-plist">
+            <div class="vd-pli" ng-repeat="x in card.mems" ng-class="{'vd-pli--yours': x.mine}">
+              <div class="vd-pli__txt"><span class="vd-pli__t">{{ x.name }}<span class="ta-pill ta-pill--good" ng-if="x.mine"><i class="fas fa-check" aria-hidden="true"></i>Your membership</span></span><span class="vd-pli__s">{{ x.term }}</span></div>
+              <span class="ta-money">{{ x.free ? 'Free' : vm.F.money(x.price, x.currency) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ta-card" ng-show="!vm.view.cards.length">
+      <div class="ta-empty">
+        <span class="ta-empty__ic"><i class="fas fa-search" aria-hidden="true"></i></span>
+        <h4>Nothing matches "{{ vm.q }}"</h4>
+        <p>Search by registration (G-BMTJ), type (C152), a lesson or a membership.</p>
+        <button type="button" class="ta-btn" ng-click="vm.clearQ()" no-busy-guard><i class="fas fa-times"></i>Clear search</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- a document, shown here (js/v2/core/docview.js) -->
+<div class="ta-dlg-scrim" ng-if="vm.docView" ng-click="vm.closeDocView()">
+  <div class="ta-dlg ta-dlg--wide" role="dialog" aria-modal="true" aria-labelledby="vd-doc-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDocView()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-building"></i>{{ vm.docView.club.name }} · document</div><div class="ta-dlg__title" id="vd-doc-t">{{ vm.docView.title }}</div>
+      <div class="ta-dlg__sub" ng-if="vm.docView.description || vm.docView.updated">{{ vm.docView.description }}<span ng-if="vm.docView.description && vm.docView.updated"> · </span><span ng-if="vm.docView.updated">Updated {{ vm.F.fDate(vm.docView.updated) }}</span></div></div>
+    <div class="ta-dlg__body">
+      <ta-doc-view route="club_documents" file="vm.docView.file" title="vm.docView.title"></ta-doc-view>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDocView()" no-busy-guard>Close</button><span class="ta-sp"></span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.downloadDoc(vm.docView)" ng-disabled="vm.docView._busy" no-busy-guard><i class="fas" ng-class="vm.docView._busy ? 'fa-spinner fa-spin' : 'fa-download'"></i>Download</button></div>
+  </div>
+</div>

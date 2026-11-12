@@ -1,0 +1,139 @@
+<!-- Instructor Dashboard v2 · CAA forms — New form (mockups/instructor-dashboard/caa-forms.html, page "new"): Form → Member → Review.
+     CfmNewV2Controller (js/v2/instructor_caa_forms/instructor_caa_forms.js). Every section is a direct child of the page, as drawn. -->
+<main class="ta-page" cfm-still ng-class="{'ta-page--has-bar': vm.hasBar()}">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-file-medical"></i></span>
+        <div><ins-tag></ins-tag><h2>New CAA form</h2><p>Pick the paperwork and the member; the details fill in from ToAviate’s records</p><design-back class="cfm-designback"></design-back></div>
+      </div>
+      <span class="cfm-v2back"><design-back></design-back></span>
+      <a class="ta-back" href="" ng-click="vm.back()" aria-label="Back to {{ vm.w.step > 1 ? 'Back' : 'CAA forms' }}"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">{{ vm.w.step > 1 ? 'Back' : 'CAA forms' }}</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="cfm-tools">
+        <span class="ta-steps" aria-label="Step {{ vm.w.step }} of 3"><span class="ta-steps__line" ng-repeat-start="n in vm.names" ng-show="$index > 0" ng-class="{'ta-steps__line--done': $index + 1 <= vm.w.step}"></span><span class="ta-steps__s" ng-repeat-end ng-class="$index + 1 < vm.w.step ? 'ta-steps__s--done' : $index + 1 === vm.w.step ? 'ta-steps__s--now' : ''"><i></i>{{ $index + 1 }} · {{ n }}</span></span>
+        <div class="ta-scope" ng-if="vm.w.step === 1 && vm.clubs.length > 1"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.club === c.id}" role="tab" aria-selected="{{ vm.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c.title }}</button></div></div>
+        <span class="ta-tag" ng-if="vm.w.step > 1"><i class="fas fa-building"></i>{{ vm.clubTitle(vm.club) }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ step 1 · which form ═══ -->
+  <section class="ta-list" ng-if="vm.w.step === 1 && vm.load === 'loading'"><div class="ta-group"><span><span class="ta-spin ta-spin--dark"></span> Loading form types…</span></div><div class="ta-card cfm-skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'error'"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>The form types didn’t load</h4><p>{{ vm.err || 'Check your connection and try again.' }}</p></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'noclubs'"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-file-contract"></i></span><h4>No club to start a form at</h4><p>CAA forms are started by a club’s instructors, Head of Training and managers. You aren’t one at any club yet.</p></div></section>
+
+  <section class="ta-list cfm-types ins-rise" ng-if="vm.w.step === 1 && vm.load === 'ready'" aria-label="Form types">
+    <div class="ta-list__tools"><span class="ta-muted">Which form? {{ vm.types.length }} kinds, as the CAA prints them.</span><label class="ta-search"><i class="fas fa-search"></i><input id="cfm-tq" ng-model="vm.tq" ng-change="vm.filterTypes()" placeholder="{{ vm.phone ? 'Code or name: 2128, night…' : 'Search forms: 2128, night, revalidation…' }}" aria-label="Search form types" autocomplete="off" spellcheck="false"></label></div>
+    <div ng-repeat="it in vm.typeItems track by it.key" ng-class="it.g ? 'ta-group' : 'ta-row'">
+      <span ng-if="it.g"><i class="fas" ng-class="it.icon"></i>{{ it.label }}</span><span ng-if="it.g">{{ it.n }}</span>
+      <button type="button" class="ta-row__main" ng-if="!it.g" ng-click="vm.pickType(it.t)" no-busy-guard>
+        <span class="ta-row__lead"><span class="ta-ic"><i class="fas" ng-class="it.t.icon"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ it.t.short }} <span class="cfm-code" ng-if="it.t.code">{{ it.t.code }}</span></span><span class="ta-row__sub">Signed by {{ it.t.who }}</span></span>
+        <span class="ta-row__meta"><span class="cfm-tags"><span class="ta-pill ta-pill--info" ng-if="it.t.hot_countersign"><i class="fas fa-user-shield"></i>Head of Training countersigns</span><span class="ta-pill ta-pill--muted" ng-if="it.t.has_eligibility"><i class="fas fa-tasks"></i>Eligibility check</span></span></span>
+        <span class="cfm-go" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+      </button>
+    </div>
+    <div class="ta-empty" ng-if="!vm.typeN"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No form matches “{{ vm.tq }}”</h4><p>Try the CAA code (SRG2128, CAA5016) or a word like night or revalidation.</p></div>
+  </section>
+
+  <!-- ═══ step 2 · who it's for ═══ -->
+  <section class="ta-card ins-rise" ng-if="vm.w.step === 2">
+    <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-user"></i></span><div class="ta-card__ttl"><h3>Who is this form for?</h3><p>The member the form is about. They sign it as the applicant where the form asks for one.</p></div></div>
+    <div class="ta-panel"><div class="cfm-chosen"><span class="ta-ic ta-ic--brand"><i class="fas" ng-class="vm.w.ty.icon"></i></span><div><b>{{ vm.w.ty.short }}{{ vm.w.ty.code ? ' · ' + vm.w.ty.code : '' }}</b><small>{{ vm.w.ty.title }}</small></div><button type="button" class="ta-link" ng-click="vm.wStep(1)" no-busy-guard>Change form <i class="fas fa-arrow-right"></i></button></div></div>
+    <div class="cfm-member" ng-if="vm.w.subject"><span class="ta-av ta-av--member" aria-hidden="true"><i class="fas fa-user"></i></span><span><b>{{ vm.w.subject.name }}</b><small>{{ vm.w.subject.email ? vm.w.subject.email + ' · ' : '' }}member of {{ vm.clubTitle(vm.club) }}</small></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.changeMember()" no-busy-guard><i class="fas fa-exchange-alt"></i>Change</button></div>
+    <div class="ta-field" ng-if="!vm.w.subject" ng-class="{'ta-field--error': vm.w.err}"><label class="ta-label" for="cb-member">Member</label>
+      <ta-combo cb-id="member" label="Choose the member" placeholder="{{ vm.phone ? 'Name or email' : vm.memberCount ? 'Search ' + vm.D.plural(vm.memberCount, 'member') + ' by name or email' : 'Search the club’s members by name or email' }}"
+                query="vm.mQ" source="vm.memberSource(q)" on-pick="vm.memberPick(key, row)" version="vm.mVer" clearable="!!vm.mQ" on-clear="vm.mQ = ''"></ta-combo>
+      <span class="ta-field__msg" ng-if="vm.w.err">{{ vm.w.err }}</span>
+    </div>
+    <div class="ta-actionbar"><button type="button" class="ta-btn" ng-click="vm.back()" no-busy-guard>Back</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.toReview()" no-busy-guard>Continue <i class="fas fa-arrow-right"></i></button></div>
+  </section>
+
+  <!-- ═══ step 3 · review ═══ -->
+  <section class="ta-card cfm-skel" ng-if="vm.w.step === 3 && vm.w.busy === 'prefill'"><div class="ta-hint"><span class="ta-spin ta-spin--dark"></span> Pulling {{ vm.firstName() }}’s records…</div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></section>
+
+  <section class="ta-card ins-rise" ng-if="vm.w.step === 3 && vm.w.pre">
+    <div class="ta-card__hd"><span class="ta-card__icon ta-card__icon--done"><i class="fas fa-check"></i></span><div class="ta-card__ttl"><h3>{{ vm.w.ty.short }} for {{ vm.w.subject.name }}</h3><p>{{ vm.w.ty.title }}</p></div><span class="ta-card__right"><button type="button" class="ta-link" ng-click="vm.wStep(1)" no-busy-guard>Change form</button><button type="button" class="ta-link" ng-click="vm.wStep(2)" no-busy-guard>Change member</button></span></div>
+  </section>
+
+  <!-- the revalidation check (FCL.740.A; advisory, never blocking) -->
+  <section class="ta-card ins-rise" id="cfm-elig" ng-if="vm.w.step === 3 && vm.w.pre && vm.e" ng-class="{'ta-card--attn': vm.e._checks.length && !vm.e.all_pass}" style="--i: 1">
+    <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.e._checks.length && vm.e.all_pass, 'ta-card__icon--warn': vm.e._checks.length && !vm.e.all_pass}"><i class="fas" ng-class="vm.e._checks.length && vm.e.all_pass ? 'fa-check' : 'fa-tasks'"></i></span><div class="ta-card__ttl"><h3>Revalidation by experience{{ vm.e.rating ? ' — ' + vm.e.rating : '' }}</h3><p>{{ vm.e.requirements_ref }}</p></div><span class="ta-card__right" ng-if="vm.e._checks.length"><span class="ta-pill ta-pill--good" ng-if="vm.e.all_pass"><i class="fas fa-check"></i>Meets the minimum</span><span class="ta-pill ta-pill--warn" ng-if="!vm.e.all_pass"><i class="fas fa-exclamation-triangle"></i>Minimum not met</span></span></div>
+
+    <div class="ta-note ta-note--info" ng-if="vm.e._noRating"><i class="fas fa-id-card"></i><div>{{ vm.e.message || 'No current rating with an expiry date was found on the pilot’s profile. Add the rating to the pilot’s licence profile to compute the checklist, or fill the form in by hand below.' }}</div></div>
+    <div class="cfm-manual" ng-if="vm.e._noRating">
+      <div class="ta-field" ng-class="{'ta-field--error': vm.w.mErr}"><span class="ta-label">Rating expiry, from the licence in hand</span><div class="cfm-dpw"><ta-date-picker ng-model="vm.w.manual" ng-change="vm.w.mErr = null" block="true" format="short" placeholder="Choose a date"></ta-date-picker></div><span class="ta-field__msg" ng-if="vm.w.mErr">{{ vm.w.mErr }}</span></div>
+      <button type="button" class="ta-btn" ng-click="vm.recalc()" ng-disabled="vm.w.busy === 'recalc'" no-busy-guard><span class="ta-spin ta-spin--dark" ng-if="vm.w.busy === 'recalc'"></span><i class="fas fa-calculator" ng-if="vm.w.busy !== 'recalc'"></i>{{ vm.w.busy === 'recalc' ? 'Recalculating…' : 'Recalculate hours and checklist' }}</button>
+    </div>
+
+    <div class="cfm-win" ng-if="vm.e._wins.length">
+      <div class="ta-panel" ng-repeat="b in vm.e._wins"><div class="ta-panel__hd">{{ b.label }}<span class="ta-sp"></span><span class="ta-muted ta-num">{{ vm.D.fDate(b.w.from) }} → {{ vm.D.fDate(b.w.to) }}</span></div><div><span class="cfm-win__v">{{ vm.D.hm(b.w.total) }}</span> <span class="ta-muted">total · {{ vm.D.hm(b.w.pic) }} PIC · {{ vm.D.hm(b.w.put) }} dual</span></div><span class="ta-hint" ng-if="b.mix">{{ b.mix }}</span><div class="cfm-win__types"><span ng-repeat="t in b.w.by_type"><b>{{ t.type }}</b><em class="ta-muted">{{ vm.D.hm(t.total) }} · {{ vm.D.hm(t.pic) }} PIC / {{ vm.D.hm(t.put) }} dual</em></span></div></div>
+    </div>
+    <div class="ta-note" ng-if="vm.e._anchor !== 'rating' && vm.e._wins.length"><i class="fas fa-info-circle"></i><div>{{ vm.e._anchor === 'manual' ? 'Anchored to the expiry you entered (' + vm.D.fDate(vm.e.expiry_date) + '). It isn’t on the pilot’s licence profile yet.' : 'No rating expiry on file, so these windows are anchored to today.' }} <button type="button" class="ta-link" ng-click="vm.copyFig()" no-busy-guard><i class="fas fa-arrow-down"></i>Copy these figures into the form</button></div></div>
+    <!-- C35 class_filter: which class counted, and what was left out (a quiet line) -->
+    <p class="ta-hint" ng-if="vm.e._cf"><i class="fas fa-filter"></i> {{ vm.e._cf.note }}<span ng-if="vm.e._cf.excluded_flights"> Left out here: {{ vm.D.plural(vm.e._cf.excluded_flights, 'flight') }}, {{ vm.D.hm(vm.e._cf.excluded_hours) }}{{ vm.e._cf._by ? ' (' + vm.e._cf._by + ')' : '' }}.</span> <button type="button" class="ta-link" ng-if="vm.e._cf.unclassified.length" ng-click="vm.w.uncl = !vm.w.uncl" aria-expanded="{{ !!vm.w.uncl }}" no-busy-guard>{{ vm.w.uncl ? 'Hide' : 'Show' }} the {{ vm.e._cf.unclassified.length === 1 ? 'flight' : vm.e._cf.unclassified.length + ' flights' }} with no class</button></p>
+    <div class="cfm-flts" ng-if="vm.e._cf && vm.w.uncl"><div class="cfm-flts__r" ng-repeat="u in vm.e._cf.unclassified"><i></i><span><b>{{ u.registration || 'No registration' }}</b> · {{ vm.D.fDate(u.flight_date) }}</span><span>{{ vm.D.hm(u.hours) }}</span><em>{{ u.aircraft_class ? 'Class “' + u.aircraft_class + '” isn’t one that counts' : 'No aircraft class recorded' }}</em></div></div>
+
+    <ul class="cfm-checks" ng-if="vm.e._checks.length"><li class="cfm-check" ng-repeat="c in vm.e._checks" ng-class="c.pass ? 'cfm-check--ok' : 'cfm-check--no'"><i class="fas" ng-class="c.pass ? 'fa-check-circle' : 'fa-times-circle'"></i><span>{{ c.label }}</span><span class="cfm-check__n">{{ vm.isHoursCheck(c) ? vm.D.hm(c.computed) : c.computed }} <small>of {{ vm.isHoursCheck(c) ? vm.D.hm(c.required) : c.required }}</small></span></li></ul>
+    <div class="ta-note ta-note--good" ng-if="vm.e._checks.length && vm.e._evidence.length"><i class="fas fa-stamp"></i><div>Training flight evidenced: <span ng-repeat="x in vm.e._evidence"><b>{{ vm.D.fDay(x.flight_date) }}</b> by {{ x.instructor_name }}{{ x.instructor_number ? ' (No. ' + x.instructor_number + ')' : '' }}{{ x.hours ? ', ' + vm.D.hm(x.hours) : '' }}<span ng-if="x.confirmed_by_email"> <span class="ta-tag"><i class="fas fa-envelope"></i>confirmed by e-mail</span></span>{{ $last ? '' : '; ' }}</span>{{ vm.e._evidence[0].endorsement_text ? ' — “' + vm.e._evidence[0].endorsement_text + '”' : '' }}</div></div>
+    <!-- C35 excluded_evidence: a stamp on a line edited after signing doesn't count -->
+    <div class="ta-note" ng-if="vm.e._excluded.length"><i class="fas fa-stamp"></i><div><b>Not counted:</b> <span ng-repeat="x in vm.e._excluded">the stamp on {{ vm.D.fDay(x.flight_date) }}{{ x.instructor_name ? ' by ' + x.instructor_name : '' }}, because {{ x._why }}{{ $last ? '.' : '; ' }}</span> Ask for it to be signed again.</div></div>
+    <div class="ta-panel ta-panel--white" ng-if="vm.e._cands.length"><div class="ta-panel__hd"><i class="fas fa-lightbulb"></i>No endorsed training flight yet — dual flights you flew with {{ vm.firstName() }} in the period</div><span class="ta-hint">Shorter ones can add up to the hour. <b>Endorse</b> puts the FCL.740.A stamp on the flight in the pilot’s logbook; <b>Copy the date</b> adds it to the form.</span>
+      <div><div class="cfm-cand" ng-repeat="c in vm.e._cands" ng-attr-style="{{ c.aircraft_colour ? '--ac:' + c.aircraft_colour : undefined }}"><span class="cfm-cand__edge"></span><div><b>{{ vm.D.fDay(c.flight_date) }} · {{ c.registration }}</b><small>{{ vm.D.hm(c.dual_time) }} dual with you</small></div><span class="cfm-cand__acts"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.copyDate(c.flight_date)" no-busy-guard><i class="fas fa-plus"></i>Copy the date</button><button type="button" class="ta-btn ta-btn--sm ta-btn--primary" ng-if="vm.canEndorse(c)" ng-click="vm.endorse(c)" no-busy-guard><i class="fas fa-stamp"></i>Endorse</button></span></div></div>
+    </div>
+    <div class="ta-note" ng-if="vm.e._colleagueOnly"><i class="fas fa-lightbulb"></i><div>No endorsed training flight yet, and none of {{ vm.firstName() }}’s dual flights in the period were with you. The FCL.740.A stamp has to come from the instructor who flew it.</div></div>
+    <div class="ta-note ta-note--warn" ng-if="vm.e._checks.length && !vm.e.all_pass"><i class="fas fa-pen"></i><div><b>You can still go ahead.</b> When you sign, you’ll be asked to write why (for example, evidence in the paper logbook); the note goes into the signed declaration.</div></div>
+    <div class="ta-panel" ng-if="vm.e._checks.length && (vm.e.alternative_route || (vm.e._tf && vm.e._tf.exemption))"><button type="button" class="ta-link" ng-click="vm.w.alt = !vm.w.alt" aria-expanded="{{ !!vm.w.alt }}" no-busy-guard><i class="fas" ng-class="vm.w.alt ? 'fa-chevron-up' : 'fa-chevron-down'"></i>Other ways to meet it</button><p class="ta-hint" ng-if="vm.w.alt && vm.e.alternative_route">{{ vm.e.alternative_route }}</p><p class="ta-hint" ng-if="vm.w.alt && vm.e._tf.exemption">{{ vm.e._tf.exemption }}</p></div>
+    <div class="ta-panel ta-panel--white" ng-if="vm.e.flights_counted.length"><button type="button" class="ta-link" ng-click="vm.w.flts = !vm.w.flts" aria-expanded="{{ !!vm.w.flts }}" no-busy-guard><i class="fas" ng-class="vm.w.flts ? 'fa-chevron-up' : 'fa-chevron-down'"></i>{{ vm.w.flts ? 'Hide' : 'Show' }} the {{ vm.e.flights_counted.length }} flights counted</button>
+      <div class="ta-table-wrap ta-desk-only" ng-if="vm.w.flts"><table class="ta-table"><thead><tr><th>Date</th><th>Aircraft</th><th>Role</th><th class="ta-r">PIC</th><th class="ta-r">Dual</th><th class="ta-r">Landings</th><th>Window</th></tr></thead><tbody><tr ng-repeat="f in vm.e.flights_counted"><td>{{ vm.D.fDate(f.flight_date) }}</td><td><b>{{ f.registration }}</b> <span class="ta-muted">{{ f.aircraft_model }}</span></td><td>{{ f.capacity === 'PUT' ? 'Dual' : 'PIC' }}</td><td class="ta-r">{{ vm.D.hm(f.pic_time) }}</td><td class="ta-r">{{ vm.D.hm(f.dual_time) }}</td><td class="ta-r">{{ f.landings || 0 }}</td><td>{{ f.in_last_12m ? 'Last 12 months' : 'Validity period' }}</td></tr></tbody></table></div>
+      <div class="cfm-flts ta-phone-only" ng-if="vm.w.flts"><div class="cfm-flts__r" ng-repeat="f in vm.e.flights_counted" ng-attr-style="{{ f.aircraft_colour ? '--ac:' + f.aircraft_colour : undefined }}"><i></i><span><b>{{ f.registration }}</b> · {{ vm.D.fDate(f.flight_date) }}</span><span>{{ vm.D.hm((+f.pic_time || 0) + (+f.dual_time || 0)) }}</span><em>{{ f.capacity === 'PUT' ? 'Dual' : 'PIC' }} · {{ f.landings || 0 }} landings · {{ f.in_last_12m ? 'last 12 months' : 'validity period' }}</em></div></div>
+    </div>
+    <p class="ta-hint"><i class="fas fa-info-circle"></i> {{ vm.e.note || 'Computed from the pilot’s ToAviate logbook only.' }}{{ vm.e.generated_at ? ' Computed ' + vm.D.fDay(vm.e.generated_at) + ' ' + vm.D.fTime(vm.e.generated_at) + '.' : '' }}</p>
+  </section>
+
+  <!-- certificates: which course (the hour boxes come from its flights and tags) -->
+  <section class="ta-card ins-rise" ng-if="vm.w.step === 3 && vm.w.pre && vm.w.isCert" style="--i: 1">
+    <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.w.ch}"><i class="fas fa-graduation-cap"></i></span><div class="ta-card__ttl"><h3>Which course is this certificate for?</h3><p>Choosing a course works out the hour boxes from its flights and their tags. You check them before anything is created.</p></div></div>
+    <div class="cfm-courses" ng-if="vm.w.courses.length"><button type="button" class="ta-opt" ng-repeat="c in vm.w.courses" ng-class="{'ta-opt--on': vm.w.course === c.id}" ng-click="vm.course(c)" ng-disabled="vm.w.busy === 'course'" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-graduation-cap"></i></span><span><span class="ta-opt__t">{{ c.title }}</span><span class="ta-opt__s">{{ vm.w.course === c.id ? 'Hours below come from this course' : 'Compute the hours from this course' }}</span></span><span class="ta-opt__dot"></span></button></div>
+    <div class="ta-note" ng-if="!vm.w.courses.length"><i class="fas fa-info-circle"></i><div>{{ vm.firstName() }} has no courses at this club — fill the certificate in by hand below.</div></div>
+    <div class="ta-hint" ng-if="vm.w.busy === 'course'"><span class="ta-spin ta-spin--dark"></span> Working out the course figures…</div>
+    <div class="ta-confirm" ng-if="vm.w.pendingCourse"><span>Switching course fills the form in again and replaces your edits.</span><div class="ta-confirm__btns"><button type="button" class="ta-btn" ng-click="vm.courseNo()" no-busy-guard>Keep my edits</button><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.courseYes()" no-busy-guard>Replace with the course figures</button></div></div>
+    <div class="ta-note ta-note--warn" ng-if="vm.w.tagWarn === 'night'"><i class="fas fa-exclamation-triangle"></i><div>No night-tagged flights on this course, so the hours shown are <b>whole-course</b> totals, not hours at night. Tag the course’s night flights for an accurate prefill. <button type="button" class="ta-link" ng-click="vm.openRecords()" no-busy-guard>Open the training records</button></div></div>
+    <div class="ta-note ta-note--warn" ng-if="vm.w.tagWarn === 'instrument'"><i class="fas fa-exclamation-triangle"></i><div>No instrument-tagged flights on this course, so the instrument hours couldn’t be worked out. Tag the course’s instrument flights for an accurate prefill. <button type="button" class="ta-link" ng-click="vm.openRecords()" no-busy-guard>Open the training records</button></div></div>
+    <div class="ta-panel ta-panel--white" ng-if="vm.w.ch"><div class="ta-panel__hd"><i class="fas fa-calculator"></i>What the hours are checked against — {{ vm.w.ch.course_title }}</div>
+      <dl class="ta-facts ta-facts--3" ng-if="vm.w.ch.flights"><div class="ta-fact"><dt>Flights</dt><dd>{{ vm.w.ch.flights }}</dd></div><div class="ta-fact"><dt>First → last flight</dt><dd>{{ vm.D.fDate(vm.w.ch.first_flight) }} → {{ vm.D.fDate(vm.w.ch.last_flight) }}</dd></div><div class="ta-fact"><dt>Whole course</dt><dd>{{ vm.D.hm(vm.w.ch.total_hours) }} <small>{{ vm.D.hm(vm.w.ch.dual_hours) }} dual · {{ vm.D.hm(vm.w.ch.solo_hours) }} solo</small></dd></div><div class="ta-fact"><dt>Landings</dt><dd>{{ vm.w.ch.total_landings }} <small>{{ vm.w.ch.solo_landings }} as PIC</small></dd></div><div class="ta-fact" ng-if="vm.w.ch.aircraft_types"><dt>Aircraft</dt><dd>{{ vm.w.ch.aircraft_types }}</dd></div></dl>
+      <span class="ta-hint" ng-if="!vm.w.ch.flights">No linked flights on this course yet — type the hours in below.</span>
+      <div class="ta-table-wrap" ng-if="vm.tagN()"><table class="ta-table"><thead><tr><th>Flight tag</th><th class="ta-r">Total</th><th class="ta-r">Dual</th><th class="ta-r">Solo</th></tr></thead><tbody><tr ng-repeat="(tag, v) in vm.w.ch.tag_hours"><td>{{ vm.D.tagName(tag) }}</td><td class="ta-r">{{ vm.D.hm(v.total) }}</td><td class="ta-r">{{ vm.D.hm(v.dual) }}</td><td class="ta-r">{{ vm.D.hm(v.solo) }}</td></tr></tbody></table></div>
+      <span class="ta-hint" ng-if="vm.w.ch.flights && !vm.tagN()">No flight tags on this course’s flights.</span>
+      <span class="ta-hint" ng-if="vm.w.ch.note"><i class="fas fa-info-circle"></i> {{ vm.w.ch.note }}</span>
+    </div>
+  </section>
+
+  <!-- the boxes, prefilled and tinted, then Create the draft -->
+  <section class="ta-card ta-final ins-rise" id="cfm-fields" ng-if="vm.w.step === 3 && vm.w.pre" style="--i: 2">
+    <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-magic"></i></span><div class="ta-card__ttl"><h3>Check the details</h3><p>{{ vm.D.plural(vm.w.nPre, 'box', 'boxes') }} filled in from ToAviate’s records for {{ vm.firstName() }} (tinted). Check each one against the pilot’s logbook; everything stays editable in the draft.</p></div></div>
+    <div class="ta-note ta-note--warn" ng-if="vm.w.noRef"><i class="fas fa-id-card"></i><div>{{ vm.firstName() }} hasn’t added a CAA reference number to their profile. Type it in, or ask them to add it.</div></div>
+    <div class="ta-sh" ng-repeat-start="g in vm.w.groups"><div><h3>{{ g.title }}</h3></div></div>
+    <div class="ta-grid-2" ng-repeat-end>
+      <div class="ta-field" ng-repeat="d in g.fields" ng-class="{'ta-span-2': d.full, 'ta-field--error': vm.w.ferr[d.key]}">
+        <label class="ta-label" for="cfm-f-{{ d.key }}" ng-if="d.type !== 'date' && d.type !== 'bool'">{{ d.label }} <span class="cfm-src" ng-if="vm.srcOf(d.key) && vm.w.fields[d.key] !== ''">{{ vm.srcOf(d.key) }}</span></label>
+        <span class="ta-label" ng-if="d.type === 'date' || d.type === 'bool'">{{ d.label }} <span class="cfm-src" ng-if="d.type === 'date' && vm.srcOf(d.key) && vm.w.fields[d.key]">{{ vm.srcOf(d.key) }}</span></span>
+        <div class="cfm-dpw" ng-if="d.type === 'date'" ng-class="{'cfm-dpw--pre': vm.isPre(d.key)}" id="cfm-f-{{ d.key }}"><ta-date-picker ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)" block="true" format="short" placeholder="Choose a date"></ta-date-picker></div>
+        <select class="ta-select" id="cfm-f-{{ d.key }}" ng-if="d.type === 'select'" ng-class="{'ta-input--prefilled': vm.isPre(d.key)}" ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)"><option value="">Choose…</option><option ng-repeat="o in d.options" value="{{ o }}">{{ d.optionLabels[o] || o }}</option></select>
+        <label class="ta-check" ng-if="d.type === 'bool'"><input type="checkbox" ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)">{{ d.key === 'licence_endorsed' ? 'The licence has been endorsed' : 'Yes' }}</label>
+        <textarea class="ta-textarea" id="cfm-f-{{ d.key }}" ng-if="d.type === 'textarea'" rows="2" ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)"></textarea>
+        <input class="ta-input" id="cfm-f-{{ d.key }}" ng-if="d.type === 'hours'" ng-class="{'ta-input--prefilled': vm.isPre(d.key)}" ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)" inputmode="decimal" placeholder="e.g. 61.5 or 61:30" autocomplete="off">
+        <input class="ta-input" id="cfm-f-{{ d.key }}" ng-if="d.type !== 'hours' && d.type !== 'date' && d.type !== 'select' && d.type !== 'bool' && d.type !== 'textarea'" ng-class="{'ta-input--prefilled': vm.isPre(d.key)}" ng-model="vm.w.fields[d.key]" ng-change="vm.fld(d.key)" autocomplete="off">
+        <span class="ta-field__msg" ng-if="vm.w.ferr[d.key]">{{ vm.w.ferr[d.key] }}</span>
+        <span class="cfm-calc" ng-if="d.type === 'hours' && !vm.w.ferr[d.key] && vm.calcText(d.key)" ng-class="{'cfm-calc--bad': vm.calcBad(d.key)}">{{ vm.calcText(d.key) }}</span>
+        <span class="ta-hint" ng-if="d.hint">{{ d.hint }}</span>
+      </div>
+    </div>
+    <div class="ta-actionbar"><button type="button" class="ta-btn" ng-click="vm.back()" ng-disabled="vm.w.busy === 'create'" no-busy-guard>Back</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary ta-cta" ng-click="vm.create()" ng-disabled="vm.w.busy === 'create'" no-busy-guard><span class="ta-cta__main" ng-if="vm.w.busy !== 'create'"><i class="fas fa-file-signature"></i>Create the draft</span><span class="ta-cta__sub" ng-if="vm.w.busy !== 'create'">Nobody is asked to sign until you submit it</span><span class="ta-cta__main" ng-if="vm.w.busy === 'create'"><span class="ta-spin"></span>Creating…</span></button></div>
+  </section>
+
+  <cfm-endorse-dialog ng-if="vm.w.endorse" cand="vm.w.endorse" pilot="vm.w.subject" on-done="vm.endorsed(result)" on-close="vm.endorseClose()"></cfm-endorse-dialog>
+</main>

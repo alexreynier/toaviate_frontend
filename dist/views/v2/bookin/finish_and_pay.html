@@ -1,0 +1,69 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 FINISH & PAY — dashboard.v2.finish_and_pay (FinishAndPayV2Controller, js/v2/bookin/bookin.js).
+     Only for an unfinished flight opened later from My Account (legs booked in with "add another leg").
+     The figures are the server's invoices; paying is the same pay choice as the book-in (BookinV2Payment).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page bki bki--pay" data-e2e="fap-page">
+
+  <section class="ta-hero bki-hero">
+    <div class="ta-hero__top"><a class="ta-hero__back" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i>My Account</a>
+      <span class="bki-hero__tools"><span class="ta-desk-only"><design-back></design-back></span><span class="ta-hero__eyebrow"><i class="fas fa-receipt"></i>Finish &amp; pay</span></span></div>
+    <div class="ta-hero__head"><span class="ta-hero__badge"><i class="fas" ng-class="!vm.fp.loaded ? 'fa-spinner fa-spin' : vm.fp_mode() === 'invoice' ? 'fa-paper-plane' : 'fa-receipt'"></i></span>
+      <div><div class="bki-hero__amt" data-e2e="fap-amount">{{ vm.fp.loaded && !vm.fp.error && !vm.fp.empty ? vm.fp_money(vm.invoice_totals) : (vm.fp.loaded ? '—' : 'Loading…') }}</div>
+        <div class="ta-hero__sub" ng-if="vm.fp.loaded && vm.invoices.length">{{ vm.fp_date() }} · {{ vm.fp_reg() }} {{ vm.fp_type() }} · {{ vm.invoices.length }} leg{{ vm.invoices.length === 1 ? '' : 's' }}{{ vm.fp_club() ? ' · ' + vm.fp_club() : '' }}</div></div></div>
+    <div class="ta-hero__facts" ng-if="vm.fp.loaded && vm.invoices.length">
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Flight time</div><div class="ta-hero__fact-v">{{ vm.fp_flight_time() }}</div><div class="bki-fact-s">{{ vm.fp_time_label() }}</div></div>
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Aircraft</div><div class="ta-hero__fact-v">{{ vm.fp_reg() }}</div><div class="bki-fact-s">{{ vm.fp_model() }}</div></div>
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Legs</div><div class="ta-hero__fact-v">{{ vm.invoices.length }}</div><div class="bki-fact-s">{{ vm.fp_routes() }}</div></div>
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Payer</div><div class="ta-hero__fact-v">{{ vm.fp_payer_name() || '—' }}</div><div class="bki-fact-s">{{ vm.fp_mode() === 'pay' ? 'Pays here' : vm.fp_mode() === 'invoice' ? 'Gets the invoice' : vm.fp_mode() === 'credit' ? 'Gets a credit' : '' }}</div></div>
+    </div>
+  </section>
+
+  <div class="ta-stack" ng-if="!vm.fp.loaded"><div class="ta-card"><div class="ta-skel bki-skel"></div><div class="ta-skel bki-skel bki-skel--short"></div></div></div>
+  <section class="ta-card" ng-if="vm.fp.loaded && (vm.fp.error || vm.fp.empty)"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas" ng-class="vm.fp.error ? 'fa-plane-slash' : 'fa-check-circle'"></i></span>
+    <h4>{{ vm.fp.error ? 'This flight could not be opened' : 'Nothing left to pay' }}</h4><p>{{ vm.fp.error || 'It looks as though this flight is already finished.' }}</p>
+    <a class="ta-btn" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i>My Account</a></div></section>
+
+  <div class="ta-cols ta-cols--rail" ng-if="vm.fp.loaded && !vm.fp.error && !vm.fp.empty">
+    <section class="ta-card" aria-label="Charges">
+      <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-file-invoice-dollar"></i></span><div class="ta-card__ttl"><h3>Charges</h3><p>Built from the book-in{{ vm.fp_vat_rate() ? ' · prices include VAT' : '' }}</p></div></div>
+      <div class="ta-panel" ng-repeat="l in vm.fp_legs() track by l.n" data-e2e="fap-leg">
+        <div class="bki-leg__hd"><span class="ta-kind ta-kind--sm ta-kind--{{ l.kind }}" title="{{ l.kind === 'dual' ? 'Dual lesson' : l.kind === 'solo' ? 'Solo' : 'Self-fly hire' }}"><i class="fas" ng-class="l.kind === 'dual' ? 'fa-user-friends' : l.kind === 'solo' ? 'fa-user' : 'fa-key'"></i></span><b>{{ vm.invoices.length > 1 ? 'Leg ' + l.n : 'Flight' }}</b><span class="ta-route"><b class="ta-icao" ng-if="l.from.code">{{ l.from.code }}</b><span ng-if="l.from.name">{{ l.from.name }}</span><i class="fas fa-long-arrow-alt-right" ng-if="l.away"></i><b class="ta-icao" ng-if="l.away && l.to.code">{{ l.to.code }}</b><span ng-if="l.away && l.to.name">{{ l.to.name }}</span></span><span class="ta-sp"></span><span class="ta-ac" ng-if="l.reg" style="--ac: {{ vm.fp_ac_colour() }}" title="{{ l.reg }}">{{ l.reg }}<span>{{ l.type }}</span></span></div>
+        <span class="bki-sub">{{ vm.fp_fday(l.date) + (l.time ? ' · ' + l.time : '') }}</span><span class="bki-sub" ng-if="l.crew || l.inv"><i class="fas fa-user-friends"></i> {{ l.crew }}{{ l.inv ? ' · invoice ' + l.inv + ', to pay' : '' }}</span>
+        <div class="bki-lines"><div class="bki-line" ng-repeat="x in l.lines" ng-class="{'bki-line--muted': x.pkg || x.a === 0, 'bki-line--credit': x.credit}"><span class="bki-line__t">{{ x.t }}</span><span class="bki-line__a" ng-class="{'ta-money--credit': x.credit}">{{ x.pkg ? 'Included' : (x.a === 0 ? 'No charge' : vm.fp_money(x.a)) }}</span><span class="bki-line__s">{{ x.s }}</span></div>
+          <div class="bki-line bki-line--total"><span class="bki-line__t">{{ vm.invoices.length > 1 ? 'Leg ' + l.n + ' total' : 'Flight total' }}</span><span class="bki-line__a">{{ vm.fp_money(l.total) }}</span></div></div>
+      </div>
+      <div class="bki-total">
+        <div class="bki-total__row"><span class="bki-total__k">{{ vm.invoices.length > 1 ? 'Booking total' : 'Total' }}</span><span class="bki-total__v" data-e2e="fap-total">{{ vm.fp_money(vm.invoice_totals) }}</span></div>
+        <div class="bki-total__s"><span ng-if="vm.fp_vat_rate()">Includes VAT at {{ vm.fp_vat_rate() }}%</span><span class="ta-num" ng-if="vm.fp_vat_rate()">{{ vm.fp_money(vm.fp_vat_amount()) }}</span><span ng-if="!vm.fp_vat_rate()">{{ vm.fp_club() ? 'No VAT: ' + vm.fp_club() + ' isn\'t VAT registered' : 'No VAT on these invoices' }}</span></div>
+        <span class="bki-sub" ng-if="vm.invoices.length > 1">{{ vm.invoices.length === 2 ? 'Leg 1 is' : 'The earlier legs are' }} already invoiced and still to pay; paying now settles {{ vm.invoices.length === 2 ? 'both legs' : 'the whole booking' }}.</span>
+      </div>
+    </section>
+
+    <!-- the pay card -->
+    <section class="ta-card bki-paycard" ng-if="vm.fp_mode() === 'pay'" aria-label="Pay" data-e2e="fap-pay">
+      <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-lock"></i></span><div class="ta-card__ttl"><h3>Pay</h3><p>{{ vm.fp_payer_name() }} · {{ vm.fp_money(vm.invoice_totals) }}</p></div></div>
+      <div class="bki-payinc" ng-if="vm.pay" ng-include="'views/v2/bookin/_pay.html'"></div>
+      <div class="ta-actionbar bki-payfoot">
+        <button type="button" class="ta-btn ta-btn--primary ta-btn--block" ng-click="vm.fp_finish()" ng-disabled="vm.fp_button().busy || !vm.pay || !vm.pay.loaded" no-busy-guard data-e2e="fap-go">
+          <span class="ta-spin" ng-if="vm.fp_button().busy"></span><i class="fas {{ vm.fp_button().ic }}" ng-if="!vm.fp_button().busy"></i>{{ vm.fp_button().t }}</button>
+        <span class="bki-secure"><i class="fas fa-shield-alt"></i>{{ vm.pay && vm.pay.method() && vm.pay.method().kind === 'direct-debit' ? 'Collected by GoCardless under your ' + (vm.pay.schemeName() ? vm.pay.schemeName() + ' ' : '') + 'mandate' : 'Card payments by Stripe' }}</span>
+      </div>
+    </section>
+    <section class="ta-card bki-paycard" ng-if="vm.fp_mode() === 'invoice'" aria-label="Invoice">
+      <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-paper-plane"></i></span><div class="ta-card__ttl"><h3>{{ vm.fp_payer_first() }} pays</h3><p>The invoice goes to {{ vm.fp_payer_name() || 'the pilot' }}</p></div></div>
+      <div class="ta-panel"><div class="bki-person"><span class="ta-av ta-av--member" title="Member"><i class="fas fa-user"></i></span><span><b>{{ vm.fp_payer_name() || 'The pilot' }}</b><span class="bki-sub"> · {{ vm.fp_payer_why() }}</span></span></div><span class="bki-sub">{{ vm.fp_payer_first() }}'s default payment method is tried at the next payment run, usually this evening. {{ vm.fp_payer_first() }} can also pay it from Invoices &amp; payments.</span></div>
+      <div class="ta-actionbar bki-payfoot"><button type="button" class="ta-btn ta-btn--primary ta-btn--block ta-cta" ng-click="vm.fp_finish()" ng-disabled="vm.fp_button().busy" no-busy-guard data-e2e="fap-go">
+        <span class="ta-cta__main"><span class="ta-spin" ng-if="vm.fp_button().busy"></span><i class="fas {{ vm.fp_button().ic }}" ng-if="!vm.fp_button().busy"></i>{{ vm.fp_button().t }}</span><span class="ta-cta__sub" ng-if="vm.fp_button().s">{{ vm.fp_button().s }}</span></button></div>
+    </section>
+    <section class="ta-card bki-paycard" ng-if="vm.fp_mode() === 'credit'" aria-label="Credit">
+      <div class="ta-card__hd"><span class="ta-card__icon ta-card__icon--done"><i class="fas fa-hand-holding-usd"></i></span><div class="ta-card__ttl"><h3>You'll be credited {{ vm.fp_money(-vm.invoice_totals) }}</h3><p>You claimed back more than the flight cost</p></div></div>
+      <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>The credit goes towards your next payments once the club approves the receipts. Want it refunded instead? Ask the club after they approve them.</div></div>
+      <div class="ta-actionbar bki-payfoot"><button type="button" class="ta-btn ta-btn--primary ta-btn--block" ng-click="vm.fp_finish()" ng-disabled="vm.fp_button().busy" no-busy-guard data-e2e="fap-go"><i class="fas fa-flag-checkered"></i>Finish</button></div>
+    </section>
+    <section class="ta-card bki-paycard" ng-if="vm.fp_mode() === 'none'"><div class="ta-note ta-note--bad"><i class="fas fa-lock"></i><div>Only the pilot, the student, the payer or club staff can finish this flight.</div></div></section>
+  </div>
+
+  <div class="bki-classic ta-phone-only"><design-back></design-back></div>
+  <div ng-include="'views/v2/bookin/_machine.html'" ng-if="vm.pay && vm.pay.mach"></div>
+</main>

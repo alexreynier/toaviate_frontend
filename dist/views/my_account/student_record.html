@@ -26,7 +26,8 @@
                 <ui-select ng-model="vm.selected_club" theme="bootstrap" title="Please select the club" append-to-body="true" on-select="vm.onClubSelected($item)">
                     <ui-select-match placeholder="Select club">{{ vm.selected_club.title }}</ui-select-match>
                     <ui-select-choices repeat="club in vm.clubs | propsFilterA: {title: $select.search, id: $select.search}">
-                        <div ng-bind-html="club.title | highlight: $select.search"></div>
+                        <div><span ng-bind-html="club.title | highlight: $select.search"></span>
+                            <span class="sr-pill sr-pill--muted" ng-if="!club.member">Past membership</span></div>
                     </ui-select-choices>
                 </ui-select>
             </div>
@@ -36,7 +37,8 @@
                 <ui-select ng-model="vm.course" theme="bootstrap" title="Please select the course" append-to-body="true" on-select="vm.onCourseSelected($item)">
                     <ui-select-match placeholder="Search for a course">{{ vm.course.title }}</ui-select-match>
                     <ui-select-choices repeat="pic in vm.courses | propsFilterA: {title: $select.search, id: $select.search}">
-                        <div ng-bind-html="pic.title | highlight: $select.search"></div>
+                        <div><span ng-bind-html="pic.title | highlight: $select.search"></span>
+                            <span class="sr-pill sr-pill--muted" ng-if="vm.course_records_only(pic)" title="You can read your records on this course; its syllabus is for current members">Records only</span></div>
                     </ui-select-choices>
                 </ui-select>
             </div>
@@ -48,10 +50,20 @@
             </div>
 
         </div>
+
+        <p class="sr-picker__empty" ng-if="vm.clubs_loaded && !vm.clubs.length">
+            You have no courses to show yet. Courses appear here once you join a club, and stay here for as long as you have training records on them.
+        </p>
     </div>
 
 
     <div ng-if="vm.show_record">
+
+        <!-- Membership of the course's club has ended: the records are still theirs to read -->
+        <div class="sr-notice" ng-if="vm.records_only">
+            <i class="fas fa-info-circle"></i>
+            <span>You're no longer a current member of this course's club. Your training records stay here for you to read and export; the course syllabus, and the objectives you haven't flown yet, are only shown to current members.</span>
+        </div>
 
         <!-- ── Who / what / export ────────────────────────────── -->
         <div class="sr-record-head">

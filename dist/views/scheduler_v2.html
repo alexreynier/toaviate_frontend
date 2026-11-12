@@ -1,0 +1,91 @@
+<div class="sv2-page">
+
+  <!-- ── Page chrome (the library draws its own gradient toolbar below) ── -->
+  <div class="sv2-bar">
+    <div class="sv2-bar__row">
+      <div class="sv2-bar__title">
+        <span class="sv2-bar__icon"><i class="fas fa-calendar-alt"></i></span>
+        <div>
+          <h2>Scheduler</h2>
+          <p>Drag to move, pull the ends to resize, tap a chip for the booking.</p>
+        </div>
+      </div>
+      <div class="sv2-bar__actions">
+        <a ui-sref="dashboard.slot_search" class="sv2-btn sv2-btn--outline" title="Let the slot finder look for a free slot that suits you">
+          <i class="fas fa-search"></i> Find a slot
+        </a>
+        <button type="button" class="sv2-btn sv2-btn--waiting" ng-click="vm.openWaitingList()" no-busy-guard
+                title="{{ vm.isStaff ? 'Members waiting for a slot' : 'Ask to be called when a slot comes up' }}">
+          <i class="fas fa-user-clock"></i> Waiting list
+          <span class="sv2-badge" ng-show="vm.waitingBadge > 0">{{ vm.waitingBadge }}</span>
+        </button>
+        <button type="button" class="sv2-btn sv2-btn--outline" id="sv2-cancellations" ng-show="vm.isStaff" ng-click="vm.openCancellations()" no-busy-guard
+                title="Recent cancellations: charge or waive no-show and late cancellation fees">
+          <i class="fas fa-receipt"></i> Cancellations
+        </button>
+        <button type="button" class="sv2-btn sv2-btn--outline" id="sv2-reallocate" ng-show="vm.isManager" ng-click="vm.openReallocate()" no-busy-guard
+                title="One aircraft per instructor per type for the day — preview the moves, then apply">
+          <i class="fas fa-random"></i> Re-allocate aircraft
+        </button>
+        <a class="sv2-link" ng-click="vm.classic()" no-busy-guard title="Back to the classic designs, including the classic calendar (remembers your choice)">
+          <i class="fas fa-history"></i> Back to classic designs
+        </a>
+      </div>
+    </div>
+    <div class="sv2-bar__row sv2-bar__row--filters">
+      <div class="sv2-bar__filter" ng-show="vm.clubs.length > 1">
+        <span class="sv2-bar__label">Showing</span>
+        <div class="sv2-clubs" role="group" aria-label="Clubs shown">
+          <button type="button" class="sv2-clubs__btn" ng-class="{'sv2-clubs__btn--on': !vm.clubFilter}" ng-click="vm.setClub(0)" no-busy-guard title="Every club you belong to">All clubs</button>
+          <button type="button" class="sv2-clubs__btn" ng-repeat="c in vm.clubs" ng-class="{'sv2-clubs__btn--on': vm.clubFilter === c.id}" ng-click="vm.setClub(c.id)" no-busy-guard title="Only {{ c.title }}">{{ c.title }}</button>
+        </div>
+      </div>
+      <span class="sv2-bar__tz" title="Booking times are shown and saved as the club's local time, whatever timezone your device is in."><i class="far fa-clock"></i> Times are club local time</span>
+    </div>
+  </div>
+
+  <!-- ── Staff: a freed slot has people waiting for it ── -->
+  <div class="sv2-match" ng-show="vm.match">
+    <i class="fas fa-bell sv2-match__icon"></i>
+    <div class="sv2-match__text">
+      <strong>{{ vm.match.count }} {{ vm.match.count == 1 ? 'person' : 'people' }} on the waiting list could take this slot</strong>
+      <span>{{ vm.match.label }}</span>
+    </div>
+    <button type="button" class="sv2-btn sv2-btn--primary" ng-click="vm.openMatches()" no-busy-guard>View waiting list</button>
+    <button type="button" class="sv2-match__x" ng-click="vm.dismissMatch()" no-busy-guard aria-label="Dismiss">×</button>
+  </div>
+
+  <!-- ── Load error ── -->
+  <div class="sv2-error" ng-show="vm.error">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>{{ vm.error }}</span>
+    <button type="button" class="sv2-btn sv2-btn--outline" ng-click="vm.refetch()" no-busy-guard>Try again</button>
+  </div>
+
+  <!-- ── The scheduler ── -->
+  <!-- first load: the shared runway (owner, 11 Nov), held ~1.4 s so it reads as an opening -->
+  <div class="sv2-boot" ng-if="vm.booting" data-e2e="sv2-boot">
+    <ta-runway text="Opening the scheduler…" steps="vm.bootSteps" step="vm.bootStep"></ta-runway>
+  </div>
+  <div class="sv2-board" ng-class="{'sv2-board--loading': vm.loading}" ng-show="!vm.booting">
+    <ta-scheduler data="vm.day" date="vm.date" days="vm.days" hide-on="vm.hideUnavailable" show-all="vm.showAll" mode="auto" api="vm.scheduler"
+                  get-busy="vm.busyFor(date)"
+                  on-date-change="vm.onDateChange(date)"
+                  on-days-change="vm.onDaysChange(days)"
+                  on-open-booking="vm.openBooking(booking)"
+                  on-create="vm.create(draft)"
+                  on-move="vm.move(change)"
+                  on-resize="vm.resize(change)"
+                  on-hide-toggle="vm.toggleHide(on)"
+                  on-show-all-toggle="vm.toggleShowAll(on)"
+                  on-pick-date="vm.pickDate(anchor)"
+                  on-group-toggle="vm.groupToggle(group, open)"></ta-scheduler>
+    <div class="sv2-loading" ng-show="vm.loading && !vm.day && !vm.booting">
+      <span class="sv2-spinner"></span> Loading the schedule…
+    </div>
+  </div>
+
+  <!-- ── Booking form panel (child states dashboard.scheduler_v2.add / .edit slide in here) ── -->
+  <ui-view name="panel"></ui-view>
+
+</div>

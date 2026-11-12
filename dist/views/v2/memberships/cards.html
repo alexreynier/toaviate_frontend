@@ -1,0 +1,70 @@
+<!-- v2 PAYMENT METHODS — mockups/my-account/memberships-cards.html (page "Payment methods"). PaymentMethodsV2Controller:
+     cards/get_member_cards per club, update_default_card, delete_member_card; finalises a redirect card set-up (setup_intent). -->
+<main class="ta-page" data-e2e="mem-cards">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-credit-card"></i></span>
+        <div><h2>Payment methods</h2><p>Saved cards — each club keeps its own, through its own Stripe account</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account" aria-label="Back to My Account"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">My Account</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.clubs.length > 1">
+      <div class="ta-scope"><span class="ta-scope__k">Showing</span>
+        <div class="ta-scope__set" role="group" aria-label="Club">
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.scope === 'all'}" ng-click="vm.setScope('all')" aria-pressed="{{ vm.scope === 'all' }}">All clubs</button>
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.scope === c.id}" ng-click="vm.setScope(c.id)" aria-pressed="{{ vm.scope === c.id }}">{{ c.title }}</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ta-stack" ng-if="vm.loading" aria-busy="true"><div class="ta-card"><div class="mem-ccs"><div class="ta-skel mem-skel-c"></div><div class="ta-skel mem-skel-c"></div></div></div></div>
+  <div class="ta-note ta-note--bad" ng-if="!vm.loading && vm.error" role="alert"><i class="fas fa-times-circle" aria-hidden="true"></i><div><b>Your clubs couldn't be loaded.</b> Check your connection and reload the page.</div></div>
+
+  <section class="ta-card" ng-if="!vm.loading && !vm.error && !vm.clubs.length">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="far fa-credit-card"></i></span><h4>No cards yet</h4>
+      <p>Cards are saved with a club, so you need a club membership first.</p>
+      <a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships.add"><i class="fas fa-plus"></i>Join a club</a></div>
+  </section>
+
+  <div class="ta-note ta-note--warn" ng-if="!vm.loading && vm.alerts.length"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    <div><b ng-if="vm.alerts.length > 1">{{ vm.alerts.length }} cards need replacing.</b> {{ (vm.alerts.length > 1 ? vm.alerts.join('; ') + '.' : 'Your ' + vm.alerts[0] + '.') + ' Add a new card so payments to the club keep working.' }}</div></div>
+
+  <section class="ta-card" ng-repeat="c in vm.shown track by c.id" data-e2e="mem-club-cards">
+    <div class="mem-hd">
+      <span class="mem-mono" aria-hidden="true">{{ c.mono }}</span>
+      <div class="mem-hd__t"><h3>{{ c.title }}</h3><p>{{ c.sub }} <span class="ta-pill ta-pill--{{ c.dd.t }}" ng-if="c.dd"><i class="fas fa-university"></i>Direct debit · {{ c.dd.l.toLowerCase() }}</span></p></div>
+    </div>
+    <div class="mem-ccs" aria-busy="true" ng-if="c.cc.loading"><div class="ta-skel mem-skel-c"></div><div class="ta-skel mem-skel-c"></div></div>
+    <div class="ta-note ta-note--bad" ng-if="!c.cc.loading && c.cc.error"><i class="fas fa-times-circle" aria-hidden="true"></i><div><b>We couldn't load your saved cards for {{ c.title }}.</b> Check your connection and try again.</div></div>
+    <div ng-if="!c.cc.loading && c.cc.error"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.retry(c)"><i class="fas fa-redo"></i>Try again</button></div>
+      <div class="ta-note ta-note--warn" ng-if="!c.cc.loading && !c.cc.error && c.noDefault"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div>None of these cards is the default. Make one the default so {{ c.title }} knows which to charge.</div></div>
+      <div class="mem-ccs" ng-if="!c.cc.loading && !c.cc.error">
+        <div class="mem-cc" ng-repeat="k in c.cards track by k.id" ng-class="{'mem-cc--default': k.def}" data-e2e="mem-cc">
+          <span class="mem-cc__brand" title="{{ k.brandName }}" aria-hidden="true"><i class="{{ k.icon }}"></i></span>
+          <div class="mem-min">
+            <b class="mem-cc__num">•••• {{ k.last4 }}</b>
+            <span class="mem-cc__s">{{ k.brandName }} {{ k.funding }}</span>
+            <span class="mem-cc__s">Expires {{ k.exp }}</span>
+            <span class="mem-cc__pills" ng-if="k.def || k.pill">
+              <span class="ta-pill ta-pill--good" ng-if="k.def"><i class="fas fa-check"></i>Default</span>
+              <span class="ta-pill ta-pill--{{ k.pill.t }}" ng-if="k.pill"><i class="fas {{ k.pill.ic }}"></i>{{ k.pill.l }}</span>
+            </span>
+          </div>
+          <div class="mem-cc__acts">
+            <div class="mem-arm" role="alert" ng-if="vm.rm === k.id">
+              <span>Remove the card ending {{ k.last4 }}?<span ng-if="k.def"> It's your default card.</span></span>
+              <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.arm(null)">Keep</button>
+              <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.remove(c, k)" ng-disabled="vm.removing" data-e2e="mem-cc-rmyes">Remove</button>
+            </div>
+            <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.rm !== k.id && !k.def && !k.expired" ng-click="vm.makeDefault(c, k)" ng-disabled="vm.settingDefault" data-e2e="mem-cc-def">Make default</button>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="vm.rm !== k.id" ng-click="vm.arm(k)" data-e2e="mem-cc-rm"><i class="far fa-trash-alt"></i>Remove</button>
+          </div>
+        </div>
+        <button type="button" class="mem-cc mem-cc--add" ng-click="vm.add(c)" data-e2e="mem-cc-add"><i class="fas fa-plus" aria-hidden="true"></i>Add a card<span>Saved with {{ c.title }}</span></button>
+      </div>
+      <span class="mem-k" ng-if="!c.cc.loading && !c.cc.error && !c.cards.length">{{ c.emptyLine }}</span>
+  </section>
+</main>

@@ -1,0 +1,58 @@
+<!-- v2 · My details → Next of kin (mockups/my-account/profile.html, page "nok"). NokV2Controller (js/v2/profile/profile.js). -->
+<div class="pro-wrap">
+<main class="ta-page pro-page">
+
+    <pro-details-bar active="nok" nok-count="vm.noks.length"></pro-details-bar>
+
+    <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>Managers at your clubs can see these contacts, so they know who to call if something happens while you're flying.</div></div>
+
+    <div class="pro-people" ng-if="vm.loading">
+        <section class="ta-card"><span class="ta-skel pro-skel pro-skel--40"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section>
+    </div>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your contacts</h4><p>Check your connection, then try again.</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <section class="ta-card" ng-if="!vm.loading && !vm.loadError && !vm.noks.length">
+        <div class="ta-empty">
+            <span class="ta-empty__ic"><i class="fas fa-user-friends"></i></span>
+            <h4>No emergency contacts yet</h4>
+            <p>Add at least one person your club can call — a partner, parent or friend who can be reached quickly.</p>
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.nok.add')" no-busy-guard><i class="fas fa-plus"></i>Add a contact</button>
+        </div>
+    </section>
+
+    <div class="pro-sec" ng-if="!vm.loading && vm.noks.length">
+        <h3>Emergency contacts <span class="ta-tag">{{ vm.noks.length }}</span></h3>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.nok.add')" no-busy-guard><i class="fas fa-plus"></i>Add a contact</button>
+    </div>
+
+    <div class="pro-people" ng-if="!vm.loading && vm.noks.length">
+        <section class="ta-card pro-person" ng-repeat="n in vm.noks" ng-class="{'pro-person--new': vm.flash === n.id}">
+            <div class="ta-card__hd">
+                <span class="ta-av ta-av--member" title="Member"><i class="fas fa-user"></i></span>
+                <div class="ta-card__ttl"><h3>{{ n.first_name }} {{ n.last_name }}</h3><p>{{ n.relationship }}</p></div>
+            </div>
+            <div class="pro-contact">
+                <div class="pro-contact__row"><i class="fas fa-phone-alt"></i><a ng-href="{{ vm.phoneHref(n.phone_number) }}">{{ n.phone_number }}</a></div>
+                <div class="pro-contact__row"><i class="fas fa-envelope"></i><a ng-if="n.email_address" ng-href="mailto:{{ n.email_address }}">{{ n.email_address }}</a><span class="pro-none" ng-if="!n.email_address">No email</span></div>
+                <div class="pro-contact__row"><i class="fas fa-home"></i><span class="pro-contact__addr">{{ n.address }}</span></div>
+            </div>
+            <div class="pro-confirm" ng-if="vm.removing === n.id">
+                <div class="ta-note ta-note--warn"><i class="fas fa-exclamation-triangle"></i><div>Remove <b>{{ n.first_name }} {{ n.last_name }}</b> as an emergency contact?<span ng-if="vm.noks.length === 1"> You'll have none left.</span></div></div>
+                <div class="pro-confirm__btns">
+                    <button type="button" class="ta-btn" ng-click="vm.keep()" no-busy-guard>Keep</button>
+                    <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.remove(n)"><i class="fas fa-trash-alt"></i>Yes, remove</button>
+                </div>
+            </div>
+            <div class="pro-foot" ng-if="vm.removing !== n.id">
+                <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.go('dashboard.my_account.nok.edit', {nok_id: n.id})" no-busy-guard><i class="fas fa-pen"></i>Edit</button>
+                <span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.askRemove(n)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove</button>
+            </div>
+        </section>
+        <button type="button" class="pro-add" ng-click="vm.go('dashboard.my_account.nok.add')" no-busy-guard><i class="fas fa-user-plus"></i>Add another contact</button>
+    </div>
+</main>
+</div>

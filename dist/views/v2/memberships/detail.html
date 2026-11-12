@@ -1,0 +1,123 @@
+<!-- v2 ONE MEMBERSHIP (today's edit page) — mockups/my-account/memberships-cards.html (page "Membership").
+     MembershipDetailV2Controller: members/{id}/for_user GET/PUT, members/instructor_update, cards/get_member_cards,
+     go_card/generate_update_link, term_documents/show_file. Cards are managed on Payment methods (the mockup's decision). -->
+<main class="ta-page" data-e2e="mem-detail">
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-id-card"></i></span>
+        <div><h2>{{ vm.title || 'Membership' }}</h2><p>{{ vm.m ? (vm.m.membership_name || 'Passenger') + (vm.priceTxt ? ' · ' + vm.priceTxt : '') : 'Payments, documents and emails' }}</p></div>
+      </div>
+      <span class="mem-classic"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.my_account.memberships" aria-label="Back to Memberships"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Memberships</span></a>
+    </div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail" ng-if="vm.loading" aria-busy="true"><div class="ta-stack"><div class="ta-skel mem-skel-t"></div><div class="ta-skel mem-skel-t"></div></div><div class="ta-skel mem-skel-t"></div></div>
+
+  <section class="ta-card" ng-if="!vm.loading && vm.missing">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-id-card"></i></span><h4>No membership to show</h4>
+      <p>This membership couldn't be found on your account. Your memberships are listed on Memberships.</p>
+      <a class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.memberships">Back to Memberships</a></div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail" ng-if="!vm.loading && vm.m">
+    <div class="ta-stack">
+      <!-- renewal -->
+      <section class="ta-card" ng-class="{'ta-card--attn': vm.st.t === 'warn' || vm.st.t === 'bad'}">
+        <div class="ta-card__hd">
+          <span class="ta-card__icon" ng-class="{'ta-card__icon--warn': vm.st.t !== 'good'}" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
+          <div class="ta-card__ttl"><h3>Renewal</h3><p>{{ vm.renewSub }}</p></div>
+          <span class="ta-card__right"><span class="ta-pill ta-pill--{{ vm.st.t }}"><i class="fas {{ vm.st.ic }}"></i>{{ vm.st.l }}</span></span>
+        </div>
+        <dl class="ta-facts ta-facts--3">
+          <div class="ta-fact"><dt>Price</dt><dd>{{ vm.priceTxt || '—' }}</dd></div>
+          <div class="ta-fact"><dt>Started</dt><dd>{{ vm.startTxt }}</dd></div>
+          <div class="ta-fact"><dt>{{ vm.endsK }}</dt><dd>{{ vm.ends ? vm.endsTxt : 'Never' }}</dd></div>
+        </dl>
+        <label class="ta-toggle" ng-if="vm.ends && vm.m.membership_id > 0">
+          <input type="checkbox" class="ta-toggle__input" ng-model="vm.auto" ng-change="vm.setAuto()" data-e2e="mem-auto">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-sync-alt" aria-hidden="true"></i>Renew automatically</span><span class="ta-toggle__s">{{ vm.renewText }}</span></span>
+          <span class="ta-switch" aria-hidden="true"></span>
+        </label>
+        <div class="ta-note ta-note--warn" ng-if="vm.st.why === 'ends'"><i class="fas fa-exclamation-circle" aria-hidden="true"></i><div>Your membership ends in {{ vm.days }} days. Turn on <b>Renew automatically</b> to keep flying with {{ vm.title }}, or renew with the club.</div></div>
+        <div class="ta-note ta-note--warn" ng-if="vm.payWarn"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><div>{{ vm.payWarn }}</div></div>
+      </section>
+
+      <!-- how you pay -->
+      <section class="ta-card" ng-if="vm.m.membership_id > 0">
+        <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-wallet"></i></span>
+          <div class="ta-card__ttl"><h3>How you pay {{ vm.title }}</h3><p>The one you pick is used for renewals and club charges</p></div></div>
+        <div class="mem-opts" role="radiogroup" aria-label="Default payment method">
+          <button type="button" class="ta-opt" role="radio" ng-class="{'ta-opt--on': vm.pay.kind === 'dd', 'mem-opt--na': !vm.hasDD}" aria-checked="{{ vm.pay.kind === 'dd' }}" ng-click="vm.setDefault('gocardless')" ng-disabled="vm.settingDefault" data-e2e="mem-def-dd">
+            <span class="ta-opt__ic" aria-hidden="true"><i class="fas fa-university"></i></span>
+            <span><span class="ta-opt__t">Direct debit</span><span class="ta-opt__s">{{ vm.hasDD ? (vm.m.account_bank || 'Your bank') + ' · account ending ' + vm.m.account_ending + ' · ' + vm.dd.l.toLowerCase() : 'Not set up with ' + vm.title + ' yet' }}</span></span>
+            <span class="ta-opt__dot" ng-if="vm.hasDD"></span><span class="mem-opt__go" ng-if="!vm.hasDD">Set up <i class="fas fa-arrow-right"></i></span>
+          </button>
+          <button type="button" class="ta-opt" role="radio" ng-if="vm.takesCards" ng-class="{'ta-opt--on': vm.pay.kind === 'card', 'mem-opt--na': !vm.dcard}" aria-checked="{{ vm.pay.kind === 'card' }}" ng-click="vm.setDefault('stripe')" ng-disabled="vm.settingDefault || vm.cc.loading" data-e2e="mem-def-card">
+            <span class="ta-opt__ic" aria-hidden="true"><i class="{{ vm.dcard ? vm.D.brand(vm.dcard.brand)[0] : 'far fa-credit-card' }}"></i></span>
+            <span><span class="ta-opt__t">Card</span><span class="ta-opt__s">{{ vm.cc.loading ? 'Loading your cards…' : vm.cardLine }}</span></span>
+            <span class="ta-opt__dot" ng-if="vm.dcard"></span><span class="mem-opt__go" ng-if="!vm.dcard && !vm.cc.loading">Add <i class="fas fa-arrow-right"></i></span>
+          </button>
+        </div>
+        <div class="ta-note ta-note--info" ng-if="!vm.m.default_payment_method && !vm.free"><i class="fas fa-info-circle" aria-hidden="true"></i><div>Pick one — it's what {{ vm.title }} uses to charge this membership.</div></div>
+        <span class="mem-k" ng-if="!vm.takesCards">{{ vm.title }} doesn't take card payments.</span>
+        <div class="ta-cols ta-cols--2">
+          <div class="ta-panel" ng-if="vm.hasDD">
+            <span class="ta-panel__hd"><i class="fas fa-university" aria-hidden="true"></i>Direct debit <span class="ta-pill ta-pill--{{ vm.dd.t }}"><i class="fas {{ vm.dd.ic }}"></i>{{ vm.dd.l }}</span></span>
+            <dl class="ta-facts">
+              <div class="ta-fact"><dt>Account name</dt><dd>{{ vm.m.account_name || '—' }}</dd></div>
+              <div class="ta-fact"><dt>Bank</dt><dd>{{ vm.m.account_bank || '—' }}</dd></div>
+              <div class="ta-fact"><dt>Account</dt><dd>Ending {{ vm.m.account_ending }}</dd></div>
+              <div class="ta-fact"><dt>Reference</dt><dd><span class="ta-ref">{{ vm.m.mandate_reference || '—' }}</span></dd></div>
+            </dl>
+            <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.gcl('update')" data-e2e="mem-gcl"><i class="fas fa-pen"></i>Update bank details</button>
+          </div>
+          <div class="ta-panel" ng-if="vm.takesCards">
+            <span class="ta-panel__hd"><i class="far fa-credit-card" aria-hidden="true"></i>Saved cards</span>
+            <span class="mem-k">{{ vm.cardsSummary }} Cards are managed on Payment methods.</span>
+            <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.manageCards()">Manage cards</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.addCard()"><i class="fas fa-plus"></i>Add a card</button></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- rail: documents + emails -->
+    <div class="ta-stack ta-rail">
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-file-alt"></i></span>
+          <div class="ta-card__ttl"><h3>Club documents</h3><p>The club's current terms for this membership</p></div></div>
+        <div class="mem-docs">
+          <button type="button" class="mem-doc" ng-repeat="d in vm.docs" ng-class="{'mem-doc--none': !d.file}" ng-click="vm.doc(d)" no-busy-guard>
+            <span class="mem-doc__ic" aria-hidden="true"><i class="far fa-file-pdf"></i></span>
+            <span><span class="mem-doc__t">{{ d.label }}</span><span class="mem-doc__s">{{ d.file ? (d.updated ? 'Updated ' + d.updated : 'Open the document') : 'Not uploaded by the club yet' }}</span></span>
+            <i class="fas ta-muted" ng-class="d.file ? 'fa-eye' : 'fa-minus'" aria-hidden="true"></i>
+          </button>
+        </div>
+      </section>
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-envelope"></i></span>
+          <div class="ta-card__ttl"><h3>Emails from {{ vm.title }}</h3><p>Changes save as you go</p></div></div>
+        <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.pref.reminders" ng-change="vm.savePref()" data-e2e="mem-pref-rem">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t">Booking reminders</span><span class="ta-toggle__s">An email the evening before each booking.</span></span><span class="ta-switch" aria-hidden="true"></span></label>
+        <label class="ta-toggle" ng-if="vm.isInstructor"><input type="checkbox" class="ta-toggle__input" ng-model="vm.pref.notifications" ng-change="vm.savePref()">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t">Booking notifications</span><span class="ta-toggle__s">An email each time a student books a lesson with you.</span></span><span class="ta-switch" aria-hidden="true"></span></label>
+        <label class="ta-toggle" ng-if="vm.isInstructor"><input type="checkbox" class="ta-toggle__input" ng-model="vm.pref.summary" ng-change="vm.savePref()">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t">Daily schedule summary</span><span class="ta-toggle__s">One email each evening with tomorrow's bookings.</span></span><span class="ta-switch" aria-hidden="true"></span></label>
+      </section>
+    </div>
+  </div>
+</main>
+<div ng-include="'views/v2/memberships/_gcl_dialog.html'"></div>
+<!-- a club document, shown here (js/v2/core/docview.js) -->
+<div class="ta-dlg-scrim" ng-if="vm.docView" mem-portal ng-click="vm.closeDocView()" no-busy-guard>
+  <div class="ta-dlg ta-dlg--wide" role="dialog" aria-modal="true" aria-labelledby="mem-doc-t" ng-click="$event.stopPropagation()">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDocView()" aria-label="Close" no-busy-guard>×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-file-alt"></i>{{ vm.title }} · document</div><div class="ta-dlg__title" id="mem-doc-t">{{ vm.docView.label }}</div>
+      <div class="ta-dlg__sub" ng-if="vm.docView.updated">Updated {{ vm.docView.updated }}</div></div>
+    <div class="ta-dlg__body">
+      <ta-doc-view route="term_documents" file="vm.docView.file" title="vm.docView.label"></ta-doc-view>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDocView()" no-busy-guard>Close</button></div>
+  </div>
+</div>

@@ -1,0 +1,68 @@
+<div class="vd-vc__top">
+  <span class="ta-kind ta-kind--trial" title="Trial lesson"><i class="fas fa-star" aria-hidden="true"></i></span>
+  <div class="vd-vc__ttl"><span class="vd-vc__eyebrow">{{ v.club_title }}</span><h3>{{ v.experience_title || 'Experience voucher' }}</h3></div>
+  <span class="ta-pill ta-pill--{{ v._st.tone }}"><i class="fas {{ v._st.ic }}" aria-hidden="true"></i>{{ v._st.label }}</span>
+</div>
+<!-- every block is a direct child of the body, as in the mockup (the body's grid gap spaces them) -->
+<div class="vd-vc__body">
+  <div class="vd-code">
+    <span class="vd-code__k">Code</span>
+    <span class="vd-code__v" aria-label="Voucher code {{ v.code }}">{{ vm.F.codeGroups(v.code) }}</span>
+    <button type="button" class="ta-btn ta-btn--sm" ng-if="v._st.k !== 'used' && v._st.k !== 'expired'" ng-click="vm.copy(v.code)" no-busy-guard><i class="far fa-copy" aria-hidden="true"></i>Copy</button>
+  </div>
+
+  <p class="vd-vc__covers" ng-if="v._covers && v._st.k !== 'used' && v._st.k !== 'expired'">{{ v._covers }}</p>
+
+  <!-- booked / flown: the flight comes first -->
+  <div class="ta-panel vd-flight" ng-if="v._st.k === 'booked' || v._st.k === 'flown'">
+    <span class="ta-sec-k">{{ v._st.k === 'flown' ? 'Your flight' : 'Your flight is booked' }}</span>
+    <span class="vd-flight__when">{{ vm.F.fDayLong(v.booking.start) }} · {{ vm.F.fTime(v.booking.start) }}–{{ vm.F.fTime(v.booking.end) }}</span>
+    <span class="ta-hint"><i class="far fa-clock" aria-hidden="true"></i>Club local time{{ vm.afText(v) ? ' · ' + vm.afText(v) : '' }}{{ vm.whenText(v) ? ' · ' + vm.whenText(v) : '' }}</span>
+  </div>
+
+  <dl class="ta-facts" ng-if="v._st.k === 'ready' || v._st.k === 'booked' || v._st.k === 'flown'">
+    <div class="ta-fact"><dt>For</dt><dd>{{ v.first_name }} {{ v.last_name }}</dd></div>
+    <div class="ta-fact" ng-if="v.experience_price"><dt>Value</dt><dd>{{ vm.F.money(v.experience_price) }}</dd></div>
+  </dl>
+
+  <!-- ready to use -->
+  <div class="vd-exp" ng-if="v._st.k === 'ready' && v.expiry_date" ng-class="{'vd-exp--warn': v._soon}">
+    <div class="vd-exp__row">
+      <span class="vd-exp__left"><i ng-class="v._soon ? 'fas fa-hourglass-half' : 'far fa-clock'" aria-hidden="true"></i>{{ vm.F.leftText(v._left) }}</span>
+      <span>Expires {{ vm.F.fDayLong(v.expiry_date) }}</span>
+    </div>
+    <div class="ta-meter" ng-class="{'ta-meter--warn': v._soon}" role="img" aria-label="{{ v._used }}% of the voucher's validity used"><div class="ta-meter__bar" style="--v:{{ v._used }}%"></div></div>
+  </div>
+  <div class="vd-vc__acts" ng-if="v._st.k === 'ready'"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.goBook(v)" no-busy-guard><i class="fas fa-calendar-plus" aria-hidden="true"></i>Book my flight</button></div>
+
+  <!-- flown, waiting for sign-off -->
+  <div class="ta-note ta-note--info" ng-if="v._st.k === 'flown'"><i class="fas fa-hourglass-half" aria-hidden="true"></i><div>The club still has to sign this flight off. It moves to Used once they do.</div></div>
+  <!-- booked: cancel in place, or the 48-hour rule -->
+  <div class="ta-note ta-note--warn vd-confirm" ng-if="v._st.k === 'booked' && vm.ask === v.id">
+    <div><b>Cancel this flight?</b> Your voucher goes back to Ready to use, and you can pick another slot straight away.</div>
+    <div class="vd-confirm__btns">
+      <button type="button" class="ta-btn" ng-click="vm.keep()" ng-disabled="vm.cancelling" no-busy-guard>Keep booking</button>
+      <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.cancelYes(v)" ng-disabled="vm.cancelling"><i class="fas fa-times-circle" aria-hidden="true"></i>Yes, cancel the flight</button>
+    </div>
+  </div>
+  <div class="vd-vc__acts" ng-if="v._st.k === 'booked' && vm.ask !== v.id && v.can_cancel">
+    <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.askCancel(v)" no-busy-guard><i class="fas fa-times-circle" aria-hidden="true"></i>Cancel and rebook</button>
+    <span class="ta-hint">Possible online until 48 hours before</span>
+  </div>
+  <div class="ta-note" ng-if="v._st.k === 'booked' && !v.can_cancel"><i class="fas fa-phone-alt" aria-hidden="true"></i><div>{{ v._h > 0 && v._h < 48 ? ('Less than 48 hours to go — call ' + v.club_title + ' to change or cancel this flight.') : (v.cancel_message || ('Call ' + v.club_title + ' to change or cancel this flight.')) }}</div></div>
+
+  <!-- used -->
+  <dl class="ta-facts" ng-if="v._st.k === 'used' && v.flight">
+    <div class="ta-fact" ng-if="v.flight.date"><dt>Flown</dt><dd>{{ vm.F.fDayLong(v.flight.date) }}{{ vm.F.fTime(v.flight.date) ? ', ' + vm.F.fTime(v.flight.date) : '' }}</dd></div>
+    <div class="ta-fact" ng-if="v.flight.duration_minutes"><dt>Flight time</dt><dd>{{ vm.F.hm(v.flight.duration_minutes) }} <small>brakes off to on</small></dd></div>
+    <div class="ta-fact" ng-if="v.flight.plane"><dt>Aircraft</dt><dd><span class="ta-ac" style="--ac:{{ v.flight.plane.colour || 'var(--ta-faint)' }}">{{ v.flight.plane.registration }}<span>{{ v.flight.plane.plane_type }}</span></span></dd></div>
+    <div class="ta-fact" ng-if="v._ins"><dt>Instructor</dt><dd><span class="vd-who"><span class="ta-av ta-av--sm" style="--av:{{ v._ins.colour || 'var(--ta-brand-2)' }}" title="{{ v._ins.name }} (instructor)">{{ v._ins.code }}</span>{{ v._ins.name }}</span></dd></div>
+  </dl>
+  <dl class="ta-facts" ng-if="v._st.k === 'used' && !v.flight && v.booking">
+    <div class="ta-fact"><dt>Booked for</dt><dd>{{ vm.F.fDayLong(v.booking.start) }}, {{ vm.F.fTime(v.booking.start) }}</dd></div>
+  </dl>
+  <div class="ta-note" ng-if="v._st.k === 'used' && !v.flight && !v.booking"><i class="fas fa-info-circle" aria-hidden="true"></i><div>The club marked this voucher as used.</div></div>
+
+  <!-- expired -->
+  <div class="ta-note ta-note--bad" ng-if="v._st.k === 'expired'"><i class="fas fa-times-circle" aria-hidden="true"></i><div><b>Expired on {{ vm.F.fDate(v.expiry_date) }}.</b> It can't be booked online any more — contact {{ v.club_title }} if you'd like to ask about extending it.</div></div>
+</div>

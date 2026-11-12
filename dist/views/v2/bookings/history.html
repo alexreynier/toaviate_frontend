@@ -1,0 +1,148 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 · Booking history — mockups/my-account/bookings.html, page "History".
+     BookingHistoryV2Controller (js/v2/bookings/bookings.js) · GET booking_audit_trail/booking/{id} · css/v2/bookings.css
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="bkg-history">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-history"></i></span>
+        <div><h2>Booking history</h2><p>Who booked, changed or cancelled it — and why</p></div>
+      </div>
+      <span class="v2b-inline"><design-back></design-back></span>
+      <a class="ta-back" href ng-click="vm.back()" aria-label="Back to {{ vm.backLabel() }}"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">{{ vm.backLabel() }}</span></a>
+    </div>
+    <div class="v2b-row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- loading -->
+  <div ng-if="vm.load === 'loading'" aria-label="Loading this booking's history" class="bkg-loading">
+    <div class="ta-skel bkg-sk-sum"></div>
+    <div class="ta-skel bkg-sk-tl"></div>
+  </div>
+
+  <!-- not yours -->
+  <section class="ta-card" ng-if="vm.load === 'denied'">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-lock"></i></span>
+      <h4>You can't see this booking's history</h4>
+      <p>Only the people on a booking and the club's staff can see who booked, changed or cancelled it. If this is your booking, ask the club to check it.</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ui-sref="dashboard.my_account.upcoming_bookings"><i class="fas fa-arrow-left"></i>Back to my bookings</button></div>
+    </div>
+  </section>
+
+  <!-- failed -->
+  <section class="ta-card" ng-if="vm.load === 'error'">
+    <div class="ta-empty">
+      <span class="ta-empty__ic bkg-ic-bad"><i class="fas fa-exclamation-triangle"></i></span>
+      <h4>We couldn't load this booking's history</h4>
+      <p>The connection to ToAviate dropped. Nothing has changed on the booking — try again in a moment.</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+    </div>
+  </section>
+
+  <!-- the summary card (record-dialog language) -->
+  <section class="ta-card bkg-hs" ng-if="vm.load === 'ready' && vm.b" style="{{ vm.b.aircraft.colour ? '--ac: ' + vm.b.aircraft.colour : '' }}">
+    <div class="bkg-hs__hd">
+      <span class="bkg-hs__eyebrow"><i class="fas fa-hashtag"></i>Booking {{ vm.b.id }}{{ vm.b.club_name ? ' · ' + vm.b.club_name : '' }}</span>
+      <div class="bkg-hs__top">
+        <span class="bkg-hs__reg">
+          <span class="ta-kind ta-kind--{{ vm.b.kind || 'dual' }}" ng-if="vm.b.kind" title="{{ vm.D.kindLabel(vm.b.kind) }}"><i class="fas" ng-class="vm.D.kindIcon(vm.b.kind)"></i></span>
+          {{ vm.b.aircraft ? vm.b.aircraft.reg : 'Booking ' + vm.b.id }}
+          <span class="bkg-hs__type" ng-if="vm.b.aircraft.type">{{ vm.b.aircraft.type }}</span>
+        </span>
+        <span class="ta-pill ta-pill--bad" ng-if="vm.b._gone"><i class="fas fa-times-circle"></i>Cancelled</span>
+        <span class="ta-pill ta-pill--good" ng-if="!vm.b._gone && vm.b._complete"><i class="fas fa-check-circle"></i>Flown</span>
+        <span class="ta-pill ta-pill--{{ vm.state().tone }}" ng-if="!vm.b._gone && !vm.b._complete"><i class="fas" ng-class="vm.state().icon"></i>{{ vm.state().label }}</span>
+      </div>
+      <span class="bkg-hs__sub" ng-if="vm.b.start">{{ vm.D.fDayLong(vm.b.start) }} · <b>{{ vm.D.fTime(vm.b.start) }}–{{ vm.D.fTime(vm.b.end) }}</b> · {{ vm.D.len(vm.b.minutes) }} · {{ vm.withWho() }}</span>
+    </div>
+    <div class="bkg-hs__body">
+      <dl class="ta-facts ta-facts--3">
+        <div class="ta-fact"><dt>Booked</dt><dd ng-if="vm.created()">{{ vm.created().when }}<small> · by {{ vm.created().you ? 'you' : vm.created().actor.name }}</small></dd><dd ng-if="!vm.created()">—</dd></div>
+        <div class="ta-fact"><dt>Last change</dt><dd ng-if="vm.lastChange()">{{ vm.lastChange().when }}<small> · by {{ vm.lastChange().you ? 'you' : vm.lastChange().actor.name }}</small></dd><dd ng-if="!vm.lastChange()">No changes since it was booked</dd></div>
+        <div class="ta-fact"><dt>Entries</dt><dd>{{ vm.entries.length }}<small> · since it was booked</small></dd></div>
+      </dl>
+      <button type="button" class="ta-link" ng-if="!vm.b._gone && !vm.b._complete" ng-click="vm.showInList()" no-busy-guard>Open it in My bookings <i class="fas fa-arrow-right"></i></button>
+    </div>
+  </section>
+
+  <!-- nothing recorded -->
+  <section class="ta-card" ng-if="vm.load === 'ready' && !vm.entries.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-stream"></i></span>
+      <h4>Nothing recorded yet</h4>
+      <p>Bookings made before the history was switched on have no trail. Every change from now on is recorded here.</p>
+    </div>
+  </section>
+
+  <!-- the timeline -->
+  <section class="ta-card" ng-if="vm.load === 'ready' && vm.entries.length">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon"><i class="fas fa-stream"></i></span>
+      <div class="ta-card__ttl"><h3>What happened</h3><p>{{ vm.order === 'old' ? 'Oldest first' : 'Newest first' }} · times are club local time</p></div>
+      <div class="ta-card__right">
+        <div class="ta-scope"><div class="ta-scope__set" role="tablist" aria-label="Order">
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.order !== 'old'}" ng-click="vm.setOrder('new')" no-busy-guard role="tab">Newest first</button>
+          <button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.order === 'old'}" ng-click="vm.setOrder('old')" no-busy-guard role="tab">Oldest first</button>
+        </div></div>
+      </div>
+    </div>
+    <div class="ta-note" ng-if="vm.staffView"><i class="fas fa-shield-alt"></i><div>Staff view: each entry also has the email, network and device it came from. The people on the booking see the same trail without them.</div></div>
+
+    <ol class="bkg-tl">
+      <li class="bkg-tl__e bkg-tl__e--tail" ng-if="vm.order !== 'old' && vm.tail()">
+        <span class="bkg-tl__dot bkg-tl__dot--pend" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span>
+        <div class="bkg-tl__body"><div class="bkg-tl__hd"><span class="bkg-tl__t">Next: {{ vm.tail().t }}</span></div><span class="bkg-tl__txt">{{ vm.tail().s }}</span></div>
+      </li>
+      <li class="bkg-tl__e" ng-repeat="e in vm.list() track by e.id">
+        <span class="bkg-tl__dot bkg-tl__dot--{{ e.meta.tone }}" aria-hidden="true"><i class="fas" ng-class="e.meta.ic"></i></span>
+        <div class="bkg-tl__body">
+          <div class="bkg-tl__hd"><span class="bkg-tl__t">{{ e.meta.t }}</span><span class="bkg-tl__when">{{ e.when }}{{ e.rel ? ' · ' + e.rel : '' }}</span></div>
+          <div class="bkg-tl__who" ng-if="!e.noActor">
+            <span class="ta-av ta-av--sm" ng-if="e.actor.instructor && e.actor.code" style="{{ e.actor.colour ? '--av: ' + e.actor.colour : '' }}">{{ e.actor.code }}</span>
+            <span class="ta-av ta-av--sm ta-av--member" ng-if="!(e.actor.instructor && e.actor.code)"><i class="fas fa-user"></i></span>
+            <b>{{ e.you ? 'You' : e.actor.name }}</b><span class="bkg-tl__role" ng-if="e.role">{{ e.role }}</span>
+          </div>
+          <div class="bkg-chg" ng-if="e.rows.length">
+            <div class="bkg-chg__r" ng-repeat="r in e.rows">
+              <span class="bkg-chg__k">{{ r.k }}</span>
+              <span class="bkg-chg__v">
+                <span class="bkg-chg__from" ng-if="r.hasFrom">
+                  {{ r.from }}<span class="bkg-chg__none" ng-if="r.fromNone">None</span>
+                  <span ng-if="r.fromAc && !r.fromAc.none" class="ta-ac" style="{{ r.fromAc.colour ? '--ac: ' + r.fromAc.colour : '' }}">{{ r.fromAc.reg }}<span ng-if="r.fromAc.type">{{ r.fromAc.type }}</span></span>
+                  <span ng-if="r.fromAc.none">None</span>
+                  <span ng-if="r.fromWho && !r.fromWho.none" class="bkg-who"><span class="ta-av ta-av--sm" ng-if="r.fromWho.code" style="{{ r.fromWho.colour ? '--av: ' + r.fromWho.colour : '' }}">{{ r.fromWho.code }}</span>{{ r.fromWho.name }}</span>
+                  <span ng-if="r.fromWho.none">{{ r.fromWho.name }}</span>
+                </span>
+                <i class="fas fa-long-arrow-alt-right bkg-chg__arr" ng-if="r.hasFrom" aria-label="to"></i>
+                {{ r.to }}<span class="bkg-chg__none" ng-if="r.toNone">None</span>
+                <span ng-if="r.toAc && !r.toAc.none" class="ta-ac" style="{{ r.toAc.colour ? '--ac: ' + r.toAc.colour : '' }}">{{ r.toAc.reg }}<span ng-if="r.toAc.type">{{ r.toAc.type }}</span></span>
+                <span ng-if="r.toAc.none" class="bkg-chg__none">None</span>
+                <span ng-if="r.toWho && !r.toWho.none" class="bkg-who"><span class="ta-av ta-av--sm" ng-if="r.toWho.code" style="{{ r.toWho.colour ? '--av: ' + r.toWho.colour : '' }}">{{ r.toWho.code }}</span>{{ r.toWho.name }}</span>
+                <span ng-if="r.toWho.none" class="bkg-chg__none">{{ r.toWho.name }}</span>
+              </span>
+            </div>
+          </div>
+          <span class="bkg-tl__txt" ng-if="e.text">{{ e.text }}</span>
+          <div class="bkg-quote" ng-if="e.reason" ng-class="{'bkg-quote--bad': e.reason.bad}">
+            <span ng-if="e.reason.head"><b>{{ e.reason.bad ? 'Reason: ' : 'Note: ' }}</b>{{ e.reason.head }}</span>
+            <span ng-if="e.reason.note">“{{ e.reason.note }}”</span>
+            <span ng-if="e.reason.fee" class="bkg-quote__fee" data-e2e="bkg-fee"><i class="fas fa-receipt"></i> {{ e.reason.fee }}</span>
+          </div>
+          <button type="button" class="ta-btn ta-btn--quiet ta-btn--sm bkg-tl__techbtn" ng-if="e.tech" ng-click="vm.toggleTech(e)" no-busy-guard aria-expanded="{{ vm.tech === e.id }}"><i class="fas" ng-class="vm.tech === e.id ? 'fa-chevron-up' : 'fa-shield-alt'"></i>Technical details</button>
+          <div class="bkg-tech" ng-if="e.tech && vm.tech === e.id">
+            <span ng-if="e.tech.email"><i class="fas fa-envelope"></i>{{ e.tech.email }}</span>
+            <span ng-if="e.tech.ip"><i class="fas fa-globe"></i>{{ e.tech.ip }}</span>
+            <span ng-if="e.tech.ua"><i class="fas fa-desktop"></i>{{ e.tech.ua }}</span>
+          </div>
+        </div>
+      </li>
+      <li class="bkg-tl__e bkg-tl__e--tail" ng-if="vm.order === 'old' && vm.tail()">
+        <span class="bkg-tl__dot bkg-tl__dot--pend" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span>
+        <div class="bkg-tl__body"><div class="bkg-tl__hd"><span class="bkg-tl__t">Next: {{ vm.tail().t }}</span></div><span class="bkg-tl__txt">{{ vm.tail().s }}</span></div>
+      </li>
+    </ol>
+  </section>
+</main>

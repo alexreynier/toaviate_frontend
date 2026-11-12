@@ -1,0 +1,231 @@
+/* ═══ my-schedule.html → frontend/css/v2/instructor-schedule.css · page prefix msc- · tokens only (per-element colours arrive as --ac, --g …).
+   Load after ta-base.css, ta-night.css, v2/core.css and v2/instructor.css. Every selector carries a msc- class, so nothing here reaches another page. ═══ */
+/* ═══ My schedule — page CSS, prefix msc- ; tokens only (aircraft colours arrive as --ac).
+   The booking card is the My Account bookings card (bookings.html .bkg-bk) in the scheduler chip language:
+   type square, aircraft colour as the 4px edge, grey person icon for the student, dashed = not final. ═══ */
+
+/* every block on the page may shrink: the chip row's no-wrap min-content must not widen .ta-page's grid track
+   (proposed for ta-base: .ta-page { grid-template-columns: minmax(0, 1fr); }) */
+.msc-bar, .msc-tiles, .msc-filter, .msc-found, .msc-sec, .msc-quiet, .msc-more { min-width: 0; }
+/* page bar: two shortcuts between the title and Back on desktop, their own row on a phone */
+.msc-bar .ta-bar__row:first-child { flex-wrap: wrap; }
+.msc-baracts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+@media (max-width: 768px) {
+  .msc-bar .ta-bar__title { flex: 1 1 0; }
+  .msc-baracts { order: 3; flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+}
+@media (min-width: 769px) { .msc-tools .ta-combo { flex: 1 1 360px; max-width: 540px; margin-left: auto; } }
+@media (max-width: 768px) { .msc-bar .ta-btn--sm, .msc-sec .ta-btn--sm, .msc-more .ta-btn--sm, .msc-bk .ta-detail__foot .ta-btn--sm { min-height: 44px; } }   /* ta-base gives --sm 36px on phones; 44px targets here */
+.msc-lead.ta-av { width: 32px; height: 32px; font-size: 13px; }
+
+/* phones keep the two tiles that matter (next up + to confirm) */
+@media (max-width: 768px) { .msc-tiles > :nth-child(n+3) { display: none; } }
+
+.msc-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.msc-filter .ta-chips { flex: 0 1 auto; }
+.msc-tz { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ta-muted); white-space: nowrap; }
+.msc-found { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--ta-r-tile); background: var(--ta-tint-2); border: 1px solid var(--ta-brand-line); font-size: 13px; color: var(--ta-ink-2); }
+.msc-found b { color: var(--ta-ink); }
+
+/* sections: needs your answer → today → coming up */
+.msc-sec { display: grid; gap: 8px; }
+.msc-sec + .msc-sec { margin-top: 8px; }
+.msc-sh h3 { display: flex; align-items: center; gap: 8px; }
+.msc-sh--attn h3 { color: var(--ta-warn-ink); }
+.msc-sh__n { font-size: 12px; font-weight: 800; color: var(--ta-muted); font-variant-numeric: tabular-nums; }
+.msc-sh .ta-link { font-size: 12.5px; }
+.msc-quiet { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); color: var(--ta-muted); font-size: 13px; }
+
+/* day groups */
+.msc-day { display: grid; gap: 8px; }
+.msc-day + .msc-day { margin-top: 8px; }
+.msc-day__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.msc-day__t { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ta-muted); }
+.msc-day__t b { color: var(--ta-ink); font-weight: 800; }
+.msc-day__n { font-size: 12px; color: var(--ta-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.msc-off { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--ta-r-tile); background: var(--ta-paper-3); color: var(--ta-ink-2); font-size: 13px; }
+.msc-off > i { color: var(--ta-muted); }
+
+/* the booking card */
+.msc-bk { position: relative; background: var(--ta-paper); border: 1px solid var(--ta-line); border-left: 4px solid var(--ac, var(--ta-faint)); border-radius: var(--ta-r-tile); box-shadow: var(--ta-shadow-1); overflow: hidden; transition: box-shadow 0.15s ease; }
+.msc-bk:hover { box-shadow: var(--ta-shadow-2); }
+.msc-bk--solo { --msc-wash: var(--ta-wash-solo); }
+.msc-bk--hire { --msc-wash: var(--ta-wash-hire); }
+.msc-bk--trial { --msc-wash: var(--ta-wash-trial); }
+.msc-bk--pend { border: 1.5px dashed var(--ta-brand-2); border-left: 4px solid var(--ac, var(--ta-faint)); background: var(--ta-tint-2); box-shadow: none; --msc-base: var(--ta-paper); }
+.msc-bk--done { background: var(--ta-paper-2); box-shadow: none; }
+.msc-bk--done .msc-bk__time b, .msc-bk--done .msc-reg { color: var(--ta-muted); }
+.msc-bk--hi { box-shadow: 0 0 0 3px var(--ta-brand-line), var(--ta-shadow-1); }
+.msc-bk__row { display: grid; grid-template-columns: minmax(0, 1fr); }
+.msc-bk__main { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; display: grid; grid-template-columns: 62px minmax(0, 1fr) 14px; gap: 12px; align-items: start; padding: 12px; }
+.msc-bk__time { display: grid; align-content: start; justify-items: start; gap: 1px; padding: 7px 8px 8px; border-radius: 9px; background: var(--msc-wash, var(--msc-base, var(--ta-paper-2))); font-variant-numeric: tabular-nums; }
+.msc-bk--done .msc-bk__time { background: var(--ta-paper-3); }
+.msc-bk__time b { font-size: 16px; font-weight: 800; line-height: 1.15; color: var(--ta-ink); }
+.msc-bk__time span { font-size: 12.5px; color: var(--ta-muted); }
+.msc-bk__time em { font-style: normal; font-size: 11px; font-weight: 800; color: var(--ta-ink-2); margin-top: 4px; }
+.msc-bk__dash { font-style: normal; }
+.msc-bk__txt { display: grid; gap: 7px; min-width: 0; }
+.msc-bk__l1 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0; padding-top: 3px; }
+.msc-reg { font-size: 15.5px; font-weight: 800; letter-spacing: 0.02em; color: var(--ta-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.msc-reg small { margin-left: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--ta-faint); }
+.msc-who { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; font-weight: 700; color: var(--ta-ink); }
+.msc-who .ta-av { align-self: center; }
+.msc-who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msc-bk__l2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.msc-what { font-size: 13px; color: var(--ta-ink-2); min-width: 0; }
+.msc-what small { color: var(--ta-muted); font-size: 12.5px; }
+.msc-bk__chev { color: var(--ta-faint); font-size: 12px; padding-top: 8px; transition: transform 0.15s ease; }
+.msc-bk--open .msc-bk__chev { transform: rotate(180deg); }
+.msc-bk__acts { display: flex; gap: 8px; padding: 0 12px 12px; }
+.msc-bk__acts--none { display: none; }
+.msc-bk__acts .ta-btn { flex: 1 1 auto; min-height: 44px; }
+.msc-bk__acts .ta-ib { display: none; }
+.msc-bk__ask { margin: -2px 12px 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--ta-muted); }
+.msc-bk__ask i { margin-right: 4px; color: var(--ta-faint); }
+@media (max-width: 768px) {
+  .msc-bk__main { grid-template-columns: minmax(0, 1fr) auto; gap: 9px 10px; }
+  .msc-bk__time { display: inline-flex; align-items: baseline; gap: 2px; justify-self: start; padding: 3px 10px; border-radius: var(--ta-r-pill); }
+  .msc-bk__time b, .msc-bk__time span { font-size: 14px; font-weight: 800; color: var(--ta-ink); }
+  .msc-bk__time em { margin: 0 0 0 6px; font-size: 12px; font-weight: 700; color: var(--ta-muted); }
+  .msc-bk__txt { grid-column: 1 / -1; }
+  .msc-bk__chev { grid-column: 2; grid-row: 1; padding-top: 6px; }
+  .msc-what { flex: 1 1 180px; }   /* the type square stays beside the lesson; the pill wraps under */
+}
+.msc-bk .ta-detail { padding: 12px 12px 14px; border-top: 1px solid var(--ta-line); }
+.msc-bk--pend .ta-detail { border-top-style: dashed; border-top-color: var(--ta-brand-line); }
+@media (min-width: 769px) {
+  .msc-bk__row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .msc-bk__main { grid-template-columns: 72px minmax(0, 1fr); gap: 14px; padding: 12px 14px; align-items: center; }
+  .msc-bk__chev { display: none; }
+  .msc-bk__acts, .msc-bk__acts--none { display: flex; align-items: center; padding: 0 14px 0 0; }
+  .msc-bk__acts .ta-btn { flex: none; min-height: 32px; }
+  .msc-bk__acts .ta-ib { display: inline-flex; }
+  .msc-bk__ask { margin: -4px 14px 12px 104px; }
+  .msc-bk .ta-detail { padding: 14px 14px 16px 104px; }
+}
+.msc-det { display: grid; gap: 10px; }
+.msc-contact { display: grid; gap: 2px; }
+.msc-notes { white-space: pre-wrap; font-size: 13.5px; color: var(--ta-ink-2); }
+
+/* now line + free time between bookings (the scheduler phone view's gap row) */
+.msc-now { display: flex; align-items: center; gap: 8px; padding: 0 2px; font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ta-accent); font-variant-numeric: tabular-nums; }
+.msc-now::before, .msc-now::after { content: ""; height: 2px; border-radius: 2px; background: var(--ta-accent); }
+.msc-now::before { width: 10px; flex: none; }
+.msc-now::after { flex: 1 1 auto; }
+.msc-gap { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); background: transparent; color: var(--ta-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: left; }
+.msc-gap b { color: var(--ta-accent); font-weight: 700; white-space: nowrap; }
+.msc-gap:hover { border-color: var(--ta-brand-2); background: var(--ta-tint-2); }
+@media (max-width: 768px) { .msc-gap { min-height: 44px; } }
+
+/* a request answered in this visit stays as a quiet line until you leave */
+.msc-ghost { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); color: var(--ta-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.msc-ghost > i { color: var(--ta-bad); }
+.msc-ghost b { color: var(--ta-ink-2); }
+.msc-more { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-tile); background: var(--ta-paper); font-size: 13px; color: var(--ta-muted); }
+@media (max-width: 768px) { .msc-more .ta-btn { flex: 1 1 100%; } }
+
+/* decline dialog */
+.msc-dlg:focus { outline: none; }
+.msc-reasons { flex-wrap: wrap; overflow: visible; }
+.msc-reasons .ta-chip { white-space: normal; text-align: left; min-height: 36px; line-height: 1.25; }
+@media (max-width: 600px) { .msc-reasons .ta-chip { min-height: 40px; } }
+
+/* ═══ suggest other times (new) ═══ */
+/* a request whose time was released because other times were offered: the asked-for time is struck through */
+.msc-bk--moved .msc-bk__time b, .msc-bk--moved .msc-bk__time span { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--ta-muted); }
+.msc-bk--moved .msc-bk__time em { color: var(--ta-muted); }
+@media (max-width: 768px) {
+  .msc-bk__acts--3 { flex-wrap: wrap; }
+  .msc-bk__acts--3 .ta-btn--good { order: -1; flex: 1 1 100%; }
+}
+/* what you offered, under the card */
+.msc-offer { margin: -2px 12px 12px; display: grid; gap: 6px; min-width: 0; }
+.msc-offer__k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ta-muted); }
+.msc-offer__set { display: flex; flex-wrap: wrap; gap: 6px; }
+.msc-ot { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 3px 10px 3px 8px; border: 1px solid var(--ta-line); border-left: 4px solid var(--ac); border-radius: 8px; background: var(--ta-paper); font-size: 12.5px; font-weight: 700; color: var(--ta-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.msc-ot small { font-size: 12px; font-weight: 700; color: var(--ta-ink-2); }
+.msc-ot--gone { color: var(--ta-muted); background: var(--ta-paper-2); }
+.msc-ot--gone b { text-decoration: line-through; }
+.msc-offer__s { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--ta-muted); }
+.msc-offer .ta-note { margin: 0; }
+@media (min-width: 769px) { .msc-offer { margin: -4px 14px 12px 104px; } }
+/* a time you offered, shown in its day so you don't give it to someone else */
+.msc-held { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 8px 12px; border: 1px dashed var(--ta-line-2); border-left: 4px solid var(--ac); border-radius: var(--ta-r-tile); font-size: 12.5px; color: var(--ta-muted); font-variant-numeric: tabular-nums; }
+.msc-held b { color: var(--ta-ink-2); }
+.msc-held > i { color: var(--ta-faint); }
+
+/* the suggest dialog */
+.msc-sug .ta-dlg__body { display: grid; gap: 14px; }
+.msc-sug:focus { outline: none; }
+.msc-opts { display: grid; gap: 6px; }
+.msc-opts__day { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ta-muted); }
+.msc-opts__day:first-child { margin-top: 0; }
+/* each day header is the first child of its own .msc-it wrapper (display: contents), so :first-child matched every header:
+   give the 2nd+ groups back the design's 4px (final fidelity pass, 10 Nov) */
+.msc-opts > .msc-it:not(:first-child) > .msc-opts__day { margin-top: 4px; }
+.msc-opts__day span { font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.msc-opt { display: grid; grid-template-columns: 20px auto minmax(0, 1fr); align-items: center; gap: 4px 12px; width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid var(--ta-line); border-left: 4px solid var(--ac); border-radius: var(--ta-r-tile); background: var(--ta-paper); color: var(--ta-ink); text-align: left; font-variant-numeric: tabular-nums; }
+.msc-opt:hover { background: var(--ta-paper-2); }
+.msc-opt__box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--ta-line-2); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; background: var(--ta-paper); }
+.msc-opt--on { border-color: var(--ta-brand-2); border-left-color: var(--ac); background: var(--ta-tint-2); }
+.msc-opt--on:hover { background: var(--ta-tint-2); }
+.msc-opt--on .msc-opt__box { background: var(--ta-brand-2); border-color: var(--ta-brand-2); }
+.msc-opt[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.msc-opt__t { font-size: 14.5px; font-weight: 800; white-space: nowrap; }
+.msc-opt__ac { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.msc-why { font-size: 12px; color: var(--ta-muted); }
+.msc-why--diff { color: var(--ta-warn-ink); font-weight: 700; }
+.msc-why i { margin-right: 4px; }
+@media (max-width: 600px) {
+  .msc-opt { grid-template-columns: 20px minmax(0, 1fr); }
+  .msc-opt__ac { grid-column: 2; justify-content: flex-start; }
+}
+.msc-sug__count { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--ta-muted); }
+.msc-sug__count b { color: var(--ta-ink); }
+.msc-own { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); }
+.msc-own__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 120px) auto; gap: 8px; align-items: end; }
+.msc-own__row .ta-field { gap: 4px; }
+@media (max-width: 600px) { .msc-own__row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .msc-own__row .ta-btn { grid-column: 1 / -1; min-height: 44px; } }
+.msc-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.4; }
+.msc-check i { margin-top: 2px; }
+.msc-check--good { color: var(--ta-good-ink); }
+.msc-check--warn { color: var(--ta-warn-ink); }
+.msc-check--bad { color: var(--ta-bad-ink); }
+
+/* the student's side (My Account → Bookings): pick one of the offered times */
+/* the email */
+/* loading */
+.msc-skel-card { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--ta-line); border-left: 4px solid var(--ta-line-2); border-radius: var(--ta-r-tile); background: var(--ta-paper); }
+.msc-skel-card > div { display: grid; gap: 8px; align-content: start; }
+.msc-sk-time { height: 44px; } .msc-sk-l1 { height: 16px; width: 58%; } .msc-sk-l2 { height: 22px; width: 82%; } .msc-sk-tile { height: 86px; } .msc-sk-h { height: 14px; width: 180px; }
+
+/* ═══ v2 build additions (frontend, 9 Nov 2026) — everything above is the approved mockup's copy, untouched. msc- only. ═══ */
+/* wrappers the Angular template needs (ng-repeat / ng-include hosts): no box of their own, so the grid gaps are the mockup's */
+.msc-it, .msc-cb { display: contents; }
+/* "Back to classic designs": on desktop at the end of the tools row (the first row keeps the mockup's width, so it doesn't
+   wrap at laptop widths), or beside Back when there are no tools (loading, empty); its own line at the bar's end on phones */
+.msc-v2back { display: inline-flex; align-items: center; flex: none; }
+.msc-v2back--tools { margin-left: auto; padding-left: 4px; }
+.msc-cb + .msc-v2back--tools { margin-left: 0; }
+.msc-v2row { display: none; justify-content: flex-end; margin-top: -4px; }
+@media (max-width: 1100px) { .msc-v2back { display: none; } .msc-v2row { display: flex; } }   /* where the bar's rows start to wrap */
+/* the student's phone and e-mail in an opened card are links (v1's phone cards had tel: / mailto:), drawn as the mockup's text */
+.msc-tel, .msc-tel:visited { color: inherit; text-decoration: none; }
+.msc-tel:hover, .msc-tel:focus { color: var(--ta-accent); text-decoration: underline; }
+@media (max-width: 768px) {
+  .msc-tel { position: relative; }
+  .msc-tel::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+}
+/* Suggest a time: the times load (skeleton rows), a tick lands, a refused time is marked, the own-time check reads */
+.msc-sug__load { display: grid; gap: 6px; }
+.msc-sk-opt { display: block; height: 48px; }
+.msc-opt { transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+.msc-opt__box { transition: background-color 0.15s ease, border-color 0.15s ease; }
+.msc-opt--on .msc-opt__box i { animation: msc-tick 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+@keyframes msc-tick { from { opacity: 0; transform: scale(0.4); } }
+.msc-opt--bad, .msc-opt--bad:hover { border-color: var(--ta-bad-line); border-left-color: var(--ac); background: var(--ta-bad-wash); }
+.msc-check--wait { align-items: center; color: var(--ta-muted); }
+.msc-own .tadp-field { display: grid; }
+.msc-own .tadp-btn { min-height: 42px; }   /* the date picker stands where the mockup draws a date input: the Start select's height */
+@media (max-width: 768px) { .msc-own .tadp-btn, .msc-own select.ta-input { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .msc-opt--on .msc-opt__box i { animation: none; } }

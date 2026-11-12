@@ -1,0 +1,172 @@
+<!-- ══════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Student records — mockups/instructor-dashboard/student-records.html (approved 9 Nov 2026).
+     InstructorStudentsV2Controller (js/v2/instructor_students/instructor_students.js) · contract C39 · css/v2/instructor-students.css (stu-).
+     The parts are ng-included into <main>'s grid through display:contents wrappers (.stu-part), so every section is a grid
+     child as in the design. Dialogs live in an always-present host moved to <body> (stu-portal); only the scrim inside it comes and goes.
+     ══════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-page="stu" data-e2e="stu" ng-class="{'ta-page--has-bar': vm.view === 'student' && vm.tab === 'edit' && vm.E && vm.E.st === 'ready'}">
+  <div class="stu-part" ng-if="vm.view === 'find'" ng-include="'views/v2/instructor_students/_find.html'"></div>
+  <div class="stu-part" ng-if="vm.view === 'student' && vm.tab !== 'edit'" ng-include="'views/v2/instructor_students/_student.html'"></div>
+  <div class="stu-part" ng-if="vm.view === 'student' && vm.tab === 'edit'" ng-include="'views/v2/instructor_students/_edit.html'"></div>
+</main>
+<div class="stu-portal" stu-portal>
+<!-- the dialogs (a desktop dialog, a bottom sheet on phones; Esc and the scrim close; a busy one stays). This host is always
+     present and moved to <body> by stu-portal; only the scrim inside comes and goes. -->
+<div class="ta-dlg-scrim" ng-if="vm.dlg" ng-click="vm.scrim($event)" data-e2e="stu-dlg">
+
+  <!-- ═════ the medical file: the certificate first, what was entered beside it, then earlier medicals and the log ═════ -->
+  <div class="ta-dlg ta-dlg--wide stu-mfdlg" role="dialog" aria-modal="true" aria-labelledby="stu-m-t" ng-if="vm.dlg.t === 'medical'" data-e2e="stu-medfile">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-heartbeat"></i>Medical file</div><div class="ta-dlg__title" id="stu-m-t">{{ vm.X.name }}</div>
+      <div class="ta-dlg__sub" ng-if="!vm.dlg.m">Nothing on file</div><div class="ta-dlg__sub" ng-if="vm.dlg.m">{{ vm.dlg.m.authShort || vm.dlg.m.auth || 'Medical' }} · {{ vm.dlg.names }}{{ vm.dlg.m.exam ? ' · examined ' + vm.C.fDate(vm.dlg.m.exam) : '' }}</div></div>
+    <div class="ta-dlg__body">
+      <div class="stu-med" ng-if="!vm.dlg.m">
+        <div class="ta-note ta-note--bad"><i class="fas fa-times-circle"></i><div><b>{{ vm.X.first }} hasn’t added a medical.</b> A first solo needs a valid Class 2, LAPL or Pilot Medical Declaration: the solo checks and the book-out refuse it until one is on file.</div></div>
+        <span class="ta-hint"><i class="fas fa-lock"></i> You see {{ vm.X.first }}’s whole medical file because you instruct at {{ vm.clubTitle() }}, where {{ vm.X.first }} is a member: you authorise their flights. Only {{ vm.X.first }} can change it, in My Account → Licences &amp; medical.</span>
+      </div>
+      <div class="stu-med" ng-if="vm.dlg.m">
+        <div class="ta-note ta-note--{{ vm.dlg.note.tone }}" ng-if="vm.dlg.note"><i class="fas {{ vm.dlg.note.ic }}"></i><div><b>{{ vm.dlg.note.b }}</b>{{ vm.dlg.note.t }} <button type="button" class="ta-link" ng-if="vm.dlg.note.back" ng-click="vm.medView(0)" no-busy-guard>Back to the current one</button></div></div>
+        <div class="stu-mf">
+          <section class="stu-mf__cert">
+            <div class="stu-mf__k"><span class="ta-sec-k">The certificate</span><span class="stu-mf__pages" role="group" aria-label="Pages" ng-if="vm.dlg.pages.length > 1"><button type="button" class="ta-chip" ng-repeat="i in vm.dlg.pages" ng-class="{'ta-chip--on': vm.dlg.page === i}" aria-pressed="{{ vm.dlg.page === i }}" ng-disabled="!vm.dlg.imgs" ng-click="vm.medPage(i)" no-busy-guard>Page {{ i + 1 }}</button></span></div>
+            <div class="stu-lock" ng-if="vm.dlg.imgs && vm.dlg.imgs.length && !vm.dlg.imgs[vm.dlg.page]" data-e2e="stu-scan-missing"><span class="stu-lock__ic"><i class="fas fa-image"></i></span><b>This scan is no longer available</b><span>Page {{ vm.dlg.page + 1 }} of {{ vm.dlg.imgs.length }}{{ vm.dlg.imgs.length > 1 ? ': the other pages open from the page buttons.' : '.' }}</span></div>
+            <button type="button" class="stu-cert" ng-if="vm.dlg.imgs && vm.dlg.imgs.length && vm.dlg.imgs[vm.dlg.page]" ng-click="vm.medFull(true)" aria-label="Open the certificate full size" no-busy-guard data-e2e="stu-cert"><img class="stu-cert__img" ng-src="{{ vm.dlg.imgs[vm.dlg.page] }}" alt="Scan of {{ vm.X.name }}’s medical certificate, page {{ vm.dlg.page + 1 }} of {{ vm.dlg.imgs.length }}"><span class="stu-cert__zoom"><i class="fas fa-search-plus"></i>Full size</span></button>
+            <div class="stu-lock" ng-if="vm.dlg.imgs && !vm.dlg.imgs.length"><span class="stu-lock__ic"><i class="fas fa-file-image"></i></span><b>No scan of this certificate on file</b><span>{{ vm.X.first }} entered the details without a photo of the certificate. Ask {{ vm.X.first }} to add one in My Account → Licences &amp; medical.</span></div>
+            <div class="stu-lock" ng-if="!vm.dlg.imgs && vm.dlg.busy === 'scan'" aria-busy="true"><span class="stu-lock__ic"><span class="ta-spin ta-spin--dark"></span></span><b>Opening {{ vm.X.first }}’s certificate…</b><span>The opening goes in the medical’s log.</span></div>
+            <div class="stu-lock" ng-if="!vm.dlg.imgs && vm.dlg.busy !== 'scan' && vm.dlg.refused" data-e2e="stu-scan-refused"><span class="stu-lock__ic"><i class="fas fa-ban"></i></span><b>{{ vm.dlg.refused }}</b><span>Nothing was opened.</span></div>
+            <div class="stu-lock" ng-if="!vm.dlg.imgs && vm.dlg.busy !== 'scan' && !vm.dlg.refused" data-e2e="stu-lock"><span class="stu-lock__ic"><i class="fas fa-lock"></i></span><b>Enter your password to open {{ vm.X.first }}’s certificate</b><span>Medical scans are encrypted; your password unlocks them, as on Manage Club’s members page. Each opening goes in the medical’s log.</span>
+              <div class="stu-lock__row" ng-class="{'ta-field--error': vm.dlg.pwErr}"><input class="ta-input" type="password" id="stu-mpw" placeholder="Your password" autocomplete="current-password" ng-model="vm.dlg.pw" ng-keydown="$event.keyCode === 13 && vm.unlock()" aria-label="Your password" data-e2e="stu-mpw"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.unlock()" ng-disabled="vm.dlg.busy === 'pw'" data-e2e="stu-unlock"><span class="ta-spin" ng-if="vm.dlg.busy === 'pw'"></span><i class="fas fa-unlock" ng-if="vm.dlg.busy !== 'pw'"></i>{{ vm.dlg.busy === 'pw' ? 'Opening…' : 'Open it' }}</button></div>
+              <span class="stu-lock__err" ng-if="vm.dlg.pwErr"><i class="fas fa-exclamation-circle"></i>{{ vm.dlg.pwErr }}</span><span class="stu-lock__err" ng-if="vm.dlg.scanErr && !vm.dlg.pwErr"><i class="fas fa-exclamation-circle"></i>{{ vm.dlg.scanErr }}</span></div>
+            <span class="ta-hint stu-mf__rule"><i class="fas fa-balance-scale"></i> This is what you’re checking. Beside it is what {{ vm.X.first }} typed in: if they differ, the certificate is right.</span>
+          </section>
+          <section class="stu-mf__data"><span class="ta-sec-k">What {{ vm.X.first }} entered</span>
+            <div class="stu-medc"><div class="stu-medc__r" ng-repeat="c in vm.dlg.rows" ng-class="{'stu-medc__r--bad': c.tone === 'bad', 'stu-medc__r--warn': c.tone === 'warn', 'stu-medc__r--date': c.tone === 'date'}"><span><b>{{ c.t }}</b><small>{{ c.s }}</small></span><span class="ta-pill {{ c.pill.cls }}"><i class="fas {{ c.pill.ic }}"></i>{{ c.pill.label }}</span></div></div>
+            <span class="ta-sec-k">Limitations</span>
+            <div class="stu-lim" ng-if="vm.dlg.lim"><span class="stu-lim__code">{{ vm.dlg.lim.code }}</span><span class="stu-lim__t" ng-class="{'stu-lim__t--bad': vm.dlg.lim.bad}">{{ vm.dlg.lim.t }}<small>{{ vm.dlg.lim.s }}</small></span></div>
+            <div class="stu-lim" ng-if="!vm.dlg.lim"><span class="stu-lim__code">—</span><span class="stu-lim__t">None entered<small>Check the certificate’s box XI</small></span></div>
+            <dl class="ta-facts stu-mf__facts"><div class="ta-fact"><dt>Certificate number</dt><dd>{{ vm.dlg.m.num || '—' }}</dd></div><div class="ta-fact"><dt>Issued by</dt><dd>{{ vm.dlg.m.auth || '—' }}</dd></div>
+              <div class="ta-fact"><dt>Examined</dt><dd>{{ vm.dlg.m.exam ? vm.C.fDate(vm.dlg.m.exam) : '—' }}</dd></div><div class="ta-fact"><dt>Scans</dt><dd>{{ vm.dlg.m.pages ? vm.C.plural(vm.dlg.m.pages, 'page') : 'None' }}</dd></div>
+              <div class="ta-fact"><dt>Saved</dt><dd>{{ vm.dlg.m.saved ? vm.C.fDate(vm.dlg.m.saved) : '—' }} <small ng-if="vm.dlg.m.saved">by {{ vm.X.first }}</small></dd></div><div class="ta-fact"><dt>Last changed</dt><dd>{{ vm.dlg.m.changed ? vm.C.fDate(vm.dlg.m.changed) : 'Never' }} <small ng-if="vm.dlg.m.changed">by {{ vm.X.first }}</small></dd></div></dl>
+            <div class="stu-medchk" ng-if="vm.dlg.m.check"><i class="fas fa-check-circle"></i><span>Checked against the certificate by {{ vm.dlg.m.check.byId === vm.meId ? 'you' : vm.dlg.m.check.by }} at {{ vm.clubTitle() }} on {{ vm.C.fDate(vm.dlg.m.check.at) }}</span></div>
+            <div class="stu-medchk stu-medchk--no" ng-if="!vm.dlg.m.check && vm.dlg.view"><i class="fas fa-exclamation-circle"></i><span>Not checked</span></div>
+            <div class="stu-part" ng-if="!vm.dlg.m.check && !vm.dlg.view">
+              <div class="stu-medchk stu-medchk--no"><i class="fas fa-exclamation-circle"></i><span>Not checked against the certificate at {{ vm.clubTitle() }} yet</span></div>
+              <div class="stu-medchk" ng-if="vm.dlg.diffSent"><i class="fas fa-paper-plane"></i><span>You asked {{ vm.X.first }} to correct the entry today. It stays unchecked until it matches.</span></div>
+              <div class="stu-mf__diff" ng-if="!vm.dlg.diffSent && vm.dlg.diff"><div class="ta-field" ng-class="{'ta-field--error': vm.dlg.diffErr}"><label class="ta-label" for="stu-mdiff">What’s different? <em>goes to {{ vm.X.first }}</em></label><textarea class="ta-textarea" id="stu-mdiff" rows="3" maxlength="1000" ng-model="vm.dlg.diffText"></textarea><span class="ta-field__msg" ng-if="vm.dlg.diffErr">{{ vm.dlg.diffErr }}</span></div>
+                <div class="stu-foot-acts"><button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-click="vm.medDiffNo()" no-busy-guard>Cancel</button><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.medDiffSend()" ng-disabled="vm.dlg.busy" data-e2e="stu-meddiffsend"><span class="ta-spin" ng-if="vm.dlg.busy === 'diff'"></span><i class="fas fa-paper-plane" ng-if="vm.dlg.busy !== 'diff'"></i>{{ vm.dlg.busy === 'diff' ? 'Sending…' : 'Ask ' + vm.X.first + ' to correct it' }}</button></div></div>
+              <div class="stu-mf__acts" ng-if="!vm.dlg.diffSent && !vm.dlg.diff"><button type="button" class="ta-btn ta-btn--good ta-btn--sm" ng-click="vm.medCheck()" ng-disabled="!vm.dlg.imgs || !vm.dlg.imgs.length || vm.dlg.busy" title="{{ vm.dlg.imgs ? '' : 'Open the certificate first' }}" data-e2e="stu-medcheck"><span class="ta-spin" ng-if="vm.dlg.busy === 'check'"></span><i class="fas fa-check" ng-if="vm.dlg.busy !== 'check'"></i>It matches: mark it checked</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.medDiff()" ng-disabled="!vm.dlg.imgs" title="{{ vm.dlg.imgs ? '' : 'Open the certificate first' }}" no-busy-guard data-e2e="stu-meddiff"><i class="fas fa-not-equal"></i>Something’s different</button></div>
+              <span class="ta-hint" ng-if="!vm.dlg.diffSent && !vm.dlg.diff && !vm.dlg.imgs">Open the certificate first, then compare.</span>
+            </div>
+          </section>
+        </div>
+        <div class="stu-mf__sec" ng-if="vm.X.med.earlier.length"><span class="ta-sec-k">Earlier medicals</span><div class="stu-mf__list">
+          <div class="stu-mf__row" ng-repeat="e in vm.X.med.earlier" ng-class="{'stu-mf__row--on': vm.dlg.view === $index + 1}"><span><b>{{ vm.medClassNames(e) }}</b><small>{{ e.expired ? 'Expired ' : 'Valid until ' }}{{ e.exp ? vm.C.fDate(e.exp) : '—' }}{{ e.exam ? ' · examined ' + vm.C.fDate(e.exam) : '' }}{{ e.num ? ' · ' + e.num : '' }}{{ e.archived && e.archivedAt ? ' · replaced ' + vm.C.fDate(e.archivedAt) : '' }}</small></span>
+            <span class="ta-pill ta-pill--info" ng-if="vm.dlg.view === $index + 1"><i class="fas fa-eye"></i>Showing</span><button type="button" class="ta-btn ta-btn--sm" ng-if="vm.dlg.view !== $index + 1" ng-click="vm.medView($index + 1)" no-busy-guard>Open</button></div></div></div>
+        <div class="stu-mf__sec"><span class="ta-sec-k">Log</span><div class="stu-mf__log"><div class="stu-mf__logr" ng-repeat="l in vm.X.med.rows"><span class="stu-mf__logw">{{ l.when }}</span><span><b>{{ l.who }}</b> · {{ l.t }}</span></div><div class="stu-mf__logr" ng-if="!vm.X.med.rows.length"><span class="ta-hint">Nothing yet.</span></div></div><span class="ta-hint">Every opening of the certificate is logged, with who and when.</span></div>
+        <span class="ta-hint"><i class="fas fa-lock"></i> You see {{ vm.X.first }}’s whole medical file because you instruct at {{ vm.clubTitle() }}, where {{ vm.X.first }} is a member: you authorise their flights. Only {{ vm.X.first }} can change it, in My Account → Licences &amp; medical.</span>
+      </div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Close</button><span class="ta-sp"></span>
+      <span class="stu-remind-next" ng-if="vm.medAskInfo && vm.medAskInfo.locked" data-e2e="stu-asked">{{ vm.medAskInfo.note }}</span>
+      <span class="stu-remind-next" ng-if="vm.dlg.noEmail">{{ vm.dlg.noEmail }}</span>
+      <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.medAskInfo" ng-click="vm.medRemind()" ng-disabled="vm.medAskInfo.locked || vm.dlg.busy === 'remind'" data-e2e="stu-medask"><span class="ta-spin" ng-if="vm.dlg.busy === 'remind'"></span><i class="fas" ng-if="vm.dlg.busy !== 'remind'" ng-class="vm.medAskInfo.locked ? 'fa-check' : 'fa-paper-plane'"></i>{{ vm.dlg.busy === 'remind' ? 'Sending…' : vm.medAskInfo.locked ? 'Asked' : 'Ask ' + vm.X.first + ' to ' + vm.medAskInfo.word }}</button></div>
+    <!-- full size: zoom by scrolling, rotate -->
+    <div class="stu-certfull" ng-if="vm.dlg.full && vm.dlg.imgs[vm.dlg.page]" role="dialog" aria-label="The certificate, full size">
+      <div class="stu-certfull__bar"><b>Page {{ vm.dlg.page + 1 }} of {{ vm.dlg.imgs.length }}</b><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.medRotate()" no-busy-guard><i class="fas fa-redo"></i>Rotate</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.medFull(false)" no-busy-guard><i class="fas fa-times"></i>Close</button></div>
+      <div class="stu-certfull__img"><img ng-src="{{ vm.dlg.imgs[vm.dlg.page] }}" ng-attr-style="transform: rotate({{ vm.dlg.rot }}deg)" alt="Scan of {{ vm.X.name }}’s medical certificate, full size"></div>
+    </div>
+  </div>
+
+  <!-- ═════ change course ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-c-t" ng-if="vm.dlg.t === 'course'" data-e2e="stu-coursedlg">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-book"></i>{{ vm.X.name }}</div><div class="ta-dlg__title" id="stu-c-t">Choose the course</div><div class="ta-dlg__sub">Records are kept per course.{{ vm.dlg.n ? ' ' + vm.clubTitle() + ' has ' + vm.C.plural(vm.dlg.n, 'course') + '.' : '' }}</div></div>
+    <div class="ta-dlg__body">
+      <div class="stu-optlist" ng-if="vm.dlg.st === 'loading'"><span class="ta-skel stu-skel__opt"></span><span class="ta-skel stu-skel__opt"></span></div>
+      <span class="ta-sec-k" ng-if="vm.dlg.mine.length">{{ vm.X.first }}’s courses</span>
+      <div class="stu-optlist" ng-if="vm.dlg.mine.length"><button type="button" class="ta-opt" ng-repeat="c in vm.dlg.mine track by c.id" ng-class="{'ta-opt--on': c.on}" ng-click="vm.setCourse(c)" no-busy-guard><span class="ta-opt__ic"><i class="fas fa-book"></i></span><span><span class="ta-opt__t">{{ c.t }}</span><span class="ta-opt__s">{{ c.s }}</span></span><span class="ta-opt__dot"></span></button></div>
+      <span class="ta-sec-k stu-dlg-sec" ng-if="vm.dlg.other.length">Other courses at {{ vm.clubTitle() }}</span>
+      <div class="stu-optlist" ng-if="vm.dlg.other.length"><button type="button" class="ta-opt" ng-repeat="c in vm.dlg.other track by c.id" ng-class="{'ta-opt--on': c.on}" ng-click="vm.setCourse(c)" no-busy-guard data-e2e="stu-courseopt"><span class="ta-opt__ic"><i class="fas fa-book"></i></span><span><span class="ta-opt__t">{{ c.t }}</span><span class="ta-opt__s">{{ c.s }}</span></span><span class="ta-opt__dot"></span></button></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button></div>
+  </div>
+
+  <!-- ═════ export the course record (one PDF) ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-e-t" ng-if="vm.dlg.t === 'export'" data-e2e="stu-exportdlg">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-file-pdf"></i>Export</div><div class="ta-dlg__title" id="stu-e-t">{{ vm.X.first }}’s course record</div><div class="ta-dlg__sub">{{ vm.X.courseTitle }} · {{ vm.clubTitle() }} · one PDF</div></div>
+    <div class="ta-dlg__body">
+      <span class="ta-sec-k">What it includes</span>
+      <div class="ta-sum"><div class="ta-sum__row"><i class="fas fa-plane"></i><span class="ta-sum__k">Flights</span><span class="ta-sum__v">{{ vm.C.plural(vm.X.p.flights.length, 'flight') }} and their debriefs · {{ vm.C.hmMin(vm.X.p.totalMins) }}</span></div><div class="ta-sum__row"><i class="fas fa-graduation-cap"></i><span class="ta-sum__k">Results</span><span class="ta-sum__v">Ground exams and questionnaires</span></div><div class="ta-sum__row"><i class="fas fa-tasks"></i><span class="ta-sum__k">Progress</span><span class="ta-sum__v"><em ng-if="vm.dlg.skip">Left out</em><span ng-if="!vm.dlg.skip">The latest grade on each objective</span></span></div></div>
+      <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.dlg.skip" ng-change="vm.exportSkip()" no-busy-guard data-e2e="stu-skipprog"><span class="ta-toggle__txt"><span class="ta-toggle__t">Leave out syllabus progress</span><span class="ta-toggle__s">Imported records carry no grades yet, so those pages would print mostly empty. Remembered in this browser (temporary, until 13 Nov).</span></span><span class="ta-switch"></span></label>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.dlg.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.doExport()" ng-disabled="vm.dlg.busy" data-e2e="stu-doexport"><span class="ta-spin" ng-if="vm.dlg.busy"></span><i class="fas fa-download" ng-if="!vm.dlg.busy"></i>{{ vm.dlg.busy ? 'Exporting…' : 'Download PDF' }}</button></div>
+  </div>
+
+  <!-- ═════ confirm for the instructor (club admins): a reason, 5+ characters ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-cfi-t" ng-if="vm.dlg.t === 'cfi'" data-e2e="stu-cfidlg">
+    <div class="ta-dlg__hd" style="--edge: var(--ta-warn)"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-user-check"></i>Confirm for the instructor</div><div class="ta-dlg__title" id="stu-cfi-t">Confirm for {{ vm.dlg.f.recIns }}</div><div class="ta-dlg__sub">Entered by {{ vm.dlg.f.enteredBy || 'someone else' }} · {{ vm.dlg.f.day }} · {{ vm.dlg.f.title }}</div></div>
+    <div class="ta-dlg__body">
+      <p class="ta-muted">Use this when {{ vm.C.firstName(vm.dlg.f.recIns) }} can’t confirm the record themselves. It will show as <b>confirmed for {{ vm.C.firstName(vm.dlg.f.recIns) }} by you</b>, with your reason, to everyone who reads it.</p>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err}"><label class="ta-label" for="stu-cfi">Reason</label><div class="stu-reasons"><button type="button" class="ta-chip" ng-repeat="t in vm.cfiReasons" ng-class="{'ta-chip--on': vm.dlg.reason === t}" ng-click="vm.cfiPick(t)" no-busy-guard>{{ t }}</button></div>
+        <textarea class="ta-textarea" id="stu-cfi" maxlength="255" ng-model="vm.dlg.reason" ng-change="vm.dlg.err = vm.dlg.err && vm.dlg.reason.trim().length < 5" placeholder="Why are you confirming this for the instructor?" data-e2e="stu-cfitext"></textarea><span class="ta-field__msg" ng-if="vm.dlg.err">Give a reason (at least 5 characters).</span><span class="ta-hint" ng-if="!vm.dlg.err">Pick one or write your own.</span></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.dlg.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.cfiDo()" ng-disabled="vm.dlg.busy" data-e2e="stu-cfido"><span class="ta-spin" ng-if="vm.dlg.busy"></span><i class="fas fa-user-check" ng-if="!vm.dlg.busy"></i>{{ vm.dlg.busy ? 'Confirming…' : 'Confirm for ' + vm.C.firstName(vm.dlg.f.recIns) }}</button></div>
+  </div>
+
+  <!-- ═════ add / edit an exam result (one form; the outcome is a required choice, never worked out from the score) ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-x-t" ng-if="vm.dlg.t === 'exam'" data-e2e="stu-examdlg">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-graduation-cap"></i>{{ vm.dlg.mode === 'add' ? 'Add an exam result' : 'Edit the result' }}</div><div class="ta-dlg__title" id="stu-x-t">{{ vm.dlg.mode === 'add' ? 'New result for ' + vm.X.first : vm.dlg.title + ' · sitting ' + vm.dlg.sitting }}</div><div class="ta-dlg__sub">{{ vm.X.courseTitle }} · {{ vm.X.name }}</div></div>
+    <div class="ta-dlg__body">
+      <div class="ta-field" ng-if="vm.dlg.mode === 'add'" ng-class="{'ta-field--error': vm.dlg.err.exam}" id="field-exam"><label class="ta-label" for="stu-xe">Exam <span class="ta-req">Required</span></label><select class="ta-select" id="stu-xe" ng-model="vm.dlg.examId" ng-change="vm.examPick()" data-e2e="stu-xe"><option value="">Choose the exam…</option><option ng-repeat="e in vm.X.examList track by e.id" value="{{ e.id }}">{{ e.title }}</option></select><span class="ta-field__msg" ng-if="vm.dlg.err.exam">Choose the exam.</span></div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.pass}" id="field-pass"><span class="ta-label">Outcome <span class="ta-req">Required</span></span><div class="ta-seg ta-seg--row" style="--seg-n:2" role="radiogroup" aria-label="Outcome"><button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.dlg.pass === 1}" role="radio" aria-checked="{{ vm.dlg.pass === 1 }}" ng-click="vm.examPass(1)" no-busy-guard data-e2e="stu-xpass"><i class="fas fa-check-circle"></i>Passed</button><button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.dlg.pass === 0}" role="radio" aria-checked="{{ vm.dlg.pass === 0 }}" ng-click="vm.examPass(0)" no-busy-guard data-e2e="stu-xfail"><i class="fas fa-times-circle"></i>Not passed</button></div>
+        <span class="ta-field__msg" ng-if="vm.dlg.err.pass">Say whether {{ vm.X.first }} passed.</span><span class="ta-hint" ng-if="!vm.dlg.err.pass">The examiner’s decision; it is never worked out from the score.</span></div>
+      <div class="ta-grid-2">
+        <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.date}" id="field-date"><span class="ta-label">Date sat <span class="ta-req">Required</span></span><ta-date-picker ng-model="vm.dlg.date" options="vm.examPickerOpts" block="true" format="short" placeholder="Choose the date"></ta-date-picker><span class="ta-field__msg" ng-if="vm.dlg.err.date">When was it sat?</span></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.dlg.err.result}"><label class="ta-label" for="stu-xr">Score <em>optional, %</em></label><input class="ta-input" id="stu-xr" type="text" inputmode="decimal" placeholder="—" ng-model="vm.dlg.result" data-e2e="stu-xr"><span class="ta-field__msg" ng-if="vm.dlg.err.result">A percentage from 0 to 100.</span></div>
+        <div class="ta-field"><span class="ta-label">Sitting</span><span class="ta-stepper ta-stepper--joined"><button type="button" class="ta-stepper__b" ng-click="vm.examSit(-1)" aria-label="Earlier sitting" ng-disabled="vm.dlg.sitting <= 1" no-busy-guard><i class="fas fa-minus"></i></button><span class="ta-stepper__n">{{ vm.dlg.sitting }}</span><button type="button" class="ta-stepper__b" ng-click="vm.examSit(1)" aria-label="Later sitting" no-busy-guard><i class="fas fa-plus"></i></button></span></div>
+        <div class="ta-field"><label class="ta-label" for="stu-xs">Set</label><input class="ta-input" id="stu-xs" type="text" maxlength="20" placeholder="e.g. 2" ng-model="vm.dlg.set"></div>
+        <div class="ta-field ta-span-2"><label class="ta-label" for="stu-xx">Examiner</label><input class="ta-input" id="stu-xx" type="text" maxlength="120" placeholder="e.g. the club’s examiner, or UK CAA" ng-model="vm.dlg.examiner"></div>
+        <div class="ta-field ta-span-2"><label class="ta-label" for="stu-xn">Notes <em>optional</em></label><input class="ta-input" id="stu-xn" type="text" maxlength="500" ng-model="vm.dlg.notes"></div>
+        <div class="ta-field ta-span-2" ng-if="vm.dlg.mode === 'edit'"><label class="ta-label" for="stu-xw">Reason for the change <em>optional · kept in the history</em></label><input class="ta-input" id="stu-xw" type="text" maxlength="255" placeholder="What was wrong?" ng-model="vm.dlg.reason"></div>
+      </div>
+      <label class="ta-drop ta-drop--sm stu-xdrop"><input type="file" accept="image/png,image/jpeg,application/pdf" multiple stu-file="vm.examFiles($files)" class="stu-xdrop__in"><i class="fas fa-paperclip"></i>Attach the CAA portal certificate <span class="ta-muted">· PDF or photo, optional</span></label>
+      <div class="stu-xfiles" ng-if="vm.dlg.files.length"><span class="ta-tag" ng-repeat="f in vm.dlg.files"><i class="fas" ng-class="f.type === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-image'"></i>{{ f.name }}<button type="button" class="stu-xfiles__x" ng-click="vm.examFileDel($index)" aria-label="Remove {{ f.name }}" no-busy-guard><i class="fas fa-times"></i></button></span></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" ng-disabled="vm.dlg.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.examSave()" ng-disabled="vm.dlg.busy" data-e2e="stu-xsave"><span class="ta-spin" ng-if="vm.dlg.busy"></span><i class="fas fa-check" ng-if="!vm.dlg.busy"></i>{{ vm.dlg.busy ? 'Saving…' : vm.dlg.mode === 'add' ? 'Add the result' : 'Save the result' }}</button></div>
+  </div>
+
+  <!-- ═════ an exam result's history ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-h-t" ng-if="vm.dlg.t === 'hist'" data-e2e="stu-histdlg">
+    <div class="ta-dlg__hd"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button><div class="ta-dlg__eyebrow"><i class="fas fa-history"></i>History</div><div class="ta-dlg__title" id="stu-h-t">{{ vm.dlg.title }} · sitting {{ vm.dlg.sitting }}</div><div class="ta-dlg__sub">Every change to this result, oldest first</div></div>
+    <div class="ta-dlg__body">
+      <div class="stu-optlist" ng-if="vm.dlg.st === 'loading'"><span class="ta-skel stu-skel__opt"></span><span class="ta-skel stu-skel__opt"></span></div>
+      <div class="ta-note ta-note--bad" ng-if="vm.dlg.st === 'error'"><i class="fas fa-exclamation-triangle"></i><div>The history didn’t load. Close this and try again.</div></div>
+      <div class="stu-hist" ng-if="vm.dlg.st === 'ready'"><div class="stu-hist__row" ng-repeat="h in vm.dlg.rows"><span class="ta-av ta-av--sm" ng-attr-style="--av:{{ h.av.colour }}" title="{{ h.av.title }}">{{ h.av.code }}</span><span><b>{{ h.who }}</b> · {{ h.what }}</span><small>{{ h.when }}</small></div><span class="ta-hint" ng-if="!vm.dlg.rows.length">No changes recorded.</span></div>
+    </div>
+    <div class="ta-dlg__ft"><span class="ta-sp"></span><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Close</button></div>
+  </div>
+
+  <!-- ═════ edit: clearing graded objectives asks first (the backend's item_removal, before Save) ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-rm-t" ng-if="vm.dlg.t === 'removal'" data-e2e="stu-removaldlg">
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-exclamation-triangle"></i></span><div><div class="ta-dlg__title" id="stu-rm-t">Remove {{ vm.C.plural(vm.dlg.rows.length, 'graded objective') }}?</div><div class="ta-dlg__sub">Nothing has been saved yet.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button></div>
+    <div class="ta-dlg__body">
+      <p>This edit clears {{ vm.dlg.rows.length === 1 ? 'a grade' : 'grades' }} that {{ vm.E.f.recIns || vm.E.f.insName || 'the instructor' }} gave on this flight. Saving takes {{ vm.dlg.rows.length === 1 ? 'it' : 'them' }} off the record (the history keeps the old version):</p>
+      <div class="ta-sum"><div class="ta-sum__row" ng-repeat="r in vm.dlg.rows"><i class="fas fa-minus-circle"></i><span class="ta-sum__k">{{ r.code }}</span><span class="ta-sum__v">{{ r.t }} <em>· was {{ r.was }}</em></span></div></div>
+    </div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Keep them</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.edSaveRemove()" data-e2e="stu-removedo"><i class="fas fa-check"></i>Remove and save</button></div>
+  </div>
+
+  <!-- ═════ edit: the backend's identity-change confirmation (can't arise from this form; kept for safety) ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-id-t" ng-if="vm.dlg.t === 'identity'">
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-exclamation-triangle"></i></span><div><div class="ta-dlg__title" id="stu-id-t">Move this record?</div><div class="ta-dlg__sub">Nothing has been saved yet.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button></div>
+    <div class="ta-dlg__body"><p>{{ vm.dlg.msg }}</p><div class="ta-sum" ng-if="vm.dlg.changes.length"><div class="ta-sum__row" ng-repeat="c in vm.dlg.changes"><i class="fas fa-exchange-alt"></i><span class="ta-sum__k">{{ c.field }}</span><span class="ta-sum__v">{{ c.from }} → {{ c.to }}</span></div></div></div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Cancel</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.edSaveIdentity()"><i class="fas fa-check"></i>Move it and save</button></div>
+  </div>
+
+  <!-- ═════ edit: leaving with changes asks first ═════ -->
+  <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="stu-lv-t" ng-if="vm.dlg.t === 'leave'" data-e2e="stu-leavedlg">
+    <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-exclamation-triangle"></i></span><div><div class="ta-dlg__title" id="stu-lv-t">Leave without saving?</div><div class="ta-dlg__sub">Your changes to this record are not saved.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Close" no-busy-guard>×</button></div>
+    <div class="ta-dlg__body"><p>The record stays as it was. You can edit it again any time from {{ vm.X.first }}’s flights.</p></div>
+    <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Keep editing</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.leaveYes()" data-e2e="stu-leaveyes">Leave without saving</button></div>
+  </div>
+</div>
+</div>
+

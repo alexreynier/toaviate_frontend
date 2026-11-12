@@ -1,0 +1,43 @@
+<!-- ═══ v2 Safety · To acknowledge (state dashboard.v2.safety_acknowledgements, data.screen 'acks') ═══
+     Design: mockups/my-account/safety.html → To acknowledge. Rows, due dates (Overdue · n days / Due … / Asked …) and the
+     acknowledged history come from sms/v2/acknowledgements (C25). If that read isn't available for the club, the v1 pending list
+     is shown instead: rows read "Asked 3 Nov 2026" and only items signed on this visit show as Acknowledged. -->
+<main class="ta-page saf-page">
+  <div class="saf-contents" ng-include="'views/v2/safety/_bar.html'"></div>
+  <div class="saf-contents" ng-include="'views/v2/safety/_states.html'"></div>
+
+  <div class="ta-tiles saf-tiles" ng-class="{'saf-tiles--3': vm.overdue().length && (vm.ackHistory || vm.signed().length)}" ng-if="vm.club_id && !vm.forbidden && !vm.loadError" data-e2e="saf-ack-tiles">
+    <div class="ta-tile ta-tile--bad" ng-if="vm.overdue().length">
+      <span class="ta-tile__k"><i class="fas fa-exclamation-circle"></i>Overdue</span>
+      <span class="ta-tile__v">{{ vm.overdue().length }}</span>
+      <span class="ta-tile__s">Past the date the club asked for — oldest {{ vm.fDate(vm.oldestDue()) }}</span>
+    </div>
+    <div class="ta-tile" ng-class="{'ta-tile--attn': vm.pending().length}">
+      <span class="ta-tile__k"><i class="fas fa-file-signature"></i>To acknowledge</span>
+      <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.pending().length}">{{ vm.loading ? '…' : vm.pending().length }}</span>
+      <span class="ta-tile__s">{{ !vm.pending().length ? 'Nothing waiting for you' : vm.nextDue() ? 'Next ' + vm.ackStatus(vm.nextDue()).label.replace('Due', 'due') : vm.overdue().length === vm.pending().length ? 'All of them overdue' : vm.ackHistory ? 'No date set by the club' : 'Oldest asked ' + vm.fDate(vm.pending()[0].created_at) }}</span>
+    </div>
+    <div class="ta-tile ta-tile--good" ng-if="vm.ackHistory || vm.signed().length">
+      <span class="ta-tile__k"><i class="fas fa-check-circle"></i>Acknowledged</span>
+      <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.signed().length}">{{ vm.loading ? '…' : vm.signed().length }}</span>
+      <span class="ta-tile__s">{{ !vm.signed().length ? 'None yet' : vm.ackHistory ? 'Most recent ' + vm.fDate(vm.signed()[0].acknowledged_at) : 'Signed on this visit' }}</span>
+    </div>
+  </div>
+
+  <section class="ta-list saf-ackpage" ng-if="vm.club_id && !vm.forbidden" data-e2e="saf-acks">
+    <div class="saf-lhd"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-file-signature"></i></span><div class="ta-card__ttl"><h3>Read and acknowledge</h3><p>Open each one, read it, then confirm you’ve understood it</p></div></div></div>
+    <div class="saf-skel" ng-if="vm.loading" aria-label="Loading"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+    <div class="ta-empty" ng-if="!vm.loading && !vm.acks.length"><span class="ta-empty__ic"><i class="fas fa-check-circle"></i></span><h4>Nothing to acknowledge</h4><p>When {{ vm.clubName || 'your club' }} asks you to read a manual change or a bulletin, it appears here with the date they need it by.</p></div>
+
+    <div class="ta-group ta-group--attn" ng-if="!vm.loading && vm.overdue().length"><span><i class="fas fa-exclamation-circle"></i>Overdue</span><span>{{ vm.overdue().length }}</span></div>
+    <div class="ta-row" ng-repeat="a in vm.overdue()" ng-class="{'ta-row--open': vm.ackOpen === a}" ng-include="'views/v2/safety/_ack_row.html'"></div>
+
+    <div class="ta-group" ng-if="!vm.loading && vm.todo().length"><span>{{ vm.overdue().length ? 'Others to acknowledge' : 'To acknowledge' }}</span><span>{{ vm.todo().length }}</span></div>
+    <div class="ta-row" ng-repeat="a in vm.todo()" ng-class="{'ta-row--open': vm.ackOpen === a}" ng-include="'views/v2/safety/_ack_row.html'"></div>
+
+    <div class="ta-group" ng-if="!vm.loading && vm.acks.length && !vm.pending().length"><span><i class="fas fa-check"></i>You’re up to date</span><span></span></div>
+
+    <div class="ta-group" ng-if="!vm.loading && vm.signed().length"><span>Acknowledged</span><span>{{ vm.signed().length }}</span></div>
+    <div class="ta-row" ng-repeat="a in vm.signed()" ng-class="{'ta-row--open': vm.ackOpen === a}" ng-include="'views/v2/safety/_ack_row.html'"></div>
+  </section>
+</main>

@@ -1,0 +1,233 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 ADD / EDIT A FLIGHT (dashboard.v2.logbook_add, dashboard.v2.logbook_edit) — design: mockups/my-account/logbook.html
+     ("Add / edit flight"). LogbookV2Controller (screen 'add' | 'edit'). Manual entries only: club lines are kept by
+     the club and never carry ToAviate tuition (free-text external instructor only, as v1).
+     The registration searches your logbook, the ToAviate club fleets and the aircraft register (backend C7,
+     GET personal_logbook/v2/aircraft/search, debounced 250 ms, latest answer wins); a full registration typed and left
+     is looked up (personal_logbook/v2/aircraft/lookup/{reg}, v1's personal_logbook/aircraft/{reg} if that fails).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page lgb lgb-entry ta-page--has-bar">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas" ng-class="vm.isEdit ? 'fa-pen' : 'fa-plus'"></i></span>
+        <div>
+          <h2>{{ vm.isEdit ? 'Edit flight' : 'Add a flight' }}</h2>
+          <p>{{ vm.isEdit ? 'A flight you added yourself — it stays an unverified entry' : 'For flying you did outside a ToAviate club' }}</p>
+          <design-back class="lgb-designback"></design-back>
+        </div>
+      </div>
+      <a class="ta-back" ui-sref="dashboard.my_account.logbook" aria-label="Back to the logbook"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">Logbook</span></a>
+    </div>
+  </section>
+
+  <section class="ta-card" ng-if="vm.loading" aria-busy="true"><div class="ta-skel lgb-sk-bar"></div><div class="ta-skel lgb-sk-row"></div><div class="ta-skel lgb-sk-row"></div></section>
+
+  <div class="ta-note ta-note--info" ng-if="!vm.loading">
+    <i class="fas fa-info-circle" aria-hidden="true"></i>
+    <div>Club flights and lessons appear in your logbook by themselves. Add flying from elsewhere here — for instruction outside ToAviate, type the instructor’s name. <a class="ta-link lgb-inl" ng-if="!vm.isEdit" ui-sref="dashboard.my_account.logbook_skydemon">Got SkyDemon logs or a spreadsheet? Import them <i class="fas fa-arrow-right" aria-hidden="true"></i></a></div>
+  </div>
+
+  <!-- 1 · flight -->
+  <section class="ta-card" ng-if="!vm.loading">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.form.date && vm.form.dep && vm.form.arr}"><i class="fas fa-route" aria-hidden="true"></i><span class="ta-card__step">1</span></span>
+      <div class="ta-card__ttl"><h3>Flight</h3><p>When and where — times in UTC</p></div>
+    </div>
+    <div class="lgb-fgrid">
+      <div class="ta-field lgb-a-date" id="field-lgb-date" ng-class="{'ta-field--error': vm.ferr.date}">
+        <label class="ta-label" for="lgb-dp-date"><i class="far fa-calendar-alt" aria-hidden="true"></i>Date</label>
+        <ta-date-picker ng-model="vm.form.date" ng-change="vm.clearErr('date')" options="vm.dateOpts" placeholder="Pick a date" block="true" format="short"></ta-date-picker>
+        <span class="ta-field__msg" ng-if="vm.ferr.date">{{ vm.ferr.date }}</span>
+      </div>
+
+      <div class="ta-field lgb-a-from" ng-class="{'ta-field--error': vm.ferr.dep}">
+        <label class="ta-label" for="lgb-f-dep"><i class="fas fa-plane-departure" aria-hidden="true"></i>From</label>
+        <div class="lgb-af__sel" ng-if="vm.form.dep">
+          <span class="ta-route"><b class="ta-icao">{{ vm.form.dep.code }}</b><span ng-if="vm.form.dep.title">{{ vm.form.dep.title }}</span><span ng-if="!vm.form.dep.title && !vm.form.dep.id">as typed — not in the airfield list</span></span>
+          <button type="button" class="ta-ib" ng-click="vm.afClear('dep')" aria-label="Change the departure airfield" title="Change" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+        <label class="ta-search lgb-fs" ng-if="!vm.form.dep"><i class="fas fa-search" aria-hidden="true"></i><input id="lgb-f-dep" ng-model="vm.form.depQ" ng-change="vm.afType('dep')" placeholder="ICAO code or name, e.g. EGTK" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+        <div class="lgb-af__list" role="listbox" ng-if="!vm.form.dep && vm.form.depQ.length >= 2">
+          <div class="lgb-af__busy" ng-if="vm.af.dep.busy"><span class="ta-spin ta-spin--dark"></span>Searching the airfields…</div>
+          <button type="button" class="lgb-af__opt" ng-repeat="a in vm.af.dep.list" ng-click="vm.afPick('dep', a)" no-busy-guard><b class="ta-icao">{{ a.code }}</b><span>{{ a.title }}</span></button>
+          <button type="button" class="lgb-af__opt" ng-if="!vm.af.dep.busy" ng-click="vm.afPick('dep', null)" no-busy-guard><i class="fas fa-pen ta-muted" aria-hidden="true"></i><span>Not listed — use “{{ vm.form.depQ | uppercase }}” as typed</span></button>
+        </div>
+        <span class="ta-field__msg" ng-if="vm.ferr.dep">{{ vm.ferr.dep }}</span>
+        <span class="ta-hint" ng-if="!vm.ferr.dep && !vm.form.dep">Type at least 2 characters to search</span>
+      </div>
+
+      <div class="ta-field lgb-a-to" ng-class="{'ta-field--error': vm.ferr.arr}">
+        <label class="ta-label" for="lgb-f-arr"><i class="fas fa-plane-arrival" aria-hidden="true"></i>To</label>
+        <div class="lgb-af__sel" ng-if="vm.form.arr">
+          <span class="ta-route"><b class="ta-icao">{{ vm.form.arr.code }}</b><span ng-if="vm.form.arr.title">{{ vm.form.arr.title }}</span><span ng-if="!vm.form.arr.title && !vm.form.arr.id">as typed — not in the airfield list</span></span>
+          <button type="button" class="ta-ib" ng-click="vm.afClear('arr')" aria-label="Change the arrival airfield" title="Change" no-busy-guard><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+        <label class="ta-search lgb-fs" ng-if="!vm.form.arr"><i class="fas fa-search" aria-hidden="true"></i><input id="lgb-f-arr" ng-model="vm.form.arrQ" ng-change="vm.afType('arr')" placeholder="ICAO code or name, e.g. EGTK" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+        <div class="lgb-af__list" role="listbox" ng-if="!vm.form.arr && vm.form.arrQ.length >= 2">
+          <div class="lgb-af__busy" ng-if="vm.af.arr.busy"><span class="ta-spin ta-spin--dark"></span>Searching the airfields…</div>
+          <button type="button" class="lgb-af__opt" ng-repeat="a in vm.af.arr.list" ng-click="vm.afPick('arr', a)" no-busy-guard><b class="ta-icao">{{ a.code }}</b><span>{{ a.title }}</span></button>
+          <button type="button" class="lgb-af__opt" ng-if="!vm.af.arr.busy" ng-click="vm.afPick('arr', null)" no-busy-guard><i class="fas fa-pen ta-muted" aria-hidden="true"></i><span>Not listed — use “{{ vm.form.arrQ | uppercase }}” as typed</span></button>
+        </div>
+        <span class="ta-field__msg" ng-if="vm.ferr.arr">{{ vm.ferr.arr }}</span>
+        <span class="ta-hint" ng-if="!vm.ferr.arr && !vm.form.arr">Type at least 2 characters to search</span>
+      </div>
+
+      <div class="ta-field lgb-a-off" ng-class="{'ta-field--error': vm.ferr.off}">
+        <label class="ta-label" for="lgb-f-off">Off blocks <em>UTC</em></label>
+        <ta-time ng-model="vm.form.off" ng-change="vm.clearErr('off')" input-id="lgb-f-off" label="Off blocks, UTC" step="5" format="HH:mm" near="vm.form.on"></ta-time>
+        <span class="ta-field__msg" ng-if="vm.ferr.off">{{ vm.ferr.off }}</span>
+      </div>
+      <div class="ta-field lgb-a-on" ng-class="{'ta-field--error': vm.ferr.on}">
+        <label class="ta-label" for="lgb-f-on">On blocks <em>UTC</em></label>
+        <ta-time ng-model="vm.form.on" ng-change="vm.clearErr('on')" input-id="lgb-f-on" label="On blocks, UTC" step="5" format="HH:mm" near="vm.form.off"></ta-time>
+        <span class="ta-field__msg" ng-if="vm.ferr.on">{{ vm.ferr.on }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · aircraft -->
+  <section class="ta-card" ng-if="!vm.loading">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.form.reg}"><i class="fas fa-plane" aria-hidden="true"></i><span class="ta-card__step">2</span></span>
+      <div class="ta-card__ttl"><h3>Aircraft</h3><p>Search the registration — we fill in everything we know</p></div>
+    </div>
+    <div class="ta-grid-2">
+      <div class="ta-field">
+        <label class="ta-label" for="cb-reg">Registration</label>
+        <ta-combo cb-id="reg" label="Aircraft registration" placeholder="Registration, e.g. G-BM or MTJ" caps="true"
+                  query="vm.regQ" source="vm.regGroups(q)" on-type="vm.regTyped(q)" on-pick="vm.regPick(key)" on-leave="vm.regLeave(q)" on-clear="vm.regClear()"
+                  value="vm.regValue" summary="vm.regSummary" clearable="!!vm.form.reg" version="vm.cbVer"></ta-combo>
+        <span class="ta-hint lgb-reghint" ng-if="vm.regHint()"><i class="fas {{ vm.regHint().ic }}" ng-if="vm.regHint().ic" aria-hidden="true"></i> {{ vm.regHint().t }}</span>
+      </div>
+      <div class="ta-field">
+        <span class="ta-label">Engines</span>
+        <div class="ta-seg ta-seg--row" style="--seg-n:2" role="radiogroup" aria-label="Engines">
+          <button type="button" class="ta-seg__opt" role="radio" aria-checked="{{ vm.form.engine === 'single' ? 'true' : 'false' }}" ng-class="{'ta-seg__opt--on': vm.form.engine === 'single'}" ng-click="vm.setEngine('single')" no-busy-guard>Single-engine</button>
+          <button type="button" class="ta-seg__opt" role="radio" aria-checked="{{ vm.form.engine === 'multi' ? 'true' : 'false' }}" ng-class="{'ta-seg__opt--on': vm.form.engine === 'multi'}" ng-click="vm.setEngine('multi')" no-busy-guard>Multi-engine</button>
+        </div>
+      </div>
+    </div>
+    <div class="lgb-g3">
+      <div class="ta-field"><label class="ta-label" for="lgb-f-make">Make</label><input class="ta-input" id="lgb-f-make" ng-class="{'ta-input--prefilled': vm.form.pre.make}" ng-model="vm.form.make" ng-change="vm.unpre('make')" placeholder="e.g. Cessna"></div>
+      <div class="ta-field"><label class="ta-label" for="lgb-f-model">Model</label><input class="ta-input" id="lgb-f-model" ng-class="{'ta-input--prefilled': vm.form.pre.model}" ng-model="vm.form.model" ng-change="vm.unpre('model')" placeholder="e.g. 172"></div>
+      <div class="ta-field"><label class="ta-label" for="lgb-f-type">Type</label><input class="ta-input" id="lgb-f-type" ng-class="{'ta-input--prefilled': vm.form.pre.type}" ng-model="vm.form.type" ng-change="vm.unpre('type')" placeholder="e.g. C172"></div>
+    </div>
+    <div class="ta-grid-2">
+      <div class="ta-field">
+        <label class="ta-label" for="lgb-f-cls">Class</label>
+        <select class="ta-select" id="lgb-f-cls" ng-class="{'ta-input--prefilled': vm.form.pre.cls}" ng-model="vm.form.cls" ng-change="vm.unpre('cls')" ng-options="c as c for c in vm.classes" no-busy-guard>
+          <option value="">Choose the class</option>
+        </select>
+        <span class="ta-hint">{{ vm.classHint() }}</span>
+      </div>
+      <div class="ta-span-2 ta-grid-2">
+        <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.form.multi" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">Multi-pilot</span><span class="ta-toggle__s">Operated with two pilots</span></span><span class="ta-switch"></span></label>
+        <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.form.sim" ng-change="vm.simChanged()" no-busy-guard><span class="ta-toggle__txt"><span class="ta-toggle__t">Simulator</span><span class="ta-toggle__s">An FSTD session — no flight times</span></span><span class="ta-switch"></span></label>
+      </div>
+      <div class="ta-field" ng-if="vm.form.sim"><label class="ta-label" for="lgb-f-simType">Simulator type</label><input class="ta-input" id="lgb-f-simType" ng-model="vm.form.simType" placeholder="e.g. FNPT II"></div>
+    </div>
+  </section>
+
+  <!-- 3 · time & role -->
+  <section class="ta-card" ng-if="!vm.loading">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.total() > 0}"><i class="fas fa-clock" aria-hidden="true"></i><span class="ta-card__step">3</span></span>
+      <div class="ta-card__ttl"><h3>Time &amp; your role</h3><p>Single-pilot aircraft log the whole flight in one role</p></div>
+      <span class="ta-card__right" ng-if="vm.total() > 0"><span class="ta-pill ta-pill--info"><i class="fas {{ vm.capInfo(vm.form.cap).ic }}" aria-hidden="true"></i>Counts as {{ vm.Fmt.hm(vm.total()) }} {{ vm.capInfo(vm.form.cap).label }}</span></span>
+    </div>
+    <div class="ta-field" ng-if="vm.form.manualTotal || vm.form.sim" ng-class="{'ta-field--error': vm.ferr.total}">
+      <label class="ta-label" for="lgb-f-total">Total time <em>h:mm</em></label>
+      <input class="ta-input lgb-in-short" id="lgb-f-total" ng-model="vm.form.total" ng-change="vm.clearErr('total')" placeholder="e.g. 1:05" inputmode="decimal" autocomplete="off">
+      <span class="ta-field__msg" ng-if="vm.ferr.total">{{ vm.ferr.total }}</span>
+      <span class="ta-hint" ng-if="!vm.ferr.total && vm.form.sim">A simulator session has no off- and on-blocks times.</span>
+      <span class="ta-hint" ng-if="!vm.ferr.total && !vm.form.sim"><button type="button" class="ta-link" ng-click="vm.manTot()" no-busy-guard>Work it out from the times instead</button></span>
+    </div>
+    <div class="lgb-total" ng-if="!vm.form.manualTotal && !vm.form.sim">
+      <span class="lgb-total__v">{{ vm.Fmt.hm(vm.total()) }}</span>
+      <span class="lgb-total__s"><b>Total time</b><small>{{ vm.total() ? 'From ' + vm.form.off + ' to ' + vm.form.on + (vm.pastMidnight() ? ' (past midnight)' : '') : 'Worked out from off and on blocks' }} · <button type="button" class="ta-link" ng-click="vm.manTot()" no-busy-guard>Type the total instead</button></small></span>
+    </div>
+    <div class="ta-field">
+      <span class="ta-label">Your role</span>
+      <div class="ta-seg lgb-roles" role="radiogroup" aria-label="Your role">
+        <button type="button" class="ta-seg__opt" ng-repeat="c in vm.CAPS" role="radio" aria-checked="{{ vm.form.cap === c ? 'true' : 'false' }}" ng-class="{'ta-seg__opt--on': vm.form.cap === c}" ng-click="vm.setCap(c)" no-busy-guard><i class="fas {{ vm.capInfo(c).ic }}" aria-hidden="true"></i>{{ vm.capInfo(c).label }}</button>
+      </div>
+      <span class="ta-hint">{{ vm.capHint() }}</span>
+    </div>
+    <div class="ta-stack lgb-cond-k"><span class="ta-sec-k">Conditions</span><span class="ta-hint">Optional — each one is part of the total, not added to it.</span></div>
+    <div class="lgb-g3">
+      <div class="ta-field" ng-class="{'ta-field--error': vm.ferr.night}">
+        <label class="ta-label" for="lgb-f-night"><i class="fas fa-moon" aria-hidden="true"></i>Night</label>
+        <input class="ta-input" id="lgb-f-night" ng-model="vm.form.night" ng-change="vm.clearErr('night')" placeholder="{{ vm.form.nightEst ? 'est. ' + vm.Fmt.hm(vm.form.nightEst) : '0:00' }}" inputmode="decimal" autocomplete="off">
+        <span class="ta-field__msg" ng-if="vm.ferr.night">{{ vm.ferr.night }}</span>
+        <span class="ta-hint" ng-if="!vm.ferr.night && !vm.form.night">Leave blank and we estimate it from sunset</span>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.ferr.ifr}">
+        <label class="ta-label" for="lgb-f-ifr"><i class="fas fa-cloud" aria-hidden="true"></i>Instrument</label>
+        <input class="ta-input" id="lgb-f-ifr" ng-model="vm.form.ifr" ng-change="vm.clearErr('ifr')" placeholder="0:00" inputmode="decimal" autocomplete="off">
+        <span class="ta-field__msg" ng-if="vm.ferr.ifr">{{ vm.ferr.ifr }}</span>
+        <span class="ta-hint" ng-if="!vm.ferr.ifr">IFR or IMC</span>
+      </div>
+      <div class="ta-field" ng-class="{'ta-field--error': vm.ferr.xc}">
+        <label class="ta-label" for="lgb-f-xc"><i class="fas fa-route" aria-hidden="true"></i>Cross-country</label>
+        <input class="ta-input" id="lgb-f-xc" ng-model="vm.form.xc" ng-change="vm.clearErr('xc')" placeholder="0:00" inputmode="decimal" autocomplete="off">
+        <span class="ta-field__msg" ng-if="vm.ferr.xc">{{ vm.ferr.xc }}</span>
+        <span class="ta-hint" ng-if="!vm.ferr.xc">Navigation away from your base</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · landings -->
+  <section class="ta-card" ng-if="!vm.loading">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.form.ldd + vm.form.ldn > 0}"><i class="fas fa-plane-arrival" aria-hidden="true"></i><span class="ta-card__step">4</span></span>
+      <div class="ta-card__ttl"><h3>Landings</h3><p>Every landing counts, touch-and-goes included</p></div>
+    </div>
+    <div class="lgb-g2p">
+      <div class="ta-field">
+        <span class="ta-label" id="lgb-l-ldd">By day</span>
+        <div class="ta-stepper ta-stepper--joined" role="group" aria-labelledby="lgb-l-ldd">
+          <button type="button" class="ta-stepper__b" ng-click="vm.stepL('ldd', -1)" ng-disabled="!vm.form.ldd" aria-label="One fewer" no-busy-guard><i class="fas fa-minus" aria-hidden="true"></i></button>
+          <output class="ta-stepper__n" aria-live="polite">{{ vm.form.ldd }}</output>
+          <button type="button" class="ta-stepper__b" ng-click="vm.stepL('ldd', 1)" aria-label="One more" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="ta-field">
+        <span class="ta-label" id="lgb-l-ldn">At night</span>
+        <div class="ta-stepper ta-stepper--joined" role="group" aria-labelledby="lgb-l-ldn">
+          <button type="button" class="ta-stepper__b" ng-click="vm.stepL('ldn', -1)" ng-disabled="!vm.form.ldn" aria-label="One fewer" no-busy-guard><i class="fas fa-minus" aria-hidden="true"></i></button>
+          <output class="ta-stepper__n" aria-live="polite">{{ vm.form.ldn }}</output>
+          <button type="button" class="ta-stepper__b" ng-click="vm.stepL('ldn', 1)" aria-label="One more" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · instruction & remarks -->
+  <section class="ta-card" ng-if="!vm.loading">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon"><i class="fas fa-sticky-note" aria-hidden="true"></i><span class="ta-card__step">5</span></span>
+      <div class="ta-card__ttl"><h3>Instruction &amp; remarks</h3><p>Optional</p></div>
+    </div>
+    <div class="ta-grid-2">
+      <div class="ta-field"><label class="ta-label" for="lgb-f-instr">Instructor</label><input class="ta-input" id="lgb-f-instr" ng-model="vm.form.instr" placeholder="Name, for instruction outside ToAviate"><span class="ta-hint">Not a ToAviate instructor — their lessons appear by themselves.</span></div>
+      <div class="ta-field"><label class="ta-label" for="lgb-f-club">Club or group</label><input class="ta-input" id="lgb-f-club" ng-model="vm.form.club" placeholder="e.g. a flying group"><span class="ta-hint">Shown as the flight’s source. Blank = “Manual”.</span></div>
+      <div class="ta-field ta-span-2"><label class="ta-label" for="lgb-f-remarks">Remarks</label><textarea class="ta-textarea" id="lgb-f-remarks" ng-model="vm.form.remarks" placeholder="Route, exercise, who you flew with…"></textarea></div>
+    </div>
+  </section>
+
+  <div class="ta-actionbar lgb-savebar" ng-if="!vm.loading">
+    <div class="ta-confirm ta-confirm--inline lgb-leave" ng-if="vm.leaveAsk" role="alert">
+      <span>{{ vm.isEdit ? 'Discard your changes to this flight?' : 'Discard this flight? What you’ve typed will be lost.' }}</span>
+      <span class="ta-confirm__btns">
+        <button type="button" class="ta-btn ta-btn--sm lgb-leave__keep" ng-click="vm.leaveKeep()" no-busy-guard>Keep editing</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.leaveGo()" no-busy-guard>Discard</button>
+      </span>
+    </div>
+    <span class="ta-actionbar__hint ta-desk-only" ng-if="!vm.leaveAsk">{{ vm.countsAs() }}</span>
+    <span class="ta-sp ta-desk-only" ng-if="!vm.leaveAsk"></span>
+    <button type="button" class="ta-btn ta-btn--quiet" ng-if="!vm.leaveAsk" ui-sref="dashboard.my_account.logbook" no-busy-guard>Cancel</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="!vm.leaveAsk" ng-click="vm.save()"><i class="fas fa-check" aria-hidden="true"></i>{{ vm.isEdit ? 'Save changes' : 'Add flight' }}</button>
+  </div>
+</main>

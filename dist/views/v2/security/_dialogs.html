@@ -1,0 +1,298 @@
+<!-- v2 security dialogs (SecurityV2Controller). Record dialogs (tinted header) for things, alert dialogs (gradient header) for decisions.
+     Show-once secrets: from the Scan step on, and on every recovery-codes screen — no ×, the scrim and Esc do nothing. -->
+
+<!-- ═══ two-factor setup: Password → Scan → Enter code → Save codes ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'wizard'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-wz-t">
+        <div class="ta-dlg__hd" ng-class="{'sc-hd--nox': !(vm.wz.step === 'password' && !vm.wz.busy)}" ng-attr-style="--edge:{{ vm.wz.step === 'codes' ? 'var(--ta-good)' : 'var(--ta-brand-2)' }}">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-if="vm.wz.step === 'password' && !vm.wz.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-mobile-alt"></i>Two-factor authentication</div>
+            <div class="ta-dlg__title" id="sc-wz-t">{{ {password: 'Set up two-factor', scan: 'Add ToAviate to your app', code: 'Enter the code from your app', codes: 'Two-factor is on — save your recovery codes'}[vm.wz.step] }}</div>
+            <div class="ta-dlg__sub">{{ {password: 'First, confirm it\'s you.', scan: 'Use Google Authenticator, 1Password, Authy or any authenticator app.', code: 'This proves the app is set up correctly.', codes: 'The last step. You won\'t see these again.'}[vm.wz.step] }}</div>
+            <div class="sc-dsteps"><span class="ta-steps" aria-label="Step {{ vm.wzIdx() + 1 }} of 4">
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.wzIdx() > 0, 'ta-steps__s--now': vm.wzIdx() === 0}"><i></i>Password</span>
+                <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.wzIdx() >= 1}"></span>
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.wzIdx() > 1, 'ta-steps__s--now': vm.wzIdx() === 1}"><i></i>Scan</span>
+                <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.wzIdx() >= 2}"></span>
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.wzIdx() > 2, 'ta-steps__s--now': vm.wzIdx() === 2}"><i></i>Enter code</span>
+                <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.wzIdx() >= 3}"></span>
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--now': vm.wzIdx() === 3}"><i></i>Save codes</span>
+            </span></div>
+        </div>
+
+        <form ng-if="vm.wz.step === 'password'" ng-submit="vm.wzPw()" novalidate>
+            <div class="ta-dlg__body">
+                <div class="ta-field" ng-class="{'ta-field--error': vm.wz.err}">
+                    <label class="ta-label" for="tfa-enable-password">Your password</label>
+                    <input class="ta-input" id="tfa-enable-password" type="password" autocomplete="current-password" ng-model="vm.wz.pw" ng-change="vm.wz.err = ''" ng-disabled="vm.wz.busy">
+                    <span class="ta-field__msg" ng-if="vm.wz.err">{{ vm.wz.err }}</span>
+                </div>
+            </div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" ng-disabled="vm.wz.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+                <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.wz.busy"><i class="fas fa-circle-notch fa-spin" ng-if="vm.wz.busy"></i>{{ vm.wz.busy ? 'Checking…' : 'Continue' }}</button></div>
+        </form>
+
+        <div ng-if="vm.wz.step === 'scan'">
+            <div class="ta-dlg__body">
+                <div class="sc-scan">
+                    <div class="sc-qr" role="img" aria-label="QR code for your authenticator app"><img ng-if="vm.wz.qr" ng-src="{{ vm.wz.qr }}" alt=""><span class="ta-hint" ng-if="!vm.wz.qr">Type the key instead.</span></div>
+                    <span class="ta-hint sc-qr-k">Setting up on another device? Scan this.</span>
+                    <div class="sc-scan__txt">
+                        <ol class="sc-howto"><li>Open your authenticator app and choose <b>Add</b> (often a <b>+</b>).</li><li>Scan this QR code — or, on this phone, use the button below.</li></ol>
+                        <a class="ta-btn sc-openapp" ng-href="{{ vm.wz.uri }}"><i class="fas fa-external-link-alt"></i>Open in my authenticator app</a>
+                        <div class="ta-field"><span class="ta-label">Can't scan? Type this key</span>
+                            <div class="sc-key"><code>{{ vm.grouped(vm.wz.secret) }}</code><button type="button" class="ta-ib" ng-click="vm.wzCopy()" title="Copy the key" aria-label="Copy the key" no-busy-guard><i class="fas" ng-class="vm.wz.copied ? 'fa-check' : 'fa-copy'"></i></button></div></div>
+                    </div>
+                </div>
+                <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>Nothing changes until you enter a code from the app. This key is only shown during setup.</div></div>
+            </div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.wzCancel()" no-busy-guard>Cancel setup</button><span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.wzNext()" no-busy-guard>Next: enter a code <i class="fas fa-arrow-right"></i></button></div>
+        </div>
+
+        <form ng-if="vm.wz.step === 'code'" ng-submit="vm.wzCode()" novalidate>
+            <div class="ta-dlg__body">
+                <div class="ta-field" ng-class="{'ta-field--error': vm.wz.err}">
+                    <label class="ta-label" for="tfa-enable-code">6-digit code</label>
+                    <input class="ta-input sc-code" id="tfa-enable-code" ng-model="vm.wz.code" ng-change="vm.wz.err = ''" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" ng-disabled="vm.wz.busy">
+                    <span class="ta-field__msg" ng-if="vm.wz.err">{{ vm.wz.err }}</span>
+                </div>
+                <p class="ta-hint">The code changes every 30 seconds. If it's refused, check your phone sets its clock automatically.</p>
+            </div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.wzBack()" ng-disabled="vm.wz.busy" no-busy-guard><i class="fas fa-arrow-left"></i>Back</button><span class="ta-sp"></span>
+                <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.wz.busy"><i class="fas" ng-class="vm.wz.busy ? 'fa-circle-notch fa-spin' : 'fa-shield-alt'"></i>{{ vm.wz.busy ? 'Checking…' : 'Turn on two-factor' }}</button></div>
+        </form>
+
+        <div ng-if="vm.wz.step === 'codes'">
+            <div class="ta-dlg__body" ng-init="codes = vm.wz.codes" ng-include="'views/v2/security/_codes.html'"></div>
+            <div class="ta-dlg__ft"><span class="sc-fthint" ng-if="!vm.codesSaved">Tick the box to finish</span><span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.codesFinish()" ng-disabled="!vm.codesSaved" no-busy-guard><i class="fas fa-check"></i>Finish</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ make new recovery codes ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'regen'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-rg-t">
+        <div class="ta-dlg__hd" ng-class="{'sc-hd--nox': vm.rg.step === 'codes' || vm.rg.busy}" ng-attr-style="--edge:{{ vm.rg.step === 'codes' ? 'var(--ta-good)' : 'var(--ta-warn)' }}">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-if="vm.rg.step !== 'codes' && !vm.rg.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-life-ring"></i>Recovery codes</div>
+            <div class="ta-dlg__title" id="sc-rg-t">{{ vm.rg.step === 'codes' ? 'Save your new recovery codes' : 'Make new recovery codes' }}</div>
+            <div class="ta-dlg__sub" ng-if="vm.rg.step === 'codes'">Your old codes have already stopped working.</div>
+            <div class="ta-dlg__sub" ng-if="vm.rg.step !== 'codes'">You'll get 10 fresh codes. Your {{ vm.codes() }} unused {{ vm.codes() === 1 ? 'code stops' : 'codes stop' }} working straight away.</div>
+        </div>
+        <form ng-if="vm.rg.step !== 'codes'" ng-submit="vm.rgPw()" novalidate>
+            <div class="ta-dlg__body">
+                <div class="ta-field" ng-class="{'ta-field--error': vm.rg.err}">
+                    <label class="ta-label" for="recovery-password">Your password</label>
+                    <input class="ta-input" id="recovery-password" type="password" autocomplete="current-password" ng-model="vm.rg.pw" ng-change="vm.rg.err = ''" ng-disabled="vm.rg.busy">
+                    <span class="ta-field__msg" ng-if="vm.rg.err">{{ vm.rg.err }}</span>
+                    <span class="ta-hint" ng-if="!vm.rg.err">To confirm it's you.</span>
+                </div>
+            </div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" ng-disabled="vm.rg.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+                <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.rg.busy"><i class="fas" ng-class="vm.rg.busy ? 'fa-circle-notch fa-spin' : 'fa-sync-alt'"></i>{{ vm.rg.busy ? 'Making codes…' : 'Make new codes' }}</button></div>
+        </form>
+        <div ng-if="vm.rg.step === 'codes'">
+            <div class="ta-dlg__body" ng-init="codes = vm.rg.codes" ng-include="'views/v2/security/_codes.html'"></div>
+            <div class="ta-dlg__ft"><span class="sc-fthint" ng-if="!vm.codesSaved">Tick the box to finish</span><span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.codesFinish()" ng-disabled="!vm.codesSaved" no-busy-guard><i class="fas fa-check"></i>Finish</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ turn two-factor off ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'off'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-off-t">
+        <div class="ta-dlg__hd ta-dlg__hd--alert" ng-class="vm.off.step === 'club' ? 'ta-dlg__hd--warn' : 'ta-dlg__hd--bad'">
+            <span class="ta-dlg__ic"><i class="fas" ng-class="vm.off.step === 'club' ? 'fa-building' : 'fa-power-off'"></i></span>
+            <div><div class="ta-dlg__title sc-atitle" id="sc-off-t">{{ vm.off.step === 'club' ? 'Your club requires two-factor' : 'Turn off two-factor?' }}</div>
+                <div class="ta-dlg__sub">{{ vm.off.step === 'club' ? 'It\'s your only second step, so it has to stay on.' : 'Your password alone will sign you in again.' }}</div></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div ng-if="vm.off.step === 'club'">
+            <div class="ta-dlg__body"><p class="sc-p">Add a passkey first. Then you can turn off authenticator codes — or keep both.</p></div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" no-busy-guard>Keep it on</button><span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.supported" ng-click="vm.pkAddFromOff()" no-busy-guard><i class="fas fa-fingerprint"></i>Add a passkey</button></div>
+        </div>
+        <div ng-if="vm.off.step === 'ask'">
+            <div class="ta-dlg__body">
+                <ul class="sc-list-dl">
+                    <li><i class="fas fa-unlock"></i><span>No code is asked for at sign-in.</span></li>
+                    <li><i class="fas fa-life-ring"></i><span>Your {{ vm.codes() }} recovery {{ vm.codes() === 1 ? 'code stops' : 'codes stop' }} working.</span></li>
+                    <li ng-if="vm.passkeys.length"><i class="fas fa-fingerprint"></i><span>Your passkeys keep working.</span></li>
+                </ul>
+                <p class="ta-hint">Next, confirm it's you with your password and a code from your app.</p>
+            </div>
+            <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" no-busy-guard>Keep it on</button><span class="ta-sp"></span>
+                <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.offGo()" no-busy-guard>Continue</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ change password (the same dialog as Profile) ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'pw'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-pw-t" ng-submit="vm.pwSave()" novalidate>
+        <div class="ta-dlg__hd">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-if="!vm.pw.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-key"></i>Sign-in</div>
+            <div class="ta-dlg__title" id="sc-pw-t">Change your password</div>
+            <div class="ta-dlg__sub">You'll use the new one next time you log in.</div>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pw.errs.cur}"><label class="ta-label" for="pw-cur">Current password</label>
+                <input class="ta-input" id="pw-cur" type="password" autocomplete="current-password" ng-model="vm.pw.cur" ng-change="vm.pw.errs.cur = null" ng-disabled="vm.pw.busy"><span class="ta-field__msg" ng-if="vm.pw.errs.cur">{{ vm.pw.errs.cur }}</span></div>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pw.errs.n1}"><label class="ta-label" for="pw-new">New password</label>
+                <input class="ta-input" id="pw-new" type="password" autocomplete="new-password" ng-model="vm.pw.n1" ng-change="vm.pw.errs.n1 = null" ng-disabled="vm.pw.busy"><span class="ta-field__msg" ng-if="vm.pw.errs.n1">{{ vm.pw.errs.n1 }}</span></div>
+            <ul class="sc-rules" aria-label="Password rules">
+                <li ng-repeat="r in vm.rules" ng-class="{'sc-ok': r.ok(vm.pw.n1 || '')}"><i ng-class="r.ok(vm.pw.n1 || '') ? 'fas fa-check-circle' : 'far fa-circle'"></i>{{ r.t }}</li>
+            </ul>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pw.errs.n2}"><label class="ta-label" for="pw-new2">Repeat new password</label>
+                <input class="ta-input" id="pw-new2" type="password" autocomplete="new-password" ng-model="vm.pw.n2" ng-change="vm.pw.errs.n2 = null" ng-disabled="vm.pw.busy"><span class="ta-field__msg" ng-if="vm.pw.errs.n2">{{ vm.pw.errs.n2 }}</span></div>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" ng-disabled="vm.pw.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.pw.busy"><i class="fas" ng-class="vm.pw.busy ? 'fa-circle-notch fa-spin' : 'fa-key'"></i>{{ vm.pw.busy ? 'Changing…' : 'Change password' }}</button></div>
+    </form>
+</div>
+
+<!-- ═══ add a passkey ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'pkadd'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-pa-t" ng-submit="vm.pkCreate()" novalidate>
+        <div class="ta-dlg__hd" ng-class="{'sc-hd--nox': vm.pa.busy}">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-if="!vm.pa.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-fingerprint"></i>Passkeys</div>
+            <div class="ta-dlg__title" id="sc-pa-t">Add a passkey</div>
+            <div class="ta-dlg__sub">For the device you're using now — Face ID, Touch ID, Windows Hello or your PIN.</div>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pa.err}"><label class="ta-label" for="passkey-add-password">Your password</label>
+                <input class="ta-input" id="passkey-add-password" type="password" autocomplete="current-password" ng-model="vm.pa.pw" ng-change="vm.pa.err = ''" ng-disabled="vm.pa.busy"><span class="ta-field__msg" ng-if="vm.pa.err">{{ vm.pa.err }}</span></div>
+            <div class="ta-field"><label class="ta-label" for="passkey-add-label">Name it <em>(optional)</em></label>
+                <input class="ta-input" id="passkey-add-label" maxlength="60" ng-model="vm.pa.label" placeholder="e.g. Sam's MacBook" ng-disabled="vm.pa.busy" spellcheck="false"><span class="ta-hint">So you can tell your devices apart later.</span></div>
+            <div class="ta-panel sc-wait" role="status" ng-if="vm.pa.busy"><span class="ta-spin ta-spin--dark"></span><span>Waiting for your device… follow your browser's prompt.</span></div>
+            <div class="ta-note" ng-if="vm.pa.cancelled"><i class="fas fa-info-circle"></i><div>The prompt was closed. Try again when you're ready.</div></div>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" ng-disabled="vm.pa.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.pa.busy"><i class="fas" ng-class="vm.pa.busy ? 'fa-circle-notch fa-spin' : 'fa-fingerprint'"></i>{{ vm.pa.busy ? 'Waiting…' : 'Create passkey' }}</button></div>
+    </form>
+</div>
+
+<!-- ═══ remove a passkey ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'pkremove'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-pr-t" ng-submit="vm.pkRemoveGo()" novalidate>
+        <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--bad">
+            <span class="ta-dlg__ic"><i class="fas fa-trash-alt"></i></span>
+            <div><div class="ta-dlg__title sc-atitle" id="sc-pr-t">Remove “{{ vm.pr.pk.label }}”?</div><div class="ta-dlg__sub">It will stop working for signing in.</div></div>
+            <button type="button" class="ta-dlg__x" ng-if="!vm.pr.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="ta-note ta-note--warn" ng-if="vm.pkLastStep() && vm.status.club_requires_two_factor"><i class="fas fa-building"></i><div><b>This is your only second step.</b> Your club requires one, so you'll be asked to set one up again next time you sign in.</div></div>
+            <p class="sc-p">You may also want to delete it from that device's password manager.</p>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pr.err}"><label class="ta-label" for="passkey-delete-password">Your password</label>
+                <input class="ta-input" id="passkey-delete-password" type="password" autocomplete="current-password" ng-model="vm.pr.pw" ng-change="vm.pr.err = ''" ng-disabled="vm.pr.busy"><span class="ta-field__msg" ng-if="vm.pr.err">{{ vm.pr.err }}</span></div>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" ng-disabled="vm.pr.busy" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--danger-solid" ng-disabled="vm.pr.busy"><i class="fas" ng-class="vm.pr.busy ? 'fa-circle-notch fa-spin' : 'fa-trash-alt'"></i>{{ vm.pr.busy ? 'Removing…' : 'Remove passkey' }}</button></div>
+    </form>
+</div>
+
+<!-- ═══ make an address primary ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'primary'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-mp-t">
+        <div class="ta-dlg__hd ta-dlg__hd--alert">
+            <span class="ta-dlg__ic"><i class="fas fa-star"></i></span>
+            <div><div class="ta-dlg__title sc-atitle" id="sc-mp-t">Make this your primary address?</div><div class="ta-dlg__sub sc-email">{{ vm.mp.row.email }}</div></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div class="ta-dlg__body">
+            <ul class="sc-list-dl">
+                <li><i class="fas fa-bell"></i><span>Notifications and password resets go to <b class="sc-email">{{ vm.mp.row.email }}</b> from now on.</span></li>
+                <li class="sc-li--warn"><i class="fas fa-sign-out-alt"></i><span>You'll be <b>signed out on every other device</b>.</span></li>
+                <li ng-if="vm.mp.current"><i class="fas fa-check"></i><span class="sc-email">{{ vm.mp.current }} stays on your account and can still sign in.</span></li>
+            </ul>
+            <p class="ta-hint">Next, you'll confirm it's you.</p>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.mpGo()" no-busy-guard>Continue <i class="fas fa-arrow-right"></i></button></div>
+    </div>
+</div>
+
+<!-- ═══ "Confirm it's you" — the step-up (password, then the factor the backend picks) ═══ -->
+<div class="ta-dlg-scrim sc-scrim" ng-if="vm.dlg === 'stepup'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="sc-su-t">
+        <div class="ta-dlg__hd ta-dlg__hd--alert">
+            <span class="ta-dlg__ic"><i class="fas fa-user-shield"></i></span>
+            <div><div class="ta-dlg__title sc-atitle" id="sc-su-t">Confirm it's you</div><div class="ta-dlg__sub">{{ vm.su.title }}</div></div>
+            <button type="button" class="ta-dlg__x" ng-if="!vm.su.busy" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div class="ta-dlg__body">
+            <div><span class="ta-steps" aria-label="Step {{ vm.suStepIdx() + 1 }} of 2">
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--done': vm.suStepIdx() > 0, 'ta-steps__s--now': vm.suStepIdx() === 0}"><i></i>Password</span>
+                <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.suStepIdx() >= 1}"></span>
+                <span class="ta-steps__s" ng-class="{'ta-steps__s--now': vm.suStepIdx() === 1}"><i></i>{{ vm.su.method === 'passkey' ? 'Passkey' : 'Code' }}</span>
+            </span></div>
+            <div class="ta-note ta-note--bad" ng-if="vm.su.lockout"><i class="fas fa-hourglass-half"></i><div>{{ vm.su.err }}</div></div>
+
+            <!-- password -->
+            <form ng-if="vm.su.stage === 'password' && !vm.su.lockout" class="ta-stack" ng-submit="vm.suPw()" novalidate id="sc-su-pwform">
+                <p class="sc-p">{{ vm.su.text }}</p>
+                <div class="ta-note ta-note--info" ng-if="vm.su.note"><i class="fas fa-info-circle"></i><div>{{ vm.su.note }}</div></div>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.su.err}"><label class="ta-label" for="step-up-password">Your password</label>
+                    <input class="ta-input" id="step-up-password" type="password" autocomplete="current-password" ng-model="vm.su.pw" ng-change="vm.su.err = ''" ng-disabled="vm.su.busy"><span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span></div>
+            </form>
+
+            <!-- authenticator code / recovery code -->
+            <form ng-if="vm.su.stage === 'factor' && vm.su.method === 'totp' && !vm.su.lockout" class="ta-stack" ng-submit="vm.suCode()" novalidate id="sc-su-codeform">
+                <p class="sc-p">{{ vm.su.useRecovery ? 'Enter one of the recovery codes you saved when you set up two-factor. Each one works once.' : 'Enter the 6-digit code from your authenticator app.' }}</p>
+                <div class="ta-field" ng-if="!vm.su.useRecovery" ng-class="{'ta-field--error': vm.su.err}"><label class="ta-label" for="step-up-code">6-digit code</label>
+                    <input class="ta-input sc-code" id="step-up-code" ng-model="vm.su.code" ng-change="vm.su.err = ''" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" ng-disabled="vm.su.busy"><span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span></div>
+                <div class="ta-field" ng-if="vm.su.useRecovery" ng-class="{'ta-field--error': vm.su.err}"><label class="ta-label" for="step-up-recovery">Recovery code</label>
+                    <input class="ta-input sc-rcode" id="step-up-recovery" ng-model="vm.su.rc" ng-change="vm.su.err = ''" autocomplete="off" maxlength="40" placeholder="Your recovery code" spellcheck="false" autocapitalize="off" ng-disabled="vm.su.busy"><span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span></div>
+                <div class="sc-links">
+                    <button type="button" class="ta-link" ng-click="vm.suRecovery()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas" ng-class="vm.su.useRecovery ? 'fa-mobile-alt' : 'fa-life-ring'"></i>{{ vm.su.useRecovery ? 'Use my authenticator app instead' : 'Use a recovery code instead' }}</button>
+                    <button type="button" class="ta-link" ng-if="vm.suCanPk()" ng-click="vm.suUsePk()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas fa-fingerprint"></i>Use a passkey instead</button>
+                </div>
+            </form>
+
+            <!-- emailed code -->
+            <div ng-if="vm.su.stage === 'factor' && vm.su.method === 'email_code' && !vm.su.lockout && vm.su.picking" class="ta-stack">
+                <p class="sc-p">Which address should we send the code to?</p>
+                <button type="button" class="ta-opt" ng-repeat="a in vm.su.addresses" ng-class="{'ta-opt--on': vm.su.picked === a}" ng-click="vm.su.picked = a; vm.su.err = ''" no-busy-guard>
+                    <span class="ta-opt__ic"><i class="fas fa-envelope"></i></span><span><span class="ta-opt__t">{{ a.email_masked }}</span><span class="ta-opt__s">{{ a.is_primary ? 'Primary' : 'Verified' }}</span></span><span class="ta-opt__dot"></span></button>
+                <span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span>
+            </div>
+            <form ng-if="vm.su.stage === 'factor' && vm.su.method === 'email_code' && !vm.su.lockout && !vm.su.picking" class="ta-stack" ng-submit="vm.suCode()" novalidate id="sc-su-emailform">
+                <p class="sc-p">We sent a 6-digit code to <b>{{ vm.su.sentTo }}</b>. It works for 10 minutes.</p>
+                <div class="ta-field" ng-class="{'ta-field--error': vm.su.err}"><label class="ta-label" for="step-up-code-email">6-digit code</label>
+                    <input class="ta-input sc-code" id="step-up-code-email" ng-model="vm.su.code" ng-change="vm.su.err = ''" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" ng-disabled="vm.su.busy"><span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span></div>
+                <div class="sc-links">
+                    <button type="button" class="ta-link" ng-click="vm.suResend()" ng-disabled="vm.su.wait > 0 || vm.su.busy" no-busy-guard><i class="fas fa-redo"></i>Resend code<span class="ta-num" ng-if="vm.su.wait > 0"> ({{ vm.su.wait }} s)</span></button>
+                    <button type="button" class="ta-link" ng-if="vm.su.addresses.length > 1" ng-click="vm.suPick()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas fa-exchange-alt"></i>Send to a different address</button>
+                </div>
+            </form>
+
+            <!-- passkey -->
+            <div ng-if="vm.su.stage === 'factor' && vm.su.method === 'passkey' && !vm.su.lockout" class="ta-stack">
+                <p class="sc-p">Confirm with the passkey on this device — Face ID, Touch ID, Windows Hello or your device PIN.</p>
+                <button type="button" class="ta-btn ta-btn--primary ta-btn--block" ng-click="vm.suPasskey()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas" ng-class="vm.su.busy ? 'fa-circle-notch fa-spin' : 'fa-fingerprint'"></i>{{ vm.su.busy ? 'Waiting for your device…' : 'Use your passkey' }}</button>
+                <span class="ta-field__msg" ng-if="vm.su.err">{{ vm.su.err }}</span>
+                <p class="ta-hint" ng-if="!vm.su.pkAlt">{{ vm.su.busy ? 'Follow your browser\'s prompt.' : 'No passkey on this device? Cancel and use a device that has one.' }}</p>
+                <p class="ta-hint" ng-if="vm.su.pkAlt && vm.su.busy">Follow your browser's prompt.</p>
+                <div class="sc-links" ng-if="vm.su.pkAlt"><button type="button" class="ta-link" ng-click="vm.suUseApp()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas fa-mobile-alt"></i>Use my authenticator app instead</button></div>
+            </div>
+        </div>
+        <div class="ta-dlg__ft" ng-if="!vm.su.lockout">
+            <button type="button" class="ta-btn ta-btn--quiet" ng-if="!(vm.su.method === 'email_code' && vm.su.picking && vm.su.stage === 'factor')" ng-click="vm.close()" ng-disabled="vm.su.busy" no-busy-guard>Cancel</button>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-if="vm.su.method === 'email_code' && vm.su.picking && vm.su.stage === 'factor'" ng-click="vm.suPickBack()" ng-disabled="vm.su.busy" no-busy-guard><i class="fas fa-arrow-left"></i>Back</button>
+            <span class="ta-sp"></span>
+            <button type="submit" form="sc-su-pwform" class="ta-btn ta-btn--primary" ng-if="vm.su.stage === 'password'" ng-disabled="vm.su.busy"><i class="fas fa-circle-notch fa-spin" ng-if="vm.su.busy"></i>{{ vm.su.busy ? 'Checking…' : 'Continue' }}</button>
+            <button type="submit" form="sc-su-codeform" class="ta-btn ta-btn--primary" ng-if="vm.su.stage === 'factor' && vm.su.method === 'totp'" ng-disabled="vm.su.busy"><i class="fas fa-circle-notch fa-spin" ng-if="vm.su.busy"></i>{{ vm.su.busy ? 'Checking…' : 'Verify' }}</button>
+            <button type="submit" form="sc-su-emailform" class="ta-btn ta-btn--primary" ng-if="vm.su.stage === 'factor' && vm.su.method === 'email_code' && !vm.su.picking" ng-disabled="vm.su.busy"><i class="fas fa-circle-notch fa-spin" ng-if="vm.su.busy"></i>{{ vm.su.busy ? 'Checking…' : 'Verify' }}</button>
+            <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.su.stage === 'factor' && vm.su.method === 'email_code' && vm.su.picking" ng-click="vm.suSend()" ng-disabled="vm.su.busy"><i class="fas" ng-class="vm.su.busy ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"></i>{{ vm.su.busy ? 'Sending…' : 'Send code' }}</button>
+        </div>
+    </div>
+</div>

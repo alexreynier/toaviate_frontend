@@ -1,0 +1,157 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · My schedule — mockups/instructor-dashboard/my-schedule.html (page "schedule").
+     InsScheduleV2Controller (js/v2/instructor_schedule/instructor_schedule.js) · contracts C38 + C44 ·
+     css/v2/instructor-schedule.css (msc-). One card: _card.html. The two dialogs live in the host moved to <body>.
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" ins-plain data-e2e="msc">
+
+  <!-- ── page bar ── -->
+  <section class="ta-bar msc-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-calendar-alt"></i></span><div><ins-tag></ins-tag><h2>My schedule</h2><p>{{ vm.V ? vm.V.sub : (vm.multiGuess ? 'The lessons you\'re teaching at both clubs, and the students waiting for your answer' : 'The lessons you\'re teaching, and the students waiting for your answer') }}</p></div></div>
+      <div class="msc-baracts"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.goAvail()" no-busy-guard><i class="fas fa-calendar-check"></i>Availability</button><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.goSched()" no-busy-guard><i class="fas fa-calendar-day"></i>Scheduler</button></div>
+      <span class="msc-v2back" ng-if="!(vm.load === 'ready' && vm.V.any)"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools msc-tools" ng-if="vm.load === 'ready' && vm.V.any">
+      <div class="ta-scope" ng-if="vm.V.multi"><span class="ta-scope__k">Showing</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': !vm.S.club}" role="tab" aria-selected="{{ !vm.S.club }}" ng-click="vm.setClub(0)" no-busy-guard>{{ vm.V.allLabel }}</button><button type="button" class="ta-scope__opt" ng-repeat="cl in vm.V.clubs track by cl.id" ng-class="{'ta-scope__opt--on': vm.S.club === cl.id}" role="tab" aria-selected="{{ vm.S.club === cl.id }}" ng-click="vm.setClub(cl.id)" no-busy-guard>{{ cl.name }}</button></div></div>
+      <ta-combo class="msc-cb" cb-id="msc" label="Search a student or aircraft" placeholder="Search a student or aircraft — BA finds G-SHBA" placeholder-picked="Type to change"
+                query="vm.cbQ" source="vm.cbSource(q)" on-pick="vm.cbPick(key)" on-type="vm.cbType(q)" on-leave="vm.cbLeave(q)" on-clear="vm.cbClear()"
+                value="vm.cbValue" summary="vm.cbSum" clearable="!!vm.cbValue || !!vm.cbQ || !!vm.S.q"></ta-combo>
+      <span class="msc-v2back msc-v2back--tools"><design-back></design-back></span>
+    </div>
+    <div class="msc-v2row"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading: skeletons in the page's own shape ── -->
+  <div class="ta-tiles" ng-if="vm.load === 'loading'" aria-hidden="true"><div class="ta-skel msc-sk-tile" ng-repeat="i in vm.skel4"></div></div>
+  <div class="msc-sec" ng-if="vm.load === 'loading'" aria-busy="true" aria-label="Loading your schedule">
+    <div class="ta-skel msc-sk-h"></div>
+    <div class="msc-skel-card" ng-repeat="i in vm.skel2"><div><div class="ta-skel msc-sk-time"></div></div><div><div class="ta-skel msc-sk-l1"></div><div class="ta-skel msc-sk-l2"></div></div></div>
+    <div class="ta-skel msc-sk-h"></div>
+    <div class="msc-skel-card" ng-repeat="i in vm.skel3"><div><div class="ta-skel msc-sk-time"></div></div><div><div class="ta-skel msc-sk-l1"></div><div class="ta-skel msc-sk-l2"></div></div></div>
+  </div>
+
+  <!-- ── the schedule could not be read ── -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'error'">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load your schedule</h4><p>{{ vm.loadMsg }}</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></div>
+  </section>
+
+  <!-- ── nothing booked with you ── -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && !vm.V.any">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-calendar-check"></i></span><h4>Nothing booked with you yet</h4><p>Lessons where you're the instructor appear here for the next 30 days, at every club, with any requests waiting for your answer first. Students can book you inside your availability.</p>
+      <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.goAvail()" no-busy-guard><i class="fas fa-calendar-check"></i>Check your availability</button><button type="button" class="ta-btn" ng-click="vm.goSched()" no-busy-guard><i class="fas fa-calendar-day"></i>Open the scheduler</button></div></div>
+  </section>
+
+  <!-- ── tiles ── -->
+  <div class="ta-tiles msc-tiles" ng-if="vm.load === 'ready' && vm.V.any">
+    <div class="ta-tile ta-tile--progress ins-rise" ng-if="vm.V.t.next" style="--i: 0"><span class="ta-tile__k"><i class="fas fa-plane-departure"></i>Next up</span><span class="ta-tile__v ta-tile__v--words">{{ vm.V.t.next.v }}</span><span class="ta-tile__s">{{ vm.V.t.next.s }}</span></div>
+    <div class="ta-tile ta-tile--attn ins-rise" ng-if="vm.V.t.attn" style="--i: 1"><span class="ta-tile__k"><i class="fas fa-exclamation-circle"></i>To confirm</span><span class="ta-tile__v">{{ vm.V.t.attn.v }}</span><span class="ta-tile__s">{{ vm.V.t.attn.s }}</span><button type="button" class="ta-tile__go" ng-click="vm.setKind('confirm')" no-busy-guard>{{ vm.V.t.attn.go }} <i class="fas fa-arrow-right"></i></button></div>
+    <div class="ta-tile ins-rise" ng-if="!vm.V.t.attn" style="--i: 1"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>To confirm</span><span class="ta-tile__v ta-tile__v--words ta-tile__v--quiet">Nothing waiting</span><span class="ta-tile__s">Requests to fly with you appear here first, as soon as a student asks</span></div>
+    <div class="ta-tile ins-rise" style="--i: 2"><span class="ta-tile__k"><i class="fas fa-sun"></i>Today</span><span class="ta-tile__v">{{ vm.V.t.today.v }}</span><span class="ta-tile__s">{{ vm.V.t.today.s }}</span></div>
+    <div class="ta-tile ins-rise" style="--i: 3"><span class="ta-tile__k"><i class="fas fa-calendar-alt"></i>Next 30 days</span><span class="ta-tile__v">{{ vm.V.t.month.v }}</span><span class="ta-tile__s">{{ vm.V.t.month.s }}</span></div>
+  </div>
+
+  <!-- ── chips + what the list is showing ── -->
+  <div class="msc-filter ins-rise" ng-if="vm.load === 'ready' && vm.V.any" style="--i: 2"><div class="ta-chips" role="group" aria-label="Show"><button type="button" class="ta-chip" ng-repeat="ch in vm.V.chips track by ch.k" ng-class="{'ta-chip--attn': ch.attn, 'ta-chip--on': vm.S.kind === ch.k}" ng-click="vm.setKind(ch.k)" aria-pressed="{{ vm.S.kind === ch.k }}" no-busy-guard><i class="fas {{ ch.ic }}" ng-if="ch.ic"></i>{{ ch.t }}<span class="ta-chip__n">{{ ch.n }}</span></button></div><span class="msc-tz" title="Booking times are the club's wall-clock time, never shifted to your device"><i class="far fa-clock"></i>Club time (UK)</span></div>
+  <div class="msc-found ins-rise" ng-if="vm.load === 'ready' && vm.V.found && !(vm.V.found.typed && vm.cbOpen())"><i class="fas fa-filter"></i>Showing <b>{{ vm.V.found.n }}</b> {{ vm.V.found.how }} <b>{{ vm.V.found.what }}</b> over the next 30 days<span class="ta-sp"></span><button type="button" class="ta-link" ng-click="vm.cbClear()" no-busy-guard>Show everything <i class="fas fa-times"></i></button></div>
+
+  <!-- ── 1 · needs your answer ── -->
+  <section class="msc-sec" id="msc-asks" ng-if="vm.load === 'ready' && vm.V.showAsks">
+    <div class="ta-sh msc-sh msc-sh--attn"><div><h3><i class="fas fa-exclamation-circle"></i>Needs your answer <span class="msc-sh__n">{{ vm.V.asks.length }}</span></h3><p>Students who asked to fly with you. They're emailed the moment you answer.</p></div></div>
+    <div class="msc-it" ng-repeat="c in vm.V.asks track by c.r.key" ng-include="'views/v2/instructor_schedule/_card.html'"></div>
+    <div class="msc-ghost ins-rise" ng-repeat="g in vm.V.ghosts track by g.key"><i class="fas fa-times-circle"></i><span><b>{{ g.b }}</b> · {{ g.txt }}</span></div>
+  </section>
+
+  <!-- ── 1b · times you offered, waiting for the student ── -->
+  <section class="msc-sec" id="msc-waits" ng-if="vm.load === 'ready' && vm.V.waits.length">
+    <div class="ta-sh msc-sh"><div><h3><i class="fas fa-hourglass-half"></i>Waiting for students <span class="msc-sh__n">{{ vm.V.waits.length }}</span></h3><p>You offered other times. Nothing to do: the lesson is booked the moment the student takes one, and you're emailed.</p></div></div>
+    <div class="msc-it" ng-repeat="c in vm.V.waits track by c.r.key" ng-include="'views/v2/instructor_schedule/_card.html'"></div>
+  </section>
+  <div class="msc-quiet ins-rise" ng-if="vm.load === 'ready' && vm.V.any && vm.V.confirmOnly && !vm.V.asks.length"><i class="fas fa-check-circle"></i>Nothing left to answer.</div>
+
+  <!-- ── 2 · today ── -->
+  <section class="msc-sec" ng-if="vm.load === 'ready' && vm.V.any && !vm.V.confirmOnly && vm.V.today.show">
+    <div class="ta-sh msc-sh"><div><h3><i class="fas fa-sun"></i>{{ vm.V.today.label }}</h3><p>{{ vm.V.today.sub }}</p></div><button type="button" class="ta-link" ng-click="vm.goAvail()" no-busy-guard>Change your hours <i class="fas fa-arrow-right"></i></button></div>
+    <div class="msc-quiet ins-rise" ng-if="!vm.V.today.items.length"><i class="fas fa-mug-hot"></i>Nothing booked with you today.</div>
+    <div class="msc-it" ng-repeat="c in vm.V.today.items track by c.key">
+      <div class="msc-now ins-rise" ng-if="c.t === 'now'" role="separator" aria-label="Now, {{ c.at }}">Now {{ c.at }}</div>
+      <button type="button" class="msc-gap ins-rise" ng-if="c.t === 'gap'" ng-click="vm.bookIn(c)" no-busy-guard><span>{{ c.txt }}</span><b>Book someone in <i class="fas fa-arrow-right"></i></b></button>
+      <div class="msc-it" ng-if="c.t === 'card'" ng-include="'views/v2/instructor_schedule/_card.html'"></div>
+    </div>
+  </section>
+
+  <!-- ── 3 · coming up, a week at a time ── -->
+  <section class="msc-sec" ng-if="vm.load === 'ready' && vm.V.any && !vm.V.confirmOnly">
+    <div class="ta-sh msc-sh"><div><h3><i class="fas fa-calendar-alt"></i>Coming up</h3><p>{{ vm.V.later.sub }}</p></div></div>
+    <div class="msc-quiet ins-rise" ng-if="vm.V.later.quiet"><i class="fas fa-calendar"></i>{{ vm.V.later.quiet }}</div>
+    <div class="msc-day ins-rise" ng-repeat="d in vm.V.days track by d.key">
+      <div class="msc-day__hd"><span class="msc-day__t"><b ng-if="d.word">{{ d.word }}</b>{{ d.label }}</span><span class="msc-day__n">{{ d.n }}</span></div>
+      <div class="msc-off" ng-if="d.off"><i class="fas fa-umbrella-beach"></i><span><b>Time off{{ d.off.part ? ' ' + d.off.part : '' }}{{ d.off.title ? ': ' + d.off.title : '' }}.</b> Students can't book you with an instructor {{ d.off.part ? 'then' : 'today' }}.</span></div>
+      <div class="msc-it" ng-repeat="c in d.items track by c.key">
+        <div class="msc-held ins-rise" ng-if="c.t === 'held'" ng-attr-style="{{ '--ac:' + (c.h.colour || 'var(--ta-faint)') }}"><i class="fas fa-hourglass-half"></i><b>{{ c.h.time }}</b><span>{{ c.h.txt }}</span></div>
+        <div class="msc-it" ng-if="c.t === 'card'" ng-include="'views/v2/instructor_schedule/_card.html'"></div>
+      </div>
+    </div>
+    <div class="msc-more" ng-if="vm.V.more"><span>{{ vm.V.more.t }}</span><button type="button" class="ta-btn ta-btn--sm" ng-if="vm.V.more.btn" ng-click="vm.more()" no-busy-guard data-e2e="msc-more"><i class="fas fa-chevron-down"></i>Show the next 7 days</button><button type="button" class="ta-btn ta-btn--sm" ng-if="vm.V.more.sched" ng-click="vm.goSched(vm.V.more.sched)" no-busy-guard><i class="fas fa-calendar-day"></i>Open the scheduler</button></div>
+  </section>
+
+  <!-- ══════ dialogs (the host moves to <body>): a record dialog on desktop, a bottom sheet on phones ══════ -->
+  <div msc-to-body>
+
+    <!-- Decline a request / close a released one -->
+    <div class="ta-dlg-scrim" ng-if="vm.dlg" ng-click="vm.scrim($event)">
+      <div class="ta-dlg msc-dlg" id="msc-dlg" role="dialog" aria-modal="true" aria-labelledby="msc-dlg-t" tabindex="-1" data-e2e="msc-dlg">
+        <div class="ta-dlg__hd" ng-attr-style="{{ '--edge:' + (vm.dlg.r.ac.colour || 'var(--ta-faint)') }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+          <div class="ta-dlg__eyebrow"><i class="fas fa-times-circle"></i>Decline a request</div><div class="ta-dlg__title" id="msc-dlg-t">{{ vm.who(vm.dlg.r) }}</div>
+          <div class="ta-dlg__sub">{{ vm.fDay(vm.dlg.r.start) }} · {{ vm.range(vm.dlg.r) }} · <b>{{ vm.dlg.r.ac.reg }}</b> · {{ vm.kindLabel(vm.dlg.r.kind) }}{{ vm.dlg.r.lesson ? ' · ' + vm.dlg.r.lesson.title : '' }}</div></div>
+        <div class="ta-dlg__body">
+          <div class="ta-field"><span class="ta-label" id="msc-rl">Why? <em>optional — goes in the email</em></span>
+            <div class="ta-chips msc-reasons" role="group" aria-labelledby="msc-rl"><button type="button" class="ta-chip" ng-repeat="t in vm.REASONS" ng-class="{'ta-chip--on': vm.dlg.reason === t}" ng-click="vm.reasonChip(t)" no-busy-guard>{{ t }}</button></div>
+            <textarea class="ta-textarea" id="msc-reason" rows="3" ng-attr-maxlength="{{ vm.dlg.rel ? 500 : 1000 }}" ng-model="vm.dlg.reason" placeholder="Write your own, or leave it blank"></textarea>
+            <span class="ta-hint">{{ vm.firstOf(vm.dlg.r) }} gets an email saying you declined{{ vm.dlg.reason.trim() ? ', with this reason' : '' }}.</span></div>
+          <div class="ta-note ta-note--warn" ng-if="vm.dlg.rel"><i class="fas fa-exclamation-triangle"></i><div>Declining <b>closes {{ vm.firstOf(vm.dlg.r) }}’s request</b> and withdraws the times you offered. Nothing is booked.</div></div>
+          <div class="ta-note ta-note--warn" ng-if="!vm.dlg.rel"><i class="fas fa-exclamation-triangle"></i><div>Declining <b>cancels the booking</b>: {{ vm.dlg.r.ac.reg }} is free again at that time.<br><button type="button" class="ta-link" ng-click="vm.declineToSuggest()" no-busy-guard>Suggest other times instead <i class="fas fa-arrow-right"></i></button></div></div>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" no-busy-guard>Keep the request</button><span class="ta-sp"></span>
+          <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.declineGo()" ng-disabled="vm.dlg.busy" no-busy-guard data-e2e="msc-dgo"><span class="ta-spin" ng-if="vm.dlg.busy"></span><i class="fas fa-times" ng-if="!vm.dlg.busy"></i>{{ vm.dlg.busy ? 'Declining…' : (vm.dlg.rel ? 'Decline and close the request' : 'Decline and cancel the booking') }}</button></div>
+      </div>
+    </div>
+
+    <!-- Suggest other times / Change the times you offered -->
+    <div class="ta-dlg-scrim" ng-if="vm.sug" ng-click="vm.scrim($event)">
+      <div class="ta-dlg ta-dlg--wide msc-sug" id="msc-sug" role="dialog" aria-modal="true" aria-labelledby="msc-sug-t" tabindex="-1" data-e2e="msc-sug">
+        <div class="ta-dlg__hd" ng-attr-style="{{ '--edge:' + (vm.sug.r.ac.colour || 'var(--ta-faint)') }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+          <div class="ta-dlg__eyebrow"><i class="fas fa-exchange-alt"></i>{{ vm.sug.edit ? 'Change the times you offered' : 'Suggest other times' }}</div><div class="ta-dlg__title" id="msc-sug-t">{{ vm.who(vm.sug.r) }}</div>
+          <div class="ta-dlg__sub">Asked for {{ vm.fDay(vm.sug.r.start) }} · {{ vm.range(vm.sug.r) }} · <b>{{ vm.sug.r.ac.reg }}</b> · {{ vm.kindLabel(vm.sug.r.kind) }}{{ vm.sug.r.lesson ? ' · ' + vm.sug.r.lesson.title : '' }}</div></div>
+        <div class="ta-dlg__body">
+          <div class="ta-field"><span class="ta-label">Pick up to three times <em>free for you and a {{ vm.sug.type }}, {{ vm.len(vm.sug.r.mins) }} like the request</em></span>
+            <div class="msc-opts" role="group" aria-label="Times you could offer">
+              <div class="msc-sug__load" ng-if="vm.sug.loading" aria-busy="true"><span class="ta-skel msc-sk-opt"></span><span class="ta-skel msc-sk-opt"></span><span class="ta-skel msc-sk-opt"></span></div>
+              <div class="msc-it" ng-repeat="row in vm.sug.rows track by row.key">
+                <div class="msc-opts__day" ng-if="row.t === 'day'">{{ row.label }}<span>{{ row.rel }}</span></div>
+                <button type="button" class="msc-opt" ng-if="row.t === 'opt'" ng-class="{'msc-opt--on': row.on, 'msc-opt--bad': row.bad}" ng-attr-style="{{ '--ac:' + (row.o.plane.colour || 'var(--ta-faint)') }}" ng-click="vm.sugPick(row)" aria-pressed="{{ row.on ? 'true' : 'false' }}" ng-attr-aria-disabled="{{ row.off ? 'true' : undefined }}" ng-attr-title="{{ row.off ? 'That\'s three: untick one to swap' : undefined }}" no-busy-guard data-e2e="msc-opt"><span class="msc-opt__box"><i class="fas fa-check" ng-if="row.on"></i></span><span class="msc-opt__t">{{ vm.m2t(row.o.s) }}–{{ vm.m2t(row.o.e) }}</span><span class="msc-opt__ac"><span class="ta-ac" ng-attr-style="{{ '--ac:' + (row.o.plane.colour || 'var(--ta-faint)') }}" title="{{ row.o.plane.reg }}{{ row.o.plane.model ? ' · ' + row.o.plane.model : '' }}">{{ row.o.plane.reg }}<span>{{ row.o.plane.type }}</span></span><span class="msc-why" ng-class="{'msc-why--diff': row.why.diff}"><i class="fas fa-exchange-alt" ng-if="row.why.diff"></i>{{ row.why.t }}</span><span class="msc-why" ng-if="row.o.own"><i class="fas fa-user-clock"></i>Your own time</span></span></button>
+              </div>
+              <div class="msc-quiet" ng-if="!vm.sug.loading && !vm.sug.failed && !vm.sug.rows.length"><i class="fas fa-calendar-times"></i>Nothing free for you and a {{ vm.sug.type }} in the two weeks after {{ vm.fDay(vm.sug.r.start) }}. Choose a day and time yourself below.</div>
+              <div class="msc-quiet" ng-if="vm.sug.failed && !vm.sug.rows.length"><i class="fas fa-exclamation-triangle"></i>Your free times couldn't be checked just now. Choose a day and time yourself below; it's checked again when you send.</div>
+            </div>
+            <div class="msc-sug__count"><span><b>{{ vm.sug.picks.length }} of 3</b> picked{{ vm.sug.full ? ' · untick one to swap' : '' }}</span><span><button type="button" class="ta-link" ng-if="vm.sug.list.length > 6" ng-click="vm.sugMore()" no-busy-guard>{{ vm.sug.more ? 'Fewer times' : 'More times' }}</button>{{ vm.sug.list.length > 6 ? ' · ' : '' }}<button type="button" class="ta-link" ng-click="vm.sugOwnOpen()" no-busy-guard data-e2e="msc-own-open">{{ vm.sug.ownOpen ? 'Hide' : 'Another day or time' }}</button></span></div>
+            <div class="msc-own" ng-if="vm.sug.ownOpen">
+              <div class="msc-own__row"><div class="ta-field"><span class="ta-label">Day</span><ta-date-picker ng-model="vm.sug.own.day" options="vm.sug.dpOpts" block="true" format="short" placeholder="Pick a day"></ta-date-picker></div>
+                <label class="ta-field"><span class="ta-label">Start</span><select class="ta-input" ng-model="vm.sug.own.time" ng-change="vm.sugTime()" data-e2e="msc-own-time"><option value="">—</option><option ng-repeat="t in vm.sug.times" value="{{ t }}">{{ t }}</option></select></label>
+                <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.sugOwn()" ng-disabled="!(vm.sug.chk && vm.sug.chk.opt && !vm.sug.full)" no-busy-guard data-e2e="msc-own-add"><i class="fas fa-plus"></i>Add this time</button></div>
+              <div class="msc-check msc-check--{{ vm.sug.chk.tone }}" ng-if="vm.sug.chk"><span class="ta-spin ta-spin--dark" ng-if="vm.sug.chk.tone === 'wait'"></span><i class="fas" ng-if="vm.sug.chk.tone !== 'wait'" ng-class="vm.sug.chk.tone === 'good' ? 'fa-check-circle' : vm.sug.chk.tone === 'warn' ? 'fa-exclamation-circle' : 'fa-times-circle'"></i><span>{{ vm.sug.chk.msg }}{{ vm.sug.chk.opt && vm.sug.full ? ' Untick one above to add it.' : '' }}</span></div>
+              <span class="ta-hint" ng-if="!vm.sug.chk">{{ vm.len(vm.sug.r.mins) }}, the length {{ vm.sug.nm }} booked. It's checked against your schedule and the {{ vm.sug.type }}s as you choose.</span>
+            </div>
+          </div>
+          <label class="ta-field"><span class="ta-label">A note for {{ vm.sug.nm }} <em>optional</em></span><textarea class="ta-textarea" rows="2" maxlength="500" ng-model="vm.sug.note" placeholder="e.g. I'm examining on Tuesday morning. Any of these work?"></textarea></label>
+          <div class="ta-note ta-note--bad" ng-if="vm.sug.problemList.length" role="alert"><i class="fas fa-times-circle"></i><div><b>{{ vm.sug.problemList.length === 1 ? 'That time can’t be offered any more.' : 'Some of those times can’t be offered any more.' }}</b> Untick {{ vm.sug.problemList.length === 1 ? 'it' : 'them' }} and pick another:<span class="msc-prob" ng-repeat="p in vm.sug.problemList track by p.key"><br>{{ p.when }} · {{ p.reg }}: {{ p.msg }}</span></div></div>
+          <div class="ta-note ta-note--info"><i class="fas fa-info-circle"></i><div>{{ vm.sug.nm }} gets an email and sees these in My Account → Bookings. <b>Taking one books it straight away</b>: you've already agreed. {{ vm.sug.edit ? '' : 'The time ' + vm.sug.nm + ' asked for is released now. ' }}Nothing else is held: first come, first served, so a time someone else books first drops off. Each time can be taken for 48 hours, or until it starts if that's sooner, so last-minute changes work too.</div></div>
+        </div>
+        <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.close()" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+          <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.sugSend()" ng-disabled="!vm.sug.picks.length || vm.sug.busy" no-busy-guard data-e2e="msc-send"><span class="ta-spin" ng-if="vm.sug.busy"></span><i class="fas fa-paper-plane" ng-if="!vm.sug.busy"></i>{{ vm.sug.busy ? 'Sending…' : vm.sug.sendLabel }}</button></div>
+      </div>
+    </div>
+  </div>
+</main>

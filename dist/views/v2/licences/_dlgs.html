@@ -1,0 +1,48 @@
+<!-- "Confirm it's you" (encrypted scans, backend fail "templogin" → users/login3) + the full-size scan viewer -->
+<div class="ta-dlg-scrim lic-scrim" ng-if="vm.dlg.t === 'pw' || vm.dlg === 'pw'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="lic-pw-t" ng-submit="vm.pwOk()" novalidate>
+        <div class="ta-dlg__hd ta-dlg__hd--alert">
+            <span class="ta-dlg__ic"><i class="fas fa-lock"></i></span>
+            <div><div class="ta-dlg__title" id="lic-pw-t">Confirm it's you</div><div class="ta-dlg__sub">Your scans are stored encrypted</div></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div class="ta-dlg__body">
+            <p>You signed in more than 5 minutes ago, so enter your password to show your scans. They stay unlocked until you leave this page.</p>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pwErr}">
+                <label class="ta-label" for="lic-pw">Password</label>
+                <input class="ta-input" type="password" id="lic-pw" autocomplete="current-password" ng-model="vm.pw" ng-change="vm.pwErr = null" ng-disabled="vm.checking">
+                <span class="ta-field__msg" ng-if="vm.pwErr">{{ vm.pwErr }}</span>
+            </div>
+        </div>
+        <div class="ta-dlg__ft">
+            <button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.checking" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.checking"><i class="fas" ng-class="vm.checking ? 'fa-circle-notch fa-spin' : 'fa-unlock-alt'"></i>{{ vm.checking ? 'Checking…' : 'Show scans' }}</button>
+        </div>
+    </form>
+</div>
+
+<div class="ta-dlg-scrim lic-scrim" ng-if="vm.dlg.t === 'view'" ng-click="vm.scrim($event)">
+    <div class="ta-dlg ta-dlg--wide" role="dialog" aria-modal="true" aria-labelledby="lic-vw-t">
+        <div class="ta-dlg__hd" ng-attr-style="--edge:{{ vm.viewEdge(vm.dlg.rec) }}">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-file-image"></i>{{ vm.dlg.key.indexOf('lic') === 0 ? 'Licence' : 'Medical' }} scan · {{ vm.dlg.i + 1 }} of {{ vm.dlg.rec.images.length }}</div>
+            <div class="ta-dlg__title" id="lic-vw-t">{{ vm.dlg.key.indexOf('lic') === 0 ? (vm.typeOf(vm.dlg.rec.licence_id).abbreviation || vm.dlg.rec.licence_type) : vm.medTitle(vm.dlg.rec) }} — {{ vm.side(vm.dlg.key.indexOf('lic') === 0 ? 'card' : 'sheet', vm.dlg.i) | lowercase }}</div>
+            <div class="ta-dlg__sub">{{ vm.dlg.rec.licence_number || vm.dlg.rec.certificate_number }} · {{ vm.authOf(vm.dlg.rec.authority_id).abbreviation }}</div>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="lic-view">
+                <span class="ta-spin ta-spin--dark" ng-if="vm.dlg.loading && !vm.viewSrc()"></span>
+                <img class="lic-view__img" ng-if="vm.viewSrc()" ng-src="{{ vm.viewSrc() }}" alt="Scan {{ vm.dlg.i + 1 }}">
+                <p class="ta-hint" ng-if="!vm.dlg.loading && !vm.viewSrc()">This scan could not be opened.</p>
+            </div>
+            <p class="ta-hint">Shown full size from the encrypted copy. Only you and the staff of your clubs can open it.</p>
+        </div>
+        <div class="ta-dlg__ft">
+            <button type="button" class="ta-btn" ng-if="vm.dlg.rec.images.length > 1" ng-click="vm.vnav(-1)" ng-disabled="!vm.dlg.i" no-busy-guard><i class="fas fa-chevron-left"></i>Previous</button>
+            <button type="button" class="ta-btn" ng-if="vm.dlg.rec.images.length > 1" ng-click="vm.vnav(1)" ng-disabled="vm.dlg.i >= vm.dlg.rec.images.length - 1" no-busy-guard>Next<i class="fas fa-chevron-right"></i></button>
+            <span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.close()" no-busy-guard>Close</button>
+        </div>
+    </div>
+</div>

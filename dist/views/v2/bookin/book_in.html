@@ -1,0 +1,477 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 BOOK IN — dashboard.v2.book_in (BookinV2Controller, js/v2/bookin/bookin.js).
+     Design: mockups/my-account/book-in.html. Hero → numbered cards that turn green → the Finish card
+     (summary, pay choice, the ONE button); the "Before you finish" rail (desktop) / strip + bottom bar (phones)
+     is vm.bk.ready. Every money figure is vm.quote (computeQuote). Styles: css/v2/bookin.css (.bki-*).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page bki" data-e2e="bki-page">
+
+  <!-- ── loading ── -->
+  <section class="ta-hero bki-hero bki-hero--skel" ng-if="!vm.bk.loaded" aria-busy="true">
+    <div class="ta-hero__top"><a class="ta-hero__back" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i>My Account</a><span class="ta-hero__eyebrow"><i class="fas fa-plane-arrival"></i>Book in</span></div>
+    <div class="ta-hero__head"><span class="ta-hero__badge"><i class="fas fa-spinner fa-spin"></i></span><div><div class="ta-hero__title">Loading…</div><div class="ta-hero__sub">Opening the flight</div></div></div>
+  </section>
+  <div class="ta-stack" ng-if="!vm.bk.loaded"><div class="ta-card"><div class="ta-skel bki-skel"></div><div class="ta-skel bki-skel bki-skel--short"></div></div><div class="ta-card"><div class="ta-skel bki-skel"></div></div></div>
+
+  <!-- ═════ HERO: the aircraft is the headline ═════ -->
+  <section class="ta-hero bki-hero" ng-if="vm.bk.loaded">
+    <div class="ta-hero__top">
+      <a class="ta-hero__back" ui-sref="dashboard.my_account"><i class="fas fa-arrow-left"></i>My Account</a>
+      <span class="bki-hero__tools"><span class="ta-desk-only"><design-back></design-back></span>
+        <span class="ta-hero__eyebrow"><i class="fas fa-plane-arrival"></i>Book in{{ vm.split_prev_leg ? ' · part 2' : (vm.invoices.length ? ' · leg ' + (vm.invoices.length + 1) + ' of ' + (vm.invoices.length + 1) : '') }}</span></span>
+    </div>
+    <div class="ta-hero__head">
+      <span class="ta-hero__badge" style="--ac: {{ vm.bk_ac_colour() }}"><span class="bki-hero__edge"></span><i class="fas fa-plane"></i></span>
+      <div><div class="ta-hero__title" data-e2e="bki-reg">{{ vm.bk_reg() }}</div>
+        <div class="ta-hero__sub">{{ (vm.bk_model() ? vm.bk_model() + ' · ' : '') + vm.bk_type() + (vm.club.title ? ' · ' + vm.club.title : '') }}</div></div>
+    </div>
+    <div class="ta-hero__facts">
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Booked out</div><div class="ta-hero__fact-v">{{ vm.bk_booked_out_at() }}</div><div class="bki-fact-s">{{ vm.bk_booking_slot() || vm.bk_fday(vm.bookout.flight_date) }}</div></div>
+      <div class="ta-hero__fact" ng-class="{'bki-fact--late': vm.bk_return().late}" ng-if="vm.bk_return()"><div class="ta-hero__fact-k">Return by</div><div class="ta-hero__fact-v">{{ vm.bk_return().v }}</div><div class="bki-fact-s">{{ vm.bk_return().s }}</div></div>
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Flight time</div><div class="ta-hero__fact-v">{{ vm.bk_window().hm || '—' }}</div><div class="bki-fact-s">{{ vm.bk_window() ? vm.bk_window().label + ' · ' + vm.bk_window().from + '–' + vm.bk_window().to : 'Once the times are in' }}</div></div>
+      <div class="ta-hero__fact"><div class="ta-hero__fact-k">Crew</div><div class="ta-hero__fact-v">{{ vm.bk_crew_fact().v }}</div><div class="bki-fact-s">{{ vm.bk_crew_fact().s }}</div></div>
+    </div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail bki-cols" ng-if="vm.bk.loaded">
+    <div class="ta-stack">
+
+      <div class="ta-note ta-note--warn" ng-if="vm.bk.stripeReturn"><i class="fas fa-credit-card"></i><div><b>Your bank sent you back here after a card check.</b> If the flight isn't booked in yet, book it in again — check <a ui-sref="dashboard.my_account.invoices">Invoices &amp; payments</a> first so it isn't paid twice.</div></div>
+      <div class="ta-note ta-note--bad" ng-if="vm.bk.ctxError"><i class="fas fa-lock"></i><div>{{ vm.bk.ctxError }}</div></div>
+      <!-- C26: booked in on the member's own booking (from the claim page) -->
+      <div class="ta-note ta-note--info" ng-if="vm.bk_linked()" data-e2e="bki-link"><i class="fas fa-link"></i><div><b>Linked to your booking{{ vm.bk_link_when() ? ' ' + vm.bk_link_when() : '' }}.</b> The flight is booked in on it, so it's paid and recorded with that booking.</div></div>
+      <div class="ta-note ta-note--warn" ng-if="vm.bk.link && vm.bk.link.ok === false" data-e2e="bki-link-off"><i class="fas fa-unlink"></i><div><b>Not linked to your booking.</b> {{ vm.bk.link.message || 'That booking can\'t take this flight.' }} The flight is booked in on its own.</div></div>
+
+      <!-- ═════ planned student solo (solo_intent) ═════ -->
+      <section class="ta-card bki-solo" ng-if="vm.bookout.solo_intent && vm.bookout.booked_in != 1 && !vm.bookout.solo_sent_at" data-e2e="bki-solo">
+        <div class="bki-solo__hd"><span class="ta-kind ta-kind--solo" title="Solo"><i class="fas fa-user"></i></span>
+          <div><h3>Planned {{ vm.bookout.solo_intent === 'solo_check' ? 'solo check' : 'student solo' }}</h3>
+            <p>Booked out as a possible {{ vm.bookout.solo_intent === 'solo_check' ? 'solo check' : 'student solo' }}. If {{ vm.bk_student_first() }} went solo, send it now: the airfield display lights up and the authorisation is recorded against your name. If not, stand it down, or just book in and it closes by itself.</p></div></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.solo_send.failures.length"><i class="fas fa-times-circle"></i><div><b>Solo blocked by the pilot checks.</b>
+          <ul class="bki-fails"><li ng-repeat="failure in vm.solo_send.failures">{{ failure.message }}<span ng-if="vm.soloStateAction(failure.state, failure)"> — {{ vm.soloStateAction(failure.state, failure) }}</span>
+            <button type="button" class="ta-link" ng-if="failure.state === 'pending_review'" ng-click="vm.soloReviewStudent()"><i class="fas fa-clipboard-check"></i>Review the questionnaire now</button></li></ul>
+          <button type="button" class="ta-btn ta-btn--danger ta-btn--sm" ng-if="vm.solo_send.can_force" ng-click="vm.send_solo(true)" ng-disabled="vm.solo_send.working"><i class="fas fa-exclamation-triangle"></i>Force send solo</button></div></div>
+        <div class="bki-row">
+          <button type="button" class="ta-btn" ng-click="vm.send_solo(false)" ng-disabled="vm.solo_send.working"><i class="fas" ng-class="vm.solo_send.working ? 'fa-spinner fa-spin' : 'fa-plane-departure'"></i>Send solo</button>
+          <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.cancel_solo()" ng-disabled="vm.solo_send.working"><i class="fas fa-cloud"></i>Didn't fly solo</button>
+        </div>
+      </section>
+      <div class="bki-strip" ng-if="vm.bookout.solo_intent && vm.bookout.solo_sent_at"><i class="fas fa-plane-departure"></i><span>Solo sent<span ng-if="vm.bookout.authorised_by"> · authorised by {{ vm.bk_name(vm.bookout.authorised_by) || 'you' }}</span> · the airfield display shows STUDENT SOLO</span>
+        <button type="button" class="ta-link" ng-click="vm.cancel_solo()" ng-disabled="vm.solo_send.working"><i class="fas fa-undo"></i>Stand it down</button></div>
+
+      <!-- ═════ 1 · TIMES ═════ -->
+      <section class="ta-card bki-card" id="bki-c-times" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'times'}" aria-label="Times">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('times')}"><i class="fas" ng-class="vm.bk_card_done('times') ? 'fa-check' : 'fa-stopwatch'"></i><span class="ta-card__step">{{ vm.bk_n('times') }}</span></span>
+          <div class="ta-card__ttl"><h3>Times</h3><p>{{ vm.bk_claimed() ? (vm.bk_claimed_amended() ? 'Recorded by ' + vm.bk_reg() + '\'s tracker, amended by ' + vm.bk_claimed_amended().by : 'Recorded by ' + vm.bk_reg() + '\'s tracker') : (vm.bk_claim_avail() ? 'From the tracker, or enter them yourself' : 'Brakes off to brakes on, in club time') }}</p></div>
+          <span class="ta-card__right" ng-if="vm.bk_claimed()"><span class="ta-pill ta-pill--info" ng-if="!vm.bk_claimed_amended()"><i class="fas fa-satellite-dish"></i>From the tracker</span><span class="ta-pill ta-pill--warn" ng-if="vm.bk_claimed_amended()"><i class="fas fa-pen"></i>Amended</span></span></div>
+
+        <!-- the tracker's unclaimed flights on this aircraft -->
+        <div class="ta-panel bki-claim" ng-if="vm.bk_claim_avail()" data-e2e="bki-claim">
+          <div class="ta-panel__hd"><i class="fas fa-satellite-dish"></i>Found on {{ vm.bk_reg() }}'s tracker<span class="ta-sp"></span><span class="bki-sub">{{ vm.bk_plural(vm.claim_a_flight.length, 'flight') }} not yet claimed</span></div>
+          <span class="bki-sub">{{ vm.bk_many_flights() ? 'Best matches for this booking (' + vm.bk_booking_when() + '), closest first.' : 'Use the tracker\'s times and landing counts, or enter the times yourself below.' }}</span>
+          <button type="button" class="ta-opt" ng-repeat="f in vm.bk_flight_cards() track by f.id" ng-class="{'ta-opt--on': vm.bk.pick === f.id}" aria-pressed="{{ vm.bk.pick === f.id }}" ng-click="vm.bk.pick = f.id" title="{{ vm.bk_flight_txt(f).tip }}" data-e2e="bki-flight">
+            <span class="ta-opt__ic"><i class="fas fa-route"></i></span>
+            <span><span class="ta-opt__t">{{ vm.bk_flight_txt(f).t }}<span class="bki-tag-warn" ng-if="vm.bk_other_day(f)"><i class="fas fa-exclamation-triangle"></i>Not your booking's day</span><span class="bki-tag-warn" ng-if="vm.bk_amended(f)" data-e2e="bki-flight-amended"><i class="fas fa-pen"></i>Times amended</span></span>
+              <span class="ta-opt__s">{{ vm.bk_flight_txt(f).s }}</span></span><span class="ta-opt__dot"></span></button>
+          <span class="bki-sub" ng-if="vm.bk_many_flights() && !vm.bk_flight_cards().length"><i class="fas fa-info-circle"></i> None on the booking's day — search them below.</span>
+          <div class="bki-row bki-row--end" ng-if="vm.bk_flight_cards().length"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="vm.bk_use_flight()" ng-disabled="!vm.bk.pick" data-e2e="bki-claim-use"><i class="fas fa-check"></i>Use this flight</button></div>
+          <div ng-if="vm.bk_many_flights()" class="bki-sec">
+            <div class="bki-or">Not one of these?</div>
+            <div class="ta-pickf">
+              <button type="button" class="ta-pick" ng-click="vm.bk_pk_open('flight')" aria-haspopup="listbox" aria-expanded="{{ vm.bk.pk.f === 'flight' }}" data-e2e="bki-flight-search">
+                <span class="ta-pick__ic"><i class="fas fa-search"></i></span><span class="ta-pick__txt"><span class="ta-pick__nm">Search all {{ vm.claim_a_flight.length | number }} tracker flights</span><span class="ta-pick__sub">By date (5 Nov, yesterday), time or airfield</span></span><span class="ta-pick__end">Search <i class="fas fa-chevron-down"></i></span></button>
+              <div ng-if="vm.bk.pk.f === 'flight'" ng-include="'views/v2/bookin/_pickmenu.html'"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- claimed: the tracker's times, in the club's display -->
+        <div ng-if="vm.bk_claimed()" class="bki-sec">
+          <div class="ta-note ta-note--warn" ng-if="vm.bk_claimed_amended()" data-e2e="bki-amended"><i class="fas fa-pen"></i><div><b>These times were amended by {{ vm.bk_claimed_amended().by }}</b><span ng-if="vm.bk_claimed_amended().when"> on {{ vm.bk_claimed_amended().when }}</span><span ng-if="vm.bk_claimed_amended().reason"> — “{{ vm.bk_claimed_amended().reason }}”</span>. The tracker recorded {{ vm.bk_claimed_amended().orig }}.
+            <div class="bki-row" ng-if="vm.bk_amend_can() && !vm.bk.revertAsk"><button type="button" class="ta-link" ng-click="vm.bk_revert_ask()" no-busy-guard data-e2e="bki-revert"><i class="fas fa-undo"></i>Put back the tracker’s times</button></div>
+            <div class="ta-confirm ta-confirm--inline" role="group" aria-label="Confirm putting back the tracker’s times" ng-if="vm.bk.revertAsk"><span>Put back the times the tracker recorded? The change stays in the flight’s history.</span><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.bk_revert_keep()" no-busy-guard>Keep these</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.bk_revert()" ng-disabled="vm.bk.reverting" data-e2e="bki-revert-yes">Put them back</button></div>
+            <div class="ta-field__msg" ng-if="vm.bk.revertErr" role="alert">{{ vm.bk.revertErr }}</div></div></div>
+          <div class="bki-times bki-times--4">
+            <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().off) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().off) : '' }}"><span class="bki-tv__k"><i class="fas fa-play"></i>Brakes off</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().off, vm.bk_eff().off_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.bk.showRec && vm.bk_exact(vm.bk_eff().off)">recorded {{ vm.bk_exact(vm.bk_eff().off) }}</span></div>
+            <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().to) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().to) : '' }}"><span class="bki-tv__k"><i class="fas fa-plane-departure"></i>Takeoff</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().to, vm.bk_eff().to_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.bk.showRec && vm.bk_exact(vm.bk_eff().to)">recorded {{ vm.bk_exact(vm.bk_eff().to) }}</span></div>
+            <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().ld) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().ld) : '' }}"><span class="bki-tv__k"><i class="fas fa-plane-arrival"></i>Landing</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().ld, vm.bk_eff().ld_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.bk.showRec && vm.bk_exact(vm.bk_eff().ld)">recorded {{ vm.bk_exact(vm.bk_eff().ld) }}</span></div>
+            <div class="bki-tv" ng-click="vm.bk_rec_toggle()" title="{{ vm.bk_exact(vm.bk_eff().on) ? 'Recorded ' + vm.bk_exact(vm.bk_eff().on) : '' }}"><span class="bki-tv__k"><i class="fas fa-stop"></i>Brakes on</span><span class="bki-tv__v">{{ vm.bk_shown(vm.bk_eff().on, vm.bk_eff().on_r) || '—' }}</span><span class="bki-tv__s" ng-if="vm.split_flight_confirmation == 1">the split</span><span class="bki-tv__s" ng-if="vm.split_flight_confirmation != 1 && vm.bk.showRec && vm.bk_exact(vm.bk_eff().on)">recorded {{ vm.bk_exact(vm.bk_eff().on) }}</span></div>
+          </div>
+          <div class="bki-row bki-row--between"><span class="bki-sub"><i class="fas fa-info-circle"></i> {{ vm.bk_disp_note() }}</span>
+            <button type="button" class="ta-btn ta-btn--sm" ng-if="vm.bk_amend_can()" ng-click="vm.bk_amend_open()" no-busy-guard data-e2e="bki-amend" title="Correct the tracker’s times — the tracker’s own are kept and can be put back"><i class="fas fa-pen"></i>Amend times</button>
+            <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-if="vm.bk_can_unclaim()" ng-click="vm.bk_unclaim()"><i class="fas fa-undo"></i>Enter the times myself</button></div>
+
+          <!-- split this flight (FRONTEND_TRACK_DATA_GUIDE §3): ground stops, rounding, who flew part 2 -->
+          <div class="bki-row bki-row--between" ng-if="vm.bk_split_can()"><span class="bki-sub"><i class="fas fa-cut"></i> Did the crew change at a ground stop? Split the flight there.</span>
+            <button type="button" class="ta-btn ta-btn--sm" ng-click="vm.bk_split_open()" data-e2e="bki-split-open"><i class="fas fa-cut"></i>Split this flight</button></div>
+          <div class="ta-panel" ng-if="vm.split_flight == 1 && vm.split_flight_confirmation == 0" data-e2e="bki-split">
+            <div class="ta-panel__hd"><i class="fas fa-cut"></i>Split this flight</div>
+            <span class="ta-sec-k">Split at</span>
+            <span class="bki-sub" ng-if="vm.split_points_status == 'loading'"><i class="fas fa-spinner fa-spin"></i> Checking the recorded track for ground stops…</span>
+            <span class="bki-sub" ng-if="vm.split_points_status == 'none' && vm.split_choices.length"><i class="fas fa-info-circle"></i> Ground stops from the tracker only — the recorded track isn't available for this flight.</span>
+            <span class="bki-sub" ng-if="vm.split_points_status == 'empty'"><i class="fas fa-info-circle"></i> The recorded track shows no ground stop in this flight<span ng-if="vm.split_choices.length"> — tracker stops only</span>.</span>
+            <div class="ta-note ta-note--warn" ng-if="vm.split_points_status == 'ok' && vm.split_points_note"><i class="fas fa-exclamation-triangle"></i><div>{{ vm.split_points_note }}</div></div>
+            <button type="button" class="ta-opt" ng-repeat="c in vm.split_choices" ng-class="{'ta-opt--on': vm.split_flight_time && vm.split_flight_time.title === c.title}" ng-disabled="c.selectable === false" ng-click="vm.bk_split_choose(c)">
+              <span class="ta-opt__ic"><i class="fas" ng-class="c.selectable === false ? 'fa-ban' : 'fa-parking'"></i></span>
+              <span><span class="ta-opt__t" title="{{ c.from_hm ? 'Recorded ' + c.from_hm + '–' + c.to_hm : '' }}">{{ vm.bk_split_title(c) }}<span class="bki-tag-rec" ng-if="c.recommended && c.selectable !== false"><i class="fas fa-star"></i>Recommended</span><span class="bki-tag-muted" ng-if="c.selectable === false"><i class="fas fa-ban"></i>Not a landing</span><span class="bki-tag-muted" ng-if="c.source == 'track'">track file only</span></span>
+                <span class="ta-opt__s">{{ vm.bk_split_sub(c) }}</span></span><span class="ta-opt__dot"></span></button>
+            <span class="bki-sub" ng-if="!vm.split_choices.length && vm.split_points_status != 'loading'">No ground stops found in this flight.</span>
+            <div class="ta-note ta-note--warn" ng-if="vm.split_phantom"><i class="fas fa-exclamation-triangle"></i><div><b>This doesn't look like a landing.</b> {{ vm.split_phantom.warning }}
+              <span class="bki-sub" ng-if="vm.split_phantom.from_hm || vm.split_phantom.min_agl_ft != null"><span ng-if="vm.split_phantom.from_hm">Tracker gap {{ vm.split_phantom.from_hm }}–{{ vm.split_phantom.to_hm }}</span><span ng-if="vm.split_phantom.min_agl_ft != null"> · lowest {{ vm.split_phantom.min_agl_ft }} ft</span><span ng-if="vm.split_phantom.max_speed_kt != null"> · max {{ vm.split_phantom.max_speed_kt }} kt</span></span>
+              <div class="bki-row bki-row--mt"><button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-click="vm.split_phantom_confirm()"><i class="fas fa-cut"></i>Split anyway</button><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.split_phantom_cancel()"><i class="fas fa-undo"></i>Choose another time</button></div>
+              <span class="bki-sub">The split is flagged for the manager's review.</span></div></div>
+            <span class="bki-sub" ng-if="vm.split_forced && !vm.split_phantom"><i class="fas fa-flag"></i> Split past a point the track says was not a landing — flagged for the manager's review.</span>
+            <div ng-if="!vm.split_phantom && vm.split_round_options().length" class="bki-sec">
+              <span class="ta-sec-k">Round the split to</span>
+              <div class="ta-seg ta-seg--row" style="--seg-n: {{ vm.split_round_options().length }}">
+                <button type="button" class="ta-seg__opt" ng-repeat="r in vm.split_round_options() track by r.id" ng-class="{'ta-seg__opt--on': vm.split_flight_time.time == r.time}" ng-click="vm.split_use_rounding(r.time)"><b class="ta-num">{{ r.time }}</b><small>{{ r.id === 'floor' ? 'Rounded down' : r.id === 'ceil' ? 'Rounded up' : 'Nearest' }}</small></button>
+              </div>
+            </div>
+            <div class="ta-table-wrap" ng-if="vm.split_one && vm.split_one.brakes_off && vm.split_two">
+              <table class="ta-table"><thead><tr><th></th><th>Brakes off</th><th>Takeoff</th><th>Landing</th><th>Brakes on</th></tr></thead>
+                <tbody><tr><td><b>Part 1</b></td><td title="{{ vm.bk_split_raw(vm.split_one, 'off') }}">{{ vm.bk_split_part(vm.split_one, 'off') }}</td><td>{{ vm.bk_split_part(vm.split_one, 'to') }}</td><td>{{ vm.bk_split_part(vm.split_one, 'ld') }}</td><td title="{{ vm.bk_split_raw(vm.split_one, 'on') }}">{{ vm.bk_split_part(vm.split_one, 'on') }}</td></tr>
+                  <tr><td><b>Part 2</b></td><td title="{{ vm.bk_split_raw(vm.split_two, 'off') }}">{{ vm.bk_split_part(vm.split_two, 'off') }}</td><td>{{ vm.bk_split_part(vm.split_two, 'to') }}</td><td>{{ vm.bk_split_part(vm.split_two, 'ld') }}</td><td title="{{ vm.bk_split_raw(vm.split_two, 'on') }}">{{ vm.bk_split_part(vm.split_two, 'on') }}</td></tr></tbody></table></div>
+            <div ng-if="vm.split_one && vm.split_two" class="bki-sec">
+              <span class="ta-sec-k">Who flew part 2?</span>
+              <div class="ta-seg bki-seg4">
+                <button type="button" class="ta-seg__opt" ng-repeat="opt in vm.split_crew_options" ng-class="{'ta-seg__opt--on': vm.split_crew_mode == opt.id}" ng-disabled="vm.split_crew_opt_disabled(opt)" ng-click="vm.split_crew_mode = opt.id">{{ {same: 'Same crew', solo: 'Student solo', hire: 'Self-hire', other: 'Somebody else'}[opt.id] || opt.title }}<small>{{ opt.id === 'same' ? 'One flight, two tracker legs' : opt.id === 'solo' ? vm.split_crew_student_name() + ' flew on alone, authorised' : opt.id === 'hire' ? vm.split_crew_student_name() + ' flew on as a hire' : 'Left for them to claim' }}</small></button>
+              </div>
+              <div class="ta-note ta-note--info" ng-if="vm.bk_split_taxi()" data-e2e="bki-split-taxi"><i class="fas fa-stopwatch"></i><div><b>{{ vm.bk_split_taxi().solo ? 'Taxi time charged once (dual → solo)' : (vm.bk_split_taxi().once ? 'Taxi charged once' : 'Each part charged its own taxi') }}</b>{{ vm.bk_split_taxi().solo ? ': taxi out on the dual part, taxi in on the solo part.' : (vm.bk_split_taxi().once ? ' — the time parked between legs isn\'t charged. The club\'s setting for split flights.' : ': 5 minutes out and 5 minutes in on each part. The club\'s setting for split flights.') }}</div></div>
+              <span class="bki-sub">Part 2 is saved as an open flight: it shows under flights to book in, on Claim a Flight, and after the training record for this part. You can still change who flew it then.</span>
+            </div>
+            <div class="bki-row bki-row--end"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.bk_split_close()">Cancel</button>
+              <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.confirm_split()" ng-disabled="vm.split_phantom || !vm.split_one || !vm.split_two" title="{{ vm.split_phantom ? 'Answer the question about the landing first' : (!vm.split_one || !vm.split_two ? 'Choose where to split first' : '') }}" data-e2e="bki-split-confirm"><i class="fas fa-check"></i>Confirm split</button></div>
+          </div>
+          <div class="ta-note ta-note--good" ng-if="vm.split_flight_confirmation == 1"><i class="fas fa-cut"></i><div><b>Split.</b> This book-in is part 1 ({{ vm.bk_shown(vm.bk_eff().off, vm.bk_eff().off_r) }}–{{ vm.bk_shown(vm.bk_eff().on, vm.bk_eff().on_r) }}). Part 2 is <b>{{ ({same: 'Same crew', solo: 'Student solo', hire: 'Self-hire', other: 'Somebody else'}[vm.split_crew_mode] || vm.split_crew_label(vm.split_crew_mode)) | lowercase }}</b> and waits as an open flight once this part is booked in.
+            <div class="bki-row bki-row--mt"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.cancel_split()"><i class="fas fa-times"></i>Cancel split</button></div></div></div>
+        </div>
+
+        <!-- entered by hand: <ta-time> (js/v2/core/timefield.js) — type the time or pick it, 5-minute steps, in timeline
+             order; the gap since the time before sits under each field (owner, 11 Nov 2026: not in the value) -->
+        <div ng-if="!vm.bk_claimed()" class="bki-sec">
+          <div class="bki-times" ng-class="{'bki-times--4': vm.bk_show_to()}">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.bk_time_err('off')}"><label class="ta-label" for="bki-t-off"><i class="fas fa-play"></i>Brakes off</label>
+              <ta-time ng-model="vm.bk.t.off" ng-change="vm.bk_time_changed('off')" input-id="bki-t-off" label="Brakes off" near="vm.bk_time_near('off')"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('off')">{{ vm.bk_time_err('off') }}</span></div>
+            <div class="ta-field" ng-if="vm.bk_show_to()" ng-class="{'ta-field--error': vm.bk_time_err('to')}"><label class="ta-label" for="bki-t-to"><i class="fas fa-plane-departure"></i>Takeoff<em ng-if="!vm.bk_need_to()"> (optional)</em></label>
+              <ta-time ng-model="vm.bk.t.to" ng-change="vm.bk_time_changed('to')" input-id="bki-t-to" label="Takeoff" near="vm.bk_time_near('to')" min="vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('to')">{{ vm.bk_time_err('to') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('to') && vm.bk_time_gap('to')" data-e2e="bki-gap-to">{{ vm.bk_time_gap('to') }}</span></div>
+            <div class="ta-field" ng-if="vm.bk_show_to()" ng-class="{'ta-field--error': vm.bk_time_err('ld')}"><label class="ta-label" for="bki-t-ld"><i class="fas fa-plane-arrival"></i>Landing<em ng-if="!vm.bk_need_to()"> (optional)</em></label>
+              <ta-time ng-model="vm.bk.t.ld" ng-change="vm.bk_time_changed('ld')" input-id="bki-t-ld" label="Landing" near="vm.bk_time_near('ld')" min="vm.bk.t.to || vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('ld')">{{ vm.bk_time_err('ld') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('ld') && vm.bk_time_gap('ld')" data-e2e="bki-gap-ld">{{ vm.bk_time_gap('ld') }}</span></div>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.bk_time_err('on')}"><label class="ta-label" for="bki-t-on"><i class="fas fa-stop"></i>Brakes on</label>
+              <ta-time ng-model="vm.bk.t.on" ng-change="vm.bk_time_changed('on')" input-id="bki-t-on" label="Brakes on" near="vm.bk_time_near('on')" min="vm.bk.t.ld || vm.bk.t.to || vm.bk.t.off"></ta-time>
+              <span class="ta-field__msg" ng-if="vm.bk_time_err('on')">{{ vm.bk_time_err('on') }}</span><span class="ta-hint" ng-if="!vm.bk_time_err('on') && vm.bk_time_gap('on')" data-e2e="bki-gap-on">{{ vm.bk_time_gap('on') }}</span></div>
+          </div>
+          <span class="bki-sub"><i class="fas fa-info-circle"></i> Club time, in 5-minute steps — type it (1050 or 10:50) or pick it from the list.{{ vm.bk_need_to() ? ' Takeoff and landing are needed because this aircraft is charged on airborne time.' : (vm.bk_show_to() ? ' Takeoff and landing are optional: the club shows airborne times, the charge uses ' + vm.bk_charge_words() + '.' : '') }}</span>
+        </div>
+
+        <div class="ta-tiles">
+          <div class="ta-tile" ng-class="{'ta-tile--progress': !vm.bk_club_air()}"><span class="ta-tile__k"><i class="fas fa-stopwatch"></i>Brakes to brakes <span class="bki-shown" ng-if="!vm.bk_club_air()">Club shows</span></span>
+            <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.bk_block_tile()}">{{ vm.bk_block_tile() ? vm.bk_block_tile().v : '—' }}</span><span class="ta-tile__s">{{ vm.bk_block_tile() ? vm.bk_block_tile().s : 'Appears once both brake times are in' }}</span></div>
+          <div class="ta-tile" ng-class="{'ta-tile--progress': vm.bk_club_air()}"><span class="ta-tile__k"><i class="fas fa-plane"></i>Airborne <span class="bki-shown" ng-if="vm.bk_club_air()">Club shows</span></span>
+            <span class="ta-tile__v" ng-class="{'ta-tile__v--quiet': !vm.bk_air_tile()}">{{ vm.bk_air_tile() ? vm.bk_air_tile().v : '—' }}</span><span class="ta-tile__s">{{ vm.bk_air_tile() ? vm.bk_air_tile().s : (vm.bk_claimed() || vm.bk_show_to() ? 'Takeoff to landing' : 'Not recorded for this charge') }}</span></div>
+          <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-receipt"></i>Charged time</span>
+            <span class="ta-tile__v" ng-class="{'ta-tile__v--words': vm.bk_meter_charged() && !vm.bk_charged_tile()}">{{ vm.bk_charged_tile() || (vm.bk_meter_charged() ? 'From the meter' : '—') }}</span>
+            <span class="ta-tile__s">Charged on {{ vm.bk_charge_expl() + (vm.bk_meter_charged() && !vm.bk_charged_tile() && vm.bk_meter_diff() === null ? ': enter the end reading under Meters' : '') }}</span></div>
+        </div>
+      </section>
+
+      <!-- ═════ METERS (charged on the tacho / hobbs, or the aircraft tracks its tacho) ═════ -->
+      <section class="ta-card bki-card" id="bki-c-meters" ng-if="vm.bk_meters_shown()" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'meters'}" aria-label="Meters">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('meters')}"><i class="fas" ng-class="vm.bk_card_done('meters') ? 'fa-check' : 'fa-tachometer-alt'"></i><span class="ta-card__step">{{ vm.bk_n('meters') }}</span></span>
+          <div class="ta-card__ttl"><h3>Meters</h3><p>{{ vm.bk_meter_charged() ? 'Charged on the ' + vm.bk_meter_word() + ' at ' + vm.bk_money(vm.bookout.plane_charges.charge_rate_unit) + ' an hour' : 'Recorded for ' + vm.bk_reg() + '\'s logbook' }}</p></div>
+          <span class="ta-card__right" ng-if="!vm.bk_meter_charged()"><span class="ta-pill ta-pill--muted">Optional</span></span></div>
+        <div class="ta-grid-2">
+          <div class="ta-field" ng-class="{'ta-field--error': vm.bk_meter_err('start')}"><label class="ta-label" for="bki-m-start"><i class="fas fa-tachometer-alt"></i>Start <em ng-if="vm.bk_last_meter() !== null">· <span class="bki-src" ng-if="!vm.bk_start_changed()"><i class="fas fa-magic"></i>from the last book-in</span><span ng-if="vm.bk_start_changed()">changed</span></em></label>
+            <div class="bki-unit"><input class="ta-input" ng-class="{'ta-input--prefilled': !vm.bk_start_changed() && vm.bk_last_meter() !== null}" id="bki-m-start" type="text" inputmode="decimal" autocomplete="off" ng-model="vm.bk.m.start" ng-change="vm.bk_meter_input('start')" data-e2e="bki-m-start"><span>{{ vm.bk_meter_word() }}</span></div>
+            <span class="ta-field__msg" ng-if="vm.bk_meter_err('start')">{{ vm.bk_meter_err('start') }}</span><span class="ta-hint" ng-if="!vm.bk_meter_err('start') && vm.bk_last_meter() !== null">The last flight ended at {{ vm.bk_dec1(vm.bk_last_meter()) }}</span></div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.bk_meter_err('end') || vm.tacho_error_highlight}"><label class="ta-label" for="bki-m-end"><i class="fas fa-flag-checkered"></i>End<em ng-if="vm.split_flight_confirmation == 1"> · at the split</em><em ng-if="!vm.bk_meter_charged()"> (optional)</em></label>
+            <div class="bki-unit"><input class="ta-input" id="bki-m-end" type="text" inputmode="decimal" autocomplete="off" placeholder="{{ vm.bk_last_meter() !== null ? 'e.g. ' + vm.bk_dec1(vm.bk_last_meter() + 1.2) : '' }}" ng-model="vm.bk.m.end" ng-change="vm.bk_meter_input('end')" data-e2e="bki-m-end"><span>{{ vm.bk_meter_word() }}</span></div>
+            <span class="ta-field__msg" ng-if="vm.bk_meter_err('end')">{{ vm.bk_meter_err('end') }}</span><span class="ta-hint" ng-if="!vm.bk_meter_err('end')">{{ vm.split_flight_confirmation == 1 ? 'The reading when part 1 ended' : 'The reading as you shut down' }}</span></div>
+        </div>
+        <div class="ta-tiles"><div class="ta-tile ta-tile--wide" ng-class="{'ta-tile--progress': vm.bk_meter_diff() !== null}"><span class="ta-tile__k"><i class="fas fa-calculator"></i>Difference</span>
+          <span class="ta-tile__v">{{ vm.bk_meter_diff() !== null ? vm.bk_dec1(vm.bk_meter_diff()) + ' h' : '—' }} <span class="bki-sub" ng-if="vm.bk_meter_diff() !== null">({{ vm.bk_hm(vm.bk_meter_diff()) }})</span></span>
+          <span class="ta-tile__s">{{ vm.bk_meter_diff() === null ? 'Appears once the end reading is in' : (vm.bk_meter_charged() ? vm.bk_dec1(vm.bk_meter_diff()) + ' h × ' + vm.bk_money(vm.bookout.plane_charges.charge_rate_unit) + ' an hour' + vm.bk_meter_amount() : 'Logged against ' + vm.bk_reg() + '\'s engine hours. You\'re charged on ' + vm.bk_charge_words() + ', not on the meter.') }}</span></div></div>
+        <div class="ta-note ta-note--warn" ng-if="vm.bk_meter_warn()"><i class="fas fa-exclamation-triangle"></i><div>{{ vm.bk_meter_warn() }}</div></div>
+        <label class="ta-toggle ta-toggle--warn" ng-if="vm.bk_start_changed()" ng-class="{'bki-err': vm.bk.showErr && !vm.bk.startAck}"><input type="checkbox" class="ta-toggle__input" ng-model="vm.bk.startAck" data-e2e="bki-start-ack">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-exclamation-triangle"></i>Yes, the start reading is {{ vm.bk_dec1(vm.bookout.start_tacho) }}</span><span class="ta-toggle__s">{{ vm.bk_last_meter() !== null ? 'The last book-in ended at ' + vm.bk_dec1(vm.bk_last_meter()) + '.' : 'There is no earlier reading to compare with.' }} The flight is flagged so the club can check the meter.</span></span><span class="ta-switch"></span></label>
+      </section>
+
+      <!-- ═════ ROUTE & LANDINGS ═════ -->
+      <section class="ta-card bki-card" id="bki-c-land" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'land'}" aria-label="Route and landings">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('land')}"><i class="fas" ng-class="vm.bk_card_done('land') ? 'fa-check' : 'fa-map-marked-alt'"></i><span class="ta-card__step">{{ vm.bk_n('land') }}</span></span>
+          <div class="ta-card__ttl"><h3>Route &amp; landings</h3><p>{{ vm.bk_route_line() || 'Where you went and how often you landed' }}</p></div></div>
+        <div class="bki-sec">
+          <div class="ta-field" ng-class="{'ta-field--error': vm.bk.showErr && !vm.bk_ft()}"><span class="ta-label">Flight type<em ng-if="vm.bk_claimed() && !vm.bk.ftEdited"> · from the tracker</em></span>
+            <div class="ta-seg bki-seg4" role="radiogroup" aria-label="Flight type">
+              <button type="button" class="ta-seg__opt" ng-repeat="o in vm.bk_flight_types" ng-class="{'ta-seg__opt--on': vm.bk_ft() === o.id}" role="radio" aria-checked="{{ vm.bk_ft() === o.id }}" ng-click="vm.bk_set_ft(o.id)"><i class="fas {{ o.i }}"></i>{{ o.t }}</button>
+            </div><span class="ta-field__msg" ng-if="vm.bk.showErr && !vm.bk_ft()">Choose the flight type</span></div>
+          <div class="ta-grid-2">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.bk.showErr && !vm.bk_from()}"><span class="ta-label"><i class="fas fa-plane-departure"></i>From</span>
+              <div class="ta-pickf"><button type="button" class="ta-pick" ng-class="{'ta-pick--empty': !vm.bk_pf('from').nm}" ng-click="vm.bk_pk_open('from')" aria-haspopup="listbox" aria-expanded="{{ vm.bk.pk.f === 'from' }}" data-e2e="bki-from">
+                <span class="ta-pick__ic"><i class="fas fa-plane-departure"></i></span><span class="ta-pick__txt"><span class="ta-pick__nm">{{ vm.bk_pf('from').nm || 'Choose…' }}</span><span class="ta-pick__sub" ng-if="vm.bk_pf('from').sub">{{ vm.bk_pf('from').sub }}</span></span><span class="ta-pick__end">{{ vm.bk_pf('from').nm ? 'Change' : 'Choose' }} <i class="fas fa-chevron-down"></i></span></button>
+                <div ng-if="vm.bk.pk.f === 'from'" ng-include="'views/v2/bookin/_pickmenu.html'"></div></div>
+              <span class="ta-field__msg" ng-if="vm.bk.showErr && !vm.bk_from()">Choose where you took off</span></div>
+            <div class="ta-field" ng-if="vm.bk_needs_to()" ng-class="{'ta-field--error': vm.bk.showErr && !vm.bk_to()}"><span class="ta-label"><i class="fas fa-plane-arrival"></i>To</span>
+              <div class="ta-pickf"><button type="button" class="ta-pick" ng-class="{'ta-pick--empty': !vm.bk_pf('to').nm}" ng-click="vm.bk_pk_open('to')" aria-haspopup="listbox" aria-expanded="{{ vm.bk.pk.f === 'to' }}" data-e2e="bki-to">
+                <span class="ta-pick__ic"><i class="fas fa-plane-arrival"></i></span><span class="ta-pick__txt"><span class="ta-pick__nm">{{ vm.bk_pf('to').nm || 'Choose…' }}</span><span class="ta-pick__sub" ng-if="vm.bk_pf('to').sub">{{ vm.bk_pf('to').sub }}</span></span><span class="ta-pick__end">{{ vm.bk_pf('to').nm ? 'Change' : 'Choose' }} <i class="fas fa-chevron-down"></i></span></button>
+                <div ng-if="vm.bk.pk.f === 'to'" ng-include="'views/v2/bookin/_pickmenu.html'"></div></div>
+              <span class="ta-field__msg" ng-if="vm.bk.showErr && !vm.bk_to()">Choose the destination</span></div>
+            <div class="ta-field" ng-if="!vm.bk_needs_to()"><span class="ta-label"><i class="fas fa-plane-arrival"></i>To</span><span class="bki-sub bki-sub--field">Back to {{ vm.bk_code(vm.bk_from()) }} {{ vm.bk_from() && vm.bk_from().code !== 'ZZZZ' ? vm.bk_af_name(vm.bk_from()) : '' }} ({{ vm.bk_ft() === 3 ? 'circuits' : 'local flight' }})</span></div>
+          </div>
+        </div>
+        <div class="bki-sec">
+          <div class="bki-row bki-row--between"><span class="ta-sec-k">Landings</span><span class="ta-pill ta-pill--muted" ng-if="vm.bk_counts_src() && vm.bk.landEdited"><i class="fas fa-pen"></i>Changed by you</span><span class="ta-pill ta-pill--info" ng-if="vm.bk_counts_src() && !vm.bk.landEdited"><i class="fas fa-satellite-dish"></i>From the tracker</span></div>
+          <span class="bki-sub" ng-if="vm.bk_counts_src() && !vm.bk.landEdited">Counted from {{ vm.bk_reg() }}'s recorded {{ vm.bk_counts_src() === 'calculated' ? 'track (stop-and-goes count as full stops)' : 'tracker' }}. Change them if they're wrong.</span>
+          <div class="ta-note ta-note--info" ng-if="vm.split_flight_confirmation == 1"><i class="fas fa-cut"></i><div>Count part 1's landings only: part 2 gets its own book-in.</div></div>
+          <div class="bki-steps">
+            <div class="bki-step"><span class="bki-step__txt"><span class="bki-step__t">Touch &amp; goes{{ vm.bk_land_at() }}</span><span class="bki-step__s">{{ vm.bk_fee_words(vm.bookout.plane_charges.touch_and_go_fee) }}</span></span>
+              <span class="ta-stepper"><button type="button" class="ta-stepper__b" aria-label="One fewer" ng-disabled="!(vm.bookout.tng > 0)" ng-click="vm.bk_step('tng', -1)"><i class="fas fa-minus"></i></button><span class="ta-stepper__n" aria-live="polite" data-e2e="bki-tng">{{ vm.bookout.tng || 0 }}</span><button type="button" class="ta-stepper__b" aria-label="One more" ng-click="vm.bk_step('tng', 1)" data-e2e="bki-tng-plus"><i class="fas fa-plus"></i></button></span></div>
+            <div class="bki-step"><span class="bki-step__txt"><span class="bki-step__t">Full stops{{ vm.bk_land_at() }}</span><span class="bki-step__s">{{ vm.bk_fee_words(vm.bookout.plane_charges.landing_fee) }}</span></span>
+              <span class="ta-stepper"><button type="button" class="ta-stepper__b" aria-label="One fewer" ng-disabled="!(vm.bookout.landings > 0)" ng-click="vm.bk_step('landings', -1)"><i class="fas fa-minus"></i></button><span class="ta-stepper__n" aria-live="polite" data-e2e="bki-fs">{{ vm.bookout.landings || 0 }}</span><button type="button" class="ta-stepper__b" aria-label="One more" ng-click="vm.bk_step('landings', 1)" data-e2e="bki-fs-plus"><i class="fas fa-plus"></i></button></span></div>
+            <div class="bki-step" ng-if="vm.bk_ft() !== 1"><span class="bki-step__txt"><span class="bki-step__t">Landings away</span><span class="bki-step__s">Paid at the other airfield, not on this invoice</span></span>
+              <span class="ta-stepper"><button type="button" class="ta-stepper__b" aria-label="One fewer" ng-disabled="!(vm.bookout.remote_landings > 0)" ng-click="vm.bk_step('remote_landings', -1)"><i class="fas fa-minus"></i></button><span class="ta-stepper__n" aria-live="polite">{{ vm.bookout.remote_landings || 0 }}</span><button type="button" class="ta-stepper__b" aria-label="One more" ng-click="vm.bk_step('remote_landings', 1)"><i class="fas fa-plus"></i></button></span></div>
+          </div>
+          <label class="ta-toggle ta-toggle--warn" ng-if="vm.bk_land_total() === 0" ng-class="{'bki-err': vm.bk.showErr && !vm.bk.noLand}"><input type="checkbox" class="ta-toggle__input" ng-model="vm.bk.noLand" data-e2e="bki-noland">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-exclamation-triangle"></i>I didn't land</span><span class="ta-toggle__s">No landings counted. If that's right (an aborted take-off, say), turn this on: the flight is flagged for the club.</span></span><span class="ta-switch"></span></label>
+          <span class="bki-sub" ng-if="vm.bk_land_total() > 0">{{ vm.bk_plural(vm.bk_land_total(), 'landing') }} in total.</span>
+        </div>
+      </section>
+
+      <!-- ═════ FUEL & OIL (optional) ═════ -->
+      <section class="ta-card bki-card" id="bki-c-fuel" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'fuel'}" aria-label="Fuel and oil">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('fuel')}"><i class="fas" ng-class="vm.bk_card_done('fuel') ? 'fa-check' : 'fa-gas-pump'"></i><span class="ta-card__step">{{ vm.bk_n('fuel') }}</span></span>
+          <div class="ta-card__ttl"><h3>Fuel &amp; oil</h3><p>Uplifts on this flight</p></div><span class="ta-card__right"><span class="ta-pill ta-pill--muted">Optional</span></span></div>
+        <div class="bki-items" ng-if="vm.lubricant_receipts.length">
+          <div class="bki-item bki-item--fuel" ng-repeat="r in vm.lubricant_receipts track by r.id">
+            <div class="bki-item__top"><span class="bki-item__ic"><i class="fas" ng-class="r.item === 'Oil' ? 'fa-oil-can' : 'fa-gas-pump'"></i></span>
+              <span class="bki-item__txt"><span class="bki-item__t">{{ r.item === 'Oil' ? 'Oil' : 'Fuel' }} · {{ r.quantity }} {{ r.item === 'Oil' ? 'quarts' : 'litres' }}</span>
+                <span class="bki-item__s">{{ (r.price > 0 ? 'Paid ' + vm.bk_up_paid(r) : 'No price given') + (r.reimbursement == 1 ? ' · claiming ' + vm.bk_money(r.reimbursed_amount) + ' back' + (r.image ? ' · receipt attached' : '') : '') }}</span></span>
+              <button type="button" class="ta-btn ta-btn--sm" ng-if="r.approved == 0" ng-class="vm.bk.delUp === r.id ? 'ta-btn--danger-solid' : 'ta-btn--danger'" ng-click="vm.bk_up_del(r)" ng-disabled="vm.bk.delBusy === r.id" no-busy-guard><i class="fas fa-trash-alt" ng-if="vm.bk.delUp !== r.id"></i>{{ vm.bk.delUp === r.id ? 'Delete it?' : 'Delete' }}</button></div>
+            <div class="bki-item__meta"><span class="ta-pill ta-pill--{{ vm.bk_receipt_state(r).tone }}"><i class="fas {{ vm.bk_receipt_state(r).icon }}" ng-if="vm.bk_receipt_state(r).icon"></i>{{ vm.bk_receipt_state(r).label }}</span></div>
+          </div>
+        </div>
+        <div class="bki-row" ng-if="!vm.bk.up"><button type="button" class="ta-btn" ng-click="vm.bk_up_open()" data-e2e="bki-up-open"><i class="fas fa-plus"></i>Add fuel or oil</button><span class="bki-sub">Anything you put in, so the aircraft's records stay right. Paid for it yourself? Claim it back here.</span></div>
+        <div class="ta-panel" ng-if="vm.bk.up" data-e2e="bki-up">
+          <div class="ta-panel__hd"><i class="fas fa-plus-circle"></i>Add an uplift</div>
+          <div class="ta-seg ta-seg--row bki-seg2">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.receipt.item.title === 'Fuel'}" ng-click="vm.bk_up_item('Fuel')"><i class="fas fa-gas-pump"></i>Fuel</button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.receipt.item.title === 'Oil'}" ng-click="vm.bk_up_item('Oil')"><i class="fas fa-oil-can"></i>Oil</button></div>
+          <div class="ta-grid-2">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.bk.up.err.qty}"><label class="ta-label" for="bki-u-qty">Quantity</label>
+              <div class="bki-unit"><input class="ta-input" id="bki-u-qty" type="text" inputmode="decimal" autocomplete="off" ng-model="vm.bk.up.qty" ng-change="vm.bk_up_sync()" placeholder="{{ vm.receipt.item.title === 'Oil' ? '1.5' : '40' }}"><span>{{ vm.receipt.item.title === 'Oil' ? 'quarts' : 'litres' }}</span></div>
+              <span class="ta-field__msg" ng-if="vm.bk.up.err.qty">{{ vm.bk.up.err.qty }}</span></div>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.bk.up.err.price}"><label class="ta-label" for="bki-u-price">Price paid</label>
+              <div class="bki-grid-cur"><select class="ta-select" aria-label="Currency" ng-model="vm.receipt.currency" ng-options="c as c.iso_code for c in vm.currencies track by c.iso_code" ng-change="vm.bk_up_check()"></select>
+                <input class="ta-input" id="bki-u-price" type="text" inputmode="decimal" autocomplete="off" ng-model="vm.bk.up.price" ng-change="vm.bk_up_sync()" ng-blur="vm.bk_up_check()" placeholder="0.00"></div>
+              <span class="ta-field__msg" ng-if="vm.bk.up.err.price">{{ vm.bk.up.err.price }}</span></div>
+          </div>
+          <label class="ta-toggle"><input type="checkbox" class="ta-toggle__input" ng-model="vm.receipt.reimbursement" ng-change="vm.bk_up_check()" data-e2e="bki-up-claim">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-hand-holding-usd"></i>Claim it back</span>
+              <span class="ta-toggle__s" ng-if="!vm.receipt.reimbursement">For fuel you paid for yourself, at another airfield for example.</span>
+              <span class="ta-toggle__s" ng-if="vm.receipt.reimbursement && !(vm.bk_up_foreign() && vm.receipt.reimbursed_amount)">Credited on this invoice once the club approves the receipt.</span>
+              <span class="ta-toggle__s" ng-if="vm.receipt.reimbursement && vm.bk_up_foreign() && vm.receipt.reimbursed_amount">You'll be credited {{ vm.bk_money(vm.receipt.reimbursed_amount) }} ({{ vm.receipt.currency.iso_code }} {{ vm.receipt.price | number:2 }} at the Wise rate, 1 {{ vm.receipt.currency.iso_code }} = {{ vm.receipt.reimbursed_rate }} {{ vm.receipt.reimbursed_currency }}<span ng-if="vm.receipt.reimbursed_datetime">, {{ vm.receipt.reimbursed_datetime | asDate | date:'d MMM HH:mm' }}</span>), once the club approves the receipt.</span></span><span class="ta-switch"></span></label>
+          <div class="ta-field" ng-if="vm.receipt.reimbursement" ng-class="{'ta-field--error': vm.bk.up.err.receipt}"><span class="ta-label"><i class="fas fa-receipt"></i>Receipt</span>
+            <div flow-init="{target: '/upload.php'}" flow-files-submitted="$flow.upload()" flow-file-success="$file.file_return = $message" flow-complete="vm.bk_receipt_uploaded($flow)" flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
+              <div class="ta-drop ta-drop--sm" role="button" tabindex="0" flow-btn flow-drop ng-class="{'ta-drop--done': vm.receipt.image}" data-e2e="bki-up-receipt"><i class="fas" ng-class="vm.receipt.image ? 'fa-check-circle' : 'fa-camera'"></i>{{ vm.receipt.image ? 'Receipt attached · tap to replace' : 'Take a photo or drop your receipt here' }}</div>
+            </div>
+            <span class="ta-field__msg" ng-if="vm.bk.up.err.receipt">{{ vm.bk.up.err.receipt }}</span><span class="ta-hint" ng-if="!vm.bk.up.err.receipt">Needed to claim it back (PNG or JPG).</span></div>
+          <div class="bki-row bki-row--end"><button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.bk_up_cancel()">Cancel</button><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bk_up_add()" ng-disabled="vm.bk.up.busy" no-busy-guard data-e2e="bki-up-add"><span class="ta-spin" ng-if="vm.bk.up.busy"></span><i class="fas fa-plus" ng-if="!vm.bk.up.busy"></i>Add {{ vm.receipt.item.title === 'Oil' ? 'oil' : 'fuel' }}</button></div>
+        </div>
+      </section>
+
+      <!-- ═════ DEFECTS — "Any new defects?" is a required choice ═════ -->
+      <section class="ta-card bki-card" id="bki-c-def" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'def'}" aria-label="Defects">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('def')}"><i class="fas" ng-class="vm.bk_card_done('def') ? 'fa-check' : 'fa-tools'"></i><span class="ta-card__step">{{ vm.bk_n('def') }}</span></span>
+          <div class="ta-card__ttl"><h3>Defects</h3><p>{{ vm.reported_defects.length ? vm.bk_plural(vm.bk_existing_defects(), 'open report') + ' on ' + vm.bk_reg() + (vm.bk_mine_count() ? ' · ' + vm.bk_mine_count() + ' new' : '') : 'Anything new on ' + vm.bk_reg() + '?' }}</p></div></div>
+        <span class="ta-sec-k" ng-if="vm.bk_existing_defects()">Already reported on {{ vm.bk_reg() }}</span>
+        <div class="bki-items" ng-if="vm.reported_defects.length">
+          <div class="bki-item bki-item--{{ vm.bk_sev(d).key }}" ng-repeat="d in vm.reported_defects track by d.id" ng-class="{'bki-item--new': vm.bk_is_mine(d)}">
+            <div class="bki-item__top"><span class="bki-item__txt"><span class="bki-item__t">{{ d.defect }}</span><span class="bki-item__s">Reported {{ vm.bk_def_when(d) }}</span></span>
+              <button type="button" class="ta-btn ta-btn--sm" ng-if="d.can_delete" ng-class="vm.bk.delDef === d.id ? 'ta-btn--danger-solid' : 'ta-btn--danger'" ng-click="vm.bk_def_del(d)"><i class="fas fa-trash-alt" ng-if="vm.bk.delDef !== d.id"></i>{{ vm.bk.delDef === d.id ? 'Delete it?' : 'Delete' }}</button></div>
+            <div class="bki-item__meta"><span class="ta-pill ta-pill--{{ vm.bk_sev(d).tone }}"><i class="fas {{ vm.bk_sev(d).icon }}"></i>{{ vm.bk_sev(d).short }}</span>
+              <span class="ta-pill ta-pill--{{ vm.bk_def_status(d).tone }}"><i class="fas {{ vm.bk_def_status(d).icon }}"></i>{{ vm.bk_def_status(d).label }}</span>
+              <button type="button" class="ta-link" ng-click="d._showMedia = !d._showMedia" aria-expanded="{{ !!d._showMedia }}"><i class="fas fa-camera"></i>{{ d.media_count > 0 ? vm.bk_plural(d.media_count, 'photo') : 'Photos' }} <i class="fas" ng-class="d._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'"></i></button></div>
+            <div class="bki-media" ng-if="d._showMedia"><defect-media-gallery defect-id="d.id" club-id="vm.bookout.club_id" media-count="d.media_count"></defect-media-gallery></div>
+          </div>
+        </div>
+        <div class="ta-note ta-note--good" ng-if="vm.reported_defects && !vm.reported_defects.length"><i class="fas fa-check-circle"></i><div>No open defects on {{ vm.bk_reg() }}.</div></div>
+        <div class="ta-field" id="bki-def-choice" ng-class="{'ta-field--error': vm.bk.showErr && !vm.bk.defMode}"><span class="ta-label"><i class="fas fa-question-circle"></i>Any new defects on {{ vm.bk_reg() }}? <span class="ta-req">Required</span></span>
+          <div class="bki-choice" role="radiogroup" aria-label="Any new defects?">
+            <button type="button" class="ta-opt" ng-class="{'ta-opt--on': vm.bk.defMode === 'none'}" role="radio" aria-checked="{{ vm.bk.defMode === 'none' }}" ng-disabled="vm.bk_mine_count() > 0" ng-click="vm.bk_def_none()" data-e2e="bki-def-no"><span class="ta-opt__ic"><i class="fas fa-check"></i></span><span><span class="ta-opt__t">No — nothing new to report</span><span class="ta-opt__s">{{ vm.bk_mine_count() ? 'You reported a defect on this flight' : vm.bk_reg() + ' flew without any new problems' }}</span></span><span class="ta-opt__dot"></span></button>
+            <button type="button" class="ta-opt" ng-class="{'ta-opt--on': vm.bk.defMode === 'reported'}" role="radio" aria-checked="{{ vm.bk.defMode === 'reported' }}" ng-click="vm.bk_def_open()" data-e2e="bki-def-yes"><span class="ta-opt__ic"><i class="fas fa-exclamation-triangle"></i></span><span><span class="ta-opt__t">Yes — report a defect</span><span class="ta-opt__s">{{ vm.bk_mine_count() ? vm.bk_plural(vm.bk_mine_count(), 'reported') + ' · tap to report another' : 'What\'s wrong, how serious, photos' }}</span></span><span class="ta-opt__dot"></span></button>
+          </div>
+          <span class="ta-field__msg" ng-if="vm.bk.showErr && !vm.bk.defMode">Answer this before you finish: choose No, or report the defect.</span></div>
+      </section>
+
+      <!-- ═════ CREW & LESSON ═════ -->
+      <section class="ta-card bki-card" id="bki-c-crew" ng-class="{'ta-card--attn bki-flash': vm.bk.flash === 'crew'}" aria-label="Crew and lesson">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('crew')}"><i class="fas" ng-class="vm.bk_card_done('crew') ? 'fa-check' : 'fa-user-friends'"></i><span class="ta-card__step">{{ vm.bk_n('crew') }}</span></span>
+          <div class="ta-card__ttl"><h3>Crew &amp; lesson</h3><p>{{ vm.bk_crew_sub() }}</p></div></div>
+        <!-- part 2 of a split flight: start from part 1's crew -->
+        <div class="ta-panel" ng-if="vm.split_prev_leg">
+          <div class="ta-panel__hd"><i class="fas fa-cut"></i>Part 2 of a split flight</div>
+          <span class="bki-sub">Part 1 ({{ vm.split_prev_leg.brakes_off_rounded | brakesTime }}–{{ vm.split_prev_leg.brakes_on_rounded | brakesTime }}<span ng-if="vm.split_prev_leg.pic_first_name">, PIC {{ vm.split_prev_leg.pic_first_name }} {{ vm.split_prev_leg.pic_last_name }}</span><span ng-if="vm.split_prev_leg.put_first_name">, student {{ vm.split_prev_leg.put_first_name }} {{ vm.split_prev_leg.put_last_name }}</span>) {{ vm.split_prev_leg.needs_book_in == 1 ? 'still needs booking in.' : 'is booked in.' }} Who flew this part?</span>
+          <div class="ta-seg ta-seg--row bki-seg3">
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.split_leg_is_same()}" ng-click="vm.split_leg_use_same()">Same crew<small>One flight, two tracker legs</small></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.split_leg_is_solo()}" ng-click="vm.split_leg_use_solo()" ng-disabled="!(vm.split_leg_student_id() > 0)">Student solo<small>{{ vm.split_leg_student_name() }} flew alone, authorised</small></button>
+            <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.split_leg_is_hire()}" ng-click="vm.split_leg_use_hire()" ng-disabled="!(vm.split_leg_student_id() > 0)">Self-hire<small>{{ vm.split_leg_student_name() }} flew on, no instructor</small></button>
+          </div>
+          <span class="bki-sub">Somebody else altogether? Choose them as pilot in command below.</span>
+        </div>
+
+        <div class="ta-field" ng-class="{'ta-field--error': vm.bk_crew_err('pic')}"><span class="ta-label"><i class="fas fa-user-tie"></i>Pilot in command</span>
+          <div class="ta-pickf" bki-pick-field="pic"></div>
+          <span class="ta-field__msg" ng-if="vm.bk_crew_err('pic')">{{ vm.bk_crew_err('pic') }}</span></div>
+        <label class="ta-toggle" ng-if="vm.bookout.pic.user_id > 0" ng-class="{'ta-toggle--solo': vm.bk_solo_mode()}"><input type="checkbox" class="ta-toggle__input" ng-checked="vm.this_claim_was_instructional" ng-click="vm.bk_toggle_instructional()" data-e2e="bki-instructional">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas" ng-class="vm.bk_solo_mode() ? 'fa-user-graduate' : 'fa-chalkboard-teacher'"></i>Instructional flight</span>
+            <span class="ta-toggle__s" ng-if="!vm.this_claim_was_instructional">Turn on if an instructor taught or authorised this flight.</span>
+            <span class="ta-toggle__s" ng-if="vm.this_claim_was_instructional && vm.bk_solo_mode()">{{ vm.bk_first(vm.bookout.pic_id) }} isn't an instructor, so this is an <b>authorised student solo</b>: {{ vm.bk_first(vm.bookout.pic_id) }} stays pilot in command, and the instructor below authorised it and completes the training record.</span>
+            <span class="ta-toggle__s" ng-if="vm.this_claim_was_instructional && !vm.bk_solo_mode()">{{ vm.bk_first(vm.bookout.pic_id) }} instructed. Choose the student below.</span></span><span class="ta-switch"></span></label>
+        <div class="ta-field" ng-if="vm.this_claim_was_instructional && vm.picIsInstructor() && !vm.this_was_supervised_solo" ng-class="{'ta-field--error': vm.bk_crew_err('put')}"><span class="ta-label"><i class="fas fa-user-graduate"></i>Student</span>
+            <div class="ta-pickf" bki-pick-field="put"></div>
+            <span class="ta-field__msg" ng-if="vm.bk_crew_err('put')">{{ vm.bk_crew_err('put') }}</span></div>
+        <label class="ta-toggle ta-toggle--solo" ng-if="vm.this_claim_was_instructional && vm.picIsInstructor()"><input type="checkbox" class="ta-toggle__input" ng-checked="vm.this_was_supervised_solo" ng-click="vm.bk_toggle_supervised()">
+            <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-user"></i>Supervised solo</span><span class="ta-toggle__s">{{ vm.bk_first(vm.bookout.pic_id) }} flew solo under another instructor's supervision.</span></span><span class="ta-switch"></span></label>
+        <div class="ta-field" ng-if="vm.this_was_supervised_solo" ng-class="{'ta-field--error': vm.bk_crew_err('instr')}"><span class="ta-label"><i class="fas fa-chalkboard-teacher"></i>Authorising instructor</span>
+          <div class="ta-pickf" bki-pick-field="instr"></div>
+          <span class="ta-field__msg" ng-if="vm.bk_crew_err('instr')">{{ vm.bk_crew_err('instr') }}</span></div>
+        <div class="ta-grid-2" ng-if="vm.bk_show_course()">
+          <div class="ta-field"><span class="ta-label"><i class="fas fa-book"></i>Course</span>
+            <div class="ta-pickf" bki-pick-field="course"></div></div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.bk_crew_err('tuition')}"><span class="ta-label"><i class="fas fa-chalkboard"></i>Tuition received</span>
+            <div class="ta-pickf" bki-pick-field="tuition"></div>
+            <span class="ta-field__msg" ng-if="vm.bk_crew_err('tuition')">{{ vm.bk_crew_err('tuition') }}</span></div>
+        </div>
+        <div class="ta-panel" ng-if="vm.bookout.payer_id > 0" ng-class="{'bki-payer--bad': vm.bk_crew_err('payer')}">
+          <div class="bki-person"><span class="ta-av ta-av--sm ta-av--instr" ng-if="vm.bk_payer_person() && vm.bk_is_instr(vm.bk_payer_person())" title="Instructor">{{ vm.bk_initials(vm.bk_payer_person()) }}</span><span class="ta-av ta-av--sm ta-av--member" ng-if="!(vm.bk_payer_person() && vm.bk_is_instr(vm.bk_payer_person()))" title="Member"><i class="fas fa-user"></i></span>
+            <span><b>Invoice to {{ vm.bk_name(vm.bookout.payer_id) || 'the pilot' }}</b><span class="bki-sub"> · {{ vm.bk.payerPicked ? 'chosen by you' : vm.bk_payer_why() }}</span></span>
+            <span class="ta-pickf bki-payer__pick" ng-if="vm.bk_payer_choice()"><button type="button" class="ta-link" ng-click="vm.bk_pk_open('payer')" aria-haspopup="listbox" aria-expanded="{{ vm.bk.pk.f === 'payer' }}" data-e2e="bki-payer-change">Change <i class="fas fa-chevron-down"></i></button>
+              <span ng-if="vm.bk.pk.f === 'payer'" ng-include="'views/v2/bookin/_pickmenu.html'"></span></span></div>
+          <span class="ta-field__msg" ng-if="vm.bk_crew_err('payer')">{{ vm.bk_crew_err('payer') }}</span></div>
+      </section>
+
+      <!-- ═════ CHARGES — every figure is vm.quote ═════ -->
+      <section class="ta-card bki-card" id="bki-c-charges" aria-label="Charges" ng-class="{'bki-card--updating': vm.bk.quoteState === 'updating'}">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk_card_done('charges')}"><i class="fas" ng-class="vm.bk_card_done('charges') ? 'fa-check' : 'fa-file-invoice-dollar'"></i><span class="ta-card__step">{{ vm.bk_n('charges') }}</span></span>
+          <div class="ta-card__ttl"><h3>Charges</h3><p>Line by line, built from this book-in{{ vm.quote.vat.rate ? ' · prices include VAT' : '' }}</p></div>
+          <span class="ta-card__right"><span class="bki-updating" ng-if="vm.bk.quoteState === 'updating'"><span class="ta-spin ta-spin--dark"></span>Updating</span><span class="ta-money" ng-if="vm.quote.complete && vm.bk.quoteState !== 'updating'" data-e2e="bki-total-pill">{{ vm.bk_money(vm.quote.booking_total) }}</span></span></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.quote.error && vm.quote.error !== 'VALIDATION_ERROR' && vm.quote.error !== 'METER_CHECK'" data-e2e="bki-quote-err"><i class="fas fa-times-circle"></i><div><b>The charges couldn't be worked out.</b> {{ vm.quote.message || 'Check the flight, then try again.' }}
+          <div class="bki-row bki-row--mt"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.bk_requote()" ng-disabled="vm.bk.quoteState === 'updating'" no-busy-guard data-e2e="bki-requote"><i class="fas" ng-class="vm.bk.quoteState === 'updating' ? 'fa-spinner fa-spin' : 'fa-redo'"></i>Try again</button></div></div></div>
+        <div class="ta-note ta-note--warn" ng-if="vm.quote.warnings.length"><i class="fas fa-exclamation-triangle"></i><div><span ng-repeat="w in vm.quote.warnings">{{ w }} </span></div></div>
+        <div class="ta-note" ng-if="(!vm.quote || !vm.quote.complete) && !(vm.quote.error && vm.quote.error !== 'VALIDATION_ERROR' && vm.quote.error !== 'METER_CHECK')"><i class="fas fa-calculator"></i><div>{{ vm.bk_charges_wait() }}</div></div>
+        <div class="ta-panel" ng-repeat="l in (vm.quote.complete ? vm.bk_prev_legs() : []) track by l.n">
+          <div class="bki-leg__hd"><span class="ta-kind ta-kind--sm ta-kind--{{ l.kind }}" title="{{ vm.bk_kind_label(l.kind) }}"><i class="fas {{ vm.bk_kind_icon(l.kind) }}"></i></span><b>Leg {{ l.n }}</b><span class="ta-route"><b class="ta-icao" ng-if="l.from.code">{{ l.from.code }}</b><span>{{ l.from.name }}</span><i class="fas fa-long-arrow-alt-right" ng-if="l.away"></i><b class="ta-icao" ng-if="l.away && l.to.code">{{ l.to.code }}</b><span ng-if="l.away">{{ l.to.name }}</span></span><span class="ta-sp"></span><span class="ta-ac" style="--ac: {{ vm.bk_ac_colour() }}" title="{{ vm.bk_reg() }}">{{ vm.bk_reg() }}<span>{{ vm.bk_type() }}</span></span></div>
+          <span class="bki-sub">{{ l.date }}{{ l.time ? ' · ' + l.time : '' }}</span><span class="bki-sub" ng-if="l.crew || l.inv"><i class="fas fa-user-friends"></i> {{ l.crew }}{{ l.inv ? ' · invoice ' + l.inv + ', to pay' : '' }}</span>
+          <div class="bki-lines"><div class="bki-line" ng-repeat="x in l.lines" ng-class="{'bki-line--muted': x.muted, 'bki-line--credit': x.credit}"><span class="bki-line__t">{{ x.t }}</span><span class="bki-line__a" ng-class="{'ta-money--credit': x.credit}">{{ x.a }}</span><span class="bki-line__s">{{ x.s }}</span></div><div class="bki-line bki-line--total"><span class="bki-line__t">Leg {{ l.n }} total</span><span class="bki-line__a">{{ vm.bk_money(l.total) }}</span></div></div>
+        </div>
+        <div class="ta-panel" ng-if="vm.quote && vm.quote.complete" data-e2e="bki-leg">
+          <div class="bki-leg__hd"><span class="ta-kind ta-kind--sm ta-kind--{{ vm.bk_leg_kind() }}" title="{{ vm.bk_kind_label(vm.bk_leg_kind()) }}"><i class="fas {{ vm.bk_kind_icon(vm.bk_leg_kind()) }}"></i></span><b>{{ vm.invoices.length ? 'Leg ' + (vm.invoices.length + 1) : 'Flight' }}</b><span class="ta-route"><b class="ta-icao">{{ vm.bk_code(vm.bk_from()) }}</b><span ng-if="vm.bk_from().code && vm.bk_from().code !== 'ZZZZ'">{{ vm.bk_af_name(vm.bk_from()) }}</span><i class="fas fa-long-arrow-alt-right" ng-if="vm.bk_needs_to() && vm.bk_to()"></i><b class="ta-icao" ng-if="vm.bk_needs_to() && vm.bk_to()">{{ vm.bk_code(vm.bk_to()) }}</b><span ng-if="vm.bk_needs_to() && vm.bk_to().code && vm.bk_to().code !== 'ZZZZ'">{{ vm.bk_af_name(vm.bk_to()) }}</span></span><span class="ta-sp"></span><span class="ta-ac" style="--ac: {{ vm.bk_ac_colour() }}" title="{{ vm.bk_reg() }}">{{ vm.bk_reg() }}<span>{{ vm.bk_type() }}</span></span></div>
+          <span class="bki-sub">{{ vm.bk_fday(vm.bookout.flight_date) + (vm.bk_window() ? ' · ' + (vm.bk_window().word === 'block' ? 'Block' : 'Airborne') + ' ' + vm.bk_window().from + '–' + vm.bk_window().to + ' · ' + vm.bk_window().hm + (vm.bk_window().rounded ? ' (to 5 min)' : '') : '') + (vm.split_flight_confirmation == 1 ? ' · part 1 of a split' : '') }}</span>
+          <span class="bki-sub" ng-if="vm.bk_leg_crew()"><i class="fas fa-user-friends"></i> {{ vm.bk_leg_crew() }}</span>
+          <div class="bki-lines"><div class="bki-line" ng-repeat="l in vm.quote.lines" ng-class="{'bki-line--muted': l.kind === 'included' || l.kind === 'no_charge', 'bki-line--credit': l.kind === 'credit'}" data-e2e="bki-line-{{ l.key }}"><span class="bki-line__t">{{ l.title }}</span><span class="bki-line__a" ng-class="{'ta-money--credit': l.kind === 'credit'}">{{ vm.bk_line_amount(l) }}</span><span class="bki-line__s">{{ l.detail }}</span></div><div class="bki-line bki-line--total"><span class="bki-line__t">{{ vm.invoices.length ? 'Leg ' + (vm.invoices.length + 1) + ' total' : 'Flight total' }}</span><span class="bki-line__a" data-e2e="bki-flight-total">{{ vm.bk_money(vm.quote.flight_total) }}</span></div></div>
+        </div>
+        <div class="bki-total" ng-if="vm.quote && vm.quote.complete">
+          <div class="bki-total__row"><span class="bki-total__k">{{ vm.invoices.length ? 'Booking total' : 'Total' }}</span><span class="bki-total__v" data-e2e="bki-booking-total">{{ vm.bk_money(vm.quote.booking_total) }}</span></div>
+          <div class="bki-total__s"><span ng-if="vm.quote.booking_total === 0">Nothing to pay</span><span ng-if="vm.quote.booking_total !== 0 && vm.quote.vat.rate">Includes VAT at {{ vm.quote.vat.rate }}%</span><span class="ta-num" ng-if="vm.quote.booking_total !== 0 && vm.quote.vat.rate">{{ vm.bk_money(vm.bk_booking_vat()) }}</span><span ng-if="vm.quote.booking_total !== 0 && !vm.quote.vat.rate && vm.club">No VAT{{ vm.club.title ? ': ' + vm.club.title + ' isn\'t VAT registered' : '' }}</span></div>
+          <span class="bki-sub" ng-if="vm.invoices.length">{{ vm.invoices.length === 1 ? 'Leg 1 is' : 'The earlier legs are' }} already invoiced and still to pay; paying now settles {{ vm.invoices.length === 1 ? 'both legs' : 'the whole booking' }}.</span>
+          <span class="bki-sub" ng-if="vm.free_flight"><i class="fas fa-wrench"></i> A maintenance booking: the flight is free.</span>
+        </div>
+      </section>
+
+      <!-- ═════ FINISH (& PAY) — the summary, the pay choice and the ONE button ═════ -->
+      <section class="ta-card bki-card ta-final" id="bki-c-final" ng-class="{'ta-final--ready': vm.bk.ready.all, 'ta-card--attn bki-flash': vm.bk.flash === 'final'}" aria-label="Finish">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.bk.ready.all}"><i class="fas" ng-class="vm.bk.ready.all ? 'fa-check' : 'fa-flag-checkered'"></i><span class="ta-card__step">{{ vm.bk_n('final') }}</span></span>
+          <div class="ta-card__ttl"><h3>{{ vm.bk_final_title() }}</h3><p>{{ vm.bk_final_sub() }}</p></div></div>
+        <div class="ta-sum" data-e2e="bki-sum">
+          <div class="ta-sum__row"><i class="fas fa-stopwatch"></i><span class="ta-sum__k">Flight time</span><span class="ta-sum__v" ng-if="vm.bk_window()">{{ vm.bk_window().hm }} {{ vm.bk_window().word }} · {{ vm.bk_window().from }}–{{ vm.bk_window().to }}{{ vm.bk_window().rounded ? ' (to 5 min)' : '' }}</span><span class="ta-sum__v" ng-if="!vm.bk_window()"><em>Not entered yet</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.bk_meters_shown()"><i class="fas fa-tachometer-alt"></i><span class="ta-sum__k">Meter</span><span class="ta-sum__v" ng-if="vm.bk_meter_diff() !== null">{{ vm.bk_dec1(vm.bookout.start_tacho) }} → {{ vm.bk_dec1(vm.bookout.end_tacho) }} · {{ vm.bk_dec1(vm.bk_meter_diff()) }} h</span><span class="ta-sum__v" ng-if="vm.bk_meter_diff() === null"><em>{{ vm.bk_meter_err('end') || vm.bk_meter_err('start') ? 'Check the readings' : 'End reading missing' }}</em></span></div>
+          <div class="ta-sum__row"><i class="fas fa-map-marked-alt"></i><span class="ta-sum__k">Route</span><span class="ta-sum__v" ng-if="vm.bk_route_line() && (vm.bk_land_total() || vm.bk.noLand)">{{ vm.bk_route_line() }} · {{ vm.bk_land_total() ? vm.bk_plural(vm.bk_land_total(), 'landing') : 'no landing (flagged)' }}</span><span class="ta-sum__v" ng-if="vm.bk_route_line() && !vm.bk_land_total() && !vm.bk.noLand">{{ vm.bk_route_line() }} · <em>no landings yet</em></span><span class="ta-sum__v" ng-if="!vm.bk_route_line()"><em>Flight type missing</em></span></div>
+          <div class="ta-sum__row"><i class="fas fa-user-friends"></i><span class="ta-sum__k">Crew</span><span class="ta-sum__v" ng-if="vm.bk_crew_line()">{{ vm.bk_crew_line() }}</span><span class="ta-sum__v" ng-if="!vm.bk_crew_line()"><em>Pilot in command missing</em></span></div>
+          <div class="ta-sum__row"><i class="fas fa-gas-pump"></i><span class="ta-sum__k">Fuel &amp; oil</span><span class="ta-sum__v" ng-if="vm.bk_fuel_line()">{{ vm.bk_fuel_line() }}</span><span class="ta-sum__v" ng-if="!vm.bk_fuel_line()"><em>None added</em></span></div>
+          <div class="ta-sum__row"><i class="fas fa-tools"></i><span class="ta-sum__k">Defects</span><span class="ta-sum__v" ng-if="vm.bk_mine_count() || vm.bk.defMode === 'none'">{{ vm.bk_mine_count() ? vm.bk_plural(vm.bk_mine_count(), 'new report') : 'Nothing new' }}</span><span class="ta-sum__v" ng-if="!vm.bk_mine_count() && vm.bk.defMode !== 'none'"><em>Not answered yet</em></span></div>
+          <div class="ta-sum__row" ng-if="vm.quote.complete"><i class="fas fa-receipt"></i><span class="ta-sum__k">{{ vm.bk_mode() === 'pay' || vm.bk_mode() === 'free' || vm.bk_mode() === 'credit' ? 'To pay' : 'Invoiced' }}</span><span class="ta-sum__v">{{ vm.quote.booking_total > 0 ? vm.bk_money(vm.quote.booking_total) + (vm.bk_mode() === 'invoice' ? ' to ' + vm.bk_name(vm.bookout.payer_id) : '') : (vm.quote.booking_total < 0 ? vm.bk_money(-vm.quote.booking_total) + ' credit' : 'Nothing') }}</span></div>
+        </div>
+        <div class="bki-payinc" ng-if="vm.bk_mode() === 'pay' && vm.pay" ng-include="'views/v2/bookin/_pay.html'"></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.bk_mode() === 'noperm'"><i class="fas fa-lock"></i><div>Only the pilot, the student, the payer or club staff can book this flight in.</div></div>
+        <div class="ta-note ta-note--info" ng-if="vm.bk_mode() === 'split'"><i class="fas fa-cut"></i><div>Part 1 is booked in now, part 2 straight after (or by whoever flew it). The booking is paid when the whole flight is booked in.</div></div>
+        <ul class="ta-left" ng-class="{'ta-left--bad': vm.bk.showErr}" ng-if="vm.bk.ready.left.length" data-e2e="bki-left">
+          <li ng-repeat="i in vm.bk.ready.left track by i.k"><button type="button" ng-click="vm.bk_goto(i.card)"><i class="fas fa-exclamation-circle"></i>{{ i.n }}<i class="fas fa-arrow-up"></i></button></li></ul>
+        <div class="bki-finishing" ng-if="vm.bk_waiting()" data-e2e="bki-runway"><ta-runway steps="vm.bk_wait_steps" step="vm.bk_wait_step()" compact="true"></ta-runway></div>
+        <div class="ta-final__acts">
+          <button type="button" class="ta-btn ta-btn--primary ta-cta ta-final__go" ng-click="vm.bk_finish()" ng-disabled="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy) || vm.bk_mode() === 'noperm'" no-busy-guard data-e2e="bki-finish">
+            <span class="ta-cta__main"><span class="ta-spin" ng-if="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy)"></span><i class="fas {{ vm.bk_finish_parts().ic }}" ng-if="!(vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy))"></i>{{ (vm.pay && vm.pay.busy) ? 'Processing…' : vm.bk_finish_parts().t }}</span><span class="ta-cta__sub" ng-if="vm.bk_finish_parts().s">{{ vm.bk_finish_parts().s }}</span></button>
+          <button type="button" class="ta-btn bki-final__leg" ng-if="vm.bk_can_add_leg()" ng-click="vm.bk_add_leg()" ng-disabled="vm.bk_finish_parts().busy" no-busy-guard data-e2e="bki-add-leg"><i class="fas fa-plus"></i>Book in &amp; add another leg — pay later</button>
+        </div>
+      </section>
+      <div class="bki-classic ta-phone-only"><design-back></design-back></div>
+    </div>
+
+    <!-- ═════ "Before you finish": a rail on desktop, a strip + the bottom bar on phones ═════ -->
+    <aside class="ta-rail ta-ready-rail" aria-label="Before you finish">
+      <div class="ta-card ta-ready" ng-class="{'ta-ready--done': vm.bk.ready.all}" data-e2e="bki-ready">
+        <div class="ta-ready__hd"><div class="ta-ring" ng-class="{'ta-ring--done': vm.bk.ready.all}"><svg viewBox="0 0 58 58" aria-hidden="true"><circle class="ta-ring__bg" cx="29" cy="29" r="23"/><circle class="ta-ring__fg" cx="29" cy="29" r="23" stroke-dasharray="{{ vm.bk.ready.dash }}" stroke-dashoffset="{{ vm.bk.ready.off }}"/></svg><b>{{ vm.bk.ready.done }}/{{ vm.bk.ready.total }}</b></div>
+          <div class="ta-ready__ttl"><h3><i class="fas fa-check-circle" ng-if="vm.bk.ready.all"></i>{{ vm.bk.committed ? 'Booked in' : (vm.bk.ready.all ? 'Ready to finish' : 'Before you finish') }}</h3><p>{{ vm.bk.committed ? 'Pay with the card below, or later from Invoices & payments' : (vm.bk.ready.all ? 'Everything the finish button checks is done' : 'What the finish button checks') }}</p></div><span class="ta-ready__count">{{ vm.bk.ready.done }} of {{ vm.bk.ready.total }}</span></div>
+        <div class="ta-meter ta-ready__meter" ng-class="{'ta-meter--good': vm.bk.ready.all}"><div class="ta-meter__bar" style="--v: {{ vm.bk.ready.pct }}%"></div></div>
+        <ul class="ta-cks">
+          <li ng-repeat="i in vm.bk.ready.items track by i.k"><button type="button" class="ta-ck" ng-class="vm.bk_ck_class(i, false)" ng-click="vm.bk_goto(i.card)"><span class="ta-ck__ic"><i class="fas" ng-class="!i.done && vm.bk.showErr ? 'fa-exclamation' : 'fa-check'"></i></span><span class="ta-ck__t">{{ i.t }}</span><i class="fas fa-chevron-right ta-ck__go"></i></button></li>
+          <li ng-repeat="i in vm.bk.ready.opt track by i.k"><button type="button" class="ta-ck" ng-class="vm.bk_ck_class(i, true)" ng-click="vm.bk_goto(i.card)"><span class="ta-ck__ic"><i class="fas fa-check"></i></span><span class="ta-ck__t">{{ i.t }}</span><i class="fas fa-chevron-right ta-ck__go"></i></button></li>
+        </ul>
+        <div class="ta-actionbar ta-ready__foot">
+          <div class="ta-ready__row"><span>{{ vm.bk.ready.all ? 'Ready to finish' : vm.bk.ready.done + ' of ' + vm.bk.ready.total + ' done' }}</span><div class="ta-meter" ng-class="{'ta-meter--good': vm.bk.ready.all}"><div class="ta-meter__bar" style="--v: {{ vm.bk.ready.pct }}%"></div></div><span ng-if="vm.bk_return()">Return by {{ vm.bk_return().v }}</span></div>
+          <button type="button" class="ta-btn ta-btn--block" ng-if="vm.bk_next_item()" ng-click="vm.bk_goto(vm.bk_next_item().card)" data-e2e="bki-next"><i class="fas fa-arrow-down"></i>Next: {{ vm.bk_next_item().n }}</button>
+          <button type="button" class="ta-btn ta-btn--primary ta-btn--block ta-ready__desk" ng-if="!vm.bk_next_item()" ng-click="vm.bk_goto('final')"><i class="fas fa-arrow-down"></i>{{ vm.bk.committed ? 'Pay with the card' : 'Review & finish' }}</button>
+          <button type="button" class="ta-btn ta-btn--primary ta-cta ta-btn--block ta-ready__phone" ng-if="!vm.bk_next_item()" ng-click="vm.bk_finish()" ng-disabled="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy) || vm.bk_mode() === 'noperm'" no-busy-guard data-e2e="bki-finish-phone">
+            <span class="ta-cta__main"><span class="ta-spin" ng-if="vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy)"></span><i class="fas {{ vm.bk_finish_parts().ic }}" ng-if="!(vm.bk_finish_parts().busy || (vm.pay && vm.pay.busy))"></i>{{ (vm.pay && vm.pay.busy) ? 'Processing…' : vm.bk_finish_parts().t }}</span><span class="ta-cta__sub" ng-if="vm.bk_finish_parts().s">{{ vm.bk_finish_parts().s }}</span></button>
+        </div>
+        <div class="ta-ready__remind"><i class="fas fa-info-circle"></i><span>The finish button is at the end of the page, under a summary of the flight.</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ═════ dialogs ═════ -->
+  <!-- the tracker flight is from another day -->
+  <!-- staff amend the tracker flight's times (C47) — the dialog shared with Claim a Flight -->
+  <claim-times-dialog ng-if="vm.bk.amend" am="vm.bk.amend" on-saved="vm.bk_amend_saved(flight)" on-close="vm.bk.amend = null"></claim-times-dialog>
+  <div class="ta-dlg-scrim" ng-if="vm.bk.dlg === 'mismatch'" ng-click="$event.target === $event.currentTarget && vm.bk_mismatch_back()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="bki-mm-t"><div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-calendar-times"></i></span>
+      <div><div class="ta-dlg__title" id="bki-mm-t">This flight is from {{ vm.bk_fday(vm.claimed_flight.flight_date) }}</div><div class="ta-dlg__sub">Your booking is on {{ vm.bk_fday(vm.bookout.flight_date) }}.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.bk_mismatch_back()" aria-label="Close">×</button></div>
+      <div class="ta-dlg__body"><p>Are you sure the tracker flight <b>{{ vm.bk_flight_txt(vm.claimed_flight).t }}</b> ({{ vm.bk_flight_txt(vm.claimed_flight).s }}) is the one you're booking in?</p></div>
+      <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.bk_mismatch_back()"><i class="fas fa-arrow-left"></i>Go back</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bk_claim_force()" data-e2e="bki-claim-force"><i class="fas fa-check"></i>Use this flight</button></div></div>
+  </div>
+
+  <!-- report a defect -->
+  <div class="ta-dlg-scrim" ng-if="vm.bk.dlg === 'defect'" ng-click="$event.target === $event.currentTarget && (vm.bk.dlg = null)">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="bki-df-t" data-e2e="bki-defect-dlg"><div class="ta-dlg__hd" style="--edge: {{ vm.bk_ac_colour() }}"><div class="ta-dlg__grab"></div><button type="button" class="ta-dlg__x" ng-click="vm.bk.dlg = null" aria-label="Close">×</button>
+      <div class="ta-dlg__eyebrow"><i class="fas fa-tools"></i>Report a defect</div><div class="ta-dlg__title" id="bki-df-t">{{ vm.bk_reg() }}</div><div class="ta-dlg__sub">{{ vm.bk_model() || vm.bk_type() }} · the club's maintenance team sees it straight away</div></div>
+      <div class="ta-dlg__body">
+        <div class="ta-field"><label class="ta-label" for="bki-df-text">What's wrong?</label><textarea class="ta-textarea" id="bki-df-text" ng-model="vm.bk.df.text" placeholder="e.g. Oil leak near the nose gear" data-e2e="bki-df-text"></textarea></div>
+        <div class="ta-field"><span class="ta-label">How serious?</span>
+          <div class="ta-seg bki-sevgrid" role="radiogroup">
+            <button type="button" class="ta-seg__opt ta-seg__opt--{{ s.key }}" ng-repeat="s in vm.bk_severities" ng-class="{'ta-seg__opt--on': vm.bk.df.sev === s}" role="radio" aria-checked="{{ vm.bk.df.sev === s }}" ng-click="vm.bk.df.sev = s" data-e2e="bki-df-sev-{{ s.key }}"><i class="fas {{ s.icon }}"></i>{{ s.short }}<small>{{ s.desc }}</small></button>
+          </div></div>
+        <div class="ta-note ta-note--bad" ng-if="vm.bk.df.sev.key === 'nofly'"><i class="fas fa-ban"></i><div><b>No fly</b> tells the club the aircraft shouldn't fly until an engineer has looked at it.</div></div>
+        <div class="ta-field"><span class="ta-label">Photos or videos <em>(optional)</em></span>
+          <label class="ta-drop ta-drop--sm bki-drop" dm-drop-zone on-files-dropped="vm.bk_df_files(files)"><i class="fas fa-camera"></i>Take a photo or drop files here<input type="file" multiple accept="image/*,video/*" class="bki-file" dm-file-select on-files-selected="vm.bk_df_files(files)"></label>
+          <div class="bki-files" ng-if="vm.bk.df.files.length"><span class="ta-tag" ng-repeat="f in vm.bk.df.files"><i class="far" ng-class="f._mediaType === 'video' ? 'fa-file-video' : 'fa-image'"></i>{{ f.name | limitTo: 28 }}<button type="button" class="bki-tag-x" ng-click="vm.bk_df_remove($index)" aria-label="Remove">×</button></span></div>
+</div>
+      </div>
+      <div class="ta-dlg__ft"><button type="button" class="ta-btn" ng-click="vm.bk.dlg = null">Cancel</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bk_df_submit()" ng-disabled="!vm.bk.df.text.trim() || !vm.bk.df.sev || vm.bk.df.busy" title="{{ !vm.bk.df.text.trim() ? 'Say what\'s wrong first' : (!vm.bk.df.sev ? 'Choose how serious it is' : '') }}" data-e2e="bki-df-submit"><span class="ta-spin" ng-if="vm.bk.df.busy"></span><i class="fas fa-paper-plane" ng-if="!vm.bk.df.busy"></i>Report defect</button></div></div>
+  </div>
+
+  <!-- leaving with something entered (owner 9 Nov: ask first) -->
+  <div class="ta-dlg-scrim" ng-if="vm.bk.leave" ng-click="$event.target === $event.currentTarget && vm.bk_leave_keep()" data-e2e="bki-leave">
+    <div class="ta-dlg" role="alertdialog" aria-modal="true" aria-labelledby="bki-leave-t"><div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn"><span class="ta-dlg__ic"><i class="fas fa-exclamation-triangle"></i></span>
+      <div><div class="ta-dlg__title" id="bki-leave-t">Discard what you've entered?</div><div class="ta-dlg__sub">{{ vm.bk_reg() }} isn't booked in yet.</div></div><button type="button" class="ta-dlg__x" ng-click="vm.bk_leave_keep()" aria-label="Close">×</button></div>
+      <div class="ta-dlg__body"><p>If you leave now, the times, readings and choices on this page are lost. Uplifts and defects you've added are already saved.</p></div>
+      <div class="ta-dlg__ft"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.bk_leave_keep()" no-busy-guard data-e2e="bki-leave-keep"><i class="fas fa-arrow-left"></i>Keep booking in</button><span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.bk_leave_go()" no-busy-guard data-e2e="bki-leave-go"><i class="fas fa-trash-alt"></i>Discard</button></div></div>
+  </div>
+
+  <!-- the card machine -->
+  <div ng-include="'views/v2/bookin/_machine.html'" ng-if="vm.pay && (vm.pay.mach || vm.mach_unpaid())"></div>
+
+  <!-- the open picker's search (rendered inside its field) -->
+</main>

@@ -1,0 +1,318 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   v2 screen: bookings — page CSS, prefix bkg- (design: mockups/my-account/bookings.html).
+   Tokens only; aircraft / instructor colours come in as --ac / --av. Shared components come from css/ta-base.css.
+   The first block is the approved mockup's page CSS as is; "App additions" at the end are what the real app needs
+   (the dialog under the fixed site header, the shared reason picker <cancel-reason-fields> on tokens).
+   The cancel dialog (.bkg-cx) is shared with the v2 home — this file loads app-wide.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* page bar: actions sit between the title and Back on desktop, on their own row on a phone */
+.bkg-bar .ta-bar__row:first-child { flex-wrap: wrap; }
+.bkg-baracts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+@media (max-width: 768px) {
+  .bkg-bar .ta-bar__title { flex: 1 1 0; }
+  .bkg-baracts { order: 3; flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+}
+
+/* agenda: day groups of booking cards on the page ground */
+.bkg-agenda { display: grid; gap: 16px; }
+/* phones: the two tiles that matter (next flight + attention / waiting / count) — the rest is in the chips and day headers */
+@media (max-width: 768px) { .bkg-tiles > :nth-child(n+3) { display: none; } }
+.bkg-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.bkg-tz { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ta-muted); }
+.bkg-day { display: grid; gap: 8px; }
+.bkg-day__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.bkg-day__t { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ta-muted); }
+.bkg-day__t b { color: var(--ta-ink); font-weight: 800; }
+.bkg-day--today .bkg-day__t b { color: var(--ta-accent); }
+.bkg-day__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ta-good); box-shadow: 0 0 0 3px var(--ta-good-bg); flex: none; }
+.bkg-day__n { font-size: 12px; color: var(--ta-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* booking card — the scheduler chip language: type square, aircraft edge, instructor circle, dashed = not final */
+.bkg-bk { position: relative; background: var(--ta-paper); border: 1px solid var(--ta-line); border-left: 4px solid var(--ac, var(--ta-faint)); border-radius: var(--ta-r-tile); box-shadow: var(--ta-shadow-1); overflow: hidden; transition: box-shadow 0.15s ease; }
+.bkg-bk:hover { box-shadow: var(--ta-shadow-2); }
+.bkg-bk--solo { --bkg-wash: var(--ta-wash-solo); }
+.bkg-bk--hire { --bkg-wash: var(--ta-wash-hire); }
+.bkg-bk--trial { --bkg-wash: var(--ta-wash-trial); }
+.bkg-bk--pend { border: 1.5px dashed var(--ta-brand-2); border-left: 4px solid var(--ac, var(--ta-faint)); background: var(--ta-tint-2); box-shadow: none; --bkg-base: var(--ta-paper); }
+.bkg-bk__row { display: grid; grid-template-columns: minmax(0, 1fr); }
+.bkg-bk__main { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; display: grid; grid-template-columns: 62px minmax(0, 1fr) 14px; gap: 12px; align-items: start; padding: 12px; }
+.bkg-bk__time { display: grid; align-content: start; justify-items: start; gap: 1px; padding: 7px 8px 8px; border-radius: 9px; background: var(--bkg-wash, var(--bkg-base, var(--ta-paper-2))); font-variant-numeric: tabular-nums; }
+.bkg-bk__time b { font-size: 16px; font-weight: 800; line-height: 1.15; color: var(--ta-ink); }
+.bkg-bk__time span { font-size: 12.5px; color: var(--ta-muted); }
+.bkg-bk__time em { font-style: normal; font-size: 11px; font-weight: 800; color: var(--ta-ink-2); margin-top: 4px; }
+.bkg-bk__txt { display: grid; gap: 8px; min-width: 0; }
+.bkg-bk__l1 { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
+.bkg-bk__title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-top: 4px; font-size: 14.5px; font-weight: 800; line-height: 1.3; color: var(--ta-ink); }
+.bkg-bk__title small { font-size: 12.5px; font-weight: 600; color: var(--ta-muted); }
+.bkg-bk__l2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.bkg-who { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ta-ink-2); white-space: nowrap; }
+.bkg-who--none { color: var(--ta-muted); font-weight: 500; }
+.bkg-who--none i { font-size: 12px; color: var(--ta-faint); }
+.bkg-bk__chev { color: var(--ta-faint); font-size: 12px; padding-top: 8px; transition: transform 0.15s ease; }
+.bkg-bk--open .bkg-bk__chev { transform: rotate(180deg); }
+.bkg-bk__acts { display: flex; gap: 8px; padding: 0 12px 12px; }
+.bkg-bk__acts--none { display: none; }
+.bkg-bk__acts .ta-btn { flex: 1 1 auto; min-height: 44px; }
+.bkg-bk__acts .ta-ib { display: none; }
+.bkg-bk__dash { font-style: normal; }
+@media (max-width: 768px) {
+  .bkg-bk__main { grid-template-columns: minmax(0, 1fr) auto; gap: 9px 10px; }
+  .bkg-bk__time { display: inline-flex; align-items: baseline; gap: 2px; justify-self: start; padding: 3px 10px; border-radius: var(--ta-r-pill); }
+  .bkg-bk__time b, .bkg-bk__time span { font-size: 14px; font-weight: 800; color: var(--ta-ink); }
+  .bkg-bk__time em { margin: 0 0 0 6px; font-size: 12px; font-weight: 700; color: var(--ta-muted); }
+  .bkg-bk__txt { grid-column: 1 / -1; }
+  .bkg-bk__chev { grid-column: 2; grid-row: 1; padding-top: 6px; }
+}
+.bkg-bk__note { margin: 0 12px 12px; }
+.bkg-bk__note .ta-link { margin-top: 4px; }
+.bkg-bk .ta-detail { padding: 12px 12px 14px; border-top: 1px solid var(--ta-line); }
+.bkg-bk--pend .ta-detail { border-top-style: dashed; border-top-color: var(--ta-brand-line); }
+@media (min-width: 769px) {
+  .bkg-bk__row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .bkg-bk__main { grid-template-columns: 72px minmax(0, 1fr); gap: 14px; padding: 12px 14px; align-items: center; }
+  .bkg-bk__chev { display: none; }
+  .bkg-bk__acts, .bkg-bk__acts--none { display: flex; align-items: center; padding: 0 14px 0 0; }
+  .bkg-bk__acts .ta-btn { flex: none; min-height: 32px; }
+  .bkg-bk__acts .ta-ib { display: inline-flex; }
+  .bkg-bk__note { margin: 0 14px 12px 104px; }
+  .bkg-bk .ta-detail { padding: 14px 14px 16px 104px; }
+}
+/* opened card */
+.bkg-det { display: grid; gap: 10px; }
+.bkg-det .ta-panel { align-content: start; }
+.bkg-pax { display: grid; gap: 8px; }
+.bkg-pax__r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 600; color: var(--ta-ink); }
+.bkg-pax__r .ta-av { width: 26px; height: 26px; font-size: 11px; }
+.bkg-notes { white-space: pre-wrap; font-size: 13.5px; color: var(--ta-ink-2); }
+/* a booking cancelled in this visit stays as a quiet line until you leave */
+.bkg-ghost { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); color: var(--ta-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.bkg-ghost > i { color: var(--ta-bad); }
+.bkg-ghost b { color: var(--ta-ink-2); }
+.ta-empty__ic.bkg-ic-bad { background: var(--ta-bad-bg); color: var(--ta-bad-ink); }
+.bkg-more { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-tile); background: var(--ta-paper); font-size: 13px; color: var(--ta-muted); }
+@media (max-width: 768px) { .bkg-more .ta-btn { flex: 1 1 100%; } }
+.bkg-skel-card { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--ta-line); border-left: 4px solid var(--ta-line-2); border-radius: var(--ta-r-tile); background: var(--ta-paper); }
+.bkg-skel-card > div { display: grid; gap: 8px; align-content: start; }
+.bkg-sk-time { height: 44px; } .bkg-sk-l1 { height: 16px; width: 62%; } .bkg-sk-l2 { height: 22px; width: 84%; } .bkg-sk-tile { height: 86px; }
+.bkg-sk-day { height: 14px; width: 160px; } .bkg-sk-day--s { width: 120px; } .bkg-sk-sum { height: 150px; } .bkg-sk-tl { height: 320px; }
+
+/* cancel dialog: reason chips that wrap (radio semantics), fee + waiting notes */
+.bkg-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.bkg-reason { white-space: normal; text-align: left; min-height: 36px; line-height: 1.25; }
+.bkg-reason .fa-user-shield { font-size: 11px; opacity: 0.8; }
+.ta-field--error .bkg-reasons { animation: ta-shake 0.4s ease-out; }
+.ta-field--error .bkg-reason:not(.ta-chip--on) { border-color: var(--ta-bad-line); }
+.bkg-dlg-reg { display: flex; align-items: center; gap: 10px; }
+.bkg-dlg:focus { outline: none; }
+/* long dialog: the footer stays in view while the reasons scroll (proposed for ta-base: .ta-dlg__ft--sticky) */
+.bkg-dlg .ta-dlg__ft { position: sticky; bottom: 0; z-index: 1; padding-top: 12px; background: var(--ta-paper); border-top: 1px solid var(--ta-line); }
+.bkg-dlg-reg .bkg-hs__type { font-size: 12px; }
+@media (max-width: 600px) { .bkg-reason { min-height: 40px; } }
+
+/* history: summary card in the record-dialog language + a vertical timeline */
+.bkg-hs { padding: 0; gap: 0; overflow: hidden; }
+.bkg-hs__hd { display: grid; gap: 5px; padding: 16px 18px; background: var(--ta-tint-2); border-left: 8px solid var(--ac, var(--ta-brand-2)); }
+.bkg-hs__eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ta-muted); display: flex; align-items: center; gap: 8px; }
+.bkg-hs__top { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.bkg-hs__reg { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; color: var(--ta-ink); }
+.bkg-hs__type { font-size: 12px; font-weight: 700; color: var(--ta-muted); background: var(--ta-paper); border: 1px solid var(--ta-line); border-radius: var(--ta-r-sm); padding: 2px 7px; letter-spacing: 0.04em; }
+.bkg-hs__sub { font-size: 13.5px; color: var(--ta-ink-2); font-variant-numeric: tabular-nums; }
+.bkg-hs__sub b { color: var(--ta-ink); }
+.bkg-hs__body { display: grid; gap: 12px; padding: 14px 18px 16px; }
+@media (max-width: 600px) { .bkg-hs__hd { border-left: 0; border-top: 6px solid var(--ac, var(--ta-brand-2)); padding: 14px 16px; } .bkg-hs__reg { font-size: 21px; } .bkg-hs__body { padding: 14px 16px; } }
+
+.bkg-tl { list-style: none; margin: 0; padding: 0; display: grid; }
+.bkg-tl__e { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 12px; padding-bottom: 20px; }
+.bkg-tl__e:last-child { padding-bottom: 0; }
+.bkg-tl__e::before { content: ""; position: absolute; left: 16px; top: 36px; bottom: 2px; width: 2px; border-radius: 1px; background: var(--ta-line); }
+.bkg-tl__e:last-child::before { display: none; }
+.bkg-tl__e--tail::before { background: none; border-left: 2px dashed var(--ta-brand-line); width: 0; }
+.bkg-tl__dot { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; background: var(--ta-paper-3); color: var(--ta-muted); box-shadow: 0 0 0 4px var(--ta-paper); }
+.bkg-tl__dot--brand { background: var(--ta-grad); color: #fff; }
+.bkg-tl__dot--good { background: var(--ta-good-bg); color: var(--ta-good-ink); }
+.bkg-tl__dot--bad { background: var(--ta-bad-bg); color: var(--ta-bad-ink); }
+.bkg-tl__dot--info { background: var(--ta-info-bg); color: var(--ta-info-ink); }
+.bkg-tl__dot--pend { background: var(--ta-tint); color: var(--ta-brand); border: 1.5px dashed var(--ta-brand-2); }
+.bkg-tl__body { display: grid; gap: 8px; min-width: 0; padding-top: 6px; }
+.bkg-tl__hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.bkg-tl__t { font-size: 14.5px; font-weight: 800; color: var(--ta-ink); }
+.bkg-tl__when { margin-left: auto; font-size: 12.5px; color: var(--ta-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bkg-tl__who { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; color: var(--ta-ink-2); }
+.bkg-tl__who b { font-weight: 700; color: var(--ta-ink); }
+.bkg-tl__role { font-size: 12px; color: var(--ta-muted); }
+.bkg-tl__txt { font-size: 13px; color: var(--ta-muted); }
+.bkg-chg { display: grid; border: 1px solid var(--ta-line); border-radius: var(--ta-r-tile); background: var(--ta-paper-2); }
+.bkg-chg__r { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--ta-line); }
+.bkg-chg__r:last-child { border-bottom: 0; }
+.bkg-chg__k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ta-faint); }
+.bkg-chg__v { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-weight: 600; color: var(--ta-ink); font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.bkg-chg__from { color: var(--ta-muted); font-weight: 500; text-decoration: line-through; text-decoration-color: var(--ta-faint); }
+.bkg-chg__from .ta-ac, .bkg-chg__from .bkg-who { opacity: 0.6; }
+.bkg-chg__arr { color: var(--ta-faint); font-size: 11px; }
+.bkg-chg__none { color: var(--ta-muted); font-weight: 500; }
+.bkg-quote { display: grid; gap: 2px; padding: 8px 12px; border-left: 3px solid var(--ta-line-2); border-radius: 0 var(--ta-r-tile) var(--ta-r-tile) 0; background: var(--ta-paper-2); font-size: 13px; color: var(--ta-ink-2); }
+.bkg-quote b { color: var(--ta-ink); }
+.bkg-quote--bad { border-left-color: var(--ta-bad); }
+.bkg-tech { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--ta-r-tile); background: var(--ta-paper-3); font-size: 12.5px; color: var(--ta-ink-2); }
+.bkg-tech span { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+.bkg-tech i { width: 14px; color: var(--ta-faint); flex: none; text-align: center; }
+.bkg-tl__techbtn { justify-self: start; }
+@media (max-width: 600px) {
+  .bkg-chg__r { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .bkg-tl__when { margin-left: 0; flex: 1 1 100%; }
+  .bkg-tl__e { grid-template-columns: 28px minmax(0, 1fr); gap: 0 10px; }
+  .bkg-tl__e::before { left: 13px; top: 30px; }
+  .bkg-tl__dot { width: 28px; height: 28px; font-size: 11.5px; }
+  .bkg-tl__body { padding-top: 3px; }
+}
+
+/* ═════ App additions ═════ */
+.bkg-quote__fee { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 600; color: var(--ta-ink); }
+.bkg-quote__fee i { font-size: 11px; color: var(--ta-muted); }
+/* "Back to classic designs" (the v2 switch): in the bar's first row on desktop, its own quiet line on phones */
+.ta-bar .v2b-inline { display: inline-flex; align-items: center; flex: none; margin-left: auto; }   /* sits with the Back link on the right */
+.ta-bar .bkg-baracts + .v2b-inline { margin-left: 0; }
+@media (max-width: 768px) { .ta-bar .v2b-inline { display: none; } }
+.ta-bar .v2b-row { display: flex; justify-content: flex-end; margin-top: -4px; }
+.bkg-loading { display: grid; gap: 12px; }
+.bkg-day > div { min-width: 0; }
+.bkg-bk__title small { white-space: normal; }
+.bkg-bk__main:focus-visible { outline-offset: -2px; }
+
+/* the cancel dialog: above the page, below the fixed site header (the book-out dialogs' rule) */
+.ta-dlg-scrim.bkg-cx { z-index: 99999999; }
+@media (max-width: 600px) { .bkg-cx .ta-dlg { max-height: calc(100% - 58px); } }
+
+/* <cancel-reason-fields> (shared, css/cancellation-fees.css) drawn as the mockup's dialog, on tokens: reason chips
+   (.ta-chip, fee as .ta-chip__n), a "Note (optional)" label, the fee as .ta-note--warn (a member) or a .ta-toggle--confirm
+   row (whoever may claim), "No fee" as .ta-note--good. Markup is the directive's; only the look changes here. */
+.bkg-cx .crf { gap: 10px; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; }
+.bkg-cx .crf > * { grid-column: 1 / -1; order: 3; }
+.bkg-cx .crf > .crf__reasons { order: 0; }
+.bkg-cx .crf > .crf__notes { order: 2; }
+.bkg-cx .crf::before, .bkg-cx .crf::after { order: 1; align-self: center; margin-bottom: -4px; font-size: 11px; }
+.bkg-cx .crf::before { content: "Note"; grid-column: 1; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ta-muted); }
+.bkg-cx .crf::after { content: "(optional)"; grid-column: 2; font-weight: 600; color: var(--ta-faint); }
+.bkg-cx .crf:has([id$="-reason-other"].crf__reason--on)::after { content: ""; }
+.bkg-cx .crf__reason { min-height: 36px; padding: 6px 11px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-pill); background: var(--ta-paper); color: var(--ta-ink-2); font-size: 12.5px; font-weight: 700; line-height: 1.25; white-space: normal; text-align: left; }
+.bkg-cx .crf__reason:hover { border-color: var(--ta-line-2); background: var(--ta-paper-2); }
+.bkg-cx .crf__reason--staff { border-style: solid; }
+.bkg-cx .crf__staff-icon { font-size: 11px; color: inherit; opacity: 0.8; }
+.bkg-cx .crf__fee-tag { padding: 0; border-radius: 0; background: none; color: var(--ta-muted); font-size: 11px; font-weight: 800; }
+.bkg-cx .crf__reason--on, .bkg-cx .crf__reason--on:hover { background: var(--ta-brand); border-color: var(--ta-brand); border-style: solid; color: #fff; }
+.bkg-cx .crf__reason--on .crf__staff-icon { color: #fff; }
+.bkg-cx .crf__reason--on .crf__fee-tag { background: none; color: rgba(255, 255, 255, 0.8); }
+.bkg-cx .bkg-cx__err--reason .crf__reasons { animation: ta-shake 0.4s ease-out; }
+.bkg-cx .bkg-cx__err--reason .crf__reason:not(.crf__reason--on) { border-color: var(--ta-bad-line); }
+.bkg-cx .crf__notes { min-height: 64px; padding: 10px 12px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-control); background: var(--ta-paper); color: var(--ta-ink); font-size: 16px; font-weight: 500; line-height: 1.45; }
+.bkg-cx .crf__notes::placeholder { color: var(--ta-faint); font-weight: 400; }
+.bkg-cx .crf__notes:focus { border-color: var(--ta-brand-2); box-shadow: var(--ta-focus); }
+.bkg-cx .bkg-cx__err--notes .crf__notes, .bkg-cx .crf__notes.field-error-highlight { border-color: var(--ta-bad); box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15); }
+.bkg-cx .bkg-cx__err--notes .crf__notes { animation: ta-shake 0.4s ease-out; }
+@media (min-width: 769px) { .bkg-cx .crf__notes { font-size: 14px; } }
+/* the fee */
+.bkg-cx .crf__fee, .bkg-cx .crf__fee--on { padding: 0; border: 0; border-radius: 0; background: none; }
+.bkg-cx .crf__fee-note { display: flex; gap: 9px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--ta-warn-bg); color: var(--ta-warn-ink); font-size: 13px; line-height: 1.45; }
+.bkg-cx .crf__fee-note i { margin-top: 2px; flex: none; color: inherit; }
+.bkg-cx .crf__fee-switch { display: flex; flex-direction: row-reverse; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-tile); background: var(--ta-paper); }
+.bkg-cx .crf__fee-switch:hover { border-color: var(--ta-line-2); }
+.bkg-cx .crf__fee--on .crf__fee-switch { border-color: var(--ta-good-line); background: var(--ta-good-wash); }
+.bkg-cx .crf__fee-text { gap: 3px; font-size: 12.5px; font-weight: 500; color: var(--ta-muted); }
+.bkg-cx .crf__fee-text strong { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 800; color: var(--ta-ink); }
+.bkg-cx .crf__fee-text strong::before { content: "\f543"; font-family: "Font Awesome 5 Free"; font-weight: 900; font-size: 12px; }   /* fa-receipt, as the mockup's title */
+.bkg-cx .crf__fee--on .crf__fee-text, .bkg-cx .crf__fee--on .crf__fee-text strong { color: var(--ta-good-ink); }
+.bkg-cx .crf__toggle { width: 42px; height: 24px; margin-top: 1px; }
+.bkg-cx .crf__toggle .snazzy-toggle__slider { border-radius: var(--ta-r-pill); background: var(--ta-line-2); box-shadow: none; }
+.bkg-cx .crf__toggle .snazzy-toggle__slider::before { width: 18px; height: 18px; left: 3px; bottom: 3px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+.bkg-cx .crf__toggle input:checked + .snazzy-toggle__slider { background: var(--ta-good); box-shadow: none; }
+.bkg-cx .crf__toggle input:checked + .snazzy-toggle__slider::before { transform: translateX(18px); }
+.bkg-cx .crf__toggle input:focus-visible + .snazzy-toggle__slider { box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.6); }
+.bkg-cx .crf__free { display: flex; gap: 9px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--ta-good-line); border-radius: 10px; background: var(--ta-good-wash); color: var(--ta-good-ink); font-size: 13px; font-weight: 400; line-height: 1.45; }
+.bkg-cx .crf__free i { margin-top: 2px; }
+.bkg-cx__discard { padding: 0 20px 12px; }
+@media (max-width: 600px) { .bkg-cx__discard { padding: 0 16px 12px; } }
+/* a waiting-list place never carries a fee */
+.bkg-cx--waiting .crf__fee, .bkg-cx--waiting .crf__free, .bkg-cx--waiting .crf__fee-tag { display: none; }
+@media (max-width: 600px) { .bkg-cx .crf__reason { min-height: 40px; } }
+
+/* ═════ Suggest a time (contract C44) · the student's side ═════
+   Design: mockups/instructor-dashboard/my-schedule.html, pages "Sam's side · Bookings" — its CSS
+   (mockups/instructor-dashboard/css/for-my-account-bookings.css, .msc-*) moved here under bkg-; tokens only.
+   The offer card is the booking card (.bkg-bk) for the time ASKED for: dashed (not final) with that time struck through. */
+.bkg-sec { display: grid; gap: 8px; }
+.bkg-sh h3 { display: flex; align-items: center; gap: 8px; }
+.bkg-sh--attn h3 { color: var(--ta-warn-ink); }
+.bkg-sh__n { font-size: 12px; font-weight: 800; color: var(--ta-muted); font-variant-numeric: tabular-nums; }
+.bkg-bk--moved .bkg-bk__time b, .bkg-bk--moved .bkg-bk__time span { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--ta-muted); }
+.bkg-bk--moved .bkg-bk__time em { color: var(--ta-muted); }
+.bkg-bk--moved .bkg-bk__l1 { flex-wrap: wrap; row-gap: 2px; }
+.bkg-bk__date { flex: none; padding-top: 5px; font-size: 12.5px; color: var(--ta-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bkg-bk--moved .bkg-bk__main { cursor: default; }
+/* "Booked just now" (the time taken in this visit) and the e-mail link's brief highlight */
+.bkg-bk--hi { box-shadow: 0 0 0 3px var(--ta-brand-line), var(--ta-shadow-1); }
+.bkg-flash, .bkg-bk.bkg-flash { box-shadow: 0 0 0 3px var(--ta-brand-line), var(--ta-shadow-2); }
+.bkg-ghost { transition: box-shadow 0.15s ease; }
+.bkg-why { font-size: 12px; color: var(--ta-muted); }
+.bkg-why--diff { color: var(--ta-warn-ink); font-weight: 700; }
+.bkg-why i { margin-right: 4px; }
+
+.bkg-pick { display: grid; gap: 10px; padding: 12px; border-top: 1px dashed var(--ta-brand-line); }
+@media (min-width: 769px) {
+  .bkg-pick { padding: 14px 14px 16px 104px; }
+}
+.bkg-pick__hd { font-size: 13.5px; color: var(--ta-ink-2); }
+.bkg-pick__hd b { color: var(--ta-ink); }
+.bkg-oquote { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--ta-r-tile); background: var(--ta-paper-2); font-size: 13.5px; color: var(--ta-ink); }
+.bkg-oquote q { display: block; }
+.bkg-oquote small { display: block; margin-top: 2px; font-size: 12px; color: var(--ta-muted); }
+.bkg-takes { display: grid; gap: 8px; }
+.bkg-take { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; align-items: center; gap: 6px 14px; padding: 10px 12px; border: 1px solid var(--ta-line); border-left: 4px solid var(--ac, var(--ta-faint)); border-radius: var(--ta-r-tile); background: var(--ta-paper); font-variant-numeric: tabular-nums; }
+.bkg-take__when b { display: block; font-size: 15px; font-weight: 800; color: var(--ta-ink); white-space: nowrap; }
+.bkg-take__when span { font-size: 12.5px; color: var(--ta-muted); }
+.bkg-take__ac { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.bkg-take--gone { background: var(--ta-paper-2); }
+.bkg-take--gone .bkg-take__when b { color: var(--ta-muted); text-decoration: line-through; }
+.bkg-take__gone { font-size: 12.5px; font-weight: 600; color: var(--ta-muted); }
+.bkg-take__when .bkg-take__soon { display: inline; font-size: 12.5px; font-weight: 700; color: var(--ta-warn-ink); }
+@media (max-width: 768px) {
+  .bkg-take { grid-template-columns: minmax(0, 1fr); }
+  .bkg-take .ta-btn { width: 100%; min-height: 44px; }
+  .bkg-take__when b { white-space: normal; }
+}
+.bkg-pick__ft { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--ta-muted); }
+@media (max-width: 768px) {
+  .bkg-pick__ft .ta-btn { flex: 1 1 100%; min-height: 44px; }
+}
+.bkg-nowork { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--ta-line); border-radius: var(--ta-r-tile); background: var(--ta-paper-2); }
+.bkg-nowork__ft { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ta-ink-2); }
+@media (max-width: 768px) {
+  .bkg-nowork__ft .ta-btn { flex: 1 1 auto; min-height: 44px; }
+}
+/* a replied request: the info note under the card */
+.bkg-snote { display: grid; gap: 8px; margin: -2px 12px 12px; }
+@media (min-width: 769px) {
+  .bkg-snote { margin: -4px 14px 12px 104px; }
+}
+.bkg-snote .ta-note { margin: 0; }
+.bkg-snote__acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 6px; color: var(--ta-ink-2); }
+@media (max-width: 768px) {
+  .bkg-snote__acts .ta-btn { flex: 1 1 auto; min-height: 44px; }
+  .bkg-snote__acts .ta-link, .bkg-day--req .bkg-ghost .ta-link { min-height: 44px; }
+}
+/* the ended ones: quiet lines (taken = good, cancelled = bad, closed = muted) */
+.bkg-ghost--good > i { color: var(--ta-good); }
+.bkg-ghost--muted > i { color: var(--ta-faint); }
+.bkg-quiet { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border: 1px dashed var(--ta-line-2); border-radius: var(--ta-r-tile); color: var(--ta-muted); font-size: 13px; }
+/* the deep link's note (an ended or unknown offer) */
+.bkg-ofnote .ta-note { align-items: flex-start; }
+.bkg-ofnote .ta-note > div { flex: 1 1 auto; min-width: 0; }
+.bkg-ofnote__x { margin: -4px -4px -4px 0; background: transparent; border-color: transparent; color: inherit; }
+.bkg-day--req .bkg-day__hd { flex-wrap: wrap; }
+.bkg-day--req .bkg-day__n { white-space: normal; }
+@media (max-width: 768px) { .bkg-bk--moved .bkg-bk__title { flex: 1 1 180px; } }   /* the type square stays beside the lesson; the date wraps under */
+/* an ended line: icon + words on one row, the link to the right (under them on a phone) */
+.bkg-day--req .bkg-ghost > span:not(.ta-sp) { flex: 1 1 220px; min-width: 0; }
+.bkg-day--req .bkg-ghost > .ta-sp { display: none; }
+.bkg-day--req .bkg-ghost > .ta-link { margin-left: auto; }

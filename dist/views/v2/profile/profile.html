@@ -1,0 +1,273 @@
+<!-- v2 · My details → Profile (mockups/my-account/profile.html, page "profile"). ProfileV2Controller (js/v2/profile/profile.js). -->
+<div class="pro-wrap">
+<main class="ta-page pro-page" ng-class="{'ta-page--has-bar': vm.edit}">
+
+    <pro-details-bar active="profile" nok-count="vm.noks.length"></pro-details-bar>
+
+    <!-- loading -->
+    <section class="ta-card" ng-if="vm.loading">
+        <div class="pro-id">
+            <span class="ta-skel pro-skel-photo"></span>
+            <div class="ta-stack"><span class="ta-skel pro-skel pro-skel--40"></span><span class="ta-skel pro-skel pro-skel--65"></span></div>
+        </div>
+    </section>
+    <div class="ta-cols ta-cols--2" ng-if="vm.loading">
+        <section class="ta-card"><span class="ta-skel pro-skel pro-skel--35"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section>
+        <section class="ta-card"><span class="ta-skel pro-skel pro-skel--35"></span><span class="ta-skel pro-skel pro-skel--tall"></span></section>
+    </div>
+
+    <!-- load failed -->
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty">
+            <span class="ta-empty__ic"><i class="fas fa-plug"></i></span>
+            <h4>We couldn't load your details</h4>
+            <p>Check your connection, then try again. Nothing has changed on your account.</p>
+            <button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button>
+        </div>
+    </section>
+
+    <div class="ta-stack" ng-if="!vm.loading && vm.user">
+
+        <!-- what needs doing: the new-member checklist, or the attention card -->
+        <section class="ta-card" ng-if="!vm.edit && vm.openList.length && vm.isNew()">
+            <div class="ta-card__hd">
+                <span class="ta-card__icon"><i class="fas fa-clipboard-check"></i></span>
+                <div class="ta-card__ttl"><h3>Finish setting up your profile</h3><p>A few things your clubs will ask for</p></div>
+            </div>
+            <div class="pro-progress">
+                <div class="pro-progress__k"><span>{{ vm.todoList.length - vm.openList.length }} of {{ vm.todoList.length }} done</span><span>{{ vm.openList.length }} to go</span></div>
+                <div class="ta-meter"><div class="ta-meter__bar" ng-attr-style="--v:{{ (vm.todoList.length - vm.openList.length) / vm.todoList.length * 100 }}%"></div></div>
+            </div>
+            <div class="pro-todo">
+                <div ng-repeat="t in vm.todoList">
+                    <div class="pro-todo__row pro-todo__row--done" ng-show="t.done"><span class="pro-todo__ic pro-todo__ic--done"><i class="fas fa-check"></i></span><span class="pro-todo__t">{{ t.t }}</span><span class="pro-todo__s">Done</span></div>
+                    <button type="button" class="pro-todo__row" ng-show="!t.done" ng-click="vm.todoGo(t)" no-busy-guard>
+                        <span class="pro-todo__ic pro-todo__ic--todo"><i class="fas" ng-class="t.ic"></i></span>
+                        <span class="pro-todo__t">{{ t.t }}</span>
+                        <span class="pro-todo__go"><span>{{ t.verb }}</span><i class="fas fa-chevron-right"></i></span>
+                        <span class="pro-todo__s">{{ t.s }}</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card ta-card--attn" ng-if="!vm.edit && vm.openList.length && !vm.isNew()">
+            <div class="ta-card__hd">
+                <span class="ta-card__icon ta-card__icon--warn"><i class="fas fa-exclamation"></i></span>
+                <div class="ta-card__ttl"><h3>{{ vm.openList.length === 1 ? '1 thing needs your attention' : vm.openList.length + ' things need your attention' }}</h3><p>Sort these out so your clubs have what they need</p></div>
+            </div>
+            <div class="pro-todo">
+                <button type="button" class="pro-todo__row" ng-repeat="t in vm.openList" ng-click="vm.todoGo(t)" no-busy-guard>
+                    <span class="pro-todo__ic" ng-class="{'pro-todo__ic--bad': t.tone === 'bad'}"><i class="fas" ng-class="t.ic"></i></span>
+                    <span class="pro-todo__t">{{ t.attnT || t.t }}</span>
+                    <span class="pro-todo__go"><span>{{ t.verb }}</span><i class="fas fa-chevron-right"></i></span>
+                    <span class="pro-todo__s">{{ t.s }}</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- identity card — read -->
+        <section class="ta-card" ng-if="!vm.edit">
+            <div class="pro-id">
+                <span class="pro-photo"><img ng-if="vm.user.avatar" ng-src="{{ vm.user.avatar }}" alt="Your photo"><i ng-if="!vm.user.avatar" class="fas fa-user" aria-hidden="true"></i></span>
+                <div>
+                    <div class="pro-id__name">{{ vm.user.first_name }} {{ vm.user.last_name }}</div>
+                    <div class="pro-id__sub"><span class="ta-nowrap">{{ vm.user.email }}</span>{{ vm.user.phone_number ? ' · ' : '' }}<span class="ta-nowrap" ng-if="vm.user.phone_number">{{ vm.user.phone_number }}</span></div>
+                    <div class="pro-id__meta">
+                        <span class="ta-pill ta-pill--warn" ng-if="vm.openList.length"><i class="fas fa-exclamation-circle"></i>{{ vm.openList.length === 1 ? '1 thing to sort out' : vm.openList.length + ' things to sort out' }}</span>
+                        <span class="ta-pill ta-pill--good" ng-if="!vm.openList.length"><i class="fas fa-check"></i>Profile complete</span>
+                        <span class="pro-id__hint" ng-if="!vm.user.avatar">No photo yet</span>
+                    </div>
+                </div>
+                <div class="pro-id__act"><button type="button" class="ta-btn" ng-click="vm.startEdit()" no-busy-guard><i class="fas fa-pen"></i>Edit details</button></div>
+            </div>
+        </section>
+
+        <!-- identity card — edit: the circle is the photo drop target (ng-flow → upload.php, saved with Save) -->
+        <section class="ta-card" ng-if="vm.edit">
+            <div class="pro-id" flow-init="{target: '/upload.php', singleFile: true}"
+                 flow-files-submitted="$files.length && vm.photoStart(); $flow.upload()"
+                 flow-file-success="$file.file_return = $message"
+                 flow-file-error="vm.photoFailed($file, $flow)"
+                 flow-complete="vm.photoFiles($flow.files)"
+                 flow-file-added="vm.U.imageOnly($file)">
+                <span class="pro-photo-wrap" ng-class="{'ta-field--error': vm.errs.avatar}">
+                    <button type="button" class="pro-photo" id="field-avatar" flow-btn flow-drop flow-drag-enter="vm.photoOver = true" flow-drag-leave="vm.photoOver = false"
+                          ng-class="{'pro-photo--over': vm.photoOver}" aria-label="Change your photo" no-busy-guard>
+                        <img ng-if="$flow.files.length" flow-img="$flow.files[$flow.files.length - 1]" alt="Your new photo">
+                        <img ng-if="!$flow.files.length && vm.draft.avatar" ng-src="{{ vm.draft.avatar }}" alt="Your photo">
+                        <i ng-if="!$flow.files.length && !vm.draft.avatar" class="fas fa-user" aria-hidden="true"></i>
+                    </button>
+                    <span class="pro-photo__badge"><i class="fas fa-camera"></i></span>
+                </span>
+                <div>
+                    <div class="pro-id__name">{{ vm.draft.first_name }} {{ vm.draft.last_name }}</div>
+                    <div class="pro-id__sub"><span class="ta-desk-only">{{ vm.draft.avatar || $flow.files.length ? 'Click your photo to replace it' : 'Click the circle or drop a photo on it' }}</span><span class="ta-phone-only">{{ vm.draft.avatar || $flow.files.length ? 'Tap your photo to replace it' : 'Tap the circle to choose a photo' }}</span> · JPG, PNG or GIF</div>
+                    <div class="pro-id__meta" ng-if="vm.photoBusy"><span class="ta-pill ta-pill--info"><span class="ta-spin ta-spin--dark"></span>Uploading your photo…</span></div>
+                    <div class="pro-id__meta" ng-if="vm.newPhoto"><span class="ta-pill ta-pill--info"><i class="fas fa-camera"></i>New photo — saved with your details</span></div>
+                    <span class="ta-field__msg" ng-if="vm.errs.avatar">{{ vm.errs.avatar }}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- read view -->
+        <div class="ta-cols ta-cols--2" ng-if="!vm.edit">
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-id-card"></i></span><div class="ta-card__ttl"><h3>About you</h3><p>As your clubs and the CAA know you</p></div></div>
+                <dl class="ta-facts">
+                    <div class="ta-fact"><dt>First name</dt><dd>{{ vm.user.first_name }}</dd></div>
+                    <div class="ta-fact"><dt>Last name</dt><dd>{{ vm.user.last_name }}</dd></div>
+                    <div class="ta-fact"><dt>Date of birth</dt><dd ng-if="vm.U.day(vm.user.dob)">{{ vm.U.fDate(vm.user.dob) }} <small>· age {{ vm.U.ageOn(vm.user.dob) }}</small></dd><dd ng-if="!vm.U.day(vm.user.dob)"><span class="pro-none">Not added</span></dd></div>
+                    <div class="ta-fact" ng-if="vm.hasCaa()"><dt>CAA reference</dt><dd ng-if="vm.user.caa_reference_number"><span class="ta-num">{{ vm.user.caa_reference_number }}</span></dd><dd ng-if="!vm.user.caa_reference_number"><span class="pro-none">Not added</span></dd></div>
+                </dl>
+                <p class="pro-lockhint"><i class="fas fa-lock"></i><span>Your club changes your name — ask an administrator. Your date of birth and CAA reference prefill the CAA forms your club prepares.</span></p>
+            </section>
+
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-phone-alt"></i></span><div class="ta-card__ttl"><h3>Contact</h3><p>How your clubs reach you</p></div></div>
+                <dl class="ta-facts">
+                    <div class="ta-fact pro-span"><dt>Email</dt><dd>{{ vm.user.email }}</dd></div>
+                    <div class="ta-fact pro-span"><dt>Mobile number</dt><dd ng-if="vm.user.phone_number">{{ vm.user.phone_number }}</dd><dd ng-if="!vm.user.phone_number"><span class="pro-none">Not added</span></dd></div>
+                </dl>
+                <button type="button" class="pro-cardlink" ng-click="vm.goSecurity()" no-busy-guard><i class="fas fa-at"></i><span>Add or change email addresses on the <b>Security</b> tab</span><i class="fas fa-chevron-right"></i></button>
+            </section>
+
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-home"></i></span><div class="ta-card__ttl"><h3>Home address</h3><p>Kept on your membership record</p></div></div>
+                <div class="pro-addr" ng-if="vm.addrLines(vm.user).length"><span class="ta-ic"><i class="fas fa-map-marker-alt"></i></span><div class="pro-addr__lines"><span ng-repeat="l in vm.addrLines(vm.user) track by $index">{{ l }}<br ng-if="!$last"></span></div></div>
+                <div class="ta-note" ng-if="!vm.addrLines(vm.user).length"><i class="fas fa-home"></i><div>No address yet. <button type="button" class="ta-link" ng-click="vm.startEdit()" no-busy-guard>Add your address <i class="fas fa-arrow-right"></i></button></div></div>
+            </section>
+
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-key"></i></span><div class="ta-card__ttl"><h3>Password</h3><p>At least 8 characters, with upper and lower case, a number and a symbol</p></div></div>
+                <div><button type="button" class="ta-btn" ng-click="vm.openPw()" no-busy-guard><i class="fas fa-key"></i>Change password</button></div>
+                <button type="button" class="pro-cardlink" ng-click="vm.goSecurity()" no-busy-guard><i class="fas fa-shield-alt"></i><span>Two-factor authentication and passkeys are on the <b>Security</b> tab</span><i class="fas fa-chevron-right"></i></button>
+            </section>
+        </div>
+
+        <!-- edit view: one form, one save (PUT users/{id}); the current password is asked for on Save -->
+        <div class="ta-cols ta-cols--2" ng-if="vm.edit">
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-id-card"></i></span><div class="ta-card__ttl"><h3>About you</h3><p>As your clubs and the CAA know you</p></div></div>
+                <div class="ta-grid-2">
+                    <div class="ta-field"><label class="ta-label" for="first_name">First name <i class="fas fa-lock"></i></label><input class="ta-input" id="first_name" ng-model="vm.draft.first_name" disabled></div>
+                    <div class="ta-field"><label class="ta-label" for="last_name">Last name <i class="fas fa-lock"></i></label><input class="ta-input" id="last_name" ng-model="vm.draft.last_name" disabled></div>
+                    <p class="pro-lockhint ta-span-2"><i class="fas fa-lock"></i><span>Your club changes your name — ask an administrator.</span></p>
+                    <div class="ta-field" id="field-dob" ng-class="{'ta-field--error': vm.errs.dob}">
+                        <label class="ta-label">Date of birth</label>
+                        <ta-date-picker ng-model="vm.draft.dob" block="true" format="short" placeholder="Pick your date of birth" options="vm.dobOptions" ng-change="vm.clearErr('dob')"></ta-date-picker>
+                        <span class="ta-field__msg" ng-if="vm.errs.dob">{{ vm.errs.dob }}</span>
+                        <span class="ta-hint" ng-if="!vm.errs.dob">Prefills the CAA forms your club prepares</span>
+                    </div>
+                    <div class="ta-field" id="field-caa_reference_number">
+                        <label class="ta-label" for="caa_reference_number">CAA reference <em>(optional)</em></label>
+                        <input class="ta-input" id="caa_reference_number" ng-model="vm.draft.caa_reference_number" ng-change="vm.caaTouched = true" placeholder="e.g. 1234567" autocomplete="off">
+                        <span class="ta-hint">{{ vm.hasCaa() ? 'Your personal UK CAA reference number' : 'Your personal UK CAA reference number — leave blank to keep the one on file' }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ta-card">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-phone-alt"></i></span><div class="ta-card__ttl"><h3>Contact</h3><p>How your clubs reach you</p></div></div>
+                <div class="ta-form">
+                    <div class="ta-field"><label class="ta-label" for="email">Email <i class="fas fa-lock"></i></label><input class="ta-input" id="email" type="email" ng-model="vm.draft.email" disabled>
+                        <span class="ta-hint">Change it on the <button type="button" class="ta-link" ng-click="vm.goSecurity()" no-busy-guard>Security tab <i class="fas fa-arrow-right"></i></button></span></div>
+                    <div class="ta-field" id="field-phone_number" ng-class="{'ta-field--error': vm.errs.phone_number}">
+                        <label class="ta-label" for="phone_number">Mobile number</label>
+                        <input class="ta-input pro-tel" id="phone_number" type="tel" ng-model="vm.draft.phone_number" intl-tel-input ng-change="vm.clearErr('phone_number')" placeholder="+44 7700 900000">
+                        <span class="ta-field__msg" ng-if="vm.errs.phone_number">{{ vm.errs.phone_number }}</span>
+                        <span class="ta-hint" ng-if="!vm.errs.phone_number">Pick the country, then the number</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ta-card pro-span2">
+                <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-home"></i></span><div class="ta-card__ttl"><h3>Home address</h3><p>Start typing to find it, or fill the lines in yourself</p></div></div>
+                <div class="ta-form">
+                    <div class="ta-field">
+                        <label class="ta-label"><i class="fas fa-search-location"></i>Find your address</label>
+                        <div class="pro-lookup"><address-lookup on-select="vm.applyAddress(address)" placeholder="Start typing your address…"></address-lookup></div>
+                    </div>
+                    <div class="ta-note ta-note--info" ng-if="vm.lookFilled"><i class="fas fa-magic"></i><div>Filled in from the address you picked — check the lines and change anything that's not right.</div></div>
+                    <div class="ta-grid-2">
+                        <div class="ta-field"><label class="ta-label" for="line1">Line 1</label><input class="ta-input" id="line1" ng-model="vm.draft.address_line1" autocomplete="address-line1"></div>
+                        <div class="ta-field"><label class="ta-label" for="line2">Line 2 <em>(optional)</em></label><input class="ta-input" id="line2" ng-model="vm.draft.address_line2" autocomplete="address-line2"></div>
+                        <div class="ta-field" ng-if="vm.draft.address_line2"><label class="ta-label" for="line3">Line 3 <em>(optional)</em></label><input class="ta-input" id="line3" ng-model="vm.draft.address_line3"></div>
+                        <div class="ta-field" ng-if="vm.draft.address_line3"><label class="ta-label" for="line4">Line 4 <em>(optional)</em></label><input class="ta-input" id="line4" ng-model="vm.draft.address_line4"></div>
+                        <div class="ta-field"><label class="ta-label" for="address_city">Town or city</label><input class="ta-input" id="address_city" ng-model="vm.draft.address_city" autocomplete="address-level2"></div>
+                        <div class="ta-field"><label class="ta-label" for="address_county">County <em>(optional)</em></label><input class="ta-input" id="address_county" ng-model="vm.draft.address_county"></div>
+                        <div class="ta-field"><label class="ta-label" for="address_postcode">Postcode</label><input class="ta-input" id="address_postcode" ng-model="vm.draft.address_postcode" autocomplete="postal-code"></div>
+                        <div class="ta-field"><label class="ta-label" for="address_country">Country</label><input class="ta-input" id="address_country" ng-model="vm.draft.address_country" autocomplete="country-name"></div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+        <div class="ta-actionbar" ng-if="vm.edit">
+            <span class="ta-actionbar__hint">Saved together — you'll confirm with your password</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.askDiscard(vm.cancelEdit)" no-busy-guard>Cancel</button>
+            <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.saveAsk()" no-busy-guard><i class="fas fa-check"></i>Save changes</button>
+        </div>
+    </div>
+</main>
+
+<!-- ═══ dialogs ═══ -->
+<div class="ta-dlg-scrim pro-scrim" ng-if="vm.dlg === 'confirm'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="pro-dlg-t" ng-submit="vm.saveDo()" novalidate>
+        <div class="ta-dlg__hd ta-dlg__hd--alert">
+            <span class="ta-dlg__ic"><i class="fas fa-user-lock"></i></span>
+            <div><div class="ta-dlg__title pro-dlg-t" id="pro-dlg-t">Confirm it's you</div><div class="ta-dlg__sub">Enter your current password to save these changes.</div></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.cpwErr}">
+                <label class="ta-label" for="pro-cur-pw">Current password</label>
+                <input class="ta-input" id="pro-cur-pw" type="password" autocomplete="current-password" ng-model="vm.cpw" ng-change="vm.cpwErr = null" ng-disabled="vm.saving">
+                <span class="ta-field__msg" ng-if="vm.cpwErr">{{ vm.cpwErr }}</span>
+            </div>
+        </div>
+        <div class="ta-dlg__ft">
+            <button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.saving" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.saving"><i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : 'fa-check'"></i>{{ vm.saving ? 'Saving…' : 'Save changes' }}</button>
+        </div>
+    </form>
+</div>
+
+<div class="ta-dlg-scrim pro-scrim" ng-if="vm.dlg === 'pw'" ng-click="vm.scrim($event)">
+    <form class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="pro-pw-t" ng-submit="vm.pwSave()" novalidate>
+        <div class="ta-dlg__hd">
+            <div class="ta-dlg__grab"></div>
+            <button type="button" class="ta-dlg__x" ng-click="vm.close()" aria-label="Close" no-busy-guard>×</button>
+            <div class="ta-dlg__eyebrow"><i class="fas fa-key"></i>Sign-in</div>
+            <div class="ta-dlg__title" id="pro-pw-t">Change your password</div>
+            <div class="ta-dlg__sub">You'll use the new one next time you log in.</div>
+        </div>
+        <div class="ta-dlg__body">
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pwErr.cur}">
+                <label class="ta-label" for="pw-cur">Current password</label>
+                <input class="ta-input" id="pw-cur" type="password" autocomplete="current-password" ng-model="vm.pw.cur" ng-change="vm.pwErr.cur = null" ng-disabled="vm.saving">
+                <span class="ta-field__msg" ng-if="vm.pwErr.cur">{{ vm.pwErr.cur }}</span>
+            </div>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pwErr.n1}">
+                <label class="ta-label" for="pw-new">New password</label>
+                <input class="ta-input" id="pw-new" type="password" autocomplete="new-password" ng-model="vm.pw.n1" ng-change="vm.pwErr.n1 = null" ng-disabled="vm.saving">
+                <span class="ta-field__msg" ng-if="vm.pwErr.n1">{{ vm.pwErr.n1 }}</span>
+            </div>
+            <ul class="pro-rules" aria-label="Password rules">
+                <li ng-repeat="r in vm.rules" ng-class="{'pro-ok': r.ok(vm.pw.n1 || '')}"><i ng-class="r.ok(vm.pw.n1 || '') ? 'fas fa-check-circle' : 'far fa-circle'"></i>{{ r.t }}</li>
+            </ul>
+            <div class="ta-field" ng-class="{'ta-field--error': vm.pwErr.n2}">
+                <label class="ta-label" for="pw-new2">Repeat new password</label>
+                <input class="ta-input" id="pw-new2" type="password" autocomplete="new-password" ng-model="vm.pw.n2" ng-change="vm.pwErr.n2 = null" ng-disabled="vm.saving">
+                <span class="ta-field__msg" ng-if="vm.pwErr.n2">{{ vm.pwErr.n2 }}</span>
+            </div>
+        </div>
+        <div class="ta-dlg__ft">
+            <button type="button" class="ta-btn" ng-click="vm.close()" ng-disabled="vm.saving" no-busy-guard>Cancel</button><span class="ta-sp"></span>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.saving"><i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : 'fa-key'"></i>{{ vm.saving ? 'Changing…' : 'Change password' }}</button>
+        </div>
+    </form>
+</div>
+
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

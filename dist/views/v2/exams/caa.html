@@ -1,0 +1,33 @@
+<!-- v2 · Training → CAA forms (design: mockups/my-account/questionnaires-exams.html, page "CAA forms").
+     State dashboard.v2.caa_forms (/my_account/caa_forms) → QxCaaV2Controller. Signing opens today's form page (dashboard.caa_form). -->
+<main class="ta-page qx-main">
+  <div ng-include="'views/v2/training/_hub.html'"></div>
+
+  <section class="ta-card" ng-show="vm.loading" aria-busy="true"><span class="ta-skel qx-skel__h"></span><span class="ta-skel qx-skel__box"></span></section>
+  <div class="ta-note ta-note--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-circle"></i><div>{{ vm.error }} <button type="button" class="ta-link" ng-click="vm.reload()" no-busy-guard>Try again</button></div></div>
+
+  <section class="ta-card" ng-show="!vm.loading && !vm.error && !vm.sign.length && !vm.rest.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-file-contract"></i></span>
+      <h4>Nothing here yet</h4>
+      <p>When an instructor starts a CAA form for you, it appears here to sign — and your completed paperwork stays here to download.</p>
+    </div>
+  </section>
+
+  <div class="qx-stack" ng-if="!vm.loading && (vm.sign.length || vm.rest.length)">
+    <div class="ta-note" ng-if="vm.pastClubs.length"><i class="fas fa-lock"></i><div><b>Past membership{{ vm.pastClubs.length > 1 ? 's' : '' }}:</b> <span ng-repeat="c in vm.pastClubs">{{ c.title }}{{ $last ? '' : ', ' }}</span>. Your forms there are read-only — open or download them; they can’t be signed.</div></div>
+
+    <section class="ta-list qx-caalist" aria-label="CAA forms">
+      <div class="ta-list__cols"><span></span><span>Form</span><span>Progress</span><span>Status</span><span></span></div>
+      <div class="qx-gwrap" ng-if="vm.sign.length">
+        <div class="ta-group ta-group--attn"><span><i class="fas fa-pen-nib"></i>Needs your signature</span><span>{{ vm.sign.length }}</span></div>
+        <div class="ta-row" ng-repeat="f in vm.sign" ng-class="{'ta-row--open': vm.open === f.key}" ng-include="'views/v2/exams/_caa_row.html'"></div>
+      </div>
+      <div class="qx-gwrap" ng-if="vm.rest.length">
+        <div class="ta-group"><span><i class="fas fa-folder-open"></i>Your forms</span><span>{{ vm.rest.length }}</span></div>
+        <div class="ta-row" ng-repeat="f in vm.rest" ng-class="{'ta-row--open': vm.open === f.key}" ng-include="'views/v2/exams/_caa_row.html'"></div>
+      </div>
+    </section>
+    <div class="ta-note"><i class="fas fa-info-circle"></i><div><b>How CAA forms work.</b> An instructor or examiner fills the form in from your records; you sign it here when it needs you; the Head of Training countersigns where the CAA asks for it; then the signed PDF is yours to download.</div></div>
+  </div>
+</main>

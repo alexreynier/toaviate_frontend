@@ -1,0 +1,141 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Signatures — mockups/instructor-dashboard/signatures.html (page "queue").
+     InstructorSignaturesV2Controller (js/v2/instructor_signatures/instructor_signatures.js) · contract C34 ·
+     css/v2/instructor-signatures.css (sgn-). Dialogs: sign_dialog / batch_dialog / stamp_dialog.html (moved to <body>).
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="sgn" ng-class="{'ta-page--has-bar': vm.nSel && vm.stamp && vm.queue.length}">
+
+  <!-- ── page bar ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas fa-file-signature"></i></span>
+        <div><ins-tag></ins-tag><h2>Signatures</h2><p>Your signing queue: logbook lines your students asked you to sign</p></div>
+      </div>
+      <span class="sgn-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.load === 'ready' && vm.tools">
+      <div class="sgn-tools">
+        <div class="ta-scope" ng-if="vm.clubs.length"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': !vm.club}" role="tab" aria-selected="{{ !vm.club }}" ng-click="vm.setClub(0)" no-busy-guard>All clubs · {{ vm.queue.length }}</button><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.club === c.id}" role="tab" aria-selected="{{ vm.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c.title }} · {{ c.n }}</button></div></div>
+        <ta-combo class="sgn-find" ng-if="vm.search" cb-id="find" label="Find a student or aircraft" placeholder="{{ vm.findPh }}" placeholder-picked="Type to change"
+                  query="vm.cbQ" source="vm.findSource(q)" on-pick="vm.findPick(key)" on-clear="vm.findClear()" value="vm.findValue" clearable="!!vm.findValue || !!vm.cbQ" version="vm.cbVer"></ta-combo>
+      </div>
+    </div>
+    <div class="sgn-v2row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading: skeleton rows with v1's words ── -->
+  <section class="ta-list" ng-if="vm.load === 'loading'" aria-busy="true">
+    <div class="ta-group"><span><span class="ta-spin ta-spin--dark"></span> Loading your signing queue…</span></div>
+    <div class="sgn-skel" ng-repeat="i in vm.skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+  </section>
+
+  <!-- ── the queue could not be read ── -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'error'">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Couldn’t load your signing queue</h4><p>{{ vm.loadMsg }}</p>
+      <button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <!-- ── your stamp ── -->
+  <section class="ta-card ins-rise" style="--i: 0" ng-if="vm.load === 'ready' && vm.stampState === 'ok' && !vm.stamp" data-e2e="sgn-nostamp">
+    <div class="sgn-stamp"><span class="ta-ic ta-ic--lg ta-ic--group"><i class="fas fa-stamp"></i></span><div class="sgn-stamp__txt"><b>No saved stamp yet</b><span>Save your signature once and sign each line with one tap, instead of drawing it every time. CAA forms use the same stamp.</span></div>
+      <button type="button" class="ta-btn" ng-click="vm.openStamp()" no-busy-guard><i class="fas fa-stamp"></i>Save my stamp</button></div>
+  </section>
+  <section class="ta-card ins-rise" style="--i: 0" ng-if="vm.load === 'ready' && vm.stamp" data-e2e="sgn-stamp">
+    <div class="sgn-stamp"><span class="sgn-stamp__sig"><span class="sgn-sig" sgn-ink="vm.stamp.image"></span></span><div class="sgn-stamp__txt"><b>{{ vm.stampTitle }}</b><span>{{ vm.stampSub }}</span></div>
+      <button type="button" class="ta-btn" ng-click="vm.openStamp()" no-busy-guard><i class="fas fa-pen"></i>Change my stamp</button></div>
+  </section>
+  <section class="ta-card ins-rise" style="--i: 0" ng-if="vm.load === 'ready' && vm.stampState === 'error'">
+    <div class="sgn-stamp"><span class="ta-ic ta-ic--lg ta-ic--warn"><i class="fas fa-stamp"></i></span><div class="sgn-stamp__txt"><b>Your stamp couldn’t be loaded</b><span>You can still sign by drawing your signature. Try again to sign with your stamp.</span></div>
+      <button type="button" class="ta-btn" ng-click="vm.reloadStamp()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <!-- ── the queue ── -->
+  <section class="ta-list sgn-list" ng-class="{'sgn-list--nostamp': !vm.stamp}" aria-label="Waiting for your signature" ng-if="vm.load === 'ready' && vm.queue.length" data-e2e="sgn-list">
+    <div class="ta-list__tools">
+      <div class="ta-chips" role="group" aria-label="Show"><button type="button" class="ta-chip" ng-class="{'ta-chip--on': !vm.old}" ng-click="vm.setOld(false)" no-busy-guard>All waiting<span class="ta-chip__n">{{ vm.all.length }}</span></button><button type="button" class="ta-chip ta-chip--attn" ng-class="{'ta-chip--on': vm.old}" ng-if="vm.oldN" ng-click="vm.setOld(true)" no-busy-guard><i class="fas fa-hourglass-half"></i>Over 2 weeks<span class="ta-chip__n">{{ vm.oldN }}</span></button></div>
+      <span class="ta-sp" ng-if="vm.stamp"></span>
+      <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet ta-desk-only" ng-if="vm.stamp && vm.signable > 1" ng-click="vm.selAll()" no-busy-guard>{{ vm.nSel ? 'Clear selection' : 'Select all ' + vm.signable }}</button>
+    </div>
+    <div class="ta-list__cols"><span ng-if="vm.stamp"></span><span>Aircraft</span><span>Flight</span><span>Student · their note</span><span>Asked</span><span></span></div>
+    <div class="ta-group" ng-class="{'ta-group--attn': vm.oldN}"><span><i class="fas fa-file-signature"></i>Waiting for you · oldest first</span><span>{{ vm.shown.length === 1 ? '1 line' : vm.shown.length + ' lines' }}</span></div>
+
+    <div class="ta-row sgn-row ins-rise" id="sgn-r-{{ r.id }}" ng-repeat="r in vm.shown track by (r.id + '.' + vm.gen)" data-e2e="sgn-row"
+         ng-class="{'ta-row--open sgn-row--open': vm.openId === r.id, 'sgn-row--sel': vm.sel[r.id]}" style="--ac: {{ r.edge }}; --i: {{ $index }}">
+      <div class="ta-row__main">
+        <label class="sgn-check" title="Select to sign with your stamp" ng-if="vm.stamp && r.canSign"><input type="checkbox" ng-model="vm.sel[r.id]" ng-change="vm.selChanged()" no-busy-guard aria-label="Select {{ r.pilot }}’s line of {{ r.day }}"></label>
+        <span class="sgn-check" aria-hidden="true" ng-if="vm.stamp && !r.canSign"></span>
+        <span class="sgn-reg" ng-if="r.line"><b>{{ r.line.reg }}</b><small>{{ r.line.type }}</small></span>
+        <span class="sgn-reg" ng-if="!r.line"><span class="sgn-gone"><i class="fas fa-unlink"></i>Gone</span></span>
+        <button type="button" class="sgn-open" ng-click="vm.toggle(r)" no-busy-guard aria-expanded="{{ vm.openId === r.id }}" ng-if="r.line"><span class="ta-row__title" ng-bind-html="r.titleHtml"></span><span class="ta-row__sub">{{ r.sub }}</span></button>
+        <button type="button" class="sgn-open" ng-click="vm.toggle(r)" no-busy-guard aria-expanded="{{ vm.openId === r.id }}" ng-if="!r.line"><span class="ta-row__title">This flight is no longer in the logbook</span><span class="ta-row__sub">{{ r.goneSub }}</span></button>
+        <span class="ta-row__txt"><span class="sgn-who"><span class="ta-av ta-av--member" aria-hidden="true"><i class="fas fa-user"></i></span><span><b>{{ r.pilot }}</b><span class="sgn-note" ng-if="r.note">“{{ r.note }}”</span><span class="ta-row__sub" ng-if="!r.note">No note</span></span></span></span>
+        <span class="sgn-age" ng-class="{'sgn-age--old': r.old}"><b>{{ r.ago }}</b><small>{{ r.askedDay }}</small></span>
+        <span class="sgn-acts"><button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="r.canSign" ng-click="vm.openSign(r)" no-busy-guard data-e2e="sgn-sign"><i class="fas fa-file-signature"></i>Sign</button><span class="ta-pill ta-pill--muted" ng-if="r.blocked" title="{{ r.why }}"><i class="fas fa-lock"></i>Can’t sign</span><button type="button" class="ta-btn ta-btn--quiet ta-btn--sm" ng-click="vm.declineAsk(r)" no-busy-guard data-e2e="sgn-decline">Decline</button></span>
+        <button type="button" class="sgn-chev" ng-click="vm.toggle(r)" no-busy-guard aria-label="{{ vm.openId === r.id ? 'Close' : 'Open' }} the details" aria-expanded="{{ vm.openId === r.id }}"><i class="fas fa-chevron-down"></i></button>
+      </div>
+
+      <div class="ta-detail" ng-if="vm.openId === r.id">
+        <div class="ta-panel ta-panel--white" ng-if="r.line"><dl class="ta-facts ta-facts--3">
+          <div class="ta-fact"><dt>Date</dt><dd>{{ r.dateLong }}</dd></div>
+          <div class="ta-fact"><dt>Route</dt><dd ng-bind-html="r.routeLongHtml"></dd></div>
+          <div class="ta-fact"><dt>Brakes off → on</dt><dd>{{ r.brakes }}</dd></div>
+          <div class="ta-fact"><dt>Flight time</dt><dd>{{ r.line.hm }} <small>as in their logbook</small></dd></div>
+          <div class="ta-fact"><dt>Aircraft</dt><dd>{{ r.line.reg }} <small>{{ r.line.model }}</small></dd></div>
+          <div class="ta-fact"><dt>Their role</dt><dd>{{ r.line.cap.label }} <small>{{ r.line.cap.long }}</small></dd></div>
+          <div class="ta-fact"><dt>Club</dt><dd>{{ r.clubTitle || '—' }}</dd></div>
+          <div class="ta-fact"><dt>Asked</dt><dd>{{ r.asked }}</dd></div>
+          <div class="ta-fact"><dt>Their note</dt><dd ng-if="r.note">“{{ r.note }}”</dd><dd ng-if="!r.note"><small>None</small></dd></div>
+        </dl></div>
+        <div class="ta-note ta-note--bad" ng-if="!r.line"><i class="fas fa-unlink"></i><div><b>This flight is no longer in the logbook.</b> {{ r.goneWhy }}, so it can’t be signed. Decline it with a reason; {{ r.first }} can ask again on the flight that replaced it.</div></div>
+        <div class="ta-note ta-note--warn" ng-if="r.blocked"><i class="fas fa-lock"></i><div><b>You can’t sign this line.</b> {{ r.why }} Decline it, so {{ r.first }} can ask another instructor.</div></div>
+
+        <div class="ta-confirm" ng-if="vm.decId === r.id" data-e2e="sgn-decline-ask">
+          <b>Decline {{ r.pilot }}’s request?</b>
+          <div class="ta-field"><label class="ta-label" for="sgn-reason">Reason <em>(optional — {{ r.first }} will see it)</em></label><input class="ta-input" id="sgn-reason" ng-model="vm.reason" maxlength="500" autocomplete="off" no-busy-guard ng-keydown="$event.keyCode === 13 && vm.declineGo(r)" placeholder="{{ r.line ? 'e.g. I didn’t fly this one — ask Kate' : 'e.g. Ask again on the merged flight' }}"></div>
+          <div class="ta-confirm__btns"><button type="button" class="ta-btn" ng-click="vm.declineNo()" ng-disabled="vm.busy" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.declineGo(r)" ng-disabled="vm.busy" no-busy-guard data-e2e="sgn-decline-go"><span class="ta-spin" ng-if="vm.busy"></span>{{ vm.busy ? 'Declining…' : 'Decline request' }}</button></div>
+        </div>
+        <div class="ta-detail__foot" ng-if="vm.decId !== r.id"><button type="button" class="ta-btn" ng-click="vm.declineAsk(r)" no-busy-guard><i class="fas fa-times"></i>Decline</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-if="r.canSign" ng-click="vm.openSign(r)" no-busy-guard><i class="fas fa-file-signature"></i>Sign this line</button></div>
+      </div>
+    </div>
+
+    <div class="ta-empty" ng-if="!vm.shown.length"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>Nothing matches</h4><p>No waiting line for this search{{ vm.old ? ' that is over two weeks old' : '' }}. Clear it to see the whole queue.</p><button type="button" class="ta-btn" ng-click="vm.findClear()" no-busy-guard>Clear the search</button></div>
+  </section>
+
+  <!-- ── sign several with the stamp (a fixed bar on phones) ── -->
+  <div class="ta-actionbar sgn-bar" ng-if="vm.load === 'ready' && vm.queue.length && vm.nSel && vm.stamp" data-e2e="sgn-bar">
+    <span class="ta-actionbar__hint">{{ vm.nSel === 1 ? '1 line' : vm.nSel + ' lines' }} selected</span><span class="ta-sp ta-desk-only"></span>
+    <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.selNone()" no-busy-guard>Clear</button><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.openBatch()" no-busy-guard data-e2e="sgn-batch"><i class="fas fa-stamp"></i>Sign {{ vm.nSel }} with my stamp</button>
+  </div>
+
+  <!-- ── done this visit (signed or declined; a signature can be withdrawn here) ── -->
+  <section class="ta-list sgn-done sgn-list" aria-label="Done this visit" ng-if="vm.load === 'ready' && vm.done.length" data-e2e="sgn-done">
+    <div class="ta-group"><span><i class="fas fa-check"></i>Done this visit</span><span>{{ vm.done.length }}</span></div>
+    <div class="ta-row sgn-row ins-rise" ng-repeat="d in vm.done track by d.r.id" style="--ac: {{ d.r.line && d.r.line.colour ? d.r.line.colour : 'var(--ta-line-2)' }}">
+      <div class="ta-row__main">
+        <span class="sgn-reg" ng-if="d.r.line"><b>{{ d.r.line.reg }}</b><small>{{ d.r.line.type }}</small></span>
+        <span class="sgn-reg" ng-if="!d.r.line"><span class="sgn-gone"><i class="fas fa-unlink"></i>Gone</span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ d.r.pilot }}</span><span class="ta-row__sub">{{ d.sub }}</span></span>
+        <span class="sgn-done__end">
+          <span class="ta-pill ta-pill--muted" ng-if="d.withdrawn"><i class="fas fa-minus-circle"></i>Withdrawn</span>
+          <span class="ta-pill ta-pill--bad" ng-if="!d.withdrawn && d.kind === 'declined'"><i class="fas fa-times-circle"></i>Declined</span>
+          <span class="ta-hint" ng-if="!d.withdrawn && d.kind === 'declined' && d.reason">“{{ d.reason }}”</span>
+          <span class="ta-confirm ta-confirm--inline" ng-if="!d.withdrawn && d.kind === 'signed' && vm.wdId === d.r.id"><span>Take your stamp off {{ d.r.first }}’s line?</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.wdNo()" ng-disabled="vm.busy" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.wdGo(d)" ng-disabled="vm.busy" no-busy-guard data-e2e="sgn-wd-go"><span class="ta-spin" ng-if="vm.busy"></span>{{ vm.busy ? 'Withdrawing…' : 'Withdraw' }}</button></span>
+          <span class="ta-pill ta-pill--good" ng-if="!d.withdrawn && d.kind === 'signed' && vm.wdId !== d.r.id"><i class="fas fa-check"></i>Signed just now</span>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="!d.withdrawn && d.kind === 'signed' && vm.wdId !== d.r.id" ng-click="vm.wdAsk(d)" no-busy-guard data-e2e="sgn-wd"><i class="fas fa-undo"></i>Withdraw</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── all caught up ── -->
+  <section class="ta-card ins-rise" style="--i: 1" ng-if="vm.load === 'ready' && !vm.queue.length" data-e2e="sgn-empty">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-file-signature"></i></span><h4>All caught up</h4><p>No signature requests waiting for you. When a student asks you to sign a line in their logbook, it appears here.</p></div>
+  </section>
+
+  <div class="ta-note ins-rise" style="--i: 2" ng-if="vm.load === 'ready'"><i class="fas fa-info-circle"></i><div><b>How it works.</b> Students ask from their logbook with <b>Request instructor signature</b> and pick you; the line lands here, oldest first. Your stamp (name, number, wording and signature) shows on their line as soon as you sign. Declining tells them why.</div></div>
+
+  <!-- ── the dialog in use (moved to <body> by sgn-portal) ── -->
+  <div ng-if="vm.dlg" ng-include="vm.dlgTpl"></div>
+</main>

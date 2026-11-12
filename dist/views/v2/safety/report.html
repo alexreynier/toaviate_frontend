@@ -1,0 +1,234 @@
+<!-- ═══ v2 Safety · Report a hazard / Report an occurrence (states dashboard.v2.safety_report_hazard and
+     dashboard.v2.safety_report_occurrence, data.screen 'report_hazard' | 'report_occurrence') ═══
+     Numbered step cards + a sticky "Check and send" rail (desktop) / fixed action bar (phone).
+     Sending shows a confirmation with the server's reference. Leaving a half-written report asks first. -->
+<main class="ta-page saf-page" ng-class="{'ta-page--has-bar': !vm.sent}">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon"><i class="fas" ng-class="vm.kind === 'haz' ? 'fa-exclamation-triangle' : 'fa-bolt'" aria-hidden="true"></i></span>
+        <div>
+          <h2>{{ vm.kind === 'haz' ? 'Report a hazard' : 'Report an occurrence' }}</h2>
+          <p>{{ vm.kind === 'haz' ? 'Anything that could cause harm. It takes about a minute.' : 'Something that happened — an incident, a near miss or an accident.' }}</p>
+          <p class="saf-classic"><design-back></design-back></p>
+        </div>
+      </div>
+      <a class="ta-back" href ng-click="vm.backFromForm()" aria-label="Back to Safety" no-busy-guard><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Safety</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools" ng-if="vm.multiClub && !vm.sent">
+      <div class="ta-scope saf-tools-end">
+        <span class="ta-scope__k">Reporting to</span>
+        <div class="ta-scope__set">
+          <button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs" ng-class="{'ta-scope__opt--on': c.id == vm.club_id}" aria-pressed="{{ c.id == vm.club_id }}" ng-click="vm.selectClub(c.id)" no-busy-guard>{{ c.name }}</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ta-note ta-note--info" ng-if="!vm.club_id"><i class="fas fa-info-circle"></i><div><b>You’re not in a club yet.</b> Reports go to a club’s safety team — join a club to send one.</div></div>
+
+  <!-- ═════ the form ═════ -->
+  <div class="ta-cols ta-cols--rail" ng-if="!vm.sent && vm.club_id" ng-class="{'saf-noshake': !vm.shake}">
+    <div class="ta-stack">
+
+      <!-- 1 · what (hazard) -->
+      <section class="ta-card" ng-if="vm.kind === 'haz'">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.stepDone(1)}"><i class="fas" ng-class="vm.stepDone(1) ? 'fa-check' : 'fa-tags'"></i><span class="ta-card__step">1</span></span><div class="ta-card__ttl"><h3>What is it about?</h3><p>Pick the area closest to it — the safety team can change it later.</p></div></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.errs.category}" id="saf-f-category">
+          <div class="ta-seg saf-cats" role="radiogroup" aria-label="Area">
+            <button type="button" class="ta-seg__opt" ng-repeat="c in vm.cats" ng-class="{'ta-seg__opt--on': vm.form.category === c.id}" role="radio" aria-checked="{{ vm.form.category === c.id }}" ng-click="vm.pick('category', c.id)" no-busy-guard><i class="fas" ng-class="c.icon"></i>{{ c.label }}</button>
+          </div>
+          <span class="ta-field__msg" ng-show="vm.errs.category">{{ vm.errs.category }}</span>
+        </div>
+      </section>
+
+      <!-- 1 · what (occurrence) -->
+      <section class="ta-card" ng-if="vm.kind === 'occ'">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.stepDone(1)}"><i class="fas" ng-class="vm.stepDone(1) ? 'fa-check' : 'fa-bolt'"></i><span class="ta-card__step">1</span></span><div class="ta-card__ttl"><h3>What happened?</h3><p>Choose the closest type and how serious it was — the safety team can adjust both.</p></div></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.errs.otype}" id="saf-f-otype">
+          <span class="ta-label">Type</span>
+          <div class="saf-opts saf-opts--2" role="radiogroup" aria-label="Type">
+            <button type="button" class="ta-opt" ng-repeat="o in vm.occTypes" ng-class="{'ta-opt--on': vm.form.otype === o.id}" role="radio" aria-checked="{{ vm.form.otype === o.id }}" ng-click="vm.pick('otype', o.id)" no-busy-guard>
+              <span class="ta-opt__ic"><i class="fas" ng-class="o.icon"></i></span><span><span class="ta-opt__t">{{ o.label }}</span><span class="ta-opt__s">{{ o.sub }}</span></span><span class="ta-opt__dot"></span>
+            </button>
+          </div>
+          <span class="ta-field__msg" ng-show="vm.errs.otype">{{ vm.errs.otype }}</span>
+        </div>
+        <div class="ta-note ta-note--warn" ng-if="vm.serious()"><i class="fas fa-phone-alt"></i><div><b>Accidents and serious incidents must also be reported to the AAIB straight away.</b> This form only tells your club’s safety team.</div></div>
+        <div class="ta-field" ng-class="{'ta-field--error': vm.errs.severity}" id="saf-f-sev">
+          <span class="ta-label">How serious was it?</span>
+          <div class="saf-opts" role="radiogroup" aria-label="How serious">
+            <button type="button" class="ta-opt" ng-repeat="s in vm.sevs" ng-class="{'ta-opt--on': vm.form.severity === s.id}" role="radio" aria-checked="{{ vm.form.severity === s.id }}" ng-click="vm.pick('severity', s.id)" no-busy-guard>
+              <span class="ta-opt__ic saf-sevic"><span class="saf-sev" ng-class="'saf-sev--' + s.n" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><span><span class="ta-opt__t">{{ s.label }}</span><span class="ta-opt__s">{{ s.sub }}</span></span><span class="ta-opt__dot"></span>
+            </button>
+          </div>
+          <span class="ta-field__msg" ng-show="vm.errs.severity">{{ vm.errs.severity }}</span>
+        </div>
+      </section>
+
+      <!-- 2 · where and when -->
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-map-marker-alt"></i><span class="ta-card__step">2</span></span><div class="ta-card__ttl"><h3>{{ vm.kind === 'haz' ? 'Where and when' : 'When and where' }}</h3><p>The date is filled in; the rest is optional but helps the safety team find it.</p></div></div>
+        <div class="ta-grid-2">
+          <div class="ta-field">
+            <span class="ta-label"><i class="fas fa-calendar-alt"></i>{{ vm.kind === 'haz' ? 'When did you notice it?' : 'When did it happen?' }}</span>
+            <div class="ta-seg ta-seg--row saf-when-seg" role="radiogroup" aria-label="When">
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.form.when === 'today'}" role="radio" aria-checked="{{ vm.form.when === 'today' }}" ng-click="vm.setWhen('today')" no-busy-guard>Today</button>
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.form.when === 'yesterday'}" role="radio" aria-checked="{{ vm.form.when === 'yesterday' }}" ng-click="vm.setWhen('yesterday')" no-busy-guard>Yesterday</button>
+              <button type="button" class="ta-seg__opt" ng-class="{'ta-seg__opt--on': vm.form.when === 'earlier'}" role="radio" aria-checked="{{ vm.form.when === 'earlier' }}" ng-click="vm.setWhen('earlier')" no-busy-guard>Earlier</button>
+            </div>
+            <div class="saf-when-date" ng-show="vm.form.when === 'earlier'"><ta-date-picker ng-model="vm.form.date" options="vm.datePickerOpts" block="true" format="short"></ta-date-picker></div>
+            <span class="ta-hint" ng-show="vm.form.when !== 'earlier'">{{ vm.fDayLong(vm.form.date) }}</span>
+          </div>
+          <div class="ta-field" ng-if="vm.kind === 'occ'">
+            <label class="ta-label" for="saf-time"><i class="far fa-clock"></i>Roughly what time? <em>(optional)</em></label>
+            <input type="time" class="ta-input" id="saf-time" ng-model="vm.form.time">
+            <span class="ta-hint">Club time, 24-hour</span>
+          </div>
+          <div class="ta-field" ng-class="{'ta-span-2': vm.kind === 'occ'}">
+            <label class="ta-label" for="saf-icao"><i class="fas fa-map-marker-alt"></i>Airfield <em>(optional)</em></label>
+            <div class="saf-af">
+              <input class="ta-input saf-icao" id="saf-icao" ng-model="vm.form.icao" ng-change="vm.onIcao()" maxlength="4" placeholder="ICAO" autocomplete="off" spellcheck="false" aria-describedby="saf-af-name">
+              <span class="saf-af__name" ng-class="{'saf-af__name--unknown': !vm.afKnown()}" id="saf-af-name"><i class="fas fa-check-circle" ng-show="vm.afKnown()"></i>{{ vm.afLine() }}</span>
+            </div>
+            <div class="saf-quick">
+              <button type="button" class="ta-chip" ng-if="vm.home" ng-class="{'ta-chip--on': vm.form.icao === vm.home.code}" ng-click="vm.setIcao(vm.home.code)" no-busy-guard><span class="ta-icao">{{ vm.home.code }}</span>{{ vm.home.title }}</button>
+              <button type="button" class="ta-chip" ng-class="{'ta-chip--on': !vm.form.icao}" ng-click="vm.setIcao('')" no-busy-guard>Not at an airfield</button>
+            </div>
+          </div>
+          <div class="ta-field ta-span-2">
+            <span class="ta-label"><i class="fas fa-plane"></i>Aircraft <em>(optional)</em></span>
+            <div class="saf-skel saf-skel--chips" ng-if="vm.planesLoading"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+            <div class="saf-pickrow" role="radiogroup" aria-label="Aircraft" ng-if="!vm.planesLoading">
+              <button type="button" class="saf-pick" ng-class="{'saf-pick--on': !vm.form.plane_id}" role="radio" aria-checked="{{ !vm.form.plane_id }}" ng-click="vm.form.plane_id = null" no-busy-guard><span class="saf-pick__tick"><i class="fas fa-check"></i></span>No particular aircraft</button>
+              <button type="button" class="saf-pick" ng-repeat="p in vm.planes track by p.id" ng-class="{'saf-pick--on': vm.form.plane_id === p.id}" role="radio" aria-checked="{{ vm.form.plane_id === p.id }}" ng-click="vm.form.plane_id = p.id" no-busy-guard><span class="saf-pick__tick"><i class="fas fa-check"></i></span><span class="ta-ac" ng-attr-style="{{ p.colour ? '--ac:' + p.colour : undefined }}">{{ p.reg }}<span ng-show="p.type">{{ p.type }}</span></span></button>
+            </div>
+            <span class="ta-hint">Only if it’s about one aircraft — {{ vm.clubName || 'your club' }}’s fleet is listed.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · tell us about it (hazard) -->
+      <section class="ta-card" ng-if="vm.kind === 'haz'">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.stepDone(3)}"><i class="fas" ng-class="vm.stepDone(3) ? 'fa-check' : 'fa-pen'"></i><span class="ta-card__step">3</span></span><div class="ta-card__ttl"><h3>Tell us about it</h3><p>A short title and a sentence or two is plenty.</p></div></div>
+        <div class="ta-form">
+          <div class="ta-field" ng-class="{'ta-field--error': vm.errs.title}">
+            <label class="ta-label" for="saf-title">Short title<span class="saf-count">{{ (vm.form.title || '').length }}/120</span></label>
+            <input class="ta-input" id="saf-title" ng-model="vm.form.title" ng-change="vm.onText('title', 3)" maxlength="120" placeholder="e.g. Frayed tie-down rope on stand 4" data-e2e="saf-title">
+            <span class="ta-field__msg" ng-show="vm.errs.title">{{ vm.errs.title }}</span>
+          </div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.errs.description}">
+            <label class="ta-label" for="saf-desc">What did you see?</label>
+            <textarea class="ta-textarea" id="saf-desc" ng-model="vm.form.description" ng-change="vm.onText('description', 5)" placeholder="What, where, and why it worried you." data-e2e="saf-desc"></textarea>
+            <span class="ta-field__msg" ng-show="vm.errs.description">{{ vm.errs.description }}</span>
+          </div>
+          <div class="ta-field">
+            <label class="ta-label" for="saf-imm">Anything you did at the time? <em>(optional)</em></label>
+            <textarea class="ta-textarea saf-ta-sm" id="saf-imm" ng-model="vm.form.immediate" placeholder="e.g. Moved the aircraft, told the duty instructor"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · your account (occurrence) -->
+      <section class="ta-card" ng-if="vm.kind === 'occ'">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.stepDone(3)}"><i class="fas" ng-class="vm.stepDone(3) ? 'fa-check' : 'fa-pen'"></i><span class="ta-card__step">3</span></span><div class="ta-card__ttl"><h3>Your account</h3><p>In your own words — the safety team may ask you more later.</p></div></div>
+        <div class="ta-form">
+          <div class="ta-field" ng-class="{'ta-field--error': vm.errs.description}">
+            <label class="ta-label" for="saf-desc">What happened?</label>
+            <textarea class="ta-textarea" id="saf-desc" ng-model="vm.form.description" ng-change="vm.onText('description', 5)" placeholder="What happened, in what order, and what you did." data-e2e="saf-desc"></textarea>
+            <span class="ta-field__msg" ng-show="vm.errs.description">{{ vm.errs.description }}</span>
+          </div>
+          <div class="ta-field">
+            <label class="ta-label" for="saf-pers">Who else was involved? <em>(optional)</em></label>
+            <input class="ta-input" id="saf-pers" ng-model="vm.form.personnel" placeholder="Names or roles — e.g. my instructor, a vehicle driver">
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 · your name -->
+      <section class="ta-card">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas" ng-class="vm.kind === 'haz' ? 'fa-user-secret' : 'fa-user'"></i><span class="ta-card__step">4</span></span><div class="ta-card__ttl"><h3>Your name</h3><p>{{ vm.kind === 'haz' ? 'Choose whether the report says who sent it.' : 'Who the safety team can talk to.' }}</p></div></div>
+        <label class="ta-toggle" ng-if="vm.kind === 'haz'">
+          <input type="checkbox" class="ta-toggle__input" ng-model="vm.form.anon" data-e2e="saf-anon">
+          <span class="ta-toggle__txt"><span class="ta-toggle__t"><i class="fas fa-user-secret"></i>Report anonymously</span><span class="ta-toggle__s">Your name isn’t kept with the report. The safety team can’t ask you about it, and it won’t appear in Your reports.</span></span>
+          <span class="ta-switch"></span>
+        </label>
+        <div class="ta-note ta-note--info" ng-if="vm.kind === 'haz' && vm.form.anon"><i class="fas fa-info-circle"></i><div>You’ll still get a reference when you send it. Note it down if you want to ask about this report later.</div></div>
+        <div class="ta-panel saf-who" ng-if="vm.kind === 'occ'">
+          <span class="ta-av ta-av--member" title="Member"><i class="fas fa-user"></i></span>
+          <div><b>Sent as {{ vm.fullName }}</b><span class="saf-who__s">Occurrence reports carry your name, so the safety team can ask you about what happened.</span></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 5 · check and send (rail on desktop; last card + fixed action bar on phones) -->
+    <div class="ta-rail">
+      <section class="ta-card saf-review">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': !vm.missing().length}"><i class="fas" ng-class="vm.missing().length ? 'fa-clipboard-check' : 'fa-check'"></i><span class="ta-card__step">5</span></span><div class="ta-card__ttl"><h3>Check and send</h3><p>What the safety team will see</p></div></div>
+        <dl class="saf-rv">
+          <dt>To</dt><dd>{{ vm.clubName || '—' }}</dd>
+          <dt ng-if="vm.kind === 'haz'">Area</dt><dd ng-if="vm.kind === 'haz'"><span ng-show="vm.form.category">{{ vm.catLabel(vm.form.category) }}</span><span class="saf-rv__miss" ng-show="!vm.form.category"><i class="fas fa-exclamation-circle"></i>Not chosen yet</span></dd>
+          <dt ng-if="vm.kind === 'occ'">Type</dt><dd ng-if="vm.kind === 'occ'"><span ng-show="vm.form.otype">{{ vm.typeLabel(vm.form.otype) }}</span><span class="saf-rv__miss" ng-show="!vm.form.otype"><i class="fas fa-exclamation-circle"></i>Not chosen yet</span></dd>
+          <dt ng-if="vm.kind === 'occ'">Severity</dt><dd ng-if="vm.kind === 'occ'"><span ng-show="vm.form.severity">{{ vm.sevLabel(vm.form.severity) }}</span><span class="saf-rv__miss" ng-show="!vm.form.severity"><i class="fas fa-exclamation-circle"></i>Not chosen yet</span></dd>
+          <dt>When</dt><dd>{{ vm.fDayLong(vm.form.date) }}<span ng-show="vm.kind === 'occ' && vm.timeText()">, {{ vm.timeText() }}</span></dd>
+          <dt>Where</dt><dd><span class="ta-route" ng-show="vm.form.icao"><b class="ta-icao">{{ vm.form.icao }}</b><span ng-show="vm.afName">{{ vm.afName }}</span></span><span class="saf-rv__none" ng-show="!vm.form.icao">Not at an airfield</span></dd>
+          <dt>Aircraft</dt><dd><span class="ta-ac" ng-show="vm.planeOf(vm.form.plane_id)" ng-attr-style="{{ vm.planeOf(vm.form.plane_id).colour ? '--ac:' + vm.planeOf(vm.form.plane_id).colour : undefined }}">{{ vm.planeOf(vm.form.plane_id).reg }}<span>{{ vm.planeOf(vm.form.plane_id).type }}</span></span><span class="saf-rv__none" ng-show="!vm.form.plane_id">None</span></dd>
+          <dt ng-if="vm.kind === 'haz'">Title</dt><dd ng-if="vm.kind === 'haz'"><span ng-show="(vm.form.title || '').trim()">{{ vm.form.title.trim() }}</span><span class="saf-rv__miss" ng-show="!(vm.form.title || '').trim()"><i class="fas fa-exclamation-circle"></i>Not written yet</span></dd>
+          <dt>{{ vm.kind === 'haz' ? 'Details' : 'Account' }}</dt><dd><span ng-show="(vm.form.description || '').trim().length >= 5">{{ vm.short(vm.form.description, 90) }}</span><span class="saf-rv__miss" ng-show="(vm.form.description || '').trim().length < 5"><i class="fas fa-exclamation-circle"></i>Not written yet</span></dd>
+          <dt>Name</dt><dd><span class="ta-pill ta-pill--muted" ng-show="vm.kind === 'haz' && vm.form.anon"><i class="fas fa-user-secret"></i>Anonymous</span><span ng-show="!(vm.kind === 'haz' && vm.form.anon)">{{ vm.fullName }}</span></dd>
+        </dl>
+        <div class="ta-actionbar">
+          <span class="ta-actionbar__hint"><span class="saf-ready" ng-show="!vm.missing().length"><i class="fas fa-check-circle"></i>Ready to send</span><span ng-show="vm.missing().length">{{ vm.leftHint() }}</span></span>
+          <span class="ta-sp"></span>
+          <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.send()" ng-disabled="vm.sending" data-e2e="saf-send">
+            <i class="fas fa-spinner fa-spin" ng-show="vm.sending"></i><i class="fas fa-paper-plane" ng-show="!vm.sending"></i>{{ vm.sending ? 'Sending…' : (vm.kind === 'haz' ? 'Send hazard report' : 'Send occurrence report') }}
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ═════ sent ═════ -->
+  <section class="ta-card saf-done" ng-if="vm.sent" data-e2e="saf-sent">
+    <span class="saf-done__check"><i class="fas fa-check"></i></span>
+    <h3>Thank you — your {{ vm.sent.kind === 'haz' ? 'hazard' : 'occurrence' }} report is in</h3>
+    <p class="saf-done__lead">Sent to {{ vm.sent.club || 'your club' }}’s safety team on {{ vm.fDayLong(vm.sent.at) }} at {{ vm.fTime(vm.sent.at) }}.</p>
+    <div class="saf-done__ref" ng-show="vm.sent.ref"><span class="ta-sec-k">Your reference</span><b>{{ vm.sent.ref }}</b></div>
+    <div class="ta-note ta-note--info" ng-if="vm.sent.anon"><i class="fas fa-user-secret"></i><div>You reported anonymously, so this report isn’t linked to you and won’t appear in Your reports. Keep the reference if you want to ask about it.</div></div>
+    <div class="ta-panel saf-next">
+      <span class="ta-sec-k">What happens next</span>
+      <span class="ta-steps"><span class="ta-steps__s ta-steps__s--now"><i></i>Received</span><span class="ta-steps__line"></span><span class="ta-steps__s"><i></i>Under review</span><span class="ta-steps__line"></span><span class="ta-steps__s"><i></i>Action taken</span><span class="ta-steps__line"></span><span class="ta-steps__s"><i></i>Closed</span></span>
+      <ol>
+        <li><b>Received</b> — it’s with {{ vm.sent.club || 'your club' }}’s safety team now.</li>
+        <li ng-if="vm.sent.kind === 'haz'"><b>Under review</b> — they look at the risk and decide what to do.</li>
+        <li ng-if="vm.sent.kind === 'occ'"><b>Under review</b> — they look into what happened and may ask you a few questions.</li>
+        <li ng-if="vm.sent.kind === 'haz'"><b>Action taken</b> — if something changes because of it, {{ vm.sent.anon ? 'it’s shared in a bulletin when it matters to everyone.' : 'you’ll see what in Your reports.' }}</li>
+        <li ng-if="vm.sent.kind === 'occ'"><b>Action taken</b> — what they change because of it shows in Your reports.</li>
+        <li><b>Closed</b> — when nothing more needs doing.</li>
+      </ol>
+    </div>
+    <div class="saf-done__btns">
+      <button type="button" class="ta-btn" ng-click="vm.another()" no-busy-guard><i class="fas fa-plus"></i>Report something else</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('home')" no-busy-guard><i class="fas fa-shield-alt"></i>Back to Safety</button>
+    </div>
+  </section>
+
+  <!-- ═════ leave without sending? (alert dialog; a bottom sheet on phones) ═════ -->
+  <div class="ta-dlg-scrim" ng-if="vm.dlg === 'leave'" ng-click="vm.closeDlg()">
+    <div class="ta-dlg" role="dialog" aria-modal="true" aria-labelledby="saf-leave-t" ng-click="$event.stopPropagation()">
+      <div class="ta-dlg__hd ta-dlg__hd--alert ta-dlg__hd--warn">
+        <span class="ta-dlg__ic"><i class="fas fa-exclamation-triangle"></i></span>
+        <div><div class="ta-dlg__title saf-dlg-title" id="saf-leave-t">Leave without sending?</div><div class="ta-dlg__sub">What you’ve written so far will be lost.</div></div>
+        <button type="button" class="ta-dlg__x" ng-click="vm.closeDlg()" aria-label="Keep writing" no-busy-guard>×</button>
+      </div>
+      <div class="ta-dlg__body"><div class="ta-note"><i class="fas fa-info-circle"></i><div>Nothing has been sent to the safety team yet.</div></div></div>
+      <div class="ta-dlg__ft">
+        <button type="button" class="ta-btn" ng-click="vm.closeDlg()" no-busy-guard>Keep writing</button>
+        <span class="ta-sp"></span>
+        <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.discard()" no-busy-guard data-e2e="saf-discard"><i class="fas fa-trash-alt"></i>Discard report</button>
+      </div>
+    </div>
+  </div>
+</main>

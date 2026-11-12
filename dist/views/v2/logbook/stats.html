@@ -1,0 +1,193 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 LOGBOOK STATISTICS (dashboard.v2.logbook_stats) — design: mockups/my-account/logbook.html ("Statistics").
+     LogbookV2Controller (screen 'stats'): every figure comes from the logbook lines (GET personal_logbook);
+     the SEP card from GET personal_logbook/stats (sep_currency). The currency checks wait for the backend (B15),
+     so the Last 90 days card shows the figures only.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page lgb">
+  <div class="lgb-part" ng-include="'views/v2/logbook/_bar.html'"></div>
+
+  <section class="ta-tiles" ng-if="vm.loading" aria-busy="true" aria-label="Loading your statistics">
+    <div class="ta-tile" ng-repeat="i in [1, 2, 3, 4, 5, 6]"><div class="ta-skel lgb-sk-k"></div><div class="ta-skel lgb-sk-v"></div><div class="ta-skel lgb-sk-s"></div></div>
+  </section>
+
+  <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+      <h4>Your statistics didn’t load</h4><p>Check your connection, then try again.</p>
+      <button type="button" class="ta-btn" ng-click="vm.retryStats()" no-busy-guard><i class="fas fa-redo" aria-hidden="true"></i>Try again</button>
+    </div>
+  </section>
+
+  <section class="ta-card" ng-if="!vm.loading && !vm.loadError && vm.entries && !vm.entries.length">
+    <div class="ta-empty">
+      <span class="ta-empty__ic"><i class="fas fa-chart-bar" aria-hidden="true"></i></span>
+      <h4>No statistics yet</h4>
+      <p>Once your logbook has flights, you’ll see your hours by month, role and aircraft, plus your SEP rating, here.</p>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('entry')" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>Add a flight</button>
+    </div>
+  </section>
+
+  <section class="ta-card lgb-flow" ng-if="!vm.loading && vm.entries.length">
+    <div class="ta-scope">
+      <span class="ta-scope__k">Period</span>
+      <div class="ta-scope__set">
+        <button type="button" class="ta-scope__opt" ng-repeat="p in vm.PERIODS" ng-class="{'ta-scope__opt--on': vm.period === p[0]}" ng-click="vm.setPeriod(p[0])" no-busy-guard>{{ p[1] }}</button>
+      </div>
+    </div>
+    <span class="ta-hint">All figures come from the same lines as your logbook and its export.</span>
+  </section>
+
+  <section class="ta-tiles" ng-if="!vm.loading && vm.entries.length">
+    <div class="ta-tile" ng-repeat="t in vm.stTiles"><span class="ta-tile__k"><i class="fas {{ t.ic }}" aria-hidden="true"></i>{{ t.k }}</span><span class="ta-tile__v">{{ t.v }}</span><span class="ta-tile__s">{{ t.s }}</span></div>
+  </section>
+
+  <div class="lgb-stats" ng-if="!vm.loading && vm.entries.length">
+
+    <!-- hours per month / year -->
+    <section class="ta-card lgb-span">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-chart-bar"></i></span>
+        <div class="ta-card__ttl"><h3>{{ vm.chart.yearly ? 'Hours per year' : 'Hours per month' }}</h3><p>Hover or focus a bar for the figures</p></div>
+        <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.monthTable = !vm.monthTable" aria-pressed="{{ vm.monthTable ? 'true' : 'false' }}" no-busy-guard><i class="fas fa-table" aria-hidden="true"></i>{{ vm.monthTable ? 'Hide table' : 'Show as table' }}</button></span>
+      </div>
+      <div class="lgb-legend" ng-if="vm.chart.both"><span><i class="lgb-sw"></i>PIC</span><span><i class="lgb-sw lgb-sw--c2"></i>Dual and other roles</span></div>
+      <div class="lgb-vchart" ng-class="{'lgb-vchart--dense': vm.chart.dense}">
+        <div class="lgb-vchart__y" aria-hidden="true"><span ng-repeat="y in vm.chart.yl" ng-attr-style="--y:{{ y.y }}%">{{ y.t }}</span></div>
+        <div>
+          <div class="lgb-vchart__plot">
+            <i class="lgb-gl" ng-repeat="g in vm.chart.grid" ng-attr-style="--y:{{ g }}%"></i>
+            <div class="lgb-vb" ng-repeat="b in vm.chart.bars track by b.k" tabindex="0" aria-label="{{ b.aria }}">
+              <div class="lgb-vb__stk" ng-if="b.total" ng-attr-style="--v:{{ b.v }}%">
+                <span class="lgb-vb__lab" ng-if="b.label">{{ b.label }}</span>
+                <i class="lgb-vb__pic" ng-if="b.pic" ng-attr-style="--g:{{ b.picG }}"></i>
+                <i ng-if="b.rest" ng-attr-style="--g:{{ b.rest }}"></i>
+              </div>
+              <span class="lgb-vb__tip" ng-class="{'lgb-vb__tip--r': b.tipR}">{{ b.tip }}</span>
+            </div>
+          </div>
+          <div class="lgb-vchart__x" aria-hidden="true"><span ng-repeat="b in vm.chart.bars track by b.k"><span class="lgb-x-l">{{ b.lab }}</span><span class="lgb-x-s">{{ b.s }}</span></span></div>
+        </div>
+      </div>
+      <div class="ta-table-wrap" ng-if="vm.monthTable">
+        <table class="ta-table">
+          <thead><tr><th>{{ vm.chart.yearly ? 'Year' : 'Month' }}</th><th class="ta-r">Flights</th><th class="ta-r">Total</th><th class="ta-r">PIC</th></tr></thead>
+          <tbody><tr ng-repeat="r in vm.chart.rows"><td>{{ r.long }}</td><td class="ta-r">{{ r.flights }}</td><td class="ta-r">{{ r.total }}</td><td class="ta-r">{{ r.pic }}</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- currency (backend C8): last 90 days + every chosen check -->
+    <section class="ta-card" ng-class="{'lgb-span': !vm.sepv}" ng-if="vm.cur.ok">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-history"></i></span>
+        <div class="ta-card__ttl"><h3>Currency</h3><p>Last 90 days, since {{ vm.r90.since }}</p></div>
+        <span class="ta-card__right"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.openChecks()" no-busy-guard><i class="fas fa-sliders-h" aria-hidden="true"></i>Choose checks</button></span>
+      </div>
+      <dl class="ta-facts ta-facts--3">
+        <div class="ta-fact"><dt>Flown</dt><dd>{{ vm.r90.flown }}</dd></div>
+        <div class="ta-fact"><dt>Flights</dt><dd>{{ vm.r90.flights }}</dd></div>
+        <div class="ta-fact"><dt>Landings</dt><dd>{{ vm.r90.ldg }}</dd></div>
+      </dl>
+      <div class="lgb-chks" ng-if="vm.cur.items.length">
+        <div class="lgb-chk" ng-repeat="c in vm.cur.items track by c.id">
+          <div class="lgb-chk__hd"><b>{{ c.name }}</b><span class="ta-pill ta-pill--{{ c.pill.tone }}"><i class="fas {{ c.pill.ic }}" ng-if="c.pill.ic" aria-hidden="true"></i>{{ c.pill.label }}</span></div>
+          <span class="lgb-chk__rule">{{ c.line }} <span class="lgb-chk__ref" ng-if="c.ref">{{ c.ref }}</span></span>
+          <div class="lgb-meter" ng-repeat="m in c.meters">
+            <span class="lgb-meter__k">{{ m.k }}<span>{{ m.have }} <small>in the last {{ m.days }} days, needs {{ m.need }}</small></span></span>
+            <div class="ta-meter" ng-class="m.ok ? 'ta-meter--good' : 'ta-meter--warn'"><div class="ta-meter__bar" ng-attr-style="--v:{{ m.v }}%"></div></div>
+            <span class="ta-hint">{{ m.line }}</span>
+          </div>
+          <span class="ta-hint" ng-repeat="h in c.hints track by $index">{{ h }}</span>
+        </div>
+      </div>
+      <div class="ta-note" ng-if="vm.cur.items.length"><i class="fas fa-info-circle" aria-hidden="true"></i><div>Informational only. We count every landing in your logbook, whatever your role. You remain responsible for your own currency. Not legal advice.</div></div>
+      <p class="ta-hint" ng-if="!vm.cur.items.length">{{ vm.cur.licensed ? 'Choose the currency rules you fly under and we’ll work them out from your logbook.' : 'Once you hold a licence, choose the rules you fly under and this card tracks them, like the 3 take-offs and landings in 90 days you need to carry passengers.' }}</p>
+    </section>
+
+    <!-- last 90 days (until the currency checks answer) -->
+    <section class="ta-card" ng-class="{'lgb-span': !vm.sepv}" ng-if="!vm.cur.ok">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-history"></i></span>
+        <div class="ta-card__ttl"><h3>Last 90 days</h3><p>Since {{ vm.r90.since }}</p></div>
+      </div>
+      <dl class="ta-facts ta-facts--3">
+        <div class="ta-fact"><dt>Flown</dt><dd>{{ vm.r90.flown }}</dd></div>
+        <div class="ta-fact"><dt>Flights</dt><dd>{{ vm.r90.flights }}</dd></div>
+        <div class="ta-fact"><dt>Landings</dt><dd>{{ vm.r90.ldg }}</dd></div>
+      </dl>
+      <p class="ta-hint">The 3 take-offs and landings in 90 days you need to carry passengers are counted from these lines. You remain responsible for your own currency.</p>
+    </section>
+
+    <!-- SEP rating -->
+    <section class="ta-card" ng-if="vm.sepv">
+      <div class="ta-card__hd">
+        <span class="ta-card__icon" aria-hidden="true"><i class="fas fa-id-card-alt"></i></span>
+        <div class="ta-card__ttl"><h3>SEP rating</h3><p>Revalidation by experience</p></div>
+        <span class="ta-card__right"><span class="ta-pill ta-pill--{{ vm.sepv.tone }}"><i class="fas" ng-class="vm.sepv.tone === 'good' ? 'fa-check' : 'fa-exclamation-circle'" aria-hidden="true"></i>{{ vm.sepv.pill }}</span></span>
+      </div>
+      <dl class="ta-facts ta-facts--3">
+        <div class="ta-fact"><dt>Rating</dt><dd>{{ vm.sepv.rating }}</dd></div>
+        <div class="ta-fact"><dt>Expires</dt><dd>{{ vm.sepv.expiry }}</dd></div>
+        <div class="ta-fact"><dt>Days left</dt><dd>{{ vm.sepv.days }}</dd></div>
+      </dl>
+      <div class="ta-panel">
+        <div class="ta-panel__hd">Revalidation by experience<span class="ta-sp"></span><span class="ta-pill" ng-class="vm.sepv.met ? 'ta-pill--good' : 'ta-pill--warn'"><i class="fas" ng-class="vm.sepv.met ? 'fa-check' : 'fa-exclamation-circle'" aria-hidden="true"></i>{{ vm.sepv.met ? 'Hours and landings met' : 'Not met yet' }}</span></div>
+        <span class="ta-hint">{{ vm.sepv.win }} — the 12 months before expiry</span>
+        <div class="lgb-meters">
+          <div class="lgb-meter" ng-repeat="m in vm.sepv.meters">
+            <span class="lgb-meter__k">{{ m.k }}<span>{{ m.have }} <small>of {{ m.need }}</small></span></span>
+            <div class="ta-meter" ng-class="m.ok ? 'ta-meter--good' : 'ta-meter--warn'"><div class="ta-meter__bar" ng-attr-style="--v:{{ m.v }}%"></div></div>
+          </div>
+        </div>
+        <span class="ta-hint">{{ vm.sepv.line }}</span>
+      </div>
+      <div class="ta-note"><i class="fas fa-info-circle" aria-hidden="true"></i><div>{{ vm.sepv.note }}</div></div>
+    </section>
+
+    <!-- by role -->
+    <section class="ta-card">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-user-cog"></i></span><div class="ta-card__ttl"><h3>By role</h3><p>Share of your total time</p></div></div>
+      <div class="lgb-hbars">
+        <div class="lgb-hbar" ng-repeat="x in vm.roles"><span class="lgb-hbar__k" title="{{ x.k }}">{{ x.k }}<small>{{ x.s }}</small></span><span class="lgb-hbar__t" aria-hidden="true"><i ng-attr-style="--v:{{ x.v }}%"></i></span><span class="lgb-hbar__v">{{ x.val }} <small>{{ x.small }}</small></span></div>
+      </div>
+      <p class="ta-hint" ng-if="!vm.roles.length">Nothing in this period.</p>
+    </section>
+
+    <!-- by aircraft type -->
+    <section class="ta-card">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-plane"></i></span><div class="ta-card__ttl"><h3>By aircraft type</h3><p>Longest bar = your most-flown type</p></div></div>
+      <div class="lgb-hbars">
+        <div class="lgb-hbar" ng-repeat="x in vm.types"><span class="lgb-hbar__k" title="{{ x.k }}">{{ x.k }}<small>{{ x.s }}</small></span><span class="lgb-hbar__t" aria-hidden="true"><i ng-attr-style="--v:{{ x.v }}%"></i></span><span class="lgb-hbar__v">{{ x.val }} <small>{{ x.small }}</small></span></div>
+      </div>
+      <p class="ta-hint" ng-if="!vm.types.length">Nothing in this period.</p>
+    </section>
+
+    <!-- the two splits -->
+    <section class="ta-card">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-adjust"></i></span><div class="ta-card__ttl"><h3>Day and night · verified and added</h3><p>Night is estimated from sunset for club flights</p></div></div>
+      <div class="ta-stack">
+        <div class="ta-stack" ng-repeat="sp in vm.splits">
+          <span class="ta-sec-k">{{ sp.k }}</span>
+          <p class="ta-hint" ng-if="!sp.s.tot">Nothing in this period.</p>
+          <div class="lgb-split" role="img" aria-label="{{ sp.s.aria }}" ng-if="sp.s.tot"><i ng-if="sp.s.a.v" ng-attr-style="--g:{{ sp.s.a.g }}"></i><i class="lgb-split__c2" ng-if="sp.s.b.v" ng-attr-style="--g:{{ sp.s.b.g }}"></i></div>
+          <div class="lgb-legend" ng-if="sp.s.tot">
+            <span><i class="lgb-sw"></i>{{ sp.s.a.k }} <b>{{ sp.s.a.h }}</b><small>{{ sp.s.a.pc }}%</small></span>
+            <span><i class="lgb-sw lgb-sw--c2"></i>{{ sp.s.b.k }} <b>{{ sp.s.b.h }}</b><small>{{ sp.s.b.pc }}%</small></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- by class -->
+    <section class="ta-card">
+      <div class="ta-card__hd"><span class="ta-card__icon" aria-hidden="true"><i class="fas fa-cogs"></i></span><div class="ta-card__ttl"><h3>By class</h3><p>From the aircraft’s class or engine count</p></div></div>
+      <div class="lgb-hbars">
+        <div class="lgb-hbar" ng-repeat="x in vm.classBars"><span class="lgb-hbar__k" title="{{ x.k }}">{{ x.k }}<small>{{ x.s }}</small></span><span class="lgb-hbar__t" aria-hidden="true"><i ng-attr-style="--v:{{ x.v }}%"></i></span><span class="lgb-hbar__v">{{ x.val }} <small>{{ x.small }}</small></span></div>
+      </div>
+      <p class="ta-hint" ng-if="!vm.classBars.length">Nothing in this period.</p>
+    </section>
+  </div>
+
+  <div ng-if="vm.dlg" ng-include="'views/v2/logbook/_dialogs.html'"></div>
+</main>

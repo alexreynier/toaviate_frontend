@@ -1,0 +1,41 @@
+<div class="scf">
+  <div class="scf__hd" ng-class="{'scf__hd--question': vm.mode === 'question'}">
+    <span class="scf__hd-icon"><i class="fas" ng-class="vm.mode === 'question' ? 'fa-question' : 'fa-exclamation-triangle'"></i></span>
+    <div>
+      <h3 class="scf__title">{{ vm.mode === 'question' ? vm.d.title : 'Booking conflict' }}</h3>
+      <p class="scf__sub">{{ vm.mode === 'question' ? 'Nothing has changed yet.' : 'The change has not been saved — the booking stays where it was unless you confirm.' }}</p>
+    </div>
+  </div>
+
+  <div class="scf__body">
+    <!-- a yes/no question (e.g. a booking that has already started) -->
+    <p class="scf__message" ng-show="vm.mode === 'question'">{{ vm.d.message }}</p>
+
+    <!-- v1's booking_errors, one card each, with its override button where v1 offered one -->
+    <div class="scf__err" ng-repeat="e in vm.errors" ng-class="['scf__err--' + e.type, {'scf__err--granted': e.granted}]">
+      <div class="scf__err-msg">{{ e.message }}</div>
+      <div class="scf__err-granted" ng-show="e.granted"><i class="fas fa-check"></i> Override applied — the backend still reports this.</div>
+      <div class="scf__err-api" ng-show="vm.detail(e) && e.type !== 'rental_items'">{{ vm.detail(e) }}</div>
+      <ul class="scf__rentals" ng-show="e.rentals.length">
+        <li ng-repeat="rental in e.rentals track by $index">{{ rental.rental_item_title }}: you requested <b>{{ rental.required_number }}</b> but only <b>{{ rental.number_available }}</b> available.</li>
+      </ul>
+      <div class="scf__err-act" ng-show="e.button">
+        <button type="button" class="scf__btn scf__btn--primary" ng-click="vm.override(e.override)" no-busy-guard>{{ e.button }}</button>
+      </div>
+    </div>
+
+    <div class="scf__note scf__note--hard" ng-show="vm.response.hard_block">
+      <i class="fas fa-ban"></i> {{ vm.response.hard_block }}
+    </div>
+    <div class="scf__note" ng-show="vm.response.airworthiness_warning">
+      <i class="fas fa-info-circle"></i> {{ vm.response.airworthiness_warning }}
+    </div>
+    <p class="scf__hint" ng-show="vm.mode === 'conflict' && !vm.hasOverride">Nothing here can be overridden from the calendar — adjust the booking from its edit page, or cancel the change.</p>
+    <p class="scf__hint scf__hint--granted" ng-show="vm.mode === 'conflict' && vm.hasOverride && vm.granted.length">Already applied: {{ vm.grantedLabels }}. Pressing a button below re-saves with those plus the new one.</p>
+  </div>
+
+  <div class="scf__ft">
+    <button type="button" class="scf__btn" ng-click="vm.decline()" no-busy-guard>Cancel change</button>
+    <button type="button" class="scf__btn" ng-repeat="b in vm.buttons" ng-class="{'scf__btn--primary': b.primary}" ng-click="vm.answer(b.value)" no-busy-guard>{{ b.label }}</button>
+  </div>
+</div>

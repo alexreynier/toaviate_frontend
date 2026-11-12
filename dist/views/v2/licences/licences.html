@@ -1,0 +1,89 @@
+<!-- v2 · My documents → Licences (mockups/my-account/licences-medical.html, page "licences"). DocsHubV2Controller (js/v2/licences/licences.js).
+     Each live club's check of a licence comes from member_checks/v2/mine (contract C9). -->
+<div class="lic-wrap">
+<main class="ta-page lic-page">
+
+    <lic-docs-bar active="licences" counts="vm.counts"></lic-docs-bar>
+
+    <div class="ta-stack" ng-if="vm.loading">
+        <div class="ta-tiles"><span class="ta-skel lic-skel lic-skel--tile"></span><span class="ta-skel lic-skel lic-skel--tile"></span><span class="ta-skel lic-skel lic-skel--tile"></span></div>
+        <section class="ta-card"><span class="ta-skel lic-skel lic-skel--40"></span><span class="ta-skel lic-skel lic-skel--tall"></span></section>
+    </div>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your documents</h4><p>Check your connection, then try again.</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <div class="ta-stack" ng-if="!vm.loading && !vm.loadError">
+        <div ng-include="'views/v2/licences/_tiles.html'"></div>
+
+        <div class="lic-head">
+            <h3>Licences</h3>
+            <p>{{ vm.licences.length ? vm.plural(vm.licences.length, 'licence') + ' on file · your clubs check it before you fly solo' : 'Nothing added yet' }}</p>
+            <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="vm.licences.length" ng-click="vm.go('dashboard.my_account.licence.add')" no-busy-guard><i class="fas fa-plus"></i>Add licence</button>
+        </div>
+
+        <section class="ta-card" ng-if="!vm.licences.length">
+            <div class="ta-empty">
+                <span class="ta-empty__ic"><i class="fas fa-certificate"></i></span>
+                <h4>No licence added yet</h4>
+                <p>Add your pilot licence with its ratings and a scan of each page. Your clubs check it before you book an aircraft solo, and we remind you before a rating expires.</p>
+                <p>Still training? You don't need one yet — your instructor authorises each solo flight.</p>
+                <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.licence.add')" no-busy-guard><i class="fas fa-plus"></i>Add licence</button>
+            </div>
+        </section>
+
+        <div class="lic-cards" ng-if="vm.licences.length">
+            <article class="ta-card lic-card" ng-repeat="l in vm.licences" id="card-lic-{{ l.id }}"
+                     ng-class="{'lic-card--bad': l._st.rank === 3, 'ta-card--attn': l._st.rank === 2, 'lic-card--flash': vm.flash === l._key}">
+                <div class="ta-card__hd">
+                    <span class="ta-card__icon" ng-class="{'ta-card__icon--bad': l._st.rank === 3, 'ta-card__icon--warn': l._st.rank === 2}"><i class="fas fa-certificate"></i></span>
+                    <div class="ta-card__ttl"><h3>{{ vm.typeOf(l.licence_id).abbreviation || l.licence_type || 'Licence' }}</h3><p>{{ vm.typeOf(l.licence_id).title }}</p></div>
+                    <span class="ta-card__right"><span class="ta-pill" ng-class="'ta-pill--' + l._st.tone"><i class="fas" ng-class="l._st.icon"></i>{{ l._st.label }}</span></span>
+                </div>
+                <div class="lic-card__body">
+                    <div class="lic-main">
+                        <div class="lic-valid" ng-if="!l._first"><span class="lic-valid__fig">No expiry</span><span class="lic-valid__txt"><b>Nothing on this licence expires</b><span>No expiry date on the licence or its ratings</span></span></div>
+                        <div class="lic-valid" ng-if="l._first" ng-class="{'lic-valid--bad': l._first.st.rank === 3, 'lic-valid--warn': l._first.st.rank === 2}">
+                            <span class="lic-valid__fig">{{ vm.LS.left(l._first.st.n) }}</span>
+                            <span class="lic-valid__txt"><b>{{ l._first.st.n < 0 ? vm.firstWhat(l) + ' expired ' + vm.plural(-l._first.st.n, 'day') + ' ago' : 'until ' + vm.firstWhat(l) + ' expires' }}</b><span>{{ vm.U.fDate(l._first.end) }} · the first date on this licence to run out</span></span>
+                            <div class="ta-meter" ng-class="vm.LS.meterTone(l._first.end) ? 'ta-meter--' + vm.LS.meterTone(l._first.end) : ''" role="img" aria-label="{{ vm.LS.used(l._first.start, l._first.end) }}% of the validity used"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.LS.used(l._first.start, l._first.end) }}%"></div></div>
+                        </div>
+                        <dl class="lic-facts">
+                            <div class="ta-fact"><dt>Licence number</dt><dd><span class="ta-ref">{{ l.licence_number || '—' }}</span></dd></div>
+                            <div class="ta-fact"><dt>State of issue</dt><dd>{{ vm.authOf(l.authority_id).country || l.authority }} <small ng-if="vm.authOf(l.authority_id).abbreviation">· {{ vm.authOf(l.authority_id).abbreviation }}</small></dd></div>
+                            <div class="ta-fact"><dt>Issued</dt><dd>{{ vm.U.fDate(l._issued) || '—' }}</dd></div>
+                            <div class="ta-fact"><dt>Expires</dt><dd>{{ l._expiry ? vm.U.fDate(l._expiry) : 'No expiry' }}</dd></div>
+                        </dl>
+                        <div class="lic-sec">
+                            <span class="ta-sec-k">Ratings · {{ l.ratings.length }}</span>
+                            <div class="lic-rchips">
+                                <span class="lic-rchip" ng-repeat="r in l.ratings" ng-class="'lic-rchip--' + r._st.tone" title="{{ vm.rTitle(r) }}{{ r._test ? ' · test ' + vm.U.fDate(r._test) : '' }}">
+                                    <i class="fas" ng-class="r._st.rank === 3 ? 'fa-times-circle' : r._st.rank === 2 ? 'fa-hourglass-half' : 'fa-check-circle'"></i><b>{{ vm.rName(r) }}</b><span>{{ r._expiry ? (r._st.rank === 3 ? 'expired ' : 'expires ') + vm.U.fDate(r._expiry) : 'no expiry' }}</span>
+                                </span>
+                            </div>
+                            <div class="ta-note ta-note--bad" ng-repeat="r in l.ratings" ng-show="r._st.rank === 3"><i class="fas fa-times-circle"></i><div><b>{{ vm.rName(r) }} expired on {{ vm.U.fDate(r._expiry) }}.</b> Solo bookings that need it are refused until it's renewed — that takes refresher training and a proficiency check with an examiner. Then add the new dates here.</div></div>
+                            <div class="ta-note ta-note--warn" ng-repeat="r in l.ratings" ng-show="r._st.rank === 2"><i class="fas fa-hourglass-half"></i><div><b>{{ vm.rName(r) }} expires on {{ vm.U.fDate(r._expiry) }}.</b> Revalidate it before then, then update the date here.</div></div>
+                        </div>
+                        <div ng-init="rec = l; what = 'licence'" ng-include="'views/v2/licences/_checks.html'"></div>
+                    </div>
+                    <div ng-init="rec = l; kind = 'card'" ng-include="'views/v2/licences/_scans.html'"></div>
+                </div>
+                <div class="lic-card__ft lic-confirm" ng-if="vm.del === l._key">
+                    <span class="lic-confirm__txt"><b>Delete this licence?</b> Your clubs stop seeing it, and solo bookings that need it will be refused.</span>
+                    <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.keep()" no-busy-guard>Keep it</button>
+                    <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.delYes(l)"><i class="fas fa-trash-alt"></i>Yes, delete it</button>
+                </div>
+                <div class="lic-card__ft" ng-if="vm.del !== l._key">
+                    <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.licence.edit', {licence_id: l.id})" no-busy-guard><i class="fas fa-pen"></i>Edit licence</button>
+                    <span class="ta-sp"></span>
+                    <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.askDel(l._key)" no-busy-guard><i class="fas fa-trash-alt"></i>Delete</button>
+                </div>
+            </article>
+        </div>
+
+        <div class="ta-note" ng-if="vm.licences.length && vm.remind"><i class="fas fa-bell"></i><div>{{ vm.remind.off ? 'Expiry reminders are switched off for your account.' : (vm.remind.licence || 'Rating and licence expiry reminders are off.') }} <button type="button" class="ta-link" ng-click="vm.go('dashboard.my_account.reminders')" no-busy-guard>Change reminders <i class="fas fa-arrow-right"></i></button></div></div>
+    </div>
+</main>
+<div ng-include="'views/v2/licences/_dlgs.html'"></div>
+</div>

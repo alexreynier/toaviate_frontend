@@ -1,0 +1,106 @@
+<!-- <bo-presolo> medical sheet — read-only ($uibModal, MedicalModalController in js/directives/bookoutPresolo.js) -->
+<div class="bop-md" data-e2e="bop-medical-modal">
+    <div class="bop-md__grab" aria-hidden="true"></div>
+    <div class="bop-md__hd">
+        <span class="bop-md__hd-ic" aria-hidden="true"><i class="fas fa-heartbeat"></i></span>
+        <div class="bop-md__hd-txt">
+            <h3>{{ md.ctx.student.self ? 'Your medical' : (md.ctx.student.full + ' — medical') }}</h3>
+            <p>From {{ md.ctx.student.self ? 'your' : md.ctx.student.poss }} own medical record</p>
+        </div>
+        <button type="button" class="bop-md__x" ng-click="md.close()" aria-label="Close"><i class="fas fa-times" aria-hidden="true"></i></button>
+    </div>
+
+    <div class="bop-md__body">
+        <!-- loading -->
+        <div class="bop-md__loading" ng-if="md.loading"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Loading the medical record…</div>
+
+        <!-- no access -->
+        <div class="bop-md__note bop-md__note--bad" ng-if="md.forbidden">
+            <i class="fas fa-lock" aria-hidden="true"></i>
+            <div><b>You can't view this medical.</b> Medicals are shown to the member and to the instructors and managers of a club they currently belong to.</div>
+        </div>
+
+        <div class="bop-md__note bop-md__note--bad" ng-if="md.error">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i><div>{{ md.error }}</div>
+        </div>
+
+        <!-- nothing on record -->
+        <div class="bop-md__empty" ng-if="!md.loading && !md.forbidden && !md.error && !md.medicals.length">
+            <i class="fas fa-file-medical" aria-hidden="true"></i>
+            <div><b>No medical on record.</b> <span>{{ md.ctx.student.self ? 'Add yours' : 'It is added' }} in My Account → Medical.</span></div>
+        </div>
+
+        <!-- one card per medical certificate -->
+        <div class="bop-md__med" ng-repeat="med in md.medicals track by med.id">
+            <div class="bop-md__sum">
+                <div class="bop-md__row">
+                    <i class="fas fa-landmark" aria-hidden="true"></i>
+                    <span class="bop-md__k">Authority</span>
+                    <span class="bop-md__v">{{ med.medical_type || '—' }}<span class="bop-md__sub" ng-if="med.authority"> · {{ med.authority }}</span></span>
+                </div>
+                <div class="bop-md__row" ng-repeat="c in med.components">
+                    <i class="fas" ng-class="c._tracker ? 'fa-calendar-alt' : 'fa-heartbeat'" aria-hidden="true"></i>
+                    <span class="bop-md__k">{{ c.title }}</span>
+                    <span class="bop-md__v">
+                        <span ng-if="!c._tracker && c._date">Valid until {{ c._date }}</span>
+                        <span ng-if="c._tracker && c._date">{{ c._date }}</span>
+                        <span ng-if="!c._date" class="bop-md__sub">No date</span>
+                        <span class="bop-chip bop-chip--ok" ng-if="c._inDate"><i class="fas fa-check" aria-hidden="true"></i> In date</span>
+                        <span class="bop-chip bop-chip--no" ng-if="c._expired"><i class="fas fa-times" aria-hidden="true"></i> Expired</span>
+                        <span class="bop-chip bop-chip--solo" ng-if="c._presolo" title="The class the pre-solo requirement was checked against">Pre-solo</span>
+                    </span>
+                </div>
+                <div class="bop-md__row" ng-if="med.examination_date">
+                    <i class="fas fa-stethoscope" aria-hidden="true"></i>
+                    <span class="bop-md__k">Examined</span>
+                    <span class="bop-md__v">{{ md.fmtDate(med.examination_date) }}</span>
+                </div>
+                <div class="bop-md__row">
+                    <i class="fas fa-user-shield" aria-hidden="true"></i>
+                    <span class="bop-md__k">Club check</span>
+                    <span class="bop-md__v">
+                        <span ng-if="med._verified">Verified by {{ med._checkedBy || 'the club' }}</span>
+                        <span ng-if="!med._verified" class="bop-md__sub">Not verified by the club yet</span>
+                        <span class="bop-chip" ng-class="med._verified ? 'bop-chip--ok' : 'bop-chip--wait'">
+                            <i class="fas" ng-class="med._verified ? 'fa-check' : 'fa-hourglass-half'" aria-hidden="true"></i>{{ med._verified ? ' Verified' : ' To verify' }}
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- certificate: the member page's decrypting fetch, read-only -->
+            <div class="bop-md__cert-bar" ng-if="med._hasImages">
+                <button type="button" class="bop-btn bop-btn--primary bop-btn--lg" ng-click="md.openCertificate(med)"
+                        ng-disabled="md.cert[med.id].loading">
+                    <i class="fas" ng-class="md.cert[med.id].loading ? 'fa-circle-notch fa-spin' : (md.cert[med.id].open ? 'fa-eye-slash' : 'fa-file-medical')" aria-hidden="true"></i>
+                    {{ md.cert[med.id].open ? 'Hide certificate' : 'Open certificate' }}
+                </button>
+            </div>
+            <div class="bop-md__sub bop-md__nocert" ng-if="!med._hasImages">No certificate image uploaded.</div>
+
+            <form class="bop-md__reauth" ng-if="md.cert[med.id].reauth" ng-submit="md.confirmPassword(med)" novalidate>
+                <div class="bop-md__reauth-txt"><i class="fas fa-shield-alt" aria-hidden="true"></i> For your security, re-enter your password to open the certificate.</div>
+                <div class="bop-md__reauth-row">
+                    <input type="password" class="bop-input" ng-model="md.cert[med.id].password" placeholder="Your password" autocomplete="current-password" aria-label="Your password">
+                    <button type="submit" class="bop-btn bop-btn--primary bop-btn--lg"><i class="fas fa-unlock" aria-hidden="true"></i> Confirm</button>
+                </div>
+                <div class="bop-md__err" ng-if="md.cert[med.id].reauthError" role="alert">{{ md.cert[med.id].reauthError }}</div>
+            </form>
+
+            <div class="bop-md__err" ng-if="md.cert[med.id].error" role="alert">{{ md.cert[med.id].error }}</div>
+
+            <div class="bop-md__cert" ng-if="md.cert[med.id].open && md.cert[med.id].images.length">
+                <img ng-repeat="img in md.cert[med.id].images track by $index" ng-src="{{ img.data_uri }}" alt="Medical certificate, page {{ $index + 1 }}">
+            </div>
+        </div>
+
+        <div class="bop-md__note bop-md__note--muted" ng-if="!md.forbidden">
+            <i class="fas fa-lock" aria-hidden="true"></i>
+            <div>Read-only. <span ng-if="md.ctx.student.self">You update it in My Account → Medical.</span><span ng-if="!md.ctx.student.self">{{ md.firstCap }} updates it in My Account → Medical.</span></div>
+        </div>
+    </div>
+
+    <div class="bop-md__ft">
+        <button type="button" class="bop-btn bop-btn--quiet bop-btn--lg" ng-click="md.close()">Close</button>
+    </div>
+</div>

@@ -1,0 +1,122 @@
+<!-- <bo-presolo> — pre-solo requirements on the book-out (js/directives/bookoutPresolo.js, css/bookout-presolo.css) -->
+<div class="bop" data-e2e="bop-panel" ng-if="!pv.hidden || (pv.loading && !pv.status)"
+     ng-class="{'bop--busy': pv.loading && pv.status}" aria-live="polite">
+
+    <!-- ── first load: compact skeleton ── -->
+    <div class="bop-skel" ng-if="pv.loading && !pv.status" aria-label="Loading pre-solo requirements">
+        <div class="bop-skel__hd"><span class="bop-skel__bar bop-skel__bar--hd"></span></div>
+        <div class="bop-skel__row"><span class="bop-skel__dot"></span><span class="bop-skel__bar"></span></div>
+        <div class="bop-skel__row"><span class="bop-skel__dot"></span><span class="bop-skel__bar bop-skel__bar--short"></span></div>
+        <div class="bop-skel__row"><span class="bop-skel__dot"></span><span class="bop-skel__bar bop-skel__bar--mid"></span></div>
+    </div>
+
+    <!-- ── load failed (and nothing to show from before) ── -->
+    <div class="bop__err" ng-if="!pv.loading && pv.error && !pv.status">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span>{{ pv.error }}</span>
+        <button type="button" class="bop-btn bop-btn--link" ng-click="pv.load()"><i class="fas fa-redo" aria-hidden="true"></i> Try again</button>
+    </div>
+
+    <div ng-if="pv.status">
+        <!-- ── banner ── -->
+        <div class="bop__hd" ng-class="pv.status.all_satisfied ? 'bop__hd--go' : 'bop__hd--wait'">
+            <i class="fas" ng-class="pv.status.all_satisfied ? 'fa-check-circle' : 'fa-exclamation-triangle'" aria-hidden="true"></i>
+            <span class="bop__hd-txt" ng-if="pv.status.all_satisfied">All pre-solo requirements satisfied<span ng-if="pv.isIntent()"> — a send-solo will pass.</span><span ng-if="!pv.isIntent()">.</span></span>
+            <span class="bop__hd-txt" ng-if="!pv.status.all_satisfied && pv.isIntent()">Pre-solo requirements outstanding — a send-solo may be blocked.</span>
+            <span class="bop__hd-txt" ng-if="!pv.status.all_satisfied && !pv.isIntent()">Pre-solo requirements outstanding — this book-out may be blocked by the club's pilot-checks policy.</span>
+            <span class="bop__count">{{ pv.metCount }}/{{ pv.rows.length }} met</span>
+        </div>
+
+        <!-- ── one row per requirement ── -->
+        <div class="bop-req bop-req--{{ row.kind }}" ng-repeat="row in pv.rows track by row.id"
+             data-e2e="bop-req-{{ row.id }}"
+             ng-class="{'bop-req--signing': pv.sign.id === row.id, 'bop-req--met-now': pv.justMet[row.id]}">
+
+            <i class="bop-req__ic {{ row.icon }}" aria-hidden="true"></i>
+
+            <div class="bop-req__main">
+                <span class="bop-req__name">{{ row.req.name }}</span>
+                <span class="bop-req__kind bop-req__kind--{{ row.type }}">{{ row.typeLabel }}</span>
+                <span class="bop-req__course" ng-if="row.req.course_id && row.req.course_title">· {{ row.req.course_title }}</span>
+            </div>
+
+            <div class="bop-req__ev" ng-if="row.evidence"><i class="fas fa-check" aria-hidden="true"></i><span>{{ row.evidence }}</span></div>
+            <div class="bop-req__detail" ng-if="row.detail">{{ row.detail }}</div>
+
+            <!-- actions (desktop: right-hand column · phone: under the detail line) -->
+            <div class="bop-req__act" ng-if="row.canMedical || row.canReview || row.canExam || (row.canSign && pv.sign.id !== row.id) || row.hint">
+                <button type="button" class="bop-btn bop-btn--link" ng-if="row.canMedical"
+                        data-e2e="bop-view-medical" ng-click="pv.viewMedical(row)">
+                    <i class="fas fa-heartbeat" aria-hidden="true"></i> View medical
+                </button>
+                <button type="button" class="bop-btn bop-btn--review" ng-if="row.canReview"
+                        data-e2e="bop-review-{{ row.id }}" ng-click="pv.review(row)">
+                    <i class="fas fa-search" aria-hidden="true"></i> Review now
+                </button>
+                <button type="button" class="bop-btn bop-btn--link" ng-if="row.canExam" ng-click="pv.enterResult(row)">
+                    <i class="fas fa-pen" aria-hidden="true"></i> Enter result
+                </button>
+                <button type="button" class="bop-btn bop-btn--sign" ng-if="row.canSign && pv.sign.id !== row.id"
+                        data-e2e="bop-signoff-{{ row.id }}" ng-click="pv.startSign(row)">
+                    <i class="fas fa-signature" aria-hidden="true"></i> Sign off now
+                </button>
+                <span class="bop-req__hint" ng-if="row.hint">{{ row.hint }}</span>
+            </div>
+
+            <!-- ── inline sign-off ── -->
+            <div class="bop-sign" ng-if="pv.sign.id === row.id">
+                <div class="bop-sign__who">
+                    <span class="bop-sign__av" aria-hidden="true">{{ pv.me.initials }}</span>
+                    <span>Signing off as {{ pv.me.name }} (you)</span>
+                </div>
+
+                <div class="bop-field">
+                    <span class="bop-label">Valid for</span>
+                    <div class="bop-picks" role="group" aria-label="Valid for">
+                        <button type="button" class="bop-pick" ng-repeat="p in pv.presets track by p.id"
+                                data-e2e="bop-sign-preset-{{ p.id }}"
+                                ng-class="{'bop-pick--on': pv.sign.preset === p.id}"
+                                aria-pressed="{{ pv.sign.preset === p.id }}"
+                                ng-click="pv.setPreset(p)">{{ pv.presetLabel(p) }}</button>
+                    </div>
+                </div>
+
+                <div class="bop-sign__grid">
+                    <label class="bop-field">
+                        <span class="bop-label">Expires <span class="bop-label__opt" ng-if="pv.sign.preset === 'none'">no expiry</span></span>
+                        <input type="date" class="bop-input" data-e2e="bop-sign-expires"
+                               ng-model="pv.sign.expires" ng-change="pv.expiresEdited()"
+                               ng-disabled="pv.sign.preset === 'none'">
+                    </label>
+                    <label class="bop-field">
+                        <span class="bop-label">Notes <span class="bop-label__opt">optional</span></span>
+                        <input type="text" class="bop-input" maxlength="255"
+                               ng-model="pv.sign.notes" placeholder="e.g. 3 circuits, EFATO briefed">
+                    </label>
+                </div>
+
+                <div class="bop-sign__decl">
+                    I confirm {{ pv.student.first }} meets <b>{{ row.req.name }}</b><span ng-if="pv.sign.preset === 'none'">, with no expiry</span><span ng-if="pv.sign.preset !== 'none'">, valid until the end of <b>{{ pv.signUntil() }}</b></span>.
+                    Recorded against my name on {{ pv.student.poss }} record; it can be revoked there.
+                </div>
+
+                <div class="bop-sign__err" ng-if="pv.sign.error" role="alert">
+                    <i class="fas fa-exclamation-circle" aria-hidden="true"></i><span>{{ pv.sign.error }}</span>
+                </div>
+
+                <div class="bop-sign__btns">
+                    <button type="button" class="bop-btn bop-btn--quiet bop-btn--lg" ng-click="pv.cancelSign()">Cancel</button>
+                    <button type="button" class="bop-btn bop-btn--solo bop-btn--lg" data-e2e="bop-sign-submit" ng-click="pv.submitSign(row)">
+                        <i class="fas fa-signature" aria-hidden="true"></i> Sign off
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bop__err bop__err--inline" ng-if="pv.error">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <span>{{ pv.error }}</span>
+            <button type="button" class="bop-btn bop-btn--link" ng-click="pv.load(true)"><i class="fas fa-redo" aria-hidden="true"></i> Try again</button>
+        </div>
+    </div>
+</div>

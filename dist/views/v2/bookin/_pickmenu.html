@@ -1,0 +1,27 @@
+<!-- the open picker: a dropdown under its field on desktop, a bottom sheet on phones (ta-base picker A) -->
+<div class="ta-pickmenu-scrim" ng-click="vm.bk_pk_close()"></div>
+<div class="ta-pickmenu" role="dialog" aria-label="Choose: {{ vm.bk_pk_title(vm.bk.pk.f) }}" data-e2e="bki-pickmenu">
+  <div class="ta-pickmenu__grab"></div>
+  <div class="ta-pickmenu__hd"><b>{{ vm.bk_pk_title(vm.bk.pk.f) }}</b><button type="button" class="ta-dlg__x" ng-click="vm.bk_pk_close()" aria-label="Close">×</button></div>
+  <div class="ta-pickmenu__top">
+    <label class="ta-search"><i class="fas fa-search"></i><input id="bki-pk-q" type="search" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="bki-pk-list" aria-activedescendant="bki-pk-o-{{ vm.bk.pk.hi }}" placeholder="{{ vm.bk_pk_ph(vm.bk.pk.f) }}" ng-model="vm.bk.pk.q" ng-change="vm.bk_pk_q()" ng-keydown="vm.bk_pk_key($event)" no-busy-guard data-e2e="bki-pk-q"></label>
+    <div class="ta-chips" ng-if="vm.bk.pk.f === 'flight'">
+      <button type="button" class="ta-chip" ng-repeat="c in vm.bk_flight_chips" ng-class="{'ta-chip--on': vm.bk.pk.chip === c.id}" ng-click="vm.bk_pk_chip(c.id)">{{ c.t }}<span class="ta-chip__n">{{ vm.bk.pk.counts[c.id] | number }}</span></button>
+    </div>
+  </div>
+  <div class="ta-pickmenu__hint" ng-if="vm.bk.pk.model.hint"><i class="fas fa-info-circle"></i>{{ vm.bk.pk.model.hint }}</div>
+  <div class="ta-pickmenu__empty" ng-if="vm.bk.pk.model.empty"><b>{{ vm.bk.pk.model.empty.t }}</b><span ng-if="vm.bk.pk.model.empty.s">{{ vm.bk.pk.model.empty.s }}</span></div>
+  <ul class="ta-pickmenu__list" id="bki-pk-list" role="listbox" ng-if="!vm.bk.pk.model.empty">
+    <li ng-repeat="r in vm.bk.pk.model.rows track by r.rk" id="{{ r.grp ? '' : 'bki-pk-o-' + r.idx }}" role="{{ r.grp ? 'presentation' : 'option' }}" aria-selected="{{ !r.grp && vm.bk_pk_is_on(r) }}"
+        ng-class="r.grp ? 'ta-pickmenu__grp' : (r.idx === vm.bk.pk.hi ? 'ta-pickmenu__opt ta-pickmenu__opt--hi' : 'ta-pickmenu__opt')" ng-click="r.grp || vm.bk_pk_pick(r)" title="{{ r.tip || '' }}" data-e2e="{{ r.grp ? '' : 'bki-pk-opt' }}">
+      {{ r.grp }}
+      <span class="ta-av" ng-if="!r.grp && r.kind === 'person' && vm.bk_is_instr(r.p)" style="--av: {{ vm.bk_colour(r.p) }}">{{ vm.bk_initials(r.p) }}</span>
+      <span class="ta-av ta-av--member" ng-if="!r.grp && r.kind === 'person' && !vm.bk_is_instr(r.p)"><i class="fas fa-user"></i></span>
+      <span class="ta-pick__ic" ng-if="!r.grp && r.kind !== 'person'"><i class="fas" ng-class="{course: 'fa-book', tuition: 'fa-chalkboard', airfield: 'fa-map-marker-alt', flight: 'fa-route'}[r.kind]"></i></span>
+      <span class="ta-pickmenu__txt" ng-if="!r.grp"><span class="ta-pickmenu__t" ng-bind-html="vm.bk_hl(r.t, r.other)"></span>
+        <span class="ta-pickmenu__s" ng-if="r.sub">{{ r.sub }}</span></span>
+      <i class="fas fa-check ta-pickmenu__chk" ng-if="!r.grp && vm.bk_pk_is_on(r)" aria-label="Selected"></i>
+    </li>
+  </ul>
+  <div class="ta-pickmenu__foot" ng-if="vm.bk.pk.model.foot"><span>{{ vm.bk.pk.model.foot }}</span><button type="button" class="ta-link" ng-if="vm.bk.pk.model.more" ng-click="vm.bk_pk_more()">Show more <i class="fas fa-chevron-down"></i></button></div>
+</div>

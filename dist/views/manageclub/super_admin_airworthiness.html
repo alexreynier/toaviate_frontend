@@ -1,0 +1,151 @@
+<!-- Super-admin → Aircraft Airworthiness (SuperAdminAirworthinessController).
+     An aircraft's type — Certificate of Airworthiness (CofA + ARC) or Permit to Fly — decides how
+     every page and the booking / book-out gates read its documents. Only ToAviate staff change it
+     (logged). Backend: BACKEND_AIRCRAFT_DOCUMENTS_ACCESS_GUIDE.md §10.7. -->
+
+<div class="sa-security sa-security--denied" ng-if="!vm.is_staff">
+    <i class="fas fa-user-shield"></i>
+    <h3>ToAviate staff only</h3>
+    <p>This area is restricted to platform administrators.</p>
+</div>
+
+<div class="sa-security sa-renewals" ng-if="vm.is_staff">
+
+    <div class="snazzy-page__header">
+        <div class="snazzy-page__header-inner">
+            <div class="back-box" ui-sref="dashboard.super_admin"><i class="fa fa-arrow-circle-left"></i> BACK</div>
+            <div class="snazzy-page__title">
+                <h2><i class="fas fa-certificate"></i> Aircraft Airworthiness</h2>
+                <p>Certificate of Airworthiness (CofA + ARC) or Permit to Fly — per aircraft</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="sec-banner" ng-if="!vm.loading && !vm.migrated">
+        <i class="fas fa-database sec-banner__icon"></i>
+        <div><b>The database is not migrated yet</b> — the type cannot be changed until the migrations have run.</div>
+    </div>
+
+    <div class="sec-card sa-renewals__intro">
+        <div class="sec-card__head">
+            <i class="fas fa-info-circle sec-card__icon"></i>
+            <div>
+                <h3 class="sec-card__title">How it works</h3>
+                <p class="sec-card__sub">Club admins cannot change this — only ToAviate staff, and every change is logged</p>
+            </div>
+        </div>
+        <div class="sec-card__body">
+            <p class="sec-card__text">
+                <b>CofA:</b> the Certificate of Airworthiness does not expire — the aircraft is valid while its
+                <b>ARC</b> is. <b>Permit to Fly:</b> the Permit itself expires; with no expiry on file the aircraft reads expired.
+            </p>
+            <p class="sec-card__text">
+                Changing the type re-reads the certificate on file as the other kind (its expiry becomes the Permit expiry,
+                or the ARC expiry until the club uploads the ARC) — no date is invented. Ask the club to upload the right
+                document afterwards. "Register" is the UK register copy's category; a mismatch is flagged.
+            </p>
+        </div>
+    </div>
+
+    <div class="sec-loading" ng-if="vm.loading">
+        <div class="sec-spinner"></div>
+        <span>Loading aircraft…</span>
+    </div>
+
+    <!-- the last change's answer: what the aircraft reads as now -->
+    <div class="sec-banner" ng-if="vm.lastResult">
+        <i class="fas fa-check-circle sec-banner__icon"></i>
+        <div>
+            <b>{{ vm.lastResult.message }}</b>
+            It now reads as: {{ vm.lastResult.document.label }} — {{ vm.lastResult.document.status === 'ok' ? 'valid' : 'expired' }}<span ng-if="vm.lastResult.document.date_expiry"> ({{ vm.lastResult.document.date_expiry }})</span>.
+            <div ng-repeat="w in vm.lastResult.warnings"><i class="fas fa-exclamation-triangle"></i> {{ w }}</div>
+        </div>
+    </div>
+
+    <div class="sec-card sa-renewals__list" ng-if="!vm.loading">
+        <div class="sec-card__head">
+            <i class="fas fa-plane sec-card__icon"></i>
+            <div>
+                <h3 class="sec-card__title">Aircraft</h3>
+                <p class="sec-card__sub">{{ vm.aircraft.length }} aircraft · {{ vm.mismatchCount() }} differ from the UK register</p>
+            </div>
+            <label class="sa-renewals__muted"><input type="checkbox" ng-model="vm.onlyMismatch" /> only register mismatches</label>
+            <input type="text" class="sec-modal__input sa-renewals__search" ng-model="vm.search" placeholder="Search registration / club…" />
+        </div>
+        <div class="sec-card__body">
+
+            <!-- inline confirmation -->
+            <div class="sa-security__confirm sa-renewals__confirm" ng-if="vm.confirm">
+                <div class="sec-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <b>Change {{ vm.confirm.plane.registration }} to {{ vm.confirm.to === 'ptf' ? 'Permit to Fly' : 'Certificate of Airworthiness (CofA + ARC)' }}?</b>
+                        Every page, the booking and book-out checks and the reminders read its documents as
+                        {{ vm.confirm.to === 'ptf' ? 'a Permit (the expiry on file is the Permit expiry; none → expired)' : 'a CofA (validity = the ARC; the expiry on file is read as the ARC expiry until the club uploads the ARC)' }}.
+                        <span ng-if="vm.confirm.plane.clubs.length">Fleet: <span ng-repeat="c in vm.confirm.plane.clubs">{{ c.title }}{{ $last ? '' : ', ' }}</span>.</span>
+                    </div>
+                </div>
+                <input type="text" class="sec-modal__input" ng-model="vm.confirm.reason" maxlength="500" placeholder="Reason (recorded with the change)" />
+                <div class="sa-security__reset-actions">
+                    <button class="sec-btn sec-btn--outline" ng-click="vm.cancel()" ng-disabled="vm.saving">Cancel</button>
+                    <button class="sec-btn sec-btn--danger" ng-click="vm.runChange()" ng-disabled="vm.saving">
+                        {{ vm.saving ? 'Saving…' : 'Yes, change it' }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="sa-renewals__table-wrap">
+                <table class="sa-renewals__table">
+                    <thead>
+                        <tr>
+                            <th>Aircraft</th>
+                            <th>Fleet</th>
+                            <th>Type</th>
+                            <th>Reads as</th>
+                            <th>Register</th>
+                            <th>Last change</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="a in vm.aircraft | filter:vm.matches track by a.plane_id">
+                            <td><b>{{ a.registration }}</b> <span class="sa-renewals__id">#{{ a.plane_id }}</span>
+                                <div class="sa-renewals__muted">{{ a.manufacturer }} {{ a.type_name || a.plane_type }}</div></td>
+                            <td>
+                                <span ng-repeat="c in a.clubs">{{ c.title }}{{ $last ? '' : ', ' }}</span>
+                                <span class="sa-renewals__muted" ng-if="!a.clubs.length">on no fleet</span>
+                            </td>
+                            <td><span class="sec-pill" ng-class="a.airworthiness_type === 'ptf' ? 'sec-pill--off' : 'sec-pill--on'">{{ vm.typeLabel(a.airworthiness_type) }}</span></td>
+                            <td>
+                                {{ a.document.label }}
+                                <div class="sa-renewals__muted">
+                                    {{ a.document.status === 'ok' ? 'valid' : 'expired' }}<span ng-if="a.document.date_expiry"> · {{ a.document.date_expiry }}</span><span ng-if="!a.document.date_expiry && a.document.kind === 'cofa' && a.document.status === 'ok'"> · does not expire</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span ng-if="a.register_category">{{ a.register_category }}</span>
+                                <span class="sa-renewals__muted" ng-if="!a.register_category">—</span>
+                                <div ng-if="a.register_mismatch"><b><i class="fas fa-exclamation-triangle"></i> differs</b></div>
+                            </td>
+                            <td>
+                                <div class="sa-renewals__muted" ng-if="a.last_change">
+                                    {{ vm.typeLabel(a.last_change.old_type) }} → {{ vm.typeLabel(a.last_change.new_type) }}<br />
+                                    {{ a.last_change.created_at | limitTo:16 }} by {{ a.last_change.changed_by_name }}
+                                    <span ng-if="a.last_change.reason"><br />“{{ a.last_change.reason }}”</span>
+                                </div>
+                            </td>
+                            <td class="sa-renewals__action">
+                                <button class="sec-btn sec-btn--outline" ng-click="vm.askChange(a)" ng-disabled="vm.saving || !vm.migrated">
+                                    <i class="fas fa-exchange-alt"></i>
+                                    {{ a.airworthiness_type === 'ptf' ? 'Make CofA' : 'Make Permit' }}
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>

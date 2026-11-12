@@ -61,7 +61,7 @@
 
                   <div class="cards">
                     <h4>Days Remaining</h4>
-                    <span class="big_number no_{{ plane.maintenance.days_status }}">{{ plane.maintenance.days_remaining || "0" }}</span>
+                    <span class="big_number no_{{ plane.maintenance.days_status }}">{{ plane.maintenance.due_today ? "Today" : (plane.maintenance.days_remaining || "0") }}</span>
                   </div>
 
                   <div class="cards">
@@ -434,15 +434,19 @@
                         <th>Expiry Date</th>
                         <th>Status</th>
                       </tr>
+                      <!-- the ARC (CofA aircraft) or the Permit to Fly: airworthiness_document — the
+                           record airworthiness judges (a CofA with no ARC on file: the CofA, no expiry) -->
                       <tr>
-                        <td>{{ plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
+                        <td>{{ plane.airworthiness_document.label || (plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'Airworthiness Review Certificate (ARC)') }}</td>
                         <td>
-                          <a class="open_document_anchor" ng-click="downloadDocument(plane.certificate.certificate , 'certificate')">
-                            <img class="file_icon2" src="{{ get_icon2(plane.certificate.certificate) }}" alt="open doc" />
+                          <a class="open_document_anchor" ng-click="downloadDocument(plane.airworthiness_document.certificate, plane.airworthiness_document.document_route === 'plane_arc' ? 'arc' : 'certificate')">
+                            <img class="file_icon2" src="{{ get_icon2(plane.airworthiness_document.certificate) }}" alt="open doc" />
                           </a>
                         </td>
-                        <td>{{ plane.certificate.date_expiry | asDate | date:"dd/MM/yyyy" }}</td>
-                        <td><button class="btn status {{plane.certificate.status}}">{{plane.certificate.status}}</button></td>
+                        <td>{{ plane.airworthiness_document.date_expiry | asDate | date:"dd/MM/yyyy" }}<span ng-if="plane.airworthiness_document.expires === false">Does not expire</span>
+                          <div ng-if="plane.airworthiness_document.date_issued && plane.airworthiness_document.date_issued !== '0000-00-00'"><small>Issued {{ plane.airworthiness_document.date_issued | asDate | date:"dd/MM/yyyy" }}</small></div>
+                        </td>
+                        <td><button class="btn status {{plane.airworthiness_document.status}}">{{plane.airworthiness_document.status}}</button></td>
                       </tr>
                       <tr>
                         <td>Insurance</td>
@@ -461,7 +465,7 @@
                             <img class="file_icon2" src="{{ get_icon2(plane.radio_licence.certificate) }}" alt="open doc" />
                           </a>
                         </td>
-                        <td>{{ plane.radio_licence.date_expiry | asDate | date:"dd/MM/yyyy" }}</td>
+                        <td>{{ plane.radio_licence.date_expiry | asDate | date:"dd/MM/yyyy" }}<span ng-if="plane.radio_licence.certificate && !plane.radio_licence.date_expiry">No expiry</span></td>
                         <td><button class="btn status {{plane.radio_licence.status}}">{{plane.radio_licence.status}}</button></td>
                       </tr>
                       <tr ng-if="plane.noise_certificate">
@@ -492,19 +496,23 @@
                     <div class="mc-cards">
                       <div class="mc-card mc-card-doc">
                         <div class="mc-card-header">
-                          <span>{{ plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</span>
-                          <button class="btn status {{plane.certificate.status}}">{{plane.certificate.status}}</button>
+                          <span>{{ plane.airworthiness_document.label || (plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'Airworthiness Review Certificate (ARC)') }}</span>
+                          <button class="btn status {{plane.airworthiness_document.status}}">{{plane.airworthiness_document.status}}</button>
                         </div>
                         <div class="mc-card-body">
                           <div class="mc-card-grid">
                             <div class="mc-card-stat">
                               <span class="mc-card-label">Expiry</span>
-                              <span>{{ plane.certificate.date_expiry | asDate | date:"dd/MM/yyyy" }}</span>
+                              <span>{{ plane.airworthiness_document.date_expiry | asDate | date:"dd/MM/yyyy" }}<span ng-if="plane.airworthiness_document.expires === false">Does not expire</span></span>
+                            </div>
+                            <div class="mc-card-stat" ng-if="plane.airworthiness_document.date_issued && plane.airworthiness_document.date_issued !== '0000-00-00'">
+                              <span class="mc-card-label">Issued</span>
+                              <span>{{ plane.airworthiness_document.date_issued | asDate | date:"dd/MM/yyyy" }}</span>
                             </div>
                             <div class="mc-card-stat mc-card-stat-icon">
                               <span class="mc-card-label">View</span>
-                              <a class="open_document_anchor" ng-click="downloadDocument(plane.certificate.certificate, 'certificate')">
-                                <img class="file_icon2" src="{{ get_icon2(plane.certificate.certificate) }}" alt="open doc" />
+                              <a class="open_document_anchor" ng-click="downloadDocument(plane.airworthiness_document.certificate, plane.airworthiness_document.document_route === 'plane_arc' ? 'arc' : 'certificate')">
+                                <img class="file_icon2" src="{{ get_icon2(plane.airworthiness_document.certificate) }}" alt="open doc" />
                               </a>
                             </div>
                           </div>
@@ -539,7 +547,7 @@
                           <div class="mc-card-grid">
                             <div class="mc-card-stat">
                               <span class="mc-card-label">Expiry</span>
-                              <span>{{ plane.radio_licence.date_expiry | asDate | date:"dd/MM/yyyy" }}</span>
+                              <span>{{ plane.radio_licence.date_expiry | asDate | date:"dd/MM/yyyy" }}<span ng-if="plane.radio_licence.certificate && !plane.radio_licence.date_expiry">No expiry</span></span>
                             </div>
                             <div class="mc-card-stat mc-card-stat-icon">
                               <span class="mc-card-label">View</span>

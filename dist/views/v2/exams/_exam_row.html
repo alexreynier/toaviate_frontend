@@ -1,0 +1,39 @@
+<!-- one theory exam subject (x) — opens in place: sittings, certificates, what to do next -->
+<button type="button" class="ta-row__main" ng-click="vm.toggle(x)" aria-expanded="{{ vm.open === x.id }}" no-busy-guard>
+  <span class="ta-row__lead"><span class="ta-kind ta-kind--exam" title="Exam"><i class="fas fa-graduation-cap"></i></span></span>
+  <span class="ta-row__txt"><span class="ta-row__title" title="{{ x.description }}">{{ x.title }}</span><span class="ta-row__sub">{{ x.sub }}</span></span>
+  <span class="ta-row__meta">
+    <span class="ta-row__date">{{ x.last ? vm.X.fDate(x.last.record_date) : '—' }}</span>
+    <span class="ta-pill ta-pill--{{ x.st.tone }}"><i class="fas {{ x.st.ic }}"></i>{{ x.st.label }}</span>
+  </span>
+  <span class="ta-row__end"><span class="qx-score" ng-if="x.best != null">{{ x.best }}%</span></span>
+  <span class="ta-row__acts">
+    <span class="ta-ib" ng-if="x.files.length" role="button" tabindex="0" ng-click="$event.stopPropagation(); vm.viewCert(x.files[x.files.length - 1], x)" title="View certificate" aria-label="View certificate"><i class="fas fa-award"></i></span>
+    <span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.open === x.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span>
+  </span>
+  <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+</button>
+<div class="ta-detail" ng-if="vm.open === x.id">
+  <div class="ta-note ta-note--warn" ng-if="x.unpaid"><i class="fas fa-exclamation-circle"></i><div><b>{{ vm.X.money(x.unpaid.price, vm.club.sym) }} to pay</b> for this exam. Pay it from Invoices — the result is entered either way.<div><a class="ta-link" ui-sref="dashboard.my_account.invoices" no-busy-guard>Go to invoices <i class="fas fa-arrow-right"></i></a></div></div></div>
+  <div class="ta-panel ta-panel--white" ng-if="x.ps.length">
+    <div class="ta-panel__hd"><i class="fas fa-list-ol"></i>Sittings</div>
+    <div class="qx-sit" ng-repeat="p in x.ps">
+      <b>{{ p.status === 'result_entered' ? ('Taken ' + vm.X.fDayLong(p.record_date)) : (p.status === 'cancelled' ? 'Cancelled — no result will be entered' : 'Bought — result to come') }}</b>
+      <span class="qx-sit__s">{{ p._record ? ('Entered by the club' + (p.examiner ? ' · examiner ' + p.examiner : '') + (p.sitting ? ' · sitting ' + p.sitting : '')) : ('Bought ' + vm.X.fDate(p.created_at) + ' · ' + vm.X.money(p.price, vm.club.sym)) }}<span ng-if="p._inv"> · <span class="ta-pill ta-pill--{{ p._inv.tone }}"><i class="fas {{ p._inv.ic }}"></i>{{ p._inv.label }}</span></span></span>
+      <span class="qx-sit__r">
+        <span class="qx-score" ng-if="p.status === 'result_entered' && p.record_result != null">{{ p.record_result | number:0 }}%</span>
+        <span class="ta-pill ta-pill--good" ng-if="p.status === 'result_entered' && p.record_pass_fail == 1"><i class="fas fa-check"></i>Passed</span>
+        <span class="ta-pill ta-pill--bad" ng-if="p.status === 'result_entered' && p.record_pass_fail != 1"><i class="fas fa-times"></i>Not passed</span>
+        <span class="ta-pill ta-pill--muted" ng-if="p.status === 'cancelled'"><i class="fas fa-ban"></i>Cancelled</span>
+        <span class="ta-pill ta-pill--info" ng-if="p.status === 'purchased'"><i class="fas fa-hourglass-half"></i>Awaiting result</span>
+      </span>
+    </div>
+  </div>
+  <div class="ta-panel ta-panel--white" ng-if="x.files.length">
+    <div class="ta-panel__hd"><i class="fas fa-award"></i>Certificates</div>
+    <div class="qx-files"><button type="button" class="qx-file" ng-repeat="f in x.files" ng-click="vm.viewCert(f, x)" no-busy-guard><i class="fas" ng-class="f.file_type === 'pdf' ? 'fa-file-pdf' : 'fa-file-image'"></i><span>{{ f.original_name }}</span><em>View</em></button></div>
+  </div>
+  <div class="ta-note" ng-if="!x.files.length && x.res.length"><i class="fas fa-info-circle"></i><div>No certificate on file yet — the club uploads it once they have it.</div></div>
+  <div class="ta-note ta-note--warn" ng-if="x.state === 'fail'"><i class="fas fa-redo"></i><div>Not passed yet. Talk to your instructor about a re-sit — it appears here when the club sells it to you.</div></div>
+  <div class="ta-note" ng-if="!x.ps.length"><i class="fas fa-info-circle"></i><div>Not bought yet. The club adds a theory exam here when you buy one from them — ask your instructor when you’re ready for {{ x.title }}.</div></div>
+</div>

@@ -1,0 +1,120 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v2 LOGBOOK IMPORT — spreadsheet (CSV) (dashboard.v2.logbook_import) — design: mockups/my-account/logbook.html
+     ("Import CSV"). LogbookV2Controller (screen 'import'): POST personal_logbook/import (preview, saves nothing)
+     → check & match → POST personal_logbook/import/confirm. Same calls as v1.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page lgb" ng-class="{'ta-page--has-bar': vm.imp.step === 'review'}">
+  <div class="lgb-part" ng-include="'views/v2/logbook/_bar.html'"></div>
+  <div class="lgb-part" ng-include="'views/v2/logbook/_flow.html'"></div>
+
+  <!-- 1 · upload -->
+  <section class="ta-card" ng-if="vm.imp.step === 'pick'">
+    <div class="ta-card__hd">
+      <span class="ta-card__icon"><i class="fas fa-file-csv" aria-hidden="true"></i><span class="ta-card__step">1</span></span>
+      <div class="ta-card__ttl"><h3>Upload your spreadsheet</h3><p>Export your existing logbook as a .csv file first</p></div>
+    </div>
+    <button type="button" class="ta-drop ta-drop--lg" ng-class="{'ta-drop--busy': vm.imp.busy, 'ta-drop--over': vm.imp.drag}" ng-click="vm.pickFile('lgb-csv-in')" no-busy-guard
+            lcf-dropzone lcf-on-drop="vm.onCsvFiles(files)" lcf-on-drag-state="vm.imp.drag = isDragging">
+      <span class="ta-empty__ic"><i class="fas" ng-class="vm.imp.busy ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'" aria-hidden="true"></i></span>
+      <h4>{{ vm.imp.busy ? 'Reading your file…' : 'Choose a CSV file' }}</h4>
+      <p>{{ vm.imp.busy ? 'Matching aircraft and airfields' : 'or drop it here · .csv only' }}</p>
+    </button>
+    <input type="file" accept=".csv,text/csv" class="lgb-file" id="lgb-csv-in" lcf-file-select="vm.onCsvFiles(files)" ng-disabled="vm.imp.busy">
+    <div class="lgb-how">
+      <div><span class="ta-kind ta-kind--brand ta-kind--sm" aria-hidden="true"><i class="fas fa-table"></i></span><span><b>We read the columns</b>Date, airfields, times, registration, total, roles, landings, remarks.</span></div>
+      <div><span class="ta-kind ta-kind--brand ta-kind--sm" aria-hidden="true"><i class="fas fa-search"></i></span><span><b>We match them</b>Aircraft from the register, airfields from the airfield list.</span></div>
+      <div><span class="ta-kind ta-kind--brand ta-kind--sm" aria-hidden="true"><i class="fas fa-check"></i></span><span><b>You check, then save</b>Nothing is saved until you confirm. Imported flights stay editable.</span></div>
+    </div>
+    <div class="ta-stack">
+      <span class="ta-sec-k">Column names we recognise</span>
+      <div class="lgb-cols"><span class="ta-tag" ng-repeat="c in vm.COLNAMES">{{ c }}</span></div>
+      <span class="ta-hint">Times can be 1:30 or 1.5. Dates like 20/07/2024 or 2024-07-20 both work.</span>
+    </div>
+  </section>
+
+  <!-- 2 · check & match -->
+  <section class="ta-tiles" ng-if="vm.imp.step === 'review'">
+    <div class="ta-tile ta-tile--good"><span class="ta-tile__k"><i class="fas fa-check-circle" aria-hidden="true"></i>Ready</span><span class="ta-tile__v">{{ vm.imp.sm.ready }}</span><span class="ta-tile__s">Matched to the register and airfield list</span></div>
+    <div class="ta-tile" ng-class="{'ta-tile--attn': vm.imp.sm.review}"><span class="ta-tile__k"><i class="fas fa-exclamation-circle" aria-hidden="true"></i>Check details</span><span class="ta-tile__v">{{ vm.imp.sm.review }}</span><span class="ta-tile__s">Something wasn’t recognised — still importable</span></div>
+    <div class="ta-tile ta-tile--bad" ng-if="vm.imp.sm.error"><span class="ta-tile__k"><i class="fas fa-times-circle" aria-hidden="true"></i>Can’t import</span><span class="ta-tile__v">{{ vm.imp.sm.error }}</span><span class="ta-tile__s">Missing a date or total — fix in the file</span></div>
+  </section>
+
+  <section class="ta-list" ng-if="vm.imp.step === 'review'">
+    <div class="ta-list__tools">
+      <div class="ta-chips">
+        <button type="button" class="ta-chip" ng-repeat="c in vm.imp.chips" ng-class="{'ta-chip--on': vm.imp.filter === c[0], 'ta-chip--attn': c[0] === 'review'}" ng-click="vm.impFilter(c[0])" no-busy-guard>{{ c[1] }}<span class="ta-chip__n">{{ c[2] }}</span></button>
+      </div>
+      <span class="ta-hint ta-desk-only"><i class="fas fa-file-csv" aria-hidden="true"></i> {{ vm.imp.file }} · {{ vm.Fmt.plural(vm.imp.sm.total, 'line') }}</span>
+    </div>
+
+    <!-- desktop table -->
+    <div class="lgb-scw lgb-impwrap" ng-if="!vm.phone">
+      <div class="lgb-scroll" lgb-scroll-edges tabindex="0" aria-label="Lines from your file — scrolls sideways">
+        <table class="ta-table lgb-imp">
+          <thead><tr><th class="lgb-c-inc"><span class="ta-muted">Add</span></th><th>Line</th><th>Status</th><th>Date</th><th>From</th><th>To</th><th>Aircraft</th><th class="ta-r">Total</th><th>What we matched</th><th></th></tr></thead>
+          <tbody>
+            <tr ng-repeat-start="r in vm.imp.shown track by r._i" class="lgb-tr" ng-class="{'lgb-tr--open': vm.imp.open === r._i, 'lgb-tr--off': !r._include}" ng-click="vm.impOpen(r)" role="button" tabindex="0" aria-expanded="{{ vm.imp.open === r._i ? 'true' : 'false' }}" no-busy-guard>
+              <td class="lgb-c-inc" ng-click="$event.stopPropagation()"><input type="checkbox" ng-model="r._include" ng-change="vm.impInc()" ng-disabled="r.status === 'error'" aria-label="Import line {{ r.line }}" no-busy-guard></td>
+              <td class="ta-muted">{{ r.line }}</td>
+              <td><span class="ta-pill ta-pill--{{ r._st.tone }}"><i class="fas {{ r._st.ic }}" aria-hidden="true"></i>{{ r._st.label }}</span></td>
+              <td>{{ r.entry.flight_date ? vm.Fmt.fDate(r.entry.flight_date) : '' }}<span class="ta-muted" ng-if="!r.entry.flight_date">{{ r.raw.flight_date || '—' }}</span></td>
+              <td><span class="lgb-match" ng-if="r._dep"><i class="fas" ng-class="r._dep.title ? 'fa-check-circle' : 'fa-question-circle'" title="{{ r._dep.title ? 'Matched' : 'Not matched' }}"></i><b class="ta-icao" ng-if="r._dep.title">{{ r._dep.code }}</b><span class="ta-muted" ng-if="r._dep.title">{{ r._dep.title }}</span><span ng-if="!r._dep.title">{{ r._dep.code }}</span></span><span class="ta-muted" ng-if="!r._dep">—</span></td>
+              <td><span class="lgb-match" ng-if="r._arr"><i class="fas" ng-class="r._arr.title ? 'fa-check-circle' : 'fa-question-circle'" title="{{ r._arr.title ? 'Matched' : 'Not matched' }}"></i><b class="ta-icao" ng-if="r._arr.title">{{ r._arr.code }}</b><span class="ta-muted" ng-if="r._arr.title">{{ r._arr.title }}</span><span ng-if="!r._arr.title">{{ r._arr.code }}</span></span><span class="ta-muted" ng-if="!r._arr">—</span></td>
+              <td><b>{{ (r.entry && r.entry.registration) || r.raw.registration || '—' }}</b> <span class="ta-muted">{{ r.entry.aircraft_type }}</span></td>
+              <td class="ta-r lgb-num lgb-num--total">{{ r.entry.total_time ? vm.Fmt.hm(r.entry.total_time) : '—' }}</td>
+              <td><div class="lgb-note-list"><span ng-repeat="n in r._notes"><i class="fas {{ n.ic }}" aria-hidden="true"></i> {{ n.t }}</span></div></td>
+              <td class="lgb-c-act"><i class="fas fa-chevron-down lgb-chev" aria-hidden="true"></i></td>
+            </tr>
+            <tr ng-repeat-end class="lgb-imp-edit" ng-show="vm.imp.open === r._i">
+              <td colspan="10"><div class="lgb-imp-edit__in" ng-if="vm.imp.open === r._i" ng-include="'views/v2/logbook/_impedit.html'"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- phone rows -->
+    <div class="lgb-impcards" ng-if="vm.phone">
+      <div class="ta-row" ng-repeat="r in vm.imp.shown track by r._i" ng-class="{'ta-row--open': vm.imp.open === r._i}">
+        <button type="button" class="ta-row__main" ng-click="vm.impOpen(r)" aria-expanded="{{ vm.imp.open === r._i ? 'true' : 'false' }}" no-busy-guard>
+          <span class="ta-row__lead"><span class="lgb-day"><b>{{ r.line }}</b><span>line</span></span></span>
+          <span class="ta-row__txt"><span class="ta-row__title">{{ r._dep ? r._dep.code + ' → ' + (r._arr ? r._arr.code : '?') : 'Line ' + r.line }}</span><span class="ta-row__sub">{{ r.entry.flight_date ? vm.Fmt.fDate(r.entry.flight_date) : (r.raw.flight_date || '') }} · {{ (r.entry && r.entry.registration) || r.raw.registration || '' }}</span></span>
+          <span class="ta-row__end"><span class="lgb-ptime">{{ r.entry.total_time ? vm.Fmt.hm(r.entry.total_time) : '—' }}</span></span>
+          <span class="ta-row__chev"><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+          <span class="ta-row__meta"><span class="ta-pill ta-pill--{{ r._st.tone }}"><i class="fas {{ r._st.ic }}" aria-hidden="true"></i>{{ r._st.label }}</span><span class="lgb-meta-t" ng-if="r.status !== 'error'"><i class="fas fa-check" ng-if="r._include" aria-hidden="true"></i>{{ r._include ? 'Will be imported' : 'Skipped' }}</span></span>
+        </button>
+        <div class="ta-detail" ng-if="vm.imp.open === r._i">
+          <div class="lgb-note-list"><span ng-repeat="n in r._notes"><i class="fas {{ n.ic }}" aria-hidden="true"></i> {{ n.t }}</span></div>
+          <div ng-include="'views/v2/logbook/_impedit.html'"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ta-actionbar lgb-savebar" ng-if="vm.imp.step === 'review'">
+    <div class="ta-confirm ta-confirm--inline lgb-leave" ng-if="vm.leaveAsk" role="alert">
+      <span>{{ vm.leaveAsk.restart ? 'Start over? Your review and any fixes will be lost.' : 'Leave without importing? Your review and any fixes will be lost.' }}</span>
+      <span class="ta-confirm__btns">
+        <button type="button" class="ta-btn ta-btn--sm lgb-leave__keep" ng-click="vm.leaveKeep()" no-busy-guard>Keep reviewing</button>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.leaveGo()" no-busy-guard>{{ vm.leaveAsk.restart ? 'Start over' : 'Leave' }}</button>
+      </span>
+    </div>
+    <span class="ta-actionbar__hint ta-desk-only" ng-if="!vm.leaveAsk">{{ vm.imp.inc }} of {{ vm.Fmt.plural(vm.imp.sm.total - vm.imp.sm.error, 'flight') }} selected</span>
+    <span class="ta-sp ta-desk-only" ng-if="!vm.leaveAsk"></span>
+    <button type="button" class="ta-btn ta-btn--quiet" ng-if="!vm.leaveAsk" ng-click="vm.askRestart('imp')" no-busy-guard>Start over</button>
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="!vm.leaveAsk" ng-click="vm.impConfirm()" ng-disabled="!vm.imp.inc"><i class="fas fa-check" aria-hidden="true"></i>Import {{ vm.Fmt.plural(vm.imp.inc, 'flight') }}</button>
+  </div>
+
+  <!-- 3 · added -->
+  <section class="ta-card" ng-if="vm.imp.step === 'done'">
+    <div class="lgb-done">
+      <span class="ta-dlg__check" aria-hidden="true"><i class="fas fa-check"></i></span>
+      <h3>{{ vm.Fmt.plural(vm.imp.result.imported, 'flight') }} added to your logbook</h3>
+      <p>They’re marked Manual — you can edit or delete any of them.<span ng-if="vm.imp.result.skipped"> {{ vm.imp.result.skipped === 1 ? '1 line wasn’t' : vm.imp.result.skipped + ' lines weren’t' }} imported.</span></p>
+      <div class="lgb-done__acts">
+        <button type="button" class="ta-btn" ng-click="vm.impRestart()" no-busy-guard><i class="fas fa-file-import" aria-hidden="true"></i>Import another file</button>
+        <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('logbook')" no-busy-guard><i class="fas fa-book" aria-hidden="true"></i>View my logbook</button>
+      </div>
+    </div>
+  </section>
+</main>

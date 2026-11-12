@@ -14,10 +14,10 @@
         <span class="snazzy-table__badge snazzy-table__badge--warning" ng-if="vm.club.plane.dual_only == 1" style="margin-left:4px;"><i class="fas fa-user-friends"></i> DUAL ONLY</span>
       </div>
       <div class="snazzy-page__header-actions snazzy-page__header-actions--mx">
-        <button class="snazzy-page__action-btn-header" ng-click="show_overlay('maintenance')">
-          <i class="fa fa-plus"></i> Add Maintenance Check
+        <button class="snazzy-page__action-btn-header" ng-click="show_overlay('maintenance')" data-e2e="mx-open-check">
+          <i class="fa fa-plus"></i> Record a check
         </button>
-        <button class="snazzy-page__action-btn-header snazzy-page__action-btn-header--danger" ng-click="show_overlay('offline')">
+        <button class="snazzy-page__action-btn-header snazzy-page__action-btn-header--danger" ng-click="show_overlay('offline')" data-e2e="mx-open-offline">
           <i class="fa fa-power-off"></i> Take Offline
         </button>
       </div>
@@ -25,6 +25,27 @@
   </div>
 
   <div class="snazzy-page__body">
+
+    <!-- U19: one page-level loader until the detail read lands; U18: a refused read is said -->
+    <div class="snazzy-page__empty" ng-if="vm.detail_loading" data-e2e="mx-loading">
+      <div class="snazzy-page__spinner"></div>
+      <p>Loading aircraft…</p>
+    </div>
+    <div class="snazzy-page__empty" ng-if="!vm.detail_loading && vm.detail_error" data-e2e="mx-error">
+      <i class="fa fa-exclamation-triangle snazzy-page__empty-icon"></i>
+      <p>{{ vm.detail_error }}</p>
+      <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ui-sref="dashboard.manage_club.maintenance"><i class="fa fa-arrow-left"></i> Back to the fleet</button>
+    </div>
+
+    <div ng-if="!vm.detail_loading && !vm.detail_error">
+
+    <!-- U6: offline (from the detail payload's offline: {until, notes, booking_id} | null) -->
+    <div class="mx-offline-banner" ng-if="vm.club.plane.offline && vm.club.plane.offline.until" data-e2e="mx-offline-banner">
+      <i class="fa fa-power-off"></i>
+      <span><strong>Offline until {{ vm.displayDate(vm.club.plane.offline.until) }}</strong> — nobody can book or book out this aircraft until then.</span>
+      <span class="mx-offline-banner__note" ng-if="vm.club.plane.offline.notes">{{ vm.club.plane.offline.notes }}</span>
+      <span class="mx-offline-banner__note">To bring it back online earlier, change the maintenance booking in the scheduler.</span>
+    </div>
 
     <!-- ══════════════════════════════════════════════════════════
          STATUS SUMMARY CARDS
@@ -36,7 +57,11 @@
         </div>
         <div class="mx-detail-stat__content">
           <span class="mx-detail-stat__label">Hours Remaining</span>
-          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.hours_status }}">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) }}</span>
+          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.hours_status }}" ng-if="!vm.hoursNotRecorded(vm.club.plane.maintenance)">{{ get_hours_from_decimal(vm.club.plane.maintenance.hours_remaining) }}</span>
+          <!-- batch 17: the anchor check carries no hours (a legacy row — every new check needs them) -->
+          <span class="mx-detail-stat__value no_unknown" ng-if="vm.hoursNotRecorded(vm.club.plane.maintenance)" data-e2e="mx-hours-not-recorded">—</span>
+          <span class="mx-detail-stat__sub" ng-if="vm.ext.hours && !vm.hoursNotRecorded(vm.club.plane.maintenance)" data-e2e="mx-hours-ext">includes <b>+{{ vm.hoursShort(vm.ext.hours) }}</b> extension</span>
+          <span class="mx-detail-stat__sub" ng-if="vm.hoursNotRecorded(vm.club.plane.maintenance)">Hours to next check not recorded — <a href="" ng-click="vm.editAnchorCheck()" data-e2e="mx-edit-anchor-check">edit this check to add it</a></span>
         </div>
       </div>
       <div class="mx-detail-stat">
@@ -44,8 +69,14 @@
           <i class="fa fa-calendar"></i>
         </div>
         <div class="mx-detail-stat__content">
-          <span class="mx-detail-stat__label">Days Remaining</span>
-          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.days_status }}">{{ vm.club.plane.maintenance.days_remaining }}</span>
+          <span class="mx-detail-stat__label">Days to next check</span>
+          <!-- batch 17: the due day itself says "Due today" (valid until 23:59), tomorrow is 1 -->
+          <span class="mx-detail-stat__value no_{{ vm.club.plane.maintenance.days_status }}" data-e2e="mx-days-to-next-check">{{ vm.checkDaysWord(vm.club.plane.maintenance) }}</span>
+          <!-- decision 1: the TYPE of the next check (maintenance.next_check_type) so managers can plan the downtime -->
+          <span class="mx-detail-stat__sub" ng-if="vm.club.plane.maintenance.next_check_type" data-e2e="mx-next-check-type">{{ vm.nextCheckLabel(vm.club.plane.maintenance.next_check_type) }}</span>
+          <span class="mx-detail-stat__sub" ng-if="!vm.club.plane.maintenance.next_check_type">Next check type not recorded</span>
+          <span class="mx-detail-stat__sub" ng-if="vm.ext.until" data-e2e="mx-days-ext"><span class="mx-ext-pill"><i class="fa fa-hourglass-half"></i> Extended to {{ vm.ext.untilText }}</span></span>
+          <span class="mx-detail-stat__sub" ng-if="vm.club.plane.maintenance.next_check_reason === 'certificate'" data-e2e="mx-days-reason">Limited by the {{ vm.club.plane.airworthiness_type === 'ptf' ? 'permit' : 'ARC' }} expiry, not the check</span>
         </div>
       </div>
       <div class="mx-detail-stat">
@@ -57,6 +88,20 @@
           <span class="mx-detail-stat__value">{{ vm.club.plane.location.meter_reading }}</span>
         </div>
       </div>
+    </div>
+
+    <!-- An extension in force (owner, 10 Nov 2026): on top of the last check — its date extends the ARC and the next check,
+         its hours the hours to the next check; never the radio licence or insurance. Figures from the status block. -->
+    <div class="mx-ext-banner" ng-if="vm.ext" data-e2e="mx-ext-banner">
+      <i class="fa fa-hourglass-half"></i>
+      <div class="mx-ext-banner__text">
+        <strong>Extension in force</strong>
+        <span ng-if="vm.ext.until"> — until <b>{{ vm.ext.untilText }}</b><span ng-if="vm.ext.daysLeft === 0"> (today)</span><span ng-if="vm.ext.daysLeft > 0"> ({{ vm.ext.daysLeft }} day{{ vm.ext.daysLeft === 1 ? '' : 's' }} left)</span>: the ARC and the next-check date</span>
+        <span ng-if="vm.ext.hours"><span ng-if="vm.ext.until"> ·</span> <b>+{{ vm.hoursShort(vm.ext.hours) }}</b> to the next check</span>
+        <span class="mx-ext-banner__by" ng-if="vm.ext.by || vm.ext.recorded"> — granted by {{ vm.ext.by || 'the engineer' }}<span ng-if="vm.ext.recorded">, recorded {{ vm.ext.recorded }}</span></span>
+      </div>
+      <button type="button" class="snazzy-page__btn snazzy-page__btn--sm mx-ext-banner__btn" ng-if="vm.ext.event" ng-click="vm.editExtension()" no-busy-guard data-e2e="mx-ext-edit"><i class="fa fa-edit"></i> View / edit</button>
+      <div class="mx-ext-banner__note">It does not extend the radio licence or the insurance.</div>
     </div>
 
 
@@ -93,11 +138,8 @@
             <tr ng-repeat-start="defect in vm.club.plane.defects | filter: filter_detail(vm.club.plane.show_all_defects)">
               <td class="snazzy-table__name">{{ defect.defect }}</td>
               <td>
-                <span class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--danger': defect.severity === 'high',
-                  'snazzy-table__badge--warning': defect.severity === 'medium',
-                  'snazzy-table__badge--info': defect.severity === 'low' || !defect.severity
-                }">{{ defect.severity }}</span>
+                <!-- B1: one severity → tone map (MaintenanceFormService.severityTone) -->
+                <span class="snazzy-table__badge" ng-class="vm.severityBadgeClass(defect.severity)" title="{{ defect.severity }}">{{ vm.severityShort(defect.severity) }}</span>
               </td>
               <td class="snazzy-table__date snazzy-table__hide-mobile">{{ defect.created_at | myDateTime }}</td>
               <td>
@@ -149,11 +191,7 @@
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Severity</span>
-              <span class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--danger': defect.severity === 'high',
-                'snazzy-table__badge--warning': defect.severity === 'medium',
-                'snazzy-table__badge--info': defect.severity === 'low' || !defect.severity
-              }">{{ defect.severity }}</span>
+              <span class="snazzy-table__badge" ng-class="vm.severityBadgeClass(defect.severity)" title="{{ defect.severity }}">{{ vm.severityShort(defect.severity) }}</span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Reported</span>
@@ -203,43 +241,51 @@
             </tr>
           </thead>
           <tbody>
-            <!-- ARC / Permit -->
+            <!-- ARC (CofA aircraft) / Permit to Fly: airworthiness_document — the record airworthiness
+                 judges (a CofA aircraft's ARC renewal is saved as its ARC since 2026-11-07; a CofA
+                 with no ARC on file shows the CofA, which does not expire) -->
             <tr>
-              <td class="snazzy-table__name">{{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly" }}</td>
-              <td class="snazzy-table__hide-mobile">
-                <a ng-click="downloadDocument(vm.club.plane.certificate.certificate, 'certificate')" class="snazzy-table__action-btn" uib-tooltip="Download document">
-                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.certificate.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
-                </a>
+              <td class="snazzy-table__name">{{ vm.club.plane.airworthiness_document.label || (vm.club.plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'Airworthiness Review Certificate (ARC)') }}
+                <!-- U7: the CofA / ARC relationship, said once under the row -->
+                <div ng-if="vm.club.plane.airworthiness_document.kind === 'cofa'" class="snazzy-table__muted">CofA on file · does not expire · no ARC recorded yet — the ARC expiry is the date that matters. Upload it with "Update ARC".</div>
+                <div ng-if="vm.club.plane.airworthiness_document.kind === 'arc'" class="snazzy-table__muted">CofA aircraft — the ARC expiry is the date that matters; the CofA itself does not expire.</div>
+                <!-- the uploader (user_id, stamped since 2026-11-07; older rows have none) -->
+                <div ng-if="vm.club.plane.airworthiness_document.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.airworthiness_document.uploaded_by_name }}</div>
               </td>
-              <td class="snazzy-table__date">{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <!-- B3 / U17: the download only when there is a file -->
+                <a ng-if="vm.club.plane.airworthiness_document.certificate" ng-click="downloadDocument(vm.club.plane.airworthiness_document.certificate, vm.club.plane.airworthiness_document.document_route === 'plane_arc' ? 'arc' : 'certificate')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.airworthiness_document.certificate) }}" alt="open doc" />
+                </a>
+                <span ng-if="!vm.club.plane.airworthiness_document.certificate" class="mx-doc-nofile">No file</span>
+              </td>
+              <td class="snazzy-table__date">{{ vm.displayDate(vm.club.plane.airworthiness_document.date_expiry) }}<span class="mx-ext-pill" ng-if="vm.arcExtendedUntil(vm.club.plane.airworthiness_document)" data-e2e="mx-arc-ext"><i class="fa fa-hourglass-half"></i> Extended until {{ vm.arcExtendedUntil(vm.club.plane.airworthiness_document) }}<span ng-if="vm.club.plane.airworthiness_document.extended_by"> by {{ vm.club.plane.airworthiness_document.extended_by }}</span></span><span ng-if="vm.club.plane.airworthiness_document.expires === false">Does not expire</span>
+                <!-- the form's "Certificate Issue Date" (date_issued — it was never stored) -->
+                <div ng-if="vm.displayDate(vm.club.plane.airworthiness_document.date_issued)" class="snazzy-table__muted">Issued {{ vm.displayDate(vm.club.plane.airworthiness_document.date_issued) }}</div>
+              </td>
               <td>
-                <span class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
-                  'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
-                  'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
-                }">{{ vm.club.plane.certificate.status }}</span>
+                <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.airworthiness_document.status)">{{ vm.statusWord(vm.club.plane.airworthiness_document.status) }}</span>
               </td>
               <td class="snazzy-table__td-actions">
-                <button class="snazzy-table__action-btn" ng-click="show_overlay('cert')" uib-tooltip="Update certificate">
+                <button class="snazzy-table__action-btn" ng-click="show_overlay('cert')" uib-tooltip="{{ vm.club.plane.airworthiness_type === 'ptf' ? 'Update Permit' : 'Update ARC' }}" data-e2e="mx-open-cert">
                   <i class="fa fa-edit"></i>
                 </button>
               </td>
             </tr>
             <!-- Insurance -->
             <tr>
-              <td class="snazzy-table__name">Insurance</td>
-              <td class="snazzy-table__hide-mobile">
-                <a ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')" class="snazzy-table__action-btn" uib-tooltip="Download document">
-                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
-                </a>
+              <td class="snazzy-table__name">Insurance
+                <div ng-if="vm.club.plane.insurance.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.insurance.uploaded_by_name }}</div>
               </td>
-              <td class="snazzy-table__date">{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-if="vm.club.plane.insurance.certificate" ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.insurance.certificate) }}" alt="open doc" />
+                </a>
+                <span ng-if="!vm.club.plane.insurance.certificate" class="mx-doc-nofile">No file</span>
+              </td>
+              <td class="snazzy-table__date">{{ vm.displayDate(vm.club.plane.insurance.date_expiry, vm.club.plane.insurance.certificate ? 'No expiry recorded' : '—') }}</td>
               <td>
-                <span class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--success': vm.club.plane.insurance.status === 'ok' || vm.club.plane.insurance.status === 'green',
-                  'snazzy-table__badge--warning': vm.club.plane.insurance.status === 'yellow',
-                  'snazzy-table__badge--danger': vm.club.plane.insurance.status === 'expired' || vm.club.plane.insurance.status === 'red'
-                }">{{ vm.club.plane.insurance.status }}</span>
+                <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.insurance.status)">{{ vm.club.plane.insurance.certificate || vm.club.plane.insurance.date_expiry ? vm.statusWord(vm.club.plane.insurance.status) : 'Not on file' }}</span>
               </td>
               <td class="snazzy-table__td-actions">
                 <button class="snazzy-table__action-btn" ng-click="show_overlay('insurance')" uib-tooltip="Update insurance">
@@ -249,19 +295,22 @@
             </tr>
             <!-- Radio Licence -->
             <tr>
-              <td class="snazzy-table__name">Radio Licence</td>
-              <td class="snazzy-table__hide-mobile">
-                <a ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')" class="snazzy-table__action-btn" uib-tooltip="Download document">
-                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
-                </a>
+              <td class="snazzy-table__name">Radio Licence
+                <div ng-if="vm.club.plane.radio_licence.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.radio_licence.uploaded_by_name }}</div>
               </td>
-              <td class="snazzy-table__date">{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-if="vm.club.plane.radio_licence.certificate" ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.radio_licence.certificate) }}" alt="open doc" />
+                </a>
+                <span ng-if="!vm.club.plane.radio_licence.certificate" class="mx-doc-nofile">No file</span>
+              </td>
+              <td class="snazzy-table__date">{{ vm.displayDate(vm.club.plane.radio_licence.date_expiry) }}
+                <!-- a licence on file without an expiry (none entered) — status "ok", not "expired" -->
+                <span ng-if="vm.club.plane.radio_licence.certificate && !vm.displayDate(vm.club.plane.radio_licence.date_expiry)" class="snazzy-table__muted">No expiry</span>
+                <span ng-if="!vm.club.plane.radio_licence.certificate && !vm.displayDate(vm.club.plane.radio_licence.date_expiry)" class="snazzy-table__muted">—</span>
+              </td>
               <td>
-                <span class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--success': vm.club.plane.radio_licence.status === 'ok' || vm.club.plane.radio_licence.status === 'green',
-                  'snazzy-table__badge--warning': vm.club.plane.radio_licence.status === 'yellow',
-                  'snazzy-table__badge--danger': vm.club.plane.radio_licence.status === 'expired' || vm.club.plane.radio_licence.status === 'red'
-                }">{{ vm.club.plane.radio_licence.status }}</span>
+                <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.radio_licence.status)">{{ vm.club.plane.radio_licence.certificate || vm.club.plane.radio_licence.date_expiry ? vm.statusWord(vm.club.plane.radio_licence.status) : 'Not on file' }}</span>
               </td>
               <td class="snazzy-table__td-actions">
                 <button class="snazzy-table__action-btn" ng-click="show_overlay('radio')" uib-tooltip="Update radio licence">
@@ -271,22 +320,22 @@
             </tr>
             <!-- Noise Certificate -->
             <tr>
-              <td class="snazzy-table__name">Noise Certificate</td>
-              <td class="snazzy-table__hide-mobile">
-                <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate">
-                  <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')" class="snazzy-table__action-btn" uib-tooltip="Download document">
-                    <img class="file_icon2" src="{{ get_icon2(vm.club.plane.noise.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
-                  </a>
-                </span>
-                <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
+              <td class="snazzy-table__name">Noise Certificate
+                <div ng-if="vm.club.plane.noise.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.noise.uploaded_by_name }}</div>
               </td>
-              <td class="snazzy-table__date">N/A</td>
+              <td class="snazzy-table__hide-mobile">
+                <a ng-if="vm.club.plane.noise.certificate" ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')" class="snazzy-table__action-btn" uib-tooltip="Download document">
+                  <img class="file_icon2" src="{{ get_icon2(vm.club.plane.noise.certificate) }}" alt="open doc" />
+                </a>
+                <span ng-if="!vm.club.plane.noise.certificate" class="mx-doc-nofile">No file</span>
+              </td>
+              <!-- U9: it never expires — "On file · issued dd/MM/yyyy" or "Not on file", no status pill -->
+              <td class="snazzy-table__date">
+                <span ng-if="vm.club.plane.noise.certificate">On file<span ng-if="vm.displayDate(vm.club.plane.noise.date_issued)"> · issued {{ vm.displayDate(vm.club.plane.noise.date_issued) }}</span></span>
+                <span ng-if="!vm.club.plane.noise.certificate" class="snazzy-table__muted">Not on file</span>
+              </td>
               <td>
-                <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="snazzy-table__badge" ng-class="{
-                  'snazzy-table__badge--success': vm.club.plane.noise.status === 'ok' || vm.club.plane.noise.status === 'green',
-                  'snazzy-table__badge--warning': vm.club.plane.noise.status === 'yellow',
-                  'snazzy-table__badge--danger': vm.club.plane.noise.status === 'expired' || vm.club.plane.noise.status === 'red'
-                }">{{ vm.club.plane.noise.status }}</span>
+                <span class="snazzy-table__muted">Does not expire</span>
               </td>
               <td class="snazzy-table__td-actions">
                 <button class="snazzy-table__action-btn" ng-click="show_overlay('noise')" uib-tooltip="Update noise certificate">
@@ -296,21 +345,23 @@
             </tr>
             <!-- CRS -->
             <tr>
-              <td class="snazzy-table__name">Certificate of Release to Service (CRS)</td>
+              <td class="snazzy-table__name">Certificate of Release to Service (CRS)
+                <div ng-if="vm.club.plane.crs.uploaded_by_name" class="snazzy-table__muted">Uploaded by {{ vm.club.plane.crs.uploaded_by_name }}</div>
+              </td>
               <td class="snazzy-table__hide-mobile">
                 <span ng-if="vm.club.plane.crs && vm.club.plane.crs.certificate">
                   <a ng-click="downloadDocument(vm.club.plane.crs.certificate, 'crs')" class="snazzy-table__action-btn" uib-tooltip="Download CRS">
-                    <img class="file_icon2" src="{{ get_icon2(vm.club.plane.crs.certificate) }}" alt="open doc" style="width:20px; height:20px;" />
+                    <img class="file_icon2" src="{{ get_icon2(vm.club.plane.crs.certificate) }}" alt="open doc" />
                   </a>
                 </span>
-                <span ng-if="!vm.club.plane.crs || !vm.club.plane.crs.certificate" class="snazzy-table__muted">NOT SET</span>
+                <span ng-if="!vm.club.plane.crs || !vm.club.plane.crs.certificate" class="mx-doc-nofile">No file</span>
               </td>
               <td class="snazzy-table__date">
-                <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }} at {{ vm.club.plane.crs.release_time }}</span>
-                <span ng-if="!vm.club.plane.crs">—</span>
+                <span ng-if="vm.club.plane.crs">Released {{ vm.displayDate(vm.club.plane.crs.release_date) }} at {{ vm.club.plane.crs.release_time }}</span>
+                <span ng-if="!vm.club.plane.crs" class="snazzy-table__muted">Not on file</span>
               </td>
               <td>
-                <span ng-if="vm.club.plane.crs" class="snazzy-table__muted" style="font-size:11px;">N/A (no expiry)</span>
+                <span class="snazzy-table__muted">Does not expire</span>
               </td>
               <td class="snazzy-table__td-actions">
                 <button class="snazzy-table__action-btn" ng-click="show_overlay('crs')" uib-tooltip="Update CRS">
@@ -324,24 +375,33 @@
 
       <!-- Mobile cards for documents -->
       <div class="mx-docs-mobile">
-        <!-- ARC -->
+        <!-- ARC / Permit to Fly (airworthiness_document, as the desktop row) -->
         <div class="snazzy-mobile-card" style="margin:8px 12px;">
           <div class="snazzy-mobile-card__header">
-            <span class="snazzy-mobile-card__title">{{ vm.club.plane.maintenance_type == "cofa" ? "ARC" : "Permit to Fly" }}</span>
+            <span class="snazzy-mobile-card__title">{{ vm.club.plane.airworthiness_document.kind === 'permit' ? 'Permit to Fly' : (vm.club.plane.airworthiness_document.kind === 'cofa' ? 'CofA' : 'ARC') }}</span>
             <button class="snazzy-table__action-btn" style="color:#fff;" ng-click="show_overlay('cert')"><i class="fa fa-edit"></i></button>
           </div>
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Expiry</span>
-              <span>{{ vm.club.plane.certificate.date_expiry | date:"dd/MM/yyyy" }}</span>
+              <span>{{ vm.displayDate(vm.club.plane.airworthiness_document.date_expiry) }}<span ng-if="vm.club.plane.airworthiness_document.expires === false">Does not expire</span></span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.displayDate(vm.club.plane.airworthiness_document.date_issued)">
+              <span class="snazzy-mobile-card__label">Issued</span>
+              <span>{{ vm.displayDate(vm.club.plane.airworthiness_document.date_issued) }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">File</span>
+              <a ng-if="vm.club.plane.airworthiness_document.certificate" ng-click="downloadDocument(vm.club.plane.airworthiness_document.certificate, vm.club.plane.airworthiness_document.document_route === 'plane_arc' ? 'arc' : 'certificate')" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"><i class="fa fa-download"></i> View</a>
+              <span ng-if="!vm.club.plane.airworthiness_document.certificate" class="mx-doc-nofile">No file</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.club.plane.airworthiness_document.kind === 'cofa' || vm.club.plane.airworthiness_document.kind === 'arc'">
+              <span class="snazzy-mobile-card__label">CofA</span>
+              <span class="snazzy-table__muted">{{ vm.club.plane.airworthiness_document.kind === 'cofa' ? 'On file, does not expire — no ARC recorded yet' : 'Does not expire — the ARC date is the one that matters' }}</span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Status</span>
-              <span class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--success': vm.club.plane.certificate.status === 'ok' || vm.club.plane.certificate.status === 'green',
-                'snazzy-table__badge--warning': vm.club.plane.certificate.status === 'yellow',
-                'snazzy-table__badge--danger': vm.club.plane.certificate.status === 'expired' || vm.club.plane.certificate.status === 'red'
-              }">{{ vm.club.plane.certificate.status }}</span>
+              <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.airworthiness_document.status)">{{ vm.statusWord(vm.club.plane.airworthiness_document.status) }}</span>
             </div>
           </div>
         </div>
@@ -354,15 +414,16 @@
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Expiry</span>
-              <span>{{ vm.club.plane.insurance.date_expiry | date:"dd/MM/yyyy" }}</span>
+              <span>{{ vm.displayDate(vm.club.plane.insurance.date_expiry, '—') }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">File</span>
+              <a ng-if="vm.club.plane.insurance.certificate" ng-click="downloadDocument(vm.club.plane.insurance.certificate, 'insurance')" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"><i class="fa fa-download"></i> View</a>
+              <span ng-if="!vm.club.plane.insurance.certificate" class="mx-doc-nofile">No file</span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Status</span>
-              <span class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--success': vm.club.plane.insurance.status === 'ok' || vm.club.plane.insurance.status === 'green',
-                'snazzy-table__badge--warning': vm.club.plane.insurance.status === 'yellow',
-                'snazzy-table__badge--danger': vm.club.plane.insurance.status === 'expired' || vm.club.plane.insurance.status === 'red'
-              }">{{ vm.club.plane.insurance.status }}</span>
+              <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.insurance.status)">{{ vm.club.plane.insurance.certificate || vm.club.plane.insurance.date_expiry ? vm.statusWord(vm.club.plane.insurance.status) : 'Not on file' }}</span>
             </div>
           </div>
         </div>
@@ -375,15 +436,16 @@
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Expiry</span>
-              <span>{{ vm.club.plane.radio_licence.date_expiry | date:"dd/MM/yyyy" }}</span>
+              <span>{{ vm.displayDate(vm.club.plane.radio_licence.date_expiry, vm.club.plane.radio_licence.certificate ? 'No expiry' : '—') }}</span>
+            </div>
+            <div class="snazzy-mobile-card__row">
+              <span class="snazzy-mobile-card__label">File</span>
+              <a ng-if="vm.club.plane.radio_licence.certificate" ng-click="downloadDocument(vm.club.plane.radio_licence.certificate, 'radio')" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"><i class="fa fa-download"></i> View</a>
+              <span ng-if="!vm.club.plane.radio_licence.certificate" class="mx-doc-nofile">No file</span>
             </div>
             <div class="snazzy-mobile-card__row">
               <span class="snazzy-mobile-card__label">Status</span>
-              <span class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--success': vm.club.plane.radio_licence.status === 'ok' || vm.club.plane.radio_licence.status === 'green',
-                'snazzy-table__badge--warning': vm.club.plane.radio_licence.status === 'yellow',
-                'snazzy-table__badge--danger': vm.club.plane.radio_licence.status === 'expired' || vm.club.plane.radio_licence.status === 'red'
-              }">{{ vm.club.plane.radio_licence.status }}</span>
+              <span class="snazzy-table__badge" ng-class="vm.statusBadgeClass(vm.club.plane.radio_licence.status)">{{ vm.club.plane.radio_licence.certificate || vm.club.plane.radio_licence.date_expiry ? vm.statusWord(vm.club.plane.radio_licence.status) : 'Not on file' }}</span>
             </div>
           </div>
         </div>
@@ -395,12 +457,13 @@
           </div>
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
-              <span class="snazzy-mobile-card__label">Status</span>
-              <span ng-if="vm.club.plane.noise && vm.club.plane.noise.certificate" class="snazzy-table__badge" ng-class="{
-                'snazzy-table__badge--success': vm.club.plane.noise.status === 'ok',
-                'snazzy-table__badge--danger': vm.club.plane.noise.status === 'expired'
-              }">{{ vm.club.plane.noise.status }}</span>
-              <span ng-if="!vm.club.plane.noise || !vm.club.plane.noise.certificate" class="snazzy-table__muted">NOT SET</span>
+              <span class="snazzy-mobile-card__label">Certificate</span>
+              <span ng-if="vm.club.plane.noise.certificate">On file<span ng-if="vm.displayDate(vm.club.plane.noise.date_issued)"> · issued {{ vm.displayDate(vm.club.plane.noise.date_issued) }}</span></span>
+              <span ng-if="!vm.club.plane.noise.certificate" class="snazzy-table__muted">Not on file</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.club.plane.noise.certificate">
+              <span class="snazzy-mobile-card__label">File</span>
+              <a ng-click="downloadDocument(vm.club.plane.noise.certificate, 'noise')" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"><i class="fa fa-download"></i> View</a>
             </div>
           </div>
         </div>
@@ -412,9 +475,13 @@
           </div>
           <div class="snazzy-mobile-card__body">
             <div class="snazzy-mobile-card__row">
-              <span class="snazzy-mobile-card__label">Release Date</span>
-              <span ng-if="vm.club.plane.crs">{{ vm.club.plane.crs.release_date | date:'dd/MM/yyyy' }}</span>
-              <span ng-if="!vm.club.plane.crs" class="snazzy-table__muted">—</span>
+              <span class="snazzy-mobile-card__label">Released</span>
+              <span ng-if="vm.club.plane.crs">{{ vm.displayDate(vm.club.plane.crs.release_date) }} at {{ vm.club.plane.crs.release_time }}</span>
+              <span ng-if="!vm.club.plane.crs" class="snazzy-table__muted">Not on file</span>
+            </div>
+            <div class="snazzy-mobile-card__row" ng-if="vm.club.plane.crs.certificate">
+              <span class="snazzy-mobile-card__label">File</span>
+              <a ng-click="downloadDocument(vm.club.plane.crs.certificate, 'crs')" class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm"><i class="fa fa-download"></i> View</a>
             </div>
           </div>
         </div>
@@ -461,21 +528,31 @@
           <i class="fa fa-chevron-right mx-logbook-link__arrow"></i>
         </a>
       </div>
-      <div class="mx-section-card__footer" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <!-- ONE rebuild for every logbook (Planes::rebuild_logbooks): recomputes the cached
-             airframe / engine / propeller entries from the stored flights. Never changes a
-             flight's airborne time and never touches billing columns. -->
-        <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.rebuild_logbooks()" ng-disabled="vm.rebuild_logbooks_busy"
-                uib-tooltip="Recalculates the airframe, engine and propeller logbook entries from the recorded flights. Flight times themselves are not changed.">
-          <i class="fa" ng-class="vm.rebuild_logbooks_busy ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i> Rebuild Logbooks
+      <!-- U21: the two rebuilds under an "Advanced" disclosure, each with its explanation visible -->
+      <div class="mx-section-card__footer mx-advanced">
+        <button type="button" class="mx-advanced__toggle" ng-click="vm.show_advanced = !vm.show_advanced" data-e2e="mx-advanced-toggle">
+          <i class="fa" ng-class="vm.show_advanced ? 'fa-chevron-up' : 'fa-chevron-down'"></i> Advanced
         </button>
-        <!-- This is NOT a recalculation: fox/reset_aeroplane deletes the UNCLAIMED tracker
-             placeholder flights of the current tracker and recreates them from the tracker's
-             entries. The old label ("Force Recheck Logbooks") hid that. -->
-        <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.reset_aeroplane()"
-                uib-tooltip="Deletes the unclaimed tracker placeholder flights of the current tracker and recreates them from the tracker's recordings. Claimed / booked-in flights are not touched.">
-          <i class="fa fa-redo"></i> Rebuild Tracker Placeholders
-        </button>
+        <div ng-if="vm.show_advanced">
+          <div class="mx-advanced__item">
+            <!-- ONE rebuild for every logbook (Planes::rebuild_logbooks): recomputes the cached
+                 airframe / engine / propeller entries from the stored flights. Never changes a
+                 flight's airborne time and never touches billing columns. -->
+            <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.rebuild_logbooks()" ng-disabled="vm.rebuild_logbooks_busy">
+              <i class="fa" ng-class="vm.rebuild_logbooks_busy ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i> Rebuild Logbooks
+            </button>
+            <p class="mx-advanced__text">Recalculates the airframe, engine and propeller logbook entries from the recorded flights. Flight times themselves are not changed. Safe to run at any time.</p>
+          </div>
+          <div class="mx-advanced__item">
+            <!-- This is NOT a recalculation: fox/reset_aeroplane deletes the UNCLAIMED tracker
+                 placeholder flights of the current tracker and recreates them from the tracker's
+                 entries. -->
+            <button class="snazzy-page__btn snazzy-page__btn--outline snazzy-page__btn--sm" ng-click="vm.reset_aeroplane()">
+              <i class="fa fa-redo"></i> Rebuild Tracker Placeholders
+            </button>
+            <p class="mx-advanced__text">Deletes the unclaimed tracker placeholder flights of the current tracker and recreates them from the tracker's recordings. Claimed and booked-in flights are not touched, but the hours figure can move. Asks for confirmation.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -489,24 +566,21 @@
       </div>
 
       <!-- Filter Tabs -->
-      <div class="mx-event-filters" style="padding:0 20px;">
-        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'all'}" ng-click="vm.event_filter = 'all'">All</button>
-        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'annual'}" ng-click="vm.event_filter = 'annual'">Annual</button>
-        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '50hours'}" ng-click="vm.event_filter = '50hours'">50hr</button>
-        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === '100hours'}" ng-click="vm.event_filter = '100hours'">100hr</button>
-        <button class="mx-filter-btn" ng-class="{'mx-filter-active': vm.event_filter === 'extension'}" ng-click="vm.event_filter = 'extension'">Ext</button>
+      <!-- B14 / U12: a chip for every type present in the list -->
+      <div class="mx-event-filters mx-event-filters--pad" ng-if="vm.maintenance_events.length > 0" data-e2e="mx-event-filters">
+        <button class="mx-filter-btn" ng-repeat="opt in vm.event_filter_options" ng-class="{'mx-filter-active': vm.event_filter === opt.key}" ng-click="vm.event_filter = opt.key">{{ opt.label }}</button>
       </div>
 
       <div ng-if="!vm.maintenance_events || vm.maintenance_events.length === 0" class="snazzy-page__empty" style="padding:24px;">
         <i class="fa fa-wrench snazzy-page__empty-icon"></i>
         <p>No maintenance events recorded yet.</p>
-        <p style="color:#94a3b8; font-size:12px;">Use "Add Maintenance Check" above to log the first event.</p>
+        <p class="mx-empty-hint">Use "Record a check" above to log the first one.</p>
       </div>
 
       <div class="mx-event-list" ng-if="vm.maintenance_events && vm.maintenance_events.length > 0" style="padding:0 20px 20px;">
+        <!-- U12: filtered in the repeat (no ng-if leave animation per row — the 2 s lag) -->
         <div class="mx-event-item"
-             ng-repeat="event in vm.maintenance_events"
-             ng-if="vm.event_filter === 'all' || event.maintenance_type === vm.event_filter"
+             ng-repeat="event in vm.maintenance_events | filter:vm.eventMatchesFilter"
              ng-click="vm.viewEvent(event)">
           <div class="mx-event-icon-col">
             <div class="mx-event-icon">
@@ -517,15 +591,17 @@
           <div class="mx-event-content">
             <div class="mx-event-header">
               <span class="mx-event-type-badge">{{ vm.getEventTypeLabel(event.maintenance_type) }}</span>
-              <span class="mx-event-date"><i class="fa fa-calendar"></i> {{ event.check_date | date:'dd MMM yyyy' }}</span>
+              <!-- B2: MySQL datetimes through myDateTime (Angular's date filter cannot parse them) -->
+              <span class="mx-event-date"><i class="fa fa-calendar"></i> {{ event.check_date | myDateTime }}</span>
             </div>
             <div class="mx-event-body">
               <span ng-if="event.description" class="mx-event-desc">{{ event.description }}</span>
               <span ng-if="!event.description" class="mx-event-desc mx-event-desc-empty">No description</span>
             </div>
             <div class="mx-event-meta">
-              <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer-alt"></i> {{ event.hours_remaining }} hrs remaining</span>
-              <span ng-if="event.expiry_date" class="mx-meta-chip"><i class="fa fa-clock"></i> Next: {{ event.expiry_date | date:'dd/MM/yyyy' }}</span>
+              <span ng-if="event.hours_remaining" class="mx-meta-chip"><i class="fa fa-tachometer-alt"></i> {{ vm.isExtension(event) ? '+' + (event.hours_remaining | number:1) + ' h granted' : (event.hours_remaining | number:1) + ' h to next check' }}</span>
+              <span ng-if="vm.displayDate(event.expiry_date)" class="mx-meta-chip"><i class="fa fa-clock"></i> {{ vm.isExtension(event) ? 'Until' : 'Next:' }} {{ vm.displayDate(event.expiry_date) }}</span>
+              <span ng-if="event.next_check_type" class="mx-meta-chip"><i class="fa fa-wrench"></i> {{ vm.nextCheckLabel(event.next_check_type) }}</span>
               <span ng-if="event.checked_by" class="mx-meta-chip"><i class="fa fa-user"></i> {{ event.checked_by }}</span>
             </div>
           </div>
@@ -543,12 +619,15 @@
     <div class="snazzy-page__summary-card mx-section-card">
       <div class="mx-section-card__header">
         <h3><i class="fa fa-archive"></i> Maintenance Workpacks</h3>
+        <button class="snazzy-page__btn snazzy-page__btn--primary snazzy-page__btn--sm" ng-click="show_overlay('workpack')" data-e2e="mx-new-workpack">
+          <i class="fa fa-plus"></i> New workpack
+        </button>
       </div>
 
       <div ng-if="!vm.workpacks || vm.workpacks.length === 0" class="snazzy-page__empty" style="padding:24px;">
         <i class="fa fa-archive snazzy-page__empty-icon"></i>
         <p>No workpacks for this aircraft</p>
-        <p style="color:#94a3b8; font-size:12px;">Create one via "Add Maintenance Check".</p>
+        <p class="mx-empty-hint">Create one with "New workpack", or as a step of an annual check.</p>
       </div>
 
       <!-- Desktop table -->
@@ -740,6 +819,8 @@
       </div>
     </div>
 
+    </div><!-- end loaded content -->
+
   </div><!-- end .snazzy-page__body -->
 
 </div><!-- end .snazzy-page -->
@@ -762,7 +843,7 @@
                             {{ vm.getEventTypeLabel(vm.selected_event.maintenance_type) }}
                           </span>
                           <h2 class="wp-panel-title">Edit Maintenance Event</h2>
-                          <p class="wp-panel-subtitle">{{ vm.club.plane.registration }} &middot; {{ vm.selected_event.check_date | date:'dd MMM yyyy' }}</p>
+                          <p class="wp-panel-subtitle">{{ vm.club.plane.registration }} &middot; {{ vm.selected_event.check_date | myDateTime }}</p>
                         </div>
                         <button class="wp-panel-close" ng-click="vm.closeEventDetail()" title="Close">
                           <i class="fa fa-times"></i>
@@ -778,8 +859,8 @@
 
                           <div class="wp-form-group">
                             <label for="edit_mx_type">Maintenance Type</label>
-                            <select class="form-control inputtext" id="edit_mx_type" ng-model="vm.selected_event.maintenance_type">
-                              <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
+                            <select class="form-control inputtext" id="edit_mx_type" ng-model="vm.selected_event.maintenance_type"
+                                    ng-options="x as vm.typeLabel(x) for x in vm.editTypeOptions(vm.selected_event.maintenance_type)">
                             </select>
                           </div>
 
@@ -795,14 +876,21 @@
                             </div>
                           </div>
 
-                          <div class="wp-form-group">
-                            <label for="edit_hours_remaining">Hours To Next Check</label>
-                            <input type="number" class="form-control inputtext" id="edit_hours_remaining" ng-model="vm.selected_event.hours_remaining" />
+                          <!-- an extension (owner, 10 Nov 2026): its fields mean something else than a check's -->
+                          <div class="wp-explain" ng-if="vm.isExtension(vm.selected_event)" data-e2e="mx-edit-ext-note">
+                            <i class="fa fa-hourglass-half"></i> An extension sits on top of the last check: the date extends the <b>ARC</b> and the next-check date (usually up to a month); the hours add to the <b>hours to the next check</b> (usually up to 5 h). It does not extend the radio licence or the insurance.
                           </div>
 
                           <div class="wp-form-group">
-                            <label for="edit_expiry_date">Date Of Next Check</label>
+                            <label for="edit_hours_remaining">{{ vm.isExtension(vm.selected_event) ? 'Hours granted' : 'Hours To Next Check' }}</label>
+                            <input type="number" class="form-control inputtext" id="edit_hours_remaining" ng-model="vm.selected_event.hours_remaining" />
+                            <small class="wp-hint" ng-if="vm.isExtension(vm.selected_event)">Added to the hours to the next check. Leave 0 for a date-only extension.</small>
+                          </div>
+
+                          <div class="wp-form-group">
+                            <label for="edit_expiry_date">{{ vm.isExtension(vm.selected_event) ? 'Runs until' : 'Date Of Next Check' }}</label>
                             <input type="date" class="form-control inputtext" id="edit_expiry_date" ng-model="vm.selected_event._expiry_date" />
+                            <small class="wp-hint" ng-if="vm.isExtension(vm.selected_event)">The ARC and the next check run to this date. Leave empty for an hours-only extension.</small>
                           </div>
 
                           <div class="wp-form-group">
@@ -829,11 +917,11 @@
                               <span class="wp-info-value">{{ vm.selected_event._check_date | date:'dd/MM/yyyy' }}</span>
                             </div>
                             <div class="wp-info-item">
-                              <span class="wp-info-label">Next Due</span>
+                              <span class="wp-info-label">{{ vm.isExtension(vm.selected_event) ? 'Runs until' : 'Next Due' }}</span>
                               <span class="wp-info-value">{{ vm.selected_event._expiry_date | date:'dd/MM/yyyy' || '—' }}</span>
                             </div>
                             <div class="wp-info-item">
-                              <span class="wp-info-label">Hours Remaining</span>
+                              <span class="wp-info-label">{{ vm.isExtension(vm.selected_event) ? 'Hours granted' : 'Hours Remaining' }}</span>
                               <span class="wp-info-value">{{ vm.selected_event.hours_remaining || '—' }}</span>
                             </div>
                           </div>
@@ -896,914 +984,501 @@
 
 
 
+<!-- ═══════════════════════════════════════════════════════════
+     THE PANEL — one slide-in, one mode at a time (decision 1).
+       maintenance : the type-driven check form (+ extension as a mode of it)
+       offline     : explain → confirm → take offline (U6)
+       cert / insurance / radio / noise / crs : one document each (U7 / U8 / U9)
+       workpack    : the new-workpack sub-form standalone
+     Save = save_overlay(): validation first, then the request with the panel kept
+     open and busy until it resolves (U4 / B9), one combined outcome toast (B13).
+     ═══════════════════════════════════════════════════════════ -->
 <div class="wp-overlay-backdrop" ng-class="{'active': vm.show_overlay}" ng-click="close_overlay()"></div>
-<div class="wp-overlay-panel wp-overlay-panel-wide" ng-class="{'open': vm.show_overlay}">
+<div class="wp-overlay-panel wp-overlay-panel-wide" ng-class="{'open': vm.show_overlay, 'wp-overlay-panel--busy': vm.saving}" data-e2e="mx-panel">
   <div class="wp-panel-inner">
 
     <!-- ── Header ── -->
     <div class="wp-panel-header">
       <div class="wp-panel-header-left">
-        <span class="wp-panel-badge" ng-class="{
-          'wp-status-open': vm.show_maintenance,
-          'wp-status-completed': !vm.show_maintenance
-        }">
+        <span class="wp-panel-badge" ng-class="{'wp-status-open': vm.show_maintenance || vm.show_offline, 'wp-status-completed': !(vm.show_maintenance || vm.show_offline)}">
           <i class="fa" ng-class="{
-            'fa-wrench': vm.show_maintenance || vm.show_offline,
+            'fa-wrench': vm.show_maintenance,
+            'fa-power-off': vm.show_offline,
             'fa-file-alt': vm.show_cert || vm.show_crs,
             'fa-shield-alt': vm.show_insurance,
             'fa-wifi': vm.show_radio,
-            'fa-volume-up': vm.show_noise
+            'fa-volume-up': vm.show_noise,
+            'fa-archive': vm.show_workpack_form
           }"></i>
-          <span ng-if="vm.show_maintenance">MAINTENANCE CHECK</span>
-          <span ng-if="vm.show_offline && !vm.show_maintenance">TAKE OFFLINE</span>
-          <span ng-if="vm.show_cert && !vm.show_maintenance">UPDATE CERTIFICATE</span>
-          <span ng-if="vm.show_insurance && !vm.show_maintenance">UPDATE INSURANCE</span>
-          <span ng-if="vm.show_radio && !vm.show_maintenance">UPDATE RADIO LICENCE</span>
-          <span ng-if="vm.show_noise && !vm.show_maintenance">UPDATE NOISE CERT</span>
-          <span ng-if="vm.show_crs && !vm.show_maintenance">UPDATE CRS</span>
+          {{ vm.overlayTitle() }}
         </span>
         <h2 class="wp-panel-title">{{ vm.club.plane.registration }}</h2>
-        <p class="wp-panel-subtitle" ng-if="vm.show_maintenance">Complete the maintenance check details below</p>
+        <p class="wp-panel-subtitle" ng-if="vm.show_maintenance">Choose the type first — the form shows only what that check needs.</p>
+        <p class="wp-panel-subtitle" ng-if="vm.show_offline">Grounds the aircraft in the scheduler until the date you give.</p>
       </div>
-      <button class="wp-panel-close" ng-click="close_overlay()" title="Close">
+      <button class="wp-panel-close" ng-click="close_overlay()" title="Close" ng-disabled="vm.saving">
         <i class="fa fa-times"></i>
       </button>
     </div>
 
     <!-- ── Scrollable Body ── -->
     <div class="wp-panel-body">
-      
-            <!-- ═══════ TAKE OFFLINE ═══════ -->
-            <div class="wp-section" ng-if="vm.show_offline">
-                    <h3 class="wp-section-title"><i class="fa fa-power-off"></i> Take Plane Offline</h3>
 
-                    <div class="wp-form-group">
-                      <label for="offline_until">Offline Until Date</label>
-                      <input type="date" class="form-control inputtext" name="offline_until" id="offline_until" ng-model="vm.obj.offline_until" />
-                    </div>
+      <!-- ═══════ TAKE OFFLINE (U6) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_offline" data-e2e="mx-offline">
+        <h3 class="wp-section-title"><i class="fa fa-power-off"></i> Take {{ vm.club.plane.registration }} offline</h3>
 
-                    <div class="wp-form-group">
-                      <label class="notes_center" for="notes">Reason / Notes</label>
-                      <textarea class="form-control inputtext" name="notes" id="notes" ng-model="vm.obj.offline_notes"></textarea>
-                    </div>
+        <div class="wp-explain">
+          <strong>What happens when you confirm:</strong>
+          <ul>
+            <li>A maintenance booking is created for the aircraft from now until the end of the "offline until" day.</li>
+            <li>Bookings of this club that clash with it are moved to the waiting list, and those members are e-mailed.</li>
+            <li>Nobody can book or book out the aircraft until then.</li>
+          </ul>
+          <span class="wp-explain__note">To bring it back online earlier, change the maintenance booking in the scheduler — it cannot be undone from this page.</span>
+        </div>
+
+        <div ng-if="!vm.offline_confirm">
+          <div class="wp-form-group">
+            <label for="offline_until">Offline until <span class="wp-required">*</span></label>
+            <input type="date" class="form-control inputtext" name="offline_until" id="offline_until" ng-model="vm.obj.offline_until" />
+            <small class="wp-hint">Today or later. The aircraft is offline up to 23:59 on this day.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="offline_notes">Reason / notes</label>
+            <textarea class="form-control inputtext" name="offline_notes" id="offline_notes" ng-model="vm.obj.offline_notes" placeholder="e.g. Awaiting part — magneto"></textarea>
+            <small class="wp-hint">Shown on the maintenance booking in the scheduler.</small>
+          </div>
+        </div>
+
+        <div class="wp-explain wp-explain--confirm" ng-if="vm.offline_confirm" data-e2e="mx-offline-confirm">
+          <strong>Confirm: take {{ vm.club.plane.registration }} offline until {{ vm.displayDate(vm.obj.offline_until) }}?</strong>
+          <p ng-if="vm.obj.offline_notes">Reason: {{ vm.obj.offline_notes }}</p>
+          <p>Clashing bookings of this club go to the waiting list and those members are e-mailed now.</p>
+          <button type="button" class="wp-btn wp-btn-outline wp-btn-sm" ng-click="vm.offline_confirm = false" ng-disabled="vm.saving"><i class="fa fa-arrow-left"></i> Change the date</button>
+        </div>
+      </div>
+
+      <!-- ═══════ RECORD A CHECK (type-driven, decision 1) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_maintenance" data-e2e="mx-check-form">
+        <h3 class="wp-section-title"><i class="fa fa-wrench"></i> What are you recording?</h3>
+
+        <div class="wp-form-group">
+          <label for="mx_type">Type <span class="wp-required">*</span></label>
+          <select class="form-control inputtext" id="mx_type" ng-model="vm.obj.maintenance_type" ng-change="vm.steps = {}; vm.prefillNextCheck()"
+                  ng-options="x as vm.typeLabel(x) for x in vm.form_type_options" data-e2e="mx-type">
+            <option value="">— Choose —</option>
+          </select>
+          <small class="wp-hint" ng-if="!vm.fields().chosen">A 25 / 50 / 100 h, interim or 6-month check records its own fields. An annual adds optional steps (hours, workpack, CRS, ARC / permit). An extension adjusts the hours or the date to the next check.</small>
+          <small class="wp-hint" ng-if="vm.fields().extension">An extension is added on top of the last check — it never replaces it. Give the hours granted, the date it runs until, or both.</small>
+          <small class="wp-hint" ng-if="vm.obj.maintenance_type === 'annual'">The annual records its own date and time; the hours, workpack, CRS and ARC / permit are optional steps below — open the ones that apply.</small>
+        </div>
+
+        <!-- ── a check ── -->
+        <div ng-if="vm.fields().check">
+          <div class="wp-form-group">
+            <label for="check_date">Date of the check <span class="wp-required">*</span></label>
+            <input type="date" class="form-control inputtext" name="check_date" id="check_date" ng-model="vm.obj.check_date" />
+            <small class="wp-hint">The day the aircraft was released to service. Not in the future.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="check_time">Time of release to service <span class="wp-required">*</span></label>
+            <input type="time" class="form-control inputtext" name="check_time" id="check_time" ng-model="vm.obj.check_time" />
+            <small class="wp-hint">Defaults to now. Flights before this time count to the previous check, flights after it to this one.</small>
+          </div>
+
+          <div class="wp-form-group" ng-if="vm.fields().hours">
+            <label for="hours_remaining">Hours to the next check <span class="wp-required">*</span></label>
+            <input type="number" step="0.1" min="0" max="1000" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.obj.hours_remaining" placeholder="{{ vm.hoursPlaceholder() }}" />
+            <small class="wp-hint">Flying hours allowed from this check until the next one ({{ vm.hoursPlaceholder() }}). Never pre-filled with the current figure.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="next_check">Date of the next check <span class="wp-required">*</span></label>
+            <input type="date" class="form-control inputtext" name="next_check" id="next_check" ng-model="vm.obj.next_check" />
+            <small class="wp-hint">{{ vm.nextCheckHint() }}. Valid up to 23:59 on that day.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="next_check_type">Type of the next check</label>
+            <select class="form-control inputtext" id="next_check_type" ng-model="vm.obj.next_check_type"
+                    ng-options="x as vm.typeLabel(x) for x in vm.maintenance_types" data-e2e="mx-next-type">
+              <option value="">— Not known —</option>
+            </select>
+            <small class="wp-hint">Shown on the fleet list so managers can plan the downtime (a 50 h check ≈ half a day, a 100 h check ≈ 2 days).</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="checked_by">Checked by <span class="wp-required">*</span></label>
+            <input type="text" class="form-control inputtext" name="checked_by" id="checked_by" ng-model="vm.obj.checked_by" placeholder="e.g. J. Smith, Part-66 B1" />
+            <small class="wp-hint">The engineer who signed the aircraft off.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="mx_notes">Notes</label>
+            <textarea class="form-control inputtext" name="mx_notes" id="mx_notes" ng-model="vm.obj.notes" placeholder="e.g. Oil and filter changed; spark plugs cleaned"></textarea>
+          </div>
+        </div>
+
+        <!-- ── an extension ── -->
+        <div ng-if="vm.fields().extension">
+          <div class="wp-form-group">
+            <label for="extension_granted">Date granted <span class="wp-required">*</span></label>
+            <input type="date" class="form-control inputtext" name="extension_granted" id="extension_granted" ng-model="vm.obj.extension_granted" />
+          </div>
+
+          <div class="wp-form-group">
+            <label for="extension_time">Time granted <span class="wp-required">*</span></label>
+            <input type="time" class="form-control inputtext" name="extension_time" id="extension_time" ng-model="vm.obj.check_time" />
+            <small class="wp-hint">Defaults to now.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="extension_hours">Hours granted</label>
+            <input type="number" step="0.1" min="0" max="100" class="form-control inputtext" name="extension_hours" id="extension_hours" ng-model="vm.obj.extension_hours" placeholder="e.g. 5" />
+            <small class="wp-hint">Added to the hours remaining (normally up to 5 h). Leave blank for a date-only extension.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="extension_days">Extension runs until</label>
+            <input type="date" class="form-control inputtext" name="extension_days" id="extension_days" ng-model="vm.obj.extension_days" />
+            <small class="wp-hint">The new date of the next check. Leave blank for an hours-only extension.</small>
+          </div>
+
+          <div class="wp-form-group">
+            <label for="extension_by">Granted by <span class="wp-required">*</span></label>
+            <input type="text" class="form-control inputtext" name="extension_by" id="extension_by" ng-model="vm.obj.checked_by" placeholder="e.g. J. Smith, Part-66 B1" />
+          </div>
+
+          <div class="wp-form-group">
+            <label for="ext_notes">Notes</label>
+            <textarea class="form-control inputtext" name="ext_notes" id="ext_notes" ng-model="vm.obj.notes"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ OPTIONAL STEPS (collapsed) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_maintenance && vm.fields().chosen" data-e2e="mx-steps">
+        <h3 class="wp-section-title"><i class="fa fa-list-ul"></i> Optional steps</h3>
+        <p class="wp-empty-text wp-steps-intro">Open only the steps that apply. Nothing in a closed step is saved.</p>
+
+        <!-- (the annual's optional "Hours" step was retired in batch 17: hours are a core field for every check) -->
+
+        <!-- Workpack (annual) -->
+        <div class="wp-step" ng-if="vm.fields().step_workpack" ng-class="{'wp-step--open': vm.steps.workpack}">
+          <button type="button" class="wp-step__head" ng-click="vm.toggleStep('workpack')">
+            <i class="fa fa-archive"></i> Workpack
+            <span class="wp-step__hint">link an open one or create a new one</span>
+            <i class="fa wp-step__chev" ng-class="vm.steps.workpack ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="wp-step__body" ng-if="vm.steps.workpack">
+            <div class="wp-form-group">
+              <label for="workpack_option">Workpack</label>
+              <select class="form-control inputtext" id="workpack_option" ng-model="vm.obj.workpack_option">
+                <option value="">— None —</option>
+                <option value="existing" ng-if="vm.open_workpacks && vm.open_workpacks.length > 0">Link to an open workpack</option>
+                <option value="new">Create a new workpack</option>
+              </select>
             </div>
-
-            <!-- ═══════ MAINTENANCE COMPLETED ═══════ -->
-            <div class="wp-section" ng-if="vm.show_maintenance">
-
-                    <h3 class="wp-section-title"><i class="fa fa-wrench"></i> Maintenance Completed</h3>
-
-                    <div class="wp-form-group">
-                      <label for="plane_class">Maintenance Type</label>
-                      <select class="form-control inputtext" ng-model="vm.obj.maintenance_type">
-                        <option ng-repeat="x in vm.maintenance_types">{{x}}</option>
-                      </select>
-                    </div>
-
-
-                    <div ng-if="vm.obj.maintenance_type == 'extension'">
-
-                      <div class="form-group">
-                        <label for="extension_granted">Extension Granted Date</label>
-                        <input type="date" class="form-control inputtext" name="extension_granted" id="extension_granted" ng-model="vm.obj.extension_granted" />
-                      </div>
-
-                      <div class="form-group">
-                        <label for="time_picker" uib-tooltip="The time of day at which the extension was granted">Extension granted at</label>
-                        <div class="timepicker_in_form">
-                          <div uib-timepicker ng-model="vm.obj.check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
-                        </div>
-                      </div>
-
-                      <div class="form-group">
-                        <label for="extension_hours">Extension Of Hours (normally 5hours)</label>
-                        <input type="number" class="form-control inputtext" name="extension_hours" id="extension_hours" ng-model="vm.obj.extension_hours" />
-                      </div>
-
-                      <div class="form-group">
-                        <label for="extension_days">Extension Granted Until</label>
-                        <input type="date" class="form-control inputtext" name="extension_days" id="extension_days" ng-model="vm.obj.extension_days" />
-                      </div>
-
-                    </div>
-
-
-                  <div ng-if="vm.obj.maintenance_type !== 'extension'">
-
-                    <div class="form-group">
-                      <label for="check_date" uib-tooltip="The date the maintenance was completed">Date of Maintenance</label>
-                      <input type="date" class="form-control inputtext" name="check_date" id="check_date" ng-model="vm.obj.check_date" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="time_picker" uib-tooltip="The time of day at which the maintenance was completed">Time of Maintenance</label>
-                      <div class="timepicker_in_form">
-                        <div uib-timepicker ng-model="vm.obj.check_time" hour-step="1" minute-step="5" show-meridian="false"></div>
-                      </div>
-                    </div>
-
-                    <div class="form-group">
-                      <label for="hours_remaining" uib-tooltip="The number of flying hours until the next maintenance check is due">Hours To Next Check</label>
-                      <input type="number" class="form-control inputtext" name="hours_remaining" id="hours_remaining" ng-model="vm.obj.hours_remaining" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="next_check" uib-tooltip="The calendar date by which the next maintenance check must be completed">Date Of Next Check</label>
-                      <input type="date" class="form-control inputtext" name="next_check" id="next_check" ng-model="vm.obj.next_check" />
-                    </div>
-                    
-                  </div>
-
-                  <div class="form-group">
-                      <label for="checked_by" uib-tooltip="Engineer who signed out the aircraft">Checked By</label>
-                      <input type="text" class="form-control inputtext" name="checked_by" id="checked_by" ng-model="vm.obj.checked_by" />
-                  </div>
-
-                  <div class="wp-form-group">
-                    <label class="notes_center" for="notes">Notes</label>
-                    <textarea class="form-control inputtext" name="notes" id="notes" ng-model="vm.obj.notes"></textarea>
-                  </div>
-
+            <div ng-if="vm.obj.workpack_option === 'existing'">
+              <div class="wp-form-group">
+                <label for="workpack_select">Open workpack</label>
+                <select class="form-control inputtext" ng-model="vm.obj.workpack_id" id="workpack_select">
+                  <option value="">— Select —</option>
+                  <option ng-repeat="owp in vm.open_workpacks" value="{{ owp.id }}">{{ owp.workpack_number || 'Workpack #' + owp.id }} — {{ owp.description || 'No description' }}</option>
+                </select>
+              </div>
             </div>
+            <div ng-if="vm.obj.workpack_option === 'new'" ng-include="'views/manageclub/_workpack_new_fields.html'"></div>
+          </div>
+        </div>
 
-                  <!-- ═══════════════════════════════════════════ -->
-                  <!-- WORKPACK (within maintenance overlay) -->
-                  <!-- ═══════════════════════════════════════════ -->
+        <!-- CRS (every check — owner, 10 Nov 2026; was the annual only). Opening it pre-fills the release date / time from the check. -->
+        <div class="wp-step" ng-if="vm.fields().step_crs" ng-class="{'wp-step--open': vm.steps.crs}" data-e2e="mx-step-crs">
+          <button type="button" class="wp-step__head" ng-click="vm.toggleStep('crs')">
+            <i class="fa fa-certificate"></i> Certificate of Release to Service (CRS)
+            <span class="wp-step__hint">if the engineer issued one</span>
+            <i class="fa wp-step__chev" ng-class="vm.steps.crs ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="wp-step__body" ng-if="vm.steps.crs">
+            <div ng-include="'views/manageclub/_mx_crs_fields.html'"></div>
+          </div>
+        </div>
 
-            <div class="wp-section" ng-if="vm.show_maintenance">
-                  <h3 class="wp-section-title"><i class="fa fa-archive"></i> Workpack</h3>
+        <!-- ARC / Permit (annual) -->
+        <div class="wp-step" ng-if="vm.fields().step_arc" ng-class="{'wp-step--open': vm.steps.arc}">
+          <button type="button" class="wp-step__head" ng-click="vm.toggleStep('arc')">
+            <i class="fa fa-file-alt"></i> {{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'ARC' }} renewal
+            <span class="wp-step__hint">if the annual renewed it</span>
+            <i class="fa wp-step__chev" ng-class="vm.steps.arc ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="wp-step__body" ng-if="vm.steps.arc">
+            <div ng-include="'views/manageclub/_mx_cert_fields.html'"></div>
+          </div>
+        </div>
 
-                  <div class="form-group">
-                    <label>Workpack Option</label>
-                    <select class="form-control inputtext" ng-model="vm.obj.workpack_option">
-                      <option value="">— No Workpack —</option>
-                      <option value="existing" ng-if="vm.open_workpacks && vm.open_workpacks.length > 0">Link to Existing Workpack</option>
-                      <option value="new">Create New Workpack</option>
-                    </select>
+        <!-- Resolve defects (always) -->
+        <div class="wp-step" ng-if="vm.fields().step_defects" ng-class="{'wp-step--open': vm.steps.defects}" data-e2e="mx-step-defects">
+          <button type="button" class="wp-step__head" ng-click="vm.toggleStep('defects')">
+            <i class="fa fa-exclamation-triangle"></i> Resolve defects
+            <span class="wp-step__hint">{{ vm.reported_defects.length || 0 }} open</span>
+            <i class="fa wp-step__chev" ng-class="vm.steps.defects ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="wp-step__body" ng-if="vm.steps.defects">
+            <p class="wp-empty-text" ng-if="!vm.reported_defects || vm.reported_defects.length < 1">No open defects on this aircraft.</p>
+
+            <div class="wp-list" ng-if="vm.reported_defects && vm.reported_defects.length > 0">
+              <div class="wp-list-item" ng-repeat="defect in vm.reported_defects">
+                <div class="wp-list-item-body">
+                  <label class="wp-defect-tick">
+                    <input type="checkbox" ng-model="defect.resolved" ng-change="check_ticked()" />
+                    <span class="wp-defect-text">{{ defect.defect }}</span>
+                  </label>
+                  <div class="wp-list-item-meta">
+                    <span class="wp-severity-tag" ng-class="vm.severityChipClass(defect.severity)" title="{{ defect.severity }}">{{ vm.severityShort(defect.severity) }}</span>
+                    <span><i class="fa fa-clock"></i> {{ defect.created_at | myDateTime }}</span>
+                    <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" ng-if="defect.media_count > 0">
+                      <i class="fa fa-camera"></i> {{ defect.media_count }}
+                      <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                    </span>
+                  </div>
+                  <div ng-if="defect._showMedia" class="wp-defect-media">
+                    <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
                   </div>
 
-                  <!-- Option A: Link to existing -->
-                  <div ng-if="vm.obj.workpack_option === 'existing'">
-                    <div class="form-group">
-                      <label for="workpack_select">Select Workpack</label>
-                      <select class="form-control inputtext" ng-model="vm.obj.workpack_id" id="workpack_select">
-                        <option value="">— Select —</option>
-                        <option ng-repeat="owp in vm.open_workpacks" value="{{ owp.id }}">{{ owp.workpack_number || 'Workpack #' + owp.id }} — {{ owp.description || 'No description' }}</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <!-- Option B: Create new workpack -->
-                  <div ng-if="vm.obj.workpack_option === 'new'">
-                    <div class="form-group">
-                      <label for="wp_number">Workpack Number</label>
-                      <input type="text" class="form-control inputtext" id="wp_number" ng-model="vm.new_workpack.workpack_number" placeholder="e.g. WP-2026-001" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="wp_signatory">Authorised Signatory</label>
-                      <input type="text" class="form-control inputtext" id="wp_signatory" ng-model="vm.new_workpack.authorised_signatory" placeholder="e.g. John Smith AME" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="wp_description">Description</label>
-                      <textarea class="form-control" id="wp_description" ng-model="vm.new_workpack.description" placeholder="e.g. 50-hour inspection"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                      <label for="wp_status">Status</label>
-                      <select class="form-control inputtext" id="wp_status" ng-model="vm.new_workpack.status">
-                        <option value="completed">Completed</option>
-                        <option value="open">Open (work in progress)</option>
-                      </select>
-                    </div>
-
-                    <div class="form-group">
-                      <label>Upload Workpack Document (optional)</label>
-                      <div class="form-group centre_content_uploader">
-                        <div
-                          flow-init="{target: '/upload_documents.php', singleFile: true}"
-                          flow-files-submitted="$flow.upload()"
-                          flow-file-success="$file.file_return = $message"
-                          flow-complete="processWorkpackFile($flow.files, 'workpack_doc')"
-                          flow-file-limit="1"
-                          flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
-                          <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="vm.workpack_files.workpack_doc.length < 1">
-                            Click To Upload
-                            <br />OR<br />
-                            Drag And Drop Your Document
-                          </div>
-                          <div ng-repeat="file in $flow.files" class="gallery-box">
-                            <span class="title">{{file.name}}</span>
-                            <div class="thumbnail" ng-show="$flow.files.length">
-                              <img src="{{get_icon(file.file)}}" />
-                            </div>
-                            <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                              <div class="progress-bar" role="progressbar"
-                                aria-valuenow="{{file.progress() * 100}}"
-                                aria-valuemin="0"
-                                aria-valuemax="100"
-                                ng-style="{width: (file.progress() * 100) + '%'}">
-                              </div>
-                            </div>
-                            <div class="btn-group center">
-                              <a class="btn btn-xs btn-danger" ng-click="file.cancel();" ng-if="(file.progress() * 100) == 100">
-                                Remove
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-            </div>
-
-            <!-- ═══════ REPORTED DEFECTS ═══════ -->
-            <div class="wp-section" ng-if="vm.show_maintenance">
-
-                    <h3 class="wp-section-title"><i class="fa fa-exclamation-triangle"></i> Reported Defects</h3>
-
-                    <div>
-
-                    <div class="no_defects" ng-if="vm.reported_defects && vm.reported_defects.length < 1">
-                     There are no known maintenance defects outstanding...
-                    </div>
-
-                     <table ng-if="vm.reported_defects && vm.reported_defects.length > 0">
-                        <tr>
-                         
-                          <th>
-                            Defect Reported
-                          </th>
-
-                          <th>
-                            Reported Date &amp; Time
-                          </th>
-                           <th>
-                            Severity
-                          </th>
-                          <th>
-                            Media
-                          </th>
-                          <th>
-                            Defect Resolved
-                          </th>
-                        </tr>
-                        <tr ng-repeat-start="defect in vm.reported_defects">
-                          
-                          <td>
-                            {{ defect.defect }}
-                          </td>
-                          <td>
-                            {{ defect.created_at | myDateTime }}
-                          </td>
-                          <td>
-                            {{ defect.severity }}
-                          </td>
-                          <td>
-                            <span class="dm-media-badge" ng-click="defect._showMedia = !defect._showMedia" style="cursor:pointer;">
-                              <i class="fa fa-camera"></i>
-                              <span ng-if="defect.media_count > 0">{{ defect.media_count }}</span>
-                              <i class="fa" ng-class="defect._showMedia ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:10px;"></i>
-                            </span>
-                          </td>
-                          <td>
-                            <input type="checkbox" ng-model="defect.resolved" ng-change="check_ticked()">
-                          </td>
-                        </tr>
-
-                        <!-- Defect Media Gallery (expandable) -->
-                        <tr ng-if="defect._showMedia">
-                          <td colspan="5" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
-                            <defect-media-gallery defect-id="defect.id" club-id="vm.club_id" media-count="defect.media_count"></defect-media-gallery>
-                          </td>
-                        </tr>
-
-                        <!-- Workpack fields for resolved defect -->
-                        <tr ng-repeat-end ng-if="defect.resolved" class="defect_workpack_row">
-                          <td colspan="5" style="padding: 10px 15px; background: #f9f9f9; border-top: none;">
-                            <div style="border-left: 3px solid #337ab7; padding-left: 12px;">
-                              <strong><i class="fa fa-briefcase"></i> Workpack for this defect:</strong>
-
-                              <!-- Option to link to the maintenance workpack being created above -->
-                              <div class="form-group" style="margin-top: 8px;" ng-if="vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number">
-                                <label>
-                                  <input type="checkbox" ng-model="defect._link_to_workpack" ng-change="defect._link_to_workpack ? (defect._standalone_wp = false) : null" />
-                                  Link to workpack <strong>{{ vm.new_workpack.workpack_number }}</strong> (created above)
-                                </label>
-                              </div>
-
-                              <!-- Standalone workpack fields (hidden if linking to the maintenance workpack) -->
-                              <div ng-if="!defect._link_to_workpack">
-                                <div class="form-group" style="margin-top: 8px;">
-                                  <label>Workpack Number</label>
-                                  <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_number" placeholder="e.g. DEF-WP-42" />
-                                </div>
-
-                                <div class="form-group">
-                                  <label>Signatory</label>
-                                  <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_signatory" placeholder="e.g. Jane Doe L/AE" />
-                                </div>
-
-                                <div class="form-group">
-                                  <label>Upload Document (optional)</label>
-                                  <div class="form-group centre_content_uploader">
-                                    <div
-                                      flow-init="{target: '/upload_documents.php', singleFile: true}"
-                                      flow-files-submitted="$flow.upload()"
-                                      flow-file-success="$file.file_return = $message"
-                                      flow-complete="vm.processDefectFile($flow.files, defect)"
-                                      flow-file-limit="1"
-                                      flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
-                                      <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!defect._uploaded_file">
-                                        Click To Upload <br />OR<br /> Drag And Drop
-                                      </div>
-                                      <div ng-repeat="file in $flow.files" class="gallery-box">
-                                        <span class="title">{{file.name}}</span>
-                                        <div class="thumbnail" ng-show="$flow.files.length">
-                                          <img src="{{get_icon(file.file)}}" />
-                                        </div>
-                                        <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                          <div class="progress-bar" role="progressbar"
-                                            aria-valuenow="{{file.progress() * 100}}"
-                                            aria-valuemin="0"
-                                            aria-valuemax="100"
-                                            ng-style="{width: (file.progress() * 100) + '%'}">
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-
-                      </table>
-
-
-                    
-                    <div ng-if="vm.one_ticked">
-                        <span>I confirm that defects ticked as resolved, were completed or signed off by an engineer and logbook entries reflect this.</span> 
-                        <input type="checkbox" class="" name="issue_confirmation" id="issue_confirmation" ng-model="vm.obj.issue_confirmation" />
-                    </div>
-
-
-                  </div>
-
-
-
-
-            </div>
-
-
-            <!-- ═══════ LOGBOOK ASSOCIATIONS (create form) ═══════ -->
-            <div class="wp-section" ng-if="vm.show_maintenance">
-
-                    <h3 class="wp-section-title"><i class="fa fa-book"></i> Logbook Associations</h3>
-                    <p class="wp-empty-text" style="margin-bottom: 12px;">Select which logbooks this maintenance event should appear in. Airframe is selected by default.</p>
-
-                    <div ng-if="vm.create_logbook_loading" class="lb-loading">
-                      <i class="fa fa-spinner fa-spin"></i> Loading logbooks...
-                    </div>
-
-                    <div ng-if="vm.create_logbook_error" class="lb-error">
-                      <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
-                      <a href ng-click="vm.loadCreateLogbooks()">Retry</a>
-                    </div>
-
-                    <div class="lb-checkbox-list" ng-if="vm.create_logbook_checkboxes.length > 0 && !vm.create_logbook_loading">
-                      <label class="lb-checkbox-item" ng-repeat="lb in vm.create_logbook_checkboxes">
-                        <div class="lb-checkbox-toggle">
-                          <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleCreateLogbook(lb)" />
-                          <span class="lb-checkbox-slider"></span>
-                        </div>
-                        <div class="lb-checkbox-info">
-                          <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
-                          <span class="lb-checkbox-label">{{ lb.label }}</span>
-                          <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
-                        </div>
+                  <!-- Workpack details for a resolved defect -->
+                  <div ng-if="defect.resolved" class="wp-defect-resolved">
+                    <div class="wp-form-group" ng-if="vm.steps.workpack && vm.obj.workpack_option === 'new' && vm.new_workpack.workpack_number">
+                      <label class="wp-defect-tick">
+                        <input type="checkbox" ng-model="defect._link_to_workpack" />
+                        <span>Link to workpack <strong>{{ vm.new_workpack.workpack_number }}</strong> (created with this check)</span>
                       </label>
                     </div>
-
-            </div>
-
-
-            <!-- ═══════ CRS (Certificate of Release to Service) ═══════ -->
-            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_crs">
-
-                    <h3 class="wp-section-title"><i class="fa fa-certificate"></i> Certificate of Release to Service (CRS)</h3>
-                    <p class="wp-empty-text" style="margin-bottom: 14px;">Optional — upload a CRS document with release date and time if the aircraft is being released back to service.</p>
-
-                    <div class="wp-form-group">
-                        <span ng-if="!vm.files.crs[0]">Upload CRS certificate (PDF, DOC, etc.)</span>
-
+                    <div ng-if="!defect._link_to_workpack">
+                      <div class="wp-form-group">
+                        <label>Workpack number <span class="wp-optional">optional</span></label>
+                        <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_number" placeholder="e.g. DEF-WP-42" />
+                      </div>
+                      <div class="wp-form-group">
+                        <label>Signatory <span class="wp-optional">optional</span></label>
+                        <input type="text" class="form-control inputtext" ng-model="defect.defect_workpack_signatory" placeholder="e.g. Jane Doe L/AE" />
+                      </div>
+                      <div class="wp-form-group">
+                        <label>Document <span class="wp-optional">optional</span></label>
                         <div class="wp-upload-zone">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'crs')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
-                              <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">     
-                                  <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
-                                  <span>Click or drag a file to upload</span>
+                          <div
+                            flow-init="{target: '/upload_documents.php', singleFile: true}"
+                            flow-files-submitted="$flow.upload()"
+                            flow-file-success="$file.file_return = $message"
+                            flow-complete="vm.processDefectFile($flow.files, defect)"
+                            flow-file-limit="1"
+                            flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1}[$file.getExtension()]">
+                            <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+                              <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+                              <span>Click or drag the file here</span>
+                            </div>
+                            <div ng-repeat="file in $flow.files" class="wp-upload-file">
+                              <i class="fa fa-file"></i>
+                              <span class="wp-upload-filename">{{file.name}}</span>
+                              <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                                <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
                               </div>
-
-                              <div ng-repeat="file in $flow.files" class="wp-upload-file">
-                                <i class="fa fa-file"></i>
-                                <span class="wp-upload-filename">{{file.name}}</span>
-                                <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                  </div>
-                                </div>
-                                <button class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); remove_file(file, $flow.files);" ng-if="(file.progress() * 100) == 100">
-                                  <i class="fa fa-times"></i>
-                                </button>
-                              </div>
-
+                              <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); defect._uploaded_file = null;" ng-if="(file.progress() * 100) == 100" title="Remove"><i class="fa fa-times"></i></button>
+                            </div>
                           </div>
                         </div>
-                    </div>
-
-                    <div class="wp-form-group">
-                      <label for="crs_release_date">Release Date</label>
-                      <input type="date" class="form-control inputtext" name="crs_release_date" id="crs_release_date" ng-model="vm.obj.crs_release_date" />
-                    </div>
-
-                    <div class="wp-form-group">
-                      <label for="crs_release_time">Release Time</label>
-                      <input type="time" class="form-control inputtext" name="crs_release_time" id="crs_release_time" ng-model="vm.obj.crs_release_time" />
-                    </div>
-
-            </div>
-
-
-            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_cert">
-
-                    <h3 class="wp-section-title"><i class="fa fa-file-alt"></i> {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} Document</h3>
-
-                   <!--  <label for="cert">Certificate PDF</label>
-                    <input type="file" class="form-control" name="plane_type" id="cert" ng-model="vm.obj.cert" /> -->
-
-                    <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload {{ vm.club.plane.maintenance_type == "cofa" ? "Annual Review Certificate" : "Permit to Fly Certificate" }} in PDF format</span>
-                        <br />
-                        
-
-
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'cert')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
                       </div>
                     </div>
-
-
-
-                      
-                         <!-- <div 
-                           flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'cert')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
-                           >
-
-                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.document.id">     
-                                Click To Upload 
-                                <br />OR<br /> 
-                                Drag And Drop
-                            </div>
-
-                            <br/>
-
-                            <div>
-                                  <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                    <span class="title">{{file.name}}</span>
-                                    <div class="thumbnail" ng-show="$flow.files.length">
-                                          <img src="{{get_icon(file.file)}}" />
-                                    </div>
-                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                      <div class="progress-bar" role="progressbar"
-                                           aria-valuenow="{{file.progress() * 100}}"
-                                           aria-valuemin="0"
-                                           aria-valuemax="100"
-                                           ng-style="{width: (file.progress() * 100) + '%'}">
-                                        <span class="sr-only">{{file.progress()}}% Complete</span>
-                                      </div>
-                                    </div>
-                                    <div class="btn-group center">
-                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                        Delete
-                                      </a>
-                                    </div>
-                                  </div>
-
-                                  <div class="clear"></div>
-                            </div>
-
-                        </div> -->
-
-                    </div>
-
-                    <div class="form-group">
-                      <label for="certificate_expiry">Certificate Issue Date</label>
-                      <input type="date" class="form-control inputtext" name="certificate_issue" id="certificate_issue" ng-model="vm.obj.certificate_issue" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="certificate_expiry">Certificate Expiry</label>
-                      <input type="date" class="form-control inputtext" name="certificate_expiry" id="certificate_expiry" ng-model="vm.obj.certificate_expiry" />
-                    </div>
-
+                  </div>
+                </div>
+              </div>
             </div>
 
-
-
-            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_insurance">
-
-                    <h3 class="wp-section-title"><i class="fa fa-shield-alt"></i> Insurance Document</h3>
-
-                   <!--  <label for="insurance">Insurace PDF</label>
-                    <input type="file" class="form-control" name="plane_type" id="insurance" ng-model="vm.obj.insurance" /> -->
-
-
-                    <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
-                        <br />
-
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                              flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'insurance')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>
-                        
-                      
-                        <!-- <div 
-                           flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'insurance')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
-                           >
-
-                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.document.id">     
-                                Click To Upload 
-                                <br />OR<br /> 
-                                Drag And Drop
-                            </div>
-
-                            <br/>
-
-                            <div>
-
-
-
-                                  <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                    <span class="title">{{file.name}}</span>
-                                    <div class="thumbnail" ng-show="$flow.files.length">
-                                          <img src="{{get_icon(file.file)}}" />
-                                    </div>
-                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                      <div class="progress-bar" role="progressbar"
-                                           aria-valuenow="{{file.progress() * 100}}"
-                                           aria-valuemin="0"
-                                           aria-valuemax="100"
-                                           ng-style="{width: (file.progress() * 100) + '%'}">
-                                        <span class="sr-only">{{file.progress()}}% Complete</span>
-                                      </div>
-                                    </div>
-                                    <div class="btn-group center">
-                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                        Delete
-                                      </a>
-                                    </div>
-                                  </div>
-
-                                  <div class="clear"></div>
-                            </div>
-
-                        </div>
-
-                    </div> -->
-
-                    </div>
-
-                    <div class="form-group">
-                      <label for="insurance_expiry">Insurance Expiry</label>
-                      <input type="date" class="form-control inputtext" name="insurance_expiry" id="insurance_expiry" ng-model="vm.obj.insurance_expiry" />
-                    </div>
-
+            <!-- U10 / B7: enforced by the validation whenever a defect is ticked -->
+            <div class="wp-confirm" ng-if="vm.one_ticked" data-e2e="mx-defect-confirm">
+              <label class="wp-defect-tick">
+                <input type="checkbox" name="issue_confirmation" id="issue_confirmation" ng-model="vm.obj.issue_confirmation" />
+                <span><strong>Required:</strong> I confirm the defects ticked as resolved were completed or signed off by an engineer, and the logbook entries reflect this.</span>
+              </label>
             </div>
+          </div>
+        </div>
 
-
-            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_radio">
-
-                    <h3 class="wp-section-title"><i class="fa fa-wifi"></i> Radio Licence</h3>
-
-                    <!-- <label for="radio_licence">Radio Licence PDF</label>
-                    <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
-
-                    <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
-                        <br />
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'radio')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>
-                        
-                      
-                        <!-- <div 
-                           flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'radio')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]"
-                           >
-
-
-                            <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">     
-                                Click To Upload 
-                                <br />OR<br /> 
-                                Drag And Drop
-                            </div>
-
-                            <br/>
-
-                            <div>
-
-
-
-
-                                  <div ng-repeat="file in $flow.files" class="gallery-box">
-                                    <span class="title">{{file.name}}</span>
-                                    <div class="thumbnail" ng-show="$flow.files.length">
-                                          <img src="{{get_icon(file.file)}}" />
-                                    </div>
-                                    <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                      <div class="progress-bar" role="progressbar"
-                                           aria-valuenow="{{file.progress() * 100}}"
-                                           aria-valuemin="0"
-                                           aria-valuemax="100"
-                                           ng-style="{width: (file.progress() * 100) + '%'}">
-                                        <span class="sr-only">{{file.progress()}}% Complete</span>
-                                      </div>
-                                    </div>
-                                    <div class="btn-group center">
-                                      <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                        Delete
-                                      </a>
-                                    </div>
-                                  </div>
-
-                                  <div class="clear"></div>
-                            </div>
-
-                        </div>
-
-                    </div> -->
-
-                    </div>
-
-                    <div class="form-group">
-                      <label for="radio_expiry">Radio Licence Expiry</label>
-                      <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.obj.radio_expiry" />
-                    </div>
-
+        <!-- Logbooks (checks only) -->
+        <div class="wp-step" ng-if="vm.fields().step_logbooks" ng-class="{'wp-step--open': vm.steps.logbooks}">
+          <button type="button" class="wp-step__head" ng-click="vm.toggleStep('logbooks')">
+            <i class="fa fa-book"></i> Logbooks this check appears in
+            <span class="wp-step__hint">airframe by default</span>
+            <i class="fa wp-step__chev" ng-class="vm.steps.logbooks ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+          <div class="wp-step__body" ng-if="vm.steps.logbooks">
+            <div ng-if="vm.create_logbook_loading" class="lb-loading"><i class="fa fa-spinner fa-spin"></i> Loading logbooks...</div>
+            <div ng-if="vm.create_logbook_error" class="lb-error">
+              <i class="fa fa-exclamation-triangle"></i> Unable to load logbooks.
+              <a href ng-click="vm.loadCreateLogbooks()">Retry</a>
             </div>
-
-
-            <div class="wp-section" ng-if="vm.show_maintenance || vm.show_noise">
-
-                    <h3 class="wp-section-title"><i class="fa fa-volume-up"></i> Noise Certificate</h3>
-
-                    <!-- <label for="radio_licence">Radio Licence PDF</label>
-                    <input type="file" class="form-control" name="plane_type" id="radio_licence" ng-model="vm.obj.radio_licence" /> -->
-
-                    <div class="form-group">
-                        <span for="licence_type" ng-if="!vm.document.id">Please upload club documents in PDF format</span>
-                        <br />
-
-                        <div class="form-group centre_content_uploader">
-                          <div 
-                             flow-init="{target: '/upload_documents.php', singleFile: true}"
-                           flow-files-submitted="$flow.upload()"
-                           flow-file-success="$file.file_return = $message"
-                           flow-complete="processFile($flow.files, 'noise_cert')"
-                           flow-file-limit="1"
-                           flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,pdf:1,xlsx:1,xls:1,doc:1,docx:1,zip:1,avi:1,mp4:1}[$file.getExtension()]">
-                              <div class="drop" flow-btn flow-drop ng-class="dropClass" ng-if="!vm.uploaded_document.file && $flow.files.length < 1">     
-                                  Click To Upload 
-                                  <br />OR<br /> 
-                                  Drag And Drop Your Document
-                              </div>
-
-                              <div ng-repeat="file in vm.uploaded_document" class="gallery-box">
-                                  <span class="title">{{file.name}}</span>
-                                  <div class="thumbnail">
-                                    <img src="{{get_icon2(vm.uploaded_document.file)}}" />
-                                  </div>
-                              </div>
-
-
-                              <div ng-repeat="file in $flow.files" class="gallery-box" ng-if="!vm.document.id">
-                                <span class="title">{{file.name}}</span>
-                                <div class="thumbnail" ng-show="$flow.files.length">
-                                      <img src="{{get_icon(file.file)}}" />
-                                </div>
-                                <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
-                                  <div class="progress-bar" role="progressbar"
-                                       aria-valuenow="{{file.progress() * 100}}"
-                                       aria-valuemin="0"
-                                       aria-valuemax="100"
-                                       ng-style="{width: (file.progress() * 100) + '%'}">
-                                    <span class="sr-only">{{file.progress()}}% Complete</span>
-                                  </div>
-                                </div>
-                                <div class="btn-group center">
-                                  <a class="btn btn-xs btn-danger" ng-click="file.cancel(); remove_file(file, $flow.files);"  ng-if="(file.progress() * 100) == 100">
-                                    Delete
-                                  </a>
-                                </div>
-                              </div>
-
-
-                        <div class="clear"></div>
-                          
-                      </div>
-                    </div>
-
-                    </div>
-                        
-                    <div class="form-group">
-                      <label for="radio_expiry">Noise Level</label>
-                      <input type="number" increment="0.1" class="form-control inputtext" name="noise_level" id="noise_level" ng-model="vm.obj.noise_level" />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="radio_expiry">Noise Certificate Date</label>
-                      <input type="date" class="form-control inputtext" name="noise_date" id="noise_date" ng-model="vm.obj.noise_date" />
-                    </div>
-
+            <div class="lb-checkbox-list" ng-if="vm.create_logbook_checkboxes.length > 0 && !vm.create_logbook_loading">
+              <label class="lb-checkbox-item" ng-repeat="lb in vm.create_logbook_checkboxes">
+                <div class="lb-checkbox-toggle">
+                  <input type="checkbox" ng-model="lb.isLinked" ng-change="vm.toggleCreateLogbook(lb)" />
+                  <span class="lb-checkbox-slider"></span>
+                </div>
+                <div class="lb-checkbox-info">
+                  <i class="fa" ng-class="vm.getLogbookIcon(lb.logbook_type)"></i>
+                  <span class="lb-checkbox-label">{{ lb.label }}</span>
+                  <span class="lb-checkbox-position" ng-if="lb.position">#{{ lb.position }}</span>
+                </div>
+              </label>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ NEW WORKPACK (standalone) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_workpack_form" data-e2e="mx-workpack-form">
+        <h3 class="wp-section-title"><i class="fa fa-archive"></i> New workpack</h3>
+        <p class="wp-empty-text wp-steps-intro">A workpack on its own — no check is recorded with it. Link checks and defects to it from the workpack afterwards.</p>
+        <div ng-include="'views/manageclub/_workpack_new_fields.html'"></div>
+      </div>
+
+      <!-- ═══════ CRS (own mode) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_crs">
+        <h3 class="wp-section-title"><i class="fa fa-certificate"></i> Certificate of Release to Service (CRS)</h3>
+        <div ng-include="'views/manageclub/_mx_crs_fields.html'"></div>
+      </div>
+
+      <!-- ═══════ ARC / PERMIT (own mode) ═══════ -->
+      <div class="wp-section" ng-if="vm.show_cert">
+        <h3 class="wp-section-title"><i class="fa fa-file-alt"></i> {{ vm.club.plane.airworthiness_type === 'ptf' ? 'Permit to Fly' : 'Airworthiness Review Certificate (ARC)' }}</h3>
+        <p class="wp-empty-text wp-steps-intro" ng-if="vm.club.plane.airworthiness_type !== 'ptf'">For a CofA aircraft the ARC is the date that matters — the CofA itself does not expire. Upload the renewed ARC here.</p>
+        <div ng-include="'views/manageclub/_mx_cert_fields.html'"></div>
+      </div>
+
+      <!-- ═══════ INSURANCE ═══════ -->
+      <div class="wp-section" ng-if="vm.show_insurance">
+        <h3 class="wp-section-title"><i class="fa fa-shield-alt"></i> Insurance</h3>
+        <div class="wp-form-group">
+          <label>Insurance certificate <span class="wp-required">*</span></label>
+          <small class="wp-hint wp-hint--above">PDF or photo (pdf, jpg, png, heic — photos are stored as JPG). Replaces the certificate on file; the old one is archived.</small>
+          <div class="wp-upload-zone">
+            <div
+              flow-init="{target: '/upload_documents.php', singleFile: true}"
+              flow-files-submitted="$flow.upload()"
+              flow-file-success="$file.file_return = $message"
+              flow-complete="processFile($flow.files, 'insurance')"
+              flow-file-limit="1"
+              flow-file-added="!!{pdf:1,jpg:1,jpeg:1,png:1,gif:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
+              <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+                <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+                <span>Click or drag the certificate here</span>
+              </div>
+              <div ng-repeat="file in $flow.files" class="wp-upload-file">
+                <i class="fa fa-file"></i>
+                <span class="wp-upload-filename">{{file.name}}</span>
+                <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                  <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
+                </div>
+                <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); vm.removeUpload('insurance');" ng-if="(file.progress() * 100) == 100" title="Remove"><i class="fa fa-times"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="wp-form-group">
+          <label for="insurance_expiry">Insurance expiry <span class="wp-required">*</span></label>
+          <input type="date" class="form-control inputtext" name="insurance_expiry" id="insurance_expiry" ng-model="vm.obj.insurance_expiry" />
+          <small class="wp-hint">Valid up to 23:59 on this day.</small>
+        </div>
+      </div>
+
+      <!-- ═══════ RADIO LICENCE ═══════ -->
+      <div class="wp-section" ng-if="vm.show_radio">
+        <h3 class="wp-section-title"><i class="fa fa-wifi"></i> Radio licence</h3>
+        <div class="wp-form-group">
+          <label>Radio licence <span class="wp-required">*</span></label>
+          <small class="wp-hint wp-hint--above">PDF or photo (pdf, jpg, png, heic — photos are stored as JPG). Replaces the licence on file; the old one is archived.</small>
+          <div class="wp-upload-zone">
+            <div
+              flow-init="{target: '/upload_documents.php', singleFile: true}"
+              flow-files-submitted="$flow.upload()"
+              flow-file-success="$file.file_return = $message"
+              flow-complete="processFile($flow.files, 'radio')"
+              flow-file-limit="1"
+              flow-file-added="!!{pdf:1,jpg:1,jpeg:1,png:1,gif:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
+              <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+                <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+                <span>Click or drag the licence here</span>
+              </div>
+              <div ng-repeat="file in $flow.files" class="wp-upload-file">
+                <i class="fa fa-file"></i>
+                <span class="wp-upload-filename">{{file.name}}</span>
+                <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                  <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
+                </div>
+                <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); vm.removeUpload('radio');" ng-if="(file.progress() * 100) == 100" title="Remove"><i class="fa fa-times"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="wp-form-group">
+          <label for="radio_expiry">Radio licence expiry <span class="wp-optional">optional</span></label>
+          <input type="date" class="form-control inputtext" name="radio_expiry" id="radio_expiry" ng-model="vm.obj.radio_expiry" />
+          <small class="wp-hint">Blank = no expiry. Usually valid for 3 years. For information and reminders only — it never stops a booking or book-out.</small>
+        </div>
+      </div>
+
+      <!-- ═══════ NOISE CERTIFICATE ═══════ -->
+      <div class="wp-section" ng-if="vm.show_noise">
+        <h3 class="wp-section-title"><i class="fa fa-volume-up"></i> Noise certificate</h3>
+        <div class="wp-form-group">
+          <label>Noise certificate <span class="wp-required">*</span></label>
+          <small class="wp-hint wp-hint--above">PDF or photo (pdf, jpg, png, heic — photos are stored as JPG). It does not expire; the issue date is recorded.</small>
+          <div class="wp-upload-zone">
+            <div
+              flow-init="{target: '/upload_documents.php', singleFile: true}"
+              flow-files-submitted="$flow.upload()"
+              flow-file-success="$file.file_return = $message"
+              flow-complete="processFile($flow.files, 'noise_cert')"
+              flow-file-limit="1"
+              flow-file-added="!!{pdf:1,jpg:1,jpeg:1,png:1,gif:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]">
+              <div class="wp-drop-area" flow-btn flow-drop ng-class="dropClass" ng-if="$flow.files.length < 1">
+                <i class="fa fa-cloud-upload-alt wp-upload-icon"></i>
+                <span>Click or drag the certificate here</span>
+              </div>
+              <div ng-repeat="file in $flow.files" class="wp-upload-file">
+                <i class="fa fa-file"></i>
+                <span class="wp-upload-filename">{{file.name}}</span>
+                <div class="progress wp-upload-progress" ng-if="(file.progress() * 100) < 100">
+                  <div class="progress-bar" role="progressbar" ng-style="{width: (file.progress() * 100) + '%'}"></div>
+                </div>
+                <button type="button" class="wp-btn wp-btn-danger wp-btn-sm" ng-click="file.cancel(); vm.removeUpload('noise_cert');" ng-if="(file.progress() * 100) == 100" title="Remove"><i class="fa fa-times"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="wp-form-group">
+          <label for="noise_level">Noise level (dB) <span class="wp-optional">optional</span></label>
+          <input type="number" step="0.1" class="form-control inputtext" name="noise_level" id="noise_level" ng-model="vm.obj.noise_level" placeholder="e.g. 72.5" />
+        </div>
+        <div class="wp-form-group">
+          <!-- sent as noise_cert.date_issued → plane_noise_certificate.date_issued -->
+          <label for="noise_date">Issue date <span class="wp-required">*</span></label>
+          <input type="date" class="form-control inputtext" name="noise_date" id="noise_date" ng-model="vm.obj.noise_date" />
+        </div>
+      </div>
 
     </div>
 
     <!-- ── Footer Actions ── -->
     <div class="wp-panel-footer">
       <div class="wp-footer-actions">
-        <button class="wp-btn wp-btn-danger" ng-click="close_overlay()">
+        <button class="wp-btn wp-btn-danger" ng-click="close_overlay()" ng-disabled="vm.saving">
           <i class="fa fa-times"></i> Cancel
         </button>
-        <button class="wp-btn wp-btn-success" ng-click="save_overlay()">
-          <i class="fa fa-check"></i>
-          <span ng-if="vm.show_maintenance">Save Maintenance</span>
-          <span ng-if="vm.show_offline && !vm.show_maintenance">Take Offline</span>
-          <span ng-if="vm.show_cert && !vm.show_maintenance">Update Certificate</span>
-          <span ng-if="vm.show_insurance && !vm.show_maintenance">Update Insurance</span>
-          <span ng-if="vm.show_radio && !vm.show_maintenance">Update Radio Licence</span>
-          <span ng-if="vm.show_noise && !vm.show_maintenance">Update Noise Cert</span>
-          <span ng-if="vm.show_crs && !vm.show_maintenance">Update CRS</span>
+        <button class="wp-btn" ng-class="vm.show_offline ? 'wp-btn-warning' : 'wp-btn-success'" ng-click="save_overlay()" ng-disabled="vm.saving" data-e2e="mx-save">
+          <i class="fa" ng-class="vm.saving ? 'fa-spinner fa-spin' : (vm.show_offline ? 'fa-power-off' : 'fa-check')"></i>
+          {{ vm.overlayAction() }}
         </button>
       </div>
     </div>

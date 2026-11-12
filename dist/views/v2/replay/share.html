@@ -1,0 +1,75 @@
+<!-- ═══ v2 shared flight — PUBLIC (state flight_share, /f/:token, FlightShareV2Controller as fs) ═══
+     Design: mockups/my-account/flight-replay.html → Visitor / Invited visitor / Link turned off. No account and no app menus.
+     The middle is the live replay (views/v2/replay/replay.html with `pub` set: map, six-pack, playback and height profile;
+     no weather, airspace or track analysis). Photos and comments come only when the link shows them; an invite link can add
+     both. Every failure is the one "This link isn't available" page (the API answers the same 404 for all of them). -->
+<div class="frv2 frs-public v2-host" ng-class="{'frs-public--gone': fs.state === 'gone'}">
+  <div class="frs-top">
+    <div class="frs-pub"><img src="images/main_logo.png" class="frs-pub__logo" alt="ToAviate"></div>
+
+    <div class="ta-note ta-note--info frs-preview" ng-if="fs.preview && fs.state !== 'gone'"><i class="fas fa-eye"></i><div><b>Preview.</b> This is what someone with the link sees.</div><span class="ta-sp"></span><a class="ta-btn ta-btn--sm frs-preview__back" ui-sref="dashboard.v2.flight_replay({flight_id: fs.preview})">Back to the replay</a></div>
+
+    <section class="ta-hero frs-hero" aria-label="Shared flight" ng-if="fs.state === 'ready'">
+      <div class="ta-hero__top"><span class="ta-hero__eyebrow"><i class="fas fa-share-alt"></i>Shared flight</span></div>
+      <div class="ta-hero__head">
+        <span class="ta-hero__badge"><i class="fas fa-plane"></i></span>
+        <div>
+          <div class="ta-hero__title">{{ fs.title }}</div>
+          <div class="ta-hero__sub">{{ fs.route }}</div>
+          <div class="ta-hero__sub" ng-if="fs.sub2">{{ fs.sub2 }}</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="fr-loading frs-loading" ng-if="fs.state === 'loading'"><div class="fr-spinner"></div> Loading the flight…</div>
+
+    <section class="ta-card frs-gone" ng-if="fs.state === 'gone'" data-e2e="frs-gone">
+      <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-link"></i></span><h4>This link isn’t available</h4><p>It may have been turned off. Ask the person who shared it for a new one.</p></div>
+    </section>
+  </div>
+
+  <div class="frs-replay" ng-if="fs.state === 'ready'" ng-include="'views/v2/replay/replay.html'"></div>
+
+  <div class="frs-bottom" ng-if="fs.state === 'ready'" ng-class="{'frs-one': !((fs.showPhotos || fs.canAdd) && (fs.showNotes || fs.canAdd))}">
+    <div class="fr-debrief" ng-if="fs.showPhotos || fs.showNotes || fs.canAdd">
+
+      <!-- Photos -->
+      <div class="fr-panel fr-panel--photos" ng-if="fs.showPhotos || fs.canAdd" data-e2e="frs-photos">
+        <div class="fr-panel__head"><h3><i class="fas fa-camera"></i> Photos</h3><span class="fr-panel__count">{{ fs.photos.length }}</span></div>
+        <div class="frs-contents" ng-if="fs.canAdd">
+          <input type="file" id="frs-vfile" class="frs-file" accept="image/jpeg,image/png,image/webp" frs-file-change="fs.photoChosen(files)" tabindex="-1" aria-hidden="true">
+          <button type="button" class="ta-btn ta-btn--sm frs-up" ng-click="fs.pickPhoto()" ng-disabled="fs.uploading" no-busy-guard data-e2e="frs-vphoto"><i class="fas" ng-class="fs.uploading ? 'fa-spinner fa-spin' : 'fa-camera'"></i>{{ fs.uploading ? 'Adding the photo…' : 'Add a photo' }}</button>
+        </div>
+        <div class="fr-filmstrip" ng-if="fs.photos.length">
+          <div class="fr-thumb" ng-repeat="ph in fs.photos track by ph.id" role="button" tabindex="0" ng-click="fs.openPhoto(ph)" ng-keydown="$event.keyCode === 13 && fs.openPhoto(ph)">
+            <img ng-src="{{ ph.thumb }}" alt="{{ ph.caption || 'Photo from the flight' }}">
+            <span class="fr-thumb__src fr-thumb__src--visitor" ng-if="ph._visitor">{{ ph.uploaded_by_name.split(' ')[0] }}</span>
+            <span class="fr-thumb__cap" ng-if="ph.caption">{{ ph.caption }}</span>
+          </div>
+        </div>
+        <div class="fr-panel__empty" ng-if="!fs.photos.length">No photos yet.</div>
+      </div>
+
+      <!-- Comments (and debrief notes when the link shows them) -->
+      <div class="fr-panel fr-panel--notes" ng-if="fs.showNotes || fs.canAdd" data-e2e="frs-notes">
+        <div class="fr-panel__head"><h3><i class="fas fa-comments"></i> Comments</h3></div>
+        <div class="frs-compose" ng-if="fs.canAdd">
+          <textarea class="ta-input frs-vtext" id="frs-vnote" rows="2" ng-model="fs.vtext" maxlength="1000" placeholder="Say something about this flight" aria-label="Add a comment" data-e2e="frs-vtext"></textarea>
+          <div class="frs-compose__row">
+            <label class="frs-vname"><span>Posting as</span><input class="ta-input" ng-model="fs.vname" maxlength="60" placeholder="Your name" aria-label="Your name" data-e2e="frs-vname"></label>
+            <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-click="fs.addComment()" data-e2e="frs-vadd"><i class="fas fa-paper-plane"></i>Add comment</button>
+          </div>
+        </div>
+        <div class="fr-note" ng-repeat="n in fs.notes track by n.id" ng-class="{'fr-note--coaching': n.is_instructor_note}">
+          <div class="fr-note__head">
+            <span class="fr-note__author"><i class="fas" ng-class="n.is_instructor_note ? 'fa-graduation-cap' : 'fa-user'"></i> {{ n.author_name }} <span class="fr-note__badge" ng-if="n.is_instructor_note">Instructor</span></span>
+            <span class="fr-note__time" ng-if="n.at_time"><i class="fas fa-map-marker-alt"></i> {{ n.at_time | limitTo: 8 : 11 }}</span>
+          </div>
+          <div class="fr-note__body">{{ n.body }}</div>
+        </div>
+        <div class="fr-panel__empty" ng-if="!fs.notes.length">No comments yet.</div>
+      </div>
+    </div>
+    <div class="frs-foot"><i class="fas fa-plane"></i>Recorded and shared with ToAviate</div>
+  </div>
+</div>

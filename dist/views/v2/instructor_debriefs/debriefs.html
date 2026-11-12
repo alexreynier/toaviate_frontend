@@ -1,0 +1,158 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Debriefs — mockups/instructor-dashboard/debriefs.html (pages "todo" and "entered").
+     InstructorDebriefsV2Controller (js/v2/instructor_debriefs/instructor_debriefs.js) · contract C36 · css/v2/instructor-debriefs.css (dbl-).
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="dbl">
+
+  <!-- ── page bar: the zone tag, what is waiting, the two tabs and the smart search ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-comments"></i></span><div><ins-tag></ins-tag><h2>Debriefs</h2><p data-e2e="dbl-hint">{{ vm.hint }}</p></div></div>
+      <span class="dbl-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="dbl-tools">
+        <div class="ta-tabs" role="tablist" aria-label="Debriefs"><button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.tab === 'todo'}" role="tab" aria-selected="{{ vm.tab === 'todo' }}" ng-click="vm.setTab('todo')" no-busy-guard data-e2e="dbl-tab-todo"><i class="fas fa-comments"></i>To debrief<span class="ta-tab__n">{{ vm.todoN === null ? '…' : vm.todoN }}</span></button><button type="button" class="ta-tab" ng-class="{'ta-tab--on': vm.tab === 'entered'}" role="tab" aria-selected="{{ vm.tab === 'entered' }}" ng-click="vm.setTab('entered')" no-busy-guard data-e2e="dbl-tab-entered"><i class="fas fa-user-clock"></i>Entered for you<span class="ta-tab__n">{{ vm.entN === null ? '…' : vm.entN }}</span></button></div>
+        <ta-combo class="dbl-find" ng-if="vm.hasItems()" cb-id="dbl-find" label="Search students or aircraft" placeholder="{{ vm.findPh }}" placeholder-picked="Type to change"
+                  query="vm.cbQ" source="vm.findSource(q)" on-pick="vm.findPick(key)" on-type="vm.findType(q)" on-leave="vm.findLeave(q)" on-clear="vm.findClear()"
+                  value="vm.findValue" summary="vm.findSummary" clearable="!!vm.findValue || !!vm.cbQ" version="vm.cbVer" hl-sub="false"></ta-combo>
+      </div>
+    </div>
+    <div class="dbl-v2row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ════════════════════════════ To debrief ════════════════════════════ -->
+
+  <!-- loading: skeleton rows instead of v1's full-page plane overlay -->
+  <section class="ta-list" ng-if="vm.tab === 'todo' && vm.st === 'loading'" aria-busy="true" data-e2e="dbl-loading">
+    <div class="ins-q-skelnote"><span class="ta-spin ta-spin--dark"></span>Finding the flights waiting for your record…</div>
+    <div class="dbl-skelrow" ng-repeat="i in vm.skel4"><div class="ta-skel"></div><div class="ta-skel"></div><div><div class="ta-skel"></div><div class="ta-skel"></div></div></div>
+  </section>
+
+  <!-- the read failed -->
+  <section class="ta-card ins-rise" ng-if="vm.tab === 'todo' && vm.st === 'error'" data-e2e="dbl-error">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Your flights couldn’t be loaded</h4><p>Something went wrong fetching the flights waiting for your debrief. Try again; if it keeps happening, tell the club.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <!-- nothing at all to debrief -->
+  <section class="ta-card ins-rise" ng-if="vm.tab === 'todo' && vm.st === 'ready' && !vm.clubAll" data-e2e="dbl-empty">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-check-double"></i></span><h4>Nothing to debrief</h4><p>Every flight you've instructed has its record. A flight shows up here once it's booked in, and stays until you file the record or say none is needed.</p></div>
+  </section>
+
+  <!-- what the list is narrowed to (a student, an aircraft or what was typed) -->
+  <div class="ins-q-scopeln" ng-if="vm.scopeLn && ((vm.tab === 'todo' && vm.st === 'ready' && vm.clubAll) || (vm.tab === 'entered' && vm.est === 'ready' && vm.recs.length))" data-e2e="dbl-scopeln">
+    <span>{{ vm.scopeLn.kind === 'a' ? 'On ' : vm.scopeLn.kind === 'q' ? 'Matching “' : '' }}<b>{{ vm.scopeLn.name }}</b>{{ vm.scopeLn.kind === 'q' ? '”' : '' }} · {{ vm.scopeLn.n }}</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.findClear()" no-busy-guard><i class="fas fa-times"></i>Show every {{ vm.scopeLn.noun }}</button>
+  </div>
+
+  <!-- the flights: the registration leads, the aircraft colour is the row's 4px edge; periods are group headers -->
+  <section class="ta-list dbl-list ins-rise" aria-label="Flights to debrief" ng-if="vm.tab === 'todo' && vm.st === 'ready' && vm.clubAll" ng-class="{'dbl-dim': vm.dim}" data-e2e="dbl-list">
+    <div class="ta-list__tools"><div class="dbl-lt">
+      <div class="ta-chips" role="group" aria-label="Show"><button type="button" class="ta-chip" ng-repeat="c in vm.chipList track by c.k" ng-class="{'ta-chip--on': vm.S.chip === c.k, 'ta-chip--attn': c.attn}" aria-pressed="{{ vm.S.chip === c.k }}" ng-click="vm.setChip(c.k)" no-busy-guard data-e2e="dbl-chip-{{ c.k }}">{{ c.label }} <span class="ta-chip__n">{{ c.n }}</span></button></div>
+      <div class="dbl-lt__row">
+        <div class="ta-scope" ng-if="vm.clubs.length > 1"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': !vm.S.club}" role="tab" aria-selected="{{ !vm.S.club }}" ng-click="vm.setClub(null)" no-busy-guard data-e2e="dbl-club-all"><span class="ta-desk-only">All clubs</span><span class="ta-phone-only">All</span> <span class="ta-num">{{ vm.clubAll }}</span></button><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.S.club === c.id}" role="tab" aria-selected="{{ vm.S.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard data-e2e="dbl-club-{{ c.id }}"><span class="ta-desk-only">{{ c._short }}</span><span class="ta-phone-only">{{ c._tiny }}</span> <span class="ta-num">{{ c.count }}</span></button></div></div>
+        <div class="ta-scope"><span class="ta-scope__k">Order</span><div class="ta-scope__set" role="tablist" aria-label="Order"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.sort === 'new'}" role="tab" aria-selected="{{ vm.S.sort === 'new' }}" ng-click="vm.setSort('new')" no-busy-guard data-e2e="dbl-sort-new">Newest first</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.sort === 'old'}" role="tab" aria-selected="{{ vm.S.sort === 'old' }}" ng-click="vm.setSort('old')" no-busy-guard data-e2e="dbl-sort-old">Oldest first</button></div></div>
+      </div>
+    </div></div>
+
+    <div class="ta-list__cols" ng-if="vm.groups.length"><span>Aircraft</span><span>Flight · brakes</span><span>Student · lesson</span><span>Status</span><span></span></div>
+
+    <div class="dbl-grp" ng-repeat="g in vm.groups track by (g.key + '.' + vm.gen)">
+      <div class="ta-group ins-rise" style="--i: {{ g.i }}"><span>{{ g.key }}</span><span>{{ g.n }}</span></div>
+      <div class="ta-row ins-q-row ins-rise" ng-repeat="f in g.rows track by (f._key + '.' + vm.gen)" id="dbl-{{ f._key }}" data-e2e="dbl-row"
+           ng-class="{'ta-row--open': vm.open === f._key, 'dbl-row--off': f._off, 'dbl-row--flash': vm.flashKey === f._key}" style="--ac: {{ f._edge }}; --i: {{ f._i }}">
+        <button type="button" class="ta-row__main" ng-click="vm.toggle(f)" aria-expanded="{{ vm.open === f._key }}" no-busy-guard><span class="ins-q-reg" title="{{ f._regTitle }}"><b>{{ f._reg }}</b><small>{{ f._type }}</small></span><span class="ins-q-when"><b>{{ f._day }}</b><small>{{ f._win }}</small></span><span class="ta-row__txt"><span class="ta-row__title" ng-if="f.student">{{ f._name }}</span><span class="ta-row__title" ng-if="!f.student"><span class="dbl-who dbl-who--missing"><i class="fas fa-question-circle"></i>{{ f._sheet ? 'The sheet says “' + f._sheet + '”' : 'No name on the sheet' }}</span></span><span class="ta-row__sub">{{ f._lesson }}</span></span><span class="ta-row__meta"><span class="ins-q-meta"><span class="ta-pill ta-pill--{{ f._st.tone }}" data-e2e="dbl-status"><i class="fas {{ f._st.icon }}"></i>{{ f._st.label }}</span><span class="ta-tag" ng-if="f.import_note" title="Only the TPC import note so far: nobody has debriefed this flight"><i class="fas fa-file-import"></i>Import note only</span><span class="ta-tag" ng-if="f._temp" title="Records saved now follow their account when it is converted"><i class="fas fa-user-clock"></i>Temporary member</span><span class="ta-pill ta-pill--solo" ng-if="f._solo"><i class="fas fa-user"></i>Solo</span><span class="ta-pill ta-pill--good" ng-if="f._matched && f.student"><i class="fas fa-user-check"></i>Student matched</span><span class="ta-tag" ng-if="f._clubTag"><i class="fas fa-map-marker-alt"></i>{{ f._clubTag }}</span></span></span><span class="ta-row__acts"><span class="ta-btn ta-btn--sm dbl-acts-btn" role="button" tabindex="0" ng-if="f._off" ng-click="vm.undo(f, $event)" ng-keydown="vm.key($event, f, 'undo')" no-busy-guard data-e2e="dbl-r-undo"><span class="ta-spin ta-spin--dark" ng-if="f._busy === 'undo'"></span><i class="fas fa-undo" ng-if="f._busy !== 'undo'"></i>Undo</span><span class="ta-btn ta-btn--primary ta-btn--sm dbl-acts-btn" role="button" tabindex="0" ng-if="!f._off && f._book" ng-click="vm.bookIn(f, $event)" ng-keydown="vm.key($event, f, 'bookIn')" no-busy-guard data-e2e="dbl-r-bookin"><i class="fas fa-plane-arrival"></i>Book in</span><span class="ta-btn ta-btn--sm dbl-acts-btn" role="button" tabindex="0" ng-if="!f._off && !f._book && !f.student" ng-click="vm.resolve(f, $event)" ng-keydown="vm.key($event, f, 'resolve')" no-busy-guard data-e2e="dbl-r-who"><i class="fas fa-user-plus"></i>Who was it?</span><span class="ta-btn ta-btn--primary ta-btn--sm dbl-acts-btn" role="button" tabindex="0" ng-if="!f._off && !f._book && f.student" ng-click="vm.debrief(f, $event)" ng-keydown="vm.key($event, f, 'debrief')" title="Opens the debrief" no-busy-guard data-e2e="dbl-r-debrief">Debrief<i class="fas fa-angle-right"></i></span></span><span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span></button>
+
+        <div class="ta-detail" ng-if="vm.open === f._key" data-e2e="dbl-detail"><div class="dbl-detail">
+          <div class="ta-panel ta-panel--white"><dl class="ta-facts">
+            <div class="ta-fact"><dt>Flight</dt><dd>{{ f._dayLong }}<br><small>Brakes {{ f._offT }}–{{ f._onT }}<span ng-if="f._rounded">, to the nearest 5 minutes · recorded {{ f._recOff }}–{{ f._recOn }}</span></small></dd></div>
+            <div class="ta-fact"><dt>Flight time</dt><dd>{{ f._hm || '—' }} <small>· h:mm, brakes off to on</small></dd></div>
+            <div class="ta-fact"><dt>Aircraft</dt><dd>{{ f._reg }} <small>· {{ f._model ? f._model + ' · ' : '' }}{{ f.club_title }}</small></dd></div>
+            <div class="ta-fact"><dt>Lesson</dt><dd ng-if="f._lessonT">{{ f._lessonT }} <small>· {{ f._lessonFrom }}</small></dd><dd ng-if="!f._lessonT"><small>Chosen in the debrief: the flight has no lesson yet</small></dd></div>
+          </dl></div>
+          <div class="ta-panel ta-panel--white">
+            <div class="dbl-line" ng-if="f.student"><i class="fas fa-user"></i><span><b>{{ f._name }}</b>{{ f._contact ? ' · ' + f._contact : '' }}</span></div>
+            <div class="dbl-line" ng-if="f._temp"><i class="fas fa-user-clock"></i><span>{{ f._first }} is a <b>temporary member</b>: records saved now follow their account when it's converted.</span></div>
+            <div class="dbl-line" ng-if="!f.student"><i class="fas fa-question-circle"></i><span><span ng-if="f._sheet">The sheet says <b>{{ f._sheet }}</b>, which doesn't match a member we know.</span><span ng-if="!f._sheet">There's no name on the sheet.</span> Say who it was, or that no record is needed (a check flight, a trial lesson).</span></div>
+            <div class="dbl-line" ng-if="f.import_note"><i class="fas fa-file-import"></i><span>Only the TPC import note so far (<span class="ta-ref">{{ f.import_note }}</span>): nobody has debriefed this flight. Filing the record replaces the note.</span></div>
+            <div class="dbl-line" ng-if="f._book"><i class="fas fa-plane-arrival"></i><span>Part {{ f._leg }} of a split flight{{ f.student ? (f._solo ? ', flown solo by ' : ', with ') + f._first : '' }}. Book it in first: the record follows once it's booked in.</span></div>
+            <div class="dbl-line" ng-if="f.claimed"><i class="fas fa-satellite-dish"></i><span>Claimed from the tracker without a booking.</span></div>
+            <div class="dbl-line" ng-if="!f.claimed && f.booking_id"><i class="fas fa-calendar-check"></i><span>Booked flight (booking {{ f.booking_id }}).</span></div>
+            <div class="dbl-line" ng-if="f._off"><i class="fas fa-ban"></i><span>Marked as needing no record. It leaves this list when the page reloads; Undo puts it back.</span></div>
+          </div>
+          <div class="ta-confirm ta-confirm--inline dbl-span" ng-if="vm.confirmDismiss === f._key && !f._off" data-e2e="dbl-confirm"><span>No student record will ever be needed for this flight?</span><span class="ta-confirm__btns"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.dismissNo()" ng-disabled="!!f._busy" no-busy-guard>Keep it</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.dismissYes(f)" aria-busy="{{ f._busy === 'dismiss' }}" no-busy-guard data-e2e="dbl-dismiss-yes"><span class="ta-spin" ng-if="f._busy === 'dismiss'"></span>{{ f._busy === 'dismiss' ? 'Saving…' : 'No record needed' }}</button></span></div>
+          <div class="ta-detail__foot dbl-span">
+            <button type="button" class="ta-btn ta-btn--danger" ng-if="!f._off && !f._book && !f.student" ng-click="vm.dismissAsk(f, $event)" no-busy-guard data-e2e="dbl-d-dismiss"><i class="fas fa-ban"></i>No record needed</button>
+            <span class="ta-sp"></span>
+            <button type="button" class="ta-btn" ng-if="f._off" ng-click="vm.undo(f, $event)" aria-busy="{{ f._busy === 'undo' }}" no-busy-guard data-e2e="dbl-d-undo"><span class="ta-spin ta-spin--dark" ng-if="f._busy === 'undo'"></span><i class="fas fa-undo" ng-if="f._busy !== 'undo'"></i>Undo</button>
+            <button type="button" class="ta-btn ta-btn--primary" ng-if="!f._off && f._book" ng-click="vm.bookIn(f, $event)" no-busy-guard data-e2e="dbl-d-bookin"><i class="fas fa-plane-arrival"></i>Book in part {{ f._leg }}</button>
+            <button type="button" class="ta-btn ta-btn--primary" ng-if="!f._off && !f._book && !f.student" ng-click="vm.resolve(f, $event)" no-busy-guard data-e2e="dbl-d-who"><i class="fas fa-user-plus"></i>Who was the student?</button>
+            <a class="ta-btn ta-btn--primary" ng-if="!f._off && !f._book && f.student" ng-href="{{ vm.debriefHref(f) }}" ng-click="vm.debrief(f, $event)" no-busy-guard data-e2e="dbl-d-debrief"><i class="fas fa-clipboard-check"></i>Debrief {{ f._first }}</a>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="ta-empty ins-rise" ng-if="!vm.groups.length" data-e2e="dbl-none"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>{{ vm.S.q ? 'Nothing matches “' + vm.S.q + '”' : 'No flights in this view' }}</h4><p>{{ vm.S.q ? 'Try a student\'s name, or the last two letters of a registration.' : 'Show every flight to see the rest.' }}</p><button type="button" class="ta-btn" ng-click="vm.reset()" no-busy-guard data-e2e="dbl-reset">Show every flight</button></div>
+
+    <div class="ins-q-foot" ng-if="vm.total > vm.shown" data-e2e="dbl-more"><span>Showing {{ vm.shown }} of {{ vm.total }} · {{ vm.S.sort === 'old' ? 'oldest' : 'newest' }} first</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-if="vm.moreBusy" disabled><span class="ta-spin ta-spin--dark"></span>Loading…</button><button type="button" class="ta-btn ta-btn--sm" ng-if="!vm.moreBusy" ng-click="vm.more()" no-busy-guard data-e2e="dbl-more-btn"><i class="fas fa-angle-double-down"></i>Show {{ vm.nextN }} more</button></div>
+    <div class="ins-q-foot" ng-if="vm.total <= vm.shown && vm.total > vm.D.PAGE" data-e2e="dbl-all"><i class="fas fa-check ta-muted"></i><span>That's all {{ vm.D.plural(vm.total, 'flight') }}.</span></div>
+  </section>
+
+  <!-- a club admin: the way into Records to File -->
+  <div class="ta-note ta-note--info ins-rise" style="--i: 2" ng-if="vm.admin && vm.tab === 'todo' && vm.st === 'ready'" data-e2e="dbl-admin"><i class="fas fa-folder-open"></i><div><b>You're a club admin{{ vm.admin.title ? ' at ' + vm.admin.title : '' }}.</b> Records to File lists every flight at the club still without a record{{ vm.admin.nText }}, so you can file them on an instructor's behalf. <button type="button" class="ta-link" ng-click="vm.toFile()" no-busy-guard>Open Records to File <i class="fas fa-arrow-right"></i></button></div></div>
+
+  <!-- ════════════════════════════ Entered for you ════════════════════════════ -->
+
+  <section class="ta-list" ng-if="vm.tab === 'entered' && vm.est === 'loading'" aria-busy="true" data-e2e="dbl-eloading">
+    <div class="ins-q-skelnote"><span class="ta-spin ta-spin--dark"></span>Loading the records filed for you…</div>
+    <div class="dbl-skelrow" ng-repeat="i in vm.skel3"><div class="ta-skel"></div><div class="ta-skel"></div><div><div class="ta-skel"></div><div class="ta-skel"></div></div></div>
+  </section>
+
+  <section class="ta-card ins-rise" ng-if="vm.tab === 'entered' && vm.est === 'error'" data-e2e="dbl-eerror">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>The records couldn’t be loaded</h4><p>Something went wrong fetching the records filed for you. Try again; if it keeps happening, tell the club.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.eRetry()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <section class="ta-card ins-rise" ng-if="vm.tab === 'entered' && vm.est === 'ready' && !vm.recs.length" data-e2e="dbl-eempty">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-user-check"></i></span><h4>Nothing to confirm</h4><p>When someone at the club files a training record for a lesson you gave, it shows here for you to check and confirm.</p></div>
+  </section>
+
+  <div class="ta-note ta-note--info ins-rise" ng-if="vm.tab === 'entered' && vm.est === 'ready' && vm.recs.length" data-e2e="dbl-eintro"><i class="fas fa-user-clock"></i><div ng-if="vm.eLeft"><b>{{ vm.D.plural(vm.eLeft, 'record') }} filed for lessons you gave.</b> They already count on the student's record. Check each one and confirm it, or review it on the student's record to correct it first.</div><div ng-if="!vm.eLeft"><b>All confirmed.</b> Records you confirm stop showing as awaiting your confirmation.</div></div>
+
+  <section class="ta-list dbl-list dbl-list--ent ins-rise" style="--i: 1" aria-label="Records entered for you" ng-if="vm.tab === 'entered' && vm.est === 'ready' && vm.recs.length" data-e2e="dbl-elist">
+    <div class="ta-list__tools"><div class="dbl-lt__row"><div class="ta-scope"><span class="ta-scope__k">Order</span><div class="ta-scope__set" role="tablist" aria-label="Order"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.sort === 'new'}" role="tab" aria-selected="{{ vm.S.sort === 'new' }}" ng-click="vm.setSort('new')" no-busy-guard>Newest first</button><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': vm.S.sort === 'old'}" role="tab" aria-selected="{{ vm.S.sort === 'old' }}" ng-click="vm.setSort('old')" no-busy-guard>Oldest first</button></div></div></div></div>
+
+    <div class="ta-list__cols" ng-if="vm.egroups.length"><span>Aircraft</span><span>Flight · brakes</span><span>Student · lesson</span><span>Entered by</span><span></span></div>
+
+    <div class="dbl-grp" ng-repeat="g in vm.egroups track by (g.key + '.' + vm.eGen)">
+      <div class="ta-group ins-rise" style="--i: {{ g.i }}"><span>{{ g.key }}</span><span>{{ g.n }}</span></div>
+      <div class="ta-row ins-q-row ins-rise" ng-repeat="r in g.rows track by (r._key + '.' + vm.eGen)" id="dbl-{{ r._key }}" data-e2e="dbl-erow"
+           ng-class="{'ta-row--open': vm.open === r._key, 'dbl-row--off': r._done, 'dbl-row--leaving': r._leaving, 'dbl-row--flash': vm.flashKey === r._key}" style="--ac: {{ r._edge }}; --i: {{ r._i }}">
+        <button type="button" class="ta-row__main" ng-click="vm.toggle(r)" aria-expanded="{{ vm.open === r._key }}" no-busy-guard><span class="ins-q-reg" title="{{ r._regTitle }}"><b>{{ r._reg }}</b><small>{{ r._type }}</small></span><span class="ins-q-when"><b>{{ r._day }}</b><small>{{ r._win }}</small></span><span class="ta-row__txt"><span class="ta-row__title">{{ r._name }}</span><span class="ta-row__sub">{{ r._sub }}</span></span><span class="ta-row__meta"><span class="ins-q-meta"><span class="ta-pill ta-pill--good" ng-if="r._done"><i class="fas fa-check"></i>Confirmed</span><span class="ta-pill ta-pill--warn" ng-if="!r._done"><i class="fas fa-hourglass-half"></i>Awaiting your confirmation</span><span class="dbl-by"><span class="ta-av ta-av--sm" ng-if="r._byInstructor" ng-attr-style="{{ r._byColour ? '--av:' + r._byColour : undefined }}" title="{{ r._by }} (instructor)">{{ r._byCode }}</span><span class="ta-av ta-av--sm ta-av--member" ng-if="!r._byInstructor" title="{{ r._by }}"><i class="fas fa-user"></i></span>{{ r._edited ? 'Edited' : 'Entered' }} by {{ r._byFirst }}</span></span></span><span class="ta-row__acts"><span class="ta-btn ta-btn--sm" role="button" tabindex="0" ng-if="!r._done" ng-click="vm.review(r, $event)" ng-keydown="vm.key($event, r, 'review')" no-busy-guard data-e2e="dbl-r-review">Review</span><span class="ta-btn ta-btn--good ta-btn--sm" role="button" tabindex="0" ng-if="!r._done" ng-click="vm.confirm(r, $event)" ng-keydown="vm.key($event, r, 'confirm')" no-busy-guard data-e2e="dbl-r-confirm"><span class="ta-spin" ng-if="r._busy"></span><i class="fas fa-check" ng-if="!r._busy"></i>{{ r._busy ? 'Confirming…' : 'Confirm' }}</span></span><span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span></button>
+
+        <div class="ta-detail" ng-if="vm.open === r._key" data-e2e="dbl-edetail"><div class="dbl-detail">
+          <div class="ta-panel ta-panel--white"><span class="ta-sec-k">General remarks</span><p class="dbl-quote" ng-if="r.general_remarks">{{ r.general_remarks }}</p><p class="ta-hint" ng-if="!r.general_remarks">No general remarks on this record.</p></div>
+          <div class="ta-panel ta-panel--white">
+            <div class="dbl-line"><i class="fas fa-book-open"></i><span><b>{{ r._lessonT || 'No lesson' }}</b>{{ r.course_title ? ' · ' + r.course_title : '' }}</span></div>
+            <div class="dbl-line"><i class="fas fa-plane"></i><span>{{ r._dayLong }} · {{ r._reg }}{{ r._offT ? ' · brakes ' + r._win : '' }}</span></div>
+            <div class="dbl-line"><i class="fas fa-user-edit"></i><span><span ng-if="r._edited">Entered by {{ r._enteredBy }}, then edited by <b>{{ r._by }}</b>{{ r._fresh ? ' just now' : '' }}</span><span ng-if="!r._edited">Entered by <b>{{ r._by }}</b>{{ r._createdDay ? ' on ' + r._createdDay : '' }}</span>, filing for you as the instructor who gave the lesson.</span></div>
+          </div>
+          <div class="ta-detail__foot dbl-span">
+            <span class="dbl-line" ng-if="r._done"><i class="fas fa-check"></i><span>Confirmed just now. It leaves this list when the page reloads.</span></span>
+            <button type="button" class="ta-btn" ng-if="!r._done" ng-click="vm.review(r, $event)" no-busy-guard data-e2e="dbl-d-review"><i class="fas fa-search"></i>Review on {{ r._first }}'s record</button>
+            <span class="ta-sp" ng-if="!r._done"></span>
+            <button type="button" class="ta-btn ta-btn--good" ng-if="!r._done" ng-click="vm.confirm(r, $event)" aria-busy="{{ !!r._busy }}" no-busy-guard data-e2e="dbl-d-confirm"><span class="ta-spin" ng-if="r._busy"></span><i class="fas fa-check" ng-if="!r._busy"></i>{{ r._busy ? 'Confirming…' : 'Confirm the record' }}</button>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="ta-empty ins-rise" ng-if="!vm.egroups.length" data-e2e="dbl-enone"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>Nothing matches “{{ vm.S.q }}”</h4><p>Try a student's name, or the last two letters of a registration.</p><button type="button" class="ta-btn" ng-click="vm.reset()" no-busy-guard>Show every record</button></div>
+
+    <div class="ins-q-foot" ng-if="vm.eTotal > vm.eShown"><span>Showing {{ vm.eShown }} of {{ vm.eTotal }} · {{ vm.S.sort === 'old' ? 'oldest' : 'newest' }} first</span><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--sm" ng-if="vm.moreBusy" disabled><span class="ta-spin ta-spin--dark"></span>Loading…</button><button type="button" class="ta-btn ta-btn--sm" ng-if="!vm.moreBusy" ng-click="vm.eMore()" no-busy-guard data-e2e="dbl-emore-btn"><i class="fas fa-angle-double-down"></i>Show {{ vm.eNextN }} more</button></div>
+    <div class="ins-q-foot" ng-if="vm.eTotal <= vm.eShown && vm.eTotal > vm.D.PAGE"><i class="fas fa-check ta-muted"></i><span>That's all {{ vm.D.plural(vm.eTotal, 'record') }}.</span></div>
+  </section>
+
+  <!-- "Who was the student?" (moved to <body> by dbl-portal) -->
+  <dbl-resolve-dialog ng-if="vm.rs" flight="vm.rs" on-done="vm.resolved(result)" on-close="vm.closeResolve()"></dbl-resolve-dialog>
+</main>

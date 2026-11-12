@@ -1,0 +1,129 @@
+<!-- Instructor Dashboard v2 · CAA forms — the hub (mockups/instructor-dashboard/caa-forms.html, page "list").
+     CfmHubV2Controller (js/v2/instructor_caa_forms/instructor_caa_forms.js). Tabs: Club forms · To sign · Head of Training
+     (roles.is_hot). One list for the three tabs: its items are group headers and form rows, siblings as in the design. -->
+<main class="ta-page" cfm-still ng-class="{'ta-page--has-bar': vm.canCreate}">
+
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title">
+        <span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-file-contract"></i></span>
+        <div><ins-tag></ins-tag><h2>CAA forms</h2><p>CAA paperwork, prefilled from your records, signed in the app and kept as the official PDF</p><design-back class="cfm-designback"></design-back></div>
+      </div>
+      <span class="cfm-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to Instructor Dashboard"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="cfm-tools">
+        <div class="ta-tabs" role="tablist">
+          <button type="button" class="ta-tab" ng-repeat="t in vm.tabs track by t.key" ng-class="{'ta-tab--on': vm.tab === t.key}" role="tab" aria-selected="{{ vm.tab === t.key }}" ng-click="vm.setTab(t.key)" no-busy-guard><i class="fas" ng-class="t.icon" aria-hidden="true"></i>{{ t.label }}<span class="ta-tab__n" ng-if="t.n">{{ t.n }}</span></button>
+        </div>
+        <div class="ta-scope" ng-if="vm.clubs.length > 1"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.club === c.id}" role="tab" aria-selected="{{ vm.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c.title }}</button></div></div>
+        <button type="button" class="ta-btn ta-btn--primary cfm-new ta-desk-only" ng-if="vm.canCreate" ng-click="vm.newForm()" no-busy-guard><i class="fas fa-plus" aria-hidden="true"></i>New form</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- loading (also on a club switch) -->
+  <section class="ta-list" ng-if="vm.load === 'loading'"><div class="ta-group"><span><span class="ta-spin ta-spin--dark"></span> Loading forms…</span></div><div class="ta-card cfm-skel"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div></section>
+
+  <section class="ta-card ins-rise" ng-if="vm.load === 'error'"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>The forms didn’t load</h4><p>{{ vm.err || 'Check your connection and try again.' }}</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'noclubs'"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-file-contract"></i></span><h4>No club to show</h4><p>CAA forms belong to a club’s instructors, Head of Training and managers. You aren’t one at any club yet.</p></div></section>
+
+  <!-- empty states -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && vm.tab === 'forms' && !vm.forms.length"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-file-contract"></i></span><h4>No forms yet</h4><p>Start a revalidation, a skill test report, a certified copy or a course certificate. The details fill in from ToAviate’s records.</p><button type="button" class="ta-btn ta-btn--primary" ng-if="vm.canCreate" ng-click="vm.newForm()" no-busy-guard><i class="fas fa-plus"></i>New form</button></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && vm.tab === 'queue' && !vm.items.length && !vm.queueFailed"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-file-signature"></i></span><h4>All caught up</h4><p>No CAA forms are waiting for your signature at {{ vm.clubTitle(vm.club) }}. When a form names you as its instructor or examiner, it appears here.</p></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && vm.tab === 'queue' && !vm.items.length && vm.queueFailed"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Your signing list didn’t load</h4><p>The club’s forms are on the first tab. Check your connection and try again.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && vm.tab === 'hot' && !vm.items.length"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-user-shield"></i></span><h4>Nothing to countersign</h4><p>Forms appear here once every other signature is in place.</p></div></section>
+
+  <!-- the list (Club forms · To sign · the countersign queue) -->
+  <section class="ta-list" ng-class="vm.tab === 'forms' ? 'cfm-list' : 'cfm-q'" ng-if="vm.load === 'ready' && (vm.tab === 'forms' ? vm.forms.length : vm.items.length)" aria-label="{{ vm.tab === 'forms' ? 'Club forms' : vm.tab === 'queue' ? 'To sign' : 'Waiting for countersignature' }}">
+    <div class="ta-list__tools" ng-if="vm.tab === 'forms'">
+      <div class="ta-chips" role="group" aria-label="Show">
+        <button type="button" class="ta-chip" ng-repeat="c in vm.chips track by c.v" ng-class="{'ta-chip--on': vm.f.st === c.v, 'ta-chip--attn': c.attn}" ng-click="vm.setSt(c.v)" no-busy-guard>{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button>
+        <button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.f.mine}" ng-click="vm.setMine()" aria-pressed="{{ !!vm.f.mine }}" no-busy-guard><i class="fas fa-user-edit"></i>Started by me<span class="ta-chip__n">{{ vm.mineN }}</span></button>
+      </div>
+      <label class="ta-search"><i class="fas fa-search"></i><input id="cfm-fq" ng-model="vm.f.q" ng-change="vm.onQ()" ng-model-options="{ debounce: 120 }" placeholder="Member, form or code (2128, night…)" aria-label="Search the club’s forms" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <div class="ta-list__cols" ng-if="vm.tab === 'forms'"><span></span><span>Form · member</span><span>Progress</span><span>Status</span><span></span></div>
+    <div class="ta-list__cols" ng-if="vm.tab === 'queue'"><span></span><span>Form · member</span><span>Status</span><span></span></div>
+    <div class="ta-list__cols" ng-if="vm.tab === 'hot'"><span></span><span>Form · member</span><span>Signed so far</span><span></span></div>
+
+    <div ng-repeat="it in vm.items track by it.key" ng-class="it.g ? (it.attn ? 'ta-group ta-group--attn ins-rise' : 'ta-group ins-rise') : ('ta-row cfm-row ins-rise' + (vm.open === it.key ? ' ta-row--open' : ''))" style="--i: {{ it.i }}">
+      <span ng-if="it.g"><i class="fas" ng-class="it.icon"></i>{{ it.label }}</span><span ng-if="it.g">{{ it.n }}</span>
+      <button type="button" class="ta-row__main" ng-if="!it.g" ng-click="vm.toggle(it)" aria-expanded="{{ vm.open === it.key }}" no-busy-guard>
+        <span class="ta-row__lead"><span class="ta-ic" ng-class="vm.tab === 'forms' ? it.f._toneF : it.f._toneQ"><i class="fas" ng-class="it.f._icon"></i></span></span>
+        <span class="ta-row__txt"><span class="ta-row__title">{{ it.f._t }} <span class="cfm-code" ng-if="it.f._code">{{ it.f._code }}</span></span><span class="ta-row__sub">{{ vm.tab === 'forms' ? it.f._subF : vm.tab === 'queue' ? it.f._subQ : it.f._subH }}</span></span>
+        <span class="ta-row__meta" ng-if="vm.tab === 'forms'"><span class="cfm-mini"><span class="ta-steps"><span class="ta-steps__line" ng-repeat-start="x in it.f._steps" ng-show="x.line" ng-class="{'ta-steps__line--done': x.s === 'done'}"></span><span class="ta-steps__s" ng-repeat-end ng-class="x.s ? 'ta-steps__s--' + x.s : ''" title="{{ x.t }}"><i></i></span></span><span>{{ it.f._mini }}</span></span><span class="ta-pill ta-pill--{{ it.f._st.tone }}"><i class="fas {{ it.f._st.icon }}" ng-if="it.f._st.icon"></i>{{ it.f._st.label }}</span></span>
+        <span class="ta-row__meta" ng-if="vm.tab === 'queue'"><span class="cfm-tags"><span class="ta-pill ta-pill--{{ it.f._qPill.tone }}"><i class="fas {{ it.f._qPill.icon }}" ng-if="it.f._qPill.icon"></i>{{ it.f._qPill.label }}</span><span class="ta-row__date">{{ it.f._waitQ }}</span></span></span>
+        <span class="ta-row__meta" ng-if="vm.tab === 'hot'"><span class="cfm-tags"><span class="ta-pill ta-pill--good" ng-repeat="p in it.f._hotPills"><i class="fas fa-check"></i>{{ p.label }}</span><span class="ta-row__date">{{ it.f._waitH }}</span></span></span>
+        <span class="ta-row__acts cfm-acts">
+          <span class="ta-btn ta-btn--primary ta-btn--sm" role="button" tabindex="0" ng-if="vm.tab !== 'forms' && (it.f._mine || it.f._any)" ng-click="vm.openForm(it.f, $event)" ng-keydown="vm.keyOpen($event, it.f)" no-busy-guard><i class="fas fa-pen-nib"></i>Review and sign</span>
+          <span class="ta-btn ta-btn--primary ta-btn--sm" role="button" tabindex="0" ng-if="vm.tab !== 'forms' && !it.f._mine && !it.f._any && it.f._hotNow" ng-click="vm.openForm(it.f, $event)" ng-keydown="vm.keyOpen($event, it.f)" no-busy-guard><i class="fas fa-stamp"></i>Countersign</span>
+          <span class="ta-ib" role="button" tabindex="0" ng-if="it.f.status === 'completed'" ng-click="vm.pdf(it.f, $event)" ng-keydown="vm.keyPdf($event, it.f)" title="Download PDF" aria-label="Download PDF" no-busy-guard><i class="fas fa-file-pdf" ng-if="!it.f._pdf"></i><span class="ta-spin ta-spin--dark" ng-if="it.f._pdf"></span></span>
+          <span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.open === it.key ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span>
+        </span>
+        <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="ta-detail" ng-if="!it.g && vm.open === it.key">
+        <div class="ta-panel ta-panel--white"><div class="ta-panel__hd"><i class="fas fa-route"></i>Progress</div><span class="ta-steps cfm-big"><span class="ta-steps__line" ng-repeat-start="x in it.f._steps" ng-show="x.line" ng-class="{'ta-steps__line--done': x.s === 'done'}"></span><span class="ta-steps__s" ng-repeat-end ng-class="x.s ? 'ta-steps__s--' + x.s : ''" title="{{ x.t }}"><i></i>{{ x.t }}</span></span></div>
+        <div class="ta-note" ng-repeat="n in it.f._notes" ng-class="n.cls"><i class="fas" ng-class="n.icon"></i><div><b ng-if="n.b">{{ n.b }}</b>{{ n.t }}</div></div>
+        <div class="ta-panel ta-panel--white" ng-if="it.f._sigs.length"><div class="ta-panel__hd"><i class="fas fa-signature"></i>Signatures</div>
+          <div class="cfm-sig" ng-repeat="l in it.f._sigs track by $index">
+            <span class="ta-av" ng-if="l.av.kind === 'ins'" ng-attr-style="{{ l.av.colour ? '--av:' + l.av.colour : undefined }}" title="{{ l.av.title }}">{{ l.av.ini }}</span>
+            <span class="ta-av ta-av--member" ng-if="l.av.kind === 'member'" aria-hidden="true"><i class="fas" ng-class="l.av.icon"></i></span>
+            <span class="ta-av ta-av--any" ng-if="l.av.kind === 'any'" aria-hidden="true"><i class="fas fa-users"></i></span>
+            <div><b>{{ l.who }}</b><small>{{ l.sub }}</small></div>
+            <span class="ta-pill ta-pill--{{ l.pill.tone }}"><i class="fas {{ l.pill.icon }}" ng-if="l.pill.icon"></i>{{ l.pill.label }}</span>
+          </div>
+        </div>
+        <div class="ta-panel ta-panel--white"><dl class="ta-facts ta-facts--3"><div class="ta-fact" ng-repeat="x in it.f._facts"><dt>{{ x.dt }}</dt><dd>{{ x.dd }} <small ng-if="x.sm">{{ x.sm }}</small></dd></div></dl></div>
+        <div class="ta-detail__foot">
+          <button type="button" class="ta-btn" ng-click="vm.openForm(it.f)" no-busy-guard><i class="fas fa-eye"></i>{{ it.f._openLabel }}</button><span class="ta-sp"></span>
+          <button type="button" class="ta-btn ta-btn--primary" ng-if="it.f._signBtn === 'sign'" ng-click="vm.openForm(it.f)" no-busy-guard><i class="fas fa-pen-nib"></i>Review and sign</button>
+          <button type="button" class="ta-btn ta-btn--primary" ng-if="it.f._signBtn === 'hot'" ng-click="vm.openForm(it.f)" no-busy-guard><i class="fas fa-stamp"></i>Countersign</button>
+          <button type="button" class="ta-btn ta-btn--primary" ng-if="it.f.status === 'completed'" ng-click="vm.pdf(it.f)" ng-disabled="it.f._pdf" no-busy-guard><i class="fas fa-file-pdf" ng-if="!it.f._pdf"></i><span class="ta-spin" ng-if="it.f._pdf"></span>{{ it.f._pdf ? 'Downloading…' : 'Download PDF' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ta-empty" ng-if="vm.tab === 'forms' && !vm.matched"><span class="ta-empty__ic"><i class="fas fa-search"></i></span><h4>No form matches</h4><p>Nothing at {{ vm.clubTitle(vm.club) }} matches {{ vm.f.q.trim() ? '“' + vm.f.q + '”' : 'these filters' }}. Clear them to see every form.</p><button type="button" class="ta-btn" ng-click="vm.clearFilters()" no-busy-guard>Clear the filters</button></div>
+    <div class="cfm-more" ng-if="vm.tab === 'forms' && vm.matched > vm.shown"><span>Showing {{ vm.shown }} of {{ vm.matched }} forms</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.more()" no-busy-guard>Show 40 more</button></div>
+  </section>
+
+  <!-- Head of Training and deputies (D18: deputies are live instructors; a lapsed one is shown as such) -->
+  <section class="ta-card ins-rise" ng-if="vm.load === 'ready' && vm.tab === 'hot' && vm.deps && !vm.deps.failed" style="--i: 1">
+    <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-user-friends"></i></span><div class="ta-card__ttl"><h3>Head of Training and deputies</h3><p>Deputies can countersign CAA forms in the Head of Training’s place at {{ vm.clubTitle(vm.club) }}.</p></div></div>
+    <div>
+      <div class="cfm-dep" ng-if="vm.deps.hot">
+        <span class="ta-av" ng-if="vm.deps.hot._ins" ng-attr-style="{{ vm.deps.hot._colour ? '--av:' + vm.deps.hot._colour : undefined }}" title="{{ vm.deps.hot.name }} (instructor)">{{ vm.deps.hot._ini }}</span>
+        <span class="ta-av ta-av--member" ng-if="!vm.deps.hot._ins" aria-hidden="true"><i class="fas fa-user"></i></span>
+        <div><b>{{ vm.deps.hot.name }}{{ vm.deps.hot._you ? ' (you)' : '' }}</b><small>Set in Safety (SMS) settings</small><small class="cfm-dep__lapsed" ng-if="vm.deps.hot._lapsed">{{ vm.deps.hot.live === false ? 'No longer a member here, so can’t countersign' : 'Not an instructor here, so can’t countersign' }}</small></div>
+        <span class="cfm-dep__end"><span class="ta-pill ta-pill--info"><i class="fas fa-user-shield"></i>Head of Training</span></span>
+      </div>
+      <div class="cfm-dep" ng-if="!vm.deps.hot"><span class="ta-av ta-av--member" aria-hidden="true"><i class="fas fa-user-shield"></i></span><div><b>Nobody is set as Head of Training</b><small>Set it in Safety (SMS) settings</small></div></div>
+      <div class="cfm-dep" ng-repeat="d in vm.deps.list track by d.id" ng-class="{'cfm-dep--leaving': d._leaving, 'ins-rise': d._new}">
+        <span class="ta-av" ng-if="d._ins" ng-attr-style="{{ d._colour ? '--av:' + d._colour : undefined }}" title="{{ d.name }} (instructor)">{{ d._ini }}</span>
+        <span class="ta-av ta-av--member" ng-if="!d._ins" aria-hidden="true"><i class="fas fa-user"></i></span>
+        <div><b>{{ d.name }}{{ d._you ? ' (you)' : '' }}</b><small>Appointed {{ vm.D.fDate(d.created_at) }}</small><small class="cfm-dep__lapsed" ng-if="d._lapsed">{{ d.live === false ? 'No longer a member here, so can’t countersign' : 'No longer an instructor here, so can’t countersign' }}</small></div>
+        <span class="cfm-dep__end">
+          <span class="ta-confirm ta-confirm--inline" ng-if="vm.rmDep === d.id"><span>Remove {{ vm.D.firstName(d.name) }} as a deputy?</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.keepDep()" ng-disabled="d._busy" no-busy-guard>Keep</button><button type="button" class="ta-btn ta-btn--sm ta-btn--danger-solid" ng-click="vm.removeDep(d)" ng-disabled="d._busy" no-busy-guard><span class="ta-spin" ng-if="d._busy"></span>{{ d._busy ? 'Removing…' : 'Remove' }}</button></span>
+          <span class="ta-pill ta-pill--muted" ng-if="vm.rmDep !== d.id">Deputy</span>
+          <button type="button" class="ta-btn ta-btn--sm ta-btn--danger" ng-if="vm.rmDep !== d.id && vm.deps.canManage" ng-click="vm.askRemove(d)" no-busy-guard><i class="fas fa-times"></i>Remove</button>
+        </span>
+      </div>
+      <div class="cfm-dep" ng-if="!vm.deps.list.length"><span></span><div><small>No deputies appointed yet.</small></div></div>
+    </div>
+    <div class="cfm-appoint" ng-if="vm.deps.canManage">
+      <div class="ta-field" ng-class="{'ta-field--error': vm.depErr}"><label class="ta-label" for="cb-dep">Appoint a deputy</label>
+        <ta-combo cb-id="dep" label="Appoint a deputy" placeholder="Search the club’s instructors" placeholder-picked="Type to change" hl-sub="false"
+                  query="vm.depQ" source="vm.depSource(q)" on-pick="vm.depPick(key, row)" on-clear="vm.depClear()" value="vm.depValue" clearable="!!vm.newDep || !!vm.depQ"></ta-combo>
+        <span class="ta-field__msg" ng-if="vm.depErr">{{ vm.depErr }}</span>
+      </div>
+      <button type="button" class="ta-btn" ng-click="vm.addDep()" ng-disabled="vm.depBusy" no-busy-guard><span class="ta-spin ta-spin--dark" ng-if="vm.depBusy"></span><i class="fas fa-user-plus" ng-if="!vm.depBusy"></i>{{ vm.depBusy ? 'Appointing…' : 'Appoint' }}</button>
+    </div>
+    <div class="ta-note" ng-if="!vm.deps.canManage"><i class="fas fa-lock"></i><div>Only the Head of Training{{ vm.deps.hot ? ' (' + vm.deps.hot.name + ')' : '' }} or a club manager can appoint or remove deputies.</div></div>
+  </section>
+
+  <div class="ta-note"><i class="fas fa-info-circle"></i><div><b>How CAA forms work.</b> You start a form about a member and check what ToAviate filled in; the people it names sign it in the app (the member too, from My Account); the Head of Training countersigns where the CAA asks for it; the finished form is the official PDF with every signature on it.</div></div>
+  <div class="ta-actionbar ta-phone-only" ng-if="vm.canCreate"><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.newForm()" no-busy-guard><i class="fas fa-plus"></i>New form</button></div>
+</main>

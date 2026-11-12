@@ -1,0 +1,87 @@
+<!-- v2 · My documents → Medical (mockups/my-account/licences-medical.html, page "medical"). DocsHubV2Controller. -->
+<div class="lic-wrap">
+<main class="ta-page lic-page">
+
+    <lic-docs-bar active="medical" counts="vm.counts"></lic-docs-bar>
+
+    <div class="ta-stack" ng-if="vm.loading">
+        <div class="ta-tiles"><span class="ta-skel lic-skel lic-skel--tile"></span><span class="ta-skel lic-skel lic-skel--tile"></span><span class="ta-skel lic-skel lic-skel--tile"></span></div>
+        <section class="ta-card"><span class="ta-skel lic-skel lic-skel--40"></span><span class="ta-skel lic-skel lic-skel--tall"></span></section>
+    </div>
+
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your documents</h4><p>Check your connection, then try again.</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <div class="ta-stack" ng-if="!vm.loading && !vm.loadError">
+        <div ng-include="'views/v2/licences/_tiles.html'"></div>
+
+        <div class="lic-head">
+            <h3>Medical</h3>
+            <p>{{ vm.medicals.length ? vm.plural(vm.medicals.length, 'medical') + ' on file · checked before solo flights' : 'Nothing added yet' }}</p>
+            <button type="button" class="ta-btn ta-btn--primary ta-btn--sm" ng-if="vm.medicals.length" ng-click="vm.go('dashboard.my_account.medical.add')" no-busy-guard><i class="fas fa-plus"></i>Add medical</button>
+        </div>
+
+        <section class="ta-card" ng-if="!vm.medicals.length">
+            <div class="ta-empty">
+                <span class="ta-empty__ic"><i class="fas fa-heartbeat"></i></span>
+                <h4>No medical added yet</h4>
+                <p>Add your medical certificate — Class 1, Class 2, LAPL or a pilot medical declaration — with a scan. Clubs check it before your first solo, and we remind you before it expires.</p>
+                <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.go('dashboard.my_account.medical.add')" no-busy-guard><i class="fas fa-plus"></i>Add medical</button>
+            </div>
+        </section>
+
+        <div class="lic-cards" ng-if="vm.medicals.length">
+            <article class="ta-card lic-card" ng-repeat="m in vm.medicals" id="card-med-{{ m.id }}"
+                     ng-class="{'lic-card--bad': vm.medStatus(m).rank === 3, 'ta-card--attn': vm.medStatus(m).rank === 2, 'lic-card--flash': vm.flash === m._key}">
+                <div class="ta-card__hd">
+                    <span class="ta-card__icon" ng-class="{'ta-card__icon--bad': vm.medStatus(m).rank === 3, 'ta-card__icon--warn': vm.medStatus(m).rank === 2}"><i class="fas fa-heartbeat"></i></span>
+                    <div class="ta-card__ttl"><h3>{{ vm.medTitle(m) }}</h3><p>{{ (vm.authOf(m.authority_id).abbreviation || m.medical_type) + (m._exam ? ' · examined ' + vm.U.fDate(m._exam) : '') }}</p></div>
+                    <span class="ta-card__right"><span class="ta-pill" ng-class="'ta-pill--' + vm.medStatus(m).tone"><i class="fas" ng-class="vm.medStatus(m).icon"></i>{{ vm.medStatus(m).label }}</span></span>
+                </div>
+                <div class="lic-card__body">
+                    <div class="lic-main">
+                        <div class="lic-sec">
+                            <span class="ta-sec-k">Classes and dates</span>
+                            <div class="lic-comps">
+                                <div class="lic-comp" ng-repeat="c in vm.medCerts(m)" ng-class="{'lic-comp--bad': c._st.rank === 3, 'lic-comp--warn': c._st.rank === 2}">
+                                        <span class="lic-comp__name"><span class="lic-comp__t"><b>{{ vm.compOf(c.component_id).title }}</b><span class="ta-pill" ng-class="'ta-pill--' + c._st.tone"><i class="fas" ng-class="c._st.icon"></i>{{ c._st.short }}</span></span><small>{{ c._st.when }}</small></span>
+                                        <span class="lic-comp__fig" ng-if="c._expiry">{{ vm.LS.left(c._st.n) }}<small>{{ c._st.n < 0 ? 'ago: ' + vm.plural(-c._st.n, 'day') : 'left' }}</small></span>
+                                        <div class="ta-meter" ng-if="c._expiry && m._exam" ng-class="vm.LS.meterTone(c._expiry) ? 'ta-meter--' + vm.LS.meterTone(c._expiry) : ''" role="img" aria-label="{{ vm.LS.used(m._exam, c._expiry) }}% of the validity used"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.LS.used(m._exam, c._expiry) }}%"></div></div>
+                                </div>
+                                <div class="lic-comp lic-comp--track" ng-repeat="c in vm.medDated(m)">
+                                        <span class="lic-comp__name"><span class="lic-comp__t"><b>{{ vm.compOf(c.component_id).title }}</b></span><small>{{ c._expiry ? 'Done ' + vm.U.fDate(c._expiry) : 'No date on file' }} · a date record, it doesn't expire</small></span>
+                                        <span class="ta-pill ta-pill--muted"><i class="fas fa-calendar-check"></i>Date only</span>
+                                    </div>
+                                <p class="lic-docs__hint" ng-if="!m.components.length">No classes on this certificate — edit it to add them.</p>
+                            </div>
+                        </div>
+                        <div class="ta-note ta-note--warn" ng-if="vm.medWarn(m)"><i class="fas fa-user-md"></i><div><b>Book your medical renewal now.</b> Once it expires, solo bookings and book-outs that need it are refused. Add the new certificate here as soon as you have it — your clubs then check it.</div></div>
+                        <dl class="lic-facts" ng-class="{'lic-facts--3': !m.limitations}">
+                            <div class="ta-fact"><dt>Certificate number</dt><dd><span class="ta-ref">{{ m.certificate_number || '—' }}</span></dd></div>
+                            <div class="ta-fact"><dt>State of issue</dt><dd>{{ vm.authOf(m.authority_id).country || m.authority }} <small ng-if="vm.authOf(m.authority_id).abbreviation">· {{ vm.authOf(m.authority_id).abbreviation }}</small></dd></div>
+                            <div class="ta-fact"><dt>Examined</dt><dd>{{ vm.U.fDate(m._exam) || '—' }}</dd></div>
+                            <div class="ta-fact" ng-if="m.limitations"><dt>Limitations</dt><dd><span class="ta-ref">{{ m.limitations }}</span></dd></div>
+                        </dl>
+                        <div ng-init="rec = m; what = 'medical'" ng-include="'views/v2/licences/_checks.html'"></div>
+                    </div>
+                    <div ng-init="rec = m; kind = 'sheet'" ng-include="'views/v2/licences/_scans.html'"></div>
+                </div>
+                <div class="lic-card__ft lic-confirm" ng-if="vm.del === m._key">
+                    <span class="lic-confirm__txt"><b>Delete this medical?</b> Your clubs stop seeing it, and solo bookings that need it will be refused.</span>
+                    <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.keep()" no-busy-guard>Keep it</button>
+                    <button type="button" class="ta-btn ta-btn--danger-solid" ng-click="vm.delYes(m)"><i class="fas fa-trash-alt"></i>Yes, delete it</button>
+                </div>
+                <div class="lic-card__ft" ng-if="vm.del !== m._key">
+                    <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.medical.edit', {medical_id: m.id})" no-busy-guard><i class="fas fa-pen"></i>Edit medical</button>
+                    <span class="ta-sp"></span>
+                    <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.askDel(m._key)" no-busy-guard><i class="fas fa-trash-alt"></i>Delete</button>
+                </div>
+            </article>
+        </div>
+
+        <div class="ta-note" ng-if="vm.medicals.length && vm.remind"><i class="fas fa-bell"></i><div>{{ vm.remind.off ? 'Expiry reminders are switched off for your account.' : (vm.remind.medical || 'Medical expiry reminders are off.') }} <button type="button" class="ta-link" ng-click="vm.go('dashboard.my_account.reminders')" no-busy-guard>Change reminders <i class="fas fa-arrow-right"></i></button></div></div>
+    </div>
+</main>
+<div ng-include="'views/v2/licences/_dlgs.html'"></div>
+</div>

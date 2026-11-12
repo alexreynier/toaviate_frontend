@@ -1,0 +1,126 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · the Brief for one lesson — mockups/instructor-dashboard/briefings.html (page "lesson").
+     BriefingLessonV2Controller (js/v2/instructor_briefings/instructor_briefings.js) · contract C37 (bookings/v2/brief/{id})
+     + v1's set_briefed · css/v2/instructor-briefings.css (brf-). The course / lesson pickers are the Debrief's <dbf-pick>.
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" ng-class="{'ta-page--has-bar': vm.state === 'ready'}" data-e2e="brf-lesson">
+
+  <!-- ═════ loading: the hero with a spinner, then skeleton cards ═════ -->
+  <section class="ta-hero brf-hero" ng-if="vm.state === 'loading'" aria-busy="true" data-e2e="brf-l-loading"><div class="ta-hero__top"><a class="ta-hero__back" ui-sref="dashboard.manage_user.briefing"><i class="fas fa-arrow-left"></i>Briefings</a><ins-tag></ins-tag></div><div class="ta-hero__head"><span class="ta-hero__badge"><span class="ta-spin"></span></span><div><div class="ta-hero__title">Loading the lesson…</div><div class="ta-hero__sub">The brief, its files and the student's records</div></div></div></section>
+  <section class="ta-card" ng-if="vm.state === 'loading'"><div class="ta-skel" ng-repeat="i in vm.skel3"></div></section>
+  <section class="ta-card" ng-if="vm.state === 'loading'"><div class="ta-skel"></div><div class="ta-skel"></div></section>
+
+  <!-- ═════ no brief: not found (briefed / cancelled), not yours, or the read failed ═════ -->
+  <section class="ta-bar" ng-if="vm.state === 'error'"><div class="ta-bar__row"><div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-chalkboard-teacher"></i></span><div><ins-tag></ins-tag><h2>Brief</h2><p>{{ vm.err === 'load' ? 'The brief didn’t load' : 'No booking to brief' }}</p></div></div><span class="brf-v2back"><design-back></design-back></span><a class="ta-back" ui-sref="dashboard.manage_user.briefing" aria-label="Back to Briefings"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Briefings</span></a></div></section>
+  <section class="ta-card ins-rise" ng-if="vm.state === 'error'" data-e2e="brf-l-error"><div class="ta-empty"><span class="ta-empty__ic"><i class="fas" ng-class="vm.err === 'forbidden' ? 'fa-lock' : vm.err === 'load' ? 'fa-exclamation-triangle' : 'fa-clipboard-check'"></i></span>
+    <h4>{{ vm.err === 'forbidden' ? 'You can’t open this brief' : vm.err === 'load' ? 'The brief didn’t load' : 'This booking isn’t waiting for a brief' }}</h4>
+    <p>{{ vm.err === 'forbidden' ? vm.errMsg : vm.err === 'load' ? 'Check your connection and try again. Nothing has changed.' : 'It may have been briefed or cancelled already.' }}</p>
+    <button type="button" class="ta-btn" ng-if="vm.err === 'load'" ng-click="vm.reload()" no-busy-guard><i class="fas fa-redo"></i>Try again</button>
+    <button type="button" class="ta-btn" ng-if="vm.err !== 'load'" ui-sref="dashboard.manage_user.briefing" no-busy-guard>Back to Briefings</button></div></section>
+
+  <!-- ═════ HERO: the lesson number and title, the student, the booking, the aircraft ═════ -->
+  <section class="ta-hero brf-hero ins-rise" style="--i: 0" ng-if="vm.state === 'ready'" data-e2e="brf-hero">
+    <div class="ta-hero__top"><a class="ta-hero__back" ui-sref="dashboard.manage_user.briefing" data-e2e="brf-back"><i class="fas fa-arrow-left"></i>Briefings</a><span class="brf-hero__right"><span class="ta-desk-only"><design-back></design-back></span><ins-tag></ins-tag></span></div>
+    <div class="ta-hero__head"><span class="ta-hero__badge">{{ vm.H.badge }}<i class="fas fa-book" ng-if="!vm.L"></i></span><div><div class="ta-hero__title" data-e2e="brf-title">{{ vm.H.title }}</div><div class="ta-hero__sub">{{ vm.H.sub }}</div></div></div>
+    <div class="ta-hero__facts"><div class="ta-hero__fact" ng-repeat="f in vm.H.facts track by f.k"><div class="ta-hero__fact-k">{{ f.k }}</div><div class="ta-hero__fact-v">{{ f.v }}</div><div class="brf-fact-s" ng-if="f.s">{{ f.s }}</div></div></div>
+    <div class="brf-hero__acts"><button type="button" class="ta-hero__btn" ng-click="vm.snap()" ng-if="vm.st" no-busy-guard data-e2e="brf-l-snap"><i class="fas fa-user-graduate"></i>Student snapshot</button></div>
+  </section>
+
+  <div class="ta-cols ta-cols--rail" ng-if="vm.state === 'ready'">
+    <div class="ta-stack">
+      <div class="ta-note ins-rise" ng-repeat="n in vm.notes track by n.k" ng-class="'ta-note--' + n.tone" style="--i: 1" data-e2e="brf-note-{{ n.k }}"><i class="fas {{ n.ic }}"></i><div><b>{{ n.b }}</b> {{ n.t }}</div></div>
+
+      <!-- ── the lesson: aim, reference, description; the course / lesson pickers (open straight away when nothing is chosen) ── -->
+      <section class="ta-card brf-sec ins-rise" id="brf-s-lesson" style="--i: 1" data-e2e="brf-lessoncard">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-book-open"></i></span><div class="ta-card__ttl"><h3>{{ vm.card.title }}</h3><p>{{ vm.card.sub }}</p></div><span class="ta-card__right"><span class="ta-pill ta-pill--{{ vm.W.tone }}" data-e2e="brf-why"><i class="fas {{ vm.W.icon }}"></i>{{ vm.W.label }}</span></span></div>
+        <div class="brf-lesson" ng-if="vm.L"><div ng-if="vm.L.aim"><span class="ta-sec-k">Aim</span><div class="brf-lesson__aim">{{ vm.L.aim }}</div></div><dl class="ta-facts ta-facts--3"><div class="ta-fact" ng-if="vm.L.ref"><dt>Course reference</dt><dd>{{ vm.L.ref }}</dd></div><div class="ta-fact" ng-if="vm.L.desc"><dt>Description</dt><dd>{{ vm.L.desc }}</dd></div><div class="ta-fact"><dt>Objectives</dt><dd>{{ vm.L.loading ? '…' : vm.card.objs }} <small>· graded in the debrief</small></dd></div></dl><div class="ta-note ta-note--info" ng-if="vm.card.check"><i class="fas fa-flag"></i><div><b>Check point.</b> {{ vm.card.checkTxt }}</div></div></div>
+        <div class="brf-pickers" ng-if="vm.pickOpen" data-e2e="brf-pickers"><dbf-pick f="course"></dbf-pick><dbf-pick f="lesson"></dbf-pick></div>
+        <button type="button" class="ta-btn ta-btn--sm ta-btn--quiet brf-change" ng-if="vm.pickOpen && vm.L" ng-click="vm.toggleChange()" no-busy-guard data-e2e="brf-keep"><i class="fas fa-times"></i>Keep this lesson</button>
+        <button type="button" class="ta-btn ta-btn--sm brf-change" ng-if="!vm.pickOpen" ng-click="vm.toggleChange()" no-busy-guard data-e2e="brf-change"><i class="fas fa-exchange-alt"></i>Change course or lesson</button>
+      </section>
+
+      <!-- ── the pre-lesson questionnaire ── -->
+      <section class="ta-card brf-sec ins-rise" id="brf-s-quiz" style="--i: 2" ng-if="vm.L && vm.quiz.length" data-e2e="brf-quiz">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-question-circle"></i></span><div class="ta-card__ttl"><h3>Pre-lesson questionnaire</h3><p>The knowledge check {{ vm.who }} does before this lesson</p></div></div>
+        <div class="ta-stack"><div class="brf-q" ng-repeat="a in vm.quiz track by a.key"><span class="ta-pill ta-pill--good" ng-if="a.done"><i class="fas fa-check-circle"></i>Completed</span><span class="ta-pill ta-pill--warn" ng-if="!a.done" data-e2e="brf-quiz-pill"><i class="fas fa-hourglass-half"></i>{{ a.pill }}</span><span class="brf-q__t"><b>{{ a.title }}</b><small>{{ a.sub }}</small></span><button type="button" class="ta-btn ta-btn--sm" ng-if="a.done && a.attemptId" ng-click="vm.review(a)" no-busy-guard data-e2e="brf-review"><i class="fas fa-search"></i>Review answers</button></div></div>
+      </section>
+
+      <!-- ── phones: jump chips to each part ── -->
+      <div class="ta-chips brf-jump ta-phone-only ins-rise" style="--i: 2" role="navigation" aria-label="On this brief" ng-if="vm.parts.length > 1" data-e2e="brf-jump"><button type="button" class="ta-chip" ng-repeat="p in vm.parts track by p.id" ng-click="vm.jump(p.id)" no-busy-guard><i class="fas {{ p.ic }}"></i>{{ p.t }} <span class="ta-chip__n">{{ p.n }}</span></button></div>
+
+      <!-- ── the lesson's content is on its way (a lesson chosen on the page) ── -->
+      <section class="ta-card" ng-if="vm.L && vm.L.loading" aria-busy="true" data-e2e="brf-l-contentload"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></section>
+
+      <!-- ── one card per part of the brief (empty parts are left out) ── -->
+      <section class="ta-card brf-sec ins-rise" id="brf-s-files" style="--i: 3" ng-if="vm.has.files" data-e2e="brf-files">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-images"></i></span><div class="ta-card__ttl"><h3>Lesson content</h3><p>Diagrams and handouts for this lesson</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.files.w }}</span></div>
+        <div class="brf-files">
+          <div class="brf-files__main" ng-class="{'brf-files__main--pdf': vm.file.k === 'pdf' && vm.file.uri}">
+            <div class="brf-files__msg" ng-if="vm.file.err" data-e2e="brf-file-err"><i class="fas fa-exclamation-triangle"></i><b>Couldn't load this file</b>Try again, or open it from Manage Club → Courses.</div>
+            <span class="ta-spin ta-spin--dark" ng-if="!vm.file.uri && !vm.file.err"></span>
+            <img class="brf-files__img" ng-if="vm.file.uri && vm.file.k === 'img'" ng-src="{{ vm.file.src }}" alt="{{ vm.file.n }}">
+            <object class="brf-files__pdf" ng-if="vm.file.uri && vm.file.k === 'pdf'" ng-attr-data="{{ vm.file.src }}" type="application/pdf"><div class="brf-files__msg"><i class="fas fa-file-pdf"></i><b>This browser can't show the PDF here</b>Open it instead.</div></object>
+          </div>
+          <div class="brf-files__cap"><span>{{ vm.file.n }}</span><button type="button" class="ta-link" ng-if="vm.file.k === 'pdf' && !vm.file.err" ng-click="vm.openPdf(vm.file)" ng-disabled="!vm.file.uri" no-busy-guard data-e2e="brf-openpdf">Open the PDF <i class="fas fa-external-link-alt"></i></button><button type="button" class="ta-link" ng-if="vm.file.err" ng-click="vm.fileRetry(vm.file)" no-busy-guard data-e2e="brf-file-retry"><i class="fas fa-redo"></i>Try again</button></div>
+          <div class="brf-thumbs" role="tablist" aria-label="Files" ng-if="vm.files.length > 1"><button type="button" class="brf-thumb" ng-repeat="x in vm.files track by x.id" ng-class="{'brf-thumb--on': $index === vm.fileIdx}" role="tab" aria-selected="{{ $index === vm.fileIdx }}" ng-click="vm.fileSel($index)" no-busy-guard data-e2e="brf-thumb"><span class="brf-thumb__ic" ng-class="{'brf-thumb__ic--bad': x.err, 'brf-thumb__ic--pdf': !x.err && x.k === 'pdf'}"><i class="fas" ng-class="x.err ? 'fa-exclamation-triangle' : x.k === 'pdf' ? 'fa-file-pdf' : 'fa-image'"></i></span><span>{{ x.n }}</span></button></div>
+        </div>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-tem" style="--i: 4" ng-if="vm.has.tem" data-e2e="brf-tem">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-exclamation-triangle"></i></span><div class="ta-card__ttl"><h3>Threats and errors</h3><p>Threat and error management (TEM): what could go wrong, and how to stop it</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.tem.w }}</span></div>
+        <div class="ta-table-wrap brf-tem-table"><table class="ta-table"><thead><tr><th>Threat or error</th><th>Consequence</th><th>Mitigation</th></tr></thead><tbody><tr ng-repeat="t in vm.L.tem"><td>{{ t.a }}</td><td>{{ t.b }}</td><td>{{ t.c }}</td></tr></tbody></table></div>
+        <div class="brf-tem-cards"><div class="brf-tem-card" ng-repeat="t in vm.L.tem"><b>{{ t.a }}</b><dl><dt>Consequence</dt><dd>{{ t.b }}</dd><dt>Mitigation</dt><dd>{{ t.c }}</dd></dl></div></div>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-preflight" style="--i: 5" ng-if="vm.has.preflight" data-e2e="brf-preflight">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-clipboard-list"></i></span><div class="ta-card__ttl"><h3>Pre-flight</h3><p>On the ground, before you walk out</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.preflight.w }}</span></div>
+        <ol class="brf-bul"><li ng-repeat="b in vm.L.preflight" ng-class="{'brf-bul__h': b.h}">{{ b.t }}</li></ol>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-airex" style="--i: 6" ng-if="vm.has.airex" data-e2e="brf-airex">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-cloud-sun"></i></span><div class="ta-card__ttl"><h3>Air exercises</h3><p>What you'll fly, in order</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.airex.w }}</span></div>
+        <ol class="brf-bul"><li ng-repeat="b in vm.L.airex" ng-class="{'brf-bul__h': b.h}">{{ b.t }}</li></ol>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-items" style="--i: 7" ng-if="vm.has.items" data-e2e="brf-items">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-tasks"></i></span><div class="ta-card__ttl"><h3>Objectives</h3><p>What you'll grade in {{ vm.who }}'s debrief</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.items.w }}</span></div>
+        <ol class="brf-objs"><li class="brf-obj" ng-repeat="it in vm.L.items track by it.id"><span class="brf-obj__n">{{ $index + 1 }}</span><span class="brf-obj__t">{{ it.t }}<small ng-if="it.k">{{ it.k }}</small></span></li></ol>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-debrief" style="--i: 8" ng-if="vm.has.debrief" data-e2e="brf-debrief">
+        <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-comments"></i></span><div class="ta-card__ttl"><h3>Debrief points</h3><p>What to talk through when you land</p></div><span class="ta-card__right brf-sec__n">{{ vm.has.debrief.w }}</span></div>
+        <ol class="brf-bul"><li ng-repeat="b in vm.L.debrief" ng-class="{'brf-bul__h': b.h}">{{ b.t }}</li></ol>
+      </section>
+
+      <section class="ta-card brf-sec ins-rise" id="brf-s-none" style="--i: 3" ng-if="vm.L && !vm.L.loading && !vm.parts.length" data-e2e="brf-nobrief"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-book-open"></i></span><div class="ta-card__ttl"><h3>{{ vm.L.failed ? 'The brief didn’t load' : 'No brief written for this lesson yet' }}</h3><p>{{ vm.L.failed ? 'Choose the lesson again to retry. Go flying still saves it on the booking.' : 'Lesson content, threats and errors, pre-flight and air exercises are written in Manage Club → Courses. The aim above is all there is for now.' }}</p></div></div></section>
+      <section class="ta-card brf-sec ins-rise" id="brf-s-none" style="--i: 2" ng-if="!vm.L" data-e2e="brf-appears"><div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-book-open"></i></span><div class="ta-card__ttl"><h3>The brief appears here</h3><p>Choose the lesson above to see its content, threats and errors, pre-flight, air exercises and objectives.</p></div></div></section>
+
+      <div class="brf-classic ta-phone-only"><design-back></design-back></div>
+    </div>
+
+    <!-- ═════ the rail: what Go flying does, and the sections ═════ -->
+    <aside class="ta-rail brf-rail ins-rise" style="--i: 1" data-e2e="brf-rail">
+      <section class="ta-card ta-final brf-final" ng-class="{'ta-final--ready': vm.ready}">
+        <div class="ta-card__hd"><span class="ta-card__icon" ng-class="{'ta-card__icon--done': vm.ready}"><i class="fas fa-plane-departure"></i></span><div class="ta-card__ttl"><h3>Ready to fly?</h3><p>Finish the brief, then book out from here</p></div></div>
+        <div class="ta-sum"><div class="ta-sum__row" ng-repeat="s in vm.sum track by s.k"><i class="fas {{ s.ic }}"></i><span class="ta-sum__k">{{ s.k }}</span><span class="ta-sum__v"><span ng-if="s.v">{{ s.v }}</span><em ng-if="s.em"> · {{ s.em }}</em><em ng-if="s.emOnly">{{ s.emOnly }}</em></span></div></div>
+        <div class="ta-final__acts">
+          <button type="button" class="ta-btn ta-btn--primary ta-cta ta-final__go" ng-if="vm.S.saving" disabled><span class="ta-cta__main"><span class="ta-spin"></span>Saving…</span></button>
+          <button type="button" class="ta-btn ta-btn--primary ta-cta ta-final__go" ng-if="!vm.S.saving && vm.ready" ng-click="vm.fly()" no-busy-guard data-e2e="brf-fly"><span class="ta-cta__main"><i class="fas fa-plane-departure"></i>Go flying</span><span class="ta-cta__sub">{{ vm.goSub }}</span></button>
+          <button type="button" class="ta-btn ta-cta ta-cta--wait ta-final__go" ng-if="!vm.S.saving && !vm.ready" ng-click="vm.fly()" no-busy-guard data-e2e="brf-fly"><span class="ta-cta__main"><i class="fas fa-book"></i>Choose the lesson first</span><span class="ta-cta__sub">{{ vm.goSub }}</span></button>
+          <button type="button" class="ta-btn" ng-click="vm.snap()" ng-if="vm.st" no-busy-guard><i class="fas fa-user-graduate"></i>Student snapshot</button>
+        </div>
+      </section>
+      <section class="ta-card ta-desk-only" ng-if="vm.nav.length" data-e2e="brf-nav"><span class="ta-sec-k">On this brief</span><ul class="brf-nav"><li ng-repeat="p in vm.nav track by p.id"><button type="button" ng-click="vm.jump(p.id)" no-busy-guard><i class="fas {{ p.ic }}"></i><span>{{ p.t }}</span><span>{{ p.n }}</span></button></li></ul></section>
+    </aside>
+  </div>
+
+  <!-- ═════ phones: Go flying in the bottom bar ═════ -->
+  <div class="ta-actionbar ta-phone-only" ng-if="vm.state === 'ready'" data-e2e="brf-bar">
+    <button type="button" class="ta-btn ta-btn--primary" ng-if="vm.S.saving" disabled><span class="ta-spin"></span>Saving…</button>
+    <button type="button" class="ta-btn ta-btn--primary ta-cta" ng-if="!vm.S.saving && vm.ready" ng-click="vm.fly()" no-busy-guard data-e2e="brf-fly-ph"><span class="ta-cta__main"><i class="fas fa-plane-departure"></i>Go flying</span><span class="ta-cta__sub">{{ vm.goSubPhone }}</span></button>
+    <button type="button" class="ta-btn ta-cta ta-cta--wait" ng-if="!vm.S.saving && !vm.ready" ng-click="vm.fly()" no-busy-guard data-e2e="brf-fly-ph"><span class="ta-cta__main"><i class="fas fa-book"></i>Choose the lesson first</span></button>
+  </div>
+
+  <!-- ── the student snapshot (moved to <body> by brf-portal inside the directive) ── -->
+  <div ng-if="vm.snapFor"><brf-snapshot of="vm.snapFor" on-close="vm.snapClose()"></brf-snapshot></div>
+</main>

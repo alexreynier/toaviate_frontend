@@ -1,0 +1,102 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+     Instructor Dashboard v2 · Hours instructed — mockups/instructor-dashboard/hours-instructed.html (page "hours").
+     InstructorHoursV2Controller (js/v2/instructor_hours/instructor_hours.js) · contract C41 · css/v2/instructor-hours.css (hrs-).
+     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<main class="ta-page" data-e2e="hrs">
+
+  <!-- ── page bar: the range chips (each with its count), the custom dates, the range shown, the club scope and the search ── -->
+  <section class="ta-bar">
+    <div class="ta-bar__row">
+      <div class="ta-bar__title"><span class="ta-bar__icon"><i class="fas fa-stopwatch"></i></span><div><ins-tag></ins-tag><h2>Hours instructed</h2><p>Every flight you instructed, with the solos you supervised</p></div></div>
+      <span class="hrs-v2back"><design-back></design-back></span>
+      <a class="ta-back" ui-sref="dashboard.manage_user" aria-label="Back to the Instructor Dashboard"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Instructor Dashboard</span></a>
+    </div>
+    <div class="ta-bar__row ta-bar__row--tools">
+      <div class="hrs-tools">
+        <div class="ta-chips" role="group" aria-label="Range"><button type="button" class="ta-chip" ng-repeat="p in vm.presets track by p.id" ng-class="{'ta-chip--on': vm.S.preset === p.id}" aria-pressed="{{ vm.S.preset === p.id }}" ng-click="vm.usePreset(p.id)" no-busy-guard data-e2e="hrs-preset-{{ p.id }}">{{ p.label }}<span class="ta-chip__n" ng-if="p.has">{{ vm.S.solo ? p.flights : p.flights - p.solo }}</span></button><button type="button" class="ta-chip" ng-class="{'ta-chip--on': vm.S.preset === 'custom'}" aria-pressed="{{ vm.S.preset === 'custom' }}" ng-click="vm.usePreset('custom')" no-busy-guard data-e2e="hrs-preset-custom"><i class="far fa-calendar-alt"></i>Custom</button></div>
+        <div class="hrs-custom" ng-if="vm.S.preset === 'custom'" data-e2e="hrs-custom">
+          <div class="ta-field" ng-class="{'ta-field--error': vm.custom.err.from}"><span class="ta-label" id="hrs-l-from">From</span><div class="hrs-dpw" id="field-from"><ta-date-picker ng-model="vm.custom.from" ng-change="vm.customFixed('from')" options="vm.pickerOpts" block="true" format="short" placeholder="Choose a date"></ta-date-picker></div><span class="ta-field__msg" ng-if="vm.custom.err.from">{{ vm.custom.err.from }}</span></div>
+          <div class="ta-field" ng-class="{'ta-field--error': vm.custom.err.to}"><span class="ta-label" id="hrs-l-to">To</span><div class="hrs-dpw" id="field-to"><ta-date-picker ng-model="vm.custom.to" ng-change="vm.customFixed('to')" options="vm.pickerOpts" block="true" format="short" placeholder="Choose a date"></ta-date-picker></div><span class="ta-field__msg" ng-if="vm.custom.err.to">{{ vm.custom.err.to }}</span></div>
+          <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.customShow()" no-busy-guard data-e2e="hrs-custom-show"><i class="fas fa-search"></i>Show</button>
+        </div>
+        <div class="hrs-tools__r">
+          <span class="hrs-range"><i class="far fa-calendar"></i>Showing <b>{{ vm.rangeText }}</b></span>
+          <div class="ta-scope" ng-if="vm.clubs.length > 1"><span class="ta-scope__k">Club</span><div class="ta-scope__set" role="tablist" aria-label="Club"><button type="button" class="ta-scope__opt" ng-class="{'ta-scope__opt--on': !vm.S.club}" role="tab" aria-selected="{{ !vm.S.club }}" ng-click="vm.setClub(null)" no-busy-guard>All clubs</button><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.S.club === c.id}" role="tab" aria-selected="{{ vm.S.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard>{{ c.title }}</button></div></div>
+          <ta-combo class="hrs-find" cb-id="find" label="Find a student or aircraft" placeholder="{{ vm.findPh }}" placeholder-picked="Type to change"
+                    query="vm.cbQ" source="vm.findSource(q)" on-pick="vm.findPick(key)" on-clear="vm.findClear()" value="vm.findValue" clearable="!!vm.findValue || !!vm.cbQ" version="vm.cbVer"></ta-combo>
+        </div>
+      </div>
+    </div>
+    <div class="hrs-v2row ta-phone-only"><design-back></design-back></div>
+  </section>
+
+  <!-- ── loading: skeleton tiles and rows with v1's words ── -->
+  <section class="ta-card" ng-if="vm.st === 'loading'" aria-busy="true"><div class="ta-tiles hrs-skeltiles"><div class="ta-skel" ng-repeat="i in vm.skelTiles"></div></div></section>
+  <section class="ta-list" ng-if="vm.st === 'loading'" aria-busy="true" data-e2e="hrs-loading">
+    <div class="hrs-loadln"><span class="ta-spin ta-spin--dark"></span>Adding up your hours…</div>
+    <div class="hrs-skel" ng-repeat="i in vm.skelRows"><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div><div class="ta-skel"></div></div>
+  </section>
+
+  <!-- ── the read failed: what happened and a way to try again ── -->
+  <section class="ta-card ins-rise" ng-if="vm.st === 'error'" data-e2e="hrs-error">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Your hours couldn’t be loaded</h4><p>Something went wrong fetching your flights for {{ vm.rangeText }}. Try again; if it keeps happening, tell the club.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.retry()" no-busy-guard data-e2e="hrs-retry"><i class="fas fa-redo"></i>Try again</button></div>
+  </section>
+
+  <!-- ── totals: five tiles, each saying what it is, and the supervised-solo switch ── -->
+  <section class="ta-card hrs-sum hrs-fade ins-rise" aria-label="Totals" ng-if="vm.st === 'ready'" ng-class="{'hrs-dim': vm.dim}" data-e2e="hrs-sum">
+    <div class="ta-tiles">
+      <div class="ta-tile ta-tile--progress"><span class="ta-tile__k"><i class="fas fa-stopwatch"></i>Hours instructed</span><span class="ta-tile__v" hrs-count="vm.tot.hours" hrs-fmt="hm" data-e2e="hrs-t-hours"></span><span class="ta-tile__s">{{ vm.tiles.hours }}</span></div>
+      <div class="ta-tile"><span class="ta-tile__k"><span class="hrs-k hrs-k--dual" aria-hidden="true"><i class="fas fa-user-friends"></i></span>Dual instruction</span><span class="ta-tile__v" hrs-count="vm.tot.dual_hours" hrs-fmt="hm" data-e2e="hrs-t-dual"></span><span class="ta-tile__s">{{ vm.tiles.dual }}</span></div>
+      <div class="ta-tile" ng-if="vm.data.solo"><span class="ta-tile__k"><span class="hrs-k hrs-k--solo" aria-hidden="true"><i class="fas fa-user"></i></span>Supervised solo</span><span class="ta-tile__v" hrs-count="vm.tot.solo_hours" hrs-fmt="hm" data-e2e="hrs-t-solo"></span><span class="ta-tile__s">{{ vm.tiles.solo }}</span></div>
+      <div class="ta-tile" ng-if="!vm.data.solo"><span class="ta-tile__k"><span class="hrs-k hrs-k--solo" aria-hidden="true"><i class="fas fa-user"></i></span>Supervised solo</span><span class="ta-tile__v ta-tile__v--words ta-tile__v--quiet" data-e2e="hrs-t-solo">Not included</span><span class="ta-tile__s">Turn on “Include supervised solos” below to count them</span></div>
+      <div class="ta-tile"><span class="ta-tile__k"><i class="fas fa-user-graduate"></i>Students</span><span class="ta-tile__v" hrs-count="vm.tot.students" data-e2e="hrs-t-students"></span><span class="ta-tile__s">{{ vm.tiles.students }}</span></div>
+      <div class="ta-tile ta-tile--attn" ng-if="vm.todoN"><span class="ta-tile__k"><i class="fas fa-pen"></i>Records to file</span><span class="ta-tile__v" hrs-count="vm.todoN" data-e2e="hrs-t-todo"></span><span class="ta-tile__s">{{ vm.tiles.todo }}</span><button type="button" class="ta-tile__go" ng-click="vm.setTodo(!vm.S.todo)" no-busy-guard data-e2e="hrs-todo-go">{{ vm.S.todo ? 'Show every flight' : 'Show them' }} <i class="fas fa-arrow-right"></i></button></div>
+      <div class="ta-tile ta-tile--good" ng-if="!vm.todoN"><span class="ta-tile__k"><i class="fas fa-check-circle"></i>Records to file</span><span class="ta-tile__v ta-tile__v--words" data-e2e="hrs-t-todo">All filed</span><span class="ta-tile__s">Every flight here has its training record</span></div>
+    </div>
+    <label class="ta-toggle ta-toggle--solo"><input type="checkbox" class="ta-toggle__input" ng-model="vm.S.solo" ng-change="vm.setSolo()" no-busy-guard data-e2e="hrs-solo"><span class="ta-toggle__txt"><span class="ta-toggle__t"><span class="hrs-k hrs-k--solo" aria-hidden="true"><i class="fas fa-user"></i></span>Include supervised solos</span><span class="ta-toggle__s">Solos you authorised and supervised from the ground. Not logbook time for you, so they are counted on their own.</span></span><span class="ta-switch" aria-hidden="true"></span></label>
+  </section>
+
+  <!-- ── nothing in this range ── -->
+  <section class="ta-card ins-rise" style="--i: 1" ng-if="vm.st === 'ready' && !vm.tot.flights" data-e2e="hrs-empty">
+    <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-stopwatch"></i></span><h4>{{ vm.empty.h }}</h4><p>{{ vm.empty.p }}</p><button type="button" class="ta-btn" ng-if="vm.findInfo" ng-click="vm.findClear()" no-busy-guard><i class="fas fa-times"></i>Clear the search</button><button type="button" class="ta-btn" ng-if="!vm.findInfo && !vm.none && vm.S.preset !== 'year'" ng-click="vm.usePreset('year')" no-busy-guard>Show this year</button></div>
+  </section>
+
+  <!-- ── by month: one row each, a dual / supervised-solo bar and the figures as text; a month jumps to its flights ── -->
+  <section class="ta-card hrs-fade ins-rise" style="--i: 1" ng-if="vm.st === 'ready' && vm.tot.flights && vm.months.length > 1" ng-class="{'hrs-dim': vm.dim}" data-e2e="hrs-months">
+    <div class="ta-card__hd"><span class="ta-card__icon"><i class="far fa-calendar-alt"></i></span><div class="ta-card__ttl"><h3>By month</h3><p>Hours per month, dual and supervised solo. Choose a month to jump to its flights.</p></div><div class="ta-card__right hrs-legend"><span style="--k:var(--ta-t-dual)"><i></i>Dual</span><span style="--k:var(--ta-t-solo)" ng-if="vm.data.solo"><i></i>Supervised solo</span></div></div>
+    <div class="hrs-months"><button type="button" class="hrs-mo ins-rise" ng-repeat="m in vm.months track by (m.key + '.' + vm.gen)" style="--i: {{ $index }}" title="{{ m.tip }}" aria-label="{{ m.tip }}. Show its flights" ng-click="vm.jump(m)" no-busy-guard data-e2e="hrs-month"><span class="hrs-mo__k">{{ ::m.label }}</span><span class="hrs-bar" aria-hidden="true"><span class="hrs-bar__seg hrs-bar__seg--dual" ng-if="::m.segD" style="--v: {{ ::m.segD }}"></span><span class="hrs-bar__seg hrs-bar__seg--solo" ng-if="::m.segS" style="--v: {{ ::m.segS }}"></span></span><span class="hrs-mo__v">{{ ::m.hm }}</span><span class="hrs-mo__s">{{ ::m.sub }}</span></button></div>
+  </section>
+
+  <!-- ── the flights: the registration leads, the aircraft colour is the row's left edge; months are group headers ── -->
+  <section class="ta-list hrs-list hrs-fade ins-rise" style="--i: 2" aria-label="Flights" ng-if="vm.st === 'ready' && vm.tot.flights" ng-class="{'hrs-dim': vm.dim}" data-e2e="hrs-list">
+    <div class="ta-list__tools"><div class="ta-chips" role="group" aria-label="Show"><button type="button" class="ta-chip" ng-class="{'ta-chip--on': !vm.S.todo}" ng-click="vm.setTodo(false)" no-busy-guard data-e2e="hrs-all">All flights<span class="ta-chip__n">{{ vm.tot.flights }}</span></button><button type="button" class="ta-chip ta-chip--attn" ng-if="vm.todoN" ng-class="{'ta-chip--on': vm.S.todo}" ng-click="vm.setTodo(true)" no-busy-guard data-e2e="hrs-todo"><i class="fas fa-pen"></i>Records to file<span class="ta-chip__n">{{ vm.todoN }}</span></button><span class="ta-pill ta-pill--good" ng-if="!vm.todoN"><i class="fas fa-check-circle"></i>All training records filed</span></div></div>
+    <div class="ta-list__cols"><span>Aircraft</span><span>When</span><span>Student · lesson</span><span>Training record</span><span class="ta-r" title="Landings">Ldg</span><span class="ta-r">Hours</span><span></span></div>
+
+    <div class="hrs-mon" ng-repeat="g in vm.groups track by (g.key + '.' + vm.gen)">
+      <div class="ta-group ins-rise" id="hrs-m-{{ g.key }}" style="--i: {{ g.i }}"><span>{{ g.label }}</span><span>{{ g.sub }}</span></div>
+      <div class="ta-row hrs-row ins-rise" ng-repeat="f in g.rows track by (f.id + '.' + vm.gen)" id="hrs-f-{{ ::f.id }}" data-e2e="hrs-row"
+           ng-class="{'ta-row--open': vm.openId === f.id, 'hrs-row--flash': vm.flashId === f.id}" style="--ac: {{ ::f._edge }}; --i: {{ ::f._i }}">
+        <button type="button" class="ta-row__main" ng-click="vm.toggle(f)" aria-expanded="{{ vm.openId === f.id }}" no-busy-guard><span class="hrs-reg"><b>{{ ::f.registration }}</b><small>{{ ::f._type }}</small></span><span class="hrs-when"><b>{{ ::f._day }}</b><small>{{ ::f._off }}<span class="ta-desk-only">–{{ ::f._on }}</span></small></span><span class="ta-row__txt"><span class="hrs-who"><span class="ta-av ta-av--member" aria-hidden="true"><i class="fas fa-user"></i></span><span><span class="ta-row__title">{{ ::f._who }}</span><span class="ta-row__sub"><span class="hrs-kind"><span class="hrs-k hrs-k--{{ ::f._kind }}" aria-hidden="true"><i class="fas {{ ::f._k.ic }}"></i></span>{{ ::f._k.label }}</span>{{ ::f._tail }}</span></span></span></span><span class="ta-row__meta"><span class="hrs-recb" role="button" tabindex="0" ng-if="::f._r.todo" ng-click="vm.act(f, $event)" ng-keydown="vm.key($event, f, 'act')" title="{{ ::f._r.why }}" no-busy-guard data-e2e="hrs-recb"><i class="fas {{ ::f._r.ic }}"></i>{{ ::f._r.act }}<span class="ta-tag" ng-if="::f._r.tag">{{ ::f._r.tag }}</span></span><span role="button" tabindex="0" ng-if="::f._good" ng-click="vm.openRec(f, $event)" ng-keydown="vm.key($event, f, 'openRec')" title="Open the training record" no-busy-guard data-e2e="hrs-recopen"><span class="ta-pill ta-pill--good"><i class="fas fa-clipboard-check"></i>Record filed</span></span><span class="ta-pill ta-pill--{{ ::f._r.tone }}" ng-if="::!f._r.todo && !f._good"><i class="fas {{ ::f._r.ic }}"></i>{{ ::f._r.label }}</span><span class="hrs-ldg" title="Landings">{{ ::f.landings }}<span class="ta-phone-only">&nbsp;{{ ::f._ldg }}</span></span></span><span class="ta-row__end"><span class="hrs-hours">{{ ::f._hm }}</span></span><span class="ta-row__acts"><span class="ta-ib" role="button" tabindex="0" ng-if="::f.has_track" ng-click="vm.track(f, $event)" ng-keydown="vm.key($event, f, 'track')" title="Replay the track flown" aria-label="Replay the track flown" no-busy-guard data-e2e="hrs-track"><i class="fas fa-route"></i></span><span class="hrs-notrack" ng-if="::!f.has_track" title="No track on file" aria-label="No track on file"><i class="fas fa-minus"></i></span></span><span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span></button>
+
+        <div class="ta-detail" ng-if="vm.openId === f.id" data-e2e="hrs-detail">
+          <div class="ta-panel ta-panel--white"><dl class="ta-facts ta-facts--3">
+            <div class="ta-fact"><dt>Date</dt><dd>{{ f._dayLong }}</dd></div>
+            <div class="ta-fact"><dt>Brakes off → on</dt><dd>{{ f._off }} → {{ f._on }}</dd></div>
+            <div class="ta-fact"><dt>Flight time</dt><dd>{{ f._hm }} <small>brakes off to on, as booked in</small></dd></div>
+            <div class="ta-fact"><dt>Aircraft</dt><dd>{{ f.registration }} <small>{{ f._model }}</small></dd></div>
+            <div class="ta-fact"><dt>Student</dt><dd>{{ f._who }}</dd></div>
+            <div class="ta-fact"><dt>Landings</dt><dd>{{ f.landings }}</dd></div>
+            <div class="ta-fact"><dt>Flight</dt><dd>{{ f._k.long }}</dd></div>
+            <div class="ta-fact"><dt>Lesson</dt><dd ng-if="f.lesson_title">{{ f.lesson_title }}</dd><dd ng-if="!f.lesson_title"><small>None recorded</small></dd></div>
+            <div class="ta-fact"><dt>Club</dt><dd>{{ f.club_title }}</dd></div>
+          </dl></div>
+          <div class="ta-note" ng-class="{'ta-note--warn': f._r.tone === 'warn', 'ta-note--good': f._r.tone === 'good'}"><i class="fas {{ f._r.ic }}"></i><div><b>{{ f._r.label }}{{ f._r.tag ? ' (' + f._r.tag + ')' : '' }}.</b> {{ f._r.why }}</div></div>
+          <div class="ta-detail__foot"><button type="button" class="ta-btn" ng-click="vm.track(f)" ng-disabled="!f.has_track" no-busy-guard data-e2e="hrs-d-track"><i class="fas fa-route"></i>{{ f.has_track ? 'Replay the track' : 'No track on file' }}</button><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-if="f._r.todo" ng-click="vm.act(f)" no-busy-guard data-e2e="hrs-d-act"><i class="fas {{ f._r.ic }}"></i>{{ f._r.act }}</button><button type="button" class="ta-btn" ng-if="f._good" ng-click="vm.openRec(f)" no-busy-guard data-e2e="hrs-d-open"><i class="fas fa-clipboard-check"></i>Open the training record</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hrs-more" ng-if="vm.rows.length < vm.total" data-e2e="hrs-more"><span>Showing {{ vm.rows.length }} of {{ vm.totalText }} flights</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.more(false)" ng-disabled="!!vm.moreBusy" no-busy-guard data-e2e="hrs-more-btn"><span class="ta-spin ta-spin--dark" ng-if="vm.moreBusy === 'more'"></span>{{ vm.moreBusy === 'more' ? 'Loading…' : 'Show ' + vm.nextN + ' more' }}</button><button type="button" class="ta-btn ta-btn--sm ta-btn--quiet" ng-click="vm.more(true)" ng-disabled="!!vm.moreBusy" no-busy-guard data-e2e="hrs-more-all"><span class="ta-spin ta-spin--dark" ng-if="vm.moreBusy === 'all'"></span>{{ vm.moreBusy === 'all' ? 'Loading…' : 'Show all' }}</button></div>
+  </section>
+
+</main>

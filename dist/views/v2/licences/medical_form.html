@@ -1,0 +1,101 @@
+<!-- v2 · Medical — add / edit (mockups/my-account/licences-medical.html, page "medical-form"). DocFormV2Controller (kind medical).
+     "Limitations" (VML…) is hidden: there is no column for it yet. -->
+<div class="lic-wrap">
+<main class="ta-page lic-page ta-page--has-bar">
+
+    <section class="ta-bar">
+        <div class="ta-bar__row">
+            <div class="ta-bar__title">
+                <span class="ta-bar__icon"><i class="fas fa-heartbeat"></i></span>
+                <div>
+                    <h2>{{ vm.action === 'edit' ? 'Edit medical' : 'Add a medical' }}</h2>
+                    <p>{{ vm.action === 'edit' ? 'Renewed? Add the new dates and a scan of the new certificate' : 'Your medical certificate, its classes and a scan' }}</p>
+                    <design-back class="lic-classic"></design-back>
+                </div>
+            </div>
+            <a class="ta-back" ui-sref="dashboard.v2.medical" aria-label="Back to Medical"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Medical</span></a>
+        </div>
+    </section>
+
+    <section class="ta-card" ng-if="vm.loading"><span class="ta-skel lic-skel lic-skel--40"></span><span class="ta-skel lic-skel lic-skel--tall"></span></section>
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-heartbeat"></i></span><h4>That medical isn't on your account</h4><p>It may have been deleted. Go back to your medicals.</p>
+            <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.medical')" no-busy-guard><i class="fas fa-arrow-left"></i>Medical</button></div>
+    </section>
+
+    <form class="ta-stack" ng-if="!vm.loading && !vm.loadError && vm.f" novalidate ng-submit="vm.save($flow)"
+          flow-init="{target: '/upload.php'}"
+          flow-files-submitted="vm.flowRef = $flow; $flow.upload(); vm.clearErr('scans')"
+          flow-file-success="$file.file_return = $message"
+          flow-file-error="vm.flowFailed($file)"
+          flow-file-added="vm.flowAdded($file)">
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-file-medical"></i><span class="ta-card__step">1</span></span><div class="ta-card__ttl"><h3>Certificate</h3><p>As printed on your medical certificate</p></div></div>
+            <div class="ta-grid-2">
+                <div class="ta-field" id="field-authority" ng-class="{'ta-field--error': vm.errs.authority}">
+                    <label class="ta-label" for="in-authority">State of issue</label>
+                    <select class="ta-select" id="in-authority" ng-model="vm.f.authority_id" ng-change="vm.clearErr('authority')" ng-options="+a.id as (a.country + (a.abbreviation ? ' — ' + a.abbreviation : '')) for a in vm.refs.authority | orderBy:'country'"><option value="">Choose the country</option></select>
+                    <span class="ta-field__msg" ng-if="vm.errs.authority">{{ vm.errs.authority }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.authority">The authority your medical examiner reports to</span>
+                </div>
+                <div class="ta-field" id="field-number" ng-class="{'ta-field--error': vm.errs.number}">
+                    <label class="ta-label" for="in-number">Certificate number</label>
+                    <input class="ta-input" id="in-number" ng-model="vm.f.certificate_number" ng-change="vm.clearErr('number')" placeholder="e.g. M-482913" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.errs.number">{{ vm.errs.number }}</span>
+                </div>
+                <div class="ta-field" id="field-exam" ng-class="{'ta-field--error': vm.errs.exam}">
+                    <label class="ta-label">Examination date</label>
+                    <ta-date-picker ng-model="vm.f.exam" block="true" format="short" placeholder="Pick the date" options="vm.pastOptions" ng-change="vm.clearErr('exam')"></ta-date-picker>
+                    <span class="ta-field__msg" ng-if="vm.errs.exam">{{ vm.errs.exam }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.exam">The day of your medical</span>
+                </div>
+                <div class="ta-field" id="field-limitations" ng-class="{'ta-field--error': vm.errs.limitations}">
+                    <label class="ta-label" for="in-limits">Limitations</label>
+                    <input class="ta-input" id="in-limits" ng-model="vm.f.limitations" ng-change="vm.clearErr('limitations')" maxlength="120" placeholder="e.g. VML — none if blank" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.errs.limitations">{{ vm.errs.limitations }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.limitations">Codes printed on the certificate, such as VML.</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-heartbeat"></i><span class="ta-card__step">2</span></span><div class="ta-card__ttl"><h3>Classes and dates</h3><p>Each class on the certificate with its own expiry; ECG and audiogram are dates done</p></div></div>
+            <div class="lic-rrows" ng-if="vm.f.comps.length">
+                <div class="lic-rrow lic-rrow--one" ng-repeat="c in vm.f.comps">
+                    <span class="lic-rrow__name"><b>{{ vm.compOf(c.id).title }}</b><span>{{ vm.compOf(c.id).description }}</span></span>
+                    <div class="lic-rrow__dates">
+                        <div class="ta-field" id="field-c{{ $index }}" ng-class="{'ta-field--error': vm.errs['c' + $index]}">
+                            <label class="ta-label">{{ +vm.compOf(c.id).is_certificate === 1 ? 'Expires' : 'Date done' }}</label>
+                            <ta-date-picker ng-model="c.expiry" block="true" format="short" placeholder="Pick the date" options="vm.anyOptions" ng-change="vm.clearErr('c' + $index)"></ta-date-picker>
+                            <span class="ta-field__msg" ng-if="vm.errs['c' + $index]">{{ vm.errs['c' + $index] }}</span>
+                        </div>
+                    </div>
+                    <button type="button" class="ta-ib lic-rrow__x" ng-click="vm.delRow($index)" title="Remove {{ vm.compOf(c.id).title }}" aria-label="Remove {{ vm.compOf(c.id).title }}" no-busy-guard><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="ta-field" id="field-comps" ng-class="{'ta-field--error': vm.errs.comps}">
+                <label class="ta-label" for="in-comps">Add a class or record</label>
+                <div class="lic-addrow">
+                    <select class="ta-select" id="in-comps" ng-model="vm.add.id" ng-options="+c.id as (c.title + (c.description ? ' — ' + c.description : '')) for c in vm.availComps()" no-busy-guard><option value="">Choose one</option></select>
+                    <button type="button" class="ta-btn" ng-click="vm.addRow()" ng-disabled="!vm.add.id" no-busy-guard><i class="fas fa-plus"></i>Add</button>
+                </div>
+                <span class="ta-field__msg" ng-if="vm.errs.comps">{{ vm.errs.comps }}</span>
+                <span class="ta-hint" ng-if="!vm.errs.comps && !vm.f.comps.length">Most private pilots hold Class 2 and LAPL from the same examination</span>
+            </div>
+        </section>
+
+        <div ng-include="'views/v2/licences/_form_scans.html'"></div>
+
+        <div class="ta-note ta-note--info"><i class="fas fa-user-shield"></i><div ng-if="vm.action === 'edit'">Saving creates a new record, so <span ng-bind-html="vm.clubsHtml"></span> will need to check this medical again — until they do, solo bookings that need it may be refused.</div><div ng-if="vm.action !== 'edit'">Once it's saved, <span ng-bind-html="vm.clubsHtml"></span> check it before your next solo booking.</div></div>
+
+        <div class="ta-actionbar">
+            <span class="ta-actionbar__hint"><i class="fas fa-exclamation-circle" ng-if="vm.errCount()"></i>{{ vm.errCount() ? ' ' + vm.U.plural(vm.errCount(), 'thing') + ' to fix above' : (vm.action === 'edit' ? 'Your clubs check it again after saving' : 'Your clubs check it once it\'s saved') }}</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.go('dashboard.my_account.medical')" no-busy-guard>Cancel</button>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.saving"><i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : 'fa-save'"></i>{{ vm.saving ? 'Saving…' : 'Save medical' }}</button>
+        </div>
+    </form>
+</main>
+<div ng-include="'views/v2/licences/_dlgs.html'"></div>
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

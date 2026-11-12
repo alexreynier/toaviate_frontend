@@ -1,0 +1,111 @@
+<!-- v2 · Licence — add / edit (mockups/my-account/licences-medical.html, page "licence-form"). DocFormV2Controller (kind licence). -->
+<div class="lic-wrap">
+<main class="ta-page lic-page ta-page--has-bar">
+
+    <section class="ta-bar">
+        <div class="ta-bar__row">
+            <div class="ta-bar__title">
+                <span class="ta-bar__icon"><i class="fas fa-certificate"></i></span>
+                <div>
+                    <h2>{{ vm.action === 'edit' ? 'Edit ' + (vm.typeOf(vm.f.licence_id).abbreviation || 'licence') : 'Add a licence' }}</h2>
+                    <p>{{ vm.action === 'edit' ? 'Update the dates when you revalidate, or add a new rating' : 'Your licence, its ratings and a scan of each page' }}</p>
+                    <design-back class="lic-classic"></design-back>
+                </div>
+            </div>
+            <a class="ta-back" ui-sref="dashboard.v2.licence" aria-label="Back to Licences"><i class="fas fa-arrow-left"></i><span class="ta-back__txt">Licences</span></a>
+        </div>
+    </section>
+
+    <section class="ta-card" ng-if="vm.loading"><span class="ta-skel lic-skel lic-skel--40"></span><span class="ta-skel lic-skel lic-skel--tall"></span></section>
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-certificate"></i></span><h4>That licence isn't on your account</h4><p>It may have been deleted. Go back to your licences.</p>
+            <button type="button" class="ta-btn" ng-click="vm.go('dashboard.my_account.licence')" no-busy-guard><i class="fas fa-arrow-left"></i>Licences</button></div>
+    </section>
+
+    <form class="ta-stack" ng-if="!vm.loading && !vm.loadError && vm.f" novalidate ng-submit="vm.save($flow)"
+          flow-init="{target: '/upload.php'}"
+          flow-files-submitted="vm.flowRef = $flow; $flow.upload(); vm.clearErr('scans')"
+          flow-file-success="$file.file_return = $message"
+          flow-file-error="vm.flowFailed($file)"
+          flow-file-added="vm.flowAdded($file)">
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-certificate"></i><span class="ta-card__step">1</span></span><div class="ta-card__ttl"><h3>Licence</h3><p>As printed on your licence</p></div></div>
+            <div class="ta-grid-2">
+                <div class="ta-field" id="field-type" ng-class="{'ta-field--error': vm.errs.type}">
+                    <label class="ta-label" for="in-type">Licence type</label>
+                    <select class="ta-select" id="in-type" ng-model="vm.f.licence_id" ng-change="vm.clearErr('type')" ng-options="+t.id as (t.abbreviation + ' — ' + t.title) for t in vm.refs.types"><option value="">Choose your licence</option></select>
+                    <span class="ta-field__msg" ng-if="vm.errs.type">{{ vm.errs.type }}</span>
+                </div>
+                <div class="ta-field" id="field-authority" ng-class="{'ta-field--error': vm.errs.authority}">
+                    <label class="ta-label" for="in-authority">State of issue</label>
+                    <select class="ta-select" id="in-authority" ng-model="vm.f.authority_id" ng-change="vm.clearErr('authority')" ng-options="+a.id as (a.country + (a.abbreviation ? ' — ' + a.abbreviation : '')) for a in vm.refs.authority | orderBy:'country'"><option value="">Choose the country</option></select>
+                    <span class="ta-field__msg" ng-if="vm.errs.authority">{{ vm.errs.authority }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.authority">The authority that issued it</span>
+                </div>
+                <div class="ta-field lic-span" id="field-number" ng-class="{'ta-field--error': vm.errs.number}">
+                    <label class="ta-label" for="in-number">Licence number</label>
+                    <input class="ta-input" id="in-number" ng-model="vm.f.licence_number" ng-change="vm.clearErr('number')" placeholder="e.g. 214763A" autocomplete="off">
+                    <span class="ta-field__msg" ng-if="vm.errs.number">{{ vm.errs.number }}</span>
+                </div>
+                <div class="ta-field" id="field-issued" ng-class="{'ta-field--error': vm.errs.issued}">
+                    <label class="ta-label">Issued</label>
+                    <ta-date-picker ng-model="vm.f.issued" block="true" format="short" placeholder="Pick the date" options="vm.pastOptions" ng-change="vm.clearErr('issued')"></ta-date-picker>
+                    <span class="ta-field__msg" ng-if="vm.errs.issued">{{ vm.errs.issued }}</span>
+                </div>
+                <div class="ta-field" id="field-expiry" ng-class="{'ta-field--error': vm.errs.expiry}">
+                    <label class="ta-label">Expires</label>
+                    <div ng-show="!vm.f.noExpiry"><ta-date-picker ng-model="vm.f.expiry" block="true" format="short" placeholder="Pick the date" options="vm.anyOptions" ng-change="vm.clearErr('expiry')"></ta-date-picker></div>
+                    <span class="tadp-field tadp-field--block" ng-show="vm.f.noExpiry"><button type="button" class="tadp-btn" disabled no-busy-guard><span class="tadp-btn__icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="4" width="15" height="13.5" rx="2.5"/><path d="M2.5 8.5h15M6.5 2v4M13.5 2v4"/></svg></span><span class="tadp-btn__text tadp-btn__text--empty">No expiry</span><span class="tadp-btn__caret" aria-hidden="true">▾</span></button></span>
+                    <label class="ta-check lic-check-row"><input type="checkbox" id="in-noexp" ng-model="vm.f.noExpiry" ng-change="vm.noExp()" no-busy-guard> It doesn't expire</label>
+                    <span class="ta-field__msg" ng-if="vm.errs.expiry">{{ vm.errs.expiry }}</span>
+                    <span class="ta-hint" ng-if="!vm.errs.expiry">UK licences are usually issued for life</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-medal"></i><span class="ta-card__step">2</span></span><div class="ta-card__ttl"><h3>Ratings</h3><p>Your class rating and any others, with their test and expiry dates</p></div></div>
+            <div class="lic-rrows" ng-if="vm.f.ratings.length">
+                <div class="lic-rrow" ng-repeat="r in vm.f.ratings">
+                    <span class="lic-rrow__name"><b>{{ vm.ratingOf(r.id).abbreviation }}</b><span>{{ vm.ratingOf(r.id).title }}</span></span>
+                    <div class="lic-rrow__dates">
+                        <div class="ta-field" id="field-r{{ $index }}test" ng-class="{'ta-field--error': vm.errs['r' + $index + 'test']}">
+                            <label class="ta-label">Test date</label>
+                            <ta-date-picker ng-model="r.test" block="true" format="short" placeholder="Pick the date" options="vm.pastOptions" ng-change="vm.clearErr('r' + $index + 'test')"></ta-date-picker>
+                            <span class="ta-field__msg" ng-if="vm.errs['r' + $index + 'test']">{{ vm.errs['r' + $index + 'test'] }}</span>
+                        </div>
+                        <div class="ta-field" id="field-r{{ $index }}exp" ng-class="{'ta-field--error': vm.errs['r' + $index + 'exp']}">
+                            <label class="ta-label">Expires</label>
+                            <ta-date-picker ng-model="r.expiry" block="true" format="short" placeholder="Pick the date" options="vm.anyOptions" ng-change="vm.clearErr('r' + $index + 'exp')"></ta-date-picker>
+                            <span class="ta-field__msg" ng-if="vm.errs['r' + $index + 'exp']">{{ vm.errs['r' + $index + 'exp'] }}</span>
+                        </div>
+                    </div>
+                    <button type="button" class="ta-ib lic-rrow__x" ng-click="vm.delRow($index)" title="Remove {{ vm.ratingOf(r.id).abbreviation }}" aria-label="Remove {{ vm.ratingOf(r.id).abbreviation }}" no-busy-guard><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="ta-field" id="field-ratings" ng-class="{'ta-field--error': vm.errs.ratings}">
+                <label class="ta-label" for="in-ratings">Add a rating</label>
+                <div class="lic-addrow">
+                    <select class="ta-select" id="in-ratings" ng-model="vm.add.id" ng-options="+r.id as (r.abbreviation + ' — ' + r.title) for r in vm.availRatings()" no-busy-guard><option value="">Choose a rating</option></select>
+                    <button type="button" class="ta-btn" ng-click="vm.addRow()" ng-disabled="!vm.add.id" no-busy-guard><i class="fas fa-plus"></i>Add rating</button>
+                </div>
+                <span class="ta-field__msg" ng-if="vm.errs.ratings">{{ vm.errs.ratings }}</span>
+                <span class="ta-hint" ng-if="!vm.errs.ratings && vm.action === 'add'">SEP (land) is added for you — change its dates or remove it</span>
+            </div>
+        </section>
+
+        <div ng-include="'views/v2/licences/_form_scans.html'"></div>
+
+        <div class="ta-note ta-note--info"><i class="fas fa-user-shield"></i><div ng-if="vm.action === 'edit'">Saving creates a new record, so <span ng-bind-html="vm.clubsHtml"></span> will need to check this licence again — until they do, solo bookings that need it may be refused.</div><div ng-if="vm.action !== 'edit'">Once it's saved, <span ng-bind-html="vm.clubsHtml"></span> check it before your next solo booking.</div></div>
+
+        <div class="ta-actionbar">
+            <span class="ta-actionbar__hint"><i class="fas fa-exclamation-circle" ng-if="vm.errCount()"></i>{{ vm.errCount() ? ' ' + vm.U.plural(vm.errCount(), 'thing') + ' to fix above' : (vm.action === 'edit' ? 'Your clubs check it again after saving' : 'Your clubs check it once it\'s saved') }}</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.go('dashboard.my_account.licence')" no-busy-guard>Cancel</button>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="vm.saving"><i class="fas" ng-class="vm.saving ? 'fa-circle-notch fa-spin' : 'fa-save'"></i>{{ vm.saving ? 'Saving…' : 'Save licence' }}</button>
+        </div>
+    </form>
+</main>
+<div ng-include="'views/v2/licences/_dlgs.html'"></div>
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

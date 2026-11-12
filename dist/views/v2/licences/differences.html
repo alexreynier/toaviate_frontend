@@ -1,0 +1,127 @@
+<!-- v2 · My documents → Differences (mockups/my-account/licences-medical.html, page "differences"). DocsHubV2Controller.
+     A checklist of every difference the app knows; saved as one set (PUT user_differences/{user}).
+     Club checks: member_checks/v2/mine (C9) — check_id = the row's user_difference_id.
+     Hidden until the backend has it: "signed off by" (a column), "needed to fly G-XXXX solo" (an endpoint). -->
+<div class="lic-wrap">
+<main class="ta-page lic-page" ng-class="{'ta-page--has-bar': vm.dd && vm.dChanges(vm.$flow)}">
+
+    <lic-docs-bar active="differences" counts="vm.counts"></lic-docs-bar>
+
+    <section class="ta-card" ng-if="vm.loading"><span class="ta-skel lic-skel lic-skel--40"></span><span class="ta-skel lic-skel lic-skel--tall"></span><span class="ta-skel lic-skel lic-skel--tall"></span></section>
+    <section class="ta-card" ng-if="!vm.loading && vm.loadError">
+        <div class="ta-empty"><span class="ta-empty__ic"><i class="fas fa-plug"></i></span><h4>We couldn't load your differences</h4><p>Check your connection, then try again.</p><button type="button" class="ta-btn" ng-click="vm.reload()" no-busy-guard><i class="fas fa-sync-alt"></i>Try again</button></div>
+    </section>
+
+    <form class="ta-stack" ng-if="!vm.loading && !vm.loadError && vm.dd" novalidate ng-submit="vm.dSave($flow)"
+          flow-init="{target: '/upload.php'}"
+          flow-files-submitted="vm.flowRef = $flow; $flow.upload(); vm.dErr.scans = null"
+          flow-file-success="$file.file_return = $message"
+          flow-file-error="vm.flowFailed($file)"
+          flow-file-added="vm.flowAdded($file)"
+          ng-init="vm.$flow = $flow">
+
+        <div class="ta-note ta-note--info"><i class="fas fa-random"></i><div>Some aircraft need differences training before you fly them solo — a glass cockpit (EFIS), a variable-pitch propeller, retractable gear. Add each sign-off from your logbook with a photo of the page; your clubs check it.</div></div>
+
+        <section class="ta-list lic-dlist">
+            <div class="ta-list__tools"><span class="ta-sec-k">{{ vm.dSignedCount() }} of {{ vm.refs.diffs.length }} signed off</span></div>
+            <div class="ta-list__cols"><span></span><span>Difference</span><span>Covers</span><span>Club checks</span><span></span></div>
+            <div class="ta-row" ng-repeat="df in vm.refs.diffs" ng-class="{'ta-row--open': vm.dOpen === df.id, 'ta-row--todo': !vm.dRow(df)}">
+                <button type="button" class="ta-row__main" ng-click="vm.dToggle(df)" aria-expanded="{{ vm.dOpen === df.id }}" no-busy-guard>
+                    <span class="ta-row__lead"><span class="lic-dmark" ng-class="{'lic-dmark--done': vm.dRow(df) && vm.dRow(df).sign && !vm.dIsNew(df) && !vm.dChanged(df), 'lic-dmark--draft': vm.dRow(df) && (!vm.dRow(df).sign || vm.dIsNew(df) || vm.dChanged(df))}"><i class="fas" ng-class="vm.diffIc(df)"></i></span></span>
+                    <span class="ta-row__txt"><span class="ta-row__title">{{ df.title }}</span><span class="ta-row__sub">{{ vm.dSub(df) }}</span></span>
+                    <span class="ta-row__meta">
+                        <span class="lic-conds" ng-if="vm.dRow(df)">
+                            <span class="ta-tag" ng-repeat="c in vm.dConds(vm.dRow(df))"><i class="fas" ng-class="c[2]"></i>{{ c[1] }}</span>
+                            <span class="lic-cond-off" ng-if="!vm.dConds(vm.dRow(df)).length">No conditions ticked</span>
+                        </span>
+                        <span class="lic-cond-off" ng-if="!vm.dRow(df)">—</span>
+                        <span class="ta-pill ta-pill--pend" ng-if="vm.dRow(df) && (vm.dIsNew(df) || vm.dChanged(df))"><i class="fas fa-pen"></i>Not saved yet</span>
+                        <span class="ta-pill ta-pill--good" ng-if="vm.dRow(df) && !vm.dIsNew(df) && !vm.dChanged(df) && vm.dChecksOf(df).length && vm.dAllChecked(df)"><i class="fas fa-user-check"></i>Checked</span>
+                        <span class="ta-pill ta-pill--pend" ng-if="vm.dRow(df) && !vm.dIsNew(df) && !vm.dChanged(df) && vm.dChecksOf(df).length && !vm.dAllChecked(df)"><i class="fas fa-user-clock"></i>Awaiting club check</span>
+                        <span class="ta-pill ta-pill--good" ng-if="vm.dRow(df) && !vm.dIsNew(df) && !vm.dChanged(df) && !vm.dChecksOf(df).length"><i class="fas fa-check"></i>Saved</span>
+                        <span ng-if="!vm.dRow(df)"></span>
+                    </span>
+                    <span class="ta-row__acts"><span class="ta-ib" aria-hidden="true"><i class="fas" ng-class="vm.dOpen === df.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i></span></span>
+                    <span class="ta-row__chev"><i class="fas fa-chevron-down"></i></span>
+                </button>
+                <div class="ta-detail" ng-if="vm.dOpen === df.id && !vm.dRow(df)">
+                    <div class="ta-panel ta-panel--white"><span>Not signed off yet. When an instructor signs your logbook for <b>{{ df.title | lowercase }}</b>, add it here with a photo of that logbook page.</span></div>
+                    <div class="ta-note ta-note--info" ng-repeat="n in vm.dNeed[df.id]"><i class="fas fa-plane"></i><div class="lic-ac">Needed to fly <span ng-repeat="r in n.regs"><span class="ta-ac">{{ r }}</span> </span>solo at {{ n.club }}.</div></div>
+                    <div class="ta-detail__foot"><span class="ta-sp"></span><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.dAdd(df)" no-busy-guard><i class="fas fa-plus"></i>Add sign-off</button></div>
+                </div>
+                <div class="ta-detail" ng-if="vm.dOpen === df.id && vm.dRow(df)">
+                    <div class="ta-grid-2">
+                        <div class="ta-field" id="field-d{{ df.id }}" ng-class="{'ta-field--error': vm.dErr['d' + df.id]}">
+                            <label class="ta-label">Signed off on</label>
+                            <ta-date-picker ng-model="vm.dRow(df).sign" block="true" format="short" placeholder="Pick the date" options="vm.dpOptions" ng-change="vm.clearD(df)"></ta-date-picker>
+                            <span class="ta-field__msg" ng-if="vm.dErr['d' + df.id]">{{ vm.dErr['d' + df.id] }}</span>
+                            <span class="ta-hint" ng-if="!vm.dErr['d' + df.id]">The date next to the instructor's signature</span>
+                        </div>
+                        <div class="ta-field">
+                            <label class="ta-label" for="in-dby{{ df.id }}">Signed off by</label>
+                            <input class="ta-input" id="in-dby{{ df.id }}" ng-model="vm.dRow(df).by" maxlength="100" placeholder="Instructor's name" autocomplete="off">
+                            <span class="ta-hint">As written next to the signature</span>
+                        </div>
+                    </div>
+                    <div class="ta-field">
+                        <span class="ta-label">Covers</span>
+                        <div class="lic-conds">
+                            <button type="button" class="ta-chip" ng-repeat="c in vm.COND" ng-class="{'ta-chip--on': vm.dRow(df)[c[0]]}" ng-click="vm.dCond(vm.dRow(df), c[0])" aria-pressed="{{ !!vm.dRow(df)[c[0]] }}" no-busy-guard><i class="fas" ng-class="c[2]"></i>{{ c[1] }}</button>
+                        </div>
+                        <span class="ta-hint">What the sign-off covers, as written in your logbook.</span>
+                    </div>
+                    <div class="ta-note ta-note--info" ng-repeat="n in vm.dNeed[df.id]"><i class="fas fa-plane"></i><div class="lic-ac">Needed to fly <span ng-repeat="r in n.regs"><span class="ta-ac">{{ r }}</span> </span>solo at {{ n.club }}.</div></div>
+                    <div class="lic-sec" ng-if="!vm.dIsNew(df) && vm.dChecksOf(df).length">
+                        <span class="ta-sec-k">Club checks</span>
+                        <div class="lic-checks">
+                            <div class="lic-check" ng-repeat="c in vm.dChecksOf(df)" ng-class="{'lic-check--pend': !c.verified}">
+                                <span class="ta-ic ta-ic--sm" ng-class="{'ta-ic--good': c.verified}"><i class="fas" ng-class="c.verified ? 'fa-user-check' : 'fa-user-clock'"></i></span>
+                                <span class="lic-check__txt"><b>{{ c.club }}</b><small>{{ vm.checkLine(c, 'differences sign-off') }}</small></span>
+                                <span class="ta-pill ta-pill--good" ng-if="c.verified"><i class="fas fa-user-check"></i>Checked</span>
+                                <span class="ta-pill ta-pill--pend" ng-if="!c.verified"><i class="fas fa-user-clock"></i>Awaiting club check</span>
+                            </div>
+                        </div>
+                        <span class="ta-hint" ng-if="vm.dChanged(df)">Saving re-creates your sign-offs, so your clubs check them again.</span>
+                    </div>
+                    <div class="ta-detail__foot">
+                        <button type="button" class="ta-btn ta-btn--danger" ng-click="vm.dRemove(df)" no-busy-guard><i class="fas fa-trash-alt"></i>Remove sign-off</button>
+                        <span class="ta-sp"></span>
+                        <button type="button" class="ta-btn" ng-click="vm.dToggle(df)" no-busy-guard>Done</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ta-card">
+            <div class="ta-card__hd"><span class="ta-card__icon"><i class="fas fa-book-open"></i></span><div class="ta-card__ttl"><h3>Logbook pages</h3><p>Photos of the differences page in your logbook, with the signatures</p></div></div>
+            <div class="ta-field" id="field-dscans" ng-class="{'ta-field--error': vm.dErr.scans}">
+                <button type="button" class="ta-drop ta-drop--row" flow-btn flow-drop flow-drag-enter="vm.over = true" flow-drag-leave="vm.over = false" ng-class="{'ta-drop--over': vm.over}" no-busy-guard>
+                    <span class="ta-drop__ic"><i class="fas fa-cloud-upload-alt"></i></span>
+                    <span class="ta-drop__txt"><b>Add logbook pages</b><small>Choose files or drop them here · JPG, PNG or GIF</small></span>
+                </button>
+                <span class="ta-field__msg" ng-if="vm.dErr.scans">{{ vm.dErr.scans }}</span>
+            </div>
+            <div class="lic-ups" ng-if="vm.dd.images.length || $flow.files.length">
+                <div class="lic-up" ng-repeat="im in vm.dd.images">
+                    <span class="lic-thumb"><img class="lic-thumb__img" ng-if="im.data_uri && im.data_uri.indexOf('data:') === 0" ng-src="{{ im.data_uri }}" alt="Logbook page {{ $index + 1 }}"></span>
+                    <span class="lic-up__row"><span class="lic-up__name">Logbook page {{ $index + 1 }}<small>Saved</small></span>
+                        <button type="button" class="ta-ib" ng-click="vm.dImgDel(im)" title="Remove page {{ $index + 1 }}" aria-label="Remove logbook page {{ $index + 1 }}" no-busy-guard><i class="fas fa-times"></i></button></span>
+                </div>
+                <div class="lic-up" ng-repeat="f in $flow.files">
+                    <span class="lic-thumb" ng-class="{'lic-thumb--uploading': vm.U.upState(f) === 'up', 'lic-thumb--bad': vm.U.upState(f) === 'bad'}"><img class="lic-thumb__img" flow-img="f" alt="{{ f.name }}"></span>
+                    <span class="lic-up__row"><span class="lic-up__name">{{ f.name }}<small ng-class="{'lic-up__bad': vm.U.upState(f) === 'bad'}">{{ vm.U.upLabel(f, 'New page') }}</small></span>
+                        <button type="button" class="ta-ib" ng-click="vm.dUpDel(f)" title="Remove {{ f.name }}" aria-label="Remove {{ f.name }}" no-busy-guard><i class="fas fa-times"></i></button></span>
+                    <div class="ta-meter" ng-if="vm.U.upState(f) === 'up'"><div class="ta-meter__bar" ng-attr-style="--v:{{ vm.pct(f) }}%"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="ta-actionbar" ng-class="{'lic-bar--clean': !vm.dChanges($flow)}">
+            <span class="ta-actionbar__hint">{{ vm.dChanges($flow) ? vm.plural(vm.dChanges($flow), 'unsaved change') + ' · saved together, then your clubs check them again' : 'No unsaved changes' }}</span><span class="ta-sp"></span>
+            <button type="button" class="ta-btn ta-btn--quiet" ng-if="vm.dChanges($flow)" ng-click="vm.dUndo($flow)" no-busy-guard>Undo changes</button>
+            <button type="submit" class="ta-btn ta-btn--primary" ng-disabled="!vm.dChanges($flow) || vm.dSaving"><i class="fas" ng-class="vm.dSaving ? 'fa-circle-notch fa-spin' : 'fa-save'"></i>{{ vm.dSaving ? 'Saving…' : 'Save differences' }}</button>
+        </div>
+    </form>
+</main>
+<div ng-include="'views/v2/profile/_leave_dlg.html'"></div>
+</div>

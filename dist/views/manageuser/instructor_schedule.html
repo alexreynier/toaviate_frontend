@@ -40,10 +40,17 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!--  MAIN CONTENT — shown once data loaded                    -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <div class="is-schedule-wrap" ng-if="vm.available_time">
+  <div class="is-schedule-wrap" ng-if="vm.loaded && !vm.loadError">
+
+    <!-- Not an instructor at any club: no weekly schedule or extra dates, but time off still applies -->
+    <div class="is-empty-state is-no-club" ng-if="!vm.available_time">
+      <i class="fas fa-chalkboard-teacher"></i>
+      <p><strong>You're not an instructor at a club yet</strong></p>
+      <p>Your weekly schedule and extra dates appear here once a club adds you as an instructor. Your time off is below.</p>
+    </div>
 
     <!-- Club name badge -->
-    <div class="is-club-badge">
+    <div class="is-club-badge" ng-if="vm.available_time">
       <i class="fas fa-building"></i>
       <span>{{ vm.available_time.club_name }}</span>
     </div>
@@ -51,10 +58,10 @@
 
     <!-- ─── TAB BAR ──────────────────────────────────────────── -->
     <div class="is-tabs">
-      <button class="is-tab" ng-class="{ active: vm.activeTab === 'schedule' }" ng-click="setTab('schedule')">
+      <button class="is-tab" ng-if="vm.available_time" ng-class="{ active: vm.activeTab === 'schedule' }" ng-click="setTab('schedule')">
         <i class="fas fa-clock"></i><span>Weekly Schedule</span>
       </button>
-      <button class="is-tab" ng-class="{ active: vm.activeTab === 'extra' }" ng-click="setTab('extra')">
+      <button class="is-tab" ng-if="vm.available_time" ng-class="{ active: vm.activeTab === 'extra' }" ng-click="setTab('extra')">
         <i class="fas fa-calendar-plus"></i><span>Extra Dates</span>
       </button>
       <button class="is-tab" ng-class="{ active: vm.activeTab === 'holidays' }" ng-click="setTab('holidays')">
@@ -67,7 +74,7 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!--  TAB 1 — WEEKLY SCHEDULE                                  -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <div class="is-tab-body" ng-show="vm.activeTab === 'schedule'">
+    <div class="is-tab-body" ng-if="vm.available_time" ng-show="vm.activeTab === 'schedule'">
 
       <!-- Mode toggle -->
       <div class="is-mode-toggle">
@@ -165,7 +172,7 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!--  TAB 2 — EXTRA / AD-HOC DATES                            -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <div class="is-tab-body" ng-show="vm.activeTab === 'extra'">
+    <div class="is-tab-body" ng-if="vm.available_time" ng-show="vm.activeTab === 'extra'">
 
       <div class="is-extra-info" ng-if="vm.available_time.availability_mode !== 'adhoc'">
         <i class="fas fa-lightbulb"></i>
@@ -463,10 +470,18 @@
   </div>
 
 
-  <!-- Loading state -->
-  <div class="is-loading" ng-if="!vm.available_time">
+  <!-- Loading state (until the clubs + availability fetch finishes — not "while the list is empty") -->
+  <div class="is-loading" ng-if="!vm.loaded">
     <i class="fas fa-spinner fa-spin fa-2x"></i>
     <p>Loading your availability…</p>
+  </div>
+
+  <!-- The fetch failed -->
+  <div class="is-empty-state" ng-if="vm.loaded && vm.loadError">
+    <i class="fas fa-exclamation-triangle"></i>
+    <p><strong>Your availability couldn't be loaded</strong></p>
+    <p>Check your connection and try again.</p>
+    <button class="is-btn is-btn-primary" ng-click="retryLoad()"><i class="fas fa-redo"></i> Try again</button>
   </div>
 
 </div>

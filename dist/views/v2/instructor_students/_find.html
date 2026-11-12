@@ -1,0 +1,53 @@
+<!-- FIND A STUDENT (page "find"): the club scope, the live search over the club, "Your students" with Needs you first -->
+<section class="ta-bar">
+  <div class="ta-bar__row">
+    <div class="ta-bar__title"><span class="ta-bar__icon" aria-hidden="true"><i class="fas fa-user-graduate"></i></span><div><ins-tag></ins-tag><h2>Student records</h2><p>Find a student, then their progress and every flight's record</p></div></div>
+    <span class="stu-v2back"><design-back></design-back></span>
+    <a class="ta-back" href="" ng-click="vm.goOrigin()" aria-label="Back to {{ vm.originLabel || 'the Instructor Dashboard' }}" data-e2e="stu-back"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ta-back__txt">{{ vm.originLabel || 'Instructor Dashboard' }}</span></a>
+  </div>
+  <div class="ta-bar__row ta-bar__row--tools">
+    <div class="ins-find">
+      <div class="ta-scope" ng-if="vm.clubs.length > 1"><span class="ta-scope__k ta-desk-only">Club</span><div class="ta-scope__set" role="group" aria-label="Club"><button type="button" class="ta-scope__opt" ng-repeat="c in vm.clubs track by c.id" ng-class="{'ta-scope__opt--on': vm.club === c.id}" aria-pressed="{{ vm.club === c.id }}" ng-click="vm.setClub(c.id)" no-busy-guard data-e2e="stu-club"><span class="ta-desk-only">{{ c.title }}</span><span class="ta-phone-only">{{ c.short }}</span> · {{ c.mine }}</button></div></div>
+      <ta-combo cb-id="stu" label="Search for a student" placeholder="Name or e-mail of a student" query="vm.cbQ" source="vm.findSource(q)" on-pick="vm.findPick(key, row)" on-type="vm.findType(q)" on-clear="vm.findClear()" clearable="!!vm.cbQ" version="vm.cbVer" foot-keys="true" enter-word="open"></ta-combo>
+    </div>
+  </div>
+  <div class="stu-v2row ta-phone-only"><design-back></design-back></div>
+</section>
+
+<!-- loading: the list's shape, then the rows rise in -->
+<section class="ta-list stu-people stu-skelist" ng-if="vm.F.st === 'loading'" aria-busy="true" aria-label="Loading your students">
+  <div class="ta-list__tools"><div class="ta-chips"><span class="ta-skel stu-skel__chip"></span><span class="ta-skel stu-skel__chip"></span><span class="ta-skel stu-skel__chip"></span></div></div>
+  <div class="stu-skel" ng-repeat="i in vm.skel"><span class="ta-skel stu-skel__av"></span><span class="stu-skel__txt"><span class="ta-skel"></span><span class="ta-skel stu-skel__short"></span></span><span class="ta-skel stu-skel__meta"></span><span class="ta-skel stu-skel__pill"></span></div>
+</section>
+
+<section class="ta-card ins-rise" ng-if="vm.F.st === 'error' || vm.F.st === 'forbidden' || vm.F.st === 'noclub'">
+  <div class="ta-empty" ng-if="vm.F.st === 'error'"><span class="ta-empty__ic"><i class="fas fa-exclamation-triangle"></i></span><h4>Your students didn’t load</h4><p>Check your connection and try again. The search above still finds anyone at the club.</p><button type="button" class="ta-btn ta-btn--primary" ng-click="vm.setClub(vm.club); vm.F.st = 'loading'" no-busy-guard><i class="fas fa-redo"></i>Try again</button></div>
+  <div class="ta-empty" ng-if="vm.F.st === 'forbidden' || vm.F.st === 'noclub'"><span class="ta-empty__ic"><i class="fas fa-user-graduate"></i></span><h4>No club to show</h4><p>Student records belong to a club’s instructors and Head of Training. You aren’t one at any club yet.</p></div>
+</section>
+
+<div class="ta-note ta-note--warn ins-rise" ng-if="vm.F.st === 'ready' && vm.F.toConfirm" data-e2e="stu-find-note"><i class="fas fa-pen-nib"></i><div><b>{{ vm.F.toConfirm === 1 ? 'A record entered for you is waiting for your confirmation' : vm.F.toConfirm + ' records entered for you are waiting for your confirmation' }}.</b> Someone else typed in your lesson; check it and confirm. <button type="button" class="ta-link" ng-click="vm.setChip('needs')" no-busy-guard>Show them <i class="fas fa-arrow-right"></i></button></div></div>
+
+<div class="ta-sh" ng-if="vm.F.st === 'ready'"><div><h3>Your students at {{ vm.clubTitle() }}</h3><p>Everyone with a training record from you · newest first</p></div></div>
+
+<section class="ta-list stu-people" aria-label="Your students" ng-if="vm.F.st === 'ready'" data-e2e="stu-people">
+  <div class="ta-list__tools"><div class="ta-chips"><button type="button" class="ta-chip" ng-repeat="c in vm.F.chips track by c.k" ng-class="{'ta-chip--on': vm.F.chip === c.k, 'ta-chip--attn': c.attn}" aria-pressed="{{ vm.F.chip === c.k }}" ng-click="vm.setChip(c.k)" no-busy-guard data-e2e="stu-chip-{{ c.k }}">{{ c.label }}<span class="ta-chip__n">{{ c.n }}</span></button></div></div>
+  <div class="ta-list__cols" ng-if="vm.F.items.length"><span></span><span>Student · where they are</span><span>Last flown</span><span>Status</span><span class="ta-r">Course</span></div>
+  <div ng-repeat="x in vm.F.items track by x.key + ':' + vm.F.gen" ng-class="x.grp ? ('ta-group' + (x.attn ? ' ta-group--attn' : '')) : 'ta-row ins-rise'" ng-attr-style="{{ x.grp ? undefined : '--i: ' + x.i }}">
+    <span ng-if="x.grp"><i class="fas {{ x.ic }}" ng-if="x.ic"></i>{{ x.label }}</span><span ng-if="x.grp">{{ x.n }}</span>
+    <a class="ta-row__main" ng-if="!x.grp" ng-href="{{ x.r.href }}" ng-click="vm.openRow(x.r, $event)" data-e2e="stu-person">
+      <span class="ta-row__lead"><span class="ta-av ta-av--member" title="Member"><i class="fas fa-user" aria-hidden="true"></i></span></span>
+      <span class="ta-row__txt"><span class="ta-row__title">{{ x.r.name }}</span><span class="ta-row__sub">{{ x.r.sub }}</span></span>
+      <span class="ta-row__meta"><span class="ins-when"><b>{{ x.r.lastWord || 'Not flown yet' }}</b><span ng-if="x.r.lastDate">with {{ x.r.lastWith }}</span></span><span class="stu-pills"><span class="ta-pill {{ x.r.pill.cls }}"><i class="fas {{ x.r.pill.ic }}" ng-if="x.r.pill.ic" aria-hidden="true"></i>{{ x.r.pill.label }}</span></span></span>
+      <span class="ta-row__end"><span class="stu-h">{{ x.r.hours }}<small>hours</small></span></span>
+      <span class="ta-row__chev"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+    </a>
+  </div>
+  <div class="ta-empty" ng-if="!vm.F.items.length">
+    <span class="ta-empty__ic"><i class="fas fa-user-graduate"></i></span>
+    <h4>{{ vm.F.chip === 'all' ? 'No students of yours yet' : 'No students here' }}</h4>
+    <p ng-if="vm.F.chip !== 'all'">Nobody matches this filter at {{ vm.clubTitle() }}.</p>
+    <p ng-if="vm.F.chip === 'all'">Students you file a training record for at {{ vm.clubTitle() }} appear here. Search above for anyone at the club.</p>
+    <button type="button" class="ta-btn" ng-if="vm.F.chip !== 'all'" ng-click="vm.setChip('all')" no-busy-guard>Show all students</button>
+  </div>
+  <div class="ins-more" ng-if="vm.F.more"><span>Showing {{ vm.F.more.shown }} of {{ vm.F.more.total }} students</span><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.showAllStudents()" no-busy-guard data-e2e="stu-more">Show all {{ vm.F.more.total }}</button></div>
+</section>

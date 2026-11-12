@@ -1,0 +1,74 @@
+<div class="cxl">
+  <div class="cxl__hd">
+    <span class="cxl__hd-icon"><i class="fas fa-receipt"></i></span>
+    <div>
+      <h3 class="cxl__title">Cancellations</h3>
+      <p class="cxl__sub">Charge or waive the club's fee for a no-show or a late cancellation. A charge is invoiced to the pilot.</p>
+    </div>
+    <button type="button" class="cxl__close" ng-click="vm.close()" no-busy-guard aria-label="Close">×</button>
+  </div>
+
+  <div class="cxl__bar">
+    <div class="cxl__tabs" role="tablist" aria-label="Show">
+      <button type="button" class="cxl__tab" role="tab" ng-repeat="t in vm.tabs track by t.id" id="cxl-tab-{{ t.id }}"
+              aria-selected="{{ vm.status === t.id }}" ng-class="{'cxl__tab--on': vm.status === t.id}" ng-click="vm.setStatus(t.id)" no-busy-guard>{{ t.label }}</button>
+    </div>
+    <div class="cxl__filters">
+      <div class="cxl__filter" ng-show="vm.clubs.length > 1">
+        <label class="cxl__label" for="cxl-club">Club</label>
+        <select id="cxl-club" class="cxl__select" ng-model="vm.club_id" ng-options="c.id as c.title for c in vm.clubs" ng-change="vm.changeClub()" no-busy-guard></select>
+      </div>
+      <div class="cxl__filter">
+        <label class="cxl__label" for="cxl-range">Cancelled</label>
+        <select id="cxl-range" class="cxl__select" ng-model="vm.range" ng-options="r.id as r.label for r in vm.ranges" ng-change="vm.changeRange()" no-busy-guard></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="cxl__note" ng-show="!vm.loading && !vm.error && !vm.anyFees">
+    <i class="fas fa-info-circle"></i>
+    <span>This club has no cancellation fees set. An admin can add them in Manage Club → Settings → Booking Settings → Cancellation Fees.</span>
+  </div>
+  <div class="cxl__note cxl__note--quiet" ng-show="!vm.loading && !vm.error && vm.anyFees && !vm.canClaim">
+    <i class="fas fa-user-shield"></i>
+    <span>Only club admins can charge or waive fees at this club.</span>
+  </div>
+
+  <div class="cxl__body" ng-class="{'cxl__body--busy': vm.loading}">
+    <div class="cxl__empty" ng-show="vm.loading && !vm.rows.length"><i class="fas fa-circle-notch fa-spin"></i> Loading cancellations…</div>
+    <div class="cxl__empty cxl__empty--bad" ng-show="!vm.loading && vm.error"><i class="fas fa-exclamation-triangle"></i> {{ vm.error }}</div>
+    <div class="cxl__empty" ng-show="!vm.loading && !vm.error && !vm.rows.length">
+      <i class="fas" ng-class="vm.status === 'due' ? 'fa-check-circle' : 'fa-calendar-times'"></i>
+      {{ vm.status === 'due' ? 'No fees waiting for a decision.' : 'No cancellations to show.' }}
+    </div>
+
+    <div class="cxl__row" ng-repeat="r in vm.rows track by r.id" id="cxl-row-{{ r.id }}" ng-class="'cxl__row--' + vm.tone(r)">
+      <div class="cxl__main">
+        <div class="cxl__line1">
+          <strong class="cxl__pilot">{{ r.pilot.name || 'No pilot' }}</strong>
+          <span class="cxl__reason" ng-class="{'cxl__reason--fee': r.fee.due > 0}">{{ r.reason || 'No reason given' }}</span>
+        </div>
+        <div class="cxl__line2">
+          <span><i class="far fa-calendar"></i> {{ vm.when(r) }}</span>
+          <span ng-show="r.aircraft"><i class="fas fa-plane"></i> {{ r.aircraft }}</span>
+          <span ng-show="r.instructor && r.instructor.name"><i class="fas fa-chalkboard-teacher"></i> {{ r.instructor.name }}</span>
+        </div>
+        <div class="cxl__line3">{{ vm.cancelledText(r) }}<span ng-show="r.notes"> · “{{ r.notes }}”</span></div>
+      </div>
+      <div class="cxl__fee">
+        <span class="cxl__pill" ng-class="'cxl__pill--' + vm.tone(r)">{{ vm.statusLabel(r) }}</span>
+        <span class="cxl__fee-text">{{ vm.feeText(r) }}</span>
+        <div class="cxl__acts" ng-show="r.can_claim || r.can_waive || r.can_reverse">
+          <button type="button" class="cxl__btn cxl__btn--charge" id="cxl-claim-{{ r.id }}" ng-show="r.can_claim" ng-click="vm.claim(r)">
+            <i class="fas fa-receipt"></i> Charge {{ vm.money(r.fee.due) }}
+          </button>
+          <button type="button" class="cxl__btn" id="cxl-waive-{{ r.id }}" ng-show="r.can_waive" ng-click="vm.waive(r)">Waive</button>
+          <button type="button" class="cxl__btn cxl__btn--reverse" id="cxl-reverse-{{ r.id }}" ng-show="r.can_reverse" ng-click="vm.reverse(r)"
+                  ng-class="{'cxl__btn--confirm': vm.confirmReverse === r.id}">
+            <i class="fas fa-undo"></i> {{ vm.confirmReverse === r.id ? 'Void the invoice?' : 'Reverse' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
