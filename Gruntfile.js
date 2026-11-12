@@ -225,6 +225,7 @@ module.exports = function (grunt) {
                     'css/cancellation-fees.css',
                     'css/reallocate-aircraft.css',
                     'css/schedule-display-settings.css',
+                    'css/member-import.css',
                     'css/bookout-presolo.css'
                     // NOTE: css/accordion.css is deliberately NOT bundled. It is a
                     // leftover standalone-page stylesheet that carries a GLOBAL

@@ -1,7 +1,7 @@
  app.controller('DashboardClubMembershipsController', DashboardClubMembershipsController);
 
-    DashboardClubMembershipsController.$inject = ['UserService', 'MembershipService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'ToastService'];
-    function DashboardClubMembershipsController(UserService, MembershipService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, ToastService) {
+    DashboardClubMembershipsController.$inject = ['UserService', 'MembershipService', 'ClubService', '$rootScope', '$location', '$scope', '$state', '$stateParams', '$uibModal', '$log', '$window', 'ToastService', '$q'];
+    function DashboardClubMembershipsController(UserService, MembershipService, ClubService, $rootScope, $location, $scope, $state, $stateParams, $uibModal, $log, $window, ToastService, $q) {
         var vm = this;
 
         vm.user = null;
@@ -44,7 +44,16 @@
 
                  MembershipService.GetAllMembershipPlanes(vm.club_id, 1)
                     .then(function(data){
-                        vm.club_planes = data.membership_planes;   
+                        vm.club_planes = (data && data.membership_planes) || [];
+                        // a NEW membership has no aircraft prices yet: this read is only for the list of
+                        // aircraft, so never start from another membership's prices (or its row ids)
+                        for(var i=0;i<vm.club_planes.length;i++){
+                            vm.club_planes[i].id = null;
+                            vm.club_planes[i].membership_tacho_hour_fee = null;
+                            vm.club_planes[i].membership_landing_fee = null;
+                            vm.club_planes[i].membership_touch_and_go_fee = null;
+                            vm.club_planes[i].access = null;
+                        }
                     });
 
             break;
@@ -117,7 +126,40 @@
                         ToastService.error('Not Saved', (data && typeof data.message === 'string' && data.message) || 'The membership could not be created - please try again.');
                         return;
                     }
-                    $state.go('dashboard.manage_club.memberships');
+                    // the aircraft prices typed on the form were never sent for a NEW membership
+                    // (only on edit) - save them on the version that was just created
+                    save_planes(data.membership_version_id, false).then(function(){
+                        $state.go('dashboard.manage_club.memberships');
+                    });
+                });
+        }
+
+        // The membership's aircraft prices, saved on tier version `version_id`. `replace` = send the
+        // ids of the rows the form loaded (the previous version's), so they are archived.
+        // Always resolves: a refusal toasts and the caller carries on to the list.
+        function save_planes(version_id, replace){
+            var planes = vm.club_planes || [];
+            if(vm.club.membership.plane_access != 1 || !(version_id > 0) || planes.length === 0){
+                return $q.when(true);
+            }
+            var send_planes = [];
+            for(var i=0;i<planes.length;i++){
+                send_planes.push({
+                    id: replace ? planes[i].id : null,
+                    tacho_hour_fee: planes[i].membership_tacho_hour_fee,
+                    landing_fee: planes[i].membership_landing_fee,
+                    touch_and_go_fee: planes[i].membership_touch_and_go_fee,
+                    access: planes[i].access,
+                    membership_id: version_id,
+                    plane_id: planes[i].plane_id
+                });
+            }
+            return MembershipService.UpdateMembershipPlanes(version_id, send_planes)
+                .then(function(res){
+                    if(!res || res.success === false){
+                        ToastService.error('Aircraft Prices Not Saved', (res && typeof res.message === 'string' && res.message) || 'The membership was saved, but its aircraft prices were not - please open it and try again.');
+                    }
+                    return true;
                 });
         }
 
@@ -144,33 +186,10 @@
                         return;
                     }
 
-                    if(vm.club.membership.plane_access == 1){
-                        //sort out what we need from the club_planes
-                        var send_planes = [];
-                        for(var i=0;i<vm.club_planes.length;i++){
-                            var plane = {
-                                id: vm.club_planes[i].id,
-                                tacho_hour_fee: vm.club_planes[i].membership_tacho_hour_fee,
-                                landing_fee: vm.club_planes[i].membership_landing_fee,
-                                touch_and_go_fee: vm.club_planes[i].membership_touch_and_go_fee,
-                                access: vm.club_planes[i].access,
-                                membership_id: data,
-                                plane_id: vm.club_planes[i].plane_id
-                            };
-                            send_planes.push(plane);
-                        }
-
-
-                        //then we need to make an additional call to UPDATE all these...
-                         MembershipService.UpdateMembershipPlanes(data, send_planes)
-                            .then(function(data){
-                                //console.log(data);
-
-                            });
-
-                    }
-
-                    $state.go('dashboard.manage_club.memberships');
+                    // the aircraft prices move onto the new version (the rows the form loaded are archived)
+                    save_planes(data, true).then(function(){
+                        $state.go('dashboard.manage_club.memberships');
+                    });
                 });
         }
 

@@ -2524,7 +2524,7 @@ var app = angular
             .state('dashboard.manage_club.import_members', {
                 parent: 'dashboard.manage_club.ops_hub',
                 url: '/import_members',
-                controller: 'DashboardClubMembersController',
+                controller: 'MemberImportController',
                 templateUrl: 'views/manageclub/member_import.html',
                 controllerAs: 'vm',
                 data: {

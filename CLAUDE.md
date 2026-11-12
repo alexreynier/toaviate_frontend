@@ -825,6 +825,26 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   be-alex-3e C10; pay facts `machine.members_allowed` / `can_use`; v2 book-in + invoices honour it); SMS bulletins take
   `valid_from` / `valid_until` (C11; admin form sends plain YYYY-MM-DD, members see validity / Upcoming / Expired).
 
+## Manage Club v2 mockups — stage 3 (12 Nov 2026, awaiting the owner's review; nothing built)
+
+`../mockups/manage-club/index.html`: **aircraft.html** (fleet, one aircraft, add), **maintenance.html** (what's due, one aircraft,
+record a check, a logbook), **members.html** (list, one member, joining, invite, import), **memberships.html** (types, one type,
+renewals & terms). Same kit as the other sets; shared pieces: `zone.js` (`CZ.apply / tag / who`), `world.js` (`MC.*` sample club,
+page bar, needs strip), `fleet-core.js` (`FL.*` sample fleet + the ONE aircraft status, in `acStatus`'s order), `css/club.css`
+(`mc-`: the graphite zone tokens `body[data-zone="club"]` — a proposed addition to ta-base / ta-night — the "Who can do what here"
+strip, the "what this changes" box `.mc-delta`, `.mc-effects`), `css/club-fleet.css` (`flt-`), `club-members.css` (`mbr-`),
+`club-memberships.css` (`mst-`). Three rules every page follows: who-can-do-what under the page bar; switches save at once while
+anything with a date / price / file asks first and shows before → after; "Needs you" first with one status word per row.
+Each mockup's notes list what was **found while mapping** (e.g. delete-aircraft does not cancel bookings, a no-fly defect grounds
+nothing, new members start unapproved and can't book, CSV import is broken, `membership_planes` has no access check) and the
+**decisions needed** — read them before building. UK CAA Part-ML figures in them are suggestions only (ML.A.302, ML.A.901).
+**Owner's review, round 1 (12 Nov):** engine + propeller are entered when an aircraft is added, then changed ONLY in Maintenance
+(its "Engine & propeller" tab: Replace, Change the limits, earlier ones; the aircraft page shows them read-only); overhaul has TWO
+limits, hours since overhaul OR a date, whichever comes first (`tbo_hours` / `tbo_date`, engine date defaults to fitted + 12 years;
+shared drawing `FL.partLimits`); CofA + ARC (and permit + certificate of validity) are two documents with two uploads; the aircraft
+price is the DEFAULT (a membership type can override it today via `membership_planes`; a per-member price was asked for but is not
+in the backend — `member_planes` only holds book_solo / book_dual / instruct); the maintenance-organisation picker is a search.
+
 ## Schedule display (clubhouse TV) v2 — settings page (11 Nov 2026)
 
 Manage Club → Settings → Schedule display is the approved mockup `mockups/schedule-display/settings.html` built on ta-base INSIDE the

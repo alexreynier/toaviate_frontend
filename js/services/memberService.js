@@ -11,6 +11,7 @@ app.factory('MemberService', MemberService);
         service.GetById = GetById;
         service.Create = Create;
         service.CreateMany = CreateMany;
+        service.CheckMany = CheckMany;
         service.Verify = Verify;
 
         service.SendInvite = SendInvite;
@@ -198,6 +199,11 @@ app.factory('MemberService', MemberService);
         function CreateMany(members){
             var url = '/api/v1/members/many';
             return $http.post(url, members).then(handleSuccess, handleError2);
+        }
+
+        // The import's dry run: what POST members/many WOULD do with each entry (nothing is written).
+        function CheckMany(members){
+            return $http.post('/api/v1/members/many_check', members).then(handleSuccess, handleError2);
         }
 
         function Update(membership) {

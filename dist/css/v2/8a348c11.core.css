@@ -120,6 +120,7 @@ body.design-v2:has(.sv2-page) { padding-top: 28px; }
 .v2-switch { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 1000; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; padding: 8px 14px 8px 12px; border-radius: 999px; border: 1px solid var(--ta-line-2); background: var(--ta-paper); color: var(--ta-ink); font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1.2; letter-spacing: 0; text-transform: none; white-space: nowrap; box-shadow: var(--ta-shadow-2); cursor: pointer; text-decoration: none; -webkit-appearance: none; appearance: none; transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease; }
 .v2-switch i { font-size: 12px; color: var(--ta-accent); }
 .v2-switch small { font-size: 12px; font-weight: 600; opacity: 0.8; }
+.v2-switch__foot { display: none; }
 .v2-switch:hover { background: var(--ta-tint); border-color: var(--ta-brand-line); color: var(--ta-ink); text-decoration: none; }
 .v2-switch:focus { color: var(--ta-ink); outline: none; text-decoration: none; }
 .v2-switch:focus-visible { outline: 2px solid var(--ta-focus-outline); outline-offset: 2px; }
@@ -130,9 +131,21 @@ body.design-v2:has(.sv2-page) { padding-top: 28px; }
 @media (max-width: 768px) {
   .v2-switch { min-height: 38px; padding: 7px 12px 7px 11px; font-size: 12.5px; }
   .v2-switch small { display: none; }
-  /* v2 pages carry "Back to classic designs" in their hero, so on a phone the pill would only cover their content */
-  body.ta-v2 .v2-switch, body:has(.ta-actionbar, .lgb-savebar, .bkf, .sv2-sheet-window, .main_menu.is-open) .v2-switch { display: none; }
+  /* a floating pill hides while a bottom bar / the booking panel / the menu shows */
+  body:not(.ta-v2):has(.ta-actionbar, .lgb-savebar, .bkf, .sv2-sheet-window, .main_menu.is-open) .v2-switch { display: none; }
+  /* v2 pages on a phone: not a floating pill but ONE quiet button at the end of the page (owner, 12 Nov). The page's
+     own bottom room (.ta-page padding, bigger under a fixed action bar) is handed to the button: pulled up by it, then
+     followed by it (--v2-foot-pull, set by <design-switch foot>), so it sits under the content and above any bar. */
+  body.ta-v2 design-switch[foot] { display: block; position: relative; z-index: 1; margin: calc(-1 * var(--v2-foot-pull, 0px)) 0 var(--v2-foot-pull, 0px); padding: 16px 12px 4px; text-align: center; }
+  body.ta-v2 design-switch[foot] .v2-switch { position: static; min-height: 40px; padding: 8px 16px; background: transparent; border-color: var(--ta-line-2); color: var(--ta-muted); font-size: 13px; font-weight: 600; box-shadow: none; }
+  body.ta-v2 design-switch[foot] .v2-switch i { color: var(--ta-muted); }
+  body.ta-v2 design-switch[foot] .v2-switch:hover, body.ta-v2 design-switch[foot] .v2-switch:focus { background: var(--ta-paper); color: var(--ta-ink); border-color: var(--ta-line-2); }
+  body.ta-v2 design-switch[foot] .v2-switch__pill { display: none; }
+  body.ta-v2 design-switch[foot] .v2-switch__foot { display: inline; }
 }
+/* The pages' own "Back to classic designs" links are gone (owner, 12 Nov: the pill is enough). <design-back> draws
+   nothing; a wrapper that held only it (a hero line, a phone-only row) goes with it, whatever its own display rule. */
+design-back, :has(> design-back:only-child) { display: none !important; }
 
 /* ── the advert for the switch on the CLASSIC sign-in page (<design-promo>, js/v2/core/design.js — owner, 11 Nov 2026):
    a brand-gradient card under the form: eyebrow + headline + line + three chips + the button, and beside them a
