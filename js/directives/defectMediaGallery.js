@@ -2,7 +2,7 @@
 // Displays and manages photos & videos attached to a plane defect.
 // Usage: <defect-media-gallery defect-id="defect.id" club-id="club.id" media-count="defect.media_count"></defect-media-gallery>
 
-app.directive('defectMediaGallery', ['DefectMediaService', 'ToastService', '$timeout', '$rootScope', function (DefectMediaService, ToastService, $timeout, $rootScope) {
+app.directive('defectMediaGallery', ['DefectMediaService', 'ToastService', '$timeout', '$rootScope', '$sce', function (DefectMediaService, ToastService, $timeout, $rootScope, $sce) {
     return {
         restrict: 'E',
         scope: {
@@ -102,8 +102,10 @@ app.directive('defectMediaGallery', ['DefectMediaService', 'ToastService', '$tim
                         '<img ng-if="lightbox.item.media_type === \'image\'" ng-src="{{ lightbox.item._fileUrl }}" ' +
                             'class="dm-lightbox-img" />' +
                         // Video
-                        '<video ng-if="lightbox.item.media_type === \'video\'" controls autoplay ' +
-                            'class="dm-lightbox-video" ng-src="{{ lightbox.item._fileUrl }}">' +
+                        // _videoUrl: the blob address marked as trusted. AngularJS refuses a plain blob: address on a
+                        // <video> (it only lets <img> take one), so the video never got a source and never played.
+                        '<video ng-if="lightbox.item.media_type === \'video\'" controls autoplay playsinline ' +
+                            'class="dm-lightbox-video" ng-src="{{ lightbox.item._videoUrl }}">' +
                         '</video>' +
                         // Info bar
                         '<div class="dm-lightbox-info">' +
@@ -282,7 +284,10 @@ app.directive('defectMediaGallery', ['DefectMediaService', 'ToastService', '$tim
                 if (!item._fileUrl) {
                     DefectMediaService.LoadFileUrl(item.stored_name).then(function (url) {
                         item._fileUrl = url;
+                        if (item.media_type === 'video') { item._videoUrl = $sce.trustAsResourceUrl(url); }
                         showLightbox(item);
+                    }, function () {
+                        ToastService.error('Could not open', 'That ' + (item.media_type === 'video' ? 'video' : 'photo') + ' could not be loaded. Please try again.');
                     });
                 } else {
                     showLightbox(item);
