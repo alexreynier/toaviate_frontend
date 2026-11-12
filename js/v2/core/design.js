@@ -184,17 +184,44 @@ app.directive('taPage', ['$animate', function ($animate) {
 
 // The "Try our v2 designs" pill: fixed in the bottom-right corner of the page (owner, 10 Nov 2026; css/v2/core.css
 // .v2-switch). Mounted once in views/dashboard.html (every signed-in page) and on each public sign-in page.
-app.directive('designSwitch', ['DesignService', '$rootScope', function (DesignService, $rootScope) {
+// It is the ONLY way back to the classic designs (owner, 12 Nov 2026: the pages' own "Back to classic designs" links are
+// gone). `foot` (the dashboard.html mount): on a PHONE, on a v2 page, the pill does not float — it is a quiet button at
+// the end of the page. A v2 page keeps room at its bottom (.ta-page padding; more when a fixed action bar covers it), so
+// the button is pulled up to the top of that room (--v2-foot-pull = that padding) and the room follows it: the button
+// sits right under the content and above any bottom bar, on every page, with nothing for a page to do.
+app.directive('designSwitch', ['DesignService', '$rootScope', '$window', function (DesignService, $rootScope, $window) {
     return {
         restrict: 'E',
         scope: { onDone: '&' },
         template: '<button type="button" class="v2-switch" ng-class="{\'v2-switch--on\': on()}" ng-click="flip()" no-busy-guard' +
             ' title="{{ on() ? \'You are trying the v2 designs. Go back to the classic designs.\' : \'Try the new designs. You can switch back at any time.\' }}">' +
             '<i class="fas" ng-class="on() ? \'fa-undo\' : \'fa-magic\'"></i>' +
-            '<span ng-if="!on()">Try our v2 designs</span><span ng-if="on()">v2 designs · back to classic</span><small ng-if="!on()">· new</small></button>',
-        link: function (scope) {
+            '<span ng-if="!on()">Try our v2 designs</span><span ng-if="on()" class="v2-switch__pill">v2 designs · back to classic</span>' +
+            '<span ng-if="on()" class="v2-switch__foot">Back to classic designs</span><small ng-if="!on()">· new</small></button>',
+        link: function (scope, element, attrs) {
             scope.on = function () { return !!$rootScope.designV2; };
             scope.flip = function () { DesignService.toggle(); scope.onDone(); };
+            if (attrs.foot === undefined) { return; }
+
+            var queued = false, last = null;
+            function fit() {
+                queued = false;
+                var pull = 0;
+                if ($rootScope.v2Page && $window.matchMedia && $window.matchMedia('(max-width: 768px)').matches) {
+                    var host = document.getElementById('dashboard_bit');
+                    var pages = host ? host.querySelectorAll('.ta-page, .bo') : [], page = null;   // .bo = the book-out page's root
+                    for (var i = pages.length - 1; i >= 0; i--) { if (pages[i].offsetParent !== null) { page = pages[i]; break; } }
+                    // only when the page's room really is the last thing above the button (nothing drawn after it)
+                    if (page && Math.abs(page.getBoundingClientRect().bottom - host.getBoundingClientRect().bottom) < 2) {
+                        pull = parseFloat($window.getComputedStyle(page).paddingBottom) || 0;
+                    }
+                }
+                if (pull !== last) { last = pull; element[0].style.setProperty('--v2-foot-pull', pull + 'px'); }
+            }
+            function queue() { if (!queued) { queued = true; $window.requestAnimationFrame(fit); } }
+            var stop = $rootScope.$watch(queue);   // once a frame at most: a page swaps its states / bars in a digest
+            $window.addEventListener('resize', queue);
+            scope.$on('$destroy', function () { stop(); $window.removeEventListener('resize', queue); });
         }
     };
 }]);
@@ -242,15 +269,12 @@ app.directive('designPromo', ['DesignService', '$rootScope', function (DesignSer
     };
 }]);
 
-// "Back to classic designs" — put <design-back></design-back> in every v2 page bar or hero.
-app.directive('designBack', ['DesignService', function (DesignService) {
-    return {
-        restrict: 'E',
-        scope: {},   // its own scope: a host page's back() must not be overwritten (or overwrite this)
-        template: '<a class="v2-back" ng-click="back()" no-busy-guard role="button" tabindex="0"><i class="fas fa-history"></i>Back to classic designs</a>',
-        link: function (scope) { scope.back = function () { DesignService.set(false); }; }
-    };
-}]);
+// <design-back> used to draw "Back to classic designs" in every v2 page bar / hero. Owner, 12 Nov 2026: two ways back
+// on one page is one too many — the corner pill (a button at the end of the page on phones) is the only one. The tag
+// stays in the templates until v1 goes, drawing nothing; css/v2/core.css hides it and a wrapper that held only it.
+app.directive('designBack', function () {
+    return { restrict: 'E', scope: {}, template: '' };
+});
 
 // The scheduler (built 5 Nov) joins the global switch: the classic list and the classic add-booking page open
 // scheduler v2 while the switch is on; scheduler v2 sends you back to the classic list while it is off.

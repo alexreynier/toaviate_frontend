@@ -627,9 +627,19 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
 `../mockups/v2-build/README.md` (master board), `BUILDER_BRIEF.md`, `fe-<group>.md` per screen group, `be-alex-3e.md`
 (backend contracts C1–C9). A later release makes v2 the only design (v2 states take the v1 URLs; the switch and v1 files go).
 - **Core** ([js/v2/core/design.js](js/v2/core/design.js), [css/v2/core.css](css/v2/core.css)): localStorage
-  `toaviate_design_v2 = '1'` (`DesignService.isV2/set/toggle`, `$rootScope.designV2`); `<design-switch>` is the menu tag
-  (views/dashboard.html), `<design-back>` = "Back to classic designs" — put it in every v2 page's bar/hero. Abstract state
+  `toaviate_design_v2 = '1'` (`DesignService.isV2/set/toggle`, `$rootScope.designV2`); `<design-switch>` is the ONE control
+  (see "One way back" below); `<design-back>` draws nothing since 12 Nov — don't add it to new pages. Abstract state
   `dashboard.v2` (URL `/dashboard/v2`, template `<div class="v2-host" ui-view>`); body gets `.ta-v2` (grey ground) on v2 states.
+- **One way back to classic (owner, 12 Nov 2026):** the pages' own "Back to classic designs" links are gone — `<design-back>`
+  renders nothing and core.css hides it plus any wrapper that held only it (`:has(> design-back:only-child)`; the tags stay in
+  the templates until v1 goes), and the scheduler's bar link is removed. Desktop, classic pages and the scheduler: the floating
+  bottom-right pill. **Phones on a v2 page:** `<design-switch foot>` (mounted LAST in views/dashboard.html) is a quiet "Back to
+  classic designs" button at the END of the page, not floating. The page's own bottom room (`.ta-page` padding — bigger under a
+  fixed action bar — or the book-out root `.bo`) is handed to it: the directive measures that padding into `--v2-foot-pull`
+  and the button is pulled up by it and followed by it, so it sits 16px under the content and above any bottom bar with
+  nothing for a page to do. A new v2 page whose root is neither `.ta-page` nor `.bo` and has a fixed bottom bar must be added
+  to that selector in design.js. Walks: scratchpad `hdr/oneback.js` (every id-less v2 page, both widths, real backend),
+  `oneback2.js` (scheduler + classic, switch on / off), `oneback3.js` (tapping it).
 - **Routing:** each screen file registers `dashboard.v2.<name>` (URL under `/my_account/…`, SAME param names as v1) and
   `DesignRoutesProvider.map('<v1 state>', 'dashboard.v2.<name>')` for every v1 state it replaces (children too). The
   `$stateChangeStart` hook moves a mapped v1 state to v2 while the switch is on and back while it is off, so email links,
