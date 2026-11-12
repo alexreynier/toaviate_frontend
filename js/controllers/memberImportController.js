@@ -2,16 +2,17 @@
 // Manage Club → Ops → Members → Import a list (rebuilt 2026-11-12).
 //   dashboard.manage_club.import_members · views/manageclub/member_import.html · css/member-import.css (.mim-*)
 //
-// Three steps: choose the file → match the columns → check and import, then a result page.
-// The old import (inside DashboardClubMembersController) replaced every address with a1@toaviate.com
-// (a test flag left on) and sent a tier VERSION id where the API wants the tier (memberships.id), so
-// every row was refused. It also had one date column, read as the start of the CURRENT period: somebody
-// imported with the day they joined years ago was a lapsed member at once.
-//
-// What the API does with a row (Members::add through POST members/many): an account is created for an
-// address ToAviate has not seen (that person gets the "confirm your address" e-mail), a membership row
-// is added, and somebody already on the club's list is left exactly as they are. POST members/many_check
-// is the dry run this page calls before the admin presses Import.
+// Three steps: choose the file → match the columns → check and send, then a result page.
+// Sending makes each ticked row the club's INVITATION (POST members/import → Members::send_invite_by_club, the
+// "Invite a member" form's own path; owner, 12 Nov: "a much better design"): the person gets the club's e-mail,
+// chooses a password if they are new, sets up payment unless nothing is due, and only then is a member.
+// Nobody is added to the club here and no account is created. POST members/import_check is the dry run.
+//  - a row with an END date is "paid up until then": nothing to pay on accepting;
+//  - a row whose membership would already be over (a start years ago, no end) cannot be sent: the page offers
+//    "Start them today instead", keeping the old date as "member since";
+//  - "member since" and the club's own membership number ride on the offer and reach the member row at acceptance.
+// History: the old import (inside DashboardClubMembersController) replaced every address with a1@toaviate.com (a
+// test flag left on) and sent a tier VERSION id where the API wants the tier (memberships.id).
 // ─────────────────────────────────────────────────────────────────────────
 app.controller('MemberImportController', MemberImportController);
 
@@ -36,24 +37,22 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
         { k: 'last_name',        label: 'Last name' },
         { k: 'full_name',        label: 'Full name (first and last together)' },
         { k: 'email',            label: 'Email' },
-        { k: 'tier',             label: 'Membership type' },
-        { k: 'membership_start', label: 'This membership period starts' },
-        { k: 'membership_ends',  label: 'Membership ends (or renews)' },
-        { k: 'member_since',     label: 'Member since (the day they first joined)' },
-        { k: 'dob',              label: 'Date of birth' },
-        { k: 'matching_email',   label: 'Email in your old booking system' }
+        { k: 'tier',              label: 'Membership type' },
+        { k: 'membership_number', label: 'Membership number (your club’s own)' },
+        { k: 'membership_start',  label: 'This membership period starts' },
+        { k: 'membership_ends',   label: 'Paid up to (membership ends or renews)' },
+        { k: 'member_since',      label: 'Member since (the day they first joined)' }
     ];
-    var DATE_FIELDS = ['membership_start', 'membership_ends', 'member_since', 'dob'];
+    var DATE_FIELDS = ['membership_start', 'membership_ends', 'member_since'];
     var GUESS = [
-        ['matching_email',   /match|old.*mail|previous.*mail/],
         ['email',            /e-?mail/],
         ['first_name',       /first|forename|given|christian/],
         ['last_name',        /last|surname|family/],
         ['full_name',        /^name$|full.?name|member.?name|^member$/],
-        ['dob',              /birth|d\.?o\.?b/],
         ['member_since',     /since|joined|join.?date|date.?joined|enrol/],
-        ['membership_ends',  /end|expir|until|renew|valid.?to|paid.?to/],
+        ['membership_ends',  /end|expir|until|renew|valid.?to|paid/],
         ['membership_start', /start|valid.?from|from|commence/],
+        ['membership_number', /(member|membership).{0,3}(no\b|no\.|num|number|#|id\b|ref)|^(no\.?|number|ref)$/],
         ['tier',             /membership|type|categor|tier|class|plan/]
     ];
 
@@ -76,13 +75,12 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
     vm.counts = { ready: 0, lapsed: 0, bad: 0, member: 0, off: 0, done: 0, total: 0 };
     vm.checking = false;
     vm.checkFailed = false;
-    vm.approve = false;
     vm.importing = null;      // { done, total }
     vm.result = null;
     vm.today = ymdOf(new Date());
-    var EXAMPLE = 'First name,Last name,Email,Membership type,Period starts,Membership ends,Member since,Date of birth\r\n' +
-        'Amelia,Stone,amelia.stone@example.com,Flying member,01/04/2026,01/04/2027,14/09/2019,22/07/1988\r\n' +
-        'Raj,Mehta,raj.mehta@example.com,Flying member,15/06/2026,15/06/2027,03/03/2023,02/11/1975\r\n';
+    var EXAMPLE = 'First name,Last name,Email,Membership type,Membership number,Period starts,Paid up to,Member since\r\n' +
+        'Amelia,Stone,amelia.stone@example.com,Flying member,1987/114,01/04/2026,01/04/2027,14/09/2019\r\n' +
+        'Raj,Mehta,raj.mehta@example.com,Flying member,2023/031,,,03/03/2023\r\n';
 
     var builtFor = '';        // the mapping the rows were built from
 
@@ -94,6 +92,7 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
                 id: parseInt(t.membership_id, 10),           // the TIER (memberships.id) — t.id is the version
                 name: t.membership_name || 'Membership',
                 term: t.payment_term,
+                free: t.payment_term === 'free' || !(parseFloat(t.price) > 0),
                 label: (t.membership_name || 'Membership') + priceText(t)
             };
         }).filter(function (t) { return t.id > 0; });
@@ -394,10 +393,10 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
             var r = {
                 i: i, line: i + (vm.hasHeader ? 2 : 1),
                 first: first, last: last, email: cell(raw, 'email').toLowerCase(),
-                oldEmail: cell(raw, 'matching_email'),
+                number: cell(raw, 'membership_number'),
                 t: {                                                 // the dates as typed (editable)
                     start: cell(raw, 'membership_start'), end: cell(raw, 'membership_ends'),
-                    since: cell(raw, 'member_since'), dob: cell(raw, 'dob')
+                    since: cell(raw, 'member_since')
                 },
                 tier: named ? named.id : vm.defaultTier, tierOwn: !!named,
                 tierMiss: (tierText && !named) ? tierText : '',
@@ -418,10 +417,10 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
         });
     }
 
-    // Decide where one row stands: r.d (the dates read), r.problems (it can't be imported), r.notes, r.st
+    // Decide where one row stands: r.d (the dates read), r.problems (it can't be sent), r.notes, r.pay, r.st
     function judge(r) {
-        var problems = [], notes = [], d = {}, labels = { start: 'period start', end: 'end date', since: 'member-since date', dob: 'date of birth' };
-        ['start', 'end', 'since', 'dob'].forEach(function (k) {
+        var problems = [], notes = [], d = {}, labels = { start: 'period start', end: 'paid-up-to date', since: 'member-since date' };
+        ['start', 'end', 'since'].forEach(function (k) {
             d[k] = parseDate(r.t[k], vm.dateOrder);
             if (d[k] === false) { problems.push('“' + r.t[k] + '” isn’t a date we can read (' + labels[k] + ').'); d[k] = null; }
         });
@@ -431,36 +430,43 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
         var known = r.check && r.check.has_account;
         if (!known && !(r.first && r.last)) { problems.push('Needs a first and a last name.'); }
         if (!r.tier) { problems.push('Choose a membership.'); }
+        if (r.number && r.number.length > 50) { problems.push('The membership number is too long (50 characters at most).'); }
         var start = d.start || vm.today;
         if (d.end && d.end <= start) { problems.push('It ends (' + vm.fDate(d.end) + ') before it starts (' + vm.fDate(start) + ').'); }
         if (d.since && d.since > vm.today) { problems.push('“Member since” is in the future.'); }
-        if (d.dob && d.dob > vm.today) { problems.push('The date of birth is in the future.'); }
         var tier = vm.tierOf(r.tier);
         var end = d.end || (tier ? termEnd(start, tier.term) : null);
         r.d = d; r.start = start; r.end = end;
         r.lifetime = !end && !!tier;
         r.lapsed = !!end && end <= vm.today;
+        // what they pay when they accept (the API's rule: free, or paid up to the end date in the file)
+        r.pay = !tier ? '' : tier.free ? 'Nothing to pay' : d.end ? 'Paid up: nothing to pay until ' + vm.fDate(d.end)
+            : start > vm.today ? 'First payment on ' + vm.fDate(start) : 'Pays when they accept';
         if (r.serverError) { problems.push(r.serverError); }
         if (r.tierMiss && !r.tierOwn) { notes.push('“' + r.tierMiss + '” isn’t one of your membership types, so the one you chose for everyone is used.'); }
-        if (r.lapsed && !problems.length) {
-            notes.push(d.end ? 'This membership has already ended, so they won’t be able to book.'
-                : 'Starting on ' + vm.fDate(start) + ', one ' + periodWord(tier) + ' has already run out: they would start out lapsed and unable to book.');
-        }
+        if (r.check && r.check.invited && !r.check.offer_accepted) { notes.push('You have invited them before. That invitation is updated with these details and sent again.'); }
         r.problems = problems; r.notes = notes;
+        var c = r.check || {};
         if (r.done) { r.st = r.done; }
-        else if (r.check && r.check.already_member) { r.st = { k: 'member', tone: 'muted', text: 'Already a member' }; }
+        else if (c.already_member) { r.st = { k: 'member', tone: 'muted', text: 'Already a member', why: 'On your members list already. Nothing is sent to them.' }; }
+        else if (c.asked_to_join) { r.st = { k: 'member', tone: 'info', text: 'Asked to join', why: 'They have asked to join themselves. Accept them under Members → Joining instead.' }; }
+        else if (c.offer_accepted) { r.st = { k: 'member', tone: 'info', text: 'Already accepted', why: 'They accepted your earlier invitation. Finish it under Members → Joining.' }; }
         else if (problems.length) { r.st = { k: 'bad', tone: 'bad', text: 'Needs fixing' }; }
-        else if (r.lapsed) { r.st = { k: 'lapsed', tone: 'warn', text: 'Starts out lapsed' }; }
+        else if (r.lapsed) { r.st = { k: 'lapsed', tone: 'warn', text: 'Already ended' }; }
         else { r.st = { k: 'ok', tone: 'good', text: 'Ready' }; }
+        if (r.st.k === 'lapsed') {
+            notes.push(d.end ? 'This membership ended on ' + vm.fDate(d.end) + ', so there is nothing to invite them to. Change the dates, or start them today.'
+                : 'Starting on ' + vm.fDate(start) + ', one ' + periodWord(tier) + ' has already run out. If that is the day they joined, start them today and keep it as “member since”.');
+        }
     }
     function periodWord(tier) {
         return tier ? ({ daily: 'day', monthly: 'month', quarterly: 'quarter', annually: 'year' }[tier.term] || 'period') : 'period';
     }
 
-    vm.can = function (r) { return r.st.k === 'ok' || r.st.k === 'lapsed'; };
+    vm.can = function (r) { return r.st.k === 'ok'; };
     vm.accountNote = function (r) {
-        if (!r.check || r.st.k === 'member' || r.st.k === 'bad' || r.st.k === 'added') { return ''; }
-        return r.check.has_account ? 'Already has a ToAviate account' : 'A new ToAviate account';
+        if (!r.check || r.st.k !== 'ok') { return ''; }
+        return r.check.has_account ? 'Has a ToAviate account: accepts in My Account' : 'New to ToAviate: gets a sign-up link';
     };
 
     function refresh() {
@@ -469,13 +475,14 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
             if (r.st.k === 'added') { c.done++; return; }
             if (r.st.k === 'member') { c.member++; return; }
             if (r.st.k === 'bad') { c.bad++; return; }
-            if (r.st.k === 'lapsed') { c.lapsed++; } else { c.ready++; }
+            if (r.st.k === 'lapsed') { c.lapsed++; return; }
+            c.ready++;
             if (r.on) { c.send++; } else { c.off++; }
         });
         vm.counts = c;
         vm.list = vm.rows.filter(function (r) {
             if (vm.filter === 'all') { return true; }
-            if (vm.filter === 'ready') { return r.st.k === 'ok' || r.st.k === 'lapsed'; }
+            if (vm.filter === 'ready') { return r.st.k === 'ok'; }
             if (vm.filter === 'lapsed') { return r.st.k === 'lapsed'; }
             if (vm.filter === 'bad') { return r.st.k === 'bad'; }
             return r.st.k === 'member' || r.st.k === 'added';
@@ -499,7 +506,7 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
     };
 
     vm.edit = function (r) {
-        r.form = { first: r.first, last: r.last, email: r.email, start: r.t.start, end: r.t.end, since: r.t.since, dob: r.t.dob };
+        r.form = { first: r.first, last: r.last, email: r.email, number: r.number, start: r.t.start, end: r.t.end, since: r.t.since };
         r.editing = true;
     };
     vm.cancelEdit = function (r) { r.editing = false; r.form = null; };
@@ -507,7 +514,8 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
         var f = r.form, emailChanged = String(f.email || '').trim().toLowerCase() !== r.email;
         r.first = String(f.first || '').trim(); r.last = String(f.last || '').trim();
         r.email = String(f.email || '').trim().toLowerCase();
-        r.t = { start: String(f.start || '').trim(), end: String(f.end || '').trim(), since: String(f.since || '').trim(), dob: String(f.dob || '').trim() };
+        r.number = String(f.number || '').trim();
+        r.t = { start: String(f.start || '').trim(), end: String(f.end || '').trim(), since: String(f.since || '').trim() };
         r.serverError = ''; r.editing = false; r.form = null;
         if (emailChanged) { r.check = null; }
         markDuplicates();
@@ -521,13 +529,11 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
             user: { email: r.email, first_name: r.first, last_name: r.last } };
         if (r.d.end) { e.membership_ends = r.d.end; }
         if (r.d.since) { e.member_since = r.d.since; }
-        if (r.d.dob) { e.user.dob = r.d.dob; }
-        if (r.oldEmail) { e.matching_email = r.oldEmail; }
-        if (vm.approve) { e.approved = 1; }
+        if (r.number) { e.membership_number = r.number; }
         return e;
     }
 
-    // The dry run: who has an account, who is on the club's list already. Nothing is written.
+    // The dry run: who has an account, is a member already, has asked to join or was invited before. Nothing is written.
     function runCheck(only) {
         var rows = (only || vm.rows).filter(function (r) { return validEmail(r.email) && !r.dup && !r.check && !r.done; });
         if (!rows.length) { return; }
@@ -539,7 +545,7 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
             var batch = rows.slice(i, i + CHECK_BATCH);
             i += CHECK_BATCH;
             var body = batch.map(function (r) { return { club_id: vm.club_id, user: { email: r.email } }; });
-            return MemberService.CheckMany(body).then(function (data) {
+            return MemberService.ImportCheck(body).then(function (data) {
                 if (!data || data.success === false || !angular.isArray(data.results)) {
                     ToastService.handledInline();
                     vm.checkFailed = true; vm.checking = false;
@@ -553,31 +559,36 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
         next();
     }
 
-    // ── the import ───────────────────────────────────────────────────────
+    // ── sending the invitations ──────────────────────────────────────────
     vm.startImport = function () {
         var rows = vm.rows.filter(function (r) { return vm.can(r) && r.on; });
         if (!rows.length || vm.importing) { return; }
         vm.importing = { done: 0, total: rows.length };
-        var i = 0, tally = { added: 0, accounts: 0, existing: 0, failed: 0 };
+        var i = 0, tally = { invited: 0, again: 0, fresh: 0, existing: 0, failed: 0 };
         function next() {
             if (i >= rows.length) { return finish(); }
             var batch = rows.slice(i, i + IMPORT_BATCH);
             i += IMPORT_BATCH;
-            return MemberService.CreateMany(batch.map(entryOf)).then(function (data) {
+            return MemberService.Import(batch.map(entryOf)).then(function (data) {
                 var results = (data && data.success !== false && angular.isArray(data.results)) ? data.results : null;
                 if (!results) { ToastService.handledInline(); }
                 batch.forEach(function (r, k) {
                     var res = results ? results[k] : null;
                     if (res && res.success && res.already_member) {
-                        r.check = { has_account: true, already_member: true }; tally.existing++;
-                    } else if (res && res.success) {
-                        r.done = { k: 'added', tone: 'good', text: 'Imported' };
-                        tally.added++;
-                        if (res.account_created) { tally.accounts++; r.newAccount = true; }
+                        r.check = angular.extend({}, r.check, { has_account: true, already_member: true }); tally.existing++;
+                    } else if (res && res.success && res.invited) {
+                        r.done = { k: 'added', tone: 'good', text: res.reoffered ? 'Sent again' : 'Invited' };
+                        tally.invited++;
+                        if (res.reoffered) { tally.again++; }
+                        if (!res.has_account) { tally.fresh++; }
+                    } else if (res && res.error === 'REQUEST_PENDING') {
+                        r.check = angular.extend({}, r.check, { asked_to_join: true }); tally.existing++;
+                    } else if (res && res.error === 'OFFER_ALREADY_ACCEPTED') {
+                        r.check = angular.extend({}, r.check, { invited: true, offer_accepted: true }); tally.existing++;
                     } else {
                         r.serverError = (res && typeof res.message === 'string' && res.message)
                             || (data && typeof data.message === 'string' && data.message)
-                            || 'Not imported: the server did not answer. Try this row again.';
+                            || 'Not sent: the server did not answer. Try this row again.';
                         tally.failed++;
                     }
                     judge(r);
@@ -600,7 +611,7 @@ function MemberImportController($rootScope, $scope, $q, $timeout, $state, Member
     };
     vm.failedRows = function () { return vm.rows.filter(function (r) { return r.st.k === 'bad' && r.serverError; }); };
     vm.backToRows = function (filter) { vm.step = 3; vm.setFilter(filter || 'all'); toTop(); };
-    vm.goMembers = function () { $state.go('dashboard.manage_club.members'); };
+    vm.goJoining = function () { $state.go('dashboard.manage_club.member_requests'); };
 
     function toTop() {
         $timeout(function () {

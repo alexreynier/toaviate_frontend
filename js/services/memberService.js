@@ -11,7 +11,8 @@ app.factory('MemberService', MemberService);
         service.GetById = GetById;
         service.Create = Create;
         service.CreateMany = CreateMany;
-        service.CheckMany = CheckMany;
+        service.Import = Import;
+        service.ImportCheck = ImportCheck;
         service.Verify = Verify;
 
         service.SendInvite = SendInvite;
@@ -201,9 +202,14 @@ app.factory('MemberService', MemberService);
             return $http.post(url, members).then(handleSuccess, handleError2);
         }
 
-        // The import's dry run: what POST members/many WOULD do with each entry (nothing is written).
-        function CheckMany(members){
-            return $http.post('/api/v1/members/many_check', members).then(handleSuccess, handleError2);
+        // Manage Club → Members → Import: each entry becomes the club's invitation (results[] per entry) …
+        function Import(members){
+            return $http.post('/api/v1/members/import', members).then(handleSuccess, handleError2);
+        }
+
+        // … and its dry run: where each entry stands (nothing is written, nothing is sent).
+        function ImportCheck(members){
+            return $http.post('/api/v1/members/import_check', members).then(handleSuccess, handleError2);
         }
 
         function Update(membership) {

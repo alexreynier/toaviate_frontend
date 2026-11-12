@@ -955,6 +955,9 @@
                         // who may add a second booking on a taken slot (the aircraft waiting list); pre-migration GETs omit it
                         vm.club.settings.double_booking_by = (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) > -1)
                             ? vm.club.settings.double_booking_by : 'everyone';
+                        // what a member the club has not approved yet may book (clubs.new_member_bookings, 12 Nov; absent before the migration)
+                        vm.newMemberBookingsSupported = !!(data && data.hasOwnProperty('new_member_bookings'));
+                        vm.club.settings.new_member_bookings = (vm.club.settings.new_member_bookings === 'none') ? 'none' : 'one_dual';
                         vm.club.settings.voucher_request_routing = (['both', 'club', 'instructor'].indexOf(vm.club.settings.voucher_request_routing) > -1)
                             ? vm.club.settings.voucher_request_routing : 'both';
                         vm.club.settings.claim_times_edit = (['off', 'admins', 'staff'].indexOf(vm.club.settings.claim_times_edit) > -1)
@@ -1162,6 +1165,11 @@
             if (!vm.flightTracksSupported) { delete vm.club.settings.flight_tracks; }
             if (['everyone', 'staff', 'admins'].indexOf(vm.club.settings.double_booking_by) < 0) {
                 vm.club.settings.double_booking_by = 'everyone';
+            }
+            if (!vm.newMemberBookingsSupported) {
+                delete vm.club.settings.new_member_bookings;
+            } else if (vm.club.settings.new_member_bookings !== 'none') {
+                vm.club.settings.new_member_bookings = 'one_dual';
             }
             if (!vm.claimTimesSupported) {
                 delete vm.club.settings.claim_times_edit;

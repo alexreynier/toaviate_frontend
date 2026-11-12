@@ -7,7 +7,7 @@
       <div class="ta-bar__title">
         <a class="ta-back" ui-sref="dashboard.manage_club.members" aria-label="Back to Members"><i class="fas fa-arrow-left"></i></a>
         <span class="ta-bar__icon"><i class="fas fa-file-csv"></i></span>
-        <div><h2>Import a list of members</h2><p>Add many people to {{ vm.club_title }} from a spreadsheet saved as CSV.</p></div>
+        <div><h2>Import a list of members</h2><p>Invite many people to {{ vm.club_title }} at once, from a spreadsheet saved as CSV.</p></div>
       </div>
     </div>
     <div class="mim-steps">
@@ -16,7 +16,7 @@
         <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.step > 1}"></span>
         <span class="ta-steps__s" ng-class="{'ta-steps__s--now': vm.step === 2, 'ta-steps__s--done': vm.step > 2}"><i></i>Match the columns</span>
         <span class="ta-steps__line" ng-class="{'ta-steps__line--done': vm.step > 2}"></span>
-        <span class="ta-steps__s" ng-class="{'ta-steps__s--now': vm.step === 3, 'ta-steps__s--done': vm.step > 3}"><i></i>Check and import</span>
+        <span class="ta-steps__s" ng-class="{'ta-steps__s--now': vm.step === 3, 'ta-steps__s--done': vm.step > 3}"><i></i>Check and send</span>
       </span>
       <span class="mim-file" ng-show="vm.fileName && vm.step > 1 && vm.step < 4"><i class="fas fa-file-alt"></i>{{ vm.fileName }} · {{ vm.plural(vm.people().length, 'row') }}</span>
     </div>
@@ -40,8 +40,8 @@
         <span class="ta-sec-k">What the file needs</span>
         <ul class="mim-list">
           <li><i class="fas fa-check"></i><span><b>An email address</b> and a <b>first and last name</b> for each person.</span></li>
-          <li><i class="fas fa-plus"></i><span>If you have them: membership type, the dates their current membership starts and ends, the day they first joined, date of birth.</span></li>
-          <li><i class="fas fa-minus"></i><span>Any other columns are ignored. Nothing is saved until you press Import at the end.</span></li>
+          <li><i class="fas fa-plus"></i><span>If you have them: membership type, your club’s membership number, the date they are paid up to, the day they first joined.</span></li>
+          <li><i class="fas fa-minus"></i><span>Any other columns are ignored. Nothing is sent until you press Send at the end.</span></li>
         </ul>
         <button type="button" class="ta-link" ng-click="vm.downloadExample()" no-busy-guard data-e2e="mim-example"><i class="fas fa-download"></i>Download an example file</button>
       </div>
@@ -92,8 +92,9 @@
       </div>
     </div>
 
-    <div class="ta-note ta-note--info" ng-show="!vm.colOf('membership_start') && !vm.colOf('membership_ends')"><i class="fas fa-info-circle"></i><div>With no date columns, everyone’s membership <b>starts today</b> and runs for one period of the membership you choose.</div></div>
-    <div class="ta-note ta-note--info" ng-show="vm.colOf('membership_start') && !vm.colOf('membership_ends')"><i class="fas fa-info-circle"></i><div><b>“This membership period starts”</b> is the start of what they have paid for now, not the day they first joined: the end is worked out from it. If your column is the day they joined, choose “Member since” instead.</div></div>
+    <div class="ta-note ta-note--info" ng-show="!vm.colOf('membership_start') && !vm.colOf('membership_ends')"><i class="fas fa-info-circle"></i><div>With no date columns, everyone’s membership <b>starts today</b> and they pay for the first period as they accept. If they have already paid you, add a “paid up to” column.</div></div>
+    <div class="ta-note ta-note--info" ng-show="vm.colOf('membership_ends')"><i class="fas fa-info-circle"></i><div><b>“Paid up to”</b> means they have already paid the club until that date: they pay nothing when they accept, and the first payment falls on that date.</div></div>
+    <div class="ta-note ta-note--info" ng-show="vm.colOf('membership_start') && !vm.colOf('membership_ends')"><i class="fas fa-info-circle"></i><div><b>“This membership period starts”</b> is the start of what they are paying for now, not the day they first joined. If your column is the day they joined, choose “Member since” instead.</div></div>
 
     <div class="ta-note ta-note--warn" ng-show="vm.triedNext && vm.mapProblems().length" role="alert" data-e2e="mim-map-problems"><i class="fas fa-exclamation-triangle"></i><div><span class="mim-line" ng-repeat="p in vm.mapProblems()">{{ p }}</span></div></div>
 
@@ -108,25 +109,25 @@
   <section class="ta-card" ng-if="vm.step === 3" data-e2e="mim-step-3">
     <div class="ta-card__hd">
       <span class="ta-card__icon"><i class="fas fa-check-double"></i></span>
-      <div class="ta-card__ttl"><h3>Check and import</h3><p>Nothing has been saved yet.</p></div>
-      <span class="ta-card__right" ng-show="vm.checking"><span class="ta-pill ta-pill--info"><i class="fas fa-spinner fa-spin"></i>Checking who is already a member</span></span>
+      <div class="ta-card__ttl"><h3>Check and send</h3><p>Nothing has been sent yet.</p></div>
+      <span class="ta-card__right" ng-show="vm.checking"><span class="ta-pill ta-pill--info"><i class="fas fa-spinner fa-spin"></i>Checking who is already a member or invited</span></span>
     </div>
 
     <div class="mim-sum" data-e2e="mim-summary">
       <button type="button" class="mim-sum__t" ng-class="{'mim-sum__t--on': vm.filter === 'all'}" ng-click="vm.setFilter('all')" no-busy-guard><b>{{ vm.counts.total }}</b><span>in the file</span></button>
-      <button type="button" class="mim-sum__t mim-sum__t--good" ng-class="{'mim-sum__t--on': vm.filter === 'ready'}" ng-click="vm.setFilter('ready')" no-busy-guard data-e2e="mim-count-ready"><b>{{ vm.counts.ready + vm.counts.lapsed }}</b><span>can be imported</span></button>
-      <button type="button" class="mim-sum__t mim-sum__t--bad" ng-class="{'mim-sum__t--on': vm.filter === 'bad'}" ng-click="vm.setFilter('bad')" ng-show="vm.counts.bad" no-busy-guard data-e2e="mim-count-bad"><b>{{ vm.counts.bad }}</b><span>need fixing</span></button>
-      <button type="button" class="mim-sum__t" ng-class="{'mim-sum__t--on': vm.filter === 'member'}" ng-click="vm.setFilter('member')" ng-show="vm.counts.member + vm.counts.done" no-busy-guard data-e2e="mim-count-member"><b>{{ vm.counts.member + vm.counts.done }}</b><span>already members</span></button>
+      <button type="button" class="mim-sum__t mim-sum__t--good" ng-class="{'mim-sum__t--on': vm.filter === 'ready'}" ng-click="vm.setFilter('ready')" no-busy-guard data-e2e="mim-count-ready"><b>{{ vm.counts.ready }}</b><span>can be invited</span></button>
+      <button type="button" class="mim-sum__t mim-sum__t--bad" ng-class="{'mim-sum__t--on': vm.filter === 'bad'}" ng-click="vm.setFilter('bad')" ng-show="vm.counts.bad + vm.counts.lapsed" no-busy-guard data-e2e="mim-count-bad"><b>{{ vm.counts.bad + vm.counts.lapsed }}</b><span>need fixing</span></button>
+      <button type="button" class="mim-sum__t" ng-class="{'mim-sum__t--on': vm.filter === 'member'}" ng-click="vm.setFilter('member')" ng-show="vm.counts.member + vm.counts.done" no-busy-guard data-e2e="mim-count-member"><b>{{ vm.counts.member + vm.counts.done }}</b><span>members or joining already</span></button>
     </div>
 
     <div class="ta-note ta-note--warn" ng-show="vm.counts.lapsed" data-e2e="mim-lapsed"><i class="fas fa-hourglass-end"></i>
-      <div><b>{{ vm.plural(vm.counts.lapsed, 'person', 'people') }} would start out lapsed.</b> Their start date is so long ago that the membership has already run out, so they could not book. If that date is the day they joined, start them today and keep it as “member since”.
+      <div><b>{{ vm.plural(vm.counts.lapsed, 'person has', 'people have') }} a membership that would already be over</b>, so there is nothing to invite them to. If the start date in your file is the day they joined, start them today and keep it as “member since”.
         <span class="mim-note-acts"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.startLapsedToday()" no-busy-guard data-e2e="mim-fix-lapsed"><i class="fas fa-calendar-day"></i>Start them today instead</button><button type="button" class="ta-link" ng-click="vm.setFilter('lapsed')" no-busy-guard>Show them</button></span>
       </div>
     </div>
-    <div class="ta-note" ng-show="vm.checkFailed"><i class="fas fa-info-circle"></i><div>We couldn’t check who is already a member just now. You can still import: anyone already on your list is left exactly as they are.</div></div>
+    <div class="ta-note" ng-show="vm.checkFailed"><i class="fas fa-info-circle"></i><div>We couldn’t check who is already a member just now. You can still send: anyone already on your list gets nothing.</div></div>
 
-    <div class="mim-tools" ng-show="vm.counts.ready + vm.counts.lapsed">
+    <div class="mim-tools" ng-show="vm.counts.ready">
       <button type="button" class="ta-link" ng-click="vm.tickAll(true)" no-busy-guard>Tick all</button>
       <button type="button" class="ta-link" ng-click="vm.tickAll(false)" no-busy-guard>Untick all</button>
       <span class="ta-sp"></span>
@@ -135,7 +136,7 @@
 
     <div class="mim-rows" role="list">
       <div class="mim-row" role="listitem" ng-repeat="r in vm.list | limitTo: vm.shown track by r.i" ng-class="'mim-row--' + r.st.k" data-e2e="mim-row">
-        <label class="mim-row__on" ng-show="vm.can(r)"><input type="checkbox" ng-model="r.on" ng-change="vm.refresh()" no-busy-guard aria-label="Import {{ r.first }} {{ r.last }}" /></label>
+        <label class="mim-row__on" ng-show="vm.can(r)"><input type="checkbox" ng-model="r.on" ng-change="vm.refresh()" no-busy-guard aria-label="Invite {{ r.first }} {{ r.last }}" /></label>
         <span class="mim-row__on mim-row__on--off" ng-show="!vm.can(r)" aria-hidden="true"><i class="fas" ng-class="{'fa-check': r.st.k === 'added', 'fa-user-check': r.st.k === 'member', 'fa-exclamation-circle': r.st.k === 'bad'}"></i></span>
         <div class="mim-row__who">
           <b>{{ (r.first + ' ' + r.last).trim() || 'No name' }}</b>
@@ -149,6 +150,8 @@
           <span><em>Starts</em>{{ vm.fDate(r.start) }}<i ng-show="!r.d.start">today</i></span>
           <span><em>Ends</em>{{ r.end ? vm.fDate(r.end) : (r.lifetime ? 'No end date' : '-') }}</span>
           <span ng-show="r.d.since"><em>Member since</em>{{ vm.fDate(r.d.since) }}</span>
+          <span ng-show="r.number"><em>Number</em>{{ r.number }}</span>
+          <span class="mim-row__pay" ng-show="r.pay && r.st.k === 'ok'"><i class="fas fa-credit-card"></i>{{ r.pay }}</span>
         </div>
         <div class="mim-row__st">
           <span class="ta-pill" ng-class="'ta-pill--' + r.st.tone">{{ r.st.text }}</span>
@@ -156,17 +159,17 @@
         </div>
         <div class="mim-row__why" ng-show="(r.st.k === 'bad' && r.problems.length) || (r.st.k !== 'member' && r.st.k !== 'added' && r.notes.length) || r.st.k === 'member'">
           <span class="mim-why mim-why--bad" ng-repeat="p in r.problems" ng-show="r.st.k === 'bad'"><i class="fas fa-exclamation-circle"></i>{{ p }}</span>
-          <span class="mim-why" ng-repeat="n in r.notes" ng-show="r.st.k !== 'member' && r.st.k !== 'added'"><i class="fas fa-info-circle"></i>{{ n }}</span>
-          <span class="mim-why" ng-show="r.st.k === 'member'"><i class="fas fa-user-check"></i>On your members list already. Importing changes nothing for them.</span>
+          <span class="mim-why" ng-class="{'mim-why--warn': r.st.k === 'lapsed'}" ng-repeat="n in r.notes" ng-show="r.st.k !== 'member' && r.st.k !== 'added'"><i class="fas fa-info-circle"></i>{{ n }}</span>
+          <span class="mim-why" ng-show="r.st.k === 'member'"><i class="fas fa-user-check"></i>{{ r.st.why }}</span>
         </div>
         <form class="mim-row__form" ng-if="r.editing" ng-submit="vm.saveEdit(r)" no-busy-guard novalidate>
           <div class="ta-field"><label class="ta-label" for="mim-f-{{ r.i }}">First name</label><input class="ta-input" id="mim-f-{{ r.i }}" type="text" ng-model="r.form.first" /></div>
           <div class="ta-field"><label class="ta-label" for="mim-l-{{ r.i }}">Last name</label><input class="ta-input" id="mim-l-{{ r.i }}" type="text" ng-model="r.form.last" /></div>
           <div class="ta-field mim-row__form-wide"><label class="ta-label" for="mim-e-{{ r.i }}">Email</label><input class="ta-input" id="mim-e-{{ r.i }}" type="text" inputmode="email" autocapitalize="off" autocomplete="off" ng-model="r.form.email" /></div>
+          <div class="ta-field"><label class="ta-label" for="mim-n-{{ r.i }}">Membership number</label><input class="ta-input" id="mim-n-{{ r.i }}" type="text" maxlength="50" ng-model="r.form.number" /></div>
           <div class="ta-field"><label class="ta-label" for="mim-s-{{ r.i }}">Period starts <em>empty = today</em></label><input class="ta-input" id="mim-s-{{ r.i }}" type="text" placeholder="{{ vm.dateOrder === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/YYYY' }}" ng-model="r.form.start" /></div>
-          <div class="ta-field"><label class="ta-label" for="mim-x-{{ r.i }}">Ends <em>empty = one period</em></label><input class="ta-input" id="mim-x-{{ r.i }}" type="text" placeholder="{{ vm.dateOrder === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/YYYY' }}" ng-model="r.form.end" /></div>
+          <div class="ta-field"><label class="ta-label" for="mim-x-{{ r.i }}">Paid up to <em>empty = pays now</em></label><input class="ta-input" id="mim-x-{{ r.i }}" type="text" placeholder="{{ vm.dateOrder === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/YYYY' }}" ng-model="r.form.end" /></div>
           <div class="ta-field"><label class="ta-label" for="mim-m-{{ r.i }}">Member since</label><input class="ta-input" id="mim-m-{{ r.i }}" type="text" placeholder="{{ vm.dateOrder === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/YYYY' }}" ng-model="r.form.since" /></div>
-          <div class="ta-field"><label class="ta-label" for="mim-b-{{ r.i }}">Date of birth</label><input class="ta-input" id="mim-b-{{ r.i }}" type="text" placeholder="{{ vm.dateOrder === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/YYYY' }}" ng-model="r.form.dob" /></div>
           <div class="mim-row__form-acts">
             <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.cancelEdit(r)" no-busy-guard>Cancel</button>
             <button type="submit" class="ta-btn ta-btn--primary">Done</button>
@@ -178,21 +181,16 @@
     <button type="button" class="ta-btn mim-more" ng-show="vm.list.length > vm.shown" ng-click="vm.more()" no-busy-guard>Show {{ vm.list.length - vm.shown > 50 ? 50 : vm.list.length - vm.shown }} more <span class="mim-more__n">({{ vm.shown }} of {{ vm.list.length }} shown)</span></button>
 
     <div class="ta-panel mim-does">
-      <span class="ta-sec-k">What importing does</span>
+      <span class="ta-sec-k">What sending does</span>
       <ul class="mim-list">
-        <li><i class="fas fa-user-plus"></i><span><b>Adds each ticked person to your members list</b> with the membership and dates shown. Anyone already on the list is left as they are.</span></li>
-        <li><i class="fas fa-envelope"></i><span><b>People new to ToAviate get one email</b> asking them to confirm their address. It doesn’t give them a password: they choose one with “Forgot password” on the sign-in page. People who already have an account get no email.</span></li>
-        <li><i class="fas fa-credit-card"></i><span><b>No payment is set up and nothing is charged.</b> To have someone set up their own direct debit or card, <a ui-sref="dashboard.manage_club.add_member">invite them</a> instead.</span></li>
+        <li><i class="fas fa-envelope"></i><span><b>Each ticked person gets your club’s invitation by email.</b> Someone new to ToAviate follows its link, chooses a password and fills in their details. Someone who already has an account accepts in My Account.</span></li>
+        <li><i class="fas fa-credit-card"></i><span><b>They set up their own payment as they accept.</b> Anyone paid up to a date, or on a free membership, pays nothing now. Nothing is charged by sending.</span></li>
+        <li><i class="fas fa-user-clock"></i><span><b>They are not members until they accept.</b> Until then they wait under <a ui-sref="dashboard.manage_club.member_requests">Members → Joining</a>, where you can send an invitation again or cancel it. Once they have joined, you approve them to book.</span></li>
       </ul>
-      <label class="ta-toggle">
-        <input class="ta-toggle__input" type="checkbox" ng-model="vm.approve" no-busy-guard data-e2e="mim-approve" />
-        <span class="ta-toggle__txt"><span class="ta-toggle__t">Approve them to book straight away</span><span class="ta-toggle__s">{{ vm.approve ? 'On: they can book as soon as they sign in. Only for people the club has already checked.' : 'Off: they can’t book until you approve each one on the Members page.' }}</span></span>
-        <span class="ta-switch" aria-hidden="true"></span>
-      </label>
     </div>
 
     <div class="mim-progress" ng-if="vm.importing" role="status" aria-live="polite" data-e2e="mim-progress">
-      <span><i class="fas fa-spinner fa-spin"></i>Importing {{ vm.importing.done }} of {{ vm.importing.total }}… keep this page open.</span>
+      <span><i class="fas fa-spinner fa-spin"></i>Sending {{ vm.importing.done }} of {{ vm.importing.total }}… keep this page open.</span>
       <div class="ta-meter"><div class="mim-progress__bar" ng-style="{ width: vm.progress() }"></div></div>
     </div>
 
@@ -200,7 +198,7 @@
       <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.step = 2" ng-disabled="vm.importing" no-busy-guard><i class="fas fa-arrow-left"></i>Columns</button>
       <span class="ta-sp"></span>
       <span class="mim-foot__hint" ng-show="!vm.counts.send">Nobody is ticked.</span>
-      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.startImport()" ng-disabled="!vm.counts.send || vm.importing || vm.checking" data-e2e="mim-import"><i class="fas fa-file-import"></i>Import {{ vm.plural(vm.counts.send, 'member') }}</button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.startImport()" ng-disabled="!vm.counts.send || vm.importing || vm.checking" data-e2e="mim-import"><i class="fas fa-paper-plane"></i>Send {{ vm.plural(vm.counts.send, 'invitation') }}</button>
     </div>
   </section>
 
@@ -208,37 +206,37 @@
   <section class="ta-card" ng-if="vm.step === 4" data-e2e="mim-step-4">
     <div class="ta-card__hd">
       <span class="ta-card__icon" ng-class="vm.result.failed ? 'ta-card__icon--warn' : 'ta-card__icon--done'"><i class="fas" ng-class="vm.result.failed ? 'fa-exclamation' : 'fa-check'"></i></span>
-      <div class="ta-card__ttl"><h3>{{ vm.result.added ? vm.plural(vm.result.added, 'member') + ' imported' : 'Nobody was imported' }}</h3><p>{{ vm.fileName }}</p></div>
+      <div class="ta-card__ttl"><h3>{{ vm.result.invited ? vm.plural(vm.result.invited, 'invitation') + ' sent' : 'No invitations were sent' }}</h3><p>{{ vm.fileName }}</p></div>
     </div>
 
     <div class="mim-sum" data-e2e="mim-result">
-      <div class="mim-sum__t mim-sum__t--good"><b>{{ vm.result.added }}</b><span>imported</span></div>
-      <div class="mim-sum__t" ng-show="vm.result.accounts"><b>{{ vm.result.accounts }}</b><span>new to ToAviate (emailed)</span></div>
-      <div class="mim-sum__t" ng-show="vm.result.existing"><b>{{ vm.result.existing }}</b><span>already members (unchanged)</span></div>
-      <div class="mim-sum__t mim-sum__t--bad" ng-show="vm.result.failed"><b>{{ vm.result.failed }}</b><span>not imported</span></div>
+      <div class="mim-sum__t mim-sum__t--good"><b>{{ vm.result.invited }}</b><span>invited</span></div>
+      <div class="mim-sum__t" ng-show="vm.result.fresh"><b>{{ vm.result.fresh }}</b><span>new to ToAviate</span></div>
+      <div class="mim-sum__t" ng-show="vm.result.again"><b>{{ vm.result.again }}</b><span>invited before, sent again</span></div>
+      <div class="mim-sum__t" ng-show="vm.result.existing"><b>{{ vm.result.existing }}</b><span>members or joining already</span></div>
+      <div class="mim-sum__t mim-sum__t--bad" ng-show="vm.result.failed"><b>{{ vm.result.failed }}</b><span>not sent</span></div>
     </div>
 
     <div class="ta-note ta-note--bad" ng-show="vm.result.failed" data-e2e="mim-failed"><i class="fas fa-exclamation-circle"></i>
-      <div><b>{{ vm.plural(vm.result.failed, 'row was', 'rows were') }} not imported.</b>
+      <div><b>{{ vm.plural(vm.result.failed, 'invitation was', 'invitations were') }} not sent.</b>
         <span class="mim-line" ng-repeat="r in vm.failedRows() | limitTo: 8 track by r.i">{{ (r.first + ' ' + r.last).trim() || r.email }}: {{ r.serverError }}</span>
         <span class="mim-note-acts"><button type="button" class="ta-btn ta-btn--sm" ng-click="vm.backToRows('bad')" no-busy-guard><i class="fas fa-redo"></i>Fix them and try again</button></span>
       </div>
     </div>
 
-    <div class="ta-panel" ng-show="vm.result.added">
+    <div class="ta-panel" ng-show="vm.result.invited">
       <span class="ta-sec-k">What happens next</span>
       <ul class="mim-list">
-        <li ng-show="!vm.approve"><i class="fas fa-user-check"></i><span><b>Approve them</b> on the Members page before they can book: tick them and press “Approve Selected”.</span></li>
-        <li ng-show="vm.approve"><i class="fas fa-user-check"></i><span><b>They are approved</b> and can book as soon as they sign in.</span></li>
-        <li ng-show="vm.result.accounts"><i class="fas fa-key"></i><span><b>Tell the {{ vm.result.accounts }} new {{ vm.result.accounts === 1 ? 'person' : 'people' }}</b> to confirm their email, then use “Forgot password” on the sign-in page to choose a password.</span></li>
-        <li><i class="fas fa-credit-card"></i><span>Nobody has a payment method yet. They add one in My Account → Memberships.</span></li>
+        <li><i class="fas fa-user-clock"></i><span><b>They accept in their own time.</b> Until then they wait under Members → Joining, where you can send an invitation again or cancel it.</span></li>
+        <li><i class="fas fa-credit-card"></i><span><b>They set up their own payment</b> as they accept, unless they are paid up or on a free membership.</span></li>
+        <li><i class="fas fa-user-check"></i><span><b>Then you approve them to book</b> on the Members page, once their licence, medical, next of kin and payment method are in.</span></li>
       </ul>
     </div>
 
     <div class="mim-foot">
       <button type="button" class="ta-btn ta-btn--quiet" ng-click="vm.startOver()" no-busy-guard><i class="fas fa-file-upload"></i>Import another file</button>
       <span class="ta-sp"></span>
-      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.goMembers()" no-busy-guard data-e2e="mim-to-members">See your members<i class="fas fa-arrow-right"></i></button>
+      <button type="button" class="ta-btn ta-btn--primary" ng-click="vm.goJoining()" no-busy-guard data-e2e="mim-to-joining">See who is joining<i class="fas fa-arrow-right"></i></button>
     </div>
   </section>
 

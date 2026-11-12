@@ -845,6 +845,82 @@ shared drawing `FL.partLimits`); CofA + ARC (and permit + certificate of validit
 price is the DEFAULT (a membership type can override it today via `membership_planes`; a per-member price was asked for but is not
 in the backend — `member_planes` only holds book_solo / book_dual / instruct); the maintenance-organisation picker is a search.
 
+**Owner's review, round 2 (12 Nov):** removing an aircraft CANCELS every booking ahead and emails the members (the dialog lists the
+next five; `Planes::delete` does not do it yet); a "no fly" defect never takes an aircraft offline by itself (the reporter's view, a
+manager assesses; "Take offline" beside it for admins); there is NO per-member aircraft price (membership type's price, then the
+default); the 12-year overhaul default applies to propellers too and "on condition" runs past hours or date; a new member needs a valid
+membership, a licence and a medical this club has checked, a next of kin and a payment method on file before the club approves them,
+then approval by EITHER a signed-off dual check flight OR an admin (no bookings of their own before that); ending a membership cancels the member's later bookings and the direct debit, the direct debit only
+once nothing is owed (backend work); a membership PRICE change reaches members at their next renewal, while a type's AIRCRAFT prices
+apply at once (billing reads the tier's current version).
+
+**Build list (owner, 12 Nov: "implement this at the same time"):** each of the four mockups' notes STARTS with "Build with this page
+(the app does not do these yet)" — everything the drawing promises that the app lacks, backend included (removing an aircraft cancels
+its bookings and emails the members; ending a membership cancels later bookings and, once nothing is owed, the direct debit; the
+readiness read; "Back online"; …). When a page is approved, build that list in the same release, and tick items off there.
+
+## Member import, membership aircraft prices, unsaved fields (fixed 12 Nov 2026)
+
+- **Import a list** (`dashboard.manage_club.import_members`) **sends INVITATIONS** (owner, 12 Nov: "a much better design" than
+  creating accounts): `MemberImportController as vm` (js/controllers/memberImportController.js, with the `mim-drop` drop-zone
+  directive), `views/manageclub/member_import.html`, `css/member-import.css` (`.mim-*`, ta-base inside `.v2-host.ta-page`, like the
+  Schedule display settings). Three steps + a result page: file (own CSV parser: quotes, `;` / tab, BOM, Windows-1252 fallback; a
+  spreadsheet file is refused with how to save a CSV) → columns (guessed from the headings: first / last or full name, email,
+  membership type by name, membership number, period start, paid up to, member since; day-first or month-first dates) → check
+  (`POST members/import_check`, nothing written: `{has_account, already_member, asked_to_join, invited, offer_accepted}` per row) and
+  send (`POST members/import` in batches of 20 → `Members::import_many` → `send_invite_by_club`, the "Invite a member" form's own
+  path; `results[]` per row: `invited` (+ `reoffered`, `has_account`, `request_id`) · `already_member` · an error: VALIDATION_ERROR +
+  `field`, LAPSED, REQUEST_PENDING, OFFER_ALREADY_ACCEPTED, INVITATION_FAILED). Nobody is added to the club and no account is made;
+  one offer per person (a second import updates it and sends it again). `membership_id` is the TIER (`memberships.id` =
+  `membership_id` of a `memberships/club` row, NOT its `id`, the version — the old page sent the version). Payment: a row with a
+  "paid up to" date (`membership_ends`) or a free tier = `payment_required 0` (first payment on that date); otherwise they pay the
+  first period on accepting. A membership that would already be over (a start years ago, no end) is refused (LAPSED): the page offers
+  "Start them today instead" and keeps the old date as member since. `member_since` + `membership_number` ride on the
+  `membership_requests` row and reach the member row at acceptance (`Members::apply_request_extras`, called from
+  `Invitations::activate_request_membership` / `ensure_membership_for_existing` and `Memberships::club_accepts_request`). Date of
+  birth and "old booking-system email" are no longer import columns (the person enters their own details). `POST members/many` (the
+  direct add) still exists; no screen calls it. Tests: `MemberImportInvitationsTest` (4); walk scratchpad `imp/walk.js` (59, real
+  backend, club 2; `imp/clean.sh` removes its rows).
+- **Membership number** (owner, 12 Nov: some clubs keep their own): `members.membership_number` (+ `archived_members`; migration
+  `2026_11_12_160000`, which also adds `membership_requests.member_since` / `.membership_number`; every reader guards on SHOW COLUMNS).
+  Free text ≤ 50, set on the member form ("Club references" → Membership Number, `PUT members/{id}`) and by the import.
+- **Approval rule (owner, 12 Nov):** a new member must be "a known entity" before booking: the five things in place, then EITHER a dual
+  check flight an instructor signs off OR an admin. A voucher / trial flight is the exemption (as today). The check-flight sign-off is
+  still on the members mockup's build list; the booking that gets it into the diary is BUILT:
+- **One booking with an instructor before approval** (`clubs.new_member_bookings` `one_dual` | `none`, migration `2026_11_12_180000`;
+  ⚠️ the column default is `one_dual`, the owner's choice, so running the migration switches every club to it; a missing column reads as
+  `none`). Manage Club → Settings → Booking Settings → "Before a New Member Is Approved" (`.snazzy-seg`, hidden while the GET has no
+  such key). `Bookings::dual_student_refusal` lets a LIVE but unapproved member through when the club says `one_dual` and
+  `new_member_booking_taken` finds no other dual booking of theirs in that club (an instructor who is not them, no voucher, ending on
+  or after this membership began; waiting-list ones count; the booking being edited does not; a cancelled one is gone from `bookings`,
+  so they can rebook). A second one → `reason: 'student_membership'`, `detail: 'new_member_booking_used'`, the message names the booking
+  ("Your membership …" to the member, "The student's membership …" to staff) — whoever makes it, admins included. Solo hire still needs
+  the approval. The member books it themselves in the normal v2 panel (instructor + aircraft). Tests: `NewMemberOneBookingTest` (6);
+  `DualStudentMembershipTest` now pins its club to `none`. Walk: scratchpad `nmb/run.sh` (28, real backend, club 2: an unapproved
+  member made by `nmb/fix.php`; the dev club has no registered address, which the settings page requires before ANY save — the walk
+  fills it and `fix.php clean` empties it again).
+- **An instructor's own daily voucher limit** (owner, 12 Nov): `members.max_experience_flights_per_day` (+ `archived_members`,
+  migration `2026_11_12_170000`; 0 / NULL = the club's `clubs.max_daily_voucher_flights`). ONE rule,
+  `Vouchers::daily_voucher_limit` / `voucher_day_full`, asked wherever the SYSTEM books a voucher flight (the slot finder,
+  `Vouchers::book_voucher`, the widget's `slot_still_bookable`); a booking an admin makes by hand is never checked ("a third if
+  allocated by an admin"). Set on Manage Club → Instructors → the panel's Daily Limits (`PUT members/instructor_update`, admins only).
+  `InstructorVoucherLimitTest` (3).
+- **The admins' notes about an instructor** (owner, 12 Nov: "only other admins"): the Notes box of that panel is saved now, in its
+  OWN table `instructor_admin_notes` (club + person, migration `2026_11_12_180000`) — never `members.instructor_notes` (the column
+  exists and stays unused): a member is handed their own members row whole (`shape_row`, `users/{id}/access`), so a note on it would
+  reach the instructor it is about. Write: `PUT members/instructor_update {id, instructor_notes}` (≤ 5,000, empty removes it; the key
+  is in `instructor_update_fields`, so the controller refuses it from anyone but the club's admins). Read: `GET
+  members/get_instructors/{club}/{user}` adds `instructor_notes` for a `viewer()` of `admin` only and REMOVES the key for everyone
+  else (`Members::with_instructor_notes`). An admin who is also an instructor can read the notes about themselves.
+  `InstructorAdminNotesTest` (4).
+- **Invite form:** the "Club Super Admin" tick-box is gone (never stored): make someone a super admin on their page after they join.
+- **`membership_planes`** (a tier's aircraft prices) is admins-only now: read and write = manager / super-admin of the TIER's club or
+  ToAviate staff; `save_rates` takes only the three fees + `access`, only for the club's current aircraft, replaces only a row of the
+  same tier and carries `charge_type` over. Joining never used it (`memberships/club_available` says yes / no only). The membership
+  form now sends the prices for a NEW type too and starts them blank. `MembershipPlanesAccessTest` (7).
+- **Saved now:** a membership type's new name (`Memberships::edit`), a member's Accounting Ref (`Members::edit`), "pilots must do
+  Check A" + the accounting ref when ADDING an aircraft (`Planes::add`), and an instructor's notes (above).
+
 ## Schedule display (clubhouse TV) v2 — settings page (11 Nov 2026)
 
 Manage Club → Settings → Schedule display is the approved mockup `mockups/schedule-display/settings.html` built on ta-base INSIDE the
