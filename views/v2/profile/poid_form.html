@@ -24,9 +24,9 @@
     </section>
 
     <form class="ta-stack" ng-if="!vm.loading && !vm.loadError" novalidate ng-submit="vm.save($flow)"
-          flow-init="{target: '/upload.php'}"
+          flow-init="{target: '/upload.php', query: {pdf: 1}}"
           flow-files-submitted="vm.flowRef = $flow; $flow.upload(); vm.clearErr('images')"
-          flow-file-success="$file.file_return = $message"
+          flow-file-success="$file.file_return = $message; vm.flowDone($file)"
           flow-file-error="vm.flowFailed($file)"
           flow-file-added="vm.flowAdded($file)">
 
@@ -63,8 +63,8 @@
             <div class="ta-field" id="field-images" ng-class="{'ta-field--error': vm.errs.images}">
                 <button type="button" class="ta-drop" flow-btn flow-drop flow-drag-enter="vm.over = true" flow-drag-leave="vm.over = false" ng-class="{'ta-drop--over': vm.over}" no-busy-guard>
                     <span class="ta-drop__ic"><i class="fas fa-cloud-upload-alt"></i></span>
-                    <span class="ta-drop__t">Drop photos here, or choose files</span>
-                    <span class="ta-drop__s">JPG, PNG or GIF · make sure every corner and the text are sharp</span>
+                    <span class="ta-drop__t">Drop photos or a PDF here, or choose files</span>
+                    <span class="ta-drop__s">A photo (JPG, PNG, HEIC) or a PDF · make sure every corner and the text are sharp</span>
                 </button>
                 <span class="ta-field__msg" ng-if="vm.errs.images">{{ vm.errs.images }}</span>
             </div>
@@ -79,9 +79,9 @@
                     <span class="pro-thumb__name">Saved image {{ $index + 1 }}</span>
                 </div>
                 <div class="pro-thumb" ng-repeat="f in $flow.files">
-                    <div class="pro-doc pro-doc--img"><img flow-img="f" alt="{{ f.name }}">
-                        <span class="pro-up" ng-if="vm.U.upState(f) === 'up'"><span>Uploading {{ vm.U.upPct(f) }}%</span><span class="ta-meter"><span class="ta-meter__bar" ng-attr-style="--v:{{ vm.U.upPct(f) }}%"></span></span></span>
-                        <span class="pro-up pro-up--bad" ng-if="vm.U.upState(f) === 'bad'"><span><i class="fas fa-exclamation-triangle"></i> Upload failed — remove it and try again</span></span>
+                    <div class="pro-doc pro-doc--img"><img ng-if="!vm.U.isPdf(f)" flow-img="f" alt="{{ f.name }}"><span class="pro-doc__pdf" ng-if="vm.U.isPdf(f)"><i class="fas fa-file-pdf"></i><b>PDF</b><small ng-if="vm.U.upState(f) === 'ok'">{{ vm.U.pdfLabel(f) }}</small></span>
+                        <span class="pro-up" ng-if="vm.U.upState(f) === 'up'"><span>{{ vm.U.upLabel(f, '') }}</span><span class="ta-meter"><span class="ta-meter__bar" ng-attr-style="--v:{{ vm.U.upPct(f) }}%"></span></span></span>
+                        <span class="pro-up pro-up--bad" ng-if="vm.U.upState(f) === 'bad'"><span><i class="fas fa-exclamation-triangle"></i> {{ vm.U.upLabel(f, '') }}</span></span>
                     </div>
                     <button type="button" class="pro-thumb__x" ng-click="vm.removeNew(f, $flow)" no-busy-guard aria-label="Remove {{ f.name }}" title="Remove"><i class="fas fa-times"></i></button>
                     <span class="pro-thumb__name">{{ f.name }}</span>

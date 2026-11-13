@@ -608,13 +608,14 @@ function DocFormV2Controller($rootScope, $scope, $state, $stateParams, $q, $time
     };
     vm.noExp = function () { if (vm.f.noExpiry) { vm.f.expiry = ''; } vm.clearErr('expiry'); };
 
-    /* scans */
-    vm.flowAdded = U.imageOnly;
+    /* scans — a photo or a PDF (12 Nov 2026: upload.php turns each page of a PDF into its own scan) */
+    vm.flowAdded = U.docOnly;
+    vm.flowDone = U.upDone;
     vm.uploading = U.upBusy;
     vm.flowFailed = U.upFailed;
     vm.pct = U.upPct;
     vm.imgDel = function (img) { vm.f.images = vm.f.images.filter(function (i) { return i.id !== img.id; }); };
-    vm.upDel = function (file) { var path = U.flowPath(file); file.cancel(); if (path) { Svc.DeleteTmp(path); } };
+    vm.upDel = function (file) { var paths = U.flowPaths(file); file.cancel(); paths.forEach(function (p) { Svc.DeleteTmp(p); }); };
     vm.side = function (i) { return vm.lic ? (['Front', 'Ratings page', 'Back'][i] || 'Page ' + (i + 1)) : (['Certificate', 'Second page'][i] || 'Page ' + (i + 1)); };
     vm.savedThumb = function (img) { var l = vm.shown || []; for (var i = 0; i < l.length; i++) { if (l[i].id === img.id && /^data:/.test(l[i].data_uri)) { return l[i].data_uri; } } return null; };
     vm.show = function () {
@@ -676,8 +677,7 @@ function DocFormV2Controller($rootScope, $scope, $state, $stateParams, $q, $time
         var ks = Object.keys(vm.errs);
         if (ks.length) { ToastService.warning('Check the highlighted fields', vm.errs[ks[0]]); U.scrollToError(); return; }
         var f = vm.f, files = ($flow && $flow.files) || [];
-        var images = f.images.map(function (i) { return { id: i.id }; })
-            .concat(files.map(function (x) { return { temp_path: U.flowPath(x), name: x.name }; }).filter(function (x) { return x.temp_path; }));
+        var images = f.images.map(function (i) { return { id: i.id }; }).concat(U.stagedImages(files));
         var body = vm.lic ? {
             licence_id: +f.licence_id, authority_id: +f.authority_id, licence_number: String(f.licence_number).trim(),
             licence_issue_date: f.issued, licence_expiry_date: f.noExpiry ? '' : f.expiry,

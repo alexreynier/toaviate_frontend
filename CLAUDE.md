@@ -854,6 +854,20 @@ then approval by EITHER a signed-off dual check flight OR an admin (no bookings 
 once nothing is owed (backend work); a membership PRICE change reaches members at their next renewal, while a type's AIRCRAFT prices
 apply at once (billing reads the tier's current version).
 
+**Owner's review, round 3 (12 Nov, maintenance.html):** "It's fixed" on a defect opens a SIGN-OFF dialog (what was done, the workpack,
+who signed it off + licence / approval number, date and time), never a check; a workpack belongs to EVERY job (a check of any type, a
+single defect) through one chooser `wpPick` (add to an open one · a new one: number, what it covers, document · "No workpack"); the
+record page's step 5 is "The workpack and the release certificate" and step 6 shows the three logbooks as large choices plus "How the
+entry will read"; a logbook is a maintenance record (hero + four tiles, All · Maintenance · Flights; a maintenance entry carries work
+carried out, workpack, signed off by, release certificate; flying days are one quiet line; phones get a stacked list, no sideways
+table). Today's app, for the build: a defect is only resolved inside "Record a check" (`Planes::sort_issues`), where
+`plane_tech_log_sheets.defect_workpack_number / _signatory / _document` are filled and the document is then never shown; workpacks are
+`maintenance_workpacks` (number, authorised_signatory, description, status, one document; no signed date, no licence number), linked by
+`plane_maintenance_checks.workpack_id` (any check; the form offers it for an annual only); `plane_crs` keeps only the latest certificate
+on show; the logbook tables' `entry_type` is `flights` | `maintenance_check` only, and a check row prints the RECORDER as "By", not
+`checked_by`. Also found: the engineers' workspace Issues tab (`views/maintenance/fleet.html`) reads `title / description /
+reporter_name` while `maintenance_access/issues` sends `defect / first_name / last_name` (read in code, not seen in a browser).
+
 **Build list (owner, 12 Nov: "implement this at the same time"):** each of the four mockups' notes STARTS with "Build with this page
 (the app does not do these yet)" — everything the drawing promises that the app lacks, backend included (removing an aircraft cancels
 its bookings and emails the members; ending a membership cancels later bookings and, once nothing is owed, the direct debit; the
@@ -887,18 +901,20 @@ readiness read; "Back online"; …). When a page is approved, build that list in
 - **Approval rule (owner, 12 Nov):** a new member must be "a known entity" before booking: the five things in place, then EITHER a dual
   check flight an instructor signs off OR an admin. A voucher / trial flight is the exemption (as today). The check-flight sign-off is
   still on the members mockup's build list; the booking that gets it into the diary is BUILT:
-- **One booking with an instructor before approval** (`clubs.new_member_bookings` `one_dual` | `none`, migration `2026_11_12_180000`;
-  ⚠️ the column default is `one_dual`, the owner's choice, so running the migration switches every club to it; a missing column reads as
-  `none`). Manage Club → Settings → Booking Settings → "Before a New Member Is Approved" (`.snazzy-seg`, hidden while the GET has no
-  such key). `Bookings::dual_student_refusal` lets a LIVE but unapproved member through when the club says `one_dual` and
-  `new_member_booking_taken` finds no other dual booking of theirs in that club (an instructor who is not them, no voucher, ending on
-  or after this membership began; waiting-list ones count; the booking being edited does not; a cancelled one is gone from `bookings`,
-  so they can rebook). A second one → `reason: 'student_membership'`, `detail: 'new_member_booking_used'`, the message names the booking
-  ("Your membership …" to the member, "The student's membership …" to staff) — whoever makes it, admins included. Solo hire still needs
-  the approval. The member books it themselves in the normal v2 panel (instructor + aircraft). Tests: `NewMemberOneBookingTest` (6);
-  `DualStudentMembershipTest` now pins its club to `none`. Walk: scratchpad `nmb/run.sh` (28, real backend, club 2: an unapproved
-  member made by `nmb/fix.php`; the dev club has no registered address, which the settings page requires before ANY save — the walk
-  fills it and `fix.php clean` empties it again).
+- **One booking with an instructor AT A TIME before approval** (owner, 12 Nov: "no more than 1 at a time"; `clubs.new_member_bookings`
+  `one_dual` | `none`, migration `2026_11_12_180000`; ⚠️ the column default is `one_dual`, the owner's choice, so running the migration
+  switches every club to it; a missing column reads as `none`). Manage Club → Settings → Booking Settings → "Before a New Member Is
+  Approved" (`.snazzy-seg`: "One at a time, with an instructor" · "No bookings"; hidden while the GET has no such key).
+  `Bookings::dual_student_refusal` lets a LIVE but unapproved member through when the club says `one_dual` and
+  `new_member_booking_taken` finds no other dual booking of theirs in that club that has NOT ENDED yet (an instructor who is not them,
+  no voucher; waiting-list ones count; the booking being edited does not). A flown booking frees the place (they book the next), so
+  does a cancelled one. A second at the same time → `reason: 'student_membership'`, `detail: 'new_member_one_at_a_time'`, the message
+  names the booking they hold — whoever makes it, admins included. Said to the member themselves it ends "Please contact the club's
+  ops team or an admin to get approved" (so does the plain not-approved refusal); staff get "The student's membership …". Solo hire
+  still needs the approval. The member books it themselves in the normal v2 panel (instructor + aircraft). Tests:
+  `NewMemberOneBookingTest` (6); `DualStudentMembershipTest` pins its club to `none`. Walk: scratchpad `nmb/run.sh` (30, real backend,
+  club 2: an unapproved member made by `nmb/fix.php`; the dev club has no registered address, which the settings page requires before
+  ANY save — the walk fills it and `fix.php clean` empties it again).
 - **An instructor's own daily voucher limit** (owner, 12 Nov): `members.max_experience_flights_per_day` (+ `archived_members`,
   migration `2026_11_12_170000`; 0 / NULL = the club's `clubs.max_daily_voucher_flights`). ONE rule,
   `Vouchers::daily_voucher_limit` / `voucher_day_full`, asked wherever the SYSTEM books a voucher flight (the slot finder,

@@ -327,48 +327,41 @@ OLD VERSION FOR LEGACY PURPOSES
 
           
           $scope.remove_file = function(file, current_files){
-
-            //remove_file
-            var j = JSON.parse(file.file_return);
-            // //console.log("REMOVE: ", j);
-            // //console.log("REMOVE: ", j.saved_url);
-
-            //to delete the temp file created: j.saved_url
-            //tmp_rm.php POST tmp = filename
-            
-            MedicalService.DeleteTmp(j.saved_url)
-                .then(function (data) {
-                    //console.log(data);
-                    if(data.success){
-                        // //console.log("HUZZAH", current_files);
-                        //then we need to remove this from the list of files...
-                        //clear files
-                        vm.medical_images = [];
-                        //and re-process available files
-                        $scope.processFiles(current_files);
-
-                    } else {
-                        //console.log("WOOOPSIES...");
-                        //this should be very very rare...
-                    }
-
-                });
-
+            // (12 Nov 2026) a PDF is staged as one JPEG per page ("pages") — every page is removed; a file
+            // upload.php refused has nothing staged. The list is rebuilt from the files still on the form.
+            var j = {};
+            try { j = JSON.parse(file.file_return) || {}; } catch (e) { j = {}; }
+            var paths = (j.success === false) ? [] : ((j.pages && j.pages.length) ? j.pages : (j.saved_url ? [j.saved_url] : []));
+            for(var p=0; p<paths.length; p++){ MedicalService.DeleteTmp(paths[p]); }
+            vm.medical_images = [];
+            $scope.processFiles(current_files);
           }
-          
+
 
             $scope.processFiles = function(files){
-                // //console.log("files", files);
-
+                // rebuilt from scratch each time (flow-complete fires again when another file is added)
+                vm.medical_images = [];
                 for(var i=0; i<files.length; i++){
-                    // //console.log("JSON", files[i].file_return);
-                    var j = JSON.parse(files[i].file_return);
-                    // //console.log("PARSED", j);
+                    var j = {};
+                    try { j = JSON.parse(files[i].file_return) || {}; } catch (e) { j = {}; }
+                    files[i].upload_refused = null;
+                    files[i].pdf_pages = 0;
+                    if(j.success === false || !j.saved_url){
+                        // refused by upload.php (too many pages, a locked PDF, an unreadable photo …): shown on the file, never sent
+                        files[i].upload_refused = j.message || "This file could not be uploaded — remove it and try again.";
+                        continue;
+                    }
+                    if(j.pages && j.pages.length){
+                        // a PDF: each page is a scan of its own
+                        files[i].pdf_pages = j.pages.length;
+                        for(var p=0; p<j.pages.length; p++){
+                            vm.medical_images.push({ temp_path: j.pages[p], name: files[i].name + " (page " + (p + 1) + ")" });
+                        }
+                        continue;
+                    }
                     files[i].file.temp_path = j.saved_url;
-                    // //console.log("file", files[i].file);
                     vm.medical_images.push(files[i].file);
                 }
-               
             }
 
 

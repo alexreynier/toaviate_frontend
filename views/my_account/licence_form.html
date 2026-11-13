@@ -27,11 +27,11 @@
       <br />
 <!--         <h5>Licence Images Both Sides</h5>
  -->        <div class="logbook_images">
-            <div flow-init="{target: '/upload.php'}"
+            <div flow-init="{target: '/upload.php', query: {pdf: 1}}"
                flow-files-submitted="$flow.upload()"
                flow-file-success="$file.file_return = $message"
                flow-complete="processFiles($flow.files)"
-               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1}[$file.getExtension()]"
+               flow-file-added="!!{png:1,gif:1,jpg:1,jpeg:1,heic:1,heif:1,webp:1,bmp:1,pdf:1}[$file.getExtension()]"
                class="flow_upload_box"
                >
                 
@@ -41,7 +41,7 @@
                     <br />OR<br /> 
                     Drag And Drop
                     <br />
-                    Licence Image
+                    Licence Image<br /><small class="upload-drop-note">a photo or a PDF</small>
                   </div>
                 </div>
 
@@ -49,7 +49,9 @@
                  <div ng-repeat="file in $flow.files" class="gallery-box">
                   <span class="title">{{file.name}}</span>
                   <div class="thumbnail" ng-show="$flow.files.length">
-                    <img flow-img="file" />
+                    <img flow-img="file" ng-if="file.getExtension() !== 'pdf'" />
+                    <div class="upload-pdf-tile" ng-if="file.getExtension() === 'pdf'"><i class="fas fa-file-pdf"></i><span ng-if="file.pdf_pages">PDF · {{ file.pdf_pages }} {{ file.pdf_pages === 1 ? 'page' : 'pages' }}, saved as images</span><span ng-if="!file.pdf_pages && !file.upload_refused">PDF</span></div>
+                    <div class="upload-refused" ng-if="file.upload_refused">{{ file.upload_refused }}</div>
                   </div>
                   <div class="progress progress-striped" ng-class="{active: file.isUploading()}" ng-if="(file.progress() * 100) < 100">
                     <div class="progress-bar" role="progressbar"

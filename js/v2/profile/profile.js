@@ -193,8 +193,38 @@ function ProfileV2Util($timeout, $state, $window, ToastService, DesignRoutes, De
     };
     /* the upload.php response of an ng-flow file → its staged path (temp/…) */
     u.flowPath = function (file) {
-        try { return JSON.parse(file.file_return).saved_url || null; } catch (e) { return null; }
+        try { var j0 = JSON.parse(file.file_return); return (j0.success === false) ? null : (j0.saved_url || null); } catch (e) { return null; }
     };
+    /* A PDF (12 Nov 2026: licences, medicals, proof of ID): upload.php turns every page into its own staged JPEG and
+       answers "pages" — one scan per page. An image has just its saved_url. */
+    u.flowPaths = function (file) {
+        try {
+            var j = JSON.parse(file.file_return);
+            if (j.success === false) { return []; }
+            if (angular.isArray(j.pages) && j.pages.length) { return j.pages.slice(); }
+            return j.saved_url ? [j.saved_url] : [];
+        } catch (e) { return []; }
+    };
+    u.isPdf = function (file) { return String((file && file.getExtension && file.getExtension()) || '').toLowerCase() === 'pdf'; };
+    /* why upload.php refused a file ("That PDF has 30 pages — 12 at most…"), or '' */
+    u.upWhy = function (file) {
+        try { var j = JSON.parse(file.file_return); return ((j.success === false || !j.saved_url) && j.message) ? String(j.message) : ''; } catch (e) { return ''; }
+    };
+    /* the staged scans of a form's new files, a PDF's pages in order: [{temp_path, name}] */
+    u.stagedImages = function (files) {
+        var out = [];
+        (files || []).forEach(function (f) {
+            var paths = u.flowPaths(f);
+            paths.forEach(function (p, i) { out.push({ temp_path: p, name: paths.length > 1 ? f.name + ' (page ' + (i + 1) + ')' : f.name }); });
+        });
+        return out;
+    };
+    /* how many scans the new files come to (a 3-page PDF is 3) */
+    u.stagedCount = function (files) {
+        return (files || []).reduce(function (n, f) { return n + Math.max(1, u.flowPaths(f).length); }, 0);
+    };
+    /* the line under a finished file: "3 pages, saved as images" for a PDF, else the caller's word */
+    u.pdfLabel = function (f) { var n = u.flowPaths(f).length; return n + (n === 1 ? ' page' : ' pages') + ', saved as ' + (n === 1 ? 'an image' : 'images'); };
     /* one ng-flow file: 'up' while it uploads · 'ok' once upload.php handed back a staged path · 'bad' when the upload
        failed, or upload.php answered without a path (flow.js reports a failed file as 100% done, so progress alone
        left it "Uploading 100%" for ever and the form refused to save) */
@@ -208,7 +238,9 @@ function ProfileV2Util($timeout, $state, $window, ToastService, DesignRoutes, De
     u.upPct = function (f) { return Math.round(Math.min(1, f.progress()) * 100); };
     u.upLabel = function (f, done) {
         var st = u.upState(f);
-        return st === 'bad' ? 'Upload failed — remove it and try again' : st === 'up' ? 'Uploading ' + u.upPct(f) + '%' : done;
+        if (st === 'bad') { return u.upWhy(f) || 'Upload failed — remove it and try again'; }
+        if (st === 'up') { return (u.isPdf(f) && u.upPct(f) >= 100) ? 'Reading the pages…' : 'Uploading ' + u.upPct(f) + '%'; }
+        return u.isPdf(f) ? u.pdfLabel(f) : done;
     };
     /* AuthenticationService.Login3 answers an HTTP failure (server down, 500) with this fixed error — that isn't a wrong password */
     u.loginDown = function (res) { return !!(res && res.error === 'Authentication failed. Please try again.'); };
@@ -221,6 +253,20 @@ function ProfileV2Util($timeout, $state, $window, ToastService, DesignRoutes, De
             ToastService.warning('That file wasn\'t added', '"' + file.name + '" isn\'t an image — use a JPG, PNG, HEIC or GIF.');
         }
         return ok;
+    };
+    /* flow-file-added for the forms that also take a PDF (licence, medical, proof of ID): the flow sends pdf=1 */
+    u.docOnly = function (file) {
+        var ok = !!{ png: 1, gif: 1, jpg: 1, jpeg: 1, heic: 1, heif: 1, webp: 1, bmp: 1, pdf: 1 }[String(file.getExtension() || '').toLowerCase()];
+        if (!ok && Date.now() - lastRefused > 1500) {
+            lastRefused = Date.now();
+            ToastService.warning('That file wasn\'t added', '"' + file.name + '" isn\'t a photo or a PDF — use a JPG, PNG, HEIC or PDF.');
+        }
+        return ok;
+    };
+    /* flow-file-success: a file upload.php refused says why at once (a PDF with too many pages, a locked PDF …) */
+    u.upDone = function (file) {
+        var why = u.upWhy(file);
+        if (why) { ToastService.error('"' + file.name + '" wasn\'t added', why); }
     };
     /* flow-file-error */
     u.upFailed = function (file) {
@@ -659,13 +705,14 @@ function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout
     vm.scrim = function ($event) { if ($event.target === $event.currentTarget) { close(); } };
     vm.setType = function (t) { vm.poid.title = t; vm.clearErr('title'); };
     vm.clearErr = function (k) { if (vm.errs[k]) { delete vm.errs[k]; } };
-    vm.flowAdded = U.imageOnly;
+    vm.flowAdded = U.docOnly;
+    vm.flowDone = U.upDone;
     vm.uploading = U.upBusy;
     vm.flowFailed = U.upFailed;
     vm.removeExisting = function (img) { vm.poid.images = vm.poid.images.filter(function (i) { return i.id !== img.id; }); };
     vm.removeNew = removeNew;
     vm.save = save;
-    vm.imgCount = function ($flow) { return (vm.poid ? vm.poid.images.length : 0) + ($flow ? $flow.files.length : 0); };
+    vm.imgCount = function ($flow) { return (vm.poid ? vm.poid.images.length : 0) + ($flow ? U.stagedCount($flow.files) : 0); };
     vm.pct = function (f) { return Math.round(f.progress() * 100); };
     vm.go = function (s, p) { U.go(s, p); };
 
@@ -757,9 +804,9 @@ function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout
     vm.formImg = function (img) { var list = vm.images[vm.poid && vm.poid.id] || []; for (var i = 0; i < list.length; i++) { if (list[i].id === img.id && /^data:/.test(list[i].data_uri)) { return list[i].data_uri; } } return null; };
 
     function removeNew(file, $flow) {
-        var path = U.flowPath(file);
+        var paths = U.flowPaths(file);
         file.cancel();
-        if (path) { PoidService.DeleteTmp(path); }
+        paths.forEach(function (p) { PoidService.DeleteTmp(p); });      // a PDF: every page it was turned into
     }
 
     function save($flow) {
@@ -773,7 +820,7 @@ function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout
         vm.errs = e;
         var ks = Object.keys(e);
         if (ks.length) { ToastService.warning('Check the highlighted field' + (ks.length > 1 ? 's' : ''), e[ks[0]]); U.scrollToError(); return; }
-        var staged = files.map(function (f) { return { temp_path: U.flowPath(f), name: f.name }; }).filter(function (x) { return x.temp_path; });
+        var staged = U.stagedImages(files);
         var body = { title: String(p.title).trim(), expiry_date: p.expiry_date, user_id: vm.me.id,
             images: p.images.map(function (i) { return { id: i.id }; }).concat(staged) };
         if (p.id) { body.id = p.id; }
