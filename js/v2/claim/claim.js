@@ -262,9 +262,10 @@ function ClaimV2Controller(FoxService, ClaimV2Data, TimeDisplayService, ToastSer
     function ldgBreakdown(f) {
         if (!trackOk(f)) { return 'counted by the tracker'; }
         var b = [];
-        if (+f.full_stop_landings_calculated) { b.push(f.full_stop_landings_calculated + ' full stop'); }
-        if (+f.stop_and_go_calculated) { b.push(f.stop_and_go_calculated + ' stop-and-go'); }
-        if (+f.touch_and_go_calculated) { b.push(f.touch_and_go_calculated + ' touch-and-go'); }
+        // a landing that stopped on the runway and took off again is a FULL STOP to a UK pilot (owner, 14 Nov 2026): never "stop-and-go" here
+        var fs = (+f.full_stop_landings_calculated || 0) + (+f.stop_and_go_calculated || 0);
+        if (fs) { b.push(fs + ' full stop'); }
+        if (+f.touch_and_go_calculated) { b.push(f.touch_and_go_calculated + ' touch and go'); }
         if (+f.go_arounds_calculated) { b.push(f.go_arounds_calculated + ' go-around'); }
         return (b.length ? b.join(', ') : 'none') + ' — from the recorded track';
     }

@@ -5765,6 +5765,21 @@ app.directive('bkiPickField', function () {
         vm.bk_af = function(a){ return a && (a.code || a.title) ? a : null; };
         vm.bk_af_label = function(a){ if(!a){ return ''; } var t = String(a.title || '').replace('NOT LISTED : ', ''); return t; };
         vm.bk_land_total = function(){ return (parseInt(vm.bookout.landings, 10) || 0) + (parseInt(vm.bookout.tng, 10) || 0) + (vm.bk_ft() === 1 ? 0 : (parseInt(vm.bookout.remote_landings, 10) || 0)); };
+        // how the ONE landings total splits: "8 full stops + 4 touch and goes" (owner, 14 Nov 2026: two counts and a total read as
+        // 12 or as 8-including-4). One kind only: "all full stops". brackets = for the summary line: " (8 full stops + 4 touch and goes)",
+        // nothing when there is one kind
+        vm.bk_land_split = function(brackets){
+            var fs = parseInt(vm.bookout.landings, 10) || 0, tg = parseInt(vm.bookout.tng, 10) || 0;
+            var aw = vm.bk_ft() === 1 ? 0 : (parseInt(vm.bookout.remote_landings, 10) || 0), parts = [];
+            if(fs){ parts.push(plural(fs, 'full stop')); }
+            if(tg){ parts.push(plural(tg, 'touch and go', 'touch and goes')); }
+            if(aw){ parts.push(aw + ' away'); }
+            if(brackets){ return parts.length > 1 ? ' (' + parts.join(' + ') + ')' : ''; }
+            if(parts.length > 1){ return parts.join(' + '); }
+            if(fs){ return fs === 1 ? 'a full stop' : 'all full stops'; }
+            if(tg){ return tg === 1 ? 'a touch and go' : 'all touch and goes'; }
+            return aw ? (aw === 1 ? 'at another airfield' : 'all at other airfields') : '';
+        };
         vm.bk_step = function(k, d){
             vm.bookout[k] = Math.max(0, (parseInt(vm.bookout[k], 10) || 0) + d);
             if(k === 'landings'){ vm.bookout.full_stop_landings = vm.bookout.landings; }

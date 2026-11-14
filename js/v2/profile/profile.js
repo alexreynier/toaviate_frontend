@@ -671,8 +671,8 @@ function NokV2Controller($rootScope, $scope, $state, $stateParams, $timeout, Nok
 
 /* ═══ Proof of ID (list + form) — in the My documents hub ═══ */
 app.controller('PoidV2Controller', PoidV2Controller);
-PoidV2Controller.$inject = ['$rootScope', '$scope', '$state', '$stateParams', '$q', '$timeout', 'PoidService', 'AuthenticationService', 'ToastService', 'ProfileV2Util', 'MemberChecksV2'];
-function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout, PoidService, AuthenticationService, ToastService, U, Checks) {
+PoidV2Controller.$inject = ['$rootScope', '$scope', '$state', '$stateParams', '$q', '$timeout', 'PoidService', 'AuthenticationService', 'ToastService', 'ProfileV2Util', 'MemberChecksV2', 'TaDocFull'];
+function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout, PoidService, AuthenticationService, ToastService, U, Checks, TaDocFull) {
     var vm = this;
     vm.me = $rootScope.globals.currentUser;
     vm.action = $state.current.data.action;
@@ -802,6 +802,23 @@ function PoidV2Controller($rootScope, $scope, $state, $stateParams, $q, $timeout
     function close() { if (vm.checking) { return; } vm.dlg = null; vm.cpw = ''; }
     vm.imgOf = function (p, i) { var list = vm.images[p.id] || []; return list[i] && /^data:/.test(list[i].data_uri) ? list[i].data_uri : null; };
     vm.formImg = function (img) { var list = vm.images[vm.poid && vm.poid.id] || []; for (var i = 0; i < list.length; i++) { if (list[i].id === img.id && /^data:/.test(list[i].data_uri)) { return list[i].data_uri; } } return null; };
+    /* a shown image opens full screen with zoom (owner, 13 Nov 2026) — the shared lightbox, TaDocFull (js/v2/core/docview.js);
+       no Download / new tab: the images are shown from the encrypted copy and stay in the page. `p` = the record, `at` = the
+       image (the form) or its position (the list). */
+    var fullView = null;
+    vm.imgFull = function (p, at) {
+        if (!p || !vm.revealed) { return; }
+        var list = function () { return (vm.images[p.id] || []).filter(function (im) { return /^data:/.test(im.data_uri); }); };
+        var start = 0, all = vm.images[p.id] || [], k;
+        for (k = 0; k < all.length; k++) { if (angular.isNumber(at) ? k === at : all[k].id === at.id) { start = Math.max(0, list().indexOf(all[k])); break; } }
+        fullView = TaDocFull.open({
+            index: start, actions: false,
+            count: function () { return list().length; },
+            at: function (i) { var im = list()[i]; return { url: im ? im.data_uri : null, kind: 'image', title: p.title || 'Proof of ID', sub: 'Image ' + (i + 1) }; },
+            onClose: function () { fullView = null; }
+        });
+    };
+    $scope.$on('$destroy', function () { if (fullView) { fullView.close(); } });
 
     function removeNew(file, $flow) {
         var paths = U.flowPaths(file);

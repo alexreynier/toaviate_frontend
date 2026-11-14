@@ -52,8 +52,9 @@ app.controller('FlightReplayController', FlightReplayController);
         // so they read the same on the scrubber ticks, the legend and the event card.
         vm.eventLegend = [
             { kind: 'takeoff',      symbol: '▲', label: 'Take-off' },
-            { kind: 'full_stop',    symbol: '▼', label: 'Full stop' },
-            { kind: 'stop_and_go',  symbol: '▼', label: 'Stop-and-go' },
+            // two landing kinds for a pilot (owner, 14 Nov 2026): a landing that stopped on the runway is a full stop
+            // landing even if the aircraft then took off again — a tracked stop_and_go is drawn and named as a full stop
+            { kind: 'full_stop',    symbol: '▼', label: 'Full stop landing' },
             { kind: 'touch_and_go', symbol: '▼', label: 'Touch-and-go' },
             { kind: 'go_around',    symbol: '↺', label: 'Go-around' }
         ];
@@ -487,9 +488,9 @@ app.controller('FlightReplayController', FlightReplayController);
         // ════════════════════════════════════════════════
         var EVENT_COLOURS = {
             takeoff: '#0ea5e9',        // sky — "go"
-            full_stop: '#dc2626',      // landing kinds read as a traffic light:
-            stop_and_go: '#f59e0b',    //   red = stopped, amber = stopped then went,
-            touch_and_go: '#16a34a',   //   green = never stopped
+            full_stop: '#dc2626',      // red = the aircraft stopped on the runway
+            stop_and_go: '#dc2626',    //   (stopped, then took off again: a full stop landing too)
+            touch_and_go: '#16a34a',   // green = never stopped
             go_around: '#1e3a5f',      // brand navy
             landing: '#64748b'         // landing with no kind yet
         };

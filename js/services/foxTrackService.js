@@ -91,8 +91,11 @@ function FoxTrackService($http, $location) {
             go_around:                  'climb-out without a touchdown'
         })[m] || (m || '');
     }
-    function landingKindLabel(k) {
-        return ({ full_stop: 'full stop', stop_and_go: 'stop-and-go', touch_and_go: 'touch-and-go' })[k] || (k || 'landing');
+    // A landing where the aircraft stopped on the runway and then took off again is a FULL STOP landing to a UK pilot
+    // (owner, 14 Nov 2026): pilots only ever read "full stop" or "touch-and-go". `detail` (ToAviate's own track tools and the
+    // reconciliation notes) keeps the tracker's third kind visible for diagnosis.
+    function landingKindLabel(k, detail) {
+        return ({ full_stop: 'full stop', stop_and_go: detail ? 'full stop (stop-and-go)' : 'full stop', touch_and_go: 'touch-and-go' })[k] || (k || 'landing');
     }
     // sheet.track_counts_source (§2.1) → { label, cls } — null/undefined → null (show nothing)
     function countsSourceChip(source) {

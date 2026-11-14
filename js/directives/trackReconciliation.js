@@ -298,7 +298,7 @@ app.directive('trackReconciliation', ['FoxTrackService', 'ToastService', '$rootS
                 });
                 angular.forEach(cmp.track_only || [], function (e) {
                     var ev = e.landing || e;
-                    var kind = ev.landing_kind ? FoxTrackService.landingKindLabel(ev.landing_kind) : 'landing';
+                    var kind = ev.landing_kind ? FoxTrackService.landingKindLabel(ev.landing_kind, true) : 'landing';
                     var method = ev.method ? FoxTrackService.methodLabel(ev.method) : '';
                     rc.notes.push({
                         tone: 'info',

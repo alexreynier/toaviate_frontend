@@ -681,6 +681,17 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   image click = zoom (fit ↔ large, scroll to pan), a PDF fills the screen in the browser's reader; Download ("Insurance.pdf")
   and Open in a new tab are icons in its bar; Esc (caught in the capture phase) closes the lightbox only, and the app header
   steps aside (`body.ta-docfull-open`, core.css). iOS PDFs keep "Open in a new tab". Any new v2 document row should use it.
+  **The lightbox is a service of its own since 13 Nov (owner: "zoom into the document, or see it full screen" on My Account):**
+  `TaDocFull.open({index, count, at(i) → {url, kind:'image'|'pdf', title, sub, name, ext}, onIndex, onClose, actions})` (same
+  file; `<ta-doc-view>` calls it). `at` is read every digest, so a full-size scan can replace its thumbnail while it is open.
+  Under the document: a pages pill ("2 of 4", arrow keys) when there are several, and a zoom pill (− Fit +, steps 150 … 800%,
+  the label = back to fit); a click / tap zooms AT that point, pinch (two-finger touch handlers; the stage has `touch-action:
+  pan-x pan-y`) and ctrl + wheel zoom smoothly, keys + − 0. The zoom class and width go on the element directly (not via the
+  digest) so the point under the pointer can be kept. `actions: false` drops Download / new tab — used for the ENCRYPTED scans:
+  the licence / medical scan viewer (`vm.viewFull`, the scan itself + "Full screen" in views/v2/licences/_dlgs.html; the
+  lightbox's page moves the dialog underneath too), proof-of-ID images once shown (`vm.imgFull`, list + form) and the
+  differences form's saved logbook pages (`vm.dPageFull`). A page that shows an image the user must READ should open it this
+  way, never in a box of its own. Walk: scratchpad `hdr/zoom.js` (123: both widths, real backend, generated scan pages).
 - **My Logbook says the pilot's name, not "Self"** (owner, 11 Nov): `vm.me` in js/v2/logbook (from the signed-in user) —
   "A. Reynier", a quiet initial + the surname strong (`.lgb-me`), in the PIC / instructor column and the opened flight's PIC line.
 - **Times you type or pick: `<ta-time ng-model input-id label near min step format ng-disabled>`** (js/v2/core/timefield.js,
@@ -724,6 +735,17 @@ per-browser switch. Nothing v1 changes when the switch is off. Build log, owners
   `awaiting_card` + invoice_id (start by invoice_id; new card finishes with `payments/process_payment`), saved-card 3DS =
   `requires_action` → `cards/check_payment {paymentID}`. Split flights stay on today's PUT (`SPLIT_NOT_SUPPORTED`). The
   codes are in the write guard's `HANDLED_CODES`; the quote URL is silent (`SILENT_URL_PATTERNS`). v1 book-in is unchanged.
+- **Book-in landings = ONE number with its split** (owner, 14 Nov 2026: "8 + 4 = 12: just 1 number with a split"): the Landings block of
+  views/v2/bookin/book_in.html leads with `.bki-land` ("12 landings in total" + `vm.bk_land_split()` = "8 full stops + 4 touch and goes"
+  [+ "1 away"]; one kind only = "all full stops" / "a full stop"), then the steppers Full stops · Touch and goes · Landings away; the
+  summary's Route row adds the split in brackets (`bk_land_split(true)`). The member-facing words are "touch and go(es)" — never
+  "stop-and-go" on a member-facing v2 page (owner, 14 Nov: a landing where the aircraft STOPPED on the runway and took off again is a "full stop" to a
+  UK pilot; a touch and go = no stop). A tracked stop-and-go is ADDED to the full stops: this form, Claim a Flight's breakdown (`ldgBreakdown`) and the v2
+  replay's "Full stops" tile. The replay says the same in BOTH designs (owner, 14 Nov, the owner's v1 exception): legend "Full stop landing" · "Touch-and-go", a tracked
+  `stop_and_go` pin / tick / card is red like a full stop and labelled "full stop landing" (`FoxTrackService.landingKindLabel(k)`; pass
+  `detail = true` only on ToAviate's own screens — track tools, reconciliation notes — where it reads "full stop (stop-and-go)").
+  Classic Claim a Flight still says "stop-and-go" (v1, untouched). Walk: scratchpad `hdr/replaylegend.js` (14, one stop-and-go injected).
+  Walk: scratchpad `hdr/land.js` (39, an open book-out, every write refused in the browser).
 - **Testing v2** (scratchpad Playwright): `localStorage.setItem('toaviate_design_v2','1')` after login; give every browser
   context its OWN userAgent (a login deletes the same user's sessions with the same UA, so parallel runs log each other
   out); move the mouse in runs over 5 min (the idle privacy blur covers the page); desktop 1440 + phone 390, light + night.
@@ -872,6 +894,35 @@ reporter_name` while `maintenance_access/issues` sends `defect / first_name / la
 (the app does not do these yet)" — everything the drawing promises that the app lacks, backend included (removing an aircraft cancels
 its bookings and emails the members; ending a membership cancels later bookings and, once nothing is owed, the direct debit; the
 readiness read; "Back online"; …). When a page is approved, build that list in the same release, and tick items off there.
+
+## Take another aircraft — mockup (14 Nov 2026, awaiting the owner's review; nothing built)
+
+`../mockups/my-account/switch-aircraft.html` (prefix `swa-`, listed on the My Account index): a crew rejects the aircraft they booked
+(after the check, on start-up) and takes another for the SAME flight. Starts from My Account ("Cancel book-out" becomes "Not flying
+G-…?": take another aircraft · cancel the book-out) or from the book-out page's Reject sheet (new first choice). One page: why (something
+is wrong → a defect report on the rejected aircraft with the reporter's "should not fly" tick · nothing wrong → optional reason), which
+aircraft (same type free · another type free with the price difference · BOOKED during the slot, "booked for X from … until … Are you
+sure?" + a tick · cannot be taken), what happens. Then the normal book-out page for the new aircraft with crew / flight / passengers
+carried over and only the aircraft cards left (status, defects, Check A on its first flight of the day or a transit check, which must
+be FILLED IN). Its notes hold the build list. **Owner's answers (14 Nov):** the reason as drawn; any pilot on the booking may switch (a
+solo student too); a booked aircraft follows the club's double-booking setting (instructors / admins where the club says so), the other
+pilot + ops are both e-mailed; the flight's CREW and the club's instructors / admins may cancel its book-out / switch, never a passenger (today `can_cancel_bookout` = creator, pilot, PIC,
+instructor, club staff: add the pilot under training); an aircraft not yet booked in may be taken (stronger warning, the crew reads the meter); any type the pilot /
+instructor may fly; no ground-run entry; later crews on the rejected aircraft see the reporter's "do not fly" report first on their
+book-out page and may still accept it with a tick (recorded, club told) until the club takes it offline (mockup page 5); the book-in page
+is not a starting point. The Today row in the mockup is the app's own (`hmc-`), only its second button changes ("Not flying G-…?", outlined in RED — owner: the quiet
+`.ta-btn--danger` did not read as a button; proposed ta-base variant `.ta-btn--danger-line`). **Finding an aircraft** (owner, 14 Nov: the search view is the DEFAULT at every club with more than one aircraft; scenario "A club
+with 20 aircraft"): the free aircraft are ranked (same type · same price · Check A done · no defects · hours left) with a "Closest match" tag on the first (not
+pre-chosen: the owner confirmed a tap), a search (registration or type, over EVERY aircraft; Enter takes a single match) and a chip per type always, and, from seven
+aircraft only, groups that show three and fold the booked / unavailable ones away. A club with ONE aircraft has nothing to switch to: "Not flying G-…?" there offers only
+"Cancel the book-out" (owner, 14 Nov). **Today's app, for the build** (read in the code): `PlaneLogSheets::delete` (cancel book-out)
+deletes the sheet and resets `bookings.booked_out` only — the `airfield_bookouts` lines (departure, student-solo child, arrival / PPR),
+the AirfieldHub records and `plane_passengers` stay, although `AirfieldBookouts::cancel_bookout` exists; it takes no reason. A booked-out
+booking can be edited by a club manager only (`is_user_allowed_edit`), and changing its aircraft moves `bookings.plane_id` alone (sheet,
+airfield lines, checks stay on the old aircraft); no route changes a sheet's `plane_id`. `accept_defects` is checked in the browser only,
+never sent or stored. No read says who holds an aircraft and until when (`get_planes` = free ones; a taken one is a waiting-list resource
+with a count). A waiting-list booking cannot be booked out (`bookout_booking_integrity`), so taking a booked aircraft needs a new kind of
+overlap. An `aircraft_checks` row needs `booking.plane_id == check plane_id`, so the booking must move before the new check.
 
 ## Member import, membership aircraft prices, unsaved fields (fixed 12 Nov 2026)
 

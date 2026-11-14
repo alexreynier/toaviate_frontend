@@ -187,8 +187,8 @@ app.directive('licDocsBar', ['$rootScope', '$state', 'LicencesV2Data', 'ProfileV
 
 /* ═══ The hub lists: Licences · Medical · Differences ═══ */
 app.controller('DocsHubV2Controller', DocsHubV2Controller);
-DocsHubV2Controller.$inject = ['$rootScope', '$scope', '$state', '$q', '$timeout', 'LicencesV2Data', 'LicStatus', 'ProfileV2Util', 'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', 'ToastService', 'MemberChecksV2'];
-function DocsHubV2Controller($rootScope, $scope, $state, $q, $timeout, Data, LS, U, LicenceService, MedicalService, DifferencesService, AuthenticationService, ToastService, Checks) {
+DocsHubV2Controller.$inject = ['$rootScope', '$scope', '$state', '$q', '$timeout', 'LicencesV2Data', 'LicStatus', 'ProfileV2Util', 'LicenceService', 'MedicalService', 'DifferencesService', 'AuthenticationService', 'ToastService', 'MemberChecksV2', 'TaDocFull'];
+function DocsHubV2Controller($rootScope, $scope, $state, $q, $timeout, Data, LS, U, LicenceService, MedicalService, DifferencesService, AuthenticationService, ToastService, Checks, TaDocFull) {
     var vm = this;
     vm.me = $rootScope.globals.currentUser;
     vm.screen = $state.current.data.screen;      // 'licences' | 'medical' | 'differences'
@@ -394,6 +394,39 @@ function DocsHubV2Controller($rootScope, $scope, $state, $q, $timeout, Data, LS,
     };
     vm.viewSrc = function () { var g = vm.dlg; if (!g || g.t !== 'view') { return null; } return (g.imgs && g.imgs[g.i]) || vm.thumb(g.key, g.i); };
     vm.vnav = function (step) { var g = vm.dlg, n = g.rec.images.length; g.i = Math.max(0, Math.min(n - 1, g.i + step)); };
+    /* full screen + zoom (owner, 13 Nov 2026: "it is a bit small to read"): the shared lightbox (TaDocFull, js/v2/core/docview.js)
+       over the viewer, on the page being looked at; its pages pill moves the viewer underneath too. No Download / new tab:
+       the scans are shown from the encrypted copy and stay in the page. */
+    var fullView = null;
+    vm.viewTitle = function (g, i) {
+        var lic = g.key.indexOf('lic') === 0;
+        return (lic ? (vm.typeOf(g.rec.licence_id).abbreviation || g.rec.licence_type) : vm.medTitle(g.rec)) + ' — ' + String(vm.side(lic ? 'card' : 'sheet', i)).toLowerCase();
+    };
+    vm.viewFull = function () {
+        var g = vm.dlg;
+        if (!g || g.t !== 'view' || !vm.viewSrc()) { return; }
+        fullView = TaDocFull.open({
+            index: g.i, actions: false,
+            count: function () { return g.rec.images.length; },
+            at: function (i) {
+                return { url: (g.imgs && g.imgs[i]) || vm.thumb(g.key, i), kind: 'image', title: vm.viewTitle(g, i),
+                    sub: [g.rec.licence_number || g.rec.certificate_number, vm.authOf(g.rec.authority_id).abbreviation].filter(Boolean).join(' · ') };
+            },
+            onIndex: function (i) { if (vm.dlg === g) { g.i = i; } },
+            onClose: function () { fullView = null; }
+        });
+    };
+    // the saved logbook pages of the differences form
+    vm.dPageFull = function (page) {
+        var list = function () { return ((vm.dd && vm.dd.images) || []).filter(function (im) { return im.data_uri && im.data_uri.indexOf('data:') === 0; }); };
+        fullView = TaDocFull.open({
+            index: Math.max(0, list().indexOf(page)), actions: false,
+            count: function () { return list().length; },
+            at: function (i) { var im = list()[i]; return { url: im ? im.data_uri : null, kind: 'image', title: 'Logbook page ' + (i + 1), sub: 'Differences training' }; },
+            onClose: function () { fullView = null; }
+        });
+    };
+    $scope.$on('$destroy', function () { if (fullView) { fullView.close(); } });
     vm.viewEdge = function (rec) { var st = rec._key.indexOf('lic') === 0 ? rec._st : vm.medStatus(rec); return st.rank === 3 ? 'var(--ta-bad)' : st.rank === 2 ? 'var(--ta-warn)' : 'var(--ta-good)'; };
     vm.close = function () { if (vm.checking) { return; } vm.dlg = null; vm.pw = ''; };
     vm.scrim = function ($event) { if ($event.target === $event.currentTarget) { vm.close(); } };

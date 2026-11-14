@@ -922,7 +922,7 @@ ta-time { display: block; min-width: 0; }
   .ta-docview__img, .ta-docview__pdf { max-height: 60vh; height: 60vh; }
   .ta-docview__img { height: auto; }
 }
-/* ── the document full screen (docview.js dv.full) — the defect photo lightbox's look (css/defect-media.css .dm-lightbox):
+/* ── the document full screen (docview.js TaDocFull) — the defect photo lightbox's look (css/defect-media.css .dm-lightbox):
    the document centred on a near-black ground, round translucent buttons, a quiet caption. Appended to <body>, so it
    states its own font; the same dark colours in both themes. z-index above every v2 layer (.ta-dlg-scrim 10050). ── */
 .ta-docfull { position: fixed; inset: 0; z-index: 10090; display: flex; flex-direction: column; background: rgba(15, 23, 42, 0.94); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #fff; outline: none; cursor: zoom-out; animation: ta-fade 0.18s ease-out backwards;
@@ -940,14 +940,29 @@ ta-time { display: block; min-width: 0; }
 .ta-docfull__btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .ta-docfull__btn--x { margin-left: 6px; background: #fff; color: #1e293b; font-size: 17px; }
 .ta-docfull__btn--x:hover { background: #e2e8f0; color: #1e293b; }
-.ta-docfull__stage { flex: 1 1 auto; min-height: 0; display: flex; padding: 6px 20px 8px; overflow: hidden; }
+.ta-docfull__stage { flex: 1 1 auto; min-height: 0; display: flex; padding: 6px 20px 8px; overflow: hidden; touch-action: pan-x pan-y; }   /* two fingers = the viewer's own pinch (TaDocFull), never the browser's page zoom */
+.ta-docfull__wait { margin: auto; font-size: 26px; line-height: 1; color: rgba(255, 255, 255, 0.7); cursor: default; }
 .ta-docfull__img { display: block; flex: none; max-width: 100%; max-height: 100%; margin: auto; border-radius: 6px; background: #fff; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); cursor: zoom-in; animation: ta-docfull-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 @keyframes ta-docfull-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
 .ta-docfull--zoom .ta-docfull__stage { overflow: auto; overscroll-behavior: contain; }
 .ta-docfull--zoom .ta-docfull__img { max-width: none; max-height: none; height: auto; cursor: zoom-out; }
 .ta-docfull__pdf { display: block; flex: 1 1 auto; width: 100%; max-width: 1180px; height: 100%; margin: 0 auto; border: 0; border-radius: 8px; background: #fff; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); cursor: default; animation: ta-docfull-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 .ta-docfull--pdf .ta-docfull__stage { padding-bottom: 20px; }
-.ta-docfull__hint { flex: none; padding: 4px 16px 14px; text-align: center; font-size: 12.5px; line-height: 1.3; color: rgba(255, 255, 255, 0.62); cursor: default; }
+/* the tools under the document: the pages pill ("2 of 4") and the zoom pill (− Fit +) */
+.ta-docfull__tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 4px 16px 6px; cursor: default; }
+.ta-docfull__pill { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); }
+.ta-docfull__pill b, .ta-docfull__pv { min-width: 62px; margin: 0; padding: 0 6px; border: 0; background: none; text-align: center; font-size: 13px; line-height: 38px; font-weight: 700; letter-spacing: 0; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ta-docfull__pv { border-radius: 999px; cursor: pointer; -webkit-appearance: none; appearance: none; transition: background 0.15s ease; }
+.ta-docfull__pv:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.ta-docfull__pv:disabled { cursor: default; color: rgba(255, 255, 255, 0.78); }
+.ta-docfull__pb { flex: none; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #fff; font-size: 14px; line-height: 1; cursor: pointer; -webkit-appearance: none; appearance: none; transition: background 0.15s ease, transform 0.15s ease; }
+.ta-docfull__pb:hover:not(:disabled) { background: rgba(255, 255, 255, 0.24); color: #fff; }
+.ta-docfull__pb:active:not(:disabled) { transform: scale(0.92); }
+.ta-docfull__pb:disabled { opacity: 0.34; cursor: default; }
+.ta-docfull__pb:focus, .ta-docfull__pv:focus { outline: none; }
+.ta-docfull__pb:focus-visible, .ta-docfull__pv:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.ta-docfull__hint { flex: none; padding: 2px 16px 12px; text-align: center; font-size: 12.5px; line-height: 1.3; color: rgba(255, 255, 255, 0.62); cursor: default; }
+.ta-docfull__hint-touch { display: none; }
 body.ta-docfull-open { overflow: hidden; }
 @media (max-width: 640px) {
   .ta-docfull__bar { gap: 8px; padding: 10px 10px 8px 14px; }
@@ -958,7 +973,9 @@ body.ta-docfull-open { overflow: hidden; }
   .ta-docfull__stage { padding: 4px 10px 6px; }
   .ta-docfull--pdf .ta-docfull__stage { padding: 4px 0 0; }
   .ta-docfull__pdf { border-radius: 0; }
-  .ta-docfull__hint span { display: none; }
+  .ta-docfull__tools { gap: 8px; padding: 4px 10px 4px; }
+  .ta-docfull__pb { width: 44px; height: 44px; }
+  .ta-docfull__pill b, .ta-docfull__pv { min-width: 56px; line-height: 44px; }
 }
-@media (hover: none) { .ta-docfull__hint { font-size: 12px; } }
-@media (prefers-reduced-motion: reduce) { .ta-docfull, .ta-docfull__img, .ta-docfull__pdf { animation: none; } .ta-docfull__btn { transition: none; } }
+@media (hover: none) { .ta-docfull__hint { font-size: 12px; } .ta-docfull__hint-mouse { display: none; } .ta-docfull__hint-touch { display: inline; } }
+@media (prefers-reduced-motion: reduce) { .ta-docfull, .ta-docfull__img, .ta-docfull__pdf { animation: none; } .ta-docfull__btn, .ta-docfull__pb, .ta-docfull__pv { transition: none; } }
